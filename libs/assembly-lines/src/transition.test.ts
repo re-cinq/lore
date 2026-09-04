@@ -299,6 +299,42 @@ describe("getNextTransition", () => {
     expect(t).toMatchObject({ kind: "fail", outcome: "error" });
     expect((t as { reason: string }).reason).toContain("diverge");
   });
+
+  it("numbers a first-time budgeted hop at iteration 1 (no prior visit of the target to look up)", () => {
+    const budgetedForwardEdge = parseAssemblyLine(`
+name: budgeted-forward
+description: d
+version: 1
+entry: a
+exit: done
+nodes:
+  - id: a
+    type: agent
+  - id: b
+    type: agent
+  - id: done
+    type: retrospective
+edges:
+  - from: a
+    to: b
+    on: success
+    iteration_max: 3
+  - from: a
+    to: done
+    on: changes_requested
+  - from: a
+    to: done
+    on: failed
+  - from: b
+    to: done
+    on: always
+`);
+    const t = getNextTransition(budgetedForwardEdge, [
+      visit("a", 1, "success"),
+    ]);
+
+    expect(t).toEqual({ kind: "launch", nodeId: "b", iteration: 1 });
+  });
 });
 
 describe("getNextTransition walks every builtin assembly line to finish on success", () => {

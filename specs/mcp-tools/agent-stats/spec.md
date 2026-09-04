@@ -72,14 +72,14 @@ three failure texts, or `"Error fetching agent stats: {message}"`.
 ## Acceptance Criteria
 
 The request goes to `GET /api/agent-stats` for the resolved agent with the
-bearer token, and the response is printed as JSON. ([validated by `proxies to GET /api/agent-stats for the resolved agent and prints the JSON`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L108))
+bearer token, and the response is printed as JSON. ([validated by `proxies to GET /api/agent-stats for the resolved agent and prints the JSON`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L264))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L125))
+PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L281))
 
-Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts:307`](libs/server-core/src/features/memory/memory.test.ts#L307))
+Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts:377`](libs/server-core/src/features/memory/memory.test.ts#L377))
 
-Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `memory.test.ts:283`](libs/server-core/src/features/memory/memory.test.ts#L283))
+Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `memory.test.ts:353`](libs/server-core/src/features/memory/memory.test.ts#L353))
 
 ## Out of Scope
 

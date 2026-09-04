@@ -114,9 +114,25 @@ The post-200 spec-coverage-validate fan-out is resilient: it is a no-op when the
 
 The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L100), [implemented by](../../../apps/lore-api/src/api/routes/ingest/ingest.ts#L21))
 
-A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/features/spec-trace/ingest.test.ts#L48), [`ingest.test.ts:57`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L57))
+A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/features/spec-trace/ingest.test.ts#L61), [`ingest.test.ts:57`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L70))
 
-When the supplied `commit` belongs to a different repo than the one being fetched, content resolution falls back to `HEAD`; a matching repo keeps the specific commit, and the fetch retries refs in order (specific commit, then `HEAD`) without duplicating `HEAD` when the commit is already `HEAD`. ([validated by commit SHA fallback uses HEAD when commit is from a different repo](apps/lore-api/src/features/spec-trace/ingest.test.ts#L70), [`ingest.test.ts:80`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L80), [`ingest.test.ts:90`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L90), [`ingest.test.ts:97`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L97))
+When the supplied `commit` belongs to a different repo than the one being fetched, content resolution falls back to `HEAD`; a matching repo keeps the specific commit, and the fetch retries refs in order (specific commit, then `HEAD`) without duplicating `HEAD` when the commit is already `HEAD`. ([validated by commit SHA fallback uses HEAD when commit is from a different repo](apps/lore-api/src/features/spec-trace/ingest.test.ts#L83), [`ingest.test.ts:80`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L93), [`ingest.test.ts:90`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L103), [`ingest.test.ts:97`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L110))
+
+### ingestFiles content resolution and per-file outcomes
+
+A file resolved at the exact given commit is ingested with a single GitHub call — no HEAD retry. ([validated by `ingests a file resolved at the given commit without retrying HEAD`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L177))
+
+A 404 at the given commit (when it differs from `HEAD`) retries the fetch at `HEAD` and ingests the file found there. ([validated by `falls back to HEAD when the commit is unknown to the repo`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L200))
+
+When the commit is already `HEAD` and the file 404s, the file is reported `deleted` (its chunks removed) without a second fetch attempt. ([validated by `marks a file deleted (no HEAD retry) when the commit is already HEAD and the file 404s`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L230))
+
+A path that resolves to a directory (no file content) is reported `skipped` with `"not a file (directory?)"`, not deleted. ([validated by `skips a not-a-file result (directory) without deleting or throwing`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L254))
+
+Inline `{path, content}` files never call GitHub; an unclassifiable extension is reported `skipped` with `"unsupported file type"`. ([validated by `skips an unsupported file type without a GitHub call for inline content`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L273))
+
+A non-404 GitHub failure is caught per-file and reported as an `error` result rather than throwing out of `ingestFiles`. ([validated by `records an error result (not a thrown error) for a non-404 GitHub failure`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L288))
+
+The returned `ingested`/`deleted`/`errors` counts tally the per-file outcomes of a mixed batch. ([validated by `tallies ingested, deleted, and error counts across a mixed batch`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L308))
 
 ## Out of Scope
 

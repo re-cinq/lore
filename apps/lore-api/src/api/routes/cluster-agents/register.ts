@@ -10,8 +10,10 @@ import { z } from "zod";
 import {
   decideRegistration,
   type ClusterAgentsRepository,
+  type RegisterClusterAgentInput,
   type RegistrationDecision,
 } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
+import type { ClusterAgent } from "@re-cinq/lore-shared/models/cluster-agent.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 import {
   mintAgentToken,
@@ -56,6 +58,44 @@ export interface RegisterDeps {
   registrationToken: string | undefined;
 }
 
+function isUnauthorizedRegistration(
+  deps: RegisterDeps,
+  bearer: string | undefined,
+): boolean {
+  return (
+    !deps.registrationToken ||
+    !bearer ||
+    !secretEquals(bearer, deps.registrationToken)
+  );
+}
+
+type IssuableDecision = Exclude<RegistrationDecision, { kind: "reject" }>;
+
+/** Re-registering KEEPS its token: rotating would 401 running pods already holding the credential (#1587). */
+function issueTokenForDecision(
+  decision: IssuableDecision,
+  presented: string,
+): { token: string; tokenHash: string } {
+  return decision.kind === "create"
+    ? mintAgentToken()
+    : { token: presented, tokenHash: decision.tokenHash };
+}
+
+function persistRegistration(
+  deps: RegisterDeps,
+  decision: IssuableDecision,
+  input: RegisterClusterAgentInput,
+): Promise<ClusterAgent | null> {
+  return decision.kind === "create"
+    ? deps.repository.create(input)
+    : deps.repository.refresh(decision.id, input);
+}
+
+const NAME_TAKEN = {
+  code: 409 as const,
+  body: { error: "name is registered to a live identity" },
+};
+
 /** The handler core, injectable for tests: gate, decide, mint, persist. */
 export async function handleRegister(
   deps: RegisterDeps,
@@ -65,11 +105,7 @@ export async function handleRegister(
   | { code: 200; body: z.infer<typeof RegisterResponse> }
   | { code: 401 | 409 | 503; body: { error: string } }
 > {
-  if (
-    !deps.registrationToken ||
-    !bearer ||
-    !secretEquals(bearer, deps.registrationToken)
-  ) {
+  if (isUnauthorizedRegistration(deps, bearer)) {
     return { code: 401, body: { error: "unauthorized" } };
   }
 
@@ -81,34 +117,21 @@ export async function handleRegister(
   );
 
   if (decision.kind === "reject") {
-    return {
-      code: 409,
-      body: { error: "name is registered to a live identity" },
-    };
+    return NAME_TAKEN;
   }
 
-  // Re-registering KEEPS its token: rotating would 401 running pods already holding the credential (#1587).
-  const issued =
-    decision.kind === "create"
-      ? mintAgentToken()
-      : { token: presented, tokenHash: decision.tokenHash };
-  const input = {
+  const issued = issueTokenForDecision(decision, presented);
+  const input: RegisterClusterAgentInput = {
     name: body.name,
     tags: body.tags,
     tokenHash: issued.tokenHash,
     clusterInfo: body.cluster_info,
   };
-  const agent =
-    decision.kind === "create"
-      ? await deps.repository.create(input)
-      : await deps.repository.refresh(decision.id, input);
+  const agent = await persistRegistration(deps, decision, input);
 
   if (agent === null) {
     // Lost a concurrent registration — same as a taken name.
-    return {
-      code: 409,
-      body: { error: "name is registered to a live identity" },
-    };
+    return NAME_TAKEN;
   }
 
   return {

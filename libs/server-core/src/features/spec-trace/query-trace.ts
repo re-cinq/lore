@@ -147,6 +147,19 @@ export interface QueryTraceDeps {
   detectRepo: () => string | null;
 }
 
+function formatProxyFailure(
+  result: Extract<ProxyResult, { ok: false }>,
+): string {
+  if (result.reason === "not_configured") {
+    return "lore-query-trace needs LORE_API_URL + a read-scoped LORE_INGEST_TOKEN to reach the graph; neither is configured.";
+  }
+  const scopeHint = result.detail.includes("403")
+    ? " — the token needs `read` scope for trace queries."
+    : "";
+
+  return `Lore API unreachable for lore-query-trace: ${result.detail}.${scopeHint}`;
+}
+
 /** Orchestrates query: resolves repo, proxies GET for trace document, formats result (never throws). */
 export async function runQueryTrace(
   args: QueryTraceArgs,
@@ -161,16 +174,8 @@ export async function runQueryTrace(
     `/api/repos/${repo}/trace/document?path=${encodeURIComponent(args.spec)}`,
   );
 
-  if (!result.ok && result.reason === "not_configured") {
-    return "lore-query-trace needs LORE_API_URL + a read-scoped LORE_INGEST_TOKEN to reach the graph; neither is configured.";
-  }
-
   if (!result.ok) {
-    const scopeHint = result.detail.includes("403")
-      ? " — the token needs `read` scope for trace queries."
-      : "";
-
-    return `Lore API unreachable for lore-query-trace: ${result.detail}.${scopeHint}`;
+    return formatProxyFailure(result);
   }
 
   return formatTraceQuery(

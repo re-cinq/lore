@@ -36,7 +36,7 @@ This tool takes no parameters.
 ## Behavior
 
 1. Dynamically import `stopNotifier` from `runner.local` and call it
-   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L863)). It:
+   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1282)). It:
    1. If the module-level interval handle is set, `clearInterval` it and null the handle.
    2. Best-effort `fs.unlinkSync(~/.lore/pending-tasks.json)`; a missing file is swallowed.
 2. Return `"Task notifications stopped."`.

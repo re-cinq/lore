@@ -5,28 +5,27 @@ export interface LineInterval {
   endLine: number;
 }
 
+function parseInterval(segment: string): LineInterval | undefined {
+  const [rawStart, rawEnd] = segment.split("-");
+  const startLine = Number(rawStart?.trim());
+
+  if (!Number.isFinite(startLine)) {
+    return undefined;
+  }
+  const endLine = rawEnd === undefined ? startLine : Number(rawEnd.trim());
+
+  return { startLine, endLine: Number.isFinite(endLine) ? endLine : startLine };
+}
+
 export function parseRangesFacet(
   facet: string | undefined | null,
 ): LineInterval[] {
   if (!facet) {
     return [];
   }
-  const intervals: LineInterval[] = [];
 
-  for (const segment of facet.split(",")) {
-    const [rawStart, rawEnd] = segment.split("-");
-    const startLine = Number(rawStart?.trim());
-
-    if (!Number.isFinite(startLine)) {
-      continue;
-    }
-    const endLine = rawEnd === undefined ? startLine : Number(rawEnd.trim());
-
-    intervals.push({
-      startLine,
-      endLine: Number.isFinite(endLine) ? endLine : startLine,
-    });
-  }
-
-  return intervals;
+  return facet
+    .split(",")
+    .map(parseInterval)
+    .filter((interval): interval is LineInterval => interval !== undefined);
 }

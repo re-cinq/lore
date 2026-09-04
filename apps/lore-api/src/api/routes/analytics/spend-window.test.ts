@@ -511,4 +511,18 @@ describe("GET /api/analytics/spend-window", () => {
       false,
     );
   });
+
+  it("falls back to billed-only spend when the computed llm_calls query's table is absent", async () => {
+    const server = await serverWith(BASE_ROWS, {}, [], (sql) =>
+      sql.includes("sr.cluster_agent_id IS NULL"),
+    );
+    const body = JSON.parse((await get(server)).payload);
+
+    expect(body.budget).toEqual({
+      ledger_total_usd: 500,
+      spent_since_usd: 300,
+      remaining_usd: 200,
+      anchored_at: "2026-08-01T00:00:00Z",
+    });
+  });
 });

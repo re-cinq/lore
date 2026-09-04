@@ -93,13 +93,13 @@ Across a mixed batch only the previously-unseen tasks count toward `created`. ([
 The markdown is parsed into structured tasks with id, description, completion, parallel and dependency markers. ([validated by `tasks.test.ts:5`](libs/server-core/src/features/pipeline/tasks.test.ts#L5))
 
 The raw markdown, repo, and slug are posted to `/api/spec-tasks/sync` and the
-counts are rendered as the synced/created summary. ([validated by `lore_sync_tasks posts the raw markdown and summarizes the counts`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L320))
+counts are rendered as the synced/created summary. ([validated by `lore_sync_tasks posts the raw markdown and summarizes the counts`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L466))
 
 Markdown that parses to no tasks renders the no-tasks message instead of a
-zero-count summary. ([validated by `lore_sync_tasks reports markdown with no tasks`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L342))
+zero-count summary. ([validated by `lore_sync_tasks reports markdown with no tasks`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L488))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L433))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L579))
 
 ## Out of Scope
 

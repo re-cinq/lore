@@ -113,15 +113,27 @@ function parseTurnCursor(
   const [, cursorTask, afterId, chars] = match;
   const consumed = Number(chars);
 
-  if (
-    cursorTask !== taskId ||
-    consumed > offset ||
-    BigInt(afterId) > PG_BIGINT_MAX
-  ) {
+  if (cursorMismatches({ cursorTask, taskId, consumed, offset, afterId })) {
     return null;
   }
 
   return { afterId, consumed };
+}
+
+interface CursorMatch {
+  cursorTask: string;
+  taskId: string;
+  consumed: number;
+  offset: number;
+  afterId: string;
+}
+
+function cursorMismatches(match: CursorMatch): boolean {
+  if (match.cursorTask !== match.taskId || match.consumed > match.offset) {
+    return true;
+  }
+
+  return BigInt(match.afterId) > PG_BIGINT_MAX;
 }
 
 interface TurnScanStart {
@@ -135,15 +147,18 @@ function initTurnScanState(
   resume: TurnResume | null,
   offset: number,
 ): TurnScanStart {
+  const consumed = resume?.consumed ?? 0;
+  const afterId = resume?.afterId ?? "0";
+
   return {
     state: {
-      consumed: resume?.consumed ?? 0,
-      boundaryId: resume?.afterId ?? "0",
-      boundaryChars: resume?.consumed ?? 0,
+      consumed,
+      boundaryId: afterId,
+      boundaryChars: consumed,
       slice: "",
-      mustValidateResume: resume !== null && offset > resume.consumed,
+      mustValidateResume: resume !== null && offset > consumed,
     },
-    afterId: resume?.afterId ?? "0",
+    afterId,
     sawTurns: resume !== null,
   };
 }
@@ -200,7 +215,16 @@ function stepTurnScan(
     };
   }
 
-  return { kind: "continue", afterId: page.at(-1)?.id ?? state.boundaryId };
+  return { kind: "continue", afterId: nextPageAfterId(page, state) };
+}
+
+function nextPageAfterId(
+  page: Awaited<ReturnType<AgentRunTurnsRepository["listByTask"]>>,
+  state: TurnScanState,
+): string {
+  const last = page.at(-1);
+
+  return last ? last.id : state.boundaryId;
 }
 
 // Flattens turns to the UTF-16 slice [offset, offset+LOG_SLICE_MAX); `resume` seeks straight to the previous cursor's row boundary instead of re-paging the whole prefix (#1307) — a stale/forged offset past the boundary falls back to a full rescan from row id 0, while an at-boundary cursor is trusted as-is (bearer-scoped, so a forged skip only affects the forger's own read); a rewind below the boundary self-heals the same way.
@@ -244,6 +268,75 @@ interface TurnScanState {
   mustValidateResume: boolean;
 }
 
+type TurnRow = Awaited<
+  ReturnType<AgentRunTurnsRepository["listByTask"]>
+>[number];
+
+function advanceBoundary(state: TurnScanState, row: TurnRow): void {
+  state.boundaryId = row.id;
+  state.boundaryChars = state.consumed;
+}
+
+// Consumes one row already known to end at or before the offset — advances past it without adding to the slice.
+function skipRowBeforeOffset(
+  state: TurnScanState,
+  row: TurnRow,
+  line: string,
+): void {
+  state.consumed += line.length;
+  advanceBoundary(state, row);
+}
+
+// Appends the offset-relative piece of one row to the slice; "sliced" when the row didn't fit whole.
+function appendRowToSlice(
+  state: TurnScanState,
+  row: TurnRow,
+  line: string,
+  offset: number,
+): "sliced" | null {
+  const start = Math.max(0, offset - state.consumed);
+  const piece = line.substring(
+    start,
+    start + (LOG_SLICE_MAX - state.slice.length),
+  );
+
+  state.slice += piece;
+
+  if (start + piece.length < line.length) {
+    return "sliced";
+  }
+  state.consumed += line.length;
+  advanceBoundary(state, row);
+
+  return null;
+}
+
+// Folds one row into the scan state: "restart" when the resume cursor proves stale, "sliced" when the slice budget is exhausted mid-row, else null.
+function consumeTurnRow(
+  state: TurnScanState,
+  row: TurnRow,
+  offset: number,
+): "restart" | "sliced" | null {
+  if (state.slice.length >= LOG_SLICE_MAX) {
+    return "sliced";
+  }
+  const line = `${JSON.stringify(row.envelope)}\n`;
+  const lineEndsBeforeOffset = state.consumed + line.length <= offset;
+
+  if (state.mustValidateResume && lineEndsBeforeOffset) {
+    return "restart";
+  }
+  state.mustValidateResume = false;
+
+  if (lineEndsBeforeOffset) {
+    skipRowBeforeOffset(state, row, line);
+
+    return null;
+  }
+
+  return appendRowToSlice(state, row, line, offset);
+}
+
 // Folds one page into the scan state: "restart" when the resume cursor proves stale, "sliced" when the slice budget is exhausted mid-page, else null.
 function consumeTurnPage(
   state: TurnScanState,
@@ -251,37 +344,11 @@ function consumeTurnPage(
   offset: number,
 ): "restart" | "sliced" | null {
   for (const row of page) {
-    if (state.slice.length >= LOG_SLICE_MAX) {
-      return "sliced";
-    }
-    const line = `${JSON.stringify(row.envelope)}\n`;
-    const lineEndsBeforeOffset = state.consumed + line.length <= offset;
+    const outcome = consumeTurnRow(state, row, offset);
 
-    if (state.mustValidateResume && lineEndsBeforeOffset) {
-      return "restart";
+    if (outcome) {
+      return outcome;
     }
-    state.mustValidateResume = false;
-
-    if (lineEndsBeforeOffset) {
-      state.consumed += line.length;
-      state.boundaryId = row.id;
-      state.boundaryChars = state.consumed;
-      continue;
-    }
-    const start = Math.max(0, offset - state.consumed);
-    const piece = line.substring(
-      start,
-      start + (LOG_SLICE_MAX - state.slice.length),
-    );
-
-    state.slice += piece;
-
-    if (start + piece.length < line.length) {
-      return "sliced";
-    }
-    state.consumed += line.length;
-    state.boundaryId = row.id;
-    state.boundaryChars = state.consumed;
   }
 
   return null;
@@ -316,6 +383,93 @@ async function readFromTurnStore(
   return { finished, taskRepo: task?.target_repo ?? null, turnSlice };
 }
 
+async function resolveTurnStore(
+  pool: Pool | null,
+  taskId: string,
+  offset: number,
+  cursor: string | undefined,
+): Promise<TurnStoreRead | null> {
+  if (!pool) {
+    return null;
+  }
+
+  return readFromTurnStore(pool, taskId, offset, cursor);
+}
+
+function turnStoreFinished(stored: TurnStoreRead | null): boolean {
+  return stored ? stored.finished : false;
+}
+
+function resolvedRepo(
+  requestedRepo: string | null,
+  stored: TurnStoreRead | null,
+): string | null {
+  if (requestedRepo) {
+    return requestedRepo;
+  }
+
+  return stored?.taskRepo ?? null;
+}
+
+function turnStoreSliceResponse(
+  stored: TurnStoreRead,
+  offset: number,
+): {
+  logs: string;
+  next_offset: number;
+  complete: boolean;
+  cursor: string;
+} {
+  const { turnSlice, finished } = stored;
+
+  return {
+    logs: turnSlice.slice,
+    next_offset: offset + turnSlice.slice.length,
+    complete: finished && !turnSlice.hasMore,
+    cursor: turnSlice.cursor,
+  };
+}
+
+interface LogsBucketRead {
+  pool: Pool | null;
+  repo: string;
+  taskId: string;
+  offset: number;
+  finished: boolean;
+}
+
+async function readLogsBucket({
+  pool,
+  repo,
+  taskId,
+  offset,
+  finished,
+}: LogsBucketRead): Promise<{
+  logs: string;
+  next_offset: number;
+  complete: boolean;
+}> {
+  const { Storage } = await import("@google-cloud/storage");
+  const bucket = new Storage().bucket(
+    process.env.LORE_LOG_BUCKET || "lore-task-logs",
+  );
+  const file = bucket.file(`${repo}/${taskId}/output.log`);
+  const [exists] = await file.exists();
+
+  if (!exists) {
+    return { logs: "", next_offset: 0, complete: finished };
+  }
+  const [content] = await file.download();
+  const full = content.toString("utf-8");
+
+  // The local runner re-POSTs the full buffer while running, so a bucket hit doesn't mean the run ended; no pool means no status to check.
+  return {
+    logs: full.substring(offset),
+    next_offset: full.length,
+    complete: pool ? finished : true,
+  };
+}
+
 export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -340,49 +494,27 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
 
       try {
         const pool = getPool();
-        let finished = false;
 
         // Cluster runs stream to pipeline.agent_run_turns; the bucket is only ever written by the mcp local runner, so the turn store is read first.
-        const stored = pool
-          ? await readFromTurnStore(pool, taskId, offset, query.cursor)
-          : null;
+        const stored = await resolveTurnStore(
+          pool,
+          taskId,
+          offset,
+          query.cursor,
+        );
+        const finished = turnStoreFinished(stored);
 
-        finished = stored?.finished ?? false;
-
-        if (stored?.turnSlice.sawTurns) {
-          const { turnSlice } = stored;
-
-          return h.response({
-            logs: turnSlice.slice,
-            next_offset: offset + turnSlice.slice.length,
-            complete: finished && !turnSlice.hasMore,
-            cursor: turnSlice.cursor,
-          });
+        if (stored && stored.turnSlice.sawTurns) {
+          return h.response(turnStoreSliceResponse(stored, offset));
         }
-        repo = repo ?? stored?.taskRepo ?? null;
+        repo = resolvedRepo(repo, stored);
 
         enforceTrue(repo || pool, apiError(503), DB_UNAVAILABLE);
-
         enforceTrue(repo, apiError(404), `task not found: ${taskId}`);
-        const { Storage } = await import("@google-cloud/storage");
-        const bucket = new Storage().bucket(
-          process.env.LORE_LOG_BUCKET || "lore-task-logs",
+
+        return h.response(
+          await readLogsBucket({ pool, repo, taskId, offset, finished }),
         );
-        const file = bucket.file(`${repo}/${taskId}/output.log`);
-        const [exists] = await file.exists();
-
-        if (!exists) {
-          return h.response({ logs: "", next_offset: 0, complete: finished });
-        }
-        const [content] = await file.download();
-        const full = content.toString("utf-8");
-
-        // The local runner re-POSTs the full buffer while running, so a bucket hit doesn't mean the run ended; no pool means no status to check.
-        return h.response({
-          logs: full.substring(offset),
-          next_offset: full.length,
-          complete: pool ? finished : true,
-        });
       } catch (err) {
         // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);

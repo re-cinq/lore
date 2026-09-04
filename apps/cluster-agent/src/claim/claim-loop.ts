@@ -109,15 +109,14 @@ export async function releaseClaim(deps: ReleaseDeps): Promise<void> {
   }
 }
 
-/** One poll: claim, and launch what was claimed. Never throws — every failure shape is an outcome. */
-export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
+async function requestClaim(
+  deps: ClaimTickDeps,
+): Promise<Response | ClaimOutcome> {
   const fetchFn = deps.fetchFn ?? fetch;
   const { id, token } = deps.identity();
 
-  let res: Response;
-
   try {
-    res = await fetchFn(`${deps.apiUrl}/api/cluster-agents/${id}/claim`, {
+    return await fetchFn(`${deps.apiUrl}/api/cluster-agents/${id}/claim`, {
       method: "POST",
       headers: { authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(CLAIM_TIMEOUT_MS),
@@ -128,7 +127,15 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
       message: `claim fetch failed: ${errorMessage(err)}`,
     };
   }
+}
 
+function isClaimOutcome(value: Response | ClaimOutcome): value is ClaimOutcome {
+  return "kind" in value;
+}
+
+async function readClaimBody(
+  res: Response,
+): Promise<ClaimResponse | ClaimOutcome> {
   if (res.status === 204) {
     return { kind: "empty" };
   }
@@ -141,10 +148,8 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
     return { kind: "error", message: `claim refused (HTTP ${res.status})` };
   }
 
-  let claim: ClaimResponse;
-
   try {
-    claim = (await res.json()) as ClaimResponse;
+    return (await res.json()) as ClaimResponse;
   } catch (err) {
     // A 200 carrying a proxy error page would otherwise kill the poller for good — the one throw the outcome union missed.
     return {
@@ -152,8 +157,16 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
       message: `claim response parse failed: ${errorMessage(err)}`,
     };
   }
+}
 
-  // The ROW's name wins — the watch, reconcile, and fork replay all correlate by it; launching under the spec's spelling instead orphans the CR from its row.
+function isClaimBody(
+  value: ClaimResponse | ClaimOutcome,
+): value is ClaimResponse {
+  return !("kind" in value);
+}
+
+// The ROW's name wins — the watch, reconcile, and fork replay all correlate by it; launching under the spec's spelling instead orphans the CR from its row.
+function resolveCrName(claim: ClaimResponse): string | ClaimOutcome {
   const rowName = claim.agent_cr_name;
   const specName = claim.spec.name;
 
@@ -171,8 +184,15 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
       message: `claim for station run ${claim.station_run_id} carries no CR name — refusing an unlabelled launch`,
     };
   }
-  const spec: LoreTaskSpec = { ...claim.spec, name };
 
+  return name;
+}
+
+async function launchClaim(
+  deps: ClaimTickDeps,
+  claim: ClaimResponse,
+  spec: LoreTaskSpec,
+): Promise<ClaimOutcome> {
   try {
     const { ref, launched } = await deps.launch(spec);
 
@@ -195,6 +215,28 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
       message: `launch failed for station run ${claim.station_run_id}, visit handed back: ${errorMessage(err)}`,
     };
   }
+}
+
+/** One poll: claim, and launch what was claimed. Never throws — every failure shape is an outcome. */
+export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
+  const res = await requestClaim(deps);
+
+  if (isClaimOutcome(res)) {
+    return res;
+  }
+  const body = await readClaimBody(res);
+
+  if (!isClaimBody(body)) {
+    return body;
+  }
+  const name = resolveCrName(body);
+
+  if (typeof name !== "string") {
+    return name;
+  }
+  const spec: LoreTaskSpec = { ...body.spec, name };
+
+  return launchClaim(deps, body, spec);
 }
 
 // The kill switch a shutdown throws — without it a claim can land and `process.exit` cuts the launch mid-CR-create on every rollout.

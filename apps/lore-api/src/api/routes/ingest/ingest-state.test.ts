@@ -99,4 +99,28 @@ describe("GET /api/repos/{owner}/{repo}/ingest-state", () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.payload)).toEqual({ kind: "adrs", commit: null });
   });
+
+  it("rethrows a query error unrelated to the missing table as a 500", async () => {
+    const pool = {
+      query: async () =>
+        Promise.reject(
+          Object.assign(new Error("connection reset"), { code: "08006" }),
+        ),
+    } as never;
+    const server = Hapi.server();
+
+    server.auth.scheme("stub", () => ({
+      authenticate: (_request, h) => h.authenticated({ credentials: {} }),
+    }));
+    server.auth.strategy("bearer-scope", "stub");
+    server.auth.default("bearer-scope");
+    server.route(ingestStateRoute(() => pool));
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/ingest-state?kind=adrs",
+    });
+
+    expect(res.statusCode).toBe(500);
+  });
 });

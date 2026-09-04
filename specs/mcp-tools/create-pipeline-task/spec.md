@@ -106,7 +106,7 @@ retry path, which calls the same shared `createTask`.
 
 An empty or whitespace-only description is rejected by the input schema before
 any insert; a normal description is accepted.
-([validated by `rejects an empty task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L112), [validated by `rejects a whitespace-only task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L120), [validated by `accepts an in-range task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L128))
+([validated by `rejects an empty task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L164), [validated by `rejects a whitespace-only task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L172), [validated by `accepts an in-range task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L180))
 
 The target repo defaults to the git remote when `target_repo` is omitted; an
 explicit value wins.
@@ -117,16 +117,34 @@ A task type outside the known catalogue falls back to `general`.
 
 A description over 10000 chars is rejected by the input schema (and, on the DB
 path, by the shared CRUD).
-([validated by `rejects a task description over 10000 chars`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L104))
+([validated by `rejects a task description over 10000 chars`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L156))
 
 `task_type: "onboard"` is refused before the local/remote split and the caller is
 pointed at `lore_onboard_repo`, whose transaction holds the duplicate-onboard
-guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L211))
+guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L263))
+
+With no `LORE_API_URL`/`LORE_INGEST_TOKEN` configured, the tool returns a
+not-configured message; on success the response names the immediate-priority
+pickup hint; a 401 is reported as a denied error. ([validated by `returns the
+not-configured message when the env is
+unset`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L283), [`reports
+the immediate pickup hint on
+success`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L298), [`reports
+a denied error on a
+401`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L318))
 
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so
 restricting it to `full` would only break the reonboard repair path on
 auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/pipeline-tasks.trust.test.ts#L33), [`still refuses an implementation task at trust level docs`](libs/shared/src/pipeline-tasks.trust.test.ts#L48))
+
+`buildContextBundle` (`apps/lore-api/src/features/pipeline/context-bundle.ts`) assembles this same `context` shape (`pipeline_task_id`, `spec_file`, `seed_query`, `branch`) into the markdown sections handed to an agent: an absent or empty `context` renders an empty string. ([validated by `returns an empty string for no context`](apps/lore-api/src/features/pipeline/context-bundle.test.ts#L14), [`returns an empty string for an empty context object`](apps/lore-api/src/features/pipeline/context-bundle.test.ts#L18))
+
+Each present field renders its own `## <heading>` section — pipeline task, seed query, or branch — when that field is set alone. ([validated by `renders only the pipeline task section when only pipeline_task_id is set`](apps/lore-api/src/features/pipeline/context-bundle.test.ts#L22), [`renders only the seed query section when only seed_query is set`](apps/lore-api/src/features/pipeline/context-bundle.test.ts#L28), [`renders only the branch section when only branch is set`](apps/lore-api/src/features/pipeline/context-bundle.test.ts#L34))
+
+Multiple sections join on `\n\n---\n\n` in field order. ([validated by `joins multiple sections with the triple-dash separator in field order`](apps/lore-api/src/features/pipeline/context-bundle.test.ts#L40))
+
+`spec_file: true` reads `.specify/spec.md` and `.specify/constitution.md` from the process cwd when present, adding no section when neither exists, and labels both files Spec because the ".specify" directory name itself contains "spec". ([validated by `adds no spec section when spec_file is true but no .specify files exist`](apps/lore-api/src/features/pipeline/context-bundle.test.ts#L52), [`labels both files Spec because the .specify directory name itself contains 'spec'`](apps/lore-api/src/features/pipeline/context-bundle.test.ts#L63))
 
 ## Out of Scope
 

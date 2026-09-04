@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   catalogProfile,
   catalogSyncOnce,
@@ -80,6 +80,7 @@ describe("crdOptionsFromEnv", () => {
         LORE_AGENT_LLM_SECRET_KEY: "ANTHROPIC_API_KEY",
         LORE_STATION_IMAGE: "ghcr.io/re-cinq/lore-station:abc",
         LORE_DGRAPH_HTTP: "http://dgraph:8080",
+        LORE_MODEL_SECRET_KEYS: '{"gemini":"GEMINI_API_KEY"}',
       }),
     ).toEqual({
       eventsUrl: "https://floor/api/agent-events",
@@ -89,6 +90,7 @@ describe("crdOptionsFromEnv", () => {
       llmSecretKey: "ANTHROPIC_API_KEY",
       stationImage: "ghcr.io/re-cinq/lore-station:abc",
       dgraphUrl: "http://dgraph:8080",
+      modelSecretKeys: { gemini: "GEMINI_API_KEY" },
     });
     expect(crdOptionsFromEnv({})).toEqual({});
   });
@@ -268,6 +270,51 @@ describe("catalogSyncOnce", () => {
 
     expect(result.ack).toEqual("3");
     expect(result.outcome.kind).toEqual("error");
+  });
+
+  it("an unreachable catalog-events endpoint is a transient error, not a crash", async () => {
+    const { catalog } = recordingCatalog();
+    const fetchFn = (async () => {
+      throw new Error("ECONNREFUSED");
+    }) as unknown as typeof fetch;
+    const result = await catalogSyncOnce(tickDeps(catalog, fetchFn), "3");
+
+    expect(result).toEqual({
+      outcome: {
+        kind: "error",
+        message: "catalog-events fetch failed: ECONNREFUSED",
+      },
+      ack: "3",
+    });
+  });
+
+  it("a non-401/403 HTTP refusal from catalog-events is a transient error", async () => {
+    const { catalog } = recordingCatalog();
+    const result = await catalogSyncOnce(
+      tickDeps(catalog, respondWith(500)),
+      "3",
+    );
+
+    expect(result).toEqual({
+      outcome: {
+        kind: "error",
+        message: "catalog-events refused (HTTP 500)",
+      },
+      ack: "3",
+    });
+  });
+
+  it("an unparseable catalog-events response is a transient error", async () => {
+    const { catalog } = recordingCatalog();
+    const fetchFn = (async () =>
+      new Response("not json", { status: 200 })) as unknown as typeof fetch;
+    const result = await catalogSyncOnce(tickDeps(catalog, fetchFn), "3");
+
+    expect(result.ack).toEqual("3");
+    expect(result.outcome).toMatchObject({ kind: "error" });
+    expect((result.outcome as { message: string }).message).toContain(
+      "catalog-events response parse failed:",
+    );
   });
 
   it("a 401 is the unauthorized outcome, not an error", async () => {
@@ -531,6 +578,43 @@ describe("runCatalogSyncLoop", () => {
     expect(snapshots).toEqual([true, true, false]);
     expect(reRegistered).toEqual(1);
     expect(firstSyncs).toEqual(1);
+  });
+
+  it("warns on an error outcome and logs each skipped and refused entry, without stopping the loop", async () => {
+    const outcomes = [
+      { outcome: { kind: "error" as const, message: "boom" }, ack: undefined },
+      {
+        outcome: {
+          kind: "synced" as const,
+          applied: 0,
+          deleted: 0,
+          skipped: ["a (owner)"],
+          refused: ["b: bad"],
+        },
+        ack: "1",
+      },
+    ];
+    let ticks = 0;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runCatalogSyncLoop({
+      sync: async () => outcomes[ticks++],
+      reRegister: async () => {},
+      sleep: async () => {},
+      baseDelayMs: 1,
+      running: () => ticks < 2,
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith("[cluster-agent] catalog sync: boom");
+    expect(logSpy).toHaveBeenCalledWith(
+      "[cluster-agent] catalog sync skipped a (owner) — not this loop's to write",
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[cluster-agent] catalog sync REFUSED b: bad",
+    );
+    warnSpy.mockRestore();
+    logSpy.mockRestore();
   });
 });
 

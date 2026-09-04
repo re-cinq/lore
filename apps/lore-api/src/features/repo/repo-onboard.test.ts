@@ -8,10 +8,14 @@ vi.mock("@re-cinq/lore-shared", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@re-cinq/lore-shared")>()),
   createPipelineTask: vi.fn(),
 }));
+vi.mock("../../platform/github-client.js", () => ({
+  getOctokit: vi.fn(),
+}));
 
 import { ensureFloorWebhook } from "../webhook/webhook-ensure.js";
 import { createPipelineTask } from "@re-cinq/lore-shared";
-import { onboardRepo } from "./repo-onboard.js";
+import { getOctokit } from "../../platform/github-client.js";
+import { onboardRepo, fetchRepoContext } from "./repo-onboard.js";
 
 type Row = Record<string, unknown>;
 
@@ -235,5 +239,169 @@ describe("onboardRepo", () => {
 
     expect(result).toMatchObject({ blocked: "in-flight" });
     expect(createPipelineTask).not.toHaveBeenCalled();
+  });
+});
+
+type ContentRoute =
+  | { kind: "file"; content: string }
+  | {
+      kind: "dir";
+      entries: Array<{ name: string; path: string; type: string }>;
+    }
+  | { kind: "error"; status?: number };
+
+function octokitFake(routes: Record<string, ContentRoute>) {
+  const getContent = vi.fn(async ({ path }: { path: string }) => {
+    const route = routes[path] ?? { kind: "error" as const, status: 404 };
+
+    if (route.kind === "error") {
+      const err = new Error("not found") as Error & { status?: number };
+
+      err.status = route.status;
+      throw err;
+    }
+
+    if (route.kind === "dir") {
+      return { data: route.entries };
+    }
+
+    return {
+      data: {
+        type: "file",
+        content: Buffer.from(route.content).toString("base64"),
+      },
+    };
+  });
+
+  return { rest: { repos: { getContent } } };
+}
+
+describe("fetchRepoContext", () => {
+  beforeEach(() => {
+    vi.mocked(getOctokit).mockReset();
+  });
+
+  it("throws for a full_name without an owner/repo slash", async () => {
+    await expect(fetchRepoContext("no-slash")).rejects.toThrow(
+      'Invalid repo full_name: "no-slash". Expected "owner/repo" format.',
+    );
+  });
+
+  it("lists the top-level tree and decodes present key files, skipping 404s", async () => {
+    vi.mocked(getOctokit).mockResolvedValue(
+      octokitFake({
+        "": {
+          kind: "dir",
+          entries: [
+            { name: "README.md", path: "README.md", type: "file" },
+            { name: "src", path: "src", type: "dir" },
+          ],
+        },
+        "README.md": { kind: "file", content: "# Hi" },
+        "AGENTS.md": { kind: "error", status: 500 },
+      }) as unknown as Awaited<ReturnType<typeof getOctokit>>,
+    );
+
+    const result = await fetchRepoContext("o/r");
+
+    expect(result.tree).toEqual(["README.md", "src"]);
+    expect(result.files).toEqual({ "README.md": "# Hi" });
+    expect(result.samples).toEqual({});
+  });
+
+  it("returns an empty tree when the top-level listing fails", async () => {
+    vi.mocked(getOctokit).mockResolvedValue(
+      octokitFake({
+        "": { kind: "error", status: 500 },
+      }) as unknown as Awaited<ReturnType<typeof getOctokit>>,
+    );
+
+    const result = await fetchRepoContext("o/r");
+
+    expect(result.tree).toEqual([]);
+  });
+
+  it("collects up to 3 samples across dirs, filters to file entries, and stops mid-directory once full", async () => {
+    const longFile = Array.from({ length: 250 }, (_, i) => `line${i}`).join(
+      "\n",
+    );
+    const octokit = octokitFake({
+      src: {
+        kind: "dir",
+        entries: [
+          { name: "a.ts", path: "src/a.ts", type: "file" },
+          { name: "sub", path: "src/sub", type: "dir" },
+          { name: "b.ts", path: "src/b.ts", type: "file" },
+        ],
+      },
+      "src/a.ts": { kind: "file", content: longFile },
+      "src/b.ts": { kind: "file", content: "short content" },
+      lib: {
+        kind: "dir",
+        entries: [
+          { name: "c.ts", path: "lib/c.ts", type: "file" },
+          { name: "d.ts", path: "lib/d.ts", type: "file" },
+        ],
+      },
+      "lib/c.ts": { kind: "file", content: "c body" },
+      "lib/d.ts": { kind: "file", content: "d body" },
+    });
+
+    vi.mocked(getOctokit).mockResolvedValue(
+      octokit as unknown as Awaited<ReturnType<typeof getOctokit>>,
+    );
+
+    const result = await fetchRepoContext("o/r");
+
+    expect(result.samples).toEqual({
+      "src/a.ts": longFile.split("\n").slice(0, 200).join("\n"),
+      "src/b.ts": "short content",
+      "lib/c.ts": "c body",
+    });
+    const requestedPaths = octokit.rest.repos.getContent.mock.calls.map(
+      (call) => call[0].path,
+    );
+
+    expect(requestedPaths).not.toContain("src/sub");
+    expect(requestedPaths).not.toContain("lib/d.ts");
+    expect(requestedPaths).not.toContain("cmd");
+  });
+
+  it("skips a sample dir on 404 and on any other listing error, continuing to the next dir", async () => {
+    vi.mocked(getOctokit).mockResolvedValue(
+      octokitFake({
+        src: { kind: "error", status: 404 },
+        lib: { kind: "error", status: 500 },
+        cmd: {
+          kind: "dir",
+          entries: [{ name: "e.ts", path: "cmd/e.ts", type: "file" }],
+        },
+        "cmd/e.ts": { kind: "file", content: "e body" },
+      }) as unknown as Awaited<ReturnType<typeof getOctokit>>,
+    );
+
+    const result = await fetchRepoContext("o/r");
+
+    expect(result.samples).toEqual({ "cmd/e.ts": "e body" });
+  });
+
+  it("skips a sample entry whose content fetch fails, keeping the other entries", async () => {
+    vi.mocked(getOctokit).mockResolvedValue(
+      octokitFake({
+        src: {
+          kind: "dir",
+          entries: [
+            { name: "bad.ts", path: "src/bad.ts", type: "file" },
+            { name: "good.ts", path: "src/good.ts", type: "file" },
+          ],
+        },
+        "src/bad.ts": { kind: "error", status: 500 },
+        "src/good.ts": { kind: "file", content: "good body" },
+      }) as unknown as Awaited<ReturnType<typeof getOctokit>>,
+    );
+
+    const result = await fetchRepoContext("o/r");
+
+    expect(result.samples).toEqual({ "src/good.ts": "good body" });
   });
 });

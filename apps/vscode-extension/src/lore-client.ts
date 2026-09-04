@@ -10,6 +10,17 @@ function isRetriable(status: number): boolean {
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+type AttemptResult<T> =
+  { ok: true; value: T } | { ok: false; error: string; retriable: boolean };
+
+function toNetworkErrorResult(err: unknown): AttemptResult<never> {
+  return {
+    ok: false,
+    error: err instanceof Error ? err.message : String(err),
+    retriable: true,
+  };
+}
+
 export class LoreClient {
   constructor(
     private readonly apiUrl: string,
@@ -31,26 +42,40 @@ export class LoreClient {
     );
   }
 
+  private async fetchOnce<T>(path: string): Promise<AttemptResult<T>> {
+    try {
+      const res = await fetch(`${this.apiUrl}${path}`, {
+        headers: { Authorization: `Bearer ${this.token}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (res.ok) {
+        return { ok: true, value: (await res.json()) as T };
+      }
+
+      return {
+        ok: false,
+        error: `HTTP ${res.status} ${res.statusText}`,
+        retriable: isRetriable(res.status),
+      };
+    } catch (err) {
+      return toNetworkErrorResult(err);
+    }
+  }
+
   private async get<T>(path: string): Promise<T> {
     let lastError = "no attempts made";
 
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
-      try {
-        const res = await fetch(`${this.apiUrl}${path}`, {
-          headers: { Authorization: `Bearer ${this.token}` },
-          signal: AbortSignal.timeout(15_000),
-        });
+      const result = await this.fetchOnce<T>(path);
 
-        if (res.ok) {
-          return (await res.json()) as T;
-        }
-        lastError = `HTTP ${res.status} ${res.statusText}`;
+      if (result.ok) {
+        return result.value;
+      }
+      lastError = result.error;
 
-        if (!isRetriable(res.status)) {
-          break;
-        }
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
+      if (!result.retriable) {
+        break;
       }
 
       if (attempt < RETRY_DELAYS_MS.length) {

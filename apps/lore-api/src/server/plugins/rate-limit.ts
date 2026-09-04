@@ -3,29 +3,25 @@
 import type { Server } from "@hapi/hapi";
 import { rateLimit, type RateBucket } from "../../api/routes/auth.js";
 
+const BUCKET_RULES: ReadonlyArray<{
+  matches: (path: string) => boolean;
+  bucket: RateBucket;
+}> = [
+  { matches: (path) => path.startsWith("/api/webhook/"), bucket: "webhook" },
+  {
+    matches: (path) =>
+      path === "/api/task" ||
+      path.startsWith("/api/task/") ||
+      path.startsWith("/api/tasks"),
+    bucket: "task",
+  },
+  { matches: (path) => path === "/api/embed", bucket: "embed" },
+  { matches: (path) => path.startsWith("/api/task-turns/"), bucket: "turns" },
+];
+
 /** The single path→bucket rule, shared by the ext and the OpenAPI generator (ADR-035). */
 export function bucketFor(path: string): RateBucket {
-  if (path.startsWith("/api/webhook/")) {
-    return "webhook";
-  }
-
-  if (
-    path === "/api/task" ||
-    path.startsWith("/api/task/") ||
-    path.startsWith("/api/tasks")
-  ) {
-    return "task";
-  }
-
-  if (path === "/api/embed") {
-    return "embed";
-  }
-
-  if (path.startsWith("/api/task-turns/")) {
-    return "turns";
-  }
-
-  return "default";
+  return BUCKET_RULES.find((rule) => rule.matches(path))?.bucket ?? "default";
 }
 
 export function registerRateLimit(server: Server): void {

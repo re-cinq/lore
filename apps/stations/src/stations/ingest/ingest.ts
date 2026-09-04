@@ -148,10 +148,7 @@ function summaryExtras(summary: IngestGraphSummary): Record<string, string> {
   return extras;
 }
 
-export async function runIngestStation(
-  input: StationInput,
-  deps: IngestStationDeps = {},
-): Promise<NodeResult> {
+function resolveIngestKind(input: StationInput): string {
   const kind = input.params.kind as string | undefined;
 
   enforceTrue(
@@ -159,10 +156,18 @@ export async function runIngestStation(
     Error,
     `ingest station: no ingest handler for kind "${kind}"`,
   );
-  console.log(eventLine(`ingest ${kind} for ${input.repo}`));
-  const workspaceDir =
+
+  return kind!;
+}
+
+function resolveWorkspaceDir(deps: IngestStationDeps): string {
+  return (
     deps.workspaceDir ??
-    join(process.env.WORKSPACE_DIR ?? "/workspace", "target");
+    join(process.env.WORKSPACE_DIR ?? "/workspace", "target")
+  );
+}
+
+function resolveIngestDgraph(deps: IngestStationDeps): DgraphClientPort {
   const dgraph = deps.dgraph === undefined ? createDgraphClient() : deps.dgraph;
 
   enforceTrue(
@@ -171,36 +176,56 @@ export async function runIngestStation(
     "ingest station: LORE_DGRAPH_HTTP not configured — the def-ingest recipe must inject it (FR4)",
   );
 
-  if (!PAYLOAD_KINDS.has(kind!)) {
-    const summary = await runIngestGraph(
-      {
-        kind: kind as "specs" | "adrs",
-        repo: input.repo,
-        glob: input.params.glob as string | undefined,
-        force: input.params.force === "true",
-      },
-      {
-        dgraph,
-        listTree: () => listClone(workspaceDir),
-        readFile: async (path: string) =>
-          readFile(join(workspaceDir, path), "utf8"),
-        embed: deps.embed ?? defaultEmbed(),
-      },
-    );
+  return dgraph;
+}
 
-    const extras = summaryExtras(summary);
+interface ResolvedIngestTarget {
+  workspaceDir: string;
+  dgraph: DgraphClientPort;
+}
 
-    console.log(
-      eventLine(`ingest ${kind} complete: ${extras["Lore-Ingest-Summary"]}`),
-    );
+async function runDocsIngest(
+  kind: "specs" | "adrs",
+  input: StationInput,
+  target: ResolvedIngestTarget,
+  deps: IngestStationDeps,
+): Promise<NodeResult> {
+  const { workspaceDir, dgraph } = target;
+  const summary = await runIngestGraph(
+    {
+      kind,
+      repo: input.repo,
+      glob: input.params.glob as string | undefined,
+      force: input.params.force === "true",
+    },
+    {
+      dgraph,
+      listTree: () => listClone(workspaceDir),
+      readFile: async (path: string) =>
+        readFile(join(workspaceDir, path), "utf8"),
+      embed: deps.embed ?? defaultEmbed(),
+    },
+  );
 
-    // Partial failure routes the line's failed edge — never a silent success with files missing (same contract as the Floor handler it replaces).
-    return {
-      outcome: summary.failed > 0 ? "failed" : "success",
-      extras,
-    };
-  }
+  const extras = summaryExtras(summary);
 
+  console.log(
+    eventLine(`ingest ${kind} complete: ${extras["Lore-Ingest-Summary"]}`),
+  );
+
+  // Partial failure routes the line's failed edge — never a silent success with files missing (same contract as the Floor handler it replaces).
+  return {
+    outcome: summary.failed > 0 ? "failed" : "success",
+    extras,
+  };
+}
+
+async function runPayloadIngest(
+  kind: string,
+  input: StationInput,
+  dgraph: DgraphClientPort,
+  deps: IngestStationDeps,
+): Promise<NodeResult> {
   const eventId = input.params.payload_event_id as string | undefined;
 
   enforceTrue(
@@ -208,10 +233,10 @@ export async function runIngestStation(
     Error,
     `ingest station: kind "${kind}" requires the payload_event_id param`,
   );
-  const payload = await (
-    deps.fetchPayload ?? ((id: string) => fetchPayloadFromApi(input.repo, id))
-  )(eventId!);
-  const outcome = await ingestSpecTrace(dgraph!, input.repo, kind!, payload);
+  const fetchPayload =
+    deps.fetchPayload ?? ((id: string) => fetchPayloadFromApi(input.repo, id));
+  const payload = await fetchPayload(eventId!);
+  const outcome = await ingestSpecTrace(dgraph, input.repo, kind, payload);
   const summaryLine = `validated_by=${outcome.validatedBy} violated=${outcome.violated} coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`;
 
   console.log(eventLine(`ingest ${kind} complete: ${summaryLine}`));
@@ -220,4 +245,21 @@ export async function runIngestStation(
     outcome: "success",
     extras: { "Lore-Ingest-Summary": summaryLine },
   };
+}
+
+export async function runIngestStation(
+  input: StationInput,
+  deps: IngestStationDeps = {},
+): Promise<NodeResult> {
+  const kind = resolveIngestKind(input);
+
+  console.log(eventLine(`ingest ${kind} for ${input.repo}`));
+  const target: ResolvedIngestTarget = {
+    workspaceDir: resolveWorkspaceDir(deps),
+    dgraph: resolveIngestDgraph(deps),
+  };
+
+  return PAYLOAD_KINDS.has(kind)
+    ? runPayloadIngest(kind, input, target.dgraph, deps)
+    : runDocsIngest(kind as "specs" | "adrs", input, target, deps);
 }

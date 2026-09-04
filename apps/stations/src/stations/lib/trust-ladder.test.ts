@@ -53,6 +53,15 @@ describe("nextTrust", () => {
     });
   });
 
+  it("demotes to the lowest rung rather than inventing an index for an unrecognised level", () => {
+    expect(nextTrust({ level: "bogus", successful_tasks: 5 })).toEqual({
+      hold: false,
+      level: "docs",
+      successfulTasks: 0,
+      promoted: true,
+    });
+  });
+
   it("climbs the whole ladder docs → tests → implementation → full", () => {
     const climb: string[] = [];
     let level = "docs";

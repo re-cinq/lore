@@ -38,6 +38,53 @@ const TaskTimelineSchema = z.object({
   lease: z.record(z.unknown()).nullable().optional(),
 });
 
+function committedIsoOf(c: RawCommit): string {
+  return c.commit.committer?.date ?? new Date().toISOString();
+}
+
+function outcomeOf(
+  trailers: NonNullable<ReturnType<typeof parseTrailers>>,
+): string {
+  return trailers.extras?.["Lore-Outcome"] ?? "success";
+}
+
+function durationSince(committedMs: number, prevTimeMs: number): number | null {
+  const delta = committedMs - prevTimeMs;
+
+  return Number.isFinite(delta) ? delta : null;
+}
+
+function extrasField(
+  trailers: NonNullable<ReturnType<typeof parseTrailers>>,
+): Pick<TimelineCommit, "extras"> {
+  return trailers.extras ? { extras: trailers.extras } : {};
+}
+
+/** One stage commit, or `null` when the commit carries no Lore trailers. */
+function buildStageCommit(
+  c: RawCommit,
+  prevTimeMs: number,
+): TimelineCommit | null {
+  const trailers = parseTrailers(c.commit.message);
+
+  if (!trailers) {
+    return null;
+  }
+  const committedIso = committedIsoOf(c);
+  const committedMs = new Date(committedIso).getTime();
+
+  return {
+    sha: c.sha,
+    stage: trailers.stage,
+    iteration: trailers.iteration,
+    outcome: outcomeOf(trailers),
+    committed_at: committedIso,
+    duration_ms: durationSince(committedMs, prevTimeMs),
+    summary: c.commit.message.split("\n")[0],
+    ...extrasField(trailers),
+  };
+}
+
 export function buildTimeline(
   commitsApi: RawCommit[],
   createdAt: Date,
@@ -48,27 +95,13 @@ export function buildTimeline(
   let prevTimeMs = createdAt.getTime();
 
   for (const c of ordered) {
-    const trailers = parseTrailers(c.commit.message);
+    const stageCommit = buildStageCommit(c, prevTimeMs);
 
-    if (!trailers) {
+    if (!stageCommit) {
       continue;
     }
-    const committedIso = c.commit.committer?.date ?? new Date().toISOString();
-    const committedMs = new Date(committedIso).getTime();
-
-    stageCommits.push({
-      sha: c.sha,
-      stage: trailers.stage,
-      iteration: trailers.iteration,
-      outcome: trailers.extras?.["Lore-Outcome"] ?? "success",
-      committed_at: committedIso,
-      duration_ms: Number.isFinite(committedMs - prevTimeMs)
-        ? committedMs - prevTimeMs
-        : null,
-      summary: c.commit.message.split("\n")[0],
-      ...(trailers.extras ? { extras: trailers.extras } : {}),
-    });
-    prevTimeMs = committedMs;
+    stageCommits.push(stageCommit);
+    prevTimeMs = new Date(stageCommit.committed_at).getTime();
   }
 
   return stageCommits;

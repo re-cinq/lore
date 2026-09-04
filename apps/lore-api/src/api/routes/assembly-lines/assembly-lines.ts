@@ -75,12 +75,57 @@ function argsPrNumber(raw: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isoOrNull(at: Date | null): string | null {
+  return at ? at.toISOString() : null;
+}
+
+// Present only when withGraph asked for it; graph itself may still be unresolved (predates clones AND blueprint gone).
+function graphField(
+  withGraph: boolean,
+  graph: unknown,
+): Record<string, unknown> {
+  if (!withGraph) {
+    return {};
+  }
+
+  return { graph: graph ?? null };
+}
+
+// enrichment is a same-shaped fallback away from its own fields once it's known to exist — only created_by falls further, to the run's own recorded actor.
+function enrichedFields(
+  enrichment: RunEnrichment | undefined,
+  argsActor: unknown,
+): RunEnrichment {
+  const actorFallback = (argsActor as string | null) ?? null;
+
+  if (!enrichment) {
+    return {
+      pr_url: null,
+      task_pr_number: null,
+      created_by: actorFallback,
+      cost_usd: null,
+    };
+  }
+
+  return {
+    pr_url: enrichment.pr_url,
+    task_pr_number: enrichment.task_pr_number,
+    created_by: enrichment.created_by ?? actorFallback,
+    cost_usd: enrichment.cost_usd,
+  };
+}
+
 // One run as the run views read it; definition_name doubles blueprint_name under its pre-rename spelling for the legacy-alias rollout window — DELETE alongside that alias.
 function toRunRow(
   run: AssemblyRunSummary & { graph?: unknown },
   enrichment: RunEnrichment | undefined,
   withGraph: boolean,
 ) {
+  const { pr_url, task_pr_number, created_by, cost_usd } = enrichedFields(
+    enrichment,
+    run.args["actor"],
+  );
+
   return {
     id: run.id,
     blueprint_name: run.blueprintName,
@@ -89,19 +134,18 @@ function toRunRow(
     repo: run.repo,
     branch: run.branch,
     subject_key: run.subjectKey,
-    ...(withGraph ? { graph: run.graph ?? null } : {}),
+    ...graphField(withGraph, run.graph),
     status: run.status,
     outcome: run.outcome,
     reason: run.reason,
     created_at: run.createdAt.toISOString(),
-    started_at: run.startedAt?.toISOString() ?? null,
-    finished_at: run.finishedAt?.toISOString() ?? null,
+    started_at: isoOrNull(run.startedAt),
+    finished_at: isoOrNull(run.finishedAt),
     args_pr_number: argsPrNumber(run.args["pr_number"]),
-    pr_url: enrichment?.pr_url ?? null,
-    task_pr_number: enrichment?.task_pr_number ?? null,
-    created_by:
-      enrichment?.created_by ?? (run.args["actor"] as string | null) ?? null,
-    cost_usd: enrichment?.cost_usd ?? null,
+    pr_url,
+    task_pr_number,
+    created_by,
+    cost_usd,
   };
 }
 

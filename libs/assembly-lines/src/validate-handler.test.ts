@@ -90,6 +90,20 @@ describe("createValidateHandler — local", () => {
     expect(out).toContain("...(truncated)");
     expect(out.length).toBeLessThan(2200);
   });
+
+  it("calls the deps.changedFiles hook to scope validation when provided", async () => {
+    const dir = await tmpRepo(NODE_PKG("true"));
+    let calledWith: string[] | undefined;
+    const changedFiles = async (): Promise<string[]> => {
+      calledWith = ["src/a.ts"];
+
+      return calledWith;
+    };
+    const r = await createValidateHandler({ changedFiles })(node, ctx(dir));
+
+    expect(calledWith).toEqual(["src/a.ts"]);
+    expect(r.outcome).toBe("success");
+  });
 });
 
 describe("createValidateHandler — relay (BYO sidecar)", () => {

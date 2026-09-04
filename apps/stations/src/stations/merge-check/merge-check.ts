@@ -21,6 +21,7 @@ import {
 } from "@re-cinq/lore-shared";
 import type { Project, StatusFlipResult } from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+import type { PendingOnboardingRepo } from "@re-cinq/lore-shared/project/settings/settings-port.js";
 
 /** Fallback: sync spec-tasks when feature-request PR merges but webhook missed. */
 export async function syncSpecTasksFromMerge(task: {
@@ -75,6 +76,94 @@ interface RepoTrust {
   [key: string]: unknown;
 }
 
+/** Extracts owner/repo and PR number from a github.com pull URL, or null when the URL is not one. */
+export function parseOnboardingPrUrl(
+  url: string,
+): { owner: string; repoName: string; number: number } | null {
+  const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+
+  if (!match) {
+    return null;
+  }
+  const [, owner, repoName, prNumber] = match;
+
+  return { owner, repoName, number: parseInt(prNumber, 10) };
+}
+
+type OnboardingOutcome = "merged" | "closed" | "invalid" | "unchanged";
+
+/** One onboarding repo's PR check: merges/clears the row as needed, reporting what happened. */
+async function checkOnboardingRepo(
+  repo: PendingOnboardingRepo,
+): Promise<OnboardingOutcome> {
+  const parsed = parseOnboardingPrUrl(repo.onboarding_pr_url);
+
+  if (!parsed) {
+    console.log(
+      `[job] merge-check: invalid PR URL for ${repo.full_name}: ${repo.onboarding_pr_url}`,
+    );
+
+    return "invalid";
+  }
+  const project = await projectFor(`${parsed.owner}/${parsed.repoName}`);
+
+  if (await project.pulls.isMerged(parsed.number)) {
+    await settings().markOnboardingMergedById(repo.id);
+    console.log(`[job] merge-check: ${repo.full_name} PR merged`);
+
+    return "merged";
+  }
+
+  // Closed without merging: clear onboarding URL to allow resubmission (#968).
+  if (await project.pulls.isClosed(parsed.number)) {
+    await settings().clearOnboardingPrUrl(repo.id);
+    console.log(
+      `[job] merge-check: ${repo.full_name} onboarding PR closed unmerged — cleared`,
+    );
+
+    return "closed";
+  }
+
+  return "unchanged";
+}
+
+type MergeableOutcome = "merged" | "closed" | "unchanged";
+
+/** One mergeable task's PR check: starts the merge line or records rejection, reporting what happened. */
+async function checkMergeableTask(
+  task: MergeableTask,
+): Promise<MergeableOutcome> {
+  const project = await projectFor(task.target_repo);
+
+  if (await project.pulls.isMerged(task.pr_number)) {
+    // The line does the work; nine steps expose failures that route forward.
+    await startMergeLine(task, {
+      findOpenBySubject: (repo, key) =>
+        pipeline().assemblyRuns.findOpenBySubject(repo, key),
+      countBySubject: (repo, key) =>
+        pipeline().assemblyRuns.countBySubject(repo, key),
+      start: (input) => pipeline().assemblyRuns.start(input),
+    });
+    console.log(
+      `[job] merge-check: task ${task.id} PR #${task.pr_number} merged`,
+    );
+
+    return "merged";
+  }
+
+  // Closed-without-merge is a rejection signal.
+  if (await project.pulls.isClosed(task.pr_number)) {
+    await handleRejectedTask(task);
+    console.log(
+      `[job] merge-check: task ${task.id} PR #${task.pr_number} closed (rejected)`,
+    );
+
+    return "closed";
+  }
+
+  return "unchanged";
+}
+
 export async function mergeCheckJob(): Promise<string> {
   const repos = await settings().pendingOnboardingRepos();
 
@@ -84,39 +173,16 @@ export async function mergeCheckJob(): Promise<string> {
 
   let mergedCount = 0;
 
+  const bumpRepoOutcome: Record<OnboardingOutcome, () => void> = {
+    merged: () => mergedCount++,
+    closed: () => {},
+    invalid: () => {},
+    unchanged: () => {},
+  };
+
   for (const repo of repos) {
     try {
-      // Extract owner/repo and PR number from URL: https://github.com/org/repo/pull/42
-      const match = repo.onboarding_pr_url.match(
-        /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/,
-      );
-
-      if (!match) {
-        console.log(
-          `[job] merge-check: invalid PR URL for ${repo.full_name}: ${repo.onboarding_pr_url}`,
-        );
-        continue;
-      }
-
-      const [, owner, repoName, prNumber] = match;
-      const fullName = `${owner}/${repoName}`;
-      const number = parseInt(prNumber, 10);
-      const project = await projectFor(fullName);
-
-      if (await project.pulls.isMerged(number)) {
-        await settings().markOnboardingMergedById(repo.id);
-        mergedCount++;
-        console.log(`[job] merge-check: ${repo.full_name} PR merged`);
-        continue;
-      }
-
-      // Closed without merging: clear onboarding URL to allow resubmission (#968).
-      if (await project.pulls.isClosed(number)) {
-        await settings().clearOnboardingPrUrl(repo.id);
-        console.log(
-          `[job] merge-check: ${repo.full_name} onboarding PR closed unmerged — cleared`,
-        );
-      }
+      bumpRepoOutcome[await checkOnboardingRepo(repo)]();
     } catch (err) {
       console.error(
         `[job] merge-check: error checking ${repo.full_name}:`,
@@ -131,34 +197,15 @@ export async function mergeCheckJob(): Promise<string> {
   let tasksMerged = 0;
   let tasksClosed = 0;
 
+  const bumpTaskOutcome: Record<MergeableOutcome, () => void> = {
+    merged: () => tasksMerged++,
+    closed: () => tasksClosed++,
+    unchanged: () => {},
+  };
+
   for (const task of tasks) {
     try {
-      const project = await projectFor(task.target_repo);
-
-      if (await project.pulls.isMerged(task.pr_number)) {
-        // The line does the work; nine steps expose failures that route forward.
-        await startMergeLine(task, {
-          findOpenBySubject: (repo, key) =>
-            pipeline().assemblyRuns.findOpenBySubject(repo, key),
-          countBySubject: (repo, key) =>
-            pipeline().assemblyRuns.countBySubject(repo, key),
-          start: (input) => pipeline().assemblyRuns.start(input),
-        });
-        tasksMerged++;
-        console.log(
-          `[job] merge-check: task ${task.id} PR #${task.pr_number} merged`,
-        );
-        continue;
-      }
-
-      // Closed-without-merge is a rejection signal.
-      if (await project.pulls.isClosed(task.pr_number)) {
-        await handleRejectedTask(task);
-        tasksClosed++;
-        console.log(
-          `[job] merge-check: task ${task.id} PR #${task.pr_number} closed (rejected)`,
-        );
-      }
+      bumpTaskOutcome[await checkMergeableTask(task)]();
     } catch (err) {
       console.error(`[job] merge-check: error checking task ${task.id}:`, err);
     }
@@ -193,6 +240,31 @@ export function decideFeatureImplemented(result: StatusFlipResult): boolean {
 }
 
 /** spec-status-upkeep FR1: flip spec status on group merge (ADR-016). */
+/** The log line for a flip that landed the spec on `shipped`. */
+export function describeFlipSuccess(
+  specPath: string,
+  result: Pick<StatusFlipResult, "prUrl" | "skipped">,
+): string {
+  return (
+    `[job] merge-check: spec-status-upkeep marked ${specPath} implemented ` +
+    `(${result.skipped ? "already current" : result.prUrl})`
+  );
+}
+
+/** The log line for a flip that did not confirm `shipped`, left for a human to reconcile. */
+export function describeFlipMiss(
+  specPath: string,
+  result: Pick<StatusFlipResult, "prUrl" | "status" | "reason">,
+  featureId: string,
+): string {
+  return (
+    `[job] merge-check: spec-status-upkeep did not mark ${specPath} shipped ` +
+    `(status=${result.status ?? "unreadable"}, reason=${result.reason ?? "flipped"}` +
+    `${result.prUrl ? `, pr=${result.prUrl}` : ""}); ` +
+    `feature ${featureId} left for human reconcile`
+  );
+}
+
 export async function maybeFlipSpecStatus(
   project: Project,
   task: MergeableTask,
@@ -218,19 +290,11 @@ export async function maybeFlipSpecStatus(
 
   if (decideFeatureImplemented(result)) {
     await project.features.transitionStatus(decision.featureId, "implemented");
-    console.log(
-      `[job] merge-check: spec-status-upkeep marked ${specPath} implemented ` +
-        `(${result.skipped ? "already current" : result.prUrl})`,
-    );
+    console.log(describeFlipSuccess(specPath, result));
 
     return;
   }
-  console.warn(
-    `[job] merge-check: spec-status-upkeep did not mark ${specPath} shipped ` +
-      `(status=${result.status ?? "unreadable"}, reason=${result.reason ?? "flipped"}` +
-      `${result.prUrl ? `, pr=${result.prUrl}` : ""}); ` +
-      `feature ${decision.featureId} left for human reconcile`,
-  );
+  console.warn(describeFlipMiss(specPath, result, decision.featureId));
 }
 
 /** A merged task: mark merged, close Issue, boost memory, promote trust. */

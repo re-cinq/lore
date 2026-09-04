@@ -103,6 +103,71 @@ export async function postReviewComment(
   });
 }
 
+type RawCheckRun = { name: string; status: string; conclusion: string | null };
+type RawReview = {
+  user?: { login?: string };
+  state?: string;
+  submitted_at?: string;
+};
+
+async function ghFetch(
+  token: string,
+  path: string,
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`https://api.github.com${path}`, {
+    signal: AbortSignal.timeout(15_000),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`GitHub API ${path}: ${res.status} ${res.statusText}`);
+  }
+
+  return res.json();
+}
+
+// Check-runs are best-effort: any failure (missing sha, network) yields no checks.
+async function fetchCheckRuns(
+  token: string,
+  repo: string,
+  headSha: string,
+): Promise<RawCheckRun[]> {
+  try {
+    const resp = await ghFetch(
+      token,
+      `/repos/${repo}/commits/${headSha}/check-runs`,
+    );
+
+    return (resp.check_runs as RawCheckRun[]) || [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeChecks(checkRuns: RawCheckRun[]): PrCheck[] {
+  return checkRuns.map((c) => ({
+    name: c.name,
+    status: c.status,
+    conclusion: c.conclusion ?? null,
+  }));
+}
+
+function normalizeReviews(reviews: unknown): PrReview[] {
+  if (!Array.isArray(reviews)) {
+    return [];
+  }
+
+  return (reviews as RawReview[]).map((r) => ({
+    user: r.user?.login || "unknown",
+    state: r.state ?? "",
+    submitted_at: r.submitted_at || "",
+  }));
+}
+
 // Fetch live PR state via raw REST; returns null if GitHub not configured
 export async function fetchPrStatus(
   repo: string,
@@ -114,63 +179,17 @@ export async function fetchPrStatus(
     return null;
   }
 
-  async function ghFetch(path: string): Promise<Record<string, unknown>> {
-    const res = await fetch(`https://api.github.com${path}`, {
-      signal: AbortSignal.timeout(15_000),
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
-
-    if (!res.ok) {
-      throw new Error(`GitHub API ${path}: ${res.status} ${res.statusText}`);
-    }
-
-    return res.json();
-  }
-
-  const [pr, reviews] = await Promise.all([
-    ghFetch(`/repos/${repo}/pulls/${prNumber}`),
-    ghFetch(`/repos/${repo}/pulls/${prNumber}/reviews`).catch(() => []),
+  const [pr, rawReviews] = await Promise.all([
+    ghFetch(token, `/repos/${repo}/pulls/${prNumber}`),
+    ghFetch(token, `/repos/${repo}/pulls/${prNumber}/reviews`).catch(() => []),
   ]);
-
-  let checkRuns: Array<{
-    name: string;
-    status: string;
-    conclusion: string | null;
-  }> = [];
-
-  try {
-    const checksResp = await ghFetch(
-      `/repos/${repo}/commits/${(pr.head as { sha: string }).sha}/check-runs`,
-    );
-
-    checkRuns = (checksResp.check_runs as typeof checkRuns) || [];
-  } catch {
-    /* no checks */
-  }
-
-  const checks = checkRuns.map((c) => ({
-    name: c.name,
-    status: c.status,
-    conclusion: c.conclusion ?? null,
-  }));
-  const reviewList = Array.isArray(reviews)
-    ? reviews.map(
-        (r: {
-          user?: { login?: string };
-          state?: string;
-          submitted_at?: string;
-        }) => ({
-          user: r.user?.login || "unknown",
-          state: r.state ?? "",
-          submitted_at: r.submitted_at || "",
-        }),
-      )
-    : [];
-
+  const checkRuns = await fetchCheckRuns(
+    token,
+    repo,
+    (pr.head as { sha: string }).sha,
+  );
+  const checks = normalizeChecks(checkRuns);
+  const reviewList = normalizeReviews(rawReviews);
   const computed_status = deriveComputedStatus(pr, checks, reviewList);
 
   return {
@@ -198,44 +217,62 @@ export interface PrReview {
   submitted_at: string;
 }
 
-// Badge state pure function; "approved" requires ALL checks concluded (not running)
+function anyCheckFailed(checks: PrCheck[]): boolean {
+  return checks.some(
+    (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
+  );
+}
+
+function everyCheckSettled(checks: PrCheck[]): boolean {
+  return checks.every(
+    (c) => c.conclusion === "success" || c.conclusion === "skipped",
+  );
+}
+
+function anyReviewState(reviews: PrReview[], state: string): boolean {
+  return reviews.some((r) => r.state === state);
+}
+
+// "approved" requires ALL checks concluded (not running)
+function isApproved(checks: PrCheck[], reviews: PrReview[]): boolean {
+  return anyReviewState(reviews, "APPROVED") && everyCheckSettled(checks);
+}
+
+interface PrStatusInput {
+  pr: { merged?: boolean; state?: string; draft?: boolean };
+  checks: PrCheck[];
+  reviews: PrReview[];
+}
+
+// Precedence order: merged / closed / draft beat everything else.
+const PR_STATUS_RULES: Array<{
+  status: string;
+  matches: (input: PrStatusInput) => boolean;
+}> = [
+  { status: "merged", matches: ({ pr }) => !!pr.merged },
+  { status: "closed", matches: ({ pr }) => pr.state === "closed" },
+  { status: "draft", matches: ({ pr }) => !!pr.draft },
+  {
+    status: "checks-failing",
+    matches: ({ checks }) => anyCheckFailed(checks),
+  },
+  {
+    status: "changes-requested",
+    matches: ({ reviews }) => anyReviewState(reviews, "CHANGES_REQUESTED"),
+  },
+  {
+    status: "approved",
+    matches: ({ checks, reviews }) => isApproved(checks, reviews),
+  },
+];
+
+/** Badge state pure function. */
 export function deriveComputedStatus(
   pr: { merged?: boolean; state?: string; draft?: boolean },
   checks: PrCheck[],
   reviews: PrReview[],
 ): string {
-  if (pr.merged) {
-    return "merged";
-  }
+  const input: PrStatusInput = { pr, checks, reviews };
 
-  if (pr.state === "closed") {
-    return "closed";
-  }
-
-  if (pr.draft) {
-    return "draft";
-  }
-
-  if (
-    checks.some(
-      (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
-    )
-  ) {
-    return "checks-failing";
-  }
-
-  if (reviews.some((r) => r.state === "CHANGES_REQUESTED")) {
-    return "changes-requested";
-  }
-
-  if (
-    reviews.some((r) => r.state === "APPROVED") &&
-    checks.every(
-      (c) => c.conclusion === "success" || c.conclusion === "skipped",
-    )
-  ) {
-    return "approved";
-  }
-
-  return "open";
+  return PR_STATUS_RULES.find((rule) => rule.matches(input))?.status ?? "open";
 }

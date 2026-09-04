@@ -118,16 +118,23 @@ in; method resolved inside)
 ### Two-key verification (`verifyApproval`, dark-factory-authz.ts)
 
 1. Parse `prRef` as `owner/repo#N` — malformed → `TwoKeyError(invalid_pr_ref)`.
+   ([validated by `dark-factory-authz.test.ts:63`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L63), [`dark-factory-authz.test.ts:67`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L67))
 2. PR repo must equal `targetRepo` → else `TwoKeyError(wrong_repo)`.
+   ([validated by `dark-factory-authz.test.ts:78`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L78))
 3. `pulls.get` — 404 → `pr_not_found`; other error → `github_api`.
+   ([validated by `dark-factory-authz.test.ts:91`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L91), [`dark-factory-authz.test.ts:101`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L101))
 4. PR state must be `open` → else `pr_state`.
+   ([validated by `dark-factory-authz.test.ts:116`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L116))
 5. `issues.listEvents` → find the `labeled` event whose label is
    `dark-factory-approval`; none → `label_missing`. `approver = event.actor.login`.
+   ([validated by `dark-factory-authz.test.ts:129`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L129), [`dark-factory-authz.test.ts:144`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L144), [`dark-factory-authz.test.ts:159`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L159))
 6. Fetch CODEOWNERS (`.github/CODEOWNERS`, `CODEOWNERS`, `docs/CODEOWNERS` in
    order). `isCodeowner(approver, …)` must be true; else `approver_not_codeowner`
    (or `team_membership_unresolved` when CODEOWNERS lists only `@org/team`
    handles).
+   ([validated by `dark-factory-authz.test.ts:189`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L189), [`dark-factory-authz.test.ts:205`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L205), [`dark-factory-authz.test.ts:221`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L221), [`dark-factory-authz.test.ts:237`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L237))
 7. Success → `{ prRef, approver, prUrl }`.
+   ([validated by `dark-factory-authz.test.ts:174`](apps/lore-api/src/features/dark-factory/dark-factory-authz.test.ts#L174))
 
 ## Response strings (verbatim)
 
@@ -184,6 +191,9 @@ A non-privileged PUT applies at `tier: "admin"` and writes the audit log.
 PUT deep-merges the nested `auto_merge` object over prior settings. ([validated by
 `dark-factory.test.ts:222`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L214))
 
+PUT deep-merges a touched `task_overrides` entry over its prior stored entry. ([validated by
+`dark-factory.test.ts:321`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L315))
+
 A privileged-field PUT with no `X-Lore-Approval-PR` header returns `403 { error:
 "two_key_required" }`. ([validated by `dark-factory.test.ts:250`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L242), [validated by `two-key.test.ts:38`](apps/lore-api/src/api/routes/two-key.test.ts#L35), [validated by `two-key.test.ts:58`](apps/lore-api/src/api/routes/two-key.test.ts#L55))
 
@@ -197,13 +207,16 @@ A non-`TwoKeyError` GitHub failure returns `503 { error: "github_api_unavailable
 ([validated by `dark-factory.test.ts:314`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L306), [validated by `two-key.test.ts:117`](apps/lore-api/src/api/routes/two-key.test.ts#L114))
 
 A repo deleted between auth and the `FOR UPDATE` read returns `404`. ([validated by
-`dark-factory.test.ts:323`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L315))
+`dark-factory.test.ts:348`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L347))
 
 A best-effort audit-log insert failure does not block the settings commit.
-([validated by `dark-factory.test.ts:332`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L324))
+([validated by `dark-factory.test.ts:357`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L356))
 
 A write failure rolls the transaction back and returns `500 { error: "internal" }`.
-([validated by `dark-factory.test.ts:341`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L333))
+([validated by `dark-factory.test.ts:366`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L365))
+
+A rollback failure after a write failure is swallowed and still returns `500 { error: "internal" }`.
+([validated by `dark-factory.test.ts:376`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L375))
 
 The route requires `admin` scope via the `SCOPE_OVERRIDES` override. ([validated by
 `bearer-scope.test.ts`](apps/lore-api/src/server/plugins/bearer-scope.test.ts) and `applies the

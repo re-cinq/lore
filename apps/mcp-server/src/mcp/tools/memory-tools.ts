@@ -20,6 +20,7 @@ import {
   deniedError,
   notConfiguredError,
   textResult,
+  type ProxyResult,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
@@ -35,6 +36,29 @@ const EPISODE_DERIVED_READS = [
   "lore_query_graph",
   "lore_assemble_context",
 ];
+
+/** The ok/unreachable/denied handling shared by every proxied tool; null means the caller should fall back. */
+function interpretMemoryProxy(
+  toolName: string,
+  proxied: ProxyResult,
+  onOk?: () => void,
+): { content: Array<{ type: "text"; text: string }> } | null {
+  if (proxied.ok) {
+    onOk?.();
+
+    return textResult(proxied.body);
+  }
+
+  if (proxied.reason === "unreachable") {
+    return unreachableError(toolName, proxied.detail);
+  }
+
+  if (proxied.reason === "denied") {
+    return deniedError(toolName, proxied.detail);
+  }
+
+  return null;
+}
 
 // Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
 const WRITE_MEMORY_INPUT = {
@@ -186,8 +210,6 @@ function registerWriteMemoryTool(server: McpServer) {
     async ({ key, value, agent_id, ttl, extract_facts }) => {
       try {
         const repo = detectCurrentRepo() || undefined;
-
-        // Proxy to GKE if available
         const proxied = await proxyMemory("write", {
           key,
           value,
@@ -196,19 +218,12 @@ function registerWriteMemoryTool(server: McpServer) {
           repo,
           extract_facts,
         });
+        const handled = interpretMemoryProxy("lore_write_memory", proxied, () =>
+          invalidateCache(MEMORY_DERIVED_READS),
+        );
 
-        if (proxied.ok) {
-          invalidateCache(MEMORY_DERIVED_READS);
-
-          return textResult(proxied.body);
-        }
-
-        if (proxied.reason === "unreachable") {
-          return unreachableError("lore_write_memory", proxied.detail);
-        }
-
-        if (proxied.reason === "denied") {
-          return deniedError("lore_write_memory", proxied.detail);
+        if (handled) {
+          return handled;
         }
         // File fallback only when LORE_API_URL is not configured (true offline mode)
         const result = writeMemoryFile(key, value, agent_id, ttl);
@@ -221,6 +236,16 @@ function registerWriteMemoryTool(server: McpServer) {
   );
 }
 
+function resolveVersionParam(
+  version: string | undefined,
+): "all" | number | undefined {
+  if (version === "all") {
+    return "all";
+  }
+
+  return version ? Number(version) : undefined;
+}
+
 function registerReadMemoryTool(server: McpServer) {
   server.tool(
     "lore_read_memory",
@@ -228,16 +253,6 @@ function registerReadMemoryTool(server: McpServer) {
     READ_MEMORY_INPUT,
     async ({ key, agent_id, version }) => {
       try {
-        let ver: "all" | number | undefined;
-
-        if (version === "all") {
-          ver = "all";
-        }
-
-        if (version && version !== "all") {
-          ver = Number(version);
-        }
-
         const proxied = await withReadCache(
           {
             tool: "lore_read_memory",
@@ -251,19 +266,16 @@ function registerReadMemoryTool(server: McpServer) {
               version,
             }),
         );
+        const handled = interpretMemoryProxy("lore_read_memory", proxied);
 
-        if (proxied.ok) {
-          return textResult(proxied.body);
+        if (handled) {
+          return handled;
         }
-
-        if (proxied.reason === "unreachable") {
-          return unreachableError("lore_read_memory", proxied.detail);
-        }
-
-        if (proxied.reason === "denied") {
-          return deniedError("lore_read_memory", proxied.detail);
-        }
-        const result = readMemoryFile(key, agent_id, ver);
+        const result = readMemoryFile(
+          key,
+          agent_id,
+          resolveVersionParam(version),
+        );
 
         if (!result) {
           return textResult(`Memory "${key}" not found.`);
@@ -288,19 +300,14 @@ function registerDeleteMemoryTool(server: McpServer) {
           key,
           agent_id: agent_id || resolveAgentId(),
         });
+        const handled = interpretMemoryProxy(
+          "lore_delete_memory",
+          proxied,
+          () => invalidateCache(MEMORY_DERIVED_READS),
+        );
 
-        if (proxied.ok) {
-          invalidateCache(MEMORY_DERIVED_READS);
-
-          return textResult(proxied.body);
-        }
-
-        if (proxied.reason === "unreachable") {
-          return unreachableError("lore_delete_memory", proxied.detail);
-        }
-
-        if (proxied.reason === "denied") {
-          return deniedError("lore_delete_memory", proxied.detail);
+        if (handled) {
+          return handled;
         }
         const result = deleteMemoryFile(key, agent_id);
 
@@ -335,17 +342,10 @@ function registerListMemoriesTool(server: McpServer) {
               repo,
             }),
         );
+        const handled = interpretMemoryProxy("lore_list_memories", proxied);
 
-        if (proxied.ok) {
-          return textResult(proxied.body);
-        }
-
-        if (proxied.reason === "unreachable") {
-          return unreachableError("lore_list_memories", proxied.detail);
-        }
-
-        if (proxied.reason === "denied") {
-          return deniedError("lore_list_memories", proxied.detail);
+        if (handled) {
+          return handled;
         }
         const result = listMemoriesFile(agent_id, limit, offset);
 
@@ -387,17 +387,10 @@ function registerSearchMemoryTool(server: McpServer) {
           },
           () => proxyMemory("search", searchArgs),
         );
+        const handled = interpretMemoryProxy("lore_search_memory", proxied);
 
-        if (proxied.ok) {
-          return textResult(proxied.body);
-        }
-
-        if (proxied.reason === "unreachable") {
-          return unreachableError("lore_search_memory", proxied.detail);
-        }
-
-        if (proxied.reason === "denied") {
-          return deniedError("lore_search_memory", proxied.detail);
+        if (handled) {
+          return handled;
         }
         const results = searchMemoryFile(query, agent_id, limit);
 
@@ -423,19 +416,14 @@ function registerWriteEpisodeTool(server: McpServer) {
           ref,
           agent_id: agent_id || resolveAgentId(),
         });
+        const handled = interpretMemoryProxy(
+          "lore_write_episode",
+          proxied,
+          () => invalidateCache(EPISODE_DERIVED_READS),
+        );
 
-        if (proxied.ok) {
-          invalidateCache(EPISODE_DERIVED_READS);
-
-          return textResult(proxied.body);
-        }
-
-        if (proxied.reason === "unreachable") {
-          return unreachableError("lore_write_episode", proxied.detail);
-        }
-
-        if (proxied.reason === "denied") {
-          return deniedError("lore_write_episode", proxied.detail);
+        if (handled) {
+          return handled;
         }
 
         return textResult(
@@ -448,6 +436,35 @@ function registerWriteEpisodeTool(server: McpServer) {
   );
 }
 
+interface GraphQueryArgs {
+  entity?: string;
+  relation_type?: string;
+  repo?: string;
+  include_invalidated?: boolean;
+}
+
+function buildGraphQueryParams(args: GraphQueryArgs): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (args.entity) {
+    params.set("entity", args.entity);
+  }
+
+  if (args.relation_type) {
+    params.set("relation_type", args.relation_type);
+  }
+
+  if (args.repo) {
+    params.set("repo", args.repo);
+  }
+
+  if (args.include_invalidated) {
+    params.set("include_invalidated", "true");
+  }
+
+  return params;
+}
+
 function registerQueryGraphTool(server: McpServer) {
   server.tool(
     "lore_query_graph",
@@ -457,23 +474,12 @@ function registerQueryGraphTool(server: McpServer) {
       return trackLatency("lore_query_graph", async () => {
         try {
           // Local stdio mode proxies the read to the GKE server over LORE_API_URL (mirrors lore_assemble_context) instead of requiring a direct DB.
-          const params = new URLSearchParams();
-
-          if (entity) {
-            params.set("entity", entity);
-          }
-
-          if (relation_type) {
-            params.set("relation_type", relation_type);
-          }
-
-          if (repo) {
-            params.set("repo", repo);
-          }
-
-          if (include_invalidated) {
-            params.set("include_invalidated", "true");
-          }
+          const params = buildGraphQueryParams({
+            entity,
+            relation_type,
+            repo,
+            include_invalidated,
+          });
           const proxied = await withReadCache(
             {
               tool: "lore_query_graph",
@@ -483,17 +489,10 @@ function registerQueryGraphTool(server: McpServer) {
             },
             () => proxyGetApi(`/api/graph?${params.toString()}`),
           );
+          const handled = interpretMemoryProxy("lore_query_graph", proxied);
 
-          if (proxied.ok) {
-            return textResult(proxied.body);
-          }
-
-          if (proxied.reason === "unreachable") {
-            return unreachableError("lore_query_graph", proxied.detail);
-          }
-
-          if (proxied.reason === "denied") {
-            return deniedError("lore_query_graph", proxied.detail);
+          if (handled) {
+            return handled;
           }
 
           return textResult(

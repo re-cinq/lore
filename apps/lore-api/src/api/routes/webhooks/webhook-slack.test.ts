@@ -126,6 +126,12 @@ describe("POST /api/webhook/slack", () => {
     expect(text(res.result)).toContain("Retry failed");
   });
 
+  it("defaults the channel id to empty and returns the no-repo message when channel_id is absent", async () => {
+    const res = await slack({ text: "do something" }, {}, null);
+
+    expect(text(res.result)).toContain("No repo mapped");
+  });
+
   it("returns the no-repo message when the channel is unmapped", async () => {
     const pool = makePool();
 

@@ -13,6 +13,9 @@ type ToolHandler = (
 ) => Promise<{ content: { type: string; text: string }[] }>;
 
 let queryGraph: ToolHandler;
+let writeMemory: ToolHandler;
+let readMemory: ToolHandler;
+let listMemories: ToolHandler;
 const originalEnv = { ...process.env };
 const fetchMock = vi.fn();
 
@@ -27,6 +30,9 @@ beforeAll(async () => {
 
   registerMemoryTools(fakeServer as never);
   queryGraph = handlers["lore_query_graph"];
+  writeMemory = handlers["lore_write_memory"];
+  readMemory = handlers["lore_read_memory"];
+  listMemories = handlers["lore_list_memories"];
 });
 
 describe("lore_query_graph remote proxy (no local DB)", () => {
@@ -72,6 +78,156 @@ describe("lore_query_graph remote proxy (no local DB)", () => {
       /requires PostgreSQL .*or a configured LORE_API_URL/,
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("lore_write_memory remote proxy (no local DB)", () => {
+  beforeEach(() => {
+    process.env.LORE_API_URL = "https://lore-api.example.com";
+    process.env.LORE_INGEST_TOKEN = "tok";
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+  });
+
+  it("returns the proxied body on a successful write", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ key: "k", version: 1 }),
+    });
+
+    const result = await writeMemory({ key: "k", value: "v" });
+
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      key: "k",
+      version: 1,
+    });
+  });
+
+  it("reports a denied error on a 401 without retrying", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () => "",
+    });
+
+    const result = await writeMemory({ key: "k", value: "v" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.content[0].text).toContain("denied");
+  });
+});
+
+describe("lore_read_memory remote proxy (no local DB)", () => {
+  beforeEach(() => {
+    process.env.LORE_API_URL = "https://lore-api.example.com";
+    process.env.LORE_INGEST_TOKEN = "tok";
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+  });
+
+  it("returns the proxied body on a successful read", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ key: "k", value: "v" }),
+    });
+
+    const result = await readMemory({ key: "k" });
+
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      key: "k",
+      value: "v",
+    });
+  });
+
+  it("reports a denied error on a 401 without retrying", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () => "",
+    });
+
+    const result = await readMemory({ key: "k" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.content[0].text).toContain("denied");
+  });
+});
+
+describe("lore_list_memories remote proxy (no local DB)", () => {
+  beforeEach(() => {
+    process.env.LORE_API_URL = "https://lore-api.example.com";
+    process.env.LORE_INGEST_TOKEN = "tok";
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+  });
+
+  it("returns the proxied body on a successful list", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ memories: [], total: 0 }),
+    });
+
+    const result = await listMemories({ limit: 10 });
+
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      memories: [],
+      total: 0,
+    });
+  });
+
+  it("reports a denied error on a 401 without retrying", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () => "",
+    });
+
+    const result = await listMemories({ limit: 10 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.content[0].text).toContain("denied");
+  });
+});
+
+describe("lore_query_graph denied response", () => {
+  beforeEach(() => {
+    process.env.LORE_API_URL = "https://lore-api.example.com";
+    process.env.LORE_INGEST_TOKEN = "tok";
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+  });
+
+  it("reports a denied error on a 403 without retrying", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: "Forbidden",
+      text: async () => "",
+    });
+
+    const result = await queryGraph({ entity: "x" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.content[0].text).toContain("denied");
   });
 });
 

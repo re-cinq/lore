@@ -133,16 +133,14 @@ export function buildLocalIndex(specs: SpecSource[]): SpecCodeIndex {
   return index;
 }
 
-/** Walks Statement → validated_by Test → covers File chains into the coverage layer. */
-export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
-  const index: SpecCodeIndex = new Map();
-  const nodeById = new Map<string, SpecGraphNode>(
-    graph.nodes.map((n) => [n.id, n]),
-  );
-
+/** Test node id → the statement that `validated_by`-links to it. */
+function buildStatementByTest(
+  nodeById: Map<string, SpecGraphNode>,
+  links: SpecGraph["links"],
+): Map<string, SpecGraphNode> {
   const statementByTest = new Map<string, SpecGraphNode>();
 
-  for (const link of graph.links) {
+  for (const link of links) {
     if (link.kind !== "validated_by") {
       continue;
     }
@@ -153,28 +151,58 @@ export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
     }
   }
 
+  return statementByTest;
+}
+
+interface CoverageContext {
+  test: SpecGraphNode;
+  file: { path: string; detail: string | undefined };
+  stmt: SpecGraphNode;
+}
+
+/** Resolves a `covers` link's test/file/statement triple, or null when any leg is missing. */
+function resolveCoverageContext(
+  link: SpecGraph["links"][number],
+  nodeById: Map<string, SpecGraphNode>,
+  statementByTest: Map<string, SpecGraphNode>,
+): CoverageContext | null {
+  const test = nodeById.get(link.source);
+  const file = nodeById.get(link.target);
+  const stmt = statementByTest.get(link.source);
+
+  if (!test || !file?.path || !stmt) {
+    return null;
+  }
+
+  return { test, file: { path: file.path, detail: file.detail }, stmt };
+}
+
+function relatedTestTarget(test: SpecGraphNode): LinkTarget[] {
+  return test.path
+    ? [{ label: test.label, path: test.path, line: test.line ?? null }]
+    : [];
+}
+
+/** Walks Statement → validated_by Test → covers File chains into the coverage layer. */
+export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
+  const index: SpecCodeIndex = new Map();
+  const nodeById = new Map<string, SpecGraphNode>(
+    graph.nodes.map((n) => [n.id, n]),
+  );
+  const statementByTest = buildStatementByTest(nodeById, graph.links);
+
   for (const link of graph.links) {
     if (link.kind !== "covers") {
       continue;
     }
-    const test = nodeById.get(link.source);
-    const file = nodeById.get(link.target);
-    const stmt = statementByTest.get(link.source);
+    const context = resolveCoverageContext(link, nodeById, statementByTest);
 
-    if (!test || !file?.path || !stmt) {
+    if (!context) {
       continue;
     }
+    const { test, file, stmt } = context;
 
-    const related: LinkTarget[] = test.path
-      ? [{ label: test.label, path: test.path, line: test.line ?? null }]
-      : [];
-
-    addCoveredIntervals(
-      index,
-      { path: file.path, detail: file.detail },
-      stmt,
-      related,
-    );
+    addCoveredIntervals(index, file, stmt, relatedTestTarget(test));
   }
 
   return index;

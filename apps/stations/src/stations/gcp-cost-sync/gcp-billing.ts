@@ -41,6 +41,28 @@ const QueryResponse = z.object({
     .optional(),
 });
 
+type QueryRow = z.infer<typeof QueryResponse>["rows"] extends
+  (infer Row)[] | undefined
+  ? Row
+  : never;
+
+function cellText(row: QueryRow, index: number): string {
+  return row.f[index]?.v ?? "";
+}
+
+function cellNumber(row: QueryRow, index: number): number {
+  return Number(row.f[index]?.v ?? 0);
+}
+
+function toBillingRow(row: QueryRow): GcpCostDailyRow {
+  return {
+    bucketDate: cellText(row, 0),
+    service: cellText(row, 1),
+    costUsd: cellNumber(row, 2),
+    creditsUsd: cellNumber(row, 3),
+  };
+}
+
 export function parseBillingQueryResponse(raw: unknown): GcpCostDailyRow[] {
   const response = QueryResponse.parse(raw);
 
@@ -50,10 +72,5 @@ export function parseBillingQueryResponse(raw: unknown): GcpCostDailyRow[] {
     "BigQuery billing query did not complete in time",
   );
 
-  return (response.rows ?? []).map((row) => ({
-    bucketDate: row.f[0]?.v ?? "",
-    service: row.f[1]?.v ?? "",
-    costUsd: Number(row.f[2]?.v ?? 0),
-    creditsUsd: Number(row.f[3]?.v ?? 0),
-  }));
+  return (response.rows ?? []).map(toBillingRow);
 }

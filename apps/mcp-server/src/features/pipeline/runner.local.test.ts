@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import type { PgPool } from "@re-cinq/lore-shared";
 
 import {
   withLoreWorkflowPreamble,
@@ -13,6 +14,8 @@ import {
   batchTurnLines,
   dropOversizedTurnLines,
   ingestTurns,
+  fetchPendingTasks,
+  cleanupStaleTasks,
   type LocalTask,
   type LocalRunnerConfig,
   type PendingTask,
@@ -434,6 +437,268 @@ describe("ingestTurns x-turn-offset header carries each batch's cumulative line 
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][1].headers["x-turn-offset"]).toBe("2000");
+  });
+
+  it("returns without fetching when the API URL or token is not configured", async () => {
+    delete env.LORE_API_URL;
+    delete env.LORE_INGEST_TOKEN;
+    env.GIT_CONFIG_GLOBAL = "/nonexistent-lore-test-gitconfig";
+    const fetchMock = vi.fn();
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await ingestTurns(localTask, rawLogs);
+
+    delete env.GIT_CONFIG_GLOBAL;
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("warns and drops a line too large to ever fit a relay batch, without fetching it", async () => {
+    const fetchMock = vi.fn();
+
+    vi.stubGlobal("fetch", fetchMock);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const oversizedLogs = JSON.stringify({
+      type: "assistant",
+      data: "the quick brown fox jumps over the lazy dog ".repeat(20_000),
+    });
+
+    await ingestTurns(localTask, oversizedLogs);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("exceeds the"),
+    );
+    warnSpy.mockRestore();
+  });
+});
+
+describe("fetchPendingTasks", () => {
+  const env = process.env;
+
+  afterEach(() => {
+    delete env.LORE_API_URL;
+    delete env.LORE_INGEST_TOKEN;
+    vi.unstubAllGlobals();
+  });
+
+  it("returns an empty array without querying anything when repos or task types are empty", async () => {
+    const dbPool: PgPool = {
+      query: async () => {
+        throw new Error("must not be called");
+      },
+    };
+
+    await expect(fetchPendingTasks([], ["general"], dbPool)).resolves.toEqual(
+      [],
+    );
+    await expect(
+      fetchPendingTasks(["re-cinq/lore"], [], dbPool),
+    ).resolves.toEqual([]);
+  });
+
+  it("returns rows from the DB pool when one is provided", async () => {
+    const dbPool: PgPool = {
+      query: (async () => ({
+        rows: [
+          {
+            id: "task-1",
+            description: "Fix the thing",
+            task_type: "general",
+            target_repo: "re-cinq/lore",
+            created_at: "2026-04-03T00:00:00Z",
+            issue_number: 42,
+          },
+        ],
+      })) as PgPool["query"],
+    };
+
+    const tasks = await fetchPendingTasks(
+      ["re-cinq/lore"],
+      ["general"],
+      dbPool,
+    );
+
+    expect(tasks).toEqual([
+      {
+        id: "task-1",
+        description: "Fix the thing",
+        task_type: "general",
+        target_repo: "re-cinq/lore",
+        created_at: "2026-04-03T00:00:00Z",
+        issue_number: 42,
+      },
+    ]);
+  });
+
+  it("falls through to the API when the DB query throws", async () => {
+    const dbPool: PgPool = {
+      query: async () => {
+        throw new Error("connection reset");
+      },
+    };
+
+    env.LORE_API_URL = "http://lore-api.test";
+    env.LORE_INGEST_TOKEN = "test-token";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tasks: [
+          {
+            id: "task-2",
+            task_type: "general",
+            target_repo: "re-cinq/lore",
+            created_at: "2026-04-03T00:00:00Z",
+          },
+        ],
+      }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tasks = await fetchPendingTasks(
+      ["re-cinq/lore"],
+      ["general"],
+      dbPool,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(tasks).toEqual([
+      {
+        id: "task-2",
+        description: "",
+        task_type: "general",
+        target_repo: "re-cinq/lore",
+        created_at: "2026-04-03T00:00:00Z",
+        issue_number: undefined,
+      },
+    ]);
+  });
+
+  it("returns an empty array when no API credentials are configured", async () => {
+    const tasks = await fetchPendingTasks(["re-cinq/lore"], ["general"]);
+
+    expect(tasks).toEqual([]);
+  });
+
+  it("returns an empty array when the API responds non-ok", async () => {
+    env.LORE_API_URL = "http://lore-api.test";
+    env.LORE_INGEST_TOKEN = "test-token";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+
+    const tasks = await fetchPendingTasks(["re-cinq/lore"], ["general"]);
+
+    expect(tasks).toEqual([]);
+  });
+
+  it("filters API results down to the requested repos and task types", async () => {
+    env.LORE_API_URL = "http://lore-api.test";
+    env.LORE_INGEST_TOKEN = "test-token";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tasks: [
+          {
+            id: "task-3",
+            task_type: "general",
+            target_repo: "re-cinq/lore",
+            created_at: "2026-04-03T00:00:00Z",
+          },
+          {
+            id: "task-4",
+            task_type: "onboard",
+            target_repo: "re-cinq/other",
+            created_at: "2026-04-03T00:00:00Z",
+          },
+        ],
+      }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tasks = await fetchPendingTasks(["re-cinq/lore"], ["general"]);
+
+    expect(tasks.map((t) => t.id)).toEqual(["task-3"]);
+  });
+});
+
+describe("cleanupStaleTasks", () => {
+  it("resolves without throwing when there are no locally-tracked tasks to recover", async () => {
+    await expect(cleanupStaleTasks()).resolves.toBeUndefined();
+  });
+
+  describe("recovering a dead task against the real ~/.lore/local-tasks.json", () => {
+    const tasksFile = path.join(os.homedir(), ".lore", "local-tasks.json");
+    let backup: string | null;
+    const env = process.env;
+
+    beforeEach(() => {
+      backup = fs.existsSync(tasksFile)
+        ? fs.readFileSync(tasksFile, "utf-8")
+        : null;
+      delete env.LORE_API_URL;
+      delete env.LORE_INGEST_TOKEN;
+      env.GIT_CONFIG_GLOBAL = "/nonexistent-lore-test-gitconfig";
+    });
+
+    afterEach(() => {
+      delete env.GIT_CONFIG_GLOBAL;
+      fs.mkdirSync(path.dirname(tasksFile), { recursive: true });
+
+      if (backup === null) {
+        fs.rmSync(tasksFile, { force: true });
+
+        return;
+      }
+      fs.writeFileSync(tasksFile, backup);
+    });
+
+    it("marks dead tasks failed and leaves a live one running, unaffected by staleness age", async () => {
+      const deadFresh: LocalTask = {
+        taskId: "stale-test-dead-fresh",
+        pid: 999999999,
+        branch: "lore/general/dead-fresh",
+        repo: "re-cinq/lore",
+        worktreePath: "/nonexistent/lore-test-worktree-dead-fresh",
+        logFile: "/nonexistent/lore-test-dead-fresh.log",
+        startedAt: new Date().toISOString(),
+        status: "running",
+      };
+      const deadStale: LocalTask = {
+        ...deadFresh,
+        taskId: "stale-test-dead-stale",
+        worktreePath: "/nonexistent/lore-test-worktree-dead-stale",
+        startedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      };
+      const live: LocalTask = {
+        ...deadFresh,
+        taskId: "stale-test-live",
+        pid: process.pid,
+      };
+
+      fs.mkdirSync(path.dirname(tasksFile), { recursive: true });
+      fs.writeFileSync(
+        tasksFile,
+        JSON.stringify([deadFresh, deadStale, live], null, 2),
+      );
+
+      await cleanupStaleTasks();
+
+      const result = JSON.parse(
+        fs.readFileSync(tasksFile, "utf-8"),
+      ) as LocalTask[];
+      const byId = (id: string) => result.find((t) => t.taskId === id);
+
+      expect(byId("stale-test-dead-fresh")).toMatchObject({
+        status: "failed",
+        error: "Process exited unexpectedly",
+      });
+      expect(byId("stale-test-dead-stale")).toMatchObject({
+        status: "failed",
+        error: "Process exited unexpectedly",
+      });
+      expect(byId("stale-test-live")).toMatchObject({ status: "running" });
+    });
   });
 });
 

@@ -208,7 +208,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     rendered prompt appended; no CRD schema change. ([validated by agentForModel exec routing test](../ai-agent-subsystem/packages/agentcore/source/agentcore/vendors/select.d))
 
 16. Node YAML accepts optional `station_ref` (custom station, default `def-<type>`) and
-    `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L504))
+    `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L531))
 
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
     (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L119), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L159), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L98))
@@ -292,7 +292,8 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     after the run. The two cost transports are code-enforced exclusive: when the process has a
     configured UsagePort (`Llm.usageConfigured` — the per-call transport), `runStation` installs no
     tracker and suppresses all terminal-line usage, explicit `NodeResult.usage` included, so the
-    same call is never counted by both. ([validated by `main.test.ts:26`](apps/stations/src/cli/main.test.ts#L26), [`main.test.ts:60`](apps/stations/src/cli/main.test.ts#L60), [`main.test.ts:93`](apps/stations/src/cli/main.test.ts#L93), [`main.test.ts:117`](apps/stations/src/cli/main.test.ts#L117), [`main.test.ts:132`](apps/stations/src/cli/main.test.ts#L132), [`main.test.ts:146`](apps/stations/src/cli/main.test.ts#L146); implemented by [`llm-usage-tracker.ts:17`](apps/stations/src/stations/lib/llm-usage-tracker.ts#L17))
+    same call is never counted by both; an unregistered station type never reaches the
+    tracker at all, returning an error line and exit code 1. ([validated by `main.test.ts:43`](apps/stations/src/cli/main.test.ts#L43), [`main.test.ts:77`](apps/stations/src/cli/main.test.ts#L77), [`main.test.ts:110`](apps/stations/src/cli/main.test.ts#L110), [`main.test.ts:134`](apps/stations/src/cli/main.test.ts#L134), [`main.test.ts:149`](apps/stations/src/cli/main.test.ts#L149), [`main.test.ts:163`](apps/stations/src/cli/main.test.ts#L163), [`carries no usage on an infrastructure-failure line when a UsagePort is configured`](apps/stations/src/cli/main.test.ts#L209), [`reports an error line and exit code 1 for an unregistered station type`](apps/stations/src/cli/main.test.ts#L26); implemented by [`llm-usage-tracker.ts:17`](apps/stations/src/stations/lib/llm-usage-tracker.ts#L17))
 
 26. *(added 2026-08-10)* A seeded recipe MUST NOT declare `skills` without a
     `skills_source` to fetch them from. The generated catalog omits the whole skills
@@ -388,7 +389,14 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     one-entry list and a four-entry list survive by the identical path. A recipe MUST NOT name a skill the
     gateway's bundle does not carry: the init fetches it as a 404 and the run
     proceeds without the contract the recipe asked for, which is FR26's failure
-    one level down and just as silent. ([validated by `agent-catalog.test.ts:104`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L104), [`agent-catalog.test.ts:113`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L113), [`skills-registry.test.ts:95`](apps/mcp-server/src/server/skills-registry.test.ts#L95); implemented by [`agent-catalog.ts:141`](apps/floor/src/jobs/agent/agent-catalog.ts#L141))
+    one level down and just as silent. ([validated by `agent-catalog.test.ts:104`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L104), [`agent-catalog.test.ts:113`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L113), [`skills-registry.test.ts:118`](apps/mcp-server/src/server/skills-registry.test.ts#L118); implemented by [`agent-catalog.ts:141`](apps/floor/src/jobs/agent/agent-catalog.ts#L141))
+
+35. *(added 2026-09-04)* `GET /api/repos/{owner}/{repo}/chunks/{kind}` is the pod-side chunk read
+    named by D7: one route dispatching by `{kind}` (`spec`, `code-symbols`, `spec-ingest`,
+    `test-ranges`, `spec-backfill`, `code-backfill`, `has`, and `stale` as the default) to the
+    matching `project.chunks` method, so a station pod never opens Postgres for a detect node's
+    reads. An unknown kind is a 404; `kind=has` requires `content_type` and answers 400 without it.
+    ([validated by returns 404 for an unknown kind](apps/lore-api/src/api/routes/repos/chunks.test.ts#L44), [`chunks.test.ts:50`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L50), [`chunks.test.ts:56`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L56), [`chunks.test.ts:62`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L62), [`chunks.test.ts:68`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L68), [`chunks.test.ts:74`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L74), [`chunks.test.ts:80`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L80), [`chunks.test.ts:86`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L86), [`chunks.test.ts:93`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L93), [`chunks.test.ts:99`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L99), [`chunks.test.ts:106`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L106), [`chunks.test.ts:113`](apps/lore-api/src/api/routes/repos/chunks.test.ts#L113))
 
 ## Out of scope
 

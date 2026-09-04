@@ -221,38 +221,59 @@ async function extractFactTexts(
   }
 }
 
+type FactInsert = (
+  factText: string,
+  embedding: string | null,
+) => Promise<{ rows: Array<{ id?: unknown }> }>;
+
+function toEmbeddingStr(embedding: number[] | null): string | null {
+  return embedding ? `[${embedding.join(",")}]` : null;
+}
+
+/** Inserts one fact and lets it invalidate what it contradicts, returning how many older facts it retired. A failure here is logged and swallowed — one bad fact must not sink the batch. */
+async function storeSingleFact(
+  pool: PgPool,
+  factText: string,
+  agentId: string | null,
+  insert: FactInsert,
+): Promise<number> {
+  try {
+    const embedding = await getQueryEmbedding(factText);
+    const embeddingStr = toEmbeddingStr(embedding);
+    const { rows } = await insert(factText, embeddingStr);
+    const factId = embeddingStr ? rows[0]?.id : undefined;
+
+    if (!factId) {
+      return 0;
+    }
+
+    return await invalidateContradictions(
+      pool,
+      factId as string,
+      embeddingStr as string,
+      agentId,
+    );
+  } catch (err) {
+    console.warn(
+      `[facts] Failed to insert fact "${factText.substring(0, 50)}...":`,
+      err,
+    );
+
+    return 0;
+  }
+}
+
 /** Inserts each fact and lets it invalidate what it contradicts, returning how many older facts it retired. One bad fact is skipped, never the batch. */
 async function storeFacts(
   pool: PgPool,
   facts: string[],
   agentId: string | null,
-  insert: (
-    factText: string,
-    embedding: string | null,
-  ) => Promise<{ rows: Array<{ id?: unknown }> }>,
+  insert: FactInsert,
 ): Promise<number> {
   let invalidated = 0;
 
   for (const factText of facts) {
-    try {
-      const embedding = await getQueryEmbedding(factText);
-      const embeddingStr = embedding ? `[${embedding.join(",")}]` : null;
-      const { rows } = await insert(factText, embeddingStr);
-
-      if (embeddingStr && rows[0]?.id) {
-        invalidated += await invalidateContradictions(
-          pool,
-          rows[0].id as string,
-          embeddingStr,
-          agentId,
-        );
-      }
-    } catch (err) {
-      console.warn(
-        `[facts] Failed to insert fact "${factText.substring(0, 50)}...":`,
-        err,
-      );
-    }
+    invalidated += await storeSingleFact(pool, factText, agentId, insert);
   }
 
   return invalidated;

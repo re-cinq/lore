@@ -132,6 +132,71 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
     expect(ensureFloorWebhook).toHaveBeenCalledWith("o/r");
     expect(res.result).toMatchObject({ state: "configured" });
   });
+
+  it("maps a webhook_host_not_configured skip to 503", async () => {
+    process.env.LORE_WEBHOOK_URL = URL;
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+      ok: false,
+      reason: "webhook_host_not_configured",
+    });
+    const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
+
+    expect(res.statusCode).toBe(503);
+    expect(res.result).toEqual({ error: "LORE_WEBHOOK_URL not configured" });
+  });
+
+  it("maps an unmapped skip reason to 500 with its detail", async () => {
+    process.env.LORE_WEBHOOK_URL = URL;
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+      ok: false,
+      reason: "ensure_failed",
+      detail: "octokit exploded",
+    });
+    const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: "octokit exploded" });
+  });
+
+  it("maps an unmapped skip reason with no detail to a generic 500 message", async () => {
+    process.env.LORE_WEBHOOK_URL = URL;
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+      ok: false,
+      reason: "ensure_failed",
+    });
+    const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: "webhook ensure failed" });
+  });
+
+  it("returns 500 when the post-ensure webhook listing throws", async () => {
+    process.env.LORE_WEBHOOK_URL = URL;
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+      ok: true,
+      hookId: 7,
+      created: false,
+    });
+    vi.mocked(listRepoWebhooks).mockRejectedValue(new Error("listing failed"));
+    const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: "listing failed" });
+  });
+
+  it("falls back to String(err) when the post-ensure listing throws an empty-message Error", async () => {
+    process.env.LORE_WEBHOOK_URL = URL;
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+      ok: true,
+      hookId: 7,
+      created: false,
+    });
+    vi.mocked(listRepoWebhooks).mockRejectedValue(new Error(""));
+    const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: "Error" });
+  });
 });
 
 describe("GET /api/repos/:o/:r/webhook/secret", () => {

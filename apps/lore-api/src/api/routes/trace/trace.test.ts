@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { Pool } from "pg";
 import { buildServer } from "../../../server/build-server.js";
 import {
   makePool,
@@ -6,6 +7,7 @@ import {
   AUTH,
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { setPool } from "@re-cinq/lore-server-core/platform/db.js";
 
 const originalEnv = { ...process.env };
 const get = (url: string, headers?: Record<string, string>) =>
@@ -74,5 +76,105 @@ describe("GET /api/trace/specs", () => {
     const res = await get("/api/trace/specs");
 
     expect(res.statusCode).toBe(401);
+  });
+});
+
+describe("GET /api/repos/:owner/:repo/trace/:kind — per-kind dispatch", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    delete process.env.LORE_DGRAPH_HTTP;
+    setPool(makePool() as unknown as Pool);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    setPool(null as unknown as Pool);
+    vi.clearAllMocks();
+  });
+
+  const NO_DGRAPH_ERROR =
+    "lore-api has no Dgraph client (LORE_DGRAPH_HTTP unset)";
+
+  it("dispatches specs and surfaces the no-op Dgraph failure as 500", async () => {
+    const res = await get("/api/repos/o/r/trace/specs", AUTH);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });
+  });
+
+  it("dispatches spec-summaries and surfaces the no-op Dgraph failure as 500", async () => {
+    const res = await get("/api/repos/o/r/trace/spec-summaries", AUTH);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });
+  });
+
+  it("dispatches adrs and surfaces the no-op Dgraph failure as 500", async () => {
+    const res = await get("/api/repos/o/r/trace/adrs", AUTH);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });
+  });
+
+  it("dispatches adr-summaries and surfaces the no-op Dgraph failure as 500", async () => {
+    const res = await get("/api/repos/o/r/trace/adr-summaries", AUTH);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });
+  });
+
+  it("dispatches graph, with a clean project.features.list() read, and surfaces the no-op Dgraph failure as 500", async () => {
+    setPool({
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    } as unknown as Pool);
+    const res = await get("/api/repos/o/r/trace/graph", AUTH);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });
+  });
+
+  it("returns 400 when document is requested without a path", async () => {
+    const res = await get("/api/repos/o/r/trace/document", AUTH);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.result).toEqual({ error: "path query param required" });
+  });
+
+  it("dispatches document with a path and surfaces the no-op Dgraph failure as 500", async () => {
+    const res = await get(
+      "/api/repos/o/r/trace/document?path=specs/a.md",
+      AUTH,
+    );
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });
+  });
+
+  it("returns 400 when ring is requested without a path", async () => {
+    const res = await get("/api/repos/o/r/trace/ring", AUTH);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.result).toEqual({ error: "path query param required" });
+  });
+
+  it("dispatches ring with a path and surfaces the no-op Dgraph failure as 500", async () => {
+    const res = await get("/api/repos/o/r/trace/ring?path=specs/a.md", AUTH);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });
+  });
+
+  it("returns 400 when source is requested without a path", async () => {
+    const res = await get("/api/repos/o/r/trace/source", AUTH);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.result).toEqual({ error: "path query param required" });
+  });
+
+  it("dispatches source (the default kind) with a path and surfaces the no-op Dgraph failure as 500", async () => {
+    const res = await get("/api/repos/o/r/trace/source?path=specs/a.md", AUTH);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });
   });
 });

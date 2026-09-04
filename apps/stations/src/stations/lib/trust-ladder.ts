@@ -27,36 +27,51 @@ export interface TrustDecision {
 
 const DEFAULT_THRESHOLD = 3;
 
+function currentLevel(trust: TrustState | undefined): TrustLevel | undefined {
+  return trust?.level as TrustLevel | undefined;
+}
+
+function bankedTasks(trust: TrustState | undefined): number {
+  return trust?.successful_tasks ?? 0;
+}
+
+function promotionThreshold(trust: TrustState | undefined): number {
+  return trust?.auto_promote_threshold || DEFAULT_THRESHOLD;
+}
+
+// The next rung up from `level`; Math.min guards an unrecognised level (indexOf(-1) + 1 = 0 demotes safely rather than throwing).
+function promotedLevel(level: TrustLevel): TrustLevel {
+  const nextIndex = Math.min(
+    TRUST_LEVELS.indexOf(level) + 1,
+    TRUST_LEVELS.length - 1,
+  );
+
+  return TRUST_LEVELS[nextIndex];
+}
+
 /** Decide the trust state after one more successful merge. */
 export function nextTrust(trust: TrustState | undefined): TrustDecision {
-  const level = trust?.level as TrustLevel | undefined;
+  const level = currentLevel(trust);
 
   // No level recorded or already at `full`: hold until promotion is possible.
   if (!level || level === "full") {
     return {
       hold: true,
       level,
-      successfulTasks: trust?.successful_tasks ?? 0,
+      successfulTasks: bankedTasks(trust),
       promoted: false,
     };
   }
 
-  const threshold = trust?.auto_promote_threshold || DEFAULT_THRESHOLD;
-  const banked = (trust?.successful_tasks ?? 0) + 1;
+  const banked = bankedTasks(trust) + 1;
 
-  if (banked < threshold) {
+  if (banked < promotionThreshold(trust)) {
     return { hold: false, level, successfulTasks: banked, promoted: false };
   }
 
-  // Math.min guards unrecognised level: indexOf(-1) + 1 = 0 demotes safely.
-  const nextIndex = Math.min(
-    TRUST_LEVELS.indexOf(level) + 1,
-    TRUST_LEVELS.length - 1,
-  );
-
   return {
     hold: false,
-    level: TRUST_LEVELS[nextIndex],
+    level: promotedLevel(level),
     successfulTasks: 0,
     promoted: true,
   };

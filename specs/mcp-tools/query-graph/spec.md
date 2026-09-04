@@ -74,7 +74,10 @@ Reads the live knowledge graph and returns typed relationship edges {entity, ent
 `extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/features/memory/graph.ts#L134)): entities are upserted
 (`ON CONFLICT (name, entity_type, COALESCE(repo,''))`); an edge with the same
 source+relation but a different target sets the prior edge's `valid_to`; an
-exact already-valid edge is skipped.
+exact already-valid edge is skipped. A failed entity upsert is skipped rather
+than aborting the batch, and any edge that depended on it (source or target
+missing from the upserted set) is skipped in turn; a failed edge upsert is
+likewise skipped without blocking the remaining edges. ([validated by `graph-edge.test.ts:116`](libs/server-core/src/features/memory/graph-edge.test.ts#L116), [`graph-edge.test.ts:163`](libs/server-core/src/features/memory/graph-edge.test.ts#L163))
 
 ## Output
 
@@ -108,16 +111,30 @@ A single MCP text content block. One of: pretty-printed JSON array of
    *(untested: requires live `memory.entities`/`memory.edges` rows; the
    population + parse paths are covered above.)*
 6. In local stdio mode (no DB) the tool proxies to `GET /api/graph` with the
-   query params and bearer token. ([validated by `memory-tools.test.ts:44`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L44))
+   query params and bearer token. ([validated by `memory-tools.test.ts:50`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L50))
 
 7. With no `LORE_API_URL` configured it returns the PostgreSQL-or-API-URL
-   message rather than calling out. ([validated by `memory-tools.test.ts:66`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L66))
+   message rather than calling out. ([validated by `memory-tools.test.ts:72`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L72))
+
+7a. A 401/403 from the proxied `GET /api/graph` is reported as a denied error
+    on the first attempt, without the retriable-status backoff loop.
+    ([validated by `reports a denied error on a 403 without
+    retrying`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L219))
 
 8. The `GET /api/graph` endpoint passes the params to `queryLiveGraph` and
    returns its rows, 503 without a pool, 500 on error. ([validated by `graph.test.ts:31`](apps/lore-api/src/api/routes/graph/graph.test.ts#L31))
 
+9. The legacy file-based static graph search (`graphSearchHandler`) reports an
+   unbuilt-graph message, a parse error, or a missing-fields error before
+   falling back to entity matching and BFS traversal chains; a thrown error
+   during that pass is reported as `Error reading graph: {message}` rather
+   than propagating. ([validated by `graph-handlers.test.ts:27`](libs/server-core/src/features/memory/graph-handlers.test.ts#L27), [`graph-handlers.test.ts:34`](libs/server-core/src/features/memory/graph-handlers.test.ts#L34), [`graph-handlers.test.ts:42`](libs/server-core/src/features/memory/graph-handlers.test.ts#L42), [`graph-handlers.test.ts:55`](libs/server-core/src/features/memory/graph-handlers.test.ts#L55), [`graph-handlers.test.ts:71`](libs/server-core/src/features/memory/graph-handlers.test.ts#L71), [`graph-handlers.test.ts:93`](libs/server-core/src/features/memory/graph-handlers.test.ts#L93), [`graph-handlers.test.ts:107`](libs/server-core/src/features/memory/graph-handlers.test.ts#L107), [`graph-handlers.test.ts:212`](libs/server-core/src/features/memory/graph-handlers.test.ts#L212))
+
+10. The legacy `getDomainSummaryHandler` mirrors the same not-built/parse/shape
+    error precedence, then looks up a domain case-insensitively and lists
+    available domains when no match is found. ([validated by `graph-handlers.test.ts:141`](libs/server-core/src/features/memory/graph-handlers.test.ts#L141), [`graph-handlers.test.ts:148`](libs/server-core/src/features/memory/graph-handlers.test.ts#L148), [`graph-handlers.test.ts:158`](libs/server-core/src/features/memory/graph-handlers.test.ts#L158), [`graph-handlers.test.ts:171`](libs/server-core/src/features/memory/graph-handlers.test.ts#L171), [`graph-handlers.test.ts:184`](libs/server-core/src/features/memory/graph-handlers.test.ts#L184))
+
 ## Out of Scope
 
-- The legacy file-based static graph (`graphSearchHandler` / `graphrag/*.json`).
 - LLM entity extraction prompt accuracy.
 - Graph augmentation in `lore_search_memory` (covered there).

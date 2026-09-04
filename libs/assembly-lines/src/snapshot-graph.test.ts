@@ -111,4 +111,59 @@ describe("snapshotGraph", () => {
   it("round-trips through JSON, since the clone is stored as jsonb", () => {
     expect(JSON.parse(JSON.stringify(graph()))).toEqual(graph());
   });
+
+  it("carries condition_ref, route, and continues onto the node clone", () => {
+    const withOptionalFields = snapshotGraph(
+      parseAssemblyLine(`
+name: demo2
+description: exercises condition_ref/route/continues
+version: 1
+entry: a
+exit: done
+nodes:
+  - id: a
+    type: agent
+    prompt_ref: x
+    condition_ref: only-if-flagged
+    continues:
+      node: a
+      key: line
+  - id: author
+    type: feature_review
+    route: /repos/{args.repo}/features/{args.feature_id}
+  - id: done
+    type: retrospective
+edges:
+  - from: a
+    to: author
+    on: success
+  - from: a
+    to: done
+    on: changes_requested
+  - from: a
+    to: done
+    on: failed
+  - from: author
+    to: done
+    on: success
+  - from: author
+    to: done
+    on: changes_requested
+  - from: author
+    to: done
+    on: failed
+`),
+      "demo2",
+    );
+
+    expect(withOptionalFields.nodes.find((n) => n.id === "a")).toMatchObject({
+      condition_ref: "only-if-flagged",
+      continues: { node: "a", key: "line" },
+    });
+    expect(
+      withOptionalFields.nodes.find((n) => n.id === "author"),
+    ).toMatchObject({
+      route: "/repos/{args.repo}/features/{args.feature_id}",
+    });
+  });
 });

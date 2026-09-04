@@ -76,19 +76,19 @@ available to agents — the authoritative interface.
   If `extract_facts=true`, fact extraction runs asynchronously and
   does not block the response. An upsert overwrites the value on a
   `(agent, key, version=1)` collision; an append bumps the version and
-  concatenates on an `(agent, key)` collision. ([validated by `memory.test.ts:33`](libs/shared/src/project/memory/memory.test.ts#L33), [`memory-store-bridge.test.ts:40`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L40), [`memory-lifecycle.test.ts:124`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L124), [`memory-lifecycle.test.ts:375`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L375), [`memory-lifecycle.test.ts:139`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L139), [`memory-lifecycle.test.ts:385`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L385))
+  concatenates on an `(agent, key)` collision. ([validated by `memory.test.ts:33`](libs/shared/src/project/memory/memory.test.ts#L33), [`memory-store-bridge.test.ts:40`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L40), [`memory-lifecycle.test.ts:124`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L124), [`memory-lifecycle.test.ts:375`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L375), [`memory-lifecycle.test.ts:139`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L139), [`memory-lifecycle.test.ts:385`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L385), [`memory.test.ts:110`](libs/server-core/src/features/memory/memory.test.ts#L110))
 
 - `writeMemory` (the `lore_write_memory` path) writes the memories row and its
   version row atomically: when the pool provides a client (`connect()`), the
   write runs inside one transaction, so a
   failed version insert rolls the memories insert back instead of leaving a
-  version-less memory behind (#1154). ([validated by `memory.test.ts:390`](libs/server-core/src/features/memory/memory.test.ts#L390), [`memory.test.ts:419`](libs/server-core/src/features/memory/memory.test.ts#L419), [`memory.test.ts:438`](libs/server-core/src/features/memory/memory.test.ts#L438))
+  version-less memory behind (#1154). ([validated by `memory.test.ts:460`](libs/server-core/src/features/memory/memory.test.ts#L460), [`memory.test.ts:489`](libs/server-core/src/features/memory/memory.test.ts#L489), [`memory.test.ts:508`](libs/server-core/src/features/memory/memory.test.ts#L508))
 
 - `sharedWrite` (pool-scoped writes) carries the same atomicity contract: the
   shared-pool lookup/create, the memories insert, and the version insert all
   run on one client between `BEGIN` and `COMMIT` when the pool provides
   `connect()`, a failed version insert rolls the whole write back, and a
-  query-only pool keeps the sequential path (#1158). ([validated by `memory.test.ts:540`](libs/server-core/src/features/memory/memory.test.ts#L540), [`memory.test.ts:578`](libs/server-core/src/features/memory/memory.test.ts#L578), [`memory.test.ts:601`](libs/server-core/src/features/memory/memory.test.ts#L601))
+  query-only pool keeps the sequential path (#1158). ([validated by `memory.test.ts:610`](libs/server-core/src/features/memory/memory.test.ts#L610), [`memory.test.ts:648`](libs/server-core/src/features/memory/memory.test.ts#L648), [`memory.test.ts:671`](libs/server-core/src/features/memory/memory.test.ts#L671))
 
 - `PostgresMemoryStore.writeMemory` (the `MemoryStore` seam's Postgres backend)
   applies the same transaction around its memories write and version insert,
@@ -97,16 +97,17 @@ available to agents — the authoritative interface.
 
 - Memory writers bind `ttl` as a `make_interval(secs => $n)` query parameter
   instead of interpolating it into the SQL text, binding NULL when no ttl is
-  given (#1158). ([validated by `memory.test.ts:635`](libs/server-core/src/features/memory/memory.test.ts#L635), [`memory.test.ts:674`](libs/server-core/src/features/memory/memory.test.ts#L674), [`memory.test.ts:711`](libs/server-core/src/features/memory/memory.test.ts#L711), [`postgres-memory-store.test.ts:390`](libs/shared/src/postgres-memory-store.test.ts#L390), [`postgres-memory-store.test.ts:428`](libs/shared/src/postgres-memory-store.test.ts#L428), [`postgres-memory-store.test.ts:464`](libs/shared/src/postgres-memory-store.test.ts#L464))
+  given (#1158). ([validated by `memory.test.ts:705`](libs/server-core/src/features/memory/memory.test.ts#L705), [`memory.test.ts:744`](libs/server-core/src/features/memory/memory.test.ts#L744), [`memory.test.ts:781`](libs/server-core/src/features/memory/memory.test.ts#L781), [`postgres-memory-store.test.ts:390`](libs/shared/src/postgres-memory-store.test.ts#L390), [`postgres-memory-store.test.ts:428`](libs/shared/src/postgres-memory-store.test.ts#L428), [`postgres-memory-store.test.ts:464`](libs/shared/src/postgres-memory-store.test.ts#L464))
 
 - **`lore_read_memory(key, agent_id?, version?)`** — returns the latest
-  version by default. Pass `version="all"` for full version history. ([validated by `memory.test.ts:112`](libs/server-core/src/features/memory/memory.test.ts#L112), [`memory.test.ts:139`](libs/server-core/src/features/memory/memory.test.ts#L139))
+  version by default. Pass `version="all"` for full version history, or a
+  specific version number to read that one version. ([validated by `memory.test.ts:150`](libs/server-core/src/features/memory/memory.test.ts#L150), [`memory.test.ts:177`](libs/server-core/src/features/memory/memory.test.ts#L177), [`memory.test.ts:208`](libs/server-core/src/features/memory/memory.test.ts#L208))
 
 - **`lore_delete_memory(key, agent_id?)`** — soft-deletes (sets `is_deleted`,
-  preserved in history but excluded from search). ([validated by `memory.test.ts:172`](libs/server-core/src/features/memory/memory.test.ts#L172))
+  preserved in history but excluded from search). ([validated by `memory.test.ts:242`](libs/server-core/src/features/memory/memory.test.ts#L242))
 
 - **`lore_list_memories(agent_id?, limit?, offset?)`** — paginated listing
-  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:202`](libs/server-core/src/features/memory/memory.test.ts#L202), [`memory.test.ts:219`](apps/lore-api/src/api/routes/memory/memory.test.ts#L219))
+  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:272`](libs/server-core/src/features/memory/memory.test.ts#L272), [`memory.test.ts:219`](apps/lore-api/src/api/routes/memory/memory.test.ts#L219))
 
 ### Semantic Search
 
@@ -137,7 +138,7 @@ available to agents — the authoritative interface.
 - **`lore_query_graph(entity?, relation?, repo?, limit?)`** — queries the
   live knowledge graph for entities and their relationships. Entities
   carry temporal validity (`valid_from`/`valid_to`). Returns matching
-  entities with their edge relationships. ([validated by `graph.test.ts:31`](apps/lore-api/src/api/routes/graph/graph.test.ts#L31), [`graph.test.ts:55`](apps/lore-api/src/api/routes/graph/graph.test.ts#L55), [`memory-tools.test.ts:44`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L44))
+  entities with their edge relationships. ([validated by `graph.test.ts:31`](apps/lore-api/src/api/routes/graph/graph.test.ts#L31), [`graph.test.ts:55`](apps/lore-api/src/api/routes/graph/graph.test.ts#L55), [`memory-tools.test.ts:50`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L50))
 
 ### Monitoring
 
@@ -145,7 +146,7 @@ available to agents — the authoritative interface.
   extracted, search count, and episode count. Primary health and usage
   tool. (Snapshot count and shared pool count are always 0 — those MCP
   tools were not shipped; see
-  [Divergences from Original Design](#divergences-from-original-design).) ([validated by `memory.test.ts:307`](libs/server-core/src/features/memory/memory.test.ts#L307))
+  [Divergences from Original Design](#divergences-from-original-design).) ([validated by `memory.test.ts:377`](libs/server-core/src/features/memory/memory.test.ts#L377))
 
 ## Agent ID Resolution
 
@@ -188,7 +189,7 @@ PostgreSQL database.
 ### memory_versions
 
 Mirrors each write to `memories`, preserving full history queryable via
-`lore_read_memory(key, version="all")`. ([validated by `memory.test.ts:139`](libs/server-core/src/features/memory/memory.test.ts#L139))
+`lore_read_memory(key, version="all")`. ([validated by `memory.test.ts:177`](libs/server-core/src/features/memory/memory.test.ts#L177))
 
 ### facts
 
@@ -270,7 +271,7 @@ surface is the `pool` field on `lore_write_memory` and the `pool` parameter on
 ### audit_log
 
 Immutable record of all operations (write, read, search, delete)
-with timestamp and agent ID. ([validated by `memory.test.ts:188`](libs/server-core/src/features/memory/memory.test.ts#L188))
+with timestamp and agent ID. ([validated by `memory.test.ts:258`](libs/server-core/src/features/memory/memory.test.ts#L258))
 
 ## Fact Extraction
 
@@ -293,6 +294,12 @@ The LLM's raw output is parsed into individual facts: a JSON array
 (unwrapping ```` ```json ```` code fences), falling back to newline /
 numbered-list splitting for non-JSON, with empty strings filtered out
 and a cap of 10 facts. ([validated by `facts.test.ts:39`](libs/server-core/src/features/memory/facts.test.ts#L14), [`facts.test.ts:20`](libs/server-core/src/features/memory/facts.test.ts#L20), [`facts.test.ts:26`](libs/server-core/src/features/memory/facts.test.ts#L26), [`facts.test.ts:40`](libs/server-core/src/features/memory/facts.test.ts#L40))
+
+Each parsed fact is stored independently: a fact whose insert fails is
+skipped without aborting the rest of the batch, and a fact whose embedding
+could not be computed is still inserted (with a null embedding) but never
+reaches the contradiction check, which needs a vector to compare against.
+([validated by `facts-extraction.test.ts:170`](libs/server-core/src/features/memory/facts-extraction.test.ts#L170), [`facts-extraction.test.ts:204`](libs/server-core/src/features/memory/facts-extraction.test.ts#L204))
 
 ## Memory Lifecycle (Background Jobs)
 
@@ -364,13 +371,13 @@ When PostgreSQL is unavailable, the key-value memory operations
 (`write`/`read`/`search`/`delete`/`list`) fall back transparently to
 `~/.lore/memory/` on disk (`memory-file.ts`) — reads and writes continue with
 degraded search (no vector similarity); availability is decided by whether a
-Postgres pool has been configured via `setMemoryPool`. ([validated by `memory.test.ts:38`](libs/server-core/src/features/memory/memory.test.ts#L38), [`memory.test.ts:43`](libs/server-core/src/features/memory/memory.test.ts#L43), [`memory-file.test.ts:33`](libs/server-core/src/features/memory/memory-file.test.ts#L33), [`memory-file.test.ts:46`](libs/server-core/src/features/memory/memory-file.test.ts#L46), [`memory-file.test.ts:60`](libs/server-core/src/features/memory/memory-file.test.ts#L60), [`memory-file.test.ts:87`](libs/server-core/src/features/memory/memory-file.test.ts#L87), [`memory-file.test.ts:101`](libs/server-core/src/features/memory/memory-file.test.ts#L101))
+Postgres pool has been configured via `setMemoryPool`. ([validated by `memory.test.ts:38`](libs/server-core/src/features/memory/memory.test.ts#L38), [`memory.test.ts:43`](libs/server-core/src/features/memory/memory.test.ts#L43), [`memory-file.test.ts:33`](libs/server-core/src/features/memory/memory-file.test.ts#L33), [`memory-file.test.ts:46`](libs/server-core/src/features/memory/memory-file.test.ts#L46), [`memory-file.test.ts:60`](libs/server-core/src/features/memory/memory-file.test.ts#L60), [`memory-file.test.ts:87`](libs/server-core/src/features/memory/memory-file.test.ts#L87), [`memory-file.test.ts:101`](libs/server-core/src/features/memory/memory-file.test.ts#L101), [`memory-file.test.ts:120`](libs/server-core/src/features/memory/memory-file.test.ts#L120), [`memory-file.test.ts:129`](libs/server-core/src/features/memory/memory-file.test.ts#L129))
 
 Tools without a file representation proxy to the GKE server over
 `LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and
 `lore_query_graph` (`GET /api/graph`, so the live knowledge graph is readable
 without a direct DB); `lore_agent_stats` has neither a file fallback nor a
-proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84), [`memory-tools.test.ts:44`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L44), [`memory-tools.test.ts:66`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L66))
+proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84), [`memory-tools.test.ts:50`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L50), [`memory-tools.test.ts:72`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L72))
 
 ## Transfer Scoring (Cross-Repo Context)
 
@@ -425,7 +432,7 @@ Decision: the following capabilities were added beyond the original spec:
 - All memory writes pass through `sanitizeContent()` / `redactSecrets()`
   to strip API keys, JWTs, private keys, connection strings, and
   bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
-- Audit trail is immutable. ([validated by `memory.test.ts:188`](libs/server-core/src/features/memory/memory.test.ts#L188))
+- Audit trail is immutable. ([validated by `memory.test.ts:258`](libs/server-core/src/features/memory/memory.test.ts#L258))
 
 ## Operational Targets (Background)
 

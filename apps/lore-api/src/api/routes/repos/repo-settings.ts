@@ -37,6 +37,63 @@ type RepoSettingsBody = z.infer<typeof RepoSettingsBody>;
 
 const OkSchema = z.object({ ok: z.literal(true) });
 
+function enforceDarkFactoryAllowed(darkFactory: unknown, repo: string): void {
+  if (!darkFactory) {
+    return;
+  }
+
+  // Parse to DETECT, not validate — an unparseable block can't be screened, so it's refused rather than merged unexamined.
+  const parsed = safeParseDarkFactory(darkFactory);
+
+  enforceTrue(parsed.ok, apiError(400), "invalid dark_factory settings");
+  const touched = twoKeyFieldsTouched(parsed.value);
+
+  enforceTrue(
+    touched.length <= 0,
+    apiError(403),
+    `privileged dark-factory fields (${touched.join(", ")}) are written through PUT /api/repos/${repo}/settings/dark-factory, which requires the CODEOWNER approval PR`,
+  );
+}
+
+function repoUpdateClauses(body: RepoSettingsBody): {
+  updates: string[];
+  values: unknown[];
+} {
+  const updates: string[] = [];
+  const values: unknown[] = [];
+
+  if (body.team !== undefined) {
+    values.push(body.team || null);
+    updates.push(`team = $${values.length}`);
+  }
+
+  if (body.settings !== undefined) {
+    values.push(JSON.stringify(body.settings));
+    // Merge, not replace: the block carries settings this route never sees.
+    updates.push(
+      `settings = COALESCE(settings, '{}') || $${values.length}::jsonb`,
+    );
+  }
+
+  return { updates, values };
+}
+
+async function notifyTeamChanged(pool: Pool, repo: string): Promise<void> {
+  try {
+    // Shared writer, not a hand-rolled INSERT — it fans the event out to its subscribers.
+    await insertEvent(pool, {
+      eventName: "internal.repo.team_changed",
+      source: "internal",
+      params: { repo },
+    });
+  } catch (err) {
+    console.error(
+      `[settings] team_changed event insert failed for ${repo} (nightly reindex will relocate):`,
+      err,
+    );
+  }
+}
+
 export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "PUT",
@@ -70,35 +127,9 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
       const darkFactory = (body.settings as { dark_factory?: unknown })
         ?.dark_factory;
 
-      if (darkFactory) {
-        // Parse to DETECT, not validate — an unparseable block can't be screened, so it's refused rather than merged unexamined.
-        const parsed = safeParseDarkFactory(darkFactory);
+      enforceDarkFactoryAllowed(darkFactory, repo);
 
-        enforceTrue(parsed.ok, apiError(400), "invalid dark_factory settings");
-        const touched = twoKeyFieldsTouched(parsed.value);
-
-        enforceTrue(
-          touched.length <= 0,
-          apiError(403),
-          `privileged dark-factory fields (${touched.join(", ")}) are written through PUT /api/repos/${repo}/settings/dark-factory, which requires the CODEOWNER approval PR`,
-        );
-      }
-
-      const updates: string[] = [];
-      const values: unknown[] = [];
-
-      if (body.team !== undefined) {
-        values.push(body.team || null);
-        updates.push(`team = $${values.length}`);
-      }
-
-      if (body.settings !== undefined) {
-        values.push(JSON.stringify(body.settings));
-        // Merge, not replace: the block carries settings this route never sees.
-        updates.push(
-          `settings = COALESCE(settings, '{}') || $${values.length}::jsonb`,
-        );
-      }
+      const { updates, values } = repoUpdateClauses(body);
 
       enforceTrue(updates.length !== 0, apiError(400), "No fields to update");
       values.push(repo);
@@ -109,19 +140,7 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
 
       // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
       if (body.team !== undefined && (body.team || null) !== existing.team) {
-        try {
-          // Shared writer, not a hand-rolled INSERT — it fans the event out to its subscribers.
-          await insertEvent(pool, {
-            eventName: "internal.repo.team_changed",
-            source: "internal",
-            params: { repo },
-          });
-        } catch (err) {
-          console.error(
-            `[settings] team_changed event insert failed for ${repo} (nightly reindex will relocate):`,
-            err,
-          );
-        }
+        await notifyTeamChanged(pool, repo);
       }
 
       return h.response({ ok: true });

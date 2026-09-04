@@ -161,9 +161,9 @@ The system MUST maintain a registry of onboarded repos. ([validated by `repos.te
 - FR-1.1: `repos` table in PostgreSQL: id, name (owner/repo),
   team, onboarded_at, last_ingested_at, settings (JSONB). ([validated by `repos.test.ts:37`](apps/lore-api/src/api/routes/repos/repos.test.ts#L36))
 - FR-1.2: Repos are written to the registry on onboard (from the set the
-  GitHub App has access to). ([validated by `repo-onboard.test.ts:120`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L115))
+  GitHub App has access to). ([validated by `repo-onboard.test.ts:120`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L119))
 - FR-1.3: Repo list shown as the home page of the UI. ([validated by `HomeView.test.tsx:44`](apps/web-ui/src/app/HomeView.test.tsx#L44))
-- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:152`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L152))
+- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:252`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L252))
 
 ### FR-2: Repo Onboarding via PR
 

@@ -41,6 +41,22 @@ async function optionalTableRows<T extends QueryResultRow>(
   }
 }
 
+interface BilledSlice {
+  billedUsd: number;
+  billedThrough: string | null;
+}
+
+// A missing billed row (unmigrated table) owes nothing and anchors nothing — the caller's computed-side query still needs a billedThrough of null, not a thrown error.
+function billedSlice(
+  row: { billed_usd: number; billed_through: string | null } | undefined,
+): BilledSlice {
+  if (!row) {
+    return { billedUsd: 0, billedThrough: null };
+  }
+
+  return { billedUsd: row.billed_usd, billedThrough: row.billed_through };
+}
+
 // remaining = ledger - (billed + computed); the two halves meet at billed_through (billed through-and-including it, computed strictly after) — an off-by-one double-counts or drops a day.
 async function remainingBudget(
   pool: Pool,
@@ -48,7 +64,7 @@ async function remainingBudget(
   ledgerTotalUsd: number,
 ) {
   // Whole days (Anthropic's report is day-bucketed, unsplittable); MAX(bucket_date) over the WHOLE table (not the interval), since the anchor can predate it.
-  const [billed] = await optionalTableRows<{
+  const [billedRow] = await optionalTableRows<{
     billed_usd: number;
     billed_through: string | null;
   }>(
@@ -61,6 +77,7 @@ async function remainingBudget(
      FROM pipeline.anthropic_cost_daily`,
     [anchoredAt],
   );
+  const { billedUsd, billedThrough } = billedSlice(billedRow);
   // Computed spend strictly after billed_through, only Anthropic-charged calls (Gemini calls since 2026-09-02 excluded).
   const [computed] = await optionalTableRows<{ cost_usd: number }>(
     pool,
@@ -72,13 +89,9 @@ async function remainingBudget(
         AND ($2::date IS NULL OR lc.created_at::date > $2::date)
         AND sr.cluster_agent_id IS NULL
         AND lc.model NOT LIKE ALL($3::text[])`,
-    [
-      anchoredAt,
-      billed?.billed_through ?? null,
-      [...NON_ANTHROPIC_LIKE_PATTERNS],
-    ],
+    [anchoredAt, billedThrough, [...NON_ANTHROPIC_LIKE_PATTERNS]],
   );
-  const spentSinceUsd = (billed?.billed_usd ?? 0) + (computed?.cost_usd ?? 0);
+  const spentSinceUsd = billedUsd + (computed ? computed.cost_usd : 0);
 
   return {
     ledger_total_usd: ledgerTotalUsd,
@@ -437,6 +450,38 @@ interface BilledAnthropicTotals {
 }
 
 // `as_of`, not a row count, distinguishes "synced and owes nothing" from "never synced" — the view hides billed sections for the latter rather than showing a confident zero.
+function toBilledAnthropicTotals(
+  row:
+    | {
+        billed_usd: number;
+        input_tokens: number;
+        output_tokens: number;
+        as_of: string | null;
+        billed_through: string | null;
+      }
+    | undefined,
+): BilledAnthropicTotals {
+  if (!row) {
+    return {
+      totalUsd: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      asOf: null,
+      billedThrough: null,
+      available: false,
+    };
+  }
+
+  return {
+    totalUsd: row.billed_usd,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
+    asOf: row.as_of,
+    billedThrough: row.billed_through,
+    available: Boolean(row.as_of),
+  };
+}
+
 async function readBilledAnthropicTotals(
   pool: Pool,
   interval: SpendWindow["interval"],
@@ -464,16 +509,8 @@ async function readBilledAnthropicTotals(
      FROM pipeline.anthropic_cost_daily`,
     [interval.from, interval.to],
   );
-  const billedTotal = billedTotalRows[0];
 
-  return {
-    totalUsd: billedTotal?.billed_usd ?? 0,
-    inputTokens: billedTotal?.input_tokens ?? 0,
-    outputTokens: billedTotal?.output_tokens ?? 0,
-    asOf: billedTotal?.as_of ?? null,
-    billedThrough: billedTotal?.billed_through ?? null,
-    available: Boolean(billedTotal?.as_of),
-  };
+  return toBilledAnthropicTotals(billedTotalRows[0]);
 }
 
 interface UnbilledAnthropicSpend {
@@ -546,6 +583,38 @@ async function readAnthropicSpend(pool: Pool, win: SpendWindow) {
   };
 }
 
+// Same as_of rule as the Anthropic half: distinguishes "synced and spent nothing" from "never synced".
+function toGcpTotals(
+  row:
+    | {
+        billed_usd: number;
+        as_of: string | null;
+        billed_through: string | null;
+      }
+    | undefined,
+): {
+  available: boolean;
+  total_usd: number;
+  as_of: string | null;
+  billed_through: string | null;
+} {
+  if (!row) {
+    return {
+      available: false,
+      total_usd: 0,
+      as_of: null,
+      billed_through: null,
+    };
+  }
+
+  return {
+    available: Boolean(row.as_of),
+    total_usd: row.billed_usd,
+    as_of: row.as_of,
+    billed_through: row.billed_through,
+  };
+}
+
 /** What GCP billed for the cluster the platform runs on. */
 async function readGcpSpend(pool: Pool, win: SpendWindow) {
   const { interval } = win;
@@ -583,14 +652,9 @@ async function readGcpSpend(pool: Pool, win: SpendWindow) {
       GROUP BY bucket_date ORDER BY bucket_date DESC`,
     [interval.from, interval.to],
   );
-  const gcpTotal = gcpTotalRows[0];
 
   return {
-    // Same as_of rule as the Anthropic half: distinguishes "synced and spent nothing" from "never synced".
-    available: !!gcpTotal?.as_of,
-    total_usd: gcpTotal?.billed_usd ?? 0,
-    as_of: gcpTotal?.as_of ?? null,
-    billed_through: gcpTotal?.billed_through ?? null,
+    ...toGcpTotals(gcpTotalRows[0]),
     by_service: gcpByService,
     daily: gcpDaily,
   };

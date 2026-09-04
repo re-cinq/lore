@@ -52,7 +52,7 @@ graph stays the single source of truth and the UI never couples to storage.
 
 1. Dispatcher gates: rate-limit (`default`), then bearer auth —
    `getRequiredScope(url)` returns `read`. Missing token → 401; insufficient
-   scope → 403. ([validated by `trace.test.ts:37`](apps/lore-api/src/api/routes/trace/trace.test.ts#L32))
+   scope → 403. ([validated by `trace.test.ts:37`](apps/lore-api/src/api/routes/trace/trace.test.ts#L34))
 
 2. `(req.url).match(TRACE_RE)` — on no match (unknown kind, missing path
    segment), write `404 { error: "not found" }` and return.
@@ -100,18 +100,18 @@ The handler never touches `_pool` directly — all reads go through `project.tra
 
 ## Acceptance Criteria
 
-An unknown trace kind is rejected with 404 `{ error: "not found" }`. ([validated by `trace.test.ts:30`](apps/lore-api/src/api/routes/trace/trace.test.ts#L25))
+An unknown trace kind is rejected with 404 `{ error: "not found" }`. ([validated by `trace.test.ts:30`](apps/lore-api/src/api/routes/trace/trace.test.ts#L27))
 
-A matched trace kind passes the read-scope auth gate (no 401/403). ([validated by `trace.test.ts:43`](apps/lore-api/src/api/routes/trace/trace.test.ts#L38))
+A matched trace kind passes the read-scope auth gate (no 401/403). ([validated by `trace.test.ts:43`](apps/lore-api/src/api/routes/trace/trace.test.ts#L40))
 
-A `?path=` query longer than the length bound is rejected with 400. ([validated by `trace.test.ts:50`](apps/lore-api/src/api/routes/trace/trace.test.ts#L45))
+A `?path=` query longer than the length bound is rejected with 400. ([validated by `trace.test.ts:50`](apps/lore-api/src/api/routes/trace/trace.test.ts#L47))
 
 The `document`/`source`/`ring` `400 "path query param required"` gate is reached
-only after a successful `projectFor`, so it needs a live Project/Dgraph backend
-in the unit harness; and the `specs`/`adrs`/`graph`/`document`/`ring` success
-bodies need a populated graph. *(untested: the no-path 400 sits behind
-`await projectFor`, which throws without Dgraph in the unit harness and yields
-500; the success branches need live Dgraph.)*
+only after a successful `projectFor`; the unit harness reaches it by seeding
+the server-core pool singleton so `projectFor` resolves against the no-op
+Dgraph stub. ([validated by `dispatches specs and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/api/routes/trace/trace.test.ts#L98), [`dispatches spec-summaries and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/api/routes/trace/trace.test.ts#L105), [`dispatches adrs and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/api/routes/trace/trace.test.ts#L112), [`dispatches adr-summaries and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/api/routes/trace/trace.test.ts#L119), [`dispatches graph, with a clean project.features.list() read, and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/api/routes/trace/trace.test.ts#L126), [`returns 400 when document is requested without a path`](apps/lore-api/src/api/routes/trace/trace.test.ts#L136), [`dispatches document with a path and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/api/routes/trace/trace.test.ts#L143), [`returns 400 when ring is requested without a path`](apps/lore-api/src/api/routes/trace/trace.test.ts#L153), [`dispatches ring with a path and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/api/routes/trace/trace.test.ts#L160), [`returns 400 when source is requested without a path`](apps/lore-api/src/api/routes/trace/trace.test.ts#L167), [`dispatches source (the default kind) with a path and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/api/routes/trace/trace.test.ts#L174))
+
+*(Still untested: the `specs`/`adrs`/`graph`/`document`/`ring` success bodies need a populated graph via a live Dgraph.)*
 
 ## Out of Scope
 

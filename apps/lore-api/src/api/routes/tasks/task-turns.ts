@@ -64,6 +64,14 @@ function keyedRelayableLines(
   return keyed;
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isAttributedEnvelope(record: Record<string, unknown>): boolean {
+  return "source" in record && "event" in record;
+}
+
 // Refuses an attributed envelope ({source,event} — could forge an agent CR/run identity via unwrapAttribution's double-peel) and a kind:"file" event (drives planning/artifact merge); legitimate `claude --print` output never emits either.
 function relayableEvent(line: string): boolean {
   let parsed: unknown;
@@ -74,13 +82,11 @@ function relayableEvent(line: string): boolean {
     return false;
   }
 
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+  if (!isPlainRecord(parsed)) {
     return false;
   }
 
-  const record = parsed as Record<string, unknown>;
-
-  return !("source" in record && "event" in record) && record.kind !== "file";
+  return !isAttributedEnvelope(parsed) && parsed.kind !== "file";
 }
 
 // Relays a local run's redacted transcript to the Floor's cluster-internal /api/agent-events sink so it lands in pipeline.agent_run_turns like cluster runs (#1295); lore-api attaches the internal token laptops can't hold.

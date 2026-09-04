@@ -103,6 +103,45 @@ async function updateTaskStatus(
 // One POST multiplexes create/cancel/retry/run-now/revise/set-priority; the contract is the union of what those answer.
 const TaskWriteSchema = z.record(z.unknown());
 
+async function retryAction(
+  h: ResponseToolkit,
+  taskId: string,
+): Promise<ResponseObject> {
+  const { retryTask } =
+    await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
+
+  return h.response(await retryTask(taskId));
+}
+
+function reviseAction(
+  pool: Pool,
+  h: ResponseToolkit,
+  parsed: TaskBody,
+  taskId: string,
+): Promise<ResponseObject> {
+  const feedback = parsed.feedback ?? "";
+
+  return refusable(h, () => revisePipelineTask(pool, taskId, feedback));
+}
+
+// Refuse rather than silently no-op on unknown id, terminal state, or past pending.
+const EXISTING_TASK_ACTIONS: Record<
+  string,
+  (
+    pool: Pool,
+    h: ResponseToolkit,
+    parsed: TaskBody,
+    taskId: string,
+  ) => Promise<ResponseObject>
+> = {
+  retry: (_pool, h, _parsed, taskId) => retryAction(h, taskId),
+  cancel: (pool, h, _parsed, taskId) =>
+    refusable(h, () => cancelPipelineTask(pool, taskId)),
+  "run-now": (pool, h, _parsed, taskId) =>
+    refusable(h, () => escalatePipelineTask(pool, taskId)),
+  revise: reviseAction,
+};
+
 /** Every shape that names an EXISTING task; null when the body names none, which means "create". */
 async function actOnExistingTask(
   pool: Pool,
@@ -115,26 +154,12 @@ async function actOnExistingTask(
     return null;
   }
 
-  if (parsed.action === "retry") {
-    const { retryTask } =
-      await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
+  const knownAction = parsed.action
+    ? EXISTING_TASK_ACTIONS[parsed.action]
+    : undefined;
 
-    return h.response(await retryTask(taskId));
-  }
-
-  // Refuse rather than silently no-op on unknown id, terminal state, or past pending.
-  if (parsed.action === "cancel") {
-    return refusable(h, () => cancelPipelineTask(pool, taskId));
-  }
-
-  if (parsed.action === "run-now") {
-    return refusable(h, () => escalatePipelineTask(pool, taskId));
-  }
-
-  if (parsed.action === "revise") {
-    const feedback = parsed.feedback ?? "";
-
-    return refusable(h, () => revisePipelineTask(pool, taskId, feedback));
+  if (knownAction) {
+    return knownAction(pool, h, parsed, taskId);
   }
 
   return (
@@ -188,12 +213,32 @@ async function reportRunnerStatus(
   );
 }
 
+function resolvedTaskType(taskType: string | undefined): string {
+  if (taskType && getTaskTypes().includes(taskType)) {
+    return taskType;
+  }
+
+  return "general";
+}
+
+function createTaskArgs(parsed: TaskBody, description: string) {
+  return {
+    description,
+    taskType: resolvedTaskType(parsed.task_type),
+    targetRepo: parsed.target_repo,
+    createdBy: parsed.created_by || "remote-mcp",
+    contextBundle: (parsed.context as Record<string, unknown>) || undefined,
+    priority: parsed.priority || "normal",
+    taskGroupId: parsed.group_id || undefined,
+  };
+}
+
 /** The default: a body with no task id creates one. */
 async function createTaskFromBody(
   h: ResponseToolkit,
   parsed: TaskBody,
 ): Promise<ResponseObject> {
-  const { description, task_type, target_repo } = parsed;
+  const { description, task_type } = parsed;
 
   // `typeof` first so the assertion narrows `description` itself — an optional-chained CALL isn't a reference TS can narrow on.
   enforceTrue(
@@ -208,19 +253,7 @@ async function createTaskFromBody(
     "onboard tasks are created via POST /api/onboard, which guards against duplicates",
   );
 
-  return h.response(
-    await createTask({
-      description,
-      taskType: getTaskTypes().includes(task_type || "")
-        ? task_type
-        : "general",
-      targetRepo: target_repo,
-      createdBy: parsed.created_by || "remote-mcp",
-      contextBundle: (parsed.context as Record<string, unknown>) || undefined,
-      priority: parsed.priority || "normal",
-      taskGroupId: parsed.group_id || undefined,
-    }),
-  );
+  return h.response(await createTask(createTaskArgs(parsed, description)));
 }
 
 export function taskPostRoute(getPool: () => Pool | null): ServerRoute {

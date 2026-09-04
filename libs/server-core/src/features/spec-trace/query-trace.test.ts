@@ -144,6 +144,47 @@ describe("formatTraceQuery", () => {
     ).toContain("specs/x/spec.md");
     expect(formatTraceQuery(doc({ statements: [] }))).toMatch(/no graph data/i);
   });
+
+  it("with no selector and no violated, drifted, or untested statements, says so", () => {
+    const out = formatTraceQuery(
+      doc({
+        statements: [
+          {
+            uid: "0x1",
+            ordinal: 1,
+            text: "all good",
+            state: "tested",
+            links: [],
+          },
+        ],
+        coverage: { testable: 1, covered: 1, untestable: 0, ratio: 1 },
+      }),
+    );
+
+    expect(out).toContain("No violated, drifted, or untested statements.");
+  });
+
+  it("with a selector matching nothing, returns a no-match message", () => {
+    const out = formatTraceQuery(
+      doc({
+        filePath: "specs/auth/spec.md",
+        statements: [
+          {
+            uid: "0x1",
+            ordinal: 1,
+            text: "token rotates",
+            state: "tested",
+            links: [],
+          },
+        ],
+      }),
+      "nonexistent-selector",
+    );
+
+    expect(out).toBe(
+      'No statement in specs/auth/spec.md matches "nonexistent-selector".',
+    );
+  });
 });
 
 describe("runQueryTrace", () => {
@@ -222,5 +263,23 @@ describe("runQueryTrace", () => {
 
     expect(out).toMatch(/scope/i);
     expect(out).toContain("403");
+  });
+
+  it("omits the scope hint for a non-403 unreachable error", async () => {
+    const out = await runQueryTrace(
+      { repo: "o/r", spec: "specs/auth/spec.md" },
+      {
+        proxyGet: async () => ({
+          ok: false,
+          reason: "unreachable",
+          detail: "connect ECONNREFUSED",
+        }),
+        detectRepo: () => null,
+      },
+    );
+
+    expect(out).toBe(
+      "Lore API unreachable for lore-query-trace: connect ECONNREFUSED.",
+    );
   });
 });

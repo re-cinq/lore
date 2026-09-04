@@ -50,6 +50,49 @@ function undetectedRepoError(): ToolText {
   return toolText("Could not detect repo. Specify repo parameter.");
 }
 
+interface ApiCredentials {
+  apiUrl: string;
+  token: string;
+}
+
+function resolveApiCredentials(): ApiCredentials | null {
+  const apiUrl = process.env.LORE_API_URL || "";
+  const token = process.env.LORE_INGEST_TOKEN || "";
+
+  return apiUrl && token ? { apiUrl, token } : null;
+}
+
+function isAuthDenied(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+/** Maps every failure reason of a resolved (non-ok) ProxyResult to its tool text. */
+function describeProxyFailure(
+  proxied: Extract<ProxyResult, { ok: false }>,
+  op: string,
+  toolName: string,
+  subject?: string,
+): ToolText {
+  if (proxied.reason === "not_configured") {
+    return notConfiguredError(op);
+  }
+
+  if (proxied.reason === "denied") {
+    return deniedError(toolName, proxied.detail);
+  }
+
+  // A non-retriable status means the server answered and refused (e.g. 409); reporting "unreachable" would wrongly blame the network for the server's verdict.
+  if (proxied.status) {
+    return toolText(`The Lore API refused ${op}: ${proxied.detail}`);
+  }
+
+  return subject
+    ? toolText(
+        `Could not fetch ${subject} from the Lore API: ${proxied.detail}`,
+      )
+    : unreachableError(op, proxied.detail);
+}
+
 // Runs a proxied call and maps every failure (no pool per ADR-032: config gap, denial, outage) to its own tool text rather than a misleading "requires PostgreSQL".
 async function proxiedText(
   call: () => Promise<ProxyResult>,
@@ -73,24 +116,7 @@ async function proxiedText(
       return toolText(render(JSON.parse(proxied.body)));
     }
 
-    if (proxied.reason === "not_configured") {
-      return notConfiguredError(op);
-    }
-
-    if (proxied.reason === "denied") {
-      return deniedError(toolName, proxied.detail);
-    }
-
-    // A non-retriable status means the server answered and refused (e.g. 409); reporting "unreachable" would wrongly blame the network for the server's verdict.
-    if (proxied.status) {
-      return toolText(`The Lore API refused ${op}: ${proxied.detail}`);
-    }
-
-    return subject
-      ? toolText(
-          `Could not fetch ${subject} from the Lore API: ${proxied.detail}`,
-        )
-      : unreachableError(op, proxied.detail);
+    return describeProxyFailure(proxied, op, toolName, subject);
   } catch (err) {
     return toolText(`Error ${op}: ${errorMessage(err)}`);
   }
@@ -120,34 +146,44 @@ function formatPendingTasksByRepo(tasks: RemoteTaskLite[]): string {
   return sections.join("\n\n");
 }
 
+function filterByRepo(
+  tasks: RemoteTaskLite[],
+  filterRepo: string | undefined,
+): RemoteTaskLite[] {
+  return filterRepo ? tasks.filter((t) => t.target_repo === filterRepo) : tasks;
+}
+
+function noPendingTasksMessage(filterRepo: string | undefined): string {
+  return filterRepo
+    ? `No pending tasks for ${filterRepo}.`
+    : "No pending tasks.";
+}
+
 /** The pending-task list via the API, grouped by repo; null when the API is unavailable. */
 async function listPendingTasksViaApi(
   filterRepo: string | undefined,
 ): Promise<{ content: Array<{ type: "text"; text: string }> } | null> {
-  const apiUrl = process.env.LORE_API_URL || "";
-  const token = process.env.LORE_INGEST_TOKEN || "";
+  const creds = resolveApiCredentials();
 
-  if (!(apiUrl && token)) {
+  if (!creds) {
     return null;
   }
-  const resp = await fetch(`${apiUrl}/api/tasks?status=pending&limit=50`, {
-    signal: AbortSignal.timeout(30_000),
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const resp = await fetch(
+    `${creds.apiUrl}/api/tasks?status=pending&limit=50`,
+    {
+      signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${creds.token}` },
+    },
+  );
 
   if (!resp.ok) {
     return null;
   }
   const body = (await resp.json()) as { tasks?: RemoteTaskLite[] };
-  const remoteTasks = body.tasks || [];
-  const tasks = filterRepo
-    ? remoteTasks.filter((t) => t.target_repo === filterRepo)
-    : remoteTasks;
+  const tasks = filterByRepo(body.tasks || [], filterRepo);
 
   if (tasks.length === 0) {
-    return textResult(
-      filterRepo ? `No pending tasks for ${filterRepo}.` : "No pending tasks.",
-    );
+    return textResult(noPendingTasksMessage(filterRepo));
   }
 
   return textResult(formatPendingTasksByRepo(tasks));
@@ -345,6 +381,10 @@ function registerCreatePipelineTaskTool(server: McpServer) {
   );
 }
 
+function resolveTaskRepo(targetRepo: string | undefined): string | undefined {
+  return targetRepo || detectCurrentRepo() || undefined;
+}
+
 async function createPipelineTask(args: CreateTaskArgs) {
   // Refused before anything else: onboarding's duplicate guard lives inside lore_onboard_repo's own transaction (#968).
   if (args.task_type === "onboard") {
@@ -352,17 +392,16 @@ async function createPipelineTask(args: CreateTaskArgs) {
       "Onboard tasks are not created here — use lore_onboard_repo, which refuses a repo that is already onboarded or has an onboard task in flight.",
     );
   }
-  const apiUrl = process.env.LORE_API_URL;
-  const apiToken = process.env.LORE_INGEST_TOKEN;
+  const creds = resolveApiCredentials();
 
-  if (!apiUrl || !apiToken) {
+  if (!creds) {
     return notConfiguredError("creating a pipeline task");
   }
   // The adapter holds no pool: the remote API is the only writer.
-  const resolvedRepo = args.target_repo || detectCurrentRepo() || undefined;
+  const resolvedRepo = resolveTaskRepo(args.target_repo);
 
   try {
-    const res = await postTask(apiUrl, apiToken, args, resolvedRepo);
+    const res = await postTask(creds.apiUrl, creds.token, args, resolvedRepo);
 
     return res.ok
       ? await createdResult(res, args, resolvedRepo)
@@ -423,7 +462,7 @@ async function createdResult(
 }
 
 async function refusalResult(res: Response) {
-  if (res.status === 401 || res.status === 403) {
+  if (isAuthDenied(res.status)) {
     return deniedError("creating a pipeline task", res.statusText);
   }
   const err = (await res.json().catch(() => ({ error: res.statusText }))) as {
@@ -435,6 +474,35 @@ async function refusalResult(res: Response) {
   );
 }
 
+async function fetchPipelineStatusText(taskId: string): Promise<ToolText> {
+  const creds = resolveApiCredentials();
+
+  if (!creds) {
+    return notConfiguredError("getting pipeline status");
+  }
+
+  let res: Response;
+
+  try {
+    res = await fetch(`${creds.apiUrl}/api/task/${taskId}`, {
+      signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${creds.token}` },
+    });
+  } catch (err) {
+    return unreachableError("getting pipeline status", errorMessage(err));
+  }
+
+  if (isAuthDenied(res.status)) {
+    return deniedError("getting pipeline status", res.statusText);
+  }
+
+  if (!res.ok) {
+    return textResult(`Remote error: ${res.statusText}`);
+  }
+
+  return textResult(JSON.stringify(await res.json(), null, 2));
+}
+
 function registerGetPipelineStatusTool(server: McpServer) {
   server.tool(
     "lore_get_pipeline_status",
@@ -444,38 +512,7 @@ function registerGetPipelineStatusTool(server: McpServer) {
     },
     async ({ task_id }) => {
       try {
-        {
-          const apiUrl = process.env.LORE_API_URL;
-          const apiToken = process.env.LORE_INGEST_TOKEN;
-
-          if (!apiUrl || !apiToken) {
-            return notConfiguredError("getting pipeline status");
-          }
-
-          let res: Response;
-
-          try {
-            res = await fetch(`${apiUrl}/api/task/${task_id}`, {
-              signal: AbortSignal.timeout(30_000),
-              headers: { Authorization: `Bearer ${apiToken}` },
-            });
-          } catch (err) {
-            return unreachableError(
-              "getting pipeline status",
-              errorMessage(err),
-            );
-          }
-
-          if (res.status === 401 || res.status === 403) {
-            return deniedError("getting pipeline status", res.statusText);
-          }
-
-          if (!res.ok) {
-            return textResult(`Remote error: ${res.statusText}`);
-          }
-
-          return textResult(JSON.stringify(await res.json(), null, 2));
-        }
+        return await fetchPipelineStatusText(task_id);
       } catch (err) {
         return textResult(
           `Error getting pipeline status: ${errorMessage(err)}`,
@@ -744,6 +781,61 @@ function registerCompleteTaskTool(server: McpServer) {
   );
 }
 
+/** One fetch, classified into ok/denied/unreachable — the shape both log tools' `withReadCache` closures need. */
+async function fetchLogsResult(
+  url: string,
+  apiToken: string,
+): Promise<ProxyResult> {
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { Authorization: `Bearer ${apiToken}` },
+  });
+
+  if (res.ok) {
+    return { ok: true, body: JSON.stringify(await res.json()) };
+  }
+  const detail = `HTTP ${res.status} ${res.statusText}`;
+
+  if (isAuthDenied(res.status)) {
+    return { ok: false, reason: "denied", detail };
+  }
+
+  return { ok: false, reason: "unreachable", detail };
+}
+
+/** fetchLogsResult only ever produces ok/denied/unreachable, but the shared ProxyResult type also carries not_configured — treated the same as unreachable here since the caller already returned early on missing credentials. */
+function interpretLogsProxy(toolName: string, proxied: ProxyResult): ToolText {
+  if (proxied.ok) {
+    return textResult(proxied.body);
+  }
+
+  if (proxied.reason === "denied") {
+    return deniedError(toolName, proxied.detail);
+  }
+
+  return unreachableError(
+    toolName,
+    proxied.reason === "unreachable" ? proxied.detail : "not configured",
+  );
+}
+
+function buildTaskLogsParams(
+  taskId: string,
+  offset: number,
+  cursor: string | undefined,
+): URLSearchParams {
+  const params = new URLSearchParams({
+    task_id: taskId,
+    offset: String(offset),
+  });
+
+  if (cursor !== undefined) {
+    params.set("cursor", cursor);
+  }
+
+  return params;
+}
+
 function registerGetTaskLogsTool(server: McpServer) {
   server.tool(
     "lore_get_task_logs",
@@ -752,17 +844,12 @@ function registerGetTaskLogsTool(server: McpServer) {
     async ({ task_id, offset, cursor }) => {
       try {
         // Logs live server-side; the API resolves the task's repo from task_id since the local adapter holds no DB to look it up.
-        const apiUrl = process.env.LORE_API_URL;
-        const apiToken = process.env.LORE_INGEST_TOKEN;
+        const creds = resolveApiCredentials();
 
-        if (!apiUrl || !apiToken) {
+        if (!creds) {
           return textResult("Task logs require LORE_API_URL.");
         }
-        const params = new URLSearchParams({ task_id, offset: String(offset) });
-
-        if (cursor !== undefined) {
-          params.set("cursor", cursor);
-        }
+        const params = buildTaskLogsParams(task_id, offset, cursor);
         const proxied = await withReadCache(
           {
             tool: "lore_get_task_logs",
@@ -772,46 +859,15 @@ function registerGetTaskLogsTool(server: McpServer) {
                 : { task_id, offset, cursor },
             ttlSeconds: 86400,
           },
-          async () => {
-            const res = await fetch(`${apiUrl}/api/task-logs?${params}`, {
-              signal: AbortSignal.timeout(30_000),
-              headers: { Authorization: `Bearer ${apiToken}` },
-            });
-
-            if (res.ok) {
-              return {
-                ok: true as const,
-                body: JSON.stringify(await res.json()),
-              };
-            }
-            const detail = `HTTP ${res.status} ${res.statusText}`;
-
-            if (res.status === 401 || res.status === 403) {
-              return { ok: false as const, reason: "denied" as const, detail };
-            }
-
-            return {
-              ok: false as const,
-              reason: "unreachable" as const,
-              detail,
-            };
-          },
+          () =>
+            fetchLogsResult(
+              `${creds.apiUrl}/api/task-logs?${params}`,
+              creds.token,
+            ),
           { label: false, cacheIf: completeOnly },
         );
 
-        if (proxied.ok) {
-          return textResult(proxied.body);
-        }
-
-        if (proxied.reason === "denied") {
-          return deniedError("lore_get_task_logs", proxied.detail);
-        }
-
-        if (proxied.reason === "unreachable") {
-          return unreachableError("lore_get_task_logs", proxied.detail);
-        }
-
-        return textResult("Task logs require LORE_API_URL.");
+        return interpretLogsProxy("lore_get_task_logs", proxied);
       } catch (err) {
         return textResult(`Error getting task logs: ${errorMessage(err)}`);
       }
@@ -827,10 +883,9 @@ function registerGetJobLogsTool(server: McpServer) {
     async ({ job_name, run_id }) => {
       try {
         // Proxy log reads to the remote API (logs live server-side in GCS).
-        const apiUrl = process.env.LORE_API_URL;
-        const apiToken = process.env.LORE_INGEST_TOKEN;
+        const creds = resolveApiCredentials();
 
-        if (!apiUrl || !apiToken) {
+        if (!creds) {
           return textResult("Job-run logs require LORE_API_URL.");
         }
         const params = new URLSearchParams({ job_name, run_id });
@@ -840,46 +895,15 @@ function registerGetJobLogsTool(server: McpServer) {
             args: { job_name, run_id },
             ttlSeconds: 86400,
           },
-          async () => {
-            const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, {
-              signal: AbortSignal.timeout(30_000),
-              headers: { Authorization: `Bearer ${apiToken}` },
-            });
-
-            if (res.ok) {
-              return {
-                ok: true as const,
-                body: JSON.stringify(await res.json()),
-              };
-            }
-            const detail = `HTTP ${res.status} ${res.statusText}`;
-
-            if (res.status === 401 || res.status === 403) {
-              return { ok: false as const, reason: "denied" as const, detail };
-            }
-
-            return {
-              ok: false as const,
-              reason: "unreachable" as const,
-              detail,
-            };
-          },
+          () =>
+            fetchLogsResult(
+              `${creds.apiUrl}/api/job-run-logs?${params}`,
+              creds.token,
+            ),
           { label: false, cacheIf: completeOnly },
         );
 
-        if (proxied.ok) {
-          return textResult(proxied.body);
-        }
-
-        if (proxied.reason === "denied") {
-          return deniedError("lore_get_job_logs", proxied.detail);
-        }
-
-        if (proxied.reason === "unreachable") {
-          return unreachableError("lore_get_job_logs", proxied.detail);
-        }
-
-        return textResult("Job-run logs require LORE_API_URL.");
+        return interpretLogsProxy("lore_get_job_logs", proxied);
       } catch (err) {
         return textResult(`Error getting job logs: ${errorMessage(err)}`);
       }

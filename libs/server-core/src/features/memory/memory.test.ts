@@ -106,6 +106,44 @@ describe("writeMemory", () => {
 
     expect(update?.sql).toMatch(/SET value = \$1, version = \$2/);
   });
+
+  it("embeds the vector param and scopes the lookup by repo when repo is given", async () => {
+    const pool = scriptedPool([
+      {
+        match: /SELECT id, version FROM memory\.memories/,
+        rows: [],
+      },
+      {
+        match: /INSERT INTO memory\.memories/,
+        rows: [{ id: "mem-repo-1", created_at: "2026-06-10" }],
+      },
+      {
+        match: /SELECT created_at FROM memory\.memories/,
+        rows: [{ created_at: "2026-06-10" }],
+      },
+    ]);
+
+    setMemoryPool(pool);
+
+    await writeMemory({
+      key: "repo-note",
+      value: "use JWT",
+      agentId: "agent-7",
+      repo: "re-cinq/lore",
+      embedding: [0.1, 0.2, 0.3],
+    });
+
+    const lookup = pool.calls.find((c) =>
+      /SELECT id, version FROM memory\.memories/.test(c.sql),
+    );
+    const insert = pool.calls.find((c) =>
+      /INSERT INTO memory\.memories/.test(c.sql),
+    );
+
+    expect(lookup?.sql).toMatch(/WHERE repo = \$1/);
+    expect(lookup?.params).toEqual(["re-cinq/lore", "repo-note"]);
+    expect(insert?.params).toContain("[0.1,0.2,0.3]");
+  });
 });
 
 describe("readMemory", () => {
@@ -165,6 +203,38 @@ describe("readMemory", () => {
     const result = await readMemory("missing", "agent-7");
 
     expect(result).toBeNull();
+  });
+
+  it("returns one specific version, keyed, when version is a number", async () => {
+    const pool = scriptedPool([
+      {
+        match: /FROM memory\.memory_versions mv/,
+        rows: [
+          {
+            key: "auth-pattern",
+            version: 2,
+            value: "use sessions",
+            created_at: "2026-06-09",
+          },
+        ],
+      },
+    ]);
+
+    setMemoryPool(pool);
+
+    const result = await readMemory("auth-pattern", "agent-7", 2);
+
+    expect(result).toEqual({
+      key: "auth-pattern",
+      version: 2,
+      value: "use sessions",
+      created_at: "2026-06-09",
+    });
+    const query = pool.calls.find((c) =>
+      /FROM memory\.memory_versions mv/.test(c.sql),
+    );
+
+    expect(query?.params).toEqual(["agent-7", "auth-pattern", 2]);
   });
 });
 

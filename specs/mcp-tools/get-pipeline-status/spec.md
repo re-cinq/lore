@@ -81,7 +81,7 @@ A matching id returns the task row merged with its ordered `events` array.
 
 The stdio-proxy branch selects the not-configured, denied, and unreachable errors
 by cause (missing env, 401/403, network failure).
-([validated by `returns the not-configured message when the env is unset`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L163), [validated by `returns the denied message on a 401`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L177), [validated by `returns the unreachable message when fetch throws`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L195))
+([validated by `returns the not-configured message when the env is unset`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L215), [validated by `returns the denied message on a 401`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L229), [validated by `returns the unreachable message when fetch throws`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L247))
 
 The not-found and success envelope framing on the stdio path are exercised only
 against a live API. *(untested: the transport switch is inline in the handler

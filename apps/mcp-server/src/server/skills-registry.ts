@@ -6,18 +6,39 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 /** A skill dir name: no path separators, no leading dot, no traversal. */
 const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
+// The `/skills/<name>` suffix, GET-only; null when this request doesn't own a skills path at all.
+function skillsSubpath(req: IncomingMessage): string | null {
+  const url = req.url ?? "";
+
+  if (req.method !== "GET" || !url.startsWith("/skills/")) {
+    return null;
+  }
+
+  return url.slice("/skills/".length).split("?")[0];
+}
+
+// A safe skill dir name out of `<name>.tar.gz`; null on anything else (no suffix, or an unsafe/traversing name).
+function tarballSkillName(path: string): string | null {
+  const tarball = /^([^/]+)\.tar\.gz$/.exec(path);
+
+  if (!tarball || !SKILL_NAME.test(tarball[1])) {
+    return null;
+  }
+
+  return tarball[1];
+}
+
 // The skills registry the ai-agent-subsystem init fetches from; unauthenticated since skills are org conventions, not secrets. Returns true when it owns a `/skills/` path, else false so the caller falls through to MCP.
 export async function handleSkillsRequest(
   req: IncomingMessage,
   res: ServerResponse,
   skillsRoot: string,
 ): Promise<boolean> {
-  const url = req.url ?? "";
+  const path = skillsSubpath(req);
 
-  if (req.method !== "GET" || !url.startsWith("/skills/")) {
+  if (path === null) {
     return false;
   }
-  const path = url.slice("/skills/".length).split("?")[0];
 
   if (path === "settings.json") {
     await serveSettings(res, skillsRoot);
@@ -25,14 +46,14 @@ export async function handleSkillsRequest(
     return true;
   }
 
-  const tarball = /^([^/]+)\.tar\.gz$/.exec(path);
+  const name = tarballSkillName(path);
 
-  if (!tarball || !SKILL_NAME.test(tarball[1])) {
+  if (!name) {
     res.writeHead(404).end();
 
     return true;
   }
-  await serveSkillTarball(res, skillsRoot, tarball[1]);
+  await serveSkillTarball(res, skillsRoot, name);
 
   return true;
 }
