@@ -77,7 +77,7 @@ or `"Error: {message}"`. **Never throws.**
 ## Acceptance Criteria
 
 The registered tool description is byte-identical to this spec's verbatim description block, so the two cannot drift apart silently.
-([validated by `matches the spec's verbatim description block`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L707))
+([validated by `matches the spec's verbatim description block`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L711))
 
 The content after `offset` is returned with the new `next_offset` and a
 `complete` flag derived from task status.
@@ -94,11 +94,11 @@ proxies to `GET /api/task-logs` and returns the proxied body on success, a 401
 is reported as a denied error, and a non-auth failure (e.g. 500) is reported
 as unreachable. ([validated by `lore_get_task_logs reports the require-URL
 message when the env is
-unset`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L614), [`lore_get_task_logs
+unset`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L610), [`lore_get_task_logs
 returns the proxied body on
-success`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L627), [`lore_get_task_logs
+success`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L623), [`lore_get_task_logs
 reports a denied error on a
-401`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L647), [`lore_get_task_logs
+401`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L643), [`lore_get_task_logs
 reports an unreachable error on a non-auth
 failure`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L660))
 

@@ -92,7 +92,7 @@ A server-side refusal (a merged task) reaches the caller with the server's own
 reason. ([validated by `lore_cancel_task reports the server's refusal for a merged task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L381))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L579))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L575))
 
 A 401 from the proxied cancel is reported as a denied error on the first
 attempt, without the retriable-status backoff loop. ([validated by
