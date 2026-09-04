@@ -63,44 +63,40 @@ async function readTrustLevel(
   }
 }
 
-/** Look up everything `evaluateAndMerge` needs by task id; defaults assume CI hasn't passed and the bot hasn't approved, since flipping to `true` would let auto-merge fire on a brand-new PR with no check_runs/reviews yet. */
-export async function resolvePrForTaskFromDb(
-  taskId: string,
-  darkFactorySettings: ResolvedDarkFactorySettings,
-  deps: PrPolicyDeps = {
-    tasks: pipeline().taskQueue,
-    repos: settings(),
-    pullsFor: defaultPullsFor,
-  },
-): Promise<PrForAutoMerge | null> {
-  const row = await deps.tasks.prInfo(taskId);
+/** The PR-shape half of the policy inputs — everything read from checks/reviews/files, as opposed to trust level or review-in-flight. */
+interface PrCheckState {
+  changedPaths: string[];
+  ciSucceeded: boolean;
+  botApproved: boolean;
+  humanChangesRequested: boolean;
+}
 
-  if (!row?.pr_number || !row.target_repo) {
-    return null;
-  }
+// `humanChangesRequested: false` is deliberately the *permissive* default (unlike the other two): a lookup failure leaves `ciSucceeded: false` to defer the merge on its own, so this one staying false never wrongly blocks a healthy PR with no reviews yet.
+const DEFAULT_PR_CHECK_STATE: PrCheckState = {
+  changedPaths: [],
+  ciSucceeded: false,
+  botApproved: false,
+  humanChangesRequested: false,
+};
 
-  let ciSucceeded = false;
-  let botApproved = false;
-  // `humanChangesRequested = false` is deliberately the *permissive* default (unlike the other two): a same-try-block API failure leaves `ciSucceeded = false` to defer the merge on its own, so this one staying false never wrongly blocks a healthy PR with no reviews yet.
-  let humanChangesRequested = false;
-  let changedPaths: string[] = [];
-  // Trusted bot login, overridable via LORE_REVIEW_BOT_LOGIN — without it, any bot's APPROVED review (Dependabot, Renovate, etc.) would satisfy require_bot_approval.
-  const botLogin = process.env.LORE_REVIEW_BOT_LOGIN ?? "lore-agent[bot]";
-
+/** Reads changed files, CI conclusion, and the trusted bot's + any human's review decisions; defers (via `DEFAULT_PR_CHECK_STATE`) rather than throws, so a lookup failure never blocks the rest of the policy read. */
+async function readPrCheckState(
+  deps: PrPolicyDeps,
+  row: TaskPrInfo,
+  botLogin: string,
+): Promise<PrCheckState> {
   try {
     // All three reads are paginated inside the shared adapter (an uncapped single page would silently truncate); independent, so run them together.
-    const pulls = await deps.pullsFor(row.target_repo);
+    const pulls = await deps.pullsFor(row.target_repo!);
     const ref = row.target_branch ?? `pull/${row.pr_number}/head`;
     const [files, checkRuns, reviews] = await Promise.all([
-      pulls.listFiles(row.pr_number),
+      pulls.listFiles(row.pr_number!),
       pulls.listChecks(ref),
-      pulls.listReviews(row.pr_number),
+      pulls.listReviews(row.pr_number!),
     ]);
 
-    changedPaths = files;
-
     // Require at least one passing check — vacuous truth on an empty array would let auto-merge fire before CI has reported.
-    ciSucceeded =
+    const ciSucceeded =
       checkRuns.length > 0 &&
       checkRuns.every(
         (c) => c.conclusion === "success" || c.conclusion === "skipped",
@@ -115,39 +111,75 @@ export async function resolvePrForTaskFromDb(
       )
       .sort((a, b) => a.id - b.id);
 
-    botApproved = botDecisions.at(-1)?.state === "APPROVED";
-    humanChangesRequested = reviews.some(
-      (r) => r.state === "CHANGES_REQUESTED" && !r.user.endsWith("[bot]"),
-    );
+    return {
+      changedPaths: files,
+      ciSucceeded,
+      botApproved: botDecisions.at(-1)?.state === "APPROVED",
+      humanChangesRequested: reviews.some(
+        (r) => r.state === "CHANGES_REQUESTED" && !r.user.endsWith("[bot]"),
+      ),
+    };
   } catch (err) {
     console.warn(
       "[pr-policy] PR state lookup failed; auto-merge will likely defer:",
       (err as Error).message,
     );
+
+    return DEFAULT_PR_CHECK_STATE;
   }
+}
 
-  // Defer auto-merge while a review-family line is open for this PR — the required lore/code-review check does the same for human merges; this guards Lore's own.
-  let reviewInFlight = false;
-
+/** Defers auto-merge while a review-family line is open for this PR — the required lore/code-review check does the same for human merges; this guards Lore's own. */
+async function readReviewInFlight(
+  repo: string,
+  prNumber: number,
+): Promise<boolean> {
   try {
-    const project = await projectFor(row.target_repo);
+    const project = await projectFor(repo);
 
-    reviewInFlight =
-      (await project.assemblyRuns.findOpenByPr(row.pr_number)).length > 0;
+    return (await project.assemblyRuns.findOpenByPr(prNumber)).length > 0;
   } catch (err) {
     console.warn(
       "[pr-policy] review-in-flight lookup failed:",
       (err as Error).message,
     );
+
+    return false;
+  }
+}
+
+/** True once both fields auto-merge needs are present — narrows `pr_number`/`target_repo` from optional to required for the rest of the resolution. */
+function hasResolvedPr(
+  row: TaskPrInfo | null,
+): row is TaskPrInfo & { pr_number: number; target_repo: string } {
+  return Boolean(row?.pr_number && row.target_repo);
+}
+
+/** Look up everything `evaluateAndMerge` needs by task id; defaults assume CI hasn't passed and the bot hasn't approved, since flipping to `true` would let auto-merge fire on a brand-new PR with no check_runs/reviews yet. */
+export async function resolvePrForTaskFromDb(
+  taskId: string,
+  darkFactorySettings: ResolvedDarkFactorySettings,
+  deps: PrPolicyDeps = {
+    tasks: pipeline().taskQueue,
+    repos: settings(),
+    pullsFor: defaultPullsFor,
+  },
+): Promise<PrForAutoMerge | null> {
+  const row = await deps.tasks.prInfo(taskId);
+
+  if (!hasResolvedPr(row)) {
+    return null;
   }
 
-  let trustLevel: ResolvedDarkFactorySettings["auto_merge"]["min_trust"] =
-    "docs";
-  const lvl = await readTrustLevel(deps.repos, row.target_repo);
-
-  if (lvl) {
-    trustLevel = lvl;
-  }
+  // Trusted bot login, overridable via LORE_REVIEW_BOT_LOGIN — without it, any bot's APPROVED review (Dependabot, Renovate, etc.) would satisfy require_bot_approval.
+  const botLogin = process.env.LORE_REVIEW_BOT_LOGIN ?? "lore-agent[bot]";
+  const checkState = await readPrCheckState(deps, row, botLogin);
+  const reviewInFlight = await readReviewInFlight(
+    row.target_repo,
+    row.pr_number,
+  );
+  const trustLevel =
+    (await readTrustLevel(deps.repos, row.target_repo)) ?? "docs";
 
   return {
     repo: row.target_repo,
@@ -162,10 +194,7 @@ export async function resolvePrForTaskFromDb(
           darkFactorySettings.auto_merge.require_bot_approval,
       },
       trustLevel,
-      changedPaths,
-      ciSucceeded,
-      botApproved,
-      humanChangesRequested,
+      ...checkState,
       reviewInFlight,
     },
   };

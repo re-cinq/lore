@@ -233,6 +233,50 @@ function matchKindFor(
   return null;
 }
 
+/** The candidate for one test chunk, or null when it isn't a test or matches none of the three signals. */
+function buildCandidate(
+  chunk: TestChunk,
+  assertions: Assertion[],
+  spec: SpecInput,
+  threshold: number,
+): JudgeCandidate | null {
+  if (!isTestFile(chunk.file_path) || chunk.test_name.length === 0) {
+    return null;
+  }
+
+  const symbol = matchedAssertion(chunk.content, assertions);
+  const kind = matchKindFor(symbol, spec, chunk, threshold);
+
+  if (!kind) {
+    return null;
+  }
+
+  return {
+    test_file: chunk.file_path,
+    test_name: chunk.test_name,
+    test_line: chunk.test_line,
+    symbol: kind === "assertion" ? symbol : null,
+    match_kind: kind,
+    content: chunk.content,
+  };
+}
+
+/** Keeps `candidate` in `byKey` only if it beats (or there is no) existing entry for the same test. */
+function upsertStrongestCandidate(
+  byKey: Map<string, JudgeCandidate>,
+  candidate: JudgeCandidate,
+): void {
+  const key = candidateKey(candidate);
+  const existing = byKey.get(key);
+
+  if (
+    !existing ||
+    KIND_RANK[candidate.match_kind] > KIND_RANK[existing.match_kind]
+  ) {
+    byKey.set(key, candidate);
+  }
+}
+
 // Pre-filters test chunks by three signals (assertion/directory/embedding), dedupes by (test_file, test_name) keeping the strongest, caps at maxCandidates, and flags `truncated` so the caller can log drops instead of silently under-reporting coverage.
 export function selectCandidates(
   spec: SpecInput,
@@ -245,30 +289,10 @@ export function selectCandidates(
   const byKey = new Map<string, JudgeCandidate>();
 
   for (const chunk of codeChunks) {
-    if (!isTestFile(chunk.file_path) || chunk.test_name.length === 0) {
-      continue;
-    }
+    const candidate = buildCandidate(chunk, assertions, spec, threshold);
 
-    const symbol = matchedAssertion(chunk.content, assertions);
-    const kind = matchKindFor(symbol, spec, chunk, threshold);
-
-    if (!kind) {
-      continue;
-    }
-
-    const candidate: JudgeCandidate = {
-      test_file: chunk.file_path,
-      test_name: chunk.test_name,
-      test_line: chunk.test_line,
-      symbol: kind === "assertion" ? symbol : null,
-      match_kind: kind,
-      content: chunk.content,
-    };
-    const key = candidateKey(candidate);
-    const existing = byKey.get(key);
-
-    if (!existing || KIND_RANK[kind] > KIND_RANK[existing.match_kind]) {
-      byKey.set(key, candidate);
+    if (candidate) {
+      upsertStrongestCandidate(byKey, candidate);
     }
   }
 
@@ -302,6 +326,19 @@ export function staleStatementOrdinals(
   return existingOrdinals.filter((o) => !keep.has(o));
 }
 
+function isEligibleJudgment(j: Judgment, threshold: number): boolean {
+  return j.matches && j.match_score >= threshold;
+}
+
+function keepIfHigherScore(best: Map<string, Judgment>, j: Judgment): void {
+  const key = candidateKey(j);
+  const existing = best.get(key);
+
+  if (!existing || j.match_score > existing.match_score) {
+    best.set(key, j);
+  }
+}
+
 // Best-match-per-test reducer: keeps the highest `match_score` per (test_file, test_name), drops rows below `threshold` — a statement may win several tests, but a test only ever keeps one.
 export function argmaxByTest(
   judgments: Judgment[],
@@ -310,18 +347,8 @@ export function argmaxByTest(
   const best = new Map<string, Judgment>();
 
   for (const j of judgments) {
-    if (!j.matches) {
-      continue;
-    }
-
-    if (j.match_score < threshold) {
-      continue;
-    }
-    const key = candidateKey(j);
-    const existing = best.get(key);
-
-    if (!existing || j.match_score > existing.match_score) {
-      best.set(key, j);
+    if (isEligibleJudgment(j, threshold)) {
+      keepIfHigherScore(best, j);
     }
   }
 

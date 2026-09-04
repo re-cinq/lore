@@ -19,6 +19,49 @@ export function parseConsolidationPatterns(text: string): string[] {
 
 // ── Consolidation job ───────────────────────────────────────────────
 
+/** Groups facts by their top two path segments so consolidation stays scoped to one repo's context. */
+function groupFactsByRepo(
+  facts: Array<{ repo: string; fact_text: string }>,
+): Map<string, string[]> {
+  const byRepo = new Map<string, string[]>();
+
+  for (const f of facts) {
+    const repo = f.repo.split("/").slice(0, 2).join("/") || "unknown";
+    const bucket = byRepo.get(repo) ?? [];
+
+    bucket.push(f.fact_text);
+    byRepo.set(repo, bucket);
+  }
+
+  return byRepo;
+}
+
+/** Asks Haiku for patterns across one repo's facts and stores whatever it finds; best effort — a failure here just consolidates zero for this repo. */
+async function consolidateRepoFacts(
+  repo: string,
+  facts: string[],
+): Promise<number> {
+  try {
+    const result = await Llm.instance.complete({
+      prompt: `Here are ${facts.length} recent facts extracted from agent sessions working on ${repo}. Identify 1-3 higher-level patterns or insights that emerge from these facts. Each pattern should be actionable — something future agents should know.\n\nFacts:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n\nReturn each pattern on its own line, prefixed with "PATTERN: ". If no meaningful patterns emerge, respond with "NONE".`,
+      systemPrompt:
+        "You are a knowledge consolidation engine. Extract reusable patterns from raw facts.",
+      maxTokens: 512,
+      jobName: "consolidation",
+    });
+
+    const patterns = parseConsolidationPatterns(result.text);
+
+    if (patterns.length === 0) {
+      return 0;
+    }
+
+    return await storeConsolidatedPatterns(repo, patterns);
+  } catch {
+    return 0;
+  }
+}
+
 export async function consolidationJob(): Promise<string> {
   if (!process.env.ANTHROPIC_API_KEY) {
     return "Skipped: no ANTHROPIC_API_KEY";
@@ -34,18 +77,7 @@ export async function consolidationJob(): Promise<string> {
     return `Skipped: only ${recentFacts.length} recent facts (need ${CONSOLIDATION_MIN_FACTS})`;
   }
 
-  // Group facts by repo for context-aware consolidation
-  const byRepo = new Map<string, string[]>();
-
-  for (const f of recentFacts) {
-    const repo = f.repo.split("/").slice(0, 2).join("/") || "unknown";
-
-    if (!byRepo.has(repo)) {
-      byRepo.set(repo, []);
-    }
-    byRepo.get(repo)!.push(f.fact_text);
-  }
-
+  const byRepo = groupFactsByRepo(recentFacts);
   let consolidated = 0;
 
   for (const [repo, facts] of byRepo) {
@@ -53,25 +85,7 @@ export async function consolidationJob(): Promise<string> {
       continue;
     } // need at least 3 facts to consolidate
 
-    try {
-      const result = await Llm.instance.complete({
-        prompt: `Here are ${facts.length} recent facts extracted from agent sessions working on ${repo}. Identify 1-3 higher-level patterns or insights that emerge from these facts. Each pattern should be actionable — something future agents should know.\n\nFacts:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n\nReturn each pattern on its own line, prefixed with "PATTERN: ". If no meaningful patterns emerge, respond with "NONE".`,
-        systemPrompt:
-          "You are a knowledge consolidation engine. Extract reusable patterns from raw facts.",
-        maxTokens: 512,
-        jobName: "consolidation",
-      });
-
-      const patterns = parseConsolidationPatterns(result.text);
-
-      if (patterns.length === 0) {
-        continue;
-      }
-
-      consolidated += await storeConsolidatedPatterns(repo, patterns);
-    } catch {
-      // Best effort — don't crash the job
-    }
+    consolidated += await consolidateRepoFacts(repo, facts);
   }
 
   if (consolidated > 0) {

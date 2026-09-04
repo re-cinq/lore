@@ -106,6 +106,28 @@ function endsInAbbreviationOrInitial(buf: string): boolean {
   return /^[A-Z]$/.test(lastWord);
 }
 
+const SENTENCE_ENDERS = new Set([".", "?", "!"]);
+
+/** True when the punctuation at `ch` (with next non-space char at `j`) actually ends a sentence, vs. an abbreviation, initial, or trailing link parenthetical. */
+function isSentenceBreak(
+  flat: string,
+  buf: string,
+  ch: string,
+  j: number,
+): boolean {
+  const nextCh = flat[j];
+
+  if (!/[A-Z([0-9]/.test(nextCh)) {
+    return false;
+  }
+
+  if (TRAILING_LINK_PARENTHETICAL.test(flat.slice(j))) {
+    return false;
+  }
+
+  return !(ch === "." && endsInAbbreviationOrInitial(buf));
+}
+
 function splitSentences(text: string): string[] {
   const flat = text.replace(/\s+/g, " ").trim();
 
@@ -117,10 +139,11 @@ function splitSentences(text: string): string[] {
   let buf = "";
 
   for (let i = 0; i < flat.length; i++) {
-    buf += flat[i];
     const ch = flat[i];
 
-    if (ch !== "." && ch !== "?" && ch !== "!") {
+    buf += ch;
+
+    if (!SENTENCE_ENDERS.has(ch)) {
       continue;
     }
 
@@ -131,17 +154,8 @@ function splitSentences(text: string): string[] {
       buf = "";
       break;
     }
-    const nextCh = flat[j];
 
-    if (!/[A-Z([0-9]/.test(nextCh)) {
-      continue;
-    }
-
-    if (TRAILING_LINK_PARENTHETICAL.test(flat.slice(j))) {
-      continue;
-    }
-
-    if (ch === "." && endsInAbbreviationOrInitial(buf)) {
+    if (!isSentenceBreak(flat, buf, ch, j)) {
       continue;
     }
 
@@ -181,95 +195,155 @@ function readListItemLines(
   return { combined: combined.replace(/\s+/g, " ").trim(), endIndex: index };
 }
 
-export function segmentStatements(content: string): Statement[] {
-  const lines = content.split(/\r?\n/);
-  const statements: Statement[] = [];
-  let ordinal = 0;
-  let currentHeading: string | null = null;
-  let inFence = false;
-  let paragraphLines: string[] = [];
-  let paragraphStartLine = 0;
+type StatementLineAction =
+  "blank" | "heading" | "table" | "list-item" | "paragraph";
 
-  const flushParagraph = () => {
-    if (paragraphLines.length === 0) {
+/** Classifies a non-fence, non-blank-checked line by which segmentation action it triggers. */
+function classifyStatementLine(line: string): StatementLineAction {
+  if (line.trim() === "") {
+    return "blank";
+  }
+
+  if (isHeading(line)) {
+    return "heading";
+  }
+
+  if (isTableRow(line)) {
+    return "table";
+  }
+
+  if (isListItem(line)) {
+    return "list-item";
+  }
+
+  return "paragraph";
+}
+
+type StatementLineHandler = (
+  lines: string[],
+  i: number,
+  line: string,
+) => number;
+
+/** Line-by-line statement accumulator behind `segmentStatements`. */
+class StatementAccumulator {
+  private statements: Statement[] = [];
+  private ordinal = 0;
+  private currentHeading: string | null = null;
+  private inFence = false;
+  private paragraphLines: string[] = [];
+  private paragraphStartLine = 0;
+
+  private flushParagraph(): void {
+    if (this.paragraphLines.length === 0) {
       return;
     }
-    const para = paragraphLines.join(" ");
-    const startLine = paragraphStartLine;
+    const para = this.paragraphLines.join(" ");
+    const startLine = this.paragraphStartLine;
 
-    paragraphLines = [];
+    this.paragraphLines = [];
 
     for (const sentence of splitSentences(para)) {
-      statements.push({
-        ordinal: ordinal++,
+      this.statements.push({
+        ordinal: this.ordinal++,
         text: sentence,
         kind: "sentence",
-        enclosingHeading: currentHeading,
+        enclosingHeading: this.currentHeading,
         line: startLine,
       });
     }
-  };
+  }
 
-  const pushListItemStatement = (text: string, line: number) => {
+  private pushListItemStatement(text: string, line: number): void {
     if (!text) {
       return;
     }
-    statements.push({
-      ordinal: ordinal++,
+    this.statements.push({
+      ordinal: this.ordinal++,
       text,
       kind: "list-item",
-      enclosingHeading: currentHeading,
+      enclosingHeading: this.currentHeading,
       line,
     });
-  };
+  }
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    if (/^\s*```/.test(line)) {
-      flushParagraph();
-      inFence = !inFence;
-      continue;
+  private appendParagraphLine(line: string, lineNumber: number): void {
+    if (this.paragraphLines.length === 0) {
+      this.paragraphStartLine = lineNumber;
     }
+    this.paragraphLines.push(line.trim());
+  }
 
-    if (inFence) {
-      continue;
-    }
+  private readonly actionHandlers: Record<
+    StatementLineAction,
+    StatementLineHandler
+  > = {
+    blank: (_lines, i) => {
+      this.flushParagraph();
 
-    if (line.trim() === "") {
-      flushParagraph();
-      continue;
-    }
+      return i;
+    },
+    heading: (_lines, i, line) => {
+      this.flushParagraph();
+      this.currentHeading = parseHeading(line);
 
-    if (isHeading(line)) {
-      flushParagraph();
-      currentHeading = parseHeading(line);
-      continue;
-    }
+      return i;
+    },
+    table: (_lines, i) => {
+      this.flushParagraph();
 
-    if (isTableRow(line)) {
-      flushParagraph();
-      continue;
-    }
-
-    if (isListItem(line)) {
-      flushParagraph();
+      return i;
+    },
+    "list-item": (lines, i) => {
+      this.flushParagraph();
       const itemStartLine = i + 1;
       const listItem = readListItemLines(lines, i);
 
-      i = listItem.endIndex;
-      pushListItemStatement(listItem.combined, itemStartLine);
-      continue;
+      this.pushListItemStatement(listItem.combined, itemStartLine);
+
+      return listItem.endIndex;
+    },
+    paragraph: (_lines, i, line) => {
+      this.appendParagraphLine(line, i + 1);
+
+      return i;
+    },
+  };
+
+  /** Processes the line at index `i`; returns the index the outer loop should resume from (before its own `i++`). */
+  processLine(lines: string[], i: number): number {
+    const line = lines[i];
+
+    if (/^\s*```/.test(line)) {
+      this.flushParagraph();
+      this.inFence = !this.inFence;
+
+      return i;
     }
 
-    if (paragraphLines.length === 0) {
-      paragraphStartLine = i + 1;
+    if (this.inFence) {
+      return i;
     }
-    paragraphLines.push(line.trim());
+
+    return this.actionHandlers[classifyStatementLine(line)](lines, i, line);
   }
-  flushParagraph();
 
-  return statements;
+  finish(): Statement[] {
+    this.flushParagraph();
+
+    return this.statements;
+  }
+}
+
+export function segmentStatements(content: string): Statement[] {
+  const lines = content.split(/\r?\n/);
+  const accumulator = new StatementAccumulator();
+
+  for (let i = 0; i < lines.length; i++) {
+    i = accumulator.processLine(lines, i);
+  }
+
+  return accumulator.finish();
 }
 
 const SECTION_RULES: { match: RegExp; category: UntestableCategory }[] = [
@@ -305,17 +379,16 @@ const CONTENT_RULES: { match: RegExp; category: UntestableCategory }[] = [
   },
 ];
 
+function firstEnclosingHeading(statements: Statement[]): string | null {
+  const withHeading = statements.find((s) => s.enclosingHeading !== null);
+
+  return withHeading ? withHeading.enclosingHeading : null;
+}
+
 /** Build intro ordinals (no heading or first heading). */
 export function buildIntroOrdinals(statements: Statement[]): Set<number> {
   const ordinals = new Set<number>();
-  let firstHeading: string | null = null;
-
-  for (const s of statements) {
-    if (firstHeading === null && s.enclosingHeading !== null) {
-      firstHeading = s.enclosingHeading;
-      break;
-    }
-  }
+  const firstHeading = firstEnclosingHeading(statements);
 
   for (const s of statements) {
     if (s.enclosingHeading === null || s.enclosingHeading === firstHeading) {
@@ -324,6 +397,15 @@ export function buildIntroOrdinals(statements: Statement[]): Set<number> {
   }
 
   return ordinals;
+}
+
+function matchRuleCategory(
+  rules: { match: RegExp; category: UntestableCategory }[],
+  text: string,
+): UntestableCategory | null {
+  const rule = rules.find(({ match }) => match.test(text));
+
+  return rule ? rule.category : null;
 }
 
 /** Section-heading heuristic: narrative sections → untestable; else → LLM. */
@@ -339,21 +421,27 @@ export function classifyByHeuristic(
     };
   }
 
-  for (const { match, category } of CONTENT_RULES) {
-    if (match.test(statement.text)) {
-      return { testability: "untestable", category, matchedBySection: true };
-    }
+  const contentCategory = matchRuleCategory(CONTENT_RULES, statement.text);
+
+  if (contentCategory) {
+    return {
+      testability: "untestable",
+      category: contentCategory,
+      matchedBySection: true,
+    };
   }
+
   const heading = statement.enclosingHeading;
+  const sectionCategory = heading
+    ? matchRuleCategory(SECTION_RULES, heading)
+    : null;
 
-  if (!heading) {
-    return { testability: "testable", category: null, matchedBySection: false };
-  }
-
-  for (const { match, category } of SECTION_RULES) {
-    if (match.test(heading)) {
-      return { testability: "untestable", category, matchedBySection: true };
-    }
+  if (sectionCategory) {
+    return {
+      testability: "untestable",
+      category: sectionCategory,
+      matchedBySection: true,
+    };
   }
 
   return { testability: "testable", category: null, matchedBySection: false };

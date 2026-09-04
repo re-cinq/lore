@@ -43,47 +43,57 @@ const HINTS: Record<FailureCategory, string> = {
     "Unrecognized failure — see the Event Timeline metadata and agent pod logs.",
 };
 
-function categorize(message: string, step?: string): FailureCategory {
+/** GitHub's "resource not accessible by integration" is either a workflow-file permission gap or a general one, depending on which step failed. */
+function resourceNotAccessibleCategory(
+  message: string,
+  step?: string,
+): FailureCategory | undefined {
+  if (!/resource not accessible by integration/i.test(message)) {
+    return undefined;
+  }
+
+  return step && /\.github\/workflows\//i.test(step)
+    ? "github-workflows-permission"
+    : "github-permission";
+}
+
+// Ordered most-specific-first — e.g. settings-file runs ahead of `infra`, whose CR also carries BackoffLimitExceeded.
+const CATEGORY_MATCHERS: ((
+  message: string,
+  step?: string,
+) => FailureCategory | undefined)[] = [
   // Matches all known phrasings of the credit error (API, agent terminal line, older copy).
-  if (/credit balance is too low|insufficient credits?/i.test(message)) {
-    return "anthropic-credit";
-  }
-
-  if (/rate.?limit|\b429\b/i.test(message)) {
-    return "anthropic-rate-limit";
-  }
-
+  (m) =>
+    /credit balance is too low|insufficient credits?/i.test(m)
+      ? "anthropic-credit"
+      : undefined,
+  (m) => (/rate.?limit|\b429\b/i.test(m) ? "anthropic-rate-limit" : undefined),
   // GitHub's 422 on a workflow-file write; the message names the file, so no step context is needed.
-  if (/refusing to allow .* workflow/i.test(message)) {
-    return "github-workflows-permission";
-  }
-
-  if (/resource not accessible by integration/i.test(message)) {
-    return step && /\.github\/workflows\//i.test(step)
+  (m) =>
+    /refusing to allow .* workflow/i.test(m)
       ? "github-workflows-permission"
-      : "github-permission";
-  }
-
-  if (/\b403\b|forbidden/i.test(message)) {
-    return "github-permission";
-  }
-
-  if (/\b401\b|bad credentials|unauthorized/i.test(message)) {
-    return "auth";
-  }
-
-  // Checked ahead of the infra matcher: this CR also carries BackoffLimitExceeded, which would misclassify it as retryable.
-  if (/settings file not found/i.test(message)) {
-    return "agent-settings-missing";
-  }
-
-  // Checked last (credential-caused pod deaths already matched above); anchored to Kubernetes phrasings so a bare "timed out" from the Anthropic API isn't misreported as a pod death.
-  if (
+      : undefined,
+  resourceNotAccessibleCategory,
+  (m) => (/\b403\b|forbidden/i.test(m) ? "github-permission" : undefined),
+  (m) => (/\b401\b|bad credentials|unauthorized/i.test(m) ? "auth" : undefined),
+  (m) =>
+    /settings file not found/i.test(m) ? "agent-settings-missing" : undefined,
+  // Anchored to Kubernetes phrasings so a bare "timed out" from the Anthropic API isn't misreported as a pod death.
+  (m) =>
     /backofflimitexceeded|deadlineexceeded|oomkilled|evicted|job .* timed out|timed out waiting/i.test(
-      message,
+      m,
     )
-  ) {
-    return "infra";
+      ? "infra"
+      : undefined,
+];
+
+function categorize(message: string, step?: string): FailureCategory {
+  for (const matcher of CATEGORY_MATCHERS) {
+    const category = matcher(message, step);
+
+    if (category) {
+      return category;
+    }
   }
 
   return "unknown";

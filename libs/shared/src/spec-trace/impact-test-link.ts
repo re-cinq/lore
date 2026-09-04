@@ -36,11 +36,42 @@ export interface TestFileLookup {
   fileLevel?: boolean;
 }
 
+/** Whether `chunk`'s span overlaps `ranges` (or the span is unknown/degraded to file-level, in which case it always matches). */
+function testChunkInScope(
+  chunk: GraphTestChunk,
+  ranges: [number, number][],
+  fileLevel: boolean | undefined,
+): boolean {
+  const start = chunk["TestChunk.start_line"] ?? 0;
+  const end = chunk["TestChunk.end_line"] ?? 0;
+  // `fileLevel` degrades for missing coordinates; link couples statement to file.
+  const spanKnown = !fileLevel && start > 0 && end >= start;
+
+  return (
+    !spanKnown || ranges.some(([s, e]) => intervalsOverlap(start, end, s, e))
+  );
+}
+
+function statementsForTestChunk(
+  chunk: GraphTestChunk,
+  file: string,
+): Array<ImpactStatement & { xid: string }> {
+  const test = {
+    file: chunk["TestChunk.file_path"] ?? file,
+    name: chunk["TestChunk.test_name"] ?? "",
+    line: chunk["TestChunk.start_line"] ?? 0,
+  };
+
+  return (chunk.stmts ?? []).map((stmt) =>
+    toImpactStatement(stmt, file, [test], "test-link"),
+  );
+}
+
 export async function testFileImpact(
   dgraph: DgraphClientPort,
   repo: string,
   file: string,
-  { ranges, ...options }: TestFileLookup,
+  { ranges, fileLevel }: TestFileLookup,
 ): Promise<Array<ImpactStatement & { xid: string }>> {
   const chunks = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(TEST_LINK_QUERY, {
@@ -50,32 +81,8 @@ export async function testFileImpact(
 
     return (res.data?.chunks ?? []) as GraphTestChunk[];
   });
-  const out: Array<ImpactStatement & { xid: string }> = [];
 
-  for (const chunk of chunks) {
-    const start = chunk["TestChunk.start_line"] ?? 0;
-    const end = chunk["TestChunk.end_line"] ?? 0;
-    // `fileLevel` degrades for missing coordinates; link couples statement to file.
-    const spanKnown = !options.fileLevel && start > 0 && end >= start;
-
-    if (
-      spanKnown &&
-      !ranges.some(([s, e]) => intervalsOverlap(start, end, s, e))
-    ) {
-      continue;
-    }
-    const test = {
-      file: chunk["TestChunk.file_path"] ?? file,
-      name: chunk["TestChunk.test_name"] ?? "",
-      line: start,
-    };
-
-    out.push(
-      ...(chunk.stmts ?? []).map((stmt) =>
-        toImpactStatement(stmt, file, [test], "test-link"),
-      ),
-    );
-  }
-
-  return out;
+  return chunks
+    .filter((chunk) => testChunkInScope(chunk, ranges, fileLevel))
+    .flatMap((chunk) => statementsForTestChunk(chunk, file));
 }

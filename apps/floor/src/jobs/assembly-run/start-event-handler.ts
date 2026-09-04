@@ -28,6 +28,47 @@ export interface StartEventHandlerDeps {
   reopenTask?: (row: { id: string; taskId: string | null }) => Promise<void>;
 }
 
+function isValidAssemblyLineId(id: unknown): id is string {
+  return typeof id === "string" && id.length > 0;
+}
+
+/** Task-backed row without builtin definition = single-CR record; typos become silent failures (log for breadcrumb). */
+async function markSingleCrRun(
+  assemblyLineId: string,
+  blueprintName: string,
+  taskId: string,
+  deps: StartEventHandlerDeps,
+): Promise<void> {
+  console.warn(
+    `[assembly-line-start] task-backed row ${assemblyLineId} has no builtin definition "${blueprintName}" — treating as single-CR (verify a CR was launched for task ${taskId})`,
+  );
+  await deps.assemblyRuns.markRunning(assemblyLineId);
+}
+
+/** Unknown definition without task = config error (not transient); close row and notify the winning closer only — a redelivered event must not re-notify. */
+async function closeUnknownDefinitionRun(
+  assemblyLineId: string,
+  reason: string,
+  deps: StartEventHandlerDeps,
+): Promise<void> {
+  const row = await deps.assemblyRuns.getById(assemblyLineId);
+  const closedNow = await deps.assemblyRuns.finish(
+    assemblyLineId,
+    "error",
+    reason,
+  );
+
+  if (!closedNow || !row || !deps.notifyFailure) {
+    return;
+  }
+
+  try {
+    await deps.notifyFailure(row, "error", reason);
+  } catch (err) {
+    console.error("[notify-failure] notifier threw:", (err as Error).message);
+  }
+}
+
 export function createStartEventHandler(
   deps: StartEventHandlerDeps,
 ): EventHandler {
@@ -35,7 +76,7 @@ export function createStartEventHandler(
     const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
 
     enforceTrue(
-      typeof assemblyLineId === "string" && assemblyLineId.length > 0,
+      isValidAssemblyLineId(assemblyLineId),
       Error,
       "assembly_run.start event params missing assemblyRunId",
     );
@@ -61,38 +102,17 @@ export function createStartEventHandler(
       return;
     }
 
-    // Task-backed row without builtin definition = single-CR record; typos become silent failures (log for breadcrumb).
     if (taskId) {
-      console.warn(
-        `[assembly-line-start] task-backed row ${assemblyLineId} has no builtin definition "${blueprintName}" — treating as single-CR (verify a CR was launched for task ${taskId})`,
-      );
-      await deps.assemblyRuns.markRunning(assemblyLineId);
+      await markSingleCrRun(assemblyLineId, blueprintName, taskId, deps);
 
       return;
     }
 
-    // Unknown definition without task = config error (not transient); close row.
-    const reason = `no assembly line defined for task type "${blueprintName}"`;
-    const row = await deps.assemblyRuns.getById(assemblyLineId);
-    const closedNow = await deps.assemblyRuns.finish(
+    await closeUnknownDefinitionRun(
       assemblyLineId,
-      "error",
-      reason,
+      `no assembly line defined for task type "${blueprintName}"`,
+      deps,
     );
-
-    // Winner-only, like finishLine — a redelivered event must not re-notify.
-    if (closedNow && row && deps.notifyFailure) {
-      try {
-        await deps.notifyFailure(row, "error", reason);
-      } catch (err) {
-        console.error(
-          "[notify-failure] notifier threw:",
-          (err as Error).message,
-        );
-      }
-    }
-
-    return;
   };
 }
 
@@ -158,6 +178,25 @@ export const assemblyLineStart: EventHandler = async (params) => {
   );
 };
 
+function hasPrNumber(row: AssemblyRunRecord | null): row is AssemblyRunRecord {
+  return row !== null && Number(row.args.pr_number) > 0;
+}
+
+/** Skip the node query on normal starts; include it after finish to avoid overwriting correct checks. */
+async function nodesForStartCheck(
+  row: AssemblyRunRecord,
+  assemblyLineId: string,
+  listStationRuns: (
+    id: string,
+  ) => ReturnType<AssemblyRunsPort["listStationRuns"]>,
+): Promise<Awaited<ReturnType<AssemblyRunsPort["listStationRuns"]>>> {
+  if (row.status === "queued" || row.status === "running") {
+    return [];
+  }
+
+  return listStationRuns(assemblyLineId);
+}
+
 async function publishStartCheck(assemblyLineId: string): Promise<void> {
   if (!assemblyLineId) {
     return;
@@ -172,14 +211,12 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
       ]);
     const row = await pipeline().assemblyRuns.getById(assemblyLineId);
 
-    if (!row || !(Number(row.args.pr_number) > 0)) {
+    if (!hasPrNumber(row)) {
       return;
     }
-    // Skip node query on normal starts; include after finish to avoid overwriting correct checks.
-    const nodes =
-      row.status === "queued" || row.status === "running"
-        ? []
-        : await pipeline().assemblyRuns.listStationRuns(assemblyLineId);
+    const nodes = await nodesForStartCheck(row, assemblyLineId, (id) =>
+      pipeline().assemblyRuns.listStationRuns(id),
+    );
     const project = await projectFor(row.repo);
 
     await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);

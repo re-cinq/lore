@@ -124,34 +124,55 @@ async function resolveVisitModel(
   }
 }
 
+function prNumberFromRow(row: AssemblyRunRecord): number {
+  return Number(row.args.pr_number) || 0;
+}
+
+function reviewPromptApplies(node: RunGraphNode, prNumber: number): boolean {
+  return REVIEW_PROMPT_REFS.has(node.prompt_ref ?? "") && prNumber > 0;
+}
+
+async function resolvePoster(
+  row: AssemblyRunRecord,
+  poster: ReviewPoster | undefined,
+): Promise<ReviewPoster> {
+  return poster ?? (await projectFor(row.repo)).pulls;
+}
+
+function reviewMarkerFor(
+  row: AssemblyRunRecord,
+  nodeId: string,
+  iteration: number | undefined,
+): string | undefined {
+  return iteration === undefined
+    ? undefined
+    : reviewRunMarker(row.id, nodeId, iteration);
+}
+
+function withReviewMarker(body: string, marker: string | undefined): string {
+  return marker ? `${body}\n\n${marker}` : body;
+}
+
 /** A review visit that failed on an exhausted LLM budget must not block the PR — an empty account is an operator problem, not the author's — so post an APPROVE saying loudly that no review happened (deduped by the same per-visit marker as a real review) and record the visit as success. */
 export async function postBudgetSkipReview(
   row: AssemblyRunRecord,
   node: RunGraphNode,
   ports: ReviewPorts = {},
 ): Promise<"posted" | "already_posted" | "not_applicable"> {
-  const prNumber = Number(row.args.pr_number) || 0;
+  const prNumber = prNumberFromRow(row);
 
-  if (!REVIEW_PROMPT_REFS.has(node.prompt_ref ?? "") || !prNumber) {
+  if (!reviewPromptApplies(node, prNumber)) {
     return "not_applicable";
   }
-  const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
-  const marker =
-    ports.iteration === undefined
-      ? undefined
-      : reviewRunMarker(row.id, node.id, ports.iteration);
-  const body = budgetSkipBody(ports.model);
+  const pulls = await resolvePoster(row, ports.poster);
+  const marker = reviewMarkerFor(row, node.id, ports.iteration);
 
   if (marker && (await reviewAlreadyPosted(pulls, prNumber, marker))) {
     return "already_posted";
   }
   await pulls.createReview(prNumber, {
     event: "APPROVE",
-    body: marker
-      ? `${body}
-
-${marker}`
-      : body,
+    body: withReviewMarker(budgetSkipBody(ports.model), marker),
     comments: [],
   });
   await writeAuditLog(
@@ -225,6 +246,58 @@ export async function finishNodeTerminal(
 // Prompt refs whose nodes emit the REVIEW_FINDINGS + REVIEW_RESULT contract: the deep review on PR open and the fast re-check on every push, both posted through the same path.
 const REVIEW_PROMPT_REFS = new Set(["code-review", "code-review-recheck"]);
 
+async function auditReviewPostFailed(
+  row: AssemblyRunRecord,
+  prNumber: number,
+  message: string,
+  ports: ReviewPorts,
+): Promise<void> {
+  console.error("[code-review] post review failed:", message);
+  await writeAuditLog(
+    {
+      event_type: "review_post_failed",
+      repo: row.repo,
+      payload: {
+        pr_number: prNumber,
+        assembly_run_id: row.id,
+        error: message,
+      },
+    },
+    ports.audit,
+  );
+}
+
+interface PostedReviewContext {
+  row: AssemblyRunRecord;
+  prNumber: number;
+  output: string | undefined;
+}
+
+/** Audits and classifies a posted-or-skipped review; the `no_findings`/`deduped`/`fallback` shapes each get their own audit row. */
+async function classifyPostedReview(
+  { row, prNumber, output }: PostedReviewContext,
+  posted: Awaited<ReturnType<typeof maybePostReview>>,
+  ports: ReviewPorts,
+): Promise<ReviewPostOutcome> {
+  if (!posted) {
+    await auditUnparsedFindings(row, prNumber, output, ports);
+
+    return "no_findings";
+  }
+
+  if (posted.mode === "deduped") {
+    await auditDedupedPost(row, prNumber, posted.marker, ports);
+
+    return "already_posted";
+  }
+
+  if (posted.mode === "fallback") {
+    await auditFallbackPost(row, prNumber, posted.error, ports);
+  }
+
+  return "posted";
+}
+
 // A review node emits structured findings instead of posting them itself; render+post here — a review that computes findings and posts nothing must never go unaudited (both the throw and the silent no-parse are logged).
 export async function postReviewFromNode(
   row: AssemblyRunRecord,
@@ -232,62 +305,25 @@ export async function postReviewFromNode(
   output?: string,
   ports: ReviewPorts = {},
 ): Promise<ReviewPostOutcome> {
-  if (!REVIEW_PROMPT_REFS.has(node.prompt_ref ?? "")) {
-    return "not_review";
-  }
-  const prNumber = Number(row.args.pr_number) || 0;
+  const prNumber = prNumberFromRow(row);
 
-  if (!prNumber) {
+  if (!reviewPromptApplies(node, prNumber)) {
     return "not_review";
   }
 
   try {
-    const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
-    const marker =
-      ports.iteration === undefined
-        ? undefined
-        : reviewRunMarker(row.id, node.id, ports.iteration);
+    const pulls = await resolvePoster(row, ports.poster);
+    const marker = reviewMarkerFor(row, node.id, ports.iteration);
     const diff = await pulls.getDiff(prNumber).catch(() => "");
-    const positions = commentablePositions(diff);
     const posted = await maybePostReview(pulls, prNumber, output ?? "", {
-      positions,
+      positions: commentablePositions(diff),
       marker,
       model: ports.model,
     });
 
-    if (!posted) {
-      await auditUnparsedFindings(row, prNumber, output, ports);
-
-      return "no_findings";
-    }
-
-    if (posted.mode === "deduped") {
-      await auditDedupedPost(row, prNumber, posted.marker, ports);
-
-      return "already_posted";
-    }
-
-    if (posted.mode === "fallback") {
-      await auditFallbackPost(row, prNumber, posted.error, ports);
-    }
-
-    return "posted";
+    return await classifyPostedReview({ row, prNumber, output }, posted, ports);
   } catch (err) {
-    const message = (err as Error).message;
-
-    console.error("[code-review] post review failed:", message);
-    await writeAuditLog(
-      {
-        event_type: "review_post_failed",
-        repo: row.repo,
-        payload: {
-          pr_number: prNumber,
-          assembly_run_id: row.id,
-          error: message,
-        },
-      },
-      ports.audit,
-    );
+    await auditReviewPostFailed(row, prNumber, (err as Error).message, ports);
 
     return "post_failed";
   }
@@ -328,6 +364,60 @@ function replyRunMarker(
   return `<!-- lore-reply-run: ${assemblyLineId}/${nodeId}/${iteration} -->`;
 }
 
+type ThreadResolveAudit = (
+  payload: Record<string, unknown>,
+  resolved: boolean,
+) => Promise<void>;
+
+/** Looks up the thread the reply landed in, auditing (and swallowing) a lookup failure or an unmatched comment. */
+async function findRepliedThread(
+  listReviewThreads: NonNullable<ReplyPoster["listReviewThreads"]>,
+  prNumber: number,
+  inReplyTo: number,
+  audit: ThreadResolveAudit,
+): Promise<ReviewThread | null> {
+  try {
+    const thread = findThreadForComment(
+      await listReviewThreads(prNumber),
+      inReplyTo,
+    );
+
+    if (!thread) {
+      await audit({ reason: "no_thread_for_comment" }, false);
+    }
+
+    return thread;
+  } catch (err) {
+    await audit(
+      { reason: "list_failed", error: (err as Error).message },
+      false,
+    );
+
+    return null;
+  }
+}
+
+/** Resolves the thread, auditing success or a swallowed resolve failure. */
+async function resolveThreadSafely(
+  resolveReviewThread: NonNullable<ReplyPoster["resolveReviewThread"]>,
+  thread: ReviewThread,
+  audit: ThreadResolveAudit,
+): Promise<void> {
+  try {
+    await resolveReviewThread(thread.id);
+    await audit({ thread_id: thread.id }, true);
+  } catch (err) {
+    await audit(
+      {
+        reason: "resolve_failed",
+        thread_id: thread.id,
+        error: (err as Error).message,
+      },
+      false,
+    );
+  }
+}
+
 // Resolve the thread a reply just landed in, best-effort (FR5): only on `address` intent (an `answer` leaves the human's thread open on purpose), joining the REST reply's comment id to GraphQL's databaseId via findThreadForComment; never fails the post that already succeeded.
 async function resolveRepliedThread(
   row: AssemblyRunRecord,
@@ -339,10 +429,12 @@ async function resolveRepliedThread(
     return;
   }
 
-  if (!pulls.listReviewThreads || !pulls.resolveReviewThread) {
+  const { listReviewThreads, resolveReviewThread } = pulls;
+
+  if (!listReviewThreads || !resolveReviewThread) {
     return;
   }
-  const audit = (payload: Record<string, unknown>, resolved: boolean) =>
+  const audit: ThreadResolveAudit = (payload, resolved) =>
     writeAuditLog(
       {
         event_type: resolved
@@ -358,44 +450,17 @@ async function resolveRepliedThread(
       },
       ports.audit,
     );
-
-  let thread: ReviewThread | null;
-
-  try {
-    thread = findThreadForComment(
-      await pulls.listReviewThreads(prNumber),
-      inReplyTo,
-    );
-  } catch (err) {
-    await audit(
-      { reason: "list_failed", error: (err as Error).message },
-      false,
-    );
-
-    return;
-  }
+  const thread = await findRepliedThread(
+    listReviewThreads,
+    prNumber,
+    inReplyTo,
+    audit,
+  );
 
   if (!thread) {
-    await audit({ reason: "no_thread_for_comment" }, false);
-
     return;
   }
-
-  try {
-    await pulls.resolveReviewThread(thread.id);
-  } catch (err) {
-    await audit(
-      {
-        reason: "resolve_failed",
-        thread_id: thread.id,
-        error: (err as Error).message,
-      },
-      false,
-    );
-
-    return;
-  }
-  await audit({ thread_id: thread.id }, true);
+  await resolveThreadSafely(resolveReviewThread, thread, audit);
 }
 
 /** Which PR a reply targets, or null when this node isn't a reply-shaped one at all. */

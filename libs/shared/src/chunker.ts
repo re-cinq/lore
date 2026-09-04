@@ -143,40 +143,23 @@ async function loadGrammar(ext: string): Promise<Parser.Language | null> {
 
 // ── Symbol extraction helpers ────────────────────────────────────────
 
+/** Ordered rule table for `inferSymbolType`: first matching predicate wins. */
+const SYMBOL_TYPE_RULES: [(nodeType: string) => boolean, string][] = [
+  [(t) => t.includes("function") || t === "method_declaration", "function"],
+  [(t) => t.includes("class"), "class"],
+  [(t) => t.includes("method"), "method"],
+  [(t) => t.includes("interface"), "interface"],
+  [(t) => t.includes("type_alias") || t === "type_declaration", "type"],
+  [(t) => t.includes("enum"), "type"],
+  [(t) => t === "export_statement", "export"],
+  // decorated_definition could be a class too, refined by refineSymbolType.
+  [(t) => t === "decorated_definition", "function"],
+];
+
 function inferSymbolType(nodeType: string): string {
-  if (nodeType.includes("function") || nodeType === "method_declaration") {
-    return "function";
-  }
+  const rule = SYMBOL_TYPE_RULES.find(([matches]) => matches(nodeType));
 
-  if (nodeType.includes("class")) {
-    return "class";
-  }
-
-  if (nodeType.includes("method")) {
-    return "method";
-  }
-
-  if (nodeType.includes("interface")) {
-    return "interface";
-  }
-
-  if (nodeType.includes("type_alias") || nodeType === "type_declaration") {
-    return "type";
-  }
-
-  if (nodeType.includes("enum")) {
-    return "type";
-  }
-
-  if (nodeType === "export_statement") {
-    return "export";
-  }
-
-  if (nodeType === "decorated_definition") {
-    return "function";
-  } // could be class too, refined below
-
-  return "export";
+  return rule ? rule[1] : "export";
 }
 
 /** Base identifier of a possibly chained or curried callee — `describe` in `describe.each([...])('title', …)`. */
@@ -233,20 +216,24 @@ function testCallTitle(call: Parser.SyntaxNode): string | undefined {
   return title !== undefined && title.length > 0 ? title : undefined;
 }
 
-function callSymbolName(call: Parser.SyntaxNode): string | undefined {
-  const callee = call.childForFieldName("function");
-  const root = rootCalleeName(callee);
-  const isTestCall = root !== undefined && TEST_CALL_ROOTS.has(root);
-  const title = isTestCall ? testCallTitle(call) : undefined;
+function isTestMacroRoot(root: string | undefined): root is string {
+  return root !== undefined && TEST_CALL_ROOTS.has(root);
+}
 
-  if (title !== undefined) {
-    return title;
-  }
-
+/** Plain-identifier or member-chain callee text (e.g. `foo` or `foo.bar`); undefined for anything else, including IIFEs. */
+function plainCalleeText(callee: Parser.SyntaxNode | null): string | undefined {
   const isPlainCallee =
     callee?.type === "identifier" || callee?.type === "member_expression";
 
   return isPlainCallee ? callee.text : undefined;
+}
+
+function callSymbolName(call: Parser.SyntaxNode): string | undefined {
+  const callee = call.childForFieldName("function");
+  const root = rootCalleeName(callee);
+  const title = isTestMacroRoot(root) ? testCallTitle(call) : undefined;
+
+  return title ?? plainCalleeText(callee);
 }
 
 interface SymbolInfo {
@@ -274,52 +261,52 @@ function symbolInfo(node: Parser.SyntaxNode): SymbolInfo {
   return { name: callSymbolName(call), type: "call" };
 }
 
+/** Unwraps an `export_statement` to its declaration or a `decorated_definition` to its wrapped function/class; undefined for any other node. */
+function innerDeclarationNode(
+  node: Parser.SyntaxNode,
+): Parser.SyntaxNode | undefined {
+  if (node.type === "export_statement") {
+    return node.childForFieldName("declaration") ?? node.namedChildren[0];
+  }
+
+  if (node.type === "decorated_definition") {
+    return node.namedChildren.find(
+      (c) => c.type === "function_definition" || c.type === "class_definition",
+    );
+  }
+
+  return undefined;
+}
+
 function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
-  // Direct name child
   const nameNode = node.childForFieldName("name");
 
   if (nameNode) {
     return nameNode.text;
   }
 
-  // export_statement wraps a declaration
-  if (node.type === "export_statement") {
-    const decl = node.childForFieldName("declaration") ?? node.namedChildren[0];
+  const inner = innerDeclarationNode(node);
 
-    return decl ? extractSymbolName(decl) : undefined;
-  }
-
-  // Python decorated_definition wraps a function_definition or class_definition
-  if (node.type === "decorated_definition") {
-    const def = node.namedChildren.find(
-      (c) => c.type === "function_definition" || c.type === "class_definition",
-    );
-
-    return def ? extractSymbolName(def) : undefined;
-  }
-
-  return undefined;
+  return inner ? extractSymbolName(inner) : undefined;
 }
 
 function refineSymbolType(node: Parser.SyntaxNode, initial: string): string {
-  if (node.type === "export_statement") {
-    const decl = node.childForFieldName("declaration") ?? node.namedChildren[0];
+  const inner = innerDeclarationNode(node);
 
-    return decl ? inferSymbolType(decl.type) : initial;
-  }
-
-  if (node.type === "decorated_definition") {
-    const def = node.namedChildren.find(
-      (c) => c.type === "function_definition" || c.type === "class_definition",
-    );
-
-    return def ? inferSymbolType(def.type) : initial;
-  }
-
-  return initial;
+  return inner ? inferSymbolType(inner.type) : initial;
 }
 
 // ── AST-based chunking ──────────────────────────────────────────────
+
+/** Prefixes marking a comment or docstring line, across the slash-comment and Python-docstring styles this chunker sees. */
+const COMMENT_LINE_PREFIXES = ["//", "/*", "*", "#", '"""', "'''"];
+
+function isCommentOrBlankLine(line: string): boolean {
+  return (
+    line === "" ||
+    COMMENT_LINE_PREFIXES.some((prefix) => line.startsWith(prefix))
+  );
+}
 
 /** First line of the comment/docstring block leading a declaration, trimmed of leading blanks; the declaration's own start row when none. */
 function leadingCommentStart(
@@ -330,15 +317,7 @@ function leadingCommentStart(
   let startLine = declStartRow;
 
   for (let row = declStartRow - 1; row >= prevEnd; row--) {
-    const line = lines[row].trim();
-
-    const isSlashComment =
-      line.startsWith("//") || line.startsWith("/*") || line.startsWith("*");
-    const isDocstring =
-      line.startsWith("#") || line.startsWith('"""') || line.startsWith("'''");
-    const isCommentOrBlank = isSlashComment || isDocstring || line === "";
-
-    if (!isCommentOrBlank) {
+    if (!isCommentOrBlankLine(lines[row].trim())) {
       break;
     }
     startLine = row;
@@ -351,21 +330,17 @@ function leadingCommentStart(
   return startLine;
 }
 
-function chunkCodeAST(
-  tree: Parser.Tree,
-  content: string,
-  ext: string,
-): Chunk[] {
-  const lines = content.split("\n");
-  const declTypes = DECLARATION_TYPES[ext] ?? new Set<string>();
-  const root = tree.rootNode;
+interface DeclInfo {
+  node: Parser.SyntaxNode;
+  startRow: number;
+  endRow: number;
+}
 
-  // Collect top-level declaration nodes
-  interface DeclInfo {
-    node: Parser.SyntaxNode;
-    startRow: number;
-    endRow: number;
-  }
+/** Top-level declaration nodes matching this extension's declaration types, in source order. */
+function collectTopLevelDecls(
+  root: Parser.SyntaxNode,
+  declTypes: Set<string>,
+): DeclInfo[] {
   const decls: DeclInfo[] = [];
 
   for (const child of root.namedChildren) {
@@ -378,53 +353,74 @@ function chunkCodeAST(
     }
   }
 
+  return decls;
+}
+
+/** Chunk for everything before the first declaration (imports, comments, etc.); null when there is none. */
+function preambleChunk(lines: string[], firstDeclStart: number): Chunk | null {
+  const preamble =
+    firstDeclStart > 0
+      ? lines.slice(0, firstDeclStart).join("\n").trimEnd()
+      : "";
+
+  if (preamble.length === 0) {
+    return null;
+  }
+
+  return {
+    content: preamble,
+    metadata: { chunk_index: 0, start_line: 1, end_line: firstDeclStart },
+  };
+}
+
+/** Chunk for one declaration, including its leading comments. */
+function declChunk(
+  lines: string[],
+  decl: DeclInfo,
+  prevEnd: number,
+  chunkIndex: number,
+): Chunk {
+  const startLine = leadingCommentStart(lines, decl.startRow, prevEnd);
+  const chunkContent = lines.slice(startLine, decl.endRow + 1).join("\n");
+  const symbol = symbolInfo(decl.node);
+
+  return {
+    content: chunkContent,
+    metadata: {
+      symbol_name: symbol.name,
+      symbol_type: symbol.type,
+      start_line: startLine + 1,
+      end_line: decl.endRow + 1,
+      chunk_index: chunkIndex,
+    },
+  };
+}
+
+function chunkCodeAST(
+  tree: Parser.Tree,
+  content: string,
+  ext: string,
+): Chunk[] {
+  const lines = content.split("\n");
+  const declTypes = DECLARATION_TYPES[ext] ?? new Set<string>();
+  const decls = collectTopLevelDecls(tree.rootNode, declTypes);
+
   if (decls.length === 0) {
-    // No declarations found -- return whole file as one chunk
     return wholeFileChunk(content, {
       start_line: 1,
       end_line: lineCount(content),
     });
   }
 
-  const chunks: Chunk[] = [];
-  let chunkIndex = 0;
-
-  // Preamble: everything before first declaration (imports, comments, etc.)
   const firstDeclStart = decls[0].startRow;
-  const preamble =
-    firstDeclStart > 0
-      ? lines.slice(0, firstDeclStart).join("\n").trimEnd()
-      : "";
+  const preamble = preambleChunk(lines, firstDeclStart);
+  const chunks: Chunk[] = preamble ? [preamble] : [];
+  let chunkIndex = chunks.length;
 
-  if (preamble.length > 0) {
-    chunks.push({
-      content: preamble,
-      metadata: {
-        chunk_index: chunkIndex++,
-        start_line: 1,
-        end_line: firstDeclStart,
-      },
-    });
-  }
-
-  // Each declaration becomes a chunk. Include leading comments.
   for (let i = 0; i < decls.length; i++) {
-    const decl = decls[i];
     const prevEnd = i > 0 ? decls[i - 1].endRow + 1 : firstDeclStart;
-    const startLine = leadingCommentStart(lines, decl.startRow, prevEnd);
-    const chunkContent = lines.slice(startLine, decl.endRow + 1).join("\n");
-    const symbol = symbolInfo(decl.node);
 
-    chunks.push({
-      content: chunkContent,
-      metadata: {
-        symbol_name: symbol.name,
-        symbol_type: symbol.type,
-        start_line: startLine + 1,
-        end_line: decl.endRow + 1,
-        chunk_index: chunkIndex++,
-      },
-    });
+    chunks.push(declChunk(lines, decls[i], prevEnd, chunkIndex++));
   }
 
   return chunks;
@@ -432,9 +428,14 @@ function chunkCodeAST(
 
 // ── Markdown heading-based chunking ─────────────────────────────────
 
-function chunkMarkdown(content: string): Chunk[] {
+interface HeadingMatch {
+  title: string;
+  index: number;
+}
+
+function findMarkdownHeadings(content: string): HeadingMatch[] {
   const headingRe = /^## .+$/gm;
-  const matches: { title: string; index: number }[] = [];
+  const matches: HeadingMatch[] = [];
 
   let match: RegExpExecArray | null;
 
@@ -442,36 +443,44 @@ function chunkMarkdown(content: string): Chunk[] {
     matches.push({ title: match[0].replace(/^## /, ""), index: match.index });
   }
 
+  return matches;
+}
+
+/** Chunk for the text spanning one `##` heading through the next (or end of file). */
+function markdownSectionChunk(
+  content: string,
+  matches: HeadingMatch[],
+  i: number,
+  chunkIndex: number,
+): Chunk {
+  const start = matches[i].index;
+  const end = i + 1 < matches.length ? matches[i + 1].index : content.length;
+  const section = content.slice(start, end).trimEnd();
+
+  return {
+    content: section,
+    metadata: { section_title: matches[i].title, chunk_index: chunkIndex },
+  };
+}
+
+function chunkMarkdown(content: string): Chunk[] {
+  const matches = findMarkdownHeadings(content);
+
   if (matches.length === 0) {
     return wholeFileChunk(content);
   }
 
-  const chunks: Chunk[] = [];
-  let chunkIndex = 0;
-
-  // Content before first ## heading
+  // Content before the first ## heading
   const preamble =
     matches[0].index > 0 ? content.slice(0, matches[0].index).trimEnd() : "";
-
-  if (preamble.length > 0) {
-    chunks.push({
-      content: preamble,
-      metadata: { chunk_index: chunkIndex++ },
-    });
-  }
+  const chunks: Chunk[] =
+    preamble.length > 0
+      ? [{ content: preamble, metadata: { chunk_index: 0 } }]
+      : [];
+  let chunkIndex = chunks.length;
 
   for (let i = 0; i < matches.length; i++) {
-    const start = matches[i].index;
-    const end = i + 1 < matches.length ? matches[i + 1].index : content.length;
-    const section = content.slice(start, end).trimEnd();
-
-    chunks.push({
-      content: section,
-      metadata: {
-        section_title: matches[i].title,
-        chunk_index: chunkIndex++,
-      },
-    });
+    chunks.push(markdownSectionChunk(content, matches, i, chunkIndex++));
   }
 
   return chunks;

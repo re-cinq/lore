@@ -109,6 +109,31 @@ export interface TaskListRow {
   updated_at: string;
 }
 
+async function trustLevelForRepo(
+  pool: PgPool,
+  repo: string,
+): Promise<string | undefined> {
+  const { rows: repoRows } = await pool.query(
+    `SELECT settings FROM lore.repos WHERE full_name = $1`,
+    [repo],
+  );
+
+  if (repoRows.length === 0) {
+    return undefined;
+  }
+  const settings = (repoRows[0].settings as {
+    trust?: { level?: string };
+  }) || { trust: undefined };
+
+  return settings.trust?.level;
+}
+
+function isTrustViolation(err: unknown): err is Error {
+  return (
+    err instanceof Error && err.message.includes("not allowed at trust level")
+  );
+}
+
 /** Throw when trust level forbids the task type; any other failure (missing row, read error) is non-fatal. */
 async function enforceRepoTrustForTaskType(
   pool: PgPool,
@@ -116,27 +141,73 @@ async function enforceRepoTrustForTaskType(
   taskType: string,
 ): Promise<void> {
   try {
-    const { rows: repoRows } = await pool.query(
-      `SELECT settings FROM lore.repos WHERE full_name = $1`,
-      [repo],
-    );
+    const trustLevel = await trustLevelForRepo(pool, repo);
 
-    if (repoRows.length > 0) {
-      const settings = (repoRows[0].settings as {
-        trust?: { level?: string };
-      }) || { trust: undefined };
-
-      enforceTrustAllowsTaskType(settings.trust?.level, taskType, repo);
-    }
+    enforceTrustAllowsTaskType(trustLevel, taskType, repo);
   } catch (err) {
-    if (
-      err instanceof Error &&
-      err.message.includes("not allowed at trust level")
-    ) {
+    if (isTrustViolation(err)) {
       throw err;
     }
     // Non-trust errors are non-fatal
   }
+}
+
+function resolvePriority(priority: string | undefined): string {
+  return priority === "immediate" ? "immediate" : "normal";
+}
+
+function buildInsertTaskSql(hasGroup: boolean): string {
+  return hasGroup
+    ? `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, status, priority, created_at`
+    : `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, status, priority, created_at`;
+}
+
+interface InsertTaskParams {
+  description: string;
+  taskType: string;
+  repo: string | undefined;
+  createdBy: string;
+  contextJson: string | null;
+  priority: string;
+  taskGroupId?: string;
+}
+
+function buildInsertTaskParams(p: InsertTaskParams): unknown[] {
+  return [
+    p.description,
+    p.taskType,
+    p.repo,
+    p.createdBy,
+    p.contextJson,
+    p.priority,
+    ...(p.taskGroupId ? [p.taskGroupId] : []),
+  ];
+}
+
+function hasContextRefs(refs: CreateTaskInput["contextRefs"]): boolean {
+  return Boolean(
+    refs && (refs.fact_ids.length > 0 || refs.memory_ids.length > 0),
+  );
+}
+
+async function saveContextRefs(
+  pool: PgPool,
+  taskId: string,
+  refs: CreateTaskInput["contextRefs"],
+): Promise<void> {
+  if (!hasContextRefs(refs)) {
+    return;
+  }
+  await pool
+    .query(`UPDATE pipeline.tasks SET context_refs = $1 WHERE id = $2`, [
+      JSON.stringify(refs),
+      taskId,
+    ])
+    .catch(() => {});
 }
 
 export async function createTask(
@@ -157,48 +228,29 @@ export async function createTask(
     await enforceRepoTrustForTaskType(pool, repo, taskType);
   }
 
-  const resolvedPriority =
-    input.priority === "immediate" ? "immediate" : "normal";
+  const resolvedPriority = resolvePriority(input.priority);
   const contextJson = input.contextBundle
     ? JSON.stringify(input.contextBundle)
     : null;
-  const insertSql = input.taskGroupId
-    ? `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, status, priority, created_at`
-    : `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, status, priority, created_at`;
-  const insertParams = [
-    input.description,
+  const insertSql = buildInsertTaskSql(Boolean(input.taskGroupId));
+  const insertParams = buildInsertTaskParams({
+    description: input.description,
     taskType,
     repo,
     createdBy,
     contextJson,
-    resolvedPriority,
-    ...(input.taskGroupId ? [input.taskGroupId] : []),
-  ];
+    priority: resolvedPriority,
+    taskGroupId: input.taskGroupId,
+  });
   const result = await pool.query<{
     id: string;
     status: string;
     priority: string;
     created_at: string;
   }>(insertSql, insertParams);
-  const rows = result.rows;
-  const task = rows[0];
+  const task = result.rows[0];
 
-  if (
-    input.contextRefs &&
-    (input.contextRefs.fact_ids.length > 0 ||
-      input.contextRefs.memory_ids.length > 0)
-  ) {
-    await pool
-      .query(`UPDATE pipeline.tasks SET context_refs = $1 WHERE id = $2`, [
-        JSON.stringify(input.contextRefs),
-        task.id,
-      ])
-      .catch(() => {});
-  }
+  await saveContextRefs(pool, task.id, input.contextRefs);
   await recordEvent(
     pool,
     task.id,

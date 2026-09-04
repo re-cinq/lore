@@ -268,8 +268,9 @@ function statementBlock(s: ImpactStatement): string[] {
   return lines;
 }
 
-/** Findings grouped under the spec they belong to, capped. */
-function specSections(statements: ImpactStatement[]): string[] {
+function groupBySpec(
+  statements: ImpactStatement[],
+): Map<string, ImpactStatement[]> {
   const bySpec = new Map<string, ImpactStatement[]>();
 
   for (const s of statements) {
@@ -277,8 +278,30 @@ function specSections(statements: ImpactStatement[]): string[] {
 
     bySpec.set(key, [...(bySpec.get(key) ?? []), s]);
   }
-  const titleFor = (found: ImpactStatement[]) =>
-    found.find((s) => s.specTitle)?.specTitle ?? "";
+
+  return bySpec;
+}
+
+/** One spec's section header + its (possibly capped) statement blocks. */
+function specSection(
+  specPath: string,
+  found: ImpactStatement[],
+  shownCount: number,
+): string[] {
+  const shown = found.slice(0, shownCount);
+  const title = found.find((s) => s.specTitle)?.specTitle ?? "";
+
+  return [
+    "",
+    `### ${title || specPath} · ${found.length} statement(s)`,
+    ...(title ? [`\`${specPath}\``] : []),
+    ...shown.flatMap((s) => ["", ...statementBlock(s)]),
+  ];
+}
+
+/** Findings grouped under the spec they belong to, capped. */
+function specSections(statements: ImpactStatement[]): string[] {
+  const bySpec = groupBySpec(statements);
   const lines: string[] = [];
   let rendered = 0;
 
@@ -286,17 +309,10 @@ function specSections(statements: ImpactStatement[]): string[] {
     if (rendered >= MAX_ROWS) {
       break;
     }
-    const shown = found.slice(0, MAX_ROWS - rendered);
+    const shownCount = MAX_ROWS - rendered;
 
-    rendered += shown.length;
-    const title = titleFor(found);
-
-    lines.push(
-      "",
-      `### ${title || specPath} · ${found.length} statement(s)`,
-      ...(title ? [`\`${specPath}\``] : []),
-      ...shown.flatMap((s) => ["", ...statementBlock(s)]),
-    );
+    rendered += Math.min(shownCount, found.length);
+    lines.push(...specSection(specPath, found, shownCount));
   }
   const hidden = statements.length - rendered;
 
@@ -307,8 +323,70 @@ function specSections(statements: ImpactStatement[]): string[] {
   return lines;
 }
 
-/** Renders the sticky PR summary comment (find-by-marker, update-in-place); formatting lives here so it is unit-tested, not buried in workflow YAML. */
-export function buildImpactComment(report: ImpactReport): string {
+/** A statement with no resolvable spec is a broken graph edge, not a finding — rendering it produced the blank table rows in #1077. */
+function commentFindings(report: ImpactReport): ImpactStatement[] {
+  return dedupeRows(
+    report.statements.filter(
+      (s) => s.specTitle || s.specPath || s.statementText,
+    ),
+  );
+}
+
+/** Same footer as a populated result — otherwise a run that skipped every file for want of a baseline looks identical to a clean "found nothing" run. */
+function emptyImpactComment(report: ImpactReport): string {
+  return [
+    COMMENT_HEADER,
+    "",
+    describeExamined(report),
+    "",
+    `<sub>Deterministic · ${describeBaseline(report)} · no tests run by this check</sub>`,
+    "",
+    IMPACT_COMMENT_MARKER,
+    "",
+  ].join("\n");
+}
+
+function commentIntro(findings: ImpactStatement[]): string {
+  const specCount = new Set(findings.map((s) => s.specPath)).size;
+  const untouched = findings.filter((s) => !s.testsTouched).length;
+  const untouchedNote = untouched
+    ? `, and **${untouched}** of them ${untouched === 1 ? "has" : "have"} validating tests this PR does not change.`
+    : ", and changes the validating tests alongside every one of them.";
+
+  return `This PR touches **${findings.length} statement(s)** across **${specCount} spec(s)**${untouchedNote}`;
+}
+
+function orphanWarningLines(orphaned: OrphanStatement[]): string[] {
+  if (!orphaned.length) {
+    return [];
+  }
+
+  return [
+    "",
+    `### ⚠ Coverage warnings (${orphaned.length})`,
+    ...orphaned.map(
+      (o) =>
+        `- **${o.specTitle}** lost its only coverage — was \`${o.wasCoveredBy}\`, now deleted.`,
+    ),
+  ];
+}
+
+function weakSignalLines(weak: ImpactStatement[]): string[] {
+  if (!weak.length) {
+    return [];
+  }
+
+  return [
+    "",
+    `<details><summary>Weaker signals (${weak.length}) — linked by a spec, not proven by a test run</summary>`,
+    ...specSections(weak),
+    "",
+    "</details>",
+  ];
+}
+
+/** The two fixed-text cases that short-circuit rendering entirely: no graph, or an unsupported client protocol. */
+function suppressedComment(report: ImpactReport): string | undefined {
   if (report.status === "unavailable") {
     return `${COMMENT_HEADER}\n\nGraph not available for this repo yet — skipping impact analysis. No action needed.\n\n${IMPACT_COMMENT_MARKER}\n`;
   }
@@ -317,84 +395,97 @@ export function buildImpactComment(report: ImpactReport): string {
     return `${COMMENT_HEADER}\n\nThis repo's \`.github/workflows/lore-trace-impact.yml\` is version 1, which computed its diff against the base-branch tip instead of the merge base — so it reported every commit merged to the base since the branch point as a change of this PR. Findings from it were unreliable and are suppressed. Update the workflow to re-enable this check.\n\n${IMPACT_COMMENT_MARKER}\n`;
   }
 
-  // A statement with no resolvable spec is a broken graph edge, not a finding — rendering it produced the blank table rows in #1077.
-  const findings = dedupeRows(
-    report.statements.filter(
-      (s) => s.specTitle || s.specPath || s.statementText,
+  return undefined;
+}
+
+function evidenceSplit(findings: ImpactStatement[]): {
+  strong: ImpactStatement[];
+  weak: ImpactStatement[];
+} {
+  return {
+    strong: findings.filter(
+      (s) => s.evidence === "statement-edit" || s.evidence === "coverage",
     ),
-  );
-  const strong = findings.filter(
-    (s) => s.evidence === "statement-edit" || s.evidence === "coverage",
-  );
-  const weak = findings.filter(
-    (s) => s.evidence === "test-link" || s.evidence === "file-link",
-  );
+    weak: findings.filter(
+      (s) => s.evidence === "test-link" || s.evidence === "file-link",
+    ),
+  };
+}
 
-  // Same footer as a populated result — otherwise a run that skipped every file for want of a baseline looks identical to a clean "found nothing" run.
-  if (!findings.length && !report.orphaned.length) {
-    return [
-      COMMENT_HEADER,
-      "",
-      describeExamined(report),
-      "",
-      `<sub>Deterministic · ${describeBaseline(report)} · no tests run by this check</sub>`,
-      "",
-      IMPACT_COMMENT_MARKER,
-      "",
-    ].join("\n");
-  }
-
-  const specCount = new Set(findings.map((s) => s.specPath)).size;
-  const untouched = findings.filter((s) => !s.testsTouched).length;
+/** Renders the sticky PR summary comment (find-by-marker, update-in-place); formatting lives here so it is unit-tested, not buried in workflow YAML. */
+function populatedImpactComment(
+  report: ImpactReport,
+  findings: ImpactStatement[],
+  strong: ImpactStatement[],
+  weak: ImpactStatement[],
+): string {
+  const notes = report.examined ? docNotes(report.examined) : [];
   const lines = [
     `${COMMENT_HEADER} — advisory`,
     "",
-    `This PR touches **${findings.length} statement(s)** across **${specCount} spec(s)**` +
-      (untouched
-        ? `, and **${untouched}** of them ${untouched === 1 ? "has" : "have"} validating tests this PR does not change.`
-        : ", and changes the validating tests alongside every one of them."),
-  ];
-
-  if (strong.length) {
-    lines.push(...specSections(strong));
-  }
-
-  if (weak.length) {
-    lines.push(
-      "",
-      `<details><summary>Weaker signals (${weak.length}) — linked by a spec, not proven by a test run</summary>`,
-      ...specSections(weak),
-      "",
-      "</details>",
-    );
-  }
-
-  const notes = report.examined ? docNotes(report.examined) : [];
-
-  if (notes.length) {
-    lines.push("", notes.join(" "));
-  }
-
-  if (report.orphaned.length) {
-    lines.push(
-      "",
-      `### ⚠ Coverage warnings (${report.orphaned.length})`,
-      ...report.orphaned.map(
-        (o) =>
-          `- **${o.specTitle}** lost its only coverage — was \`${o.wasCoveredBy}\`, now deleted.`,
-      ),
-    );
-  }
-
-  lines.push(
+    commentIntro(findings),
+    ...(strong.length ? specSections(strong) : []),
+    ...weakSignalLines(weak),
+    ...(notes.length ? ["", notes.join(" ")] : []),
+    ...orphanWarningLines(report.orphaned),
     "",
     `<sub>Deterministic · ${describeBaseline(report)} · no tests run by this check</sub>`,
     "",
     IMPACT_COMMENT_MARKER,
     "",
-  );
+  ];
 
   return lines.join("\n");
+}
+
+export function buildImpactComment(report: ImpactReport): string {
+  const suppressed = suppressedComment(report);
+
+  if (suppressed !== undefined) {
+    return suppressed;
+  }
+
+  const findings = commentFindings(report);
+  const { strong, weak } = evidenceSplit(findings);
+
+  if (!findings.length && !report.orphaned.length) {
+    return emptyImpactComment(report);
+  }
+
+  return populatedImpactComment(report, findings, strong, weak);
+}
+
+function statementAnnotation(
+  stmt: ImpactStatement,
+  changed: ChangedRange[],
+): ImpactAnnotation {
+  const file = changed.find((c) => c.path === stmt.changedFile);
+  const [start, end] = file?.ranges[0] ?? [1, 1];
+  const test = stmt.tests[0];
+  const coverage = test ? ` Covered by test ${test.file}:${test.line}.` : "";
+
+  return {
+    path: stmt.changedFile,
+    start_line: start,
+    end_line: end,
+    annotation_level: "warning",
+    title: `Lore: coupled to ${stmt.specTitle}`,
+    message: `⚠ Coupled to Spec "${stmt.specTitle}"${sectionLabel(stmt.section)} — "${stmt.statementText}".${coverage} Verify this still holds. → ${stmt.statementAnchor}`,
+  };
+}
+
+function orphanAnnotation(orphan: OrphanStatement): ImpactAnnotation {
+  const [path, range] = orphan.wasCoveredBy.split(":");
+  const [start, end] = parseRanges(range ?? "")[0] ?? [1, 1];
+
+  return {
+    path,
+    start_line: start,
+    end_line: end,
+    annotation_level: "notice",
+    title: `Lore: coverage removed for ${orphan.specTitle}`,
+    message: `ℹ Removes the only coverage for Spec "${orphan.specTitle}" — "${orphan.statementText}". No test now exercises it.`,
+  };
 }
 
 /** Renders Checks API annotations: `warning` on each coupled statement's changed range, `notice` on each orphan's deleted range (parsed from `wasCoveredBy`). */
@@ -402,40 +493,10 @@ export function buildImpactAnnotations(
   report: ImpactReport,
   changed: ChangedRange[],
 ): ImpactAnnotation[] {
-  const annotations: ImpactAnnotation[] = [];
-
-  for (const stmt of report.statements) {
-    const file = changed.find((c) => c.path === stmt.changedFile);
-    const [start, end] = file?.ranges[0] ?? [1, 1];
-    const test = stmt.tests[0];
-    const coverage = test ? ` Covered by test ${test.file}:${test.line}.` : "";
-
-    annotations.push({
-      path: stmt.changedFile,
-      start_line: start,
-      end_line: end,
-      annotation_level: "warning",
-      title: `Lore: coupled to ${stmt.specTitle}`,
-      message: `⚠ Coupled to Spec "${stmt.specTitle}"${sectionLabel(stmt.section)} — "${stmt.statementText}".${coverage} Verify this still holds. → ${stmt.statementAnchor}`,
-    });
-  }
-
-  for (const orphan of report.orphaned) {
-    const [, range] = orphan.wasCoveredBy.split(":");
-    const [start, end] = parseRanges(range ?? "")[0] ?? [1, 1];
-    const path = orphan.wasCoveredBy.split(":")[0];
-
-    annotations.push({
-      path,
-      start_line: start,
-      end_line: end,
-      annotation_level: "notice",
-      title: `Lore: coverage removed for ${orphan.specTitle}`,
-      message: `ℹ Removes the only coverage for Spec "${orphan.specTitle}" — "${orphan.statementText}". No test now exercises it.`,
-    });
-  }
-
-  return annotations;
+  return [
+    ...report.statements.map((stmt) => statementAnnotation(stmt, changed)),
+    ...report.orphaned.map((orphan) => orphanAnnotation(orphan)),
+  ];
 }
 
 interface GraphImplChunk {
@@ -464,6 +525,20 @@ const IMPL_QUERY = `query q($repo: string, $fp: string) {
   }
 }`;
 
+/** Whether `chunk`'s span overlaps `ranges` — an unbounded chunk (no `end_line` producer, only `#L12` anchors are written) couples the whole file rather than matching nothing. */
+function implChunkInScope(
+  chunk: GraphImplChunk,
+  ranges: [number, number][],
+): boolean {
+  const start = chunk["CodeChunk.start_line"] ?? 0;
+  const end = chunk["CodeChunk.end_line"] ?? 0;
+  const spanKnown = start > 0 && end >= start;
+
+  return (
+    !spanKnown || ranges.some(([s, e]) => intervalsOverlap(start, end, s, e))
+  );
+}
+
 /** CodeChunks in `file` whose line range overlaps any changed range → their statements. */
 async function implementedByImpact(
   dgraph: DgraphClientPort,
@@ -476,29 +551,14 @@ async function implementedByImpact(
 
     return (res.data?.chunks ?? []) as GraphImplChunk[];
   });
-  const out: Array<ImpactStatement & { xid: string }> = [];
 
-  for (const chunk of chunks) {
-    const start = chunk["CodeChunk.start_line"] ?? 0;
-    const end = chunk["CodeChunk.end_line"] ?? 0;
-    // `end_line` has no producer (only `#L12` anchors are written), so an unbounded chunk couples the whole file rather than matching nothing.
-    const spanKnown = start > 0 && end >= start;
-
-    if (
-      spanKnown &&
-      !ranges.some(([s, e]) => intervalsOverlap(start, end, s, e))
-    ) {
-      continue;
-    }
-
-    out.push(
-      ...(chunk.stmts ?? []).map((stmt) =>
+  return chunks
+    .filter((chunk) => implChunkInScope(chunk, ranges))
+    .flatMap((chunk) =>
+      (chunk.stmts ?? []).map((stmt) =>
         toImpactStatement(stmt, file, [], "file-link"),
       ),
     );
-  }
-
-  return out;
 }
 
 // No @cascade: it would drop statements lacking an optional Section; non-covering Coverage nodes are skipped in code instead.
@@ -516,6 +576,24 @@ const COVERAGE_QUERY = `query q($repo: string, $fp: string) {
   }
 }`;
 
+/** Every statement validated by `cov`'s test chunks, tagged with that chunk's test selector. */
+function statementsForCoverage(
+  cov: GraphCoverage,
+  file: string,
+): Array<ImpactStatement & { xid: string }> {
+  return (cov.tc ?? []).flatMap((tc) => {
+    const test = {
+      file: tc["TestChunk.file_path"] ?? "",
+      name: tc["TestChunk.test_name"] ?? "",
+      line: tc["TestChunk.start_line"] ?? 0,
+    };
+
+    return (tc.stmts ?? []).map((stmt) =>
+      toImpactStatement(stmt, file, [test], "coverage"),
+    );
+  });
+}
+
 /** Coverage covering `file` whose facet ranges overlap the diff → validated statements + selectors. */
 async function validatedByImpact(
   dgraph: DgraphClientPort,
@@ -531,35 +609,16 @@ async function validatedByImpact(
 
     return (res.data?.covs ?? []) as GraphCoverage[];
   });
-  const out: Array<ImpactStatement & { xid: string }> = [];
 
-  for (const cov of covs) {
+  const overlapping = covs.filter((cov) => {
     const covered = parseRanges(cov.file?.[0]?.["file|ranges"] ?? "");
 
-    if (
-      !covered.some(([cs, ce]) =>
-        ranges.some(([s, e]) => intervalsOverlap(cs, ce, s, e)),
-      )
-    ) {
-      continue;
-    }
-
-    out.push(
-      ...(cov.tc ?? []).flatMap((tc) => {
-        const test = {
-          file: tc["TestChunk.file_path"] ?? "",
-          name: tc["TestChunk.test_name"] ?? "",
-          line: tc["TestChunk.start_line"] ?? 0,
-        };
-
-        return (tc.stmts ?? []).map((stmt) =>
-          toImpactStatement(stmt, file, [test], "coverage"),
-        );
-      }),
+    return covered.some(([cs, ce]) =>
+      ranges.some(([s, e]) => intervalsOverlap(cs, ce, s, e)),
     );
-  }
+  });
 
-  return out;
+  return overlapping.flatMap((cov) => statementsForCoverage(cov, file));
 }
 
 interface GraphFootprintStatement extends GraphStatement {
@@ -590,6 +649,69 @@ const ORPHAN_QUERY = `query q($repo: string, $fp: string) {
   }
 }`;
 
+interface FootprintInterval {
+  file: string;
+  start: number;
+  end: number;
+}
+
+/** Every line range this statement's coverage footprint touches. */
+function footprintIntervals(
+  stmt: GraphFootprintStatement,
+): FootprintInterval[] {
+  return (stmt.footprint ?? []).flatMap((ft) =>
+    (ft.cov?.covers ?? []).flatMap((f) =>
+      parseRanges(f["covers|ranges"] ?? "").map(([s, e]) => ({
+        file: f["File.path"] ?? "",
+        start: s,
+        end: e,
+      })),
+    ),
+  );
+}
+
+function isFootprintKilled(
+  iv: FootprintInterval,
+  file: string,
+  deleted: [number, number][],
+): boolean {
+  return (
+    iv.file === file &&
+    deleted.some(([ds, de]) => intervalsOverlap(iv.start, iv.end, ds, de))
+  );
+}
+
+function buildOrphanStatement(
+  stmt: GraphFootprintStatement,
+  killed: FootprintInterval,
+): OrphanStatement {
+  const specPath = stmt.spec?.["Spec.file_path"] ?? "";
+
+  return {
+    specPath,
+    specTitle: stmt.spec?.["Spec.title"] ?? "",
+    statementText: stmt["Statement.text"] ?? "",
+    statementAnchor: specPath,
+    wasCoveredBy: `${killed.file}:${killed.start}-${killed.end}`,
+  };
+}
+
+/** The orphan record for a statement whose whole footprint the diff's deletions kill, or undefined when it survives. */
+function orphanFor(
+  stmt: GraphFootprintStatement,
+  file: string,
+  deleted: [number, number][],
+): OrphanStatement | undefined {
+  const intervals = footprintIntervals(stmt);
+  const killed = intervals.filter((iv) => isFootprintKilled(iv, file, deleted));
+
+  if (intervals.length === 0 || killed.length !== intervals.length) {
+    return undefined;
+  }
+
+  return buildOrphanStatement(stmt, killed[0]);
+}
+
 /** A statement is orphaned when EVERY range covering it is killed by the diff's deletions. */
 async function orphanImpact(
   dgraph: DgraphClientPort,
@@ -613,34 +735,16 @@ async function orphanImpact(
     .flatMap((tc) => tc.stmts ?? []);
 
   for (const stmt of candidateStmts) {
-    const intervals = (stmt.footprint ?? []).flatMap((ft) =>
-      (ft.cov?.covers ?? []).flatMap((f) =>
-        parseRanges(f["covers|ranges"] ?? "").map(([s, e]) => ({
-          file: f["File.path"] ?? "",
-          start: s,
-          end: e,
-        })),
-      ),
-    );
-    const isKilled = (iv: { file: string; start: number; end: number }) =>
-      iv.file === file &&
-      deleted.some(([ds, de]) => intervalsOverlap(iv.start, iv.end, ds, de));
+    const orphan = orphanFor(stmt, file, deleted);
 
-    if (!intervals.length || !intervals.every(isKilled)) {
+    if (!orphan) {
       continue;
     }
-    const killed = intervals.find(isKilled)!;
-    const specPath = stmt.spec?.["Spec.file_path"] ?? "";
     const xid =
-      stmt["Statement.xid"] ?? `${specPath}::${stmt["Statement.text"] ?? ""}`;
+      stmt["Statement.xid"] ??
+      `${orphan.specPath}::${stmt["Statement.text"] ?? ""}`;
 
-    byXid.set(xid, {
-      specPath,
-      specTitle: stmt.spec?.["Spec.title"] ?? "",
-      statementText: stmt["Statement.text"] ?? "",
-      statementAnchor: specPath,
-      wasCoveredBy: `${killed.file}:${killed.start}-${killed.end}`,
-    });
+    byXid.set(xid, orphan);
   }
 
   return [...byXid.values()];
@@ -676,6 +780,55 @@ async function fileImpact(
   ];
 }
 
+interface CodeImpactContext {
+  dgraph: DgraphClientPort;
+  repo: string;
+  baselineCommit: string | null;
+}
+
+function skipReason(baselineCommit: string | null): SkipReason {
+  return baselineCommit ? "unaligned" : "no-baseline";
+}
+
+/** Orphans for `file`'s deletions, or none when unaligned (untrustworthy coordinates) or nothing was deleted. */
+async function orphansForFile(
+  ctx: CodeImpactContext,
+  file: ChangedRange,
+  aligned: boolean,
+): Promise<OrphanStatement[]> {
+  const deleted = file.deleted ?? [];
+
+  if (!aligned || deleted.length === 0) {
+    return [];
+  }
+
+  return orphanImpact(ctx.dgraph, ctx.repo, file.path, deleted);
+}
+
+/** Runs one changed file against the graph and folds its findings into `result` in place. */
+async function accumulateFileImpact(
+  ctx: CodeImpactContext,
+  file: ChangedRange,
+  result: CodeImpact,
+): Promise<void> {
+  const { dgraph, repo, baselineCommit } = ctx;
+  const aligned = file.aligned === true && Boolean(baselineCommit);
+  const found = await fileImpact(dgraph, repo, file, aligned);
+
+  if (!aligned) {
+    result.skipped.push({
+      path: file.path,
+      reason: skipReason(baselineCommit),
+    });
+  }
+
+  if (found.length) {
+    result.withGraphData += 1;
+  }
+  result.raw.push(...found);
+  result.orphaned.push(...(await orphansForFile(ctx, file, aligned)));
+}
+
 async function codeImpact(
   dgraph: DgraphClientPort,
   repo: string,
@@ -689,27 +842,10 @@ async function codeImpact(
     withGraphData: 0,
   };
 
+  const ctx: CodeImpactContext = { dgraph, repo, baselineCommit };
+
   for (const file of changed) {
-    const aligned = file.aligned === true && Boolean(baselineCommit);
-    const found = await fileImpact(dgraph, repo, file, aligned);
-
-    if (!aligned) {
-      result.skipped.push({
-        path: file.path,
-        reason: baselineCommit ? "unaligned" : "no-baseline",
-      });
-    }
-
-    if (found.length) {
-      result.withGraphData += 1;
-    }
-    result.raw.push(...found);
-
-    if (aligned && file.deleted?.length) {
-      result.orphaned.push(
-        ...(await orphanImpact(dgraph, repo, file.path, file.deleted)),
-      );
-    }
+    await accumulateFileImpact(ctx, file, result);
   }
 
   return result;
@@ -734,6 +870,68 @@ async function docImpact(
   }
 
   return { raw, newStatements, changedWithoutTests };
+}
+
+/** The signal a reviewer acts on: did this PR touch the tests that hold the statement up, or only the thing they were holding? */
+function withTestsTouched(
+  statements: Array<ImpactStatement & { xid: string }>,
+  changed: ChangedRange[],
+): ImpactStatement[] {
+  const changedPaths = new Set(changed.map((file) => file.path));
+
+  return mergeStatements(statements).map((stmt) => ({
+    ...stmt,
+    testsTouched: stmt.tests.some((test) => changedPaths.has(test.file)),
+  }));
+}
+
+interface ImpactAssembly {
+  options: ImpactOptions;
+  changed: ChangedRange[];
+  baseline: { commit: string | null; at: string | null };
+  code: CodeImpact;
+  doc: {
+    raw: Array<ImpactStatement & { xid: string }>;
+    newStatements: number;
+    changedWithoutTests: number;
+  };
+  docsCount: number;
+}
+
+function assembleImpactReport({
+  options,
+  changed,
+  baseline,
+  code,
+  doc,
+  docsCount,
+}: ImpactAssembly): ImpactReport {
+  const statements = withTestsTouched([...code.raw, ...doc.raw], changed);
+
+  return {
+    status: "ok",
+    protocol: options.protocol,
+    coordinates: code.skipped.length ? "unverified" : "aligned",
+    ...(code.skipped.length ? { skipped: code.skipped } : {}),
+    statements,
+    orphaned: code.orphaned,
+    testSelectors: [
+      ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
+    ],
+    ...(baseline.commit
+      ? {
+          graphCommit: baseline.commit,
+          graphCommitAt: baseline.at ?? undefined,
+        }
+      : {}),
+    examined: {
+      files: changed.length,
+      withGraphData: code.withGraphData,
+      docs: docsCount,
+      newStatements: doc.newStatements,
+      changedWithoutTests: doc.changedWithoutTests,
+    },
+  };
 }
 
 export async function computeImpact(
@@ -766,35 +964,13 @@ export async function computeImpact(
   const code = await codeImpact(dgraph, repo, changed, baseline.commit);
   const docs = options.docs ?? [];
   const doc = await docImpact(dgraph, repo, docs);
-  // The signal a reviewer acts on: did this PR touch the tests that hold the statement up, or only the thing they were holding?
-  const changedPaths = new Set(changed.map((file) => file.path));
-  const statements = mergeStatements([...code.raw, ...doc.raw]).map((stmt) => ({
-    ...stmt,
-    testsTouched: stmt.tests.some((test) => changedPaths.has(test.file)),
-  }));
 
-  return {
-    status: "ok",
-    protocol: options.protocol,
-    coordinates: code.skipped.length ? "unverified" : "aligned",
-    ...(code.skipped.length ? { skipped: code.skipped } : {}),
-    statements,
-    orphaned: code.orphaned,
-    testSelectors: [
-      ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
-    ],
-    ...(baseline.commit
-      ? {
-          graphCommit: baseline.commit,
-          graphCommitAt: baseline.at ?? undefined,
-        }
-      : {}),
-    examined: {
-      files: changed.length,
-      withGraphData: code.withGraphData,
-      docs: docs.length,
-      newStatements: doc.newStatements,
-      changedWithoutTests: doc.changedWithoutTests,
-    },
-  };
+  return assembleImpactReport({
+    options,
+    changed,
+    baseline,
+    code,
+    doc,
+    docsCount: docs.length,
+  });
 }

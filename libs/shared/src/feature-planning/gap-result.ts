@@ -133,18 +133,12 @@ function mockupFormat(
   return markup.trimStart().startsWith("<svg") ? "svg" : null;
 }
 
-/** A mockup as a `{title, format, markup}` object, tolerating a bare SVG string or a `svg`/`content` alias; `null` when the named format can't be rendered. */
-function parseMockup(raw: unknown, i: number): GapMockup | null {
-  if (typeof raw === "string") {
-    return { title: `Mockup ${i + 1}`, format: "svg", markup: raw };
-  }
-  const mo = asObject(raw, `mockups[${i}]`);
-  const markup = firstString(mo.markup, mo.svg, mo.content);
-  const format = mockupFormat(firstString(mo.format) || "svg", markup);
-
-  if (!format) {
-    return null;
-  }
+function buildMockup(
+  mo: Record<string, unknown>,
+  i: number,
+  format: GapMockupFormat,
+  markup: string,
+): GapMockup {
   const mockup: GapMockup = {
     title: firstString(mo.title, mo.name) || `Mockup ${i + 1}`,
     format,
@@ -163,25 +157,34 @@ function parseMockup(raw: unknown, i: number): GapMockup | null {
   return mockup;
 }
 
-function parseQuestion(raw: unknown, i: number): GapQuestion {
-  const o = asObject(raw, `questions[${i}]`);
-  // Tolerate field drift: `text`/`prompt`, missing id/why, garbled kind (defaults to free-text).
-  const kind: GapQuestionKind = o.kind === "choice" ? "choice" : "text";
-  const question: GapQuestion = {
-    id: firstString(o.id) || `q${i + 1}`,
-    question: firstString(o.question, o.text, o.prompt),
-    why: firstString(o.why, o.rationale, o.detail),
-    kind,
-  };
+/** A mockup as a `{title, format, markup}` object, tolerating a bare SVG string or a `svg`/`content` alias; `null` when the named format can't be rendered. */
+function parseMockup(raw: unknown, i: number): GapMockup | null {
+  if (typeof raw === "string") {
+    return { title: `Mockup ${i + 1}`, format: "svg", markup: raw };
+  }
+  const mo = asObject(raw, `mockups[${i}]`);
+  const markup = firstString(mo.markup, mo.svg, mo.content);
+  const format = mockupFormat(firstString(mo.format) || "svg", markup);
 
-  if (kind !== "choice" && o.options !== undefined) {
+  return format ? buildMockup(mo, i, format, markup) : null;
+}
+
+function withFreeTextOptions(
+  question: GapQuestion,
+  o: Record<string, unknown>,
+): GapQuestion {
+  if (o.options !== undefined) {
     question.options = lenientStringArray(o.options);
   }
 
-  if (kind !== "choice") {
-    return question;
-  }
+  return question;
+}
 
+function withChoiceOptions(
+  question: GapQuestion,
+  o: Record<string, unknown>,
+  i: number,
+): GapQuestion {
   const options = asStringArray(o.options, `questions[${i}].options`);
 
   if (options.length === 0) {
@@ -190,6 +193,22 @@ function parseQuestion(raw: unknown, i: number): GapQuestion {
   question.options = options;
 
   return question;
+}
+
+// Tolerate field drift: `text`/`prompt`, missing id/why, garbled kind (defaults to free-text).
+function parseQuestion(raw: unknown, i: number): GapQuestion {
+  const o = asObject(raw, `questions[${i}]`);
+  const kind: GapQuestionKind = o.kind === "choice" ? "choice" : "text";
+  const question: GapQuestion = {
+    id: firstString(o.id) || `q${i + 1}`,
+    question: firstString(o.question, o.text, o.prompt),
+    why: firstString(o.why, o.rationale, o.detail),
+    kind,
+  };
+
+  return kind === "choice"
+    ? withChoiceOptions(question, o, i)
+    : withFreeTextOptions(question, o);
 }
 
 function parseSplit(raw: unknown): GapSplitSuggestion {
@@ -217,6 +236,34 @@ function parseSplit(raw: unknown): GapSplitSuggestion {
   };
 }
 
+function isPresent(value: unknown): boolean {
+  return value !== undefined && value !== null;
+}
+
+function parseSectionMockups(
+  o: Record<string, unknown>,
+  i: number,
+): GapMockup[] {
+  if (!isPresent(o.mockups)) {
+    return [];
+  }
+
+  return asArray(o.mockups, `sections[${i}].mockups`)
+    .map(parseMockup)
+    .filter((m): m is GapMockup => m !== null);
+}
+
+function parseSectionQuestions(
+  o: Record<string, unknown>,
+  i: number,
+): GapQuestion[] {
+  if (!isPresent(o.questions)) {
+    return [];
+  }
+
+  return asArray(o.questions, `sections[${i}].questions`).map(parseQuestion);
+}
+
 /** Parse one adaptive section — title + optional content/mockups/questions. */
 function parseSection(raw: unknown, i: number): GapSection {
   const o = asObject(raw, `sections[${i}]`);
@@ -228,22 +275,12 @@ function parseSection(raw: unknown, i: number): GapSection {
   if (content) {
     section.content = content;
   }
-
-  const mockups =
-    o.mockups !== undefined && o.mockups !== null
-      ? asArray(o.mockups, `sections[${i}].mockups`)
-          .map(parseMockup)
-          .filter((m): m is GapMockup => m !== null)
-      : [];
+  const mockups = parseSectionMockups(o, i);
 
   if (mockups.length) {
     section.mockups = mockups;
   }
-
-  const questions =
-    o.questions !== undefined && o.questions !== null
-      ? asArray(o.questions, `sections[${i}].questions`).map(parseQuestion)
-      : [];
+  const questions = parseSectionQuestions(o, i);
 
   if (questions.length) {
     section.questions = questions;
@@ -290,67 +327,95 @@ function architectureContent(arch: GapArchitecture): string {
   return lines.join("\n");
 }
 
-/** Build `sections` from a legacy architecture/user_flows/mockups/questions payload. */
-function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
-  const sections: GapSection[] = [];
-  const mockups = Array.isArray(o.mockups)
+type MockupsForSection = (key: string) => GapMockup[] | undefined;
+
+function deriveMockups(o: Record<string, unknown>): GapMockup[] {
+  return Array.isArray(o.mockups)
     ? o.mockups.map(parseMockup).filter((m): m is GapMockup => m !== null)
     : [];
-  const mockupsTagged = (key: string): GapMockup[] | undefined => {
-    const m = mockups.filter((mk) => (mk.section ?? "architecture") === key);
+}
 
-    return m.length ? m : undefined;
+function mockupsTaggedBy(mockups: GapMockup[]): MockupsForSection {
+  return (key) => {
+    const tagged = mockups.filter(
+      (mk) => (mk.section ?? "architecture") === key,
+    );
+
+    return tagged.length ? tagged : undefined;
   };
+}
 
-  if (o.architecture !== undefined && o.architecture !== null) {
-    const arch = parseArchitecture(o.architecture);
-    const m = mockupsTagged("architecture");
-
-    sections.push({
-      title: "Architecture",
-      content: architectureContent(arch),
-      ...(m ? { mockups: m } : {}),
-    });
+function deriveArchitectureSection(
+  o: Record<string, unknown>,
+  mockupsTagged: MockupsForSection,
+): GapSection | null {
+  if (o.architecture === undefined || o.architecture === null) {
+    return null;
   }
+  const arch = parseArchitecture(o.architecture);
+  const m = mockupsTagged("architecture");
 
-  if (Array.isArray(o.user_flows) && o.user_flows.length) {
-    const content = o.user_flows
-      .map((f, i) => {
-        const fo = asObject(f, `user_flows[${i}]`);
-        const name = asString(fo.name, `user_flows[${i}].name`);
-        const steps = asStringArray(fo.steps, `user_flows[${i}].steps`);
+  return {
+    title: "Architecture",
+    content: architectureContent(arch),
+    ...(m ? { mockups: m } : {}),
+  };
+}
 
-        return [`**${name}**`, ...steps.map((s, j) => `${j + 1}. ${s}`)].join(
-          "\n",
-        );
-      })
-      .join("\n\n");
-    const m = mockupsTagged("user_flows");
+function userFlowContent(flow: unknown, i: number): string {
+  const fo = asObject(flow, `user_flows[${i}]`);
+  const name = asString(fo.name, `user_flows[${i}].name`);
+  const steps = asStringArray(fo.steps, `user_flows[${i}].steps`);
 
-    sections.push({
-      title: "User flows",
-      content,
-      ...(m ? { mockups: m } : {}),
-    });
+  return [`**${name}**`, ...steps.map((s, j) => `${j + 1}. ${s}`)].join("\n");
+}
+
+function deriveUserFlowsSection(
+  o: Record<string, unknown>,
+  mockupsTagged: MockupsForSection,
+): GapSection | null {
+  if (!Array.isArray(o.user_flows) || !o.user_flows.length) {
+    return null;
   }
+  const content = o.user_flows.map(userFlowContent).join("\n\n");
+  const m = mockupsTagged("user_flows");
 
-  const orphanMockups = mockups.filter(
+  return {
+    title: "User flows",
+    content,
+    ...(m ? { mockups: m } : {}),
+  };
+}
+
+function orphanMockupsSection(mockups: GapMockup[]): GapSection | null {
+  const orphans = mockups.filter(
     (mk) =>
       !["architecture", "user_flows"].includes(mk.section ?? "architecture"),
   );
 
-  if (orphanMockups.length) {
-    sections.push({ title: "Diagrams", mockups: orphanMockups });
+  return orphans.length ? { title: "Diagrams", mockups: orphans } : null;
+}
+
+function openQuestionsSection(o: Record<string, unknown>): GapSection | null {
+  if (!Array.isArray(o.questions) || !o.questions.length) {
+    return null;
   }
 
-  if (Array.isArray(o.questions) && o.questions.length) {
-    sections.push({
-      title: "Open questions",
-      questions: o.questions.map(parseQuestion),
-    });
-  }
+  return { title: "Open questions", questions: o.questions.map(parseQuestion) };
+}
 
-  return sections;
+/** Build `sections` from a legacy architecture/user_flows/mockups/questions payload. */
+function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
+  const mockups = deriveMockups(o);
+  const mockupsTagged = mockupsTaggedBy(mockups);
+  const candidates = [
+    deriveArchitectureSection(o, mockupsTagged),
+    deriveUserFlowsSection(o, mockupsTagged),
+    orphanMockupsSection(mockups),
+    openQuestionsSection(o),
+  ];
+
+  return candidates.filter((s): s is GapSection => s !== null);
 }
 
 /** Validates an untrusted LLM-produced payload into a typed {@link GapResult} (new `sections[]` or legacy shape), throwing on violation. Does NOT sanitize markup — callers run {@link sanitizeSvg} first. */

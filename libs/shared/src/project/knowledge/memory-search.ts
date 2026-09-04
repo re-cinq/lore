@@ -27,50 +27,122 @@ export interface MemorySearchOptions {
   graphAugment?: boolean;
 }
 
+/** Resolves pool name to pool_id when provided. */
+async function resolvePoolId(
+  pool: PgPool,
+  poolName: string | undefined,
+): Promise<string | null> {
+  return poolName ? lookupPoolId(pool, poolName) : null;
+}
+
+/** The (agent, pool, invalidated-visibility) scope shared by every memory/fact search call. */
+interface SearchScope {
+  agent: string | null;
+  poolId: string | null;
+  includeInvalidated: boolean;
+}
+
+/** Attempts a query embedding from Vertex AI; unavailable embedding yields no vector hits (keyword search still runs). */
+async function vectorSearchBoth(
+  pool: PgPool,
+  query: string,
+  scope: SearchScope,
+): Promise<[RankedRow[], RankedRow[]]> {
+  const embedding = await getQueryEmbedding(query);
+
+  if (!embedding) {
+    return [[], []];
+  }
+  const embeddingStr = `[${embedding.join(",")}]`;
+
+  return Promise.all([
+    vectorSearchMemories(pool, embeddingStr, scope.agent, scope.poolId),
+    vectorSearchFacts(
+      pool,
+      embeddingStr,
+      scope.agent,
+      scope.includeInvalidated,
+    ),
+  ]);
+}
+
+/** Keyword search always runs (fallback when embedding unavailable). */
+async function keywordSearchBoth(
+  pool: PgPool,
+  query: string,
+  scope: SearchScope,
+): Promise<[RankedRow[], RankedRow[]]> {
+  return Promise.all([
+    keywordSearchMemories(pool, query, scope.agent, scope.poolId),
+    keywordSearchFacts(pool, query, scope.agent, scope.includeInvalidated),
+  ]);
+}
+
+function poolNotFound(
+  poolName: string | undefined,
+  poolId: string | null,
+): boolean {
+  return Boolean(poolName) && poolId === null;
+}
+
+interface ResolvedSearchOptions {
+  agentId?: string;
+  poolName?: string;
+  limit: number;
+  includeInvalidated: boolean;
+  graphAugmentEnabled: boolean;
+}
+
+function resolveSearchOptions(
+  options: MemorySearchOptions,
+): ResolvedSearchOptions {
+  return {
+    agentId: options.agentId,
+    poolName: options.poolName,
+    limit: options.limit ?? 10,
+    includeInvalidated: options.includeInvalidated ?? false,
+    graphAugmentEnabled: options.graphAugment ?? false,
+  };
+}
+
+/** Graph augmentation: enrich results with 1-hop graph neighbors, when enabled and there's anything to augment. */
+async function applyGraphAugment(
+  pool: PgPool,
+  results: MemorySearchResult[],
+  limit: number,
+  enabled: boolean,
+): Promise<MemorySearchResult[]> {
+  if (!enabled || results.length === 0) {
+    return results;
+  }
+
+  return augmentWithGraphNeighbors(pool, results, limit);
+}
+
 export async function searchMemories(
   pool: PgPool,
   query: string,
-  {
-    agentId,
-    poolName,
-    limit = 10,
-    includeInvalidated = false,
-    graphAugment: graphAugmentEnabled = false,
-  }: MemorySearchOptions = {},
+  options: MemorySearchOptions = {},
 ): Promise<MemorySearchResult[]> {
+  const { agentId, poolName, limit, includeInvalidated, graphAugmentEnabled } =
+    resolveSearchOptions(options);
   const searchStartTime = Date.now();
   const agent = agentId ? resolveAgentId(agentId) : null;
+  const poolId = await resolvePoolId(pool, poolName);
 
-  // Resolve pool name to pool_id when provided
-  const poolId = poolName ? await lookupPoolId(pool, poolName) : null;
-
-  if (poolName && poolId === null) {
+  if (poolNotFound(poolName, poolId)) {
     // Pool does not exist — return empty
     await auditLog(pool, { agentId: agent, query, resultCount: 0 });
 
     return [];
   }
+  const scope: SearchScope = { agent, poolId, includeInvalidated };
 
-  // Attempt to get query embedding from Vertex AI
-  const embedding = await getQueryEmbedding(query);
-
-  let vectorMemories: RankedRow[] = [];
-  let vectorFacts: RankedRow[] = [];
-
-  if (embedding) {
-    const embeddingStr = `[${embedding.join(",")}]`;
-
-    [vectorMemories, vectorFacts] = await Promise.all([
-      vectorSearchMemories(pool, embeddingStr, agent, poolId),
-      vectorSearchFacts(pool, embeddingStr, agent, includeInvalidated),
+  const [[vectorMemories, vectorFacts], [keywordMemories, keywordFacts]] =
+    await Promise.all([
+      vectorSearchBoth(pool, query, scope),
+      keywordSearchBoth(pool, query, scope),
     ]);
-  }
-
-  // Keyword search always runs (fallback when embedding unavailable).
-  const [keywordMemories, keywordFacts] = await Promise.all([
-    keywordSearchMemories(pool, query, agent, poolId),
-    keywordSearchFacts(pool, query, agent, includeInvalidated),
-  ]);
 
   // Merge via RRF: lists arrive pre-ranked (SQL ROW_NUMBER), rrfMerge combines them.
   const merged = rrfMerge([
@@ -83,15 +155,11 @@ export async function searchMemories(
   // Sort by score and diversify to prevent one session dominating results.
   let results: MemorySearchResult[] = diversify(merged, limit);
 
-  // Graph augmentation: enrich results with 1-hop graph neighbors
-  if (graphAugmentEnabled && results.length > 0) {
-    results = await augmentWithGraphNeighbors(pool, results, limit);
-  }
+  results = await applyGraphAugment(pool, results, limit, graphAugmentEnabled);
 
   // Fire-and-forget retrieval strengthening
   strengthenRetrievals(pool, results).catch(() => {});
 
-  // Audit log with latency
   const latencyMs = Date.now() - searchStartTime;
 
   await auditLog(pool, {

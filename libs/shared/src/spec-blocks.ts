@@ -12,96 +12,138 @@ export interface Block {
   level?: number;
 }
 
-/** Partitions `content` into ordered blocks losslessly (see module header for the round-trip invariant), dispatching each line to fence/blank/heading/list-item/table/paragraph. */
-export function segmentBlocks(content: string): Block[] {
-  const lines = content.split("\n");
-  const blocks: Block[] = [];
+type SingleLineKind = "blank" | "heading" | "list-item";
+type AccumulatingKind = "table" | "paragraph";
 
-  const emit = (kind: BlockKind, text: string, level?: number) => {
-    const block: Block = { ordinal: blocks.length, kind, text };
+interface LineClassification {
+  kind: SingleLineKind | AccumulatingKind;
+  headingLevel?: number;
+}
+
+/** Classifies one non-fence, non-blank-checked-elsewhere line by its leading syntax. */
+function classifyLine(line: string): LineClassification {
+  if (line.trim() === "") {
+    return { kind: "blank" };
+  }
+
+  const headingMatch = line.match(/^(#{1,6})\s/);
+
+  if (headingMatch) {
+    return { kind: "heading", headingLevel: headingMatch[1].length };
+  }
+
+  if (/^\s*[-*+]\s/.test(line)) {
+    return { kind: "list-item" };
+  }
+
+  if (/^\s*\|/.test(line)) {
+    return { kind: "table" };
+  }
+
+  return { kind: "paragraph" };
+}
+
+/** Line-by-line lossless block accumulator behind `segmentBlocks`; see module header for the round-trip invariant. */
+class BlockAccumulator {
+  private blocks: Block[] = [];
+  // Single accumulating-run for multi-line kinds (paragraph, table); per-line/heading are flushed separately.
+  private pending: { kind: BlockKind; lines: string[] } | null = null;
+  private inFence = false;
+  private codeBuffer: string[] = [];
+
+  private emit(kind: BlockKind, text: string, level?: number): void {
+    const block: Block = { ordinal: this.blocks.length, kind, text };
 
     if (level !== undefined) {
       block.level = level;
     }
-    blocks.push(block);
-  };
+    this.blocks.push(block);
+  }
 
-  // Single accumulating-run for multi-line kinds (paragraph, table); per-line/heading are flushed separately.
-  let pending: { kind: BlockKind; lines: string[] } | null = null;
-  const flushPending = () => {
-    if (pending === null) {
+  private flushPending(): void {
+    if (this.pending === null) {
       return;
     }
-    emit(pending.kind, pending.lines.join("\n"));
-    pending = null;
-  };
-  const accumulate = (kind: BlockKind, line: string) => {
-    if (pending !== null && pending.kind !== kind) {
-      flushPending();
+    this.emit(this.pending.kind, this.pending.lines.join("\n"));
+    this.pending = null;
+  }
+
+  private accumulate(kind: BlockKind, line: string): void {
+    if (this.pending !== null && this.pending.kind !== kind) {
+      this.flushPending();
     }
 
-    if (pending === null) {
-      pending = { kind, lines: [] };
+    if (this.pending === null) {
+      this.pending = { kind, lines: [] };
     }
-    pending.lines.push(line);
-  };
+    this.pending.lines.push(line);
+  }
 
-  let inFence = false;
-  let codeBuffer: string[] = [];
+  /** A ``` line either closes the fence in progress or opens a new one. */
+  private handleFenceDelimiter(line: string): void {
+    if (!this.inFence) {
+      this.flushPending();
+      this.inFence = true;
+      this.codeBuffer = [line];
 
-  for (const line of lines) {
-    if (inFence && /^```/.test(line)) {
-      codeBuffer.push(line);
-      emit("code", codeBuffer.join("\n"));
-      codeBuffer = [];
-      inFence = false;
-      continue;
+      return;
     }
 
-    if (inFence) {
-      codeBuffer.push(line);
-      continue;
+    this.codeBuffer.push(line);
+    this.emit("code", this.codeBuffer.join("\n"));
+    this.codeBuffer = [];
+    this.inFence = false;
+  }
+
+  private handleClassifiedLine(line: string): void {
+    const { kind, headingLevel } = classifyLine(line);
+
+    if (!(kind === "table" || kind === "paragraph")) {
+      this.flushPending();
+      this.emit(kind, line, headingLevel);
+
+      return;
     }
 
+    this.accumulate(kind, line);
+  }
+
+  addLine(line: string): void {
     if (/^```/.test(line)) {
-      flushPending();
-      inFence = true;
-      codeBuffer = [line];
-      continue;
+      this.handleFenceDelimiter(line);
+
+      return;
     }
 
-    if (line.trim() === "") {
-      flushPending();
-      emit("blank", line);
-      continue;
-    }
-    const headingMatch = line.match(/^(#{1,6})\s/);
+    if (this.inFence) {
+      this.codeBuffer.push(line);
 
-    if (headingMatch) {
-      flushPending();
-      emit("heading", line, headingMatch[1].length);
-      continue;
+      return;
     }
 
-    if (/^\s*[-*+]\s/.test(line)) {
-      flushPending();
-      emit("list-item", line);
-      continue;
-    }
-
-    if (/^\s*\|/.test(line)) {
-      accumulate("table", line);
-      continue;
-    }
-    accumulate("paragraph", line);
-  }
-  flushPending();
-
-  if (inFence) {
-    emit("code", codeBuffer.join("\n"));
+    this.handleClassifiedLine(line);
   }
 
-  return blocks;
+  finish(): Block[] {
+    this.flushPending();
+
+    if (this.inFence) {
+      this.emit("code", this.codeBuffer.join("\n"));
+    }
+
+    return this.blocks;
+  }
+}
+
+/** Partitions `content` into ordered blocks losslessly (see module header for the round-trip invariant), dispatching each line to fence/blank/heading/list-item/table/paragraph. */
+export function segmentBlocks(content: string): Block[] {
+  const accumulator = new BlockAccumulator();
+
+  for (const line of content.split("\n")) {
+    accumulator.addLine(line);
+  }
+
+  return accumulator.finish();
 }
 
 /** Inverse of segmentBlocks: rejoin blocks with newlines. */

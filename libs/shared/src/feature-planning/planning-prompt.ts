@@ -144,25 +144,53 @@ function feedbackBlock(
   return renderFeedbackSection(title, direction, parts);
 }
 
+function freeFormBlock(answers: SectionAnswers | null): string | null {
+  const note = answers?.free_form?.trim();
+
+  return note ? tag("OtherUserComments", note) : null;
+}
+
 function currentDraftSpec(
   gap: GapResult | null,
   answers: SectionAnswers | null,
 ): string | null {
   const sections = sectionsOf(gap);
+  const otherComments = freeFormBlock(answers);
 
   if (!sections.length) {
-    const note = answers?.free_form?.trim();
-
-    return note ? tag("OtherUserComments", note) : null;
+    return otherComments;
   }
   const inner = sections.map((s) => sectionBlock(s, answers));
-  const note = answers?.free_form?.trim();
 
-  if (note) {
-    inner.push(tag("OtherUserComments", note));
+  if (otherComments) {
+    inner.push(otherComments);
   }
 
   return tag("CurrentDraftSpec", inner.join("\n\n"));
+}
+
+function hasCommentOrDirection(feedback: SectionFeedback | undefined): boolean {
+  return Boolean(feedback?.comment?.trim()) || Boolean(feedback?.direction);
+}
+
+function renderUserComment(feedback: SectionFeedback | undefined): string {
+  const direction = feedback?.direction ?? "keep";
+  const comment = feedback?.comment?.trim() ?? "";
+
+  return `<UserComment direction="${direction}">\n${comment}\n</UserComment>`;
+}
+
+function sectionCommentBlock(
+  section: GapSection,
+  answers: SectionAnswers | null,
+): string | null {
+  const feedback = sectionFeedback(section, answers);
+
+  return hasCommentOrDirection(feedback) ? renderUserComment(feedback) : null;
+}
+
+function renderSection(title: string, parts: string[]): string {
+  return `<Section title="${title.replace(/"/g, "'")}">\n${parts.join("\n")}\n</Section>`;
 }
 
 function sectionBlock(
@@ -174,17 +202,13 @@ function sectionBlock(
   if (section.questions?.length) {
     parts.push(questionsBlock(section.questions, answers));
   }
-  const feedback = answers?.sections?.[section.title];
+  const commentBlock = sectionCommentBlock(section, answers);
 
-  if (feedback?.comment?.trim() || feedback?.direction) {
-    const direction = feedback.direction ?? "keep";
-
-    parts.push(
-      `<UserComment direction="${direction}">\n${feedback.comment?.trim() ?? ""}\n</UserComment>`,
-    );
+  if (commentBlock) {
+    parts.push(commentBlock);
   }
 
-  return `<Section title="${section.title.replace(/"/g, "'")}">\n${parts.join("\n")}\n</Section>`;
+  return renderSection(section.title, parts);
 }
 
 function generatedContent(section: GapSection): string {

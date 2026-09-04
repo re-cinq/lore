@@ -310,6 +310,129 @@ export async function processAgentTerminal(
   );
 }
 
+/** feature-planning posts its result straight to the features API (ADR-027). */
+async function completeFeaturePlanningTask(taskId: string): Promise<void> {
+  try {
+    await taskStore().setStatus(taskId, "completed");
+    await taskStore().recordEvent(taskId, "running", "completed", {
+      feature_planning: true,
+    });
+  } catch (err) {
+    console.error(
+      `[agent-watcher] feature-planning completion failed for ${taskId}: ${errorMessage(err)}`,
+    );
+  }
+}
+
+interface NoChangeIssueTarget {
+  taskId: string;
+  taskType: string;
+  targetRepo: string;
+  description: string;
+  output: string;
+}
+
+/** Opens the no-changes Issue; best-effort — a failure here just leaves `issue_number` null. */
+async function createNoChangeIssue(
+  target: NoChangeIssueTarget,
+  logsRef: string,
+): Promise<number | null> {
+  try {
+    const copy = await generateArtifactCopy({
+      kind: "issue",
+      taskType: target.taskType,
+      description: target.description,
+      agentOutput: target.output,
+      repo: target.targetRepo,
+    });
+    const body = target.output
+      ? `${tailOutput(target.output)}\n\n---\n*Lore-Task: ${target.taskId}*`
+      : `${copy.body}\n\nTask completed (no output). ${logsRef}.`;
+    const issue = await (
+      await projectFor(target.targetRepo)
+    ).issues.create(copy.title, body, ["lore-managed", target.taskType]);
+
+    await pipeline().taskQueue.setColumns(target.taskId, {
+      issue_number: issue.number,
+      issue_url: issue.url,
+    });
+
+    return issue.number;
+  } catch {
+    return null;
+  }
+}
+
+async function commentNoChangeOnIssue(
+  targetRepo: string,
+  issueNumber: number,
+  output: string,
+  logsRef: string,
+): Promise<void> {
+  const body = output
+    ? `## Result\n\n${tailOutput(output)}`
+    : `Task completed (no code changes). ${logsRef} for full output.`;
+
+  await projectFor(targetRepo)
+    .then((p) => p.issues.comment(issueNumber, body))
+    .catch(() => {});
+}
+
+/** Comments on the existing issue, or opens a fresh one when there isn't one yet. */
+async function resolveOrCreateIssueNumber(
+  existingIssueNumber: number | null,
+  target: NoChangeIssueTarget,
+  logsRef: string,
+): Promise<number | null> {
+  if (existingIssueNumber) {
+    await commentNoChangeOnIssue(
+      target.targetRepo,
+      existingIssueNumber,
+      target.output,
+      logsRef,
+    );
+
+    return existingIssueNumber;
+  }
+
+  return createNoChangeIssue(target, logsRef);
+}
+
+async function recordNoChangeCompletion(
+  ctx: AgentContext,
+  taskUrl: ReturnType<typeof taskPageUrl>,
+  targetRepo: string,
+  issueNumber: number | null,
+): Promise<void> {
+  const { taskId, taskType, description, output } = ctx;
+
+  await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
+  await taskStore().recordEvent(taskId, "running", "completed", {
+    no_changes: true,
+    issue_number: issueNumber,
+  });
+
+  if (issueNumber) {
+    await notifyTaskUpdate(
+      taskId,
+      targetRepo,
+      "completed",
+      `https://github.com/${targetRepo}/issues/${issueNumber}`,
+    );
+  }
+  writeEpisode(
+    { memory: memoryLifecycle() },
+    {
+      content: `Task ${taskType} on ${targetRepo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
+      source: "ci",
+      ref: `${targetRepo}/${taskId}`,
+    },
+  ).catch(() => {});
+  console.log(
+    `[agent-watcher] Task ${taskId} completed → issue #${issueNumber || "none"}`,
+  );
+}
+
 /** Closes out a succeeded no-changes task, routing the result through its GitHub Issue. */
 async function completeNoChangeTask(
   ctx: AgentContext,
@@ -318,91 +441,22 @@ async function completeNoChangeTask(
 ): Promise<void> {
   const { taskId, taskType, targetRepo, description, output } = ctx;
 
-  // feature-planning posts its result straight to the features API (ADR-027).
   if (taskType === "feature-planning") {
-    try {
-      await taskStore().setStatus(taskId, "completed");
-      await taskStore().recordEvent(taskId, "running", "completed", {
-        feature_planning: true,
-      });
-    } catch (err) {
-      console.error(
-        `[agent-watcher] feature-planning completion failed for ${taskId}: ${errorMessage(err)}`,
-      );
-    }
+    await completeFeaturePlanningTask(taskId);
 
     return;
   }
 
   try {
-    let { issue_number, target_repo } = await getIssueNumber(taskId);
-
-    if (!target_repo) {
-      target_repo = targetRepo;
-    }
-
-    const existingIssue = issue_number;
-
-    if (!existingIssue) {
-      try {
-        const copy = await generateArtifactCopy({
-          kind: "issue",
-          taskType,
-          description,
-          agentOutput: output,
-          repo: target_repo,
-        });
-        const body = output
-          ? `${tailOutput(output)}\n\n---\n*Lore-Task: ${taskId}*`
-          : `${copy.body}\n\nTask completed (no output). ${logsRef}.`;
-        const issue = await (
-          await projectFor(target_repo)
-        ).issues.create(copy.title, body, ["lore-managed", taskType]);
-
-        issue_number = issue.number;
-        await pipeline().taskQueue.setColumns(taskId, {
-          issue_number: issue.number,
-          issue_url: issue.url,
-        });
-      } catch {
-        /* best effort */
-      }
-    }
-
-    if (existingIssue) {
-      const body = output
-        ? `## Result\n\n${tailOutput(output)}`
-        : `Task completed (no code changes). ${logsRef} for full output.`;
-
-      await projectFor(target_repo)
-        .then((p) => p.issues.comment(existingIssue, body))
-        .catch(() => {});
-    }
-    await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
-    await taskStore().recordEvent(taskId, "running", "completed", {
-      no_changes: true,
-      issue_number,
-    });
-
-    if (issue_number) {
-      await notifyTaskUpdate(
-        taskId,
-        target_repo,
-        "completed",
-        `https://github.com/${target_repo}/issues/${issue_number}`,
-      );
-    }
-    writeEpisode(
-      { memory: memoryLifecycle() },
-      {
-        content: `Task ${taskType} on ${target_repo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
-        source: "ci",
-        ref: `${target_repo}/${taskId}`,
-      },
-    ).catch(() => {});
-    console.log(
-      `[agent-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`,
+    const resolved = await getIssueNumber(taskId);
+    const target_repo = resolved.target_repo || targetRepo;
+    const issueNumber = await resolveOrCreateIssueNumber(
+      resolved.issue_number,
+      { taskId, taskType, targetRepo: target_repo, description, output },
+      logsRef,
     );
+
+    await recordNoChangeCompletion(ctx, taskUrl, target_repo, issueNumber);
   } catch (err) {
     console.error(
       `[agent-watcher] Failed to complete no-change task ${taskId}: ${errorMessage(err)}`,
@@ -698,19 +752,65 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
   await completeNoChangeTask(ctx, taskUrl, logsRef);
 }
 
+/** Deciding whether a failed run is worth a bounded automatic retry, not just an escalation. */
+function shouldRequeueTransientInfra(
+  reason: string,
+  infraRetries: number,
+): boolean {
+  return isTransientInfraFailure(reason) && infraRetries < MAX_INFRA_RETRIES;
+}
+
+async function recordTaskFailure(
+  ctx: AgentContext,
+  failedTask: PipelineTask,
+  { reason, taskUrl }: { reason: string; taskUrl: string | undefined },
+): Promise<void> {
+  const { taskId, taskType, targetRepo, description, output } = ctx;
+
+  await taskStore().setStatus(taskId, "failed", {
+    failure_reason: reason,
+    log_url: taskUrl,
+  });
+  await taskStore().recordEvent(taskId, "running", "failed", {
+    error: reason,
+  });
+  await commentFailureOnIssue(
+    failedTask.target_repo,
+    failedTask.issue_number ?? null,
+    reason,
+  );
+  await notifyTaskUpdate(
+    taskId,
+    failedTask.target_repo,
+    "failed",
+    `${taskType}: ${reason.substring(0, 200)}`,
+  );
+  writeEpisodeWithCuration(
+    { memory: memoryLifecycle() },
+    {
+      content: `Task failed on ${targetRepo}: ${taskType}\n\nDescription: ${description}\n\nFailure: ${reason}\n\nOutput:\n${output.slice(-2000)}`,
+      source: "ci",
+      ref: `${targetRepo}/${taskId}`,
+      agentId: "agent-watcher",
+      taskId,
+    },
+  ).catch(() => {});
+  console.log(`[agent-watcher] Task ${taskId} failed: ${reason}`);
+}
+
 /** Failed CR: record the failure, with a bounded transient-infra re-queue. */
 async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
-  const { taskId, taskType, targetRepo, description, output } = ctx;
-  const failedTask = await taskStore().getById(taskId);
-  const bundle = failedTask?.context_bundle ?? {};
-  const infraRetries = Number(bundle.infra_retry_count ?? 0);
-  const taskUrl = taskPageUrl(taskId, process.env.LORE_UI_URL);
+  const failedTask = await taskStore().getById(ctx.taskId);
 
-  if (
-    failedTask?.status === "running" &&
-    isTransientInfraFailure(reason) &&
-    infraRetries < MAX_INFRA_RETRIES
-  ) {
+  if (!failedTask || failedTask.status !== "running") {
+    return;
+  }
+
+  const bundle = failedTask.context_bundle ?? {};
+  const infraRetries = Number(bundle.infra_retry_count ?? 0);
+  const taskUrl = taskPageUrl(ctx.taskId, process.env.LORE_UI_URL);
+
+  if (shouldRequeueTransientInfra(reason, infraRetries)) {
     await requeueTransientInfraFailure(ctx, failedTask, {
       reason,
       taskUrl,
@@ -720,37 +820,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
     return;
   }
 
-  if (failedTask?.status === "running") {
-    await taskStore().setStatus(taskId, "failed", {
-      failure_reason: reason,
-      log_url: taskUrl,
-    });
-    await taskStore().recordEvent(taskId, "running", "failed", {
-      error: reason,
-    });
-    await commentFailureOnIssue(
-      failedTask.target_repo,
-      failedTask.issue_number ?? null,
-      reason,
-    );
-    await notifyTaskUpdate(
-      taskId,
-      failedTask.target_repo,
-      "failed",
-      `${taskType}: ${reason.substring(0, 200)}`,
-    );
-    writeEpisodeWithCuration(
-      { memory: memoryLifecycle() },
-      {
-        content: `Task failed on ${targetRepo}: ${taskType}\n\nDescription: ${description}\n\nFailure: ${reason}\n\nOutput:\n${output.slice(-2000)}`,
-        source: "ci",
-        ref: `${targetRepo}/${taskId}`,
-        agentId: "agent-watcher",
-        taskId,
-      },
-    ).catch(() => {});
-    console.log(`[agent-watcher] Task ${taskId} failed: ${reason}`);
-  }
+  await recordTaskFailure(ctx, failedTask, { reason, taskUrl });
 }
 
 /** Bounded re-queue of a transient-infra failure, carrying the retry count forward and keeping the Issue thread. */

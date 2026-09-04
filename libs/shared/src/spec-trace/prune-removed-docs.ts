@@ -104,28 +104,18 @@ const SPEC_SUBTREE_QUERY = `query q($xid: string, $repo: string) {
   root(func: eq(Repo.xid, $repo), first: 1) { uid }
 }`;
 
-/** Reads the Spec subtree slated for deletion (Spec/children/Repo-root/Feature/link-target uids); called both read-only (GC inputs) and inside the final mutating txn (fresh-uid staleness guard). Null if no such Spec. */
-async function querySpecSubtree(
-  txn: DgraphTxn,
-  repo: string,
-  filePath: string,
-): Promise<DoomedSpecSubtree | null> {
-  const res = await txn.queryWithVars(SPEC_SUBTREE_QUERY, {
-    $xid: `${repo}|${filePath}`,
-    $repo: repo,
-  });
-  const spec = (res.data?.spec?.[0] ?? null) as
-    | ({ feature?: UidRef[] | UidRef } & {
-        uid: string;
-        statements?: LinkedChild[];
-        sections?: UidRef[];
-        acs?: LinkedChild[];
-      })
-    | null;
+type QueriedSpec = { feature?: UidRef[] | UidRef } & {
+  uid: string;
+  statements?: LinkedChild[];
+  sections?: UidRef[];
+  acs?: LinkedChild[];
+};
 
-  if (!spec) {
-    return null;
-  }
+/** Assembles the doomed subtree from a raw query result's `spec`/`root` payloads. Dedupe: TestChunks are file-scoped, so many statements/ACs point at the same chunk uid — without the Set a 40-statement spec fires ~40 redundant gcOrphanChunks txns. */
+function buildDoomedSpecSubtree(
+  spec: QueriedSpec,
+  rootUid: string | undefined,
+): DoomedSpecSubtree {
   const children = [
     ...(spec.statements ?? []),
     ...(spec.acs ?? []),
@@ -135,11 +125,8 @@ async function querySpecSubtree(
     ...uids(spec.sections),
     ...children.flatMap((child) => uids(child.links)),
   ];
-  const rootUid = ((res.data?.root ?? []) as Array<Record<string, string>>)[0]
-    ?.uid;
   const feature = Array.isArray(spec.feature) ? spec.feature[0] : spec.feature;
 
-  // Dedupe: TestChunks are file-scoped, so many statements/ACs point at the same chunk uid — without the Set a 40-statement spec fires ~40 redundant gcOrphanChunks txns.
   return {
     specUid: spec.uid,
     rootUid,
@@ -152,6 +139,32 @@ async function querySpecSubtree(
       ...new Set(children.flatMap((child) => uids(child.implemented))),
     ],
   };
+}
+
+function firstOf<T>(rows: T[] | undefined): T | undefined {
+  return (rows ?? [])[0];
+}
+
+/** Reads the Spec subtree slated for deletion (Spec/children/Repo-root/Feature/link-target uids); called both read-only (GC inputs) and inside the final mutating txn (fresh-uid staleness guard). Null if no such Spec. */
+async function querySpecSubtree(
+  txn: DgraphTxn,
+  repo: string,
+  filePath: string,
+): Promise<DoomedSpecSubtree | null> {
+  const res = await txn.queryWithVars(SPEC_SUBTREE_QUERY, {
+    $xid: `${repo}|${filePath}`,
+    $repo: repo,
+  });
+  const spec = firstOf(res.data?.spec as QueriedSpec[] | undefined);
+
+  if (!spec) {
+    return null;
+  }
+  const rootUid = firstOf(
+    res.data?.root as Array<Record<string, string>> | undefined,
+  )?.uid;
+
+  return buildDoomedSpecSubtree(spec, rootUid);
 }
 
 /** Deletes a Spec's whole subtree plus GC of link-target chunks and the owning Feature (only when ownerless); missing Spec is a no-op; anchor-deleted-last for crash resume. */
@@ -257,70 +270,96 @@ export async function deleteAdrSubtree(
 
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, new Set());
 
-  await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query q($xid: string, $repo: string) {
-        adr(func: eq(ADR.xid, $xid), first: 1) {
-          uid
-          citers: ~Statement.decided_by { uid }
-          acCiters: ~AcceptanceCriterion.decided_by { uid }
-          superseders: ~ADR.supersedes { uid }
-          links: ~TraceLink.target {
-            uid
-            stmt: TraceLink.statement { uid }
-            acOwners: ~AcceptanceCriterion.trace_links { uid }
-          }
-        }
-        root(func: eq(Repo.xid, $repo), first: 1) { uid }
-      }`,
-      { $xid: `${repo}|${filePath}`, $repo: repo },
-    );
-    const adr = (res.data?.adr?.[0] ?? null) as {
-      uid: string;
-      citers?: UidRef[];
-      acCiters?: UidRef[];
-      superseders?: UidRef[];
-      links?: Array<UidRef & { stmt?: UidRef[] | UidRef; acOwners?: UidRef[] }>;
-    } | null;
+  await withTxn(dgraph, (txn) => deleteAdrTxn(txn, repo, filePath));
+}
 
-    if (!adr) {
-      return;
+const DELETE_ADR_QUERY = `query q($xid: string, $repo: string) {
+  adr(func: eq(ADR.xid, $xid), first: 1) {
+    uid
+    citers: ~Statement.decided_by { uid }
+    acCiters: ~AcceptanceCriterion.decided_by { uid }
+    superseders: ~ADR.supersedes { uid }
+    links: ~TraceLink.target {
+      uid
+      stmt: TraceLink.statement { uid }
+      acOwners: ~AcceptanceCriterion.trace_links { uid }
     }
-    const deletes = [
-      `<${adr.uid}> * * .`,
-      ...uids(adr.citers).map(
-        (uid) => `<${uid}> <Statement.decided_by> <${adr.uid}> .`,
-      ),
-      ...uids(adr.acCiters).map(
-        (uid) => `<${uid}> <AcceptanceCriterion.decided_by> <${adr.uid}> .`,
-      ),
-      ...uids(adr.superseders).map(
-        (uid) => `<${uid}> <ADR.supersedes> <${adr.uid}> .`,
-      ),
-    ];
+  }
+  root(func: eq(Repo.xid, $repo), first: 1) { uid }
+}`;
 
-    for (const link of adr.links ?? []) {
-      deletes.push(`<${link.uid}> * * .`);
-      const stmt = Array.isArray(link.stmt) ? link.stmt[0] : link.stmt;
-
-      if (stmt) {
-        deletes.push(`<${stmt.uid}> <Statement.trace_links> <${link.uid}> .`);
-      }
-
-      // Symmetric to the Statement back-edge above — an owning AcceptanceCriterion would keep a dangling `trace_links` forward ref.
-      deletes.push(
-        ...uids(link.acOwners).map(
-          (ownerUid) =>
-            `<${ownerUid}> <AcceptanceCriterion.trace_links> <${link.uid}> .`,
-        ),
-      );
-    }
-    const rootUid = ((res.data?.root ?? []) as Array<Record<string, string>>)[0]
-      ?.uid;
-
-    if (rootUid) {
-      deletes.push(`<${rootUid}> <Repo.adrs> <${adr.uid}> .`);
-    }
-    await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
+async function deleteAdrTxn(
+  txn: DgraphTxn,
+  repo: string,
+  filePath: string,
+): Promise<void> {
+  const res = await txn.queryWithVars(DELETE_ADR_QUERY, {
+    $xid: `${repo}|${filePath}`,
+    $repo: repo,
   });
+  const adr = firstOf(res.data?.adr as QueriedAdr[] | undefined);
+
+  if (!adr) {
+    return;
+  }
+  const rootUid = firstOf(
+    res.data?.root as Array<Record<string, string>> | undefined,
+  )?.uid;
+  const deletes = buildAdrDeletes(adr, rootUid);
+
+  await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
+}
+
+type QueriedAdr = {
+  uid: string;
+  citers?: UidRef[];
+  acCiters?: UidRef[];
+  superseders?: UidRef[];
+  links?: Array<UidRef & { stmt?: UidRef[] | UidRef; acOwners?: UidRef[] }>;
+};
+
+/** Back-references naming `adr.uid` that also need deleting, plus the ADR node itself and its `Repo.adrs` edge. */
+function buildAdrDeletes(
+  adr: QueriedAdr,
+  rootUid: string | undefined,
+): string[] {
+  const deletes = [
+    `<${adr.uid}> * * .`,
+    ...uids(adr.citers).map(
+      (uid) => `<${uid}> <Statement.decided_by> <${adr.uid}> .`,
+    ),
+    ...uids(adr.acCiters).map(
+      (uid) => `<${uid}> <AcceptanceCriterion.decided_by> <${adr.uid}> .`,
+    ),
+    ...uids(adr.superseders).map(
+      (uid) => `<${uid}> <ADR.supersedes> <${adr.uid}> .`,
+    ),
+    ...(adr.links ?? []).flatMap((link) => adrLinkDeletes(link)),
+  ];
+
+  if (rootUid) {
+    deletes.push(`<${rootUid}> <Repo.adrs> <${adr.uid}> .`);
+  }
+
+  return deletes;
+}
+
+/** Deletes for one incoming TraceLink: the link node itself, the citing Statement's forward ref (if any), and every citing AcceptanceCriterion's forward ref (symmetric back-edge — an owner would otherwise keep a dangling `trace_links` ref). */
+function adrLinkDeletes(
+  link: NonNullable<QueriedAdr["links"]>[number],
+): string[] {
+  const stmt = Array.isArray(link.stmt) ? link.stmt[0] : link.stmt;
+  const deletes = [`<${link.uid}> * * .`];
+
+  if (stmt) {
+    deletes.push(`<${stmt.uid}> <Statement.trace_links> <${link.uid}> .`);
+  }
+  deletes.push(
+    ...uids(link.acOwners).map(
+      (ownerUid) =>
+        `<${ownerUid}> <AcceptanceCriterion.trace_links> <${link.uid}> .`,
+    ),
+  );
+
+  return deletes;
 }

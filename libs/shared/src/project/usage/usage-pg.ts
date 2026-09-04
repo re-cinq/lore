@@ -6,6 +6,52 @@ import type {
   ProcessedCounts,
 } from "./usage-port.js";
 
+function identityParams(
+  record: LlmCallRecord,
+): [string | null, string | null, string | null] {
+  return [
+    record.taskId ?? null,
+    record.agentCrName ?? null,
+    record.jobName ?? null,
+  ];
+}
+
+function usageParams(
+  record: LlmCallRecord,
+): [string, number, number, number, number] {
+  return [
+    record.model,
+    record.inputTokens,
+    record.outputTokens,
+    record.costUsd ?? 0,
+    record.durationMs,
+  ];
+}
+
+function statusParams(record: LlmCallRecord): [string, string | null] {
+  return [record.status ?? "success", record.error ?? null];
+}
+
+function carriedParams(record: LlmCallRecord): [string | null, string | null] {
+  return [
+    record.carried?.assemblyRunId ?? null,
+    record.carried?.stationRunId ?? null,
+  ];
+}
+
+function queryParams(record: LlmCallRecord): unknown[] {
+  return [
+    ...identityParams(record),
+    ...usageParams(record),
+    ...statusParams(record),
+    ...carriedParams(record),
+  ];
+}
+
+function correlatedResult(rows: { correlated: boolean }[]): boolean {
+  return rows[0]?.correlated ?? false;
+}
+
 /** Postgres UsagePort; single INSERT into pipeline.llm_calls. */
 export class PgUsage implements UsagePort {
   constructor(private readonly pool: PgPool) {}
@@ -38,23 +84,10 @@ export class PgUsage implements UsagePort {
             LIMIT 1
          ) node ON true
        RETURNING (task_id IS NOT NULL OR assembly_line_id IS NOT NULL) AS correlated`,
-      [
-        record.taskId ?? null,
-        record.agentCrName ?? null,
-        record.jobName ?? null,
-        record.model,
-        record.inputTokens,
-        record.outputTokens,
-        record.costUsd ?? 0,
-        record.durationMs,
-        record.status ?? "success",
-        record.error ?? null,
-        record.carried?.assemblyRunId ?? null,
-        record.carried?.stationRunId ?? null,
-      ],
+      queryParams(record),
     );
 
-    return { correlated: rows[0]?.correlated ?? false };
+    return { correlated: correlatedResult(rows) };
   }
 
   async processedCounts(): Promise<ProcessedCounts> {

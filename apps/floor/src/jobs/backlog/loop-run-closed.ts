@@ -52,17 +52,20 @@ export async function handleLoopRunClosed(
   await deps.emitTick(run.repo);
 }
 
-async function blockedReasonFor(
-  run: ClosedLoopRun,
+function describeUncleanOutcome(
   outcome: string,
   reason: string | undefined,
+): string {
+  return reason
+    ? `the run ended ${outcome}: ${reason}`
+    : `the run ended ${outcome}`;
+}
+
+/** The last pr_review-node outcome recorded on this run, or null when none ran. */
+async function latestPrReviewOutcome(
+  run: ClosedLoopRun,
   deps: LoopRunClosedDeps,
 ): Promise<string | null> {
-  if (!CLEAN_OUTCOMES.has(outcome)) {
-    return reason
-      ? `the run ended ${outcome}: ${reason}`
-      : `the run ended ${outcome}`;
-  }
   const prReviewIds = new Set(
     (run.graph?.nodes ?? [])
       .filter((n) => n.type === "pr_review")
@@ -72,19 +75,35 @@ async function blockedReasonFor(
     .filter((n) => prReviewIds.has(n.nodeId))
     .at(-1);
 
-  // BOTH non-success resumes block: a repaired build never reaches here (fix-ci success routes back to the wait), so blocking only on `failed` let a re-armed run's iteration_max reset and cycle unbounded across runs.
-  if (
-    awaitPr?.outcome === "changes_requested" ||
-    awaitPr?.outcome === "failed"
-  ) {
-    const detail =
-      typeof run.args.reason === "string" ? ` (${run.args.reason})` : "";
-    const why =
-      awaitPr.outcome === "failed"
-        ? "review threads stayed unresolved after the address round-trip"
-        : "its build stayed red after the repair attempts were spent";
+  return awaitPr?.outcome ?? null;
+}
 
-    return `the pull request was not ready${detail}: ${why}`;
+function describePrNotReady(run: ClosedLoopRun, prOutcome: string): string {
+  const detail =
+    typeof run.args.reason === "string" ? ` (${run.args.reason})` : "";
+  const why =
+    prOutcome === "failed"
+      ? "review threads stayed unresolved after the address round-trip"
+      : "its build stayed red after the repair attempts were spent";
+
+  return `the pull request was not ready${detail}: ${why}`;
+}
+
+async function blockedReasonFor(
+  run: ClosedLoopRun,
+  outcome: string,
+  reason: string | undefined,
+  deps: LoopRunClosedDeps,
+): Promise<string | null> {
+  if (!CLEAN_OUTCOMES.has(outcome)) {
+    return describeUncleanOutcome(outcome, reason);
+  }
+
+  const prOutcome = await latestPrReviewOutcome(run, deps);
+
+  // BOTH non-success resumes block: a repaired build never reaches here (fix-ci success routes back to the wait), so blocking only on `failed` let a re-armed run's iteration_max reset and cycle unbounded across runs.
+  if (prOutcome === "changes_requested" || prOutcome === "failed") {
+    return describePrNotReady(run, prOutcome);
   }
 
   return null;

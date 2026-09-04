@@ -32,6 +32,10 @@ function labelNames(labels: unknown): string[] {
     : [];
 }
 
+function commentAuthor(user?: { login?: string }): string {
+  return user?.login ?? "";
+}
+
 /** Comment identity the code-review reply handler needs — author drives the bot-loop guard. */
 function commentParams(comment: {
   id: number;
@@ -44,13 +48,31 @@ function commentParams(comment: {
 } {
   return {
     comment_id: comment?.id,
-    comment_author: comment?.user?.login ?? "",
+    comment_author: commentAuthor(comment?.user),
     comment_body: comment?.body ?? "",
   };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub webhook payload; shape varies by event type and is navigated defensively below
 type GitHubPayload = any;
+
+type EventMapper = (
+  payload: GitHubPayload,
+  repo: string,
+  key: string,
+) => EventInput[];
+
+const EVENT_MAPPERS: Record<string, EventMapper> = {
+  pull_request: mapPullRequest,
+  pull_request_review: mapPullRequestReview,
+  check_run: (payload, repo, key) =>
+    mapCheckCompleted("check_run", payload, repo, key),
+  check_suite: (payload, repo, key) =>
+    mapCheckCompleted("check_suite", payload, repo, key),
+  issue_comment: mapIssueComment,
+  pull_request_review_comment: mapReviewComment,
+  issues: mapIssueLabeled,
+};
 
 export function mapGitHubEvent(
   eventType: string,
@@ -62,33 +84,53 @@ export function mapGitHubEvent(
   if (!repo) {
     return [];
   }
-  const key = githubDedupeKey(deliveryId);
+  const mapper = EVENT_MAPPERS[eventType];
 
-  if (eventType === "pull_request") {
-    return mapPullRequest(payload, repo, key);
+  if (!mapper) {
+    return [];
   }
 
-  if (eventType === "pull_request_review") {
-    return mapPullRequestReview(payload, repo, key);
-  }
+  return mapper(payload, repo, githubDedupeKey(deliveryId));
+}
 
-  if (eventType === "check_run" || eventType === "check_suite") {
-    return mapCheckCompleted(eventType, payload, repo, key);
-  }
+function closedPrEvent(
+  pr: GitHubPayload,
+  prNumber: number,
+  repo: string,
+  key: string,
+): EventInput[] {
+  // Emit for merged AND unmerged: specPrMerge guards on `merged`, code-review's onClose finishes on any.
+  return [
+    {
+      eventName: "github.pull_request.closed",
+      source: "github",
+      params: {
+        repo,
+        pr_number: prNumber,
+        merged: pr.merged === true,
+        branch: pr.head?.ref ?? "",
+        merge_commit_sha: pr.merge_commit_sha ?? null,
+        labels: labelNames(pr.labels),
+      },
+      dedupeKey: key,
+    },
+  ];
+}
 
-  if (eventType === "issue_comment") {
-    return mapIssueComment(payload, repo, key);
-  }
-
-  if (eventType === "pull_request_review_comment") {
-    return mapReviewComment(payload, repo, key);
-  }
-
-  if (eventType === "issues") {
-    return mapIssueLabeled(payload, repo, key);
-  }
-
-  return [];
+function reviewTriggerEvent(
+  action: string,
+  prNumber: number,
+  repo: string,
+  key: string,
+): EventInput[] {
+  return [
+    {
+      eventName: `github.pull_request.${action}`,
+      source: "github",
+      params: { repo, pr_number: prNumber },
+      dedupeKey: key,
+    },
+  ];
 }
 
 function mapPullRequest(
@@ -104,36 +146,35 @@ function mapPullRequest(
   }
 
   if (payload.action === "closed") {
-    // Emit for merged AND unmerged: specPrMerge guards on `merged`, code-review's onClose finishes on any.
-    return [
-      {
-        eventName: "github.pull_request.closed",
-        source: "github",
-        params: {
-          repo,
-          pr_number: prNumber,
-          merged: pr.merged === true,
-          branch: pr.head?.ref ?? "",
-          merge_commit_sha: pr.merge_commit_sha ?? null,
-          labels: labelNames(pr.labels),
-        },
-        dedupeKey: key,
-      },
-    ];
+    return closedPrEvent(pr, prNumber, repo, key);
   }
 
   if (PR_REVIEW_TRIGGER_ACTIONS.has(payload.action)) {
-    return [
-      {
-        eventName: `github.pull_request.${payload.action}`,
-        source: "github",
-        params: { repo, pr_number: prNumber },
-        dedupeKey: key,
-      },
-    ];
+    return reviewTriggerEvent(payload.action, prNumber, repo, key);
   }
 
   return [];
+}
+
+function reviewFields(review: {
+  id?: number;
+  state?: string;
+  user?: { login?: string };
+  body?: string;
+}): {
+  review_id: number | null;
+  review_state: string;
+  review_author: string;
+  review_body: string;
+} {
+  const r = review ?? {};
+
+  return {
+    review_id: r.id ?? null,
+    review_state: r.state ?? "",
+    review_author: commentAuthor(r.user),
+    review_body: r.body ?? "",
+  };
 }
 
 function mapPullRequestReview(
@@ -157,10 +198,7 @@ function mapPullRequestReview(
       params: {
         repo,
         pr_number: prNumber,
-        review_id: payload.review?.id ?? null,
-        review_state: payload.review?.state ?? "",
-        review_author: payload.review?.user?.login ?? "",
-        review_body: payload.review?.body ?? "",
+        ...reviewFields(payload.review),
       },
       dedupeKey: key,
     },
@@ -247,6 +285,22 @@ function mapReviewComment(
   ];
 }
 
+function issueSummary(issue: GitHubPayload): {
+  number: number;
+  title: string;
+  body: string;
+  html_url: string;
+  labels: string[];
+} {
+  return {
+    number: issue.number,
+    title: issue.title ?? "",
+    body: issue.body ?? "",
+    html_url: issue.html_url ?? "",
+    labels: labelNames(issue.labels),
+  };
+}
+
 function mapIssueLabeled(
   payload: GitHubPayload,
   repo: string,
@@ -269,13 +323,7 @@ function mapIssueLabeled(
       params: {
         repo,
         label,
-        issue: {
-          number: issue.number,
-          title: issue.title ?? "",
-          body: issue.body ?? "",
-          html_url: issue.html_url ?? "",
-          labels: labelNames(issue.labels),
-        },
+        issue: issueSummary(issue),
       },
       dedupeKey: key,
     },
