@@ -1,9 +1,7 @@
 import type { ReactNode } from "react";
 import styles from "./DataTable.module.css";
 
-// Most tables in the app differ only in their columns and how a row becomes
-// cells; this is that table, so an empty state or a header cannot drift
-// between two pages showing the same kind of data.
+// Most tables differ only in their columns and how a row becomes cells, so this is that table — an empty state cannot drift between two pages showing the same kind of data.
 
 export interface DataTableProps<T> {
   /** Rendered above the table when given; omit for a table already under its own heading. */

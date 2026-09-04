@@ -165,79 +165,101 @@ export async function extractFacts(
   pool: PgPool,
 ): Promise<void> {
   try {
-    let rawResponse: string;
+    const facts = await extractFactTexts(value, "memory");
 
-    try {
-      rawResponse = await withRetry(() =>
-        Llm.instance
-          .complete({
-            systemPrompt: EXTRACTION_PROMPT,
-            prompt: value,
-            jobName: "fact-extraction",
-          })
-          .then((r) => r.text),
-      );
-    } catch (err) {
-      console.warn(
-        "[facts] LLM unreachable after 3 attempts, skipping fact extraction:",
-        err,
-      );
-
-      return;
-    }
-
-    const facts = parseFacts(rawResponse);
-
-    if (facts.length === 0) {
+    if (facts?.length === 0) {
       console.warn("[facts] No facts extracted from LLM response");
-
-      return;
     }
 
+    if (!facts || facts.length === 0) {
+      return;
+    }
     const agentId = await getAgentIdForMemory(pool, memoryId);
-    let totalInvalidated = 0;
-
-    for (const factText of facts) {
-      try {
-        const embedding = await getQueryEmbedding(factText);
-        const embeddingStr = embedding ? `[${embedding.join(",")}]` : null;
-
-        const { rows } = await pool.query(
-          `INSERT INTO memory.facts (memory_id, fact_text, embedding, valid_from, confidence)
+    const invalidated = await storeFacts(pool, facts, agentId, (factText, e) =>
+      pool.query(
+        `INSERT INTO memory.facts (memory_id, fact_text, embedding, valid_from, confidence)
            VALUES ($1, $2, $3, now(), 'inferred')
            RETURNING id`,
-          [memoryId, factText, embeddingStr],
-        );
-
-        if (embeddingStr && rows[0]?.id) {
-          const invalidated = await invalidateContradictions(
-            pool,
-            rows[0].id as string,
-            embeddingStr,
-            agentId,
-          );
-
-          totalInvalidated += invalidated;
-        }
-      } catch (err) {
-        console.warn(
-          `[facts] Failed to insert fact "${factText.substring(0, 50)}...":`,
-          err,
-        );
-      }
-    }
-
-    const invalidMsg =
-      totalInvalidated > 0
-        ? `, invalidated ${totalInvalidated} stale facts`
-        : "";
+        [memoryId, factText, e],
+      ),
+    );
 
     console.log(
-      `[facts] Extracted and stored ${facts.length} facts for memory ${memoryId}${invalidMsg}`,
+      `[facts] Extracted and stored ${facts.length} facts for memory ${memoryId}${invalidatedNote(invalidated)}`,
     );
   } catch (err) {
     console.warn("[facts] Unexpected error during fact extraction:", err);
   }
+}
+
+/** The facts an LLM finds in one blob, or null when it could not be reached. An unreachable model costs the extraction, never the write that triggered it. */
+async function extractFactTexts(
+  value: string,
+  source: "memory" | "episode",
+): Promise<string[] | null> {
+  try {
+    const raw = await withRetry(() =>
+      Llm.instance
+        .complete({
+          systemPrompt: EXTRACTION_PROMPT,
+          prompt: value,
+          jobName: "fact-extraction",
+        })
+        .then((r) => r.text),
+    );
+
+    return parseFacts(raw);
+  } catch (err) {
+    console.warn(
+      source === "memory"
+        ? "[facts] LLM unreachable after 3 attempts, skipping fact extraction:"
+        : "[facts] LLM unreachable for episode extraction:",
+      err,
+    );
+
+    return null;
+  }
+}
+
+/** Inserts each fact and lets it invalidate what it contradicts, returning how many older facts it retired. One bad fact is skipped, never the batch. */
+async function storeFacts(
+  pool: PgPool,
+  facts: string[],
+  agentId: string | null,
+  insert: (
+    factText: string,
+    embedding: string | null,
+  ) => Promise<{ rows: Array<{ id?: unknown }> }>,
+): Promise<number> {
+  let invalidated = 0;
+
+  for (const factText of facts) {
+    try {
+      const embedding = await getQueryEmbedding(factText);
+      const embeddingStr = embedding ? `[${embedding.join(",")}]` : null;
+      const { rows } = await insert(factText, embeddingStr);
+
+      if (embeddingStr && rows[0]?.id) {
+        invalidated += await invalidateContradictions(
+          pool,
+          rows[0].id as string,
+          embeddingStr,
+          agentId,
+        );
+      }
+    } catch (err) {
+      console.warn(
+        `[facts] Failed to insert fact "${factText.substring(0, 50)}...":`,
+        err,
+      );
+    }
+  }
+
+  return invalidated;
+}
+
+function invalidatedNote(count: number): string {
+  return count > 0 ? `, invalidated ${count} stale facts` : "";
 }
 
 // Extract facts from an episode (same pipeline, different source column).
@@ -248,74 +270,24 @@ export async function extractFactsFromEpisode(
   pool: PgPool,
 ): Promise<void> {
   try {
-    let rawResponse: string;
+    const facts = await extractFactTexts(content, "episode");
 
-    try {
-      rawResponse = await withRetry(() =>
-        Llm.instance
-          .complete({
-            systemPrompt: EXTRACTION_PROMPT,
-            prompt: content,
-            jobName: "fact-extraction",
-          })
-          .then((r) => r.text),
-      );
-    } catch (err) {
-      console.warn("[facts] LLM unreachable for episode extraction:", err);
-
+    if (!facts || facts.length === 0) {
       return;
     }
-
-    const facts = parseFacts(rawResponse);
-
-    if (facts.length === 0) {
-      return;
-    }
-
-    let totalInvalidated = 0;
-
-    for (const factText of facts) {
-      try {
-        const embedding = await getQueryEmbedding(factText);
-        const embeddingStr = embedding ? `[${embedding.join(",")}]` : null;
-
-        const { rows } = await pool.query(
-          `INSERT INTO memory.facts (episode_id, fact_text, embedding, valid_from)
+    const invalidated = await storeFacts(pool, facts, agentId, (factText, e) =>
+      pool.query(
+        `INSERT INTO memory.facts (episode_id, fact_text, embedding, valid_from)
            VALUES ($1, $2, $3, now())
            RETURNING id`,
-          [episodeId, factText, embeddingStr],
-        );
-
-        if (embeddingStr && rows[0]?.id) {
-          const invalidated = await invalidateContradictions(
-            pool,
-            rows[0].id as string,
-            embeddingStr,
-            agentId,
-          );
-
-          totalInvalidated += invalidated;
-        }
-      } catch (err) {
-        console.warn(
-          `[facts] Failed to insert episode fact "${factText.substring(0, 50)}...":`,
-          err,
-        );
-      }
-    }
-
-    const invalidMsg =
-      totalInvalidated > 0
-        ? `, invalidated ${totalInvalidated} stale facts`
-        : "";
+        [episodeId, factText, e],
+      ),
+    );
 
     console.log(
-      `[facts] Extracted ${facts.length} facts from episode ${episodeId}${invalidMsg}`,
+      `[facts] Extracted ${facts.length} facts from episode ${episodeId}${invalidatedNote(invalidated)}`,
     );
   } catch (err) {
-    console.warn(
-      "[facts] Unexpected error during episode fact extraction:",
-      err,
-    );
+    console.warn("[facts] Unexpected error during episode extraction:", err);
   }
 }

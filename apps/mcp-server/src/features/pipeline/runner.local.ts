@@ -298,7 +298,6 @@ function claudeArgs(model: string | undefined, prompt: string): string[] {
 }
 
 // Deterministic validation (Minions-inspired): lint/typecheck before commit with one fix retry; "failed" means the task was marked needs-human-help and its artifacts persisted.
-// Deterministic validation (Minions-inspired): lint/typecheck before commit with one fix retry; "failed" means the task was marked needs-human-help and its artifacts persisted.
 async function validateBeforeCommit(
   task: LocalTask,
   tasks: LocalTask[],
@@ -650,7 +649,7 @@ export async function ingestTurns(
     TURN_BATCH_MAX_BYTES,
     TURN_BATCH_MAX_LINES,
   )) {
-    const posted = await postTurnBatch(apiUrl, token, task, batch, offset);
+    const posted = await postTurnBatch({ apiUrl, token, task }, batch, offset);
 
     offset += batch.length;
     failed += posted ? 0 : 1;
@@ -687,12 +686,12 @@ function turnLinesToRelay(task: LocalTask, rawLogs: string): string[] {
 }
 
 async function postTurnBatch(
-  apiUrl: string,
-  token: string,
-  task: LocalTask,
+  relay: { apiUrl: string; token: string; task: LocalTask },
   batch: string[],
   offset: number,
 ): Promise<boolean> {
+  const { apiUrl, token, task } = relay;
+
   try {
     const resp = await fetch(`${apiUrl}/api/task-turns/${task.taskId}`, {
       signal: AbortSignal.timeout(30_000),
