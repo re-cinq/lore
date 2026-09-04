@@ -206,12 +206,8 @@ export function ingestDeltaRoute(
         apiError(503),
         "no graph store configured — LORE_DGRAPH_HTTP is unset on this deployment",
       );
-      const finalChunk =
-        body.seq === undefined ||
-        body.total === undefined ||
-        body.seq >= body.total;
 
-      // Refuse stale base before projecting (race detection; CI must re-fetch and re-diff).
+      // Refuse a stale base before projecting: this is the race detection, and CI must re-fetch and re-diff.
       const current = await storedCommit(pool, repo, body.kind);
 
       enforceTrue(
@@ -219,86 +215,92 @@ export function ingestDeltaRoute(
         apiError(409, { current }),
         `stale base ${body.base_commit ?? "(none)"} — the stored commit has moved; re-fetch ingest-state and re-diff`,
       );
-
-      let projected = 0;
-      let deleted = 0;
-      let testChunks = 0;
-      let prunedTestFiles = 0;
-
-      if (body.kind === "test-report") {
-        ({ testChunks, prunedTestFiles } = await applyTestReportDelta(
-          deps,
-          repo,
-          body,
-        ));
-      }
-
-      if (body.kind !== "test-report") {
-        ({ projected, deleted } = await applyDocDelta(deps, repo, body));
-      }
+      const counts = await applyDelta(deps, repo, body);
+      const answer = (state: "pending-chunks" | "unrecorded" | "advanced") => ({
+        kind: body.kind,
+        commit: body.commit,
+        state,
+        ...counts,
+      });
+      // A partial upload has projected its share but must not move the stored commit — the next chunk still needs the same base.
+      const finalChunk =
+        body.seq === undefined ||
+        body.total === undefined ||
+        body.seq >= body.total;
 
       if (!finalChunk) {
-        return h.response({
-          kind: body.kind,
-          commit: body.commit,
-          state: "pending-chunks" as const,
-          projected,
-          deleted,
-          test_chunks: testChunks,
-          pruned_test_files: prunedTestFiles,
-        });
+        return h.response(answer("pending-chunks"));
       }
+      const advanced = await advanceStoredCommit(pool, repo, body);
 
-      // CAS advance; unmigrated state not failure (graph already absorbed delta).
-      let rows: Array<{ commit_sha: string }>;
+      // An unmigrated ingest_state is not a failure: the graph already absorbed the delta.
+      if (advanced === "unrecorded") {
+        return h.response(answer("unrecorded"));
+      }
+      enforceTrue(
+        advanced,
+        apiError(409, { current: await storedCommit(pool, repo, body.kind) }),
+        "the stored commit moved during projection — re-fetch ingest-state and re-diff",
+      );
 
-      try {
-        rows = (
-          await pool.query<{ commit_sha: string }>(
-            `INSERT INTO pipeline.ingest_state (repo, kind, commit_sha)
+      return h.response(answer("advanced"));
+    },
+  };
+}
+
+/** Project one delta into the graph. A test report and a doc delta touch different parts of it, so each reports its own counts and leaves the other's at zero. */
+async function applyDelta(
+  deps: IngestDeltaDeps,
+  repo: string,
+  body: IngestDeltaBody,
+): Promise<{
+  projected: number;
+  deleted: number;
+  test_chunks: number;
+  pruned_test_files: number;
+}> {
+  if (body.kind === "test-report") {
+    const { testChunks, prunedTestFiles } = await applyTestReportDelta(
+      deps,
+      repo,
+      body,
+    );
+
+    return {
+      projected: 0,
+      deleted: 0,
+      test_chunks: testChunks,
+      pruned_test_files: prunedTestFiles,
+    };
+  }
+  const { projected, deleted } = await applyDocDelta(deps, repo, body);
+
+  return { projected, deleted, test_chunks: 0, pruned_test_files: 0 };
+}
+
+/** Compare-and-swap on the stored commit: it advances only if it still holds the base this delta was diffed against. "unrecorded" means the table does not exist yet. */
+async function advanceStoredCommit(
+  pool: Pool,
+  repo: string,
+  body: IngestDeltaBody,
+): Promise<boolean | "unrecorded"> {
+  try {
+    const { rows } = await pool.query<{ commit_sha: string }>(
+      `INSERT INTO pipeline.ingest_state (repo, kind, commit_sha)
              VALUES ($1, $2, $3)
              ON CONFLICT (repo, kind) DO UPDATE
                SET commit_sha = EXCLUDED.commit_sha, updated_at = now()
                WHERE pipeline.ingest_state.commit_sha IS NOT DISTINCT FROM $4
              RETURNING commit_sha`,
-            [repo, body.kind, body.commit, body.base_commit],
-          )
-        ).rows;
-      } catch (err) {
-        if (!(
-          err instanceof Error &&
-          "code" in err &&
-          err.code === UNDEFINED_TABLE
-        )) {
-          throw err;
-        }
+      [repo, body.kind, body.commit, body.base_commit],
+    );
 
-        return h.response({
-          kind: body.kind,
-          commit: body.commit,
-          state: "unrecorded" as const,
-          projected,
-          deleted,
-          test_chunks: testChunks,
-          pruned_test_files: prunedTestFiles,
-        });
-      }
+    return rows.length > 0;
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === UNDEFINED_TABLE) {
+      return "unrecorded";
+    }
 
-      enforceTrue(
-        rows.length > 0,
-        apiError(409, { current: await storedCommit(pool, repo, body.kind) }),
-        "the stored commit moved during projection — re-fetch ingest-state and re-diff",
-      );
-
-      return h.response({
-        kind: body.kind,
-        commit: body.commit,
-        state: "advanced" as const,
-        projected,
-        deleted,
-        test_chunks: testChunks,
-        pruned_test_files: prunedTestFiles,
-      });
-    },
-  };
+    throw err;
+  }
 }

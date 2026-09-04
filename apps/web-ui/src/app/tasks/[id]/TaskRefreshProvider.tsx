@@ -74,116 +74,19 @@ export default function TaskRefreshProvider({
   runs: readonly LiveRunCandidate[];
   children: ReactNode;
 }) {
-  const registryRef = useRef(new Map<string, Refresh>());
-  const [activeIds, setActiveIds] = useState<ReadonlySet<string>>(new Set());
   const [liveRunId, setLiveRunId] = useState(() => pickLiveRun(runs));
   const [streamUnavailable, setStreamUnavailable] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [afterId, setAfterId] = useState("0");
-  const lastRefreshAtRef = useRef(0);
-  const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeIdsRef = useRef(activeIds);
-  const liveRunIdRef = useRef(liveRunId);
-
-  // Seed timestamp before stream catch-up to avoid duplicate refresh wave.
-  useEffect(() => {
-    lastRefreshAtRef.current = Date.now();
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (trailingTimerRef.current !== null) {
-        clearTimeout(trailingTimerRef.current);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    activeIdsRef.current = activeIds;
-  }, [activeIds]);
-
-  useEffect(() => {
-    liveRunIdRef.current = liveRunId;
-  }, [liveRunId]);
-
-  const register = useCallback((id: string, refresh: Refresh) => {
-    registryRef.current.set(id, refresh);
-
-    return () => {
-      registryRef.current.delete(id);
-      setActiveIds((prev) => {
-        if (!prev.has(id)) {
-          return prev;
-        }
-        const next = new Set(prev);
-
-        next.delete(id);
-
-        return next;
-      });
-    };
-  }, []);
-
-  const setActive = useCallback((id: string, active: boolean) => {
-    setActiveIds((prev) => {
-      if (prev.has(id) === active) {
-        return prev;
-      }
-      const next = new Set(prev);
-
-      if (active) {
-        next.add(id);
-
-        return next;
-      }
-      next.delete(id);
-
-      return next;
-    });
-  }, []);
-
-  const refreshAll = useCallback(() => {
-    lastRefreshAtRef.current = Date.now();
-
-    for (const id of activeIdsRef.current) {
-      void registryRef.current.get(id)?.();
-    }
-  }, []);
-
-  const anyPanelActive = activeIds.size > 0;
+  const { register, setActive, refreshAll, anyPanelActive } =
+    usePanelRegistry();
   const driver = resolveRefreshDriver({
     liveRunId,
     eventSourceAvailable: typeof EventSource !== "undefined",
     streamUnavailable,
     anyPanelActive,
   });
-
-  // Coalesce event burst: immediate if past throttle, else trailing at boundary.
-  const onEvent = useCallback(
-    (event: RunStreamEvent) => {
-      setAfterId((prev) => maxEventId(prev, event.id));
-
-      const delayMs = eventRefreshDelayMs(lastRefreshAtRef.current, Date.now());
-
-      if (delayMs === 0) {
-        refreshAll();
-
-        return;
-      }
-
-      if (trailingTimerRef.current !== null) {
-        return;
-      }
-
-      trailingTimerRef.current = setTimeout(() => {
-        trailingTimerRef.current = null;
-        refreshAll();
-      }, delayMs);
-    },
-    [refreshAll],
-  );
-
+  const onEvent = useCoalescedRefresh(refreshAll, setAfterId);
   // Offline fallback: switch to coordinated polling.
   const onConnectionChange = useCallback((next: ConnectionState) => {
     setConnection(next);
@@ -191,6 +94,13 @@ export default function TaskRefreshProvider({
     if (next === "offline") {
       setStreamUnavailable(true);
     }
+  }, []);
+  const onLiveRunFound = useCallback((found: string | null) => {
+    if (found !== null) {
+      setStreamUnavailable(false);
+      setConnection("connecting");
+    }
+    setLiveRunId(found);
   }, []);
 
   useRunEventStream({
@@ -200,18 +110,159 @@ export default function TaskRefreshProvider({
     onEvent,
     onConnectionChange,
   });
-
-  const intervalMs = refreshIntervalMs(driver, connection);
-  const discoveryActive = runDiscoveryActive({
+  useRefreshTicker({
+    intervalMs: refreshIntervalMs(driver, connection),
+    taskId,
+    refreshAll,
+    discoveryActive: runDiscoveryActive({
+      liveRunId,
+      taskStatus,
+      anyPanelActive,
+    }),
     liveRunId,
-    taskStatus,
-    anyPanelActive,
+    onLiveRunFound,
   });
+  const live = driver === "stream" && connection === "live";
+  const value = useMemo(
+    () => ({ register, setActive, live }),
+    [register, setActive, live],
+  );
+
+  return (
+    <TaskRefreshContext.Provider value={value}>
+      {children}
+    </TaskRefreshContext.Provider>
+  );
+}
+
+/** Which panels exist and which are currently worth refreshing. A panel deregisters by calling what `register` returned, so an unmounted panel cannot be ticked. */
+function usePanelRegistry() {
+  const registryRef = useRef(new Map<string, Refresh>());
+  const [activeIds, setActiveIds] = useState<ReadonlySet<string>>(new Set());
+  const activeIdsRef = useRef(activeIds);
+
+  useEffect(() => {
+    activeIdsRef.current = activeIds;
+  }, [activeIds]);
+
+  const setActive = useCallback((id: string, active: boolean) => {
+    setActiveIds((prev) => withMember(prev, id, active));
+  }, []);
+  const register = useCallback(
+    (id: string, refresh: Refresh) => {
+      registryRef.current.set(id, refresh);
+
+      return () => {
+        registryRef.current.delete(id);
+        setActive(id, false);
+      };
+    },
+    [setActive],
+  );
+  const refreshAll = useCallback(() => {
+    for (const id of activeIdsRef.current) {
+      void registryRef.current.get(id)?.();
+    }
+  }, []);
+
+  return {
+    register,
+    setActive,
+    refreshAll,
+    anyPanelActive: activeIds.size > 0,
+  };
+}
+
+/** Returns the same set when nothing changes, so a no-op toggle cannot re-render every panel. */
+function withMember(
+  set: ReadonlySet<string>,
+  id: string,
+  member: boolean,
+): ReadonlySet<string> {
+  if (set.has(id) === member) {
+    return set;
+  }
+  const next = new Set(set);
+
+  if (member) {
+    next.add(id);
+  }
+
+  if (!member) {
+    next.delete(id);
+  }
+
+  return next;
+}
+
+/** Coalesces an event burst: refresh immediately when past the throttle, otherwise once at the boundary. Seeded at mount so stream catch-up does not fire a duplicate wave. */
+function useCoalescedRefresh(
+  refreshAll: () => void,
+  setAfterId: (update: (prev: string) => string) => void,
+) {
+  const lastRefreshAtRef = useRef(0);
+  const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    lastRefreshAtRef.current = Date.now();
+
+    return () => {
+      if (trailingTimerRef.current !== null) {
+        clearTimeout(trailingTimerRef.current);
+      }
+    };
+  }, []);
+
+  return useCallback(
+    (event: RunStreamEvent) => {
+      setAfterId((prev) => maxEventId(prev, event.id));
+
+      const delayMs = eventRefreshDelayMs(lastRefreshAtRef.current, Date.now());
+      const run = () => {
+        lastRefreshAtRef.current = Date.now();
+        refreshAll();
+      };
+
+      if (delayMs === 0) {
+        run();
+
+        return;
+      }
+
+      if (trailingTimerRef.current === null) {
+        trailingTimerRef.current = setTimeout(() => {
+          trailingTimerRef.current = null;
+          run();
+        }, delayMs);
+      }
+    },
+    [refreshAll, setAfterId],
+  );
+}
+
+/** The polling half: refresh every panel on a tick and — while discovery is active — re-read the task's runs to attach a fresh live run or detach a terminal one. */
+function useRefreshTicker({
+  intervalMs,
+  taskId,
+  refreshAll,
+  discoveryActive,
+  liveRunId,
+  onLiveRunFound,
+}: {
+  intervalMs: number | null;
+  taskId: string;
+  refreshAll: () => void;
+  discoveryActive: boolean;
+  liveRunId: string | null;
+  onLiveRunFound: (runId: string | null) => void;
+}): void {
   const discoveryActiveRef = useRef(discoveryActive);
+  const liveRunIdRef = useRef(liveRunId);
 
   useEffect(() => {
     discoveryActiveRef.current = discoveryActive;
-  }, [discoveryActive]);
+    liveRunIdRef.current = liveRunId;
+  }, [discoveryActive, liveRunId]);
 
   useEffect(() => {
     if (intervalMs === null) {
@@ -221,7 +272,6 @@ export default function TaskRefreshProvider({
     let inFlight = false;
     let cancelled = false;
 
-    // Discovery re-reads recorded runs to attach fresh live run or detach terminal ones.
     async function discoverRun() {
       if (inFlight) {
         return;
@@ -230,50 +280,17 @@ export default function TaskRefreshProvider({
       inFlight = true;
 
       try {
-        const res = await fetch(`/api/tasks/${taskId}/runs`, {
-          signal: AbortSignal.timeout(15_000),
-        });
+        const found = await fetchLiveRun(taskId);
 
-        if (!res.ok) {
-          return;
+        if (!cancelled && found !== liveRunIdRef.current) {
+          onLiveRunFound(found);
         }
-
-        const body = (await res.json()) as { runs?: unknown[] };
-
-        if (cancelled) {
-          return;
-        }
-
-        const candidates = (Array.isArray(body.runs) ? body.runs : []).filter(
-          (row): row is LiveRunCandidate => {
-            const r = row as Partial<LiveRunCandidate> | null;
-
-            return (
-              typeof r?.id === "string" &&
-              typeof r?.status === "string" &&
-              typeof r?.created_at === "string"
-            );
-          },
-        );
-        const found = pickLiveRun(candidates);
-
-        if (found === liveRunIdRef.current) {
-          return;
-        }
-
-        if (found !== null) {
-          setStreamUnavailable(false);
-          setConnection("connecting");
-        }
-
-        setLiveRunId(found);
       } catch {
         // The next tick retries.
       } finally {
         inFlight = false;
       }
     }
-
     const handle = setInterval(() => {
       refreshAll();
 
@@ -286,17 +303,30 @@ export default function TaskRefreshProvider({
       cancelled = true;
       clearInterval(handle);
     };
-  }, [intervalMs, taskId, refreshAll]);
+  }, [intervalMs, taskId, refreshAll, onLiveRunFound]);
+}
 
-  const live = driver === "stream" && connection === "live";
-  const value = useMemo(
-    () => ({ register, setActive, live }),
-    [register, setActive, live],
+/** The task's runs, reduced to the one that is live — or null when none is. */
+async function fetchLiveRun(taskId: string): Promise<string | null> {
+  const res = await fetch(`/api/tasks/${taskId}/runs`, {
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    return null;
+  }
+  const body = (await res.json()) as { runs?: unknown[] };
+  const candidates = (Array.isArray(body.runs) ? body.runs : []).filter(
+    (row): row is LiveRunCandidate => {
+      const r = row as Partial<LiveRunCandidate> | null;
+
+      return (
+        typeof r?.id === "string" &&
+        typeof r?.status === "string" &&
+        typeof r?.created_at === "string"
+      );
+    },
   );
 
-  return (
-    <TaskRefreshContext.Provider value={value}>
-      {children}
-    </TaskRefreshContext.Provider>
-  );
+  return pickLiveRun(candidates);
 }

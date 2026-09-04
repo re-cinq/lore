@@ -112,165 +112,185 @@ const JobRunReadSchema = wireSchema(JobRunSchema, JOB_RUN_COLUMNS);
 
 export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
-    {
-      method: "GET",
-      path: "/api/memory-audit",
-      options: zodResponse(
-        {
-          ...bearerScope("read"),
-          validate: { query: zodValidate(MemoryAuditQuery) },
-        },
-        MemoryAuditPageSchema,
-        {
-          name: "MemoryAuditPage",
-          description: "A page of memory-audit entries",
-        },
-      ),
-      handler: async (request, h) => {
-        const pool = getPool();
-
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const { agent, operation, zero_results, limit, offset } =
-          request.query as unknown as MemoryAuditQuery;
-
-        const conditions: string[] = [];
-        const params: unknown[] = [];
-
-        if (agent?.trim()) {
-          params.push(agent.trim());
-          conditions.push(`agent_id = $${params.length}`);
-        }
-
-        if (operation?.trim()) {
-          params.push(operation.trim());
-          conditions.push(`operation = $${params.length}`);
-        }
-
-        if (zero_results) {
-          conditions.push(`metadata->>'result_count' = '0'`);
-        }
-        const where = conditions.length
-          ? `WHERE ${conditions.join(" AND ")}`
-          : "";
-
-        const { rows: countRows } = await pool.query<{ count: number }>(
-          `SELECT count(*)::int as count FROM memory.audit_log ${where}`,
-          params,
-        );
-        const { rows: entries } = await pool.query(
-          `SELECT ${selectList(MEMORY_AUDIT_ENTRY_COLUMNS)}
-             FROM memory.audit_log
-             ${where}
-            ORDER BY created_at DESC
-            LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-          [...params, limit, offset],
-        );
-
-        return h.response({ entries, total: countRows[0]?.count ?? 0 });
-      },
-    },
-
-    {
-      method: "GET",
-      path: "/api/events",
-      options: zodResponse(
-        {
-          ...bearerScope("read"),
-          validate: { query: zodValidate(EventsQuery) },
-        },
-        EventListSchema,
-        { name: "RepoEventList", description: "A repo's recent events" },
-      ),
-      handler: async (request, h) => {
-        const pool = getPool();
-
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const { repo, limit, offset } = request.query as unknown as EventsQuery;
-
-        try {
-          const { rows } = await pool.query(
-            `SELECT ${selectList(EVENT_BROWSE_COLUMNS)}
-               FROM pipeline.events
-              WHERE repo = $1
-              ORDER BY captured_at DESC
-              LIMIT $2 OFFSET $3`,
-            [repo, limit, offset],
-          );
-
-          return h.response({ events: rows });
-        } catch (err) {
-          if (missingTable(err)) {
-            return h.response({ events: [] });
-          }
-
-          throw err;
-        }
-      },
-    },
-
-    {
-      method: "GET",
-      path: "/api/job-runs/{id}",
-      options: zodResponse(bearerScope("read"), JobRunReadSchema, {
-        name: "JobRun",
-        description: "One scheduled-job run",
-        errors: [404],
-      }),
-      handler: async (request, h) => {
-        const pool = getPool();
-
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const { rows } = await pool.query(
-          `SELECT ${selectList(JOB_RUN_COLUMNS)}
-             FROM pipeline.job_runs WHERE id = $1`,
-          [request.params.id],
-        );
-
-        return rows.length > 0
-          ? h.response(rows[0])
-          : h.response({ error: "Job run not found" }).code(404);
-      },
-    },
-
-    {
-      method: "GET",
-      path: "/api/repos/{owner}/{repo}/activity-counts",
-      options: zodResponse(bearerScope("read"), ActivityCountsSchema, {
-        name: "RepoActivityCounts",
-        description: "Seven-day activity counters for a repo",
-      }),
-      handler: async (request, h) => {
-        const pool = getPool();
-
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const repo = `${request.params.owner}/${request.params.repo}`;
-
-        return h.response({
-          tasks: await countOrNull(
-            pool,
-            `SELECT count(*)::int as c FROM pipeline.tasks
-              WHERE target_repo = $1 AND created_at >= now() - interval '7 days'`,
-            [repo],
-          ),
-          auto_merged: await countOrNull(
-            pool,
-            `SELECT count(*)::int as c FROM pipeline.audit_log
-              WHERE repo = $1
-                AND event_type = 'auto_merge_decision'
-                AND payload->>'outcome' = 'merged'
-                AND created_at >= now() - interval '7 days'`,
-            [repo],
-          ),
-          escalations: await countOrNull(
-            pool,
-            `SELECT count(*)::int as c FROM pipeline.audit_log
-              WHERE repo = $1
-                AND event_type = 'escalation_issued'
-                AND created_at >= now() - interval '7 days'`,
-            [repo],
-          ),
-        });
-      },
-    },
+    memoryAuditRoute(getPool),
+    eventsRoute(getPool),
+    jobRunRoute(getPool),
+    activityCountsRoute(getPool),
   ];
+}
+
+function memoryAuditRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/memory-audit",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(MemoryAuditQuery) },
+      },
+      MemoryAuditPageSchema,
+      {
+        name: "MemoryAuditPage",
+        description: "A page of memory-audit entries",
+      },
+    ),
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const query = request.query as unknown as MemoryAuditQuery;
+      const { where, params } = memoryAuditFilter(query);
+      const { rows: countRows } = await pool.query<{ count: number }>(
+        `SELECT count(*)::int as count FROM memory.audit_log ${where}`,
+        params,
+      );
+      const { rows: entries } = await pool.query(
+        `SELECT ${selectList(MEMORY_AUDIT_ENTRY_COLUMNS)}
+           FROM memory.audit_log
+           ${where}
+          ORDER BY created_at DESC
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, query.limit, query.offset],
+      );
+
+      return h.response({ entries, total: countRows[0]?.count ?? 0 });
+    },
+  };
+}
+
+/** The optional filters, as a WHERE clause and its positional params — built once so the count and the page cannot disagree about what is being filtered. */
+function memoryAuditFilter(query: MemoryAuditQuery): {
+  where: string;
+  params: unknown[];
+} {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (query.agent?.trim()) {
+    params.push(query.agent.trim());
+    conditions.push(`agent_id = $${params.length}`);
+  }
+
+  if (query.operation?.trim()) {
+    params.push(query.operation.trim());
+    conditions.push(`operation = $${params.length}`);
+  }
+
+  if (query.zero_results) {
+    conditions.push(`metadata->>'result_count' = '0'`);
+  }
+
+  return {
+    where: conditions.length ? `WHERE ${conditions.join(" AND ")}` : "",
+    params,
+  };
+}
+
+function eventsRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/events",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(EventsQuery) },
+      },
+      EventListSchema,
+      { name: "RepoEventList", description: "A repo's recent events" },
+    ),
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const { repo, limit, offset } = request.query as unknown as EventsQuery;
+
+      try {
+        const { rows } = await pool.query(
+          `SELECT ${selectList(EVENT_BROWSE_COLUMNS)}
+             FROM pipeline.events
+            WHERE repo = $1
+            ORDER BY captured_at DESC
+            LIMIT $2 OFFSET $3`,
+          [repo, limit, offset],
+        );
+
+        return h.response({ events: rows });
+      } catch (err) {
+        if (missingTable(err)) {
+          return h.response({ events: [] });
+        }
+
+        throw err;
+      }
+    },
+  };
+}
+
+function jobRunRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/job-runs/{id}",
+    options: zodResponse(bearerScope("read"), JobRunReadSchema, {
+      name: "JobRun",
+      description: "One scheduled-job run",
+      errors: [404],
+    }),
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const { rows } = await pool.query(
+        `SELECT ${selectList(JOB_RUN_COLUMNS)}
+           FROM pipeline.job_runs WHERE id = $1`,
+        [request.params.id],
+      );
+
+      return rows.length > 0
+        ? h.response(rows[0])
+        : h.response({ error: "Job run not found" }).code(404);
+    },
+  };
+}
+
+function activityCountsRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/activity-counts",
+    options: zodResponse(bearerScope("read"), ActivityCountsSchema, {
+      name: "RepoActivityCounts",
+      description: "Seven-day activity counters for a repo",
+    }),
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const repo = `${request.params.owner}/${request.params.repo}`;
+
+      return h.response({
+        tasks: await countOrNull(
+          pool,
+          `SELECT count(*)::int as c FROM pipeline.tasks
+            WHERE target_repo = $1 AND created_at >= now() - interval '7 days'`,
+          [repo],
+        ),
+        auto_merged: await countOrNull(
+          pool,
+          `SELECT count(*)::int as c FROM pipeline.audit_log
+            WHERE repo = $1
+              AND event_type = 'auto_merge_decision'
+              AND payload->>'outcome' = 'merged'
+              AND created_at >= now() - interval '7 days'`,
+          [repo],
+        ),
+        escalations: await countOrNull(
+          pool,
+          `SELECT count(*)::int as c FROM pipeline.audit_log
+            WHERE repo = $1
+              AND event_type = 'escalation_issued'
+              AND created_at >= now() - interval '7 days'`,
+          [repo],
+        ),
+      });
+    },
+  };
 }

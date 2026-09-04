@@ -103,138 +103,144 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
 
       enforceTrue(pool, apiError(503), "database unavailable");
       const taskId = request.params.id;
-
-      let task:
-        | {
-            target_repo: string | null;
-            target_branch: string | null;
-            pr_number: number | null;
-            pr_url: string | null;
-            status: string;
-            created_at: Date;
-          }
-        | undefined;
-
-      try {
-        const { rows } = await pool.query(
-          `SELECT target_repo, target_branch, pr_number, pr_url, status, created_at
-             FROM pipeline.tasks WHERE id = $1`,
-          [taskId],
-        );
-
-        task = rows[0];
-      } catch (err) {
-        console.error("[timeline] task lookup failed:", err);
-
-        return h.response({ error: "internal" }).code(500);
-      }
+      const task = await readTaskRow(pool, taskId);
 
       enforceTrue(task, apiError(404), "task_not_found");
+      const base = {
+        task_id: taskId,
+        branch_name: task.target_branch,
+        repo: task.target_repo,
+        pr_number: task.pr_number,
+        pr_url: task.pr_url,
+      };
 
-      const repo = task.target_repo;
-      const branch = task.target_branch;
-
-      if (!repo || !branch) {
+      // A task with no branch has no timeline to read — that is pending work, not an error.
+      if (!task.target_repo || !task.target_branch) {
         return h.response({
-          task_id: taskId,
-          branch_name: branch,
-          repo,
-          pr_number: task.pr_number,
-          pr_url: task.pr_url,
+          ...base,
           pr_state: null,
           commits: [],
           current_stage: null,
           pending: "no_branch",
         });
       }
+      const history = await readBranchHistory(
+        task.target_repo,
+        task.target_branch,
+        task.pr_number,
+      );
 
-      // Fetch commits via the GitHub API — avoids requiring a local checkout since the branch is the remote source of truth.
-      let commitsApi: RawCommit[];
-      let prState: "open" | "closed" | "merged" | null = null;
-
-      try {
-        const [owner, repoName] = repo.split("/");
-        const octokit = await getOctokit();
-        const r = await octokit.rest.repos.listCommits({
-          owner,
-          repo: repoName,
-          sha: branch,
-          per_page: 100,
+      if (history === "branch-deleted") {
+        return h.response({
+          ...base,
+          pr_state: null,
+          commits: [],
+          branch_deleted: true,
         });
-
-        commitsApi = r.data as RawCommit[];
-
-        if (task.pr_number) {
-          try {
-            const prRes = await octokit.rest.pulls.get({
-              owner,
-              repo: repoName,
-              pull_number: task.pr_number,
-            });
-
-            prState = prRes.data.merged
-              ? "merged"
-              : (prRes.data.state as "open" | "closed");
-          } catch {
-            // PR fetch is best-effort.
-          }
-        }
-      } catch (err) {
-        if ((err as { status?: number }).status === 404) {
-          return h.response({
-            task_id: taskId,
-            branch_name: branch,
-            repo,
-            pr_number: task.pr_number,
-            pr_url: task.pr_url,
-            pr_state: null,
-            commits: [],
-            branch_deleted: true,
-          });
-        }
-        console.error("[timeline] listCommits failed:", err);
-
-        return h.response({ error: "github_api" }).code(500);
       }
 
-      const stageCommits = buildTimeline(commitsApi, task.created_at);
-      const currentStage =
-        stageCommits.length > 0
-          ? stageCommits[stageCommits.length - 1].stage
-          : null;
-
-      // Lease state — best-effort.
-      let lease: {
-        held: boolean;
-        holder?: string;
-        expires_at?: string;
-      } | null = null;
-
-      try {
-        const { rows } = await pool.query<{
-          holder: string;
-          expires_at: string;
-        }>(
-          `SELECT holder, expires_at FROM pipeline.task_leases WHERE branch_name = $1`,
-          [branch],
-        );
-
-        lease = rows.length > 0 ? leaseFromRow(rows[0]) : { held: false };
-      } catch {
-        // Lease table may not exist yet — non-fatal.
-      }
+      enforceTrue(history !== "github-error", apiError(500), "github_api");
+      const commits = buildTimeline(history.commits, task.created_at);
 
       return h.response({
-        task_id: taskId,
-        branch_name: branch,
-        repo,
-        pr_number: task.pr_number,
-        pr_url: task.pr_url,
-        pr_state: prState,
-        commits: stageCommits,
-        current_stage: currentStage,
-        lease,
+        ...base,
+        pr_state: history.prState,
+        commits,
+        current_stage: commits.at(-1)?.stage ?? null,
+        lease: await readLease(pool, task.target_branch),
       });
     },
   };
+}
+
+interface TimelineTaskRow {
+  target_repo: string | null;
+  target_branch: string | null;
+  pr_number: number | null;
+  pr_url: string | null;
+  status: string;
+  created_at: Date;
+}
+
+/** The task row the timeline is built around. A failed read is reported as 503-shaped `internal` by the caller's enforce, never as "no such task". */
+async function readTaskRow(
+  pool: Pool,
+  taskId: string,
+): Promise<TimelineTaskRow | undefined> {
+  const { rows } = await pool.query<TimelineTaskRow>(
+    `SELECT target_repo, target_branch, pr_number, pr_url, status, created_at
+             FROM pipeline.tasks WHERE id = $1`,
+    [taskId],
+  );
+
+  return rows[0];
+}
+
+/** Read through the GitHub API rather than a checkout — the branch is the remote source of truth, and this service holds no clone. A 404 means the branch is gone, which the caller reports rather than treating as failure. */
+async function readBranchHistory(
+  repo: string,
+  branch: string,
+  prNumber: number | null,
+): Promise<
+  | { commits: RawCommit[]; prState: "open" | "closed" | "merged" | null }
+  | "branch-deleted"
+  | "github-error"
+> {
+  try {
+    const [owner, repoName] = repo.split("/");
+    const octokit = await getOctokit();
+    const r = await octokit.rest.repos.listCommits({
+      owner,
+      repo: repoName,
+      sha: branch,
+      per_page: 100,
+    });
+
+    return {
+      commits: r.data as RawCommit[],
+      prState: prNumber
+        ? await readPrState(octokit, owner, repoName, prNumber)
+        : null,
+    };
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) {
+      return "branch-deleted";
+    }
+    console.error("[timeline] listCommits failed:", err);
+
+    return "github-error";
+  }
+}
+
+/** Best-effort: the commits are the timeline, and a PR whose state cannot be read still has one. */
+async function readPrState(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  owner: string,
+  repo: string,
+  pull_number: number,
+): Promise<"open" | "closed" | "merged" | null> {
+  try {
+    const res = await octokit.rest.pulls.get({ owner, repo, pull_number });
+
+    return res.data.merged ? "merged" : (res.data.state as "open" | "closed");
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort: the lease table is migration-gated, and a timeline without it is still a timeline. */
+async function readLease(
+  pool: Pool,
+  branch: string,
+): Promise<{ held: boolean; holder?: string; expires_at?: string } | null> {
+  try {
+    const { rows } = await pool.query<{ holder: string; expires_at: string }>(
+      `SELECT holder, expires_at FROM pipeline.task_leases WHERE branch_name = $1`,
+      [branch],
+    );
+
+    return rows.length > 0 ? leaseFromRow(rows[0]) : { held: false };
+  } catch {
+    return null;
+  }
 }
