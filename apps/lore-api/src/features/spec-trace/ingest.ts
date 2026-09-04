@@ -168,117 +168,130 @@ export async function ingestFiles(
   const schema = await resolveSchema(pool, repo);
 
   enforceTrue(SCHEMA_RE.test(schema), Error, `Invalid schema name: ${schema}`);
-
-  // Determine if we need GitHub access (only for path-based files)
-  const needsGitHub = files.some((f) => typeof f === "string");
-  let octokit: Awaited<ReturnType<typeof getOctokit>> | undefined;
-  let owner = "";
-  let repoName = "";
-
-  if (needsGitHub) {
-    enforceTrue(
-      isConfigured(),
-      Error,
-      "GitHub App not configured — cannot fetch file content",
-    );
-    octokit = await getOctokit();
-    [owner, repoName] = repo.split("/");
-  }
-
+  const source = await resolveFileSource(files, repo);
   const results: IngestResult[] = [];
-  let ingested = 0;
-  let deleted = 0;
-  let errors = 0;
 
   for (const fileEntry of files) {
-    const filePath = typeof fileEntry === "string" ? fileEntry : fileEntry.path;
-
-    try {
-      // Content provided directly needs no GitHub fetch.
-      const inlineContent =
-        typeof fileEntry !== "string" && fileEntry.content
-          ? fileEntry.content
-          : null;
-      const fetched = inlineContent
-        ? null
-        : await fetchFileWithHeadFallback(octokit!, {
-            owner,
-            repoName,
-            filePath,
-            commit,
-          });
-
-      if (fetched?.missing404) {
-        // File genuinely doesn't exist — remove from chunks
-        await pool.query(
-          `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
-          [filePath, repo],
-        );
-        results.push({ file: filePath, status: "deleted" });
-        deleted++;
-        continue;
-      }
-      const content = inlineContent ?? fetched?.content ?? null;
-
-      if (!content) {
-        results.push({
-          file: filePath,
-          status: "skipped",
-          error: "not a file (directory?)",
-        });
-        continue;
-      }
-
-      const contentType = classifyFile(filePath);
-
-      if (!contentType) {
-        results.push({
-          file: filePath,
-          status: "skipped",
-          error: "unsupported file type",
-        });
-        continue;
-      }
-
-      // Upsert: delete old chunks for this file
-      await pool.query(
-        `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
-        [filePath, repo],
-      );
-
-      // Chunk the file using AST-based chunking (code) or heading-based (docs)
-      const chunks = await chunkFile(content, filePath, contentType);
-      const { firstChunkId, embedded } = await insertChunksWithEmbeddings(
-        pool,
-        schema,
-        { repo, filePath, commit, contentType },
-        chunks,
-      );
-
-      results.push({
-        file: filePath,
-        status: "ingested",
-        chunk_id: firstChunkId,
-        embedded,
-      });
-      ingested++;
-    } catch (err) {
-      console.error(
-        `[ingest] Error processing ${filePath}:`,
-        errorMessage(err),
-      );
-      results.push({
-        file: filePath,
-        status: "error",
-        error: errorMessage(err),
-      });
-      errors++;
-    }
+    results.push(
+      await ingestOneFile(pool, { schema, repo, commit, source }, fileEntry),
+    );
   }
+  const count = (status: IngestResult["status"]) =>
+    results.filter((r) => r.status === status).length;
+  const ingested = count("ingested");
+  const deleted = count("deleted");
+  const errors = count("error");
 
   console.error(
     `[ingest] ${repo}@${commit.slice(0, 7)}: ${ingested} ingested, ${deleted} deleted, ${errors} errors (schema: ${schema})`,
   );
 
   return { ingested, deleted, errors, schema, results };
+}
+
+interface FileSource {
+  octokit?: Awaited<ReturnType<typeof getOctokit>>;
+  owner: string;
+  repoName: string;
+}
+
+/** GitHub access is only needed for path-only entries; a batch that carries its own content never touches the App. */
+async function resolveFileSource(
+  files: IngestFile[],
+  repo: string,
+): Promise<FileSource> {
+  if (!files.some((f) => typeof f === "string")) {
+    return { owner: "", repoName: "" };
+  }
+  enforceTrue(
+    isConfigured(),
+    Error,
+    "GitHub App not configured — cannot fetch file content",
+  );
+  const [owner, repoName] = repo.split("/");
+
+  return { octokit: await getOctokit(), owner, repoName };
+}
+
+/** One file's whole journey. Every outcome is a result row rather than a throw, so one bad file never costs the rest of the batch. */
+async function ingestOneFile(
+  pool: Pool,
+  ctx: { schema: string; repo: string; commit: string; source: FileSource },
+  fileEntry: IngestFile,
+): Promise<IngestResult> {
+  const filePath = typeof fileEntry === "string" ? fileEntry : fileEntry.path;
+  const { schema, repo, commit, source } = ctx;
+
+  try {
+    // Content provided directly needs no GitHub fetch.
+    const inlineContent =
+      typeof fileEntry !== "string" && fileEntry.content
+        ? fileEntry.content
+        : null;
+    const fetched = inlineContent
+      ? null
+      : await fetchFileWithHeadFallback(source.octokit!, {
+          owner: source.owner,
+          repoName: source.repoName,
+          filePath,
+          commit,
+        });
+
+    // A genuine 404 means the file is gone from the repo, so its chunks go too.
+    if (fetched?.missing404) {
+      await deleteChunks(pool, schema, filePath, repo);
+
+      return { file: filePath, status: "deleted" };
+    }
+    const content = inlineContent ?? fetched?.content ?? null;
+
+    if (!content) {
+      return {
+        file: filePath,
+        status: "skipped",
+        error: "not a file (directory?)",
+      };
+    }
+    const contentType = classifyFile(filePath);
+
+    if (!contentType) {
+      return {
+        file: filePath,
+        status: "skipped",
+        error: "unsupported file type",
+      };
+    }
+    // Upsert: the old chunks go before the new ones land, so a shrinking file cannot leave orphans.
+    await deleteChunks(pool, schema, filePath, repo);
+    const chunks = await chunkFile(content, filePath, contentType);
+    const { firstChunkId, embedded } = await insertChunksWithEmbeddings(
+      pool,
+      schema,
+      { repo, filePath, commit, contentType },
+      chunks,
+    );
+
+    return {
+      file: filePath,
+      status: "ingested",
+      chunk_id: firstChunkId,
+      embedded,
+    };
+  } catch (err) {
+    console.error(`[ingest] Error processing ${filePath}:`, errorMessage(err));
+
+    return { file: filePath, status: "error", error: errorMessage(err) };
+  }
+}
+
+async function deleteChunks(
+  pool: Pool,
+  schema: string,
+  filePath: string,
+  repo: string,
+): Promise<void> {
+  await pool.query(
+    `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
+    [filePath, repo],
+  );
 }

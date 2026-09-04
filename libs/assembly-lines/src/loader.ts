@@ -246,7 +246,24 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     enforceTrue(nodeIds.has(e.to), loadError, `edge to unknown node "${e.to}"`);
   }
 
-  // Reachability from entry (BFS).
+  checkReachability(wf, nodeIds, loadError);
+  checkOutgoingEdges(wf, loadError);
+  checkNodeRequirements(wf);
+  checkContinuesReferences(wf, nodeIds, loadError);
+  checkOutcomeCoverage(wf, loadError);
+
+  // Cycles must carry iteration_max on the back-edge (DFS coloring).
+  detectCycles(wf, source);
+}
+
+type LoadError = (message: string) => AssemblyLineLoadError;
+
+/** BFS from entry: a node no edge can reach would never run, and a YAML that declares one is a mistake, not a feature. */
+function checkReachability(
+  wf: AssemblyLine,
+  nodeIds: Set<string>,
+  loadError: LoadError,
+): void {
   const reachable = new Set<string>([wf.entry]);
   const queue: string[] = [wf.entry];
   const discoverSuccessorsOf = (cur: string): void => {
@@ -269,8 +286,10 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
       `node "${id}" is not reachable from entry`,
     );
   }
+}
 
-  // Every non-exit node has at least one outgoing edge.
+/** Only the exit may be terminal; any other node without an outgoing edge strands the walk. */
+function checkOutgoingEdges(wf: AssemblyLine, loadError: LoadError): void {
   for (const n of wf.nodes) {
     if (n.id === wf.exit) {
       continue;
@@ -283,7 +302,9 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
       `node "${n.id}" has no outgoing edges (only "${wf.exit}" may be terminal)`,
     );
   }
+}
 
+function checkNodeRequirements(wf: AssemblyLine): void {
   // Parameterised node types need `job_ref` to have anything to dispatch; reject at load rather than at the pod, where the line is already half-walked.
   for (const n of wf.nodes) {
     enforceTrue(
@@ -310,7 +331,13 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
       `node "${n.id}": route placeholder "${invalid[0]}" is not an {args.<name>} reference`,
     );
   }
+}
 
+function checkContinuesReferences(
+  wf: AssemblyLine,
+  nodeIds: Set<string>,
+  loadError: LoadError,
+): void {
   // A `continues` reference must name a real node and a resolvable thread key — fail at LOAD, since an unresolvable reference would otherwise silently start a fresh conversation indistinguishable from one that remembers nothing.
   for (const n of wf.nodes) {
     if (!n.continues) {
@@ -329,7 +356,9 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
         `(expected "line", "task" or "args.<name>")`,
     );
   }
+}
 
+function checkOutcomeCoverage(wf: AssemblyLine, loadError: LoadError): void {
   // Every outcome a node can produce must route somewhere, or it crashes the walk at runtime (getNextTransition's no-edge failure) instead of failing here at load.
   for (const n of wf.nodes) {
     const missing = uncoveredOutcomes(wf, n);
@@ -342,9 +371,6 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
         .join(", ")}`,
     );
   }
-
-  // Cycles must carry iteration_max on the back-edge (DFS coloring).
-  detectCycles(wf, source);
 }
 
 // The thread a `continues` reference belongs to: this run (`line`), this task across attempts (`task`), or `args.<name>` — the args form keeps the engine domain-free (e.g. planning threads key on args.feature_id).
