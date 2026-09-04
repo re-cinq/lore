@@ -207,6 +207,66 @@ async function driftChunkStatements(
   }
 }
 
+const linkRotReasonFor = (newChunks: NewCodeChunk[]): string =>
+  newChunks.length === 0 ? "file-missing" : "line-out-of-range";
+
+const driftSymbolLabel = (
+  chunk: GraphCodeChunk,
+  replacement: NewCodeChunk,
+): string =>
+  chunk["CodeChunk.symbol_name"] ??
+  replacement.symbolName ??
+  replacement.filePath;
+
+interface DriftCheckContext {
+  linkRotReason: string;
+  drifted: DriftedStatement[];
+}
+
+/** Reconciles one graph chunk against its (possibly absent) re-ingested replacement; returns whether it was first-sight baselined. */
+async function processChunkDrift(
+  dgraph: DgraphClientPort,
+  chunk: GraphCodeChunk,
+  replacement: NewCodeChunk | undefined,
+  ctx: DriftCheckContext,
+): Promise<boolean> {
+  if (!replacement) {
+    await driftChunkStatements(
+      dgraph,
+      chunk,
+      { reason: ctx.linkRotReason },
+      ctx.drifted,
+    );
+
+    return false;
+  }
+
+  const storedHash = chunk["CodeChunk.content_hash"];
+
+  if (storedHash === replacement.contentHash) {
+    return false;
+  }
+
+  const isFirstSight = storedHash === undefined;
+
+  await updateChunkHash(dgraph, chunk.uid, replacement.contentHash);
+
+  if (isFirstSight) {
+    return true;
+  }
+
+  const driftReason = `code-content-changed (${driftSymbolLabel(chunk, replacement)})`;
+
+  await driftChunkStatements(
+    dgraph,
+    chunk,
+    { reason: driftReason, severitySource: replacement.embedding },
+    ctx.drifted,
+  );
+
+  return false;
+}
+
 export async function driftCheckFile(
   repo: string,
   filePath: string,
@@ -223,53 +283,20 @@ export async function driftCheckFile(
   });
 
   let baselined = 0;
-  const drifted: DriftedStatement[] = [];
-  const linkRotReason =
-    newChunks.length === 0 ? "file-missing" : "line-out-of-range";
+  const ctx: DriftCheckContext = {
+    linkRotReason: linkRotReasonFor(newChunks),
+    drifted: [],
+  };
 
   for (const chunk of graphChunks) {
     const replacement = newChunks.find((candidate) =>
       rangesOverlap(chunk, candidate),
     );
 
-    if (!replacement) {
-      await driftChunkStatements(
-        dgraph,
-        chunk,
-        { reason: linkRotReason },
-        drifted,
-      );
-      continue;
-    }
-
-    const storedHash = chunk["CodeChunk.content_hash"];
-
-    if (storedHash === replacement.contentHash) {
-      continue;
-    }
-
-    const isFirstSight = storedHash === undefined;
-
-    await updateChunkHash(dgraph, chunk.uid, replacement.contentHash);
-
-    if (isFirstSight) {
+    if (await processChunkDrift(dgraph, chunk, replacement, ctx)) {
       baselined += 1;
-      continue;
     }
-
-    const symbol =
-      chunk["CodeChunk.symbol_name"] ??
-      replacement.symbolName ??
-      replacement.filePath;
-    const driftReason = `code-content-changed (${symbol})`;
-
-    await driftChunkStatements(
-      dgraph,
-      chunk,
-      { reason: driftReason, severitySource: replacement.embedding },
-      drifted,
-    );
   }
 
-  return { drifted, baselined };
+  return { drifted: ctx.drifted, baselined };
 }

@@ -234,15 +234,23 @@ export function decidePlanningRecovery(args: {
     });
   }
 
-  if (
-    latest.status === "ready" &&
-    latest.gap_result &&
-    featureStatus === "planning"
-  ) {
+  if (missedReadyTransition(latest, featureStatus)) {
     return { kind: "transition", iteration: latest.iteration };
   }
 
   return { kind: "none" };
+}
+
+/** True when a round finished but the feature status write it should have triggered never landed. */
+function missedReadyTransition(
+  latest: FeatureIteration,
+  featureStatus: FeatureStatus,
+): boolean {
+  return (
+    latest.status === "ready" &&
+    !!latest.gap_result &&
+    featureStatus === "planning"
+  );
 }
 
 /** Slugs a title into a directory-safe id capped at `max`; trailing-dash trim runs AFTER the slice since the cut can land on a `-`. `max`/`fallback` are params (not two functions) since the two callers differ only there. */

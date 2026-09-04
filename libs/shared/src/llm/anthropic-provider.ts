@@ -86,6 +86,10 @@ export function buildCacheableTools(
   ];
 }
 
+function orUnknown(value: string | number | undefined): string | number {
+  return value ?? "?";
+}
+
 function formatBreakLogTag(a: CacheBreakAnalysis): string {
   switch (a.status) {
     case "hit":
@@ -93,12 +97,45 @@ function formatBreakLogTag(a: CacheBreakAnalysis): string {
     case "first-call":
       return "first-call";
     case "prompt-changed":
-      return `break:${a.reason ?? "?"}`;
+      return `break:${orUnknown(a.reason)}`;
     case "ttl-expired":
-      return `break:ttl(${a.ageMinutes ?? "?"}m)`;
+      return `break:ttl(${orUnknown(a.ageMinutes)}m)`;
     case "unknown-miss":
       return "miss:?";
   }
+}
+
+/** Resolves the model/maxTokens/system-param triple shared by every completion call. */
+function resolveModel(req: { model?: string }, defaultModel: string): string {
+  return req.model || defaultModel;
+}
+
+function resolveMaxTokens(req: { maxTokens?: number }): number {
+  return req.maxTokens || DEFAULT_MAX_TOKENS;
+}
+
+function systemParam(
+  systemPrompt: string | undefined,
+  jobName: string | undefined,
+): { system?: Anthropic.TextBlockParam[] } {
+  return systemPrompt
+    ? { system: buildCacheableSystem(systemPrompt, jobName) }
+    : {};
+}
+
+function extractUsage(response: Anthropic.Message): TokenUsage {
+  return {
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    cacheCreationTokens: response.usage.cache_creation_input_tokens ?? 0,
+    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+  };
+}
+
+function firstTextBlock(response: Anthropic.Message): string {
+  const block = response.content[0];
+
+  return block.type === "text" ? block.text : "";
 }
 
 export interface TokenUsage {
@@ -141,16 +178,32 @@ export class AnthropicProvider implements LlmProvider {
     return this.opts.model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
   }
 
+  /** Shared logLlmCall dispatch: no-ops without a usage sink, warns once on an uncorrelated row. */
+  private async recordUsage(
+    req: { taskId?: string; jobName?: string },
+    payload: Parameters<UsagePort["logLlmCall"]>[0],
+    warnTag: string,
+  ): Promise<void> {
+    if (!this.opts.usage) {
+      return;
+    }
+    const result = await this.opts.usage.logLlmCall(payload).catch(() => null);
+
+    if (result && !result.correlated && req.taskId) {
+      console.warn(
+        `[llm] ${warnTag} cost row uncorrelated: id ${req.taskId} matched no pipeline.tasks or pipeline.assembly_runs row`,
+      );
+    }
+  }
+
   private async logCall(
     req: { taskId?: string; jobName?: string },
     model: string,
     { inputTokens, outputTokens, costUsd, durationMs }: LlmCallOutcome,
   ): Promise<void> {
-    if (!this.opts.usage) {
-      return;
-    }
-    const result = await this.opts.usage
-      .logLlmCall({
+    await this.recordUsage(
+      req,
+      {
         taskId: req.taskId || null,
         jobName: req.jobName || null,
         model,
@@ -158,14 +211,9 @@ export class AnthropicProvider implements LlmProvider {
         outputTokens,
         costUsd,
         durationMs,
-      })
-      .catch(() => null);
-
-    if (result && !result.correlated && req.taskId) {
-      console.warn(
-        `[llm] cost row uncorrelated: id ${req.taskId} matched no pipeline.tasks or pipeline.assembly_runs row`,
-      );
-    }
+      },
+      "cost",
+    );
   }
 
   private async recordFailedCall(
@@ -174,11 +222,9 @@ export class AnthropicProvider implements LlmProvider {
     durationMs: number,
     message: string,
   ): Promise<void> {
-    if (!this.opts.usage) {
-      return;
-    }
-    const result = await this.opts.usage
-      .logLlmCall({
+    await this.recordUsage(
+      req,
+      {
         taskId: req.taskId || null,
         jobName: req.jobName || null,
         model,
@@ -188,19 +234,14 @@ export class AnthropicProvider implements LlmProvider {
         durationMs,
         status: "failed",
         error: message,
-      })
-      .catch(() => null);
-
-    if (result && !result.correlated && req.taskId) {
-      console.warn(
-        `[llm] failed-call cost row uncorrelated: id ${req.taskId} matched no pipeline.tasks or pipeline.assembly_runs row`,
-      );
-    }
+      },
+      "failed-call",
+    );
   }
 
   async complete(req: LlmCompleteRequest): Promise<LlmCompletion> {
-    const model = req.model || this.model;
-    const maxTokens = req.maxTokens || DEFAULT_MAX_TOKENS;
+    const model = resolveModel(req, this.model);
+    const maxTokens = resolveMaxTokens(req);
     const start = Date.now();
 
     try {
@@ -209,19 +250,17 @@ export class AnthropicProvider implements LlmProvider {
       const response = await client.messages.create({
         model,
         max_tokens: maxTokens,
-        ...(req.systemPrompt
-          ? { system: buildCacheableSystem(req.systemPrompt, req.jobName) }
-          : {}),
+        ...systemParam(req.systemPrompt, req.jobName),
         messages: [{ role: "user", content: req.prompt }],
       });
       const durationMs = Date.now() - start;
-      const firstBlock = response.content[0];
-      const text = firstBlock.type === "text" ? firstBlock.text : "";
-      const inputTokens = response.usage.input_tokens;
-      const outputTokens = response.usage.output_tokens;
-      const cacheCreationTokens =
-        response.usage.cache_creation_input_tokens ?? 0;
-      const cacheReadTokens = response.usage.cache_read_input_tokens ?? 0;
+      const text = firstTextBlock(response);
+      const {
+        inputTokens,
+        outputTokens,
+        cacheCreationTokens,
+        cacheReadTokens,
+      } = extractUsage(response);
       const costUsd = computeCost(model, {
         inputTokens,
         outputTokens,
@@ -268,8 +307,8 @@ export class AnthropicProvider implements LlmProvider {
   }
 
   async completeWithTool<T>(req: LlmToolRequest): Promise<LlmToolResult<T>> {
-    const model = req.model || this.model;
-    const maxTokens = req.maxTokens || DEFAULT_MAX_TOKENS;
+    const model = resolveModel(req, this.model);
+    const maxTokens = resolveMaxTokens(req);
     const start = Date.now();
 
     try {
@@ -291,9 +330,7 @@ export class AnthropicProvider implements LlmProvider {
       const response = await client.messages.create({
         model,
         max_tokens: maxTokens,
-        ...(req.systemPrompt
-          ? { system: buildCacheableSystem(req.systemPrompt, req.jobName) }
-          : {}),
+        ...systemParam(req.systemPrompt, req.jobName),
         messages: [{ role: "user", content: req.prompt }],
         tools,
         tool_choice: { type: "tool", name: req.toolName },
@@ -309,11 +346,12 @@ export class AnthropicProvider implements LlmProvider {
         `No tool_use block in response (stop_reason: ${response.stop_reason})`,
       );
       const parsed = toolUseBlock.input as T;
-      const inputTokens = response.usage.input_tokens;
-      const outputTokens = response.usage.output_tokens;
-      const cacheCreationTokens =
-        response.usage.cache_creation_input_tokens ?? 0;
-      const cacheReadTokens = response.usage.cache_read_input_tokens ?? 0;
+      const {
+        inputTokens,
+        outputTokens,
+        cacheCreationTokens,
+        cacheReadTokens,
+      } = extractUsage(response);
       const costUsd = computeCost(model, {
         inputTokens,
         outputTokens,

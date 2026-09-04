@@ -22,20 +22,30 @@ export interface ResolveConversationDeps {
   linesForTask?: (taskId: string) => Promise<string[]>;
 }
 
-/** Specific execution to resume when rewound: iteration or task (null if no rewind). */
-async function rewindTarget(
+function taskArgs(task: FloorAssemblyRunTask): Record<string, unknown> {
+  return task.args ?? {};
+}
+
+// Explicitly undefined vs null: null means "resolved, no rewind"; undefined means "not this path".
+function iterationRewind(
+  task: FloorAssemblyRunTask,
+): ExecutionRef | null | undefined {
+  const rewoundTo = taskArgs(task).resume_from_iteration;
+
+  if (rewoundTo === undefined || rewoundTo === null) {
+    return undefined;
+  }
+
+  return typeof rewoundTo === "number"
+    ? { assemblyLineId: task.assemblyLineId, iteration: rewoundTo }
+    : { assemblyLineId: NO_SUCH_LINE };
+}
+
+async function taskRewind(
   task: FloorAssemblyRunTask,
   deps: ResolveConversationDeps,
 ): Promise<ExecutionRef | null> {
-  const rewoundTo = task.args?.resume_from_iteration;
-
-  // Explicitly null to prevent stale rewind value steering later rounds.
-  if (rewoundTo !== undefined && rewoundTo !== null) {
-    return typeof rewoundTo === "number"
-      ? { assemblyLineId: task.assemblyLineId, iteration: rewoundTo }
-      : { assemblyLineId: NO_SUCH_LINE };
-  }
-  const from = task.args?.resume_from_task;
+  const from = taskArgs(task).resume_from_task;
 
   if (typeof from !== "string" || !from || !deps.linesForTask) {
     return null;
@@ -48,6 +58,20 @@ async function rewindTarget(
     : { assemblyLineId: NO_SUCH_LINE };
 }
 
+/** Specific execution to resume when rewound: iteration or task (null if no rewind). */
+async function rewindTarget(
+  task: FloorAssemblyRunTask,
+  deps: ResolveConversationDeps,
+): Promise<ExecutionRef | null> {
+  const fromIteration = iterationRewind(task);
+
+  if (fromIteration !== undefined) {
+    return fromIteration;
+  }
+
+  return taskRewind(task, deps);
+}
+
 /** Fake id for "round that ran no line": resolves to nothing, never falls through to newest. */
 const NO_SUCH_LINE = "00000000-0000-0000-0000-000000000000";
 
@@ -56,6 +80,16 @@ export interface ConversationVisit {
   iteration: number;
   /** Outcome of this node's most recent visit — how a retry is told from a round. */
   priorOutcome: string | null;
+}
+
+function newConversationId(deps: ResolveConversationDeps): string {
+  return (deps.newId ?? randomUUID)();
+}
+
+function priorConversationId(
+  prior: { conversationId: string } | null | undefined,
+): string {
+  return prior?.conversationId ?? "";
 }
 
 export async function resolveConversation(
@@ -70,7 +104,7 @@ export async function resolveConversation(
   const resolved = resolveThread(node.continues.key, node.continues.node, {
     assemblyLineId: task.assemblyLineId,
     taskId: task.pipelineTaskId,
-    args: task.args ?? {},
+    args: taskArgs(task),
   });
 
   if (!resolved.ok) {
@@ -87,7 +121,7 @@ export async function resolveConversation(
     exclude: { assemblyLineId: task.assemblyLineId, iteration },
     ...(from ? { from } : {}),
   });
-  const pin = (deps.newId ?? randomUUID)();
+  const pin = newConversationId(deps);
 
   // Reserved in advance: pod is TOLD what to save as, keeping path deterministic.
   await deps.conversations.reserve({
@@ -99,7 +133,7 @@ export async function resolveConversation(
 
   return {
     source: deps.registryUrl,
-    id: prior?.conversationId ?? "",
+    id: priorConversationId(prior),
     pin,
     headersSecret: deps.headersSecret,
   };

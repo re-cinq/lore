@@ -10,6 +10,22 @@ export interface BackoffOptions {
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Rethrows a non-retryable error; otherwise waits out this attempt's delay (if any is left). */
+async function waitOrRethrow(
+  err: unknown,
+  attempt: number,
+  opts: BackoffOptions,
+  sleep: (ms: number) => Promise<void>,
+): Promise<void> {
+  if (opts.retryOn && !opts.retryOn(err)) {
+    throw err;
+  }
+
+  if (attempt < opts.delaysMs.length) {
+    await sleep(opts.delaysMs[attempt]);
+  }
+}
+
 export async function withBackoff<T>(
   fn: () => Promise<T>,
   opts: BackoffOptions,
@@ -21,14 +37,8 @@ export async function withBackoff<T>(
     try {
       return await fn();
     } catch (err) {
-      if (opts.retryOn && !opts.retryOn(err)) {
-        throw err;
-      }
       lastError = err;
-
-      if (attempt < opts.delaysMs.length) {
-        await sleep(opts.delaysMs[attempt]);
-      }
+      await waitOrRethrow(err, attempt, opts, sleep);
     }
   }
   throw lastError;

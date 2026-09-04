@@ -1,6 +1,10 @@
 // Per-task GitHub token (ADR-031 D6 / #697): pure core (key naming + clone/inject transforms); IO in KubeTokenProvisioner.
 
-import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
+import type {
+  AgentDefinition,
+  AgentResources,
+  Station,
+} from "@re-cinq/agent-contracts";
 import type { LoreTaskSpec } from "../project/agents/k8s-port.js";
 import { enforceTrue } from "../lib/enforce.js";
 
@@ -26,6 +30,50 @@ export function catalogLookupName(spec: LoreTaskSpec): string {
   return spec.stationRef ?? spec.taskType;
 }
 
+function taskLabels(
+  catalog: AgentDefinition,
+  taskId: string,
+): Record<string, string> {
+  return { ...catalog.metadata?.labels, [TASK_ID_LABEL]: taskId };
+}
+
+// Conversation is per-RUN (id-identified); rides per-task clone like repo token; catalog recipe cannot carry it.
+function conversationResource(
+  spec: LoreTaskSpec,
+): Pick<AgentResources, "conversation"> {
+  if (!spec.conversation) {
+    return {};
+  }
+
+  return {
+    conversation: {
+      source: spec.conversation.source,
+      id: spec.conversation.id,
+      pin: spec.conversation.pin,
+      headers_secret: spec.conversation.headersSecret,
+    },
+  };
+}
+
+function taskResources(
+  catalog: AgentDefinition,
+  spec: LoreTaskSpec,
+  tokenKey: string,
+): AgentResources {
+  return {
+    ...catalog.spec?.resources,
+    ...conversationResource(spec),
+    repos: [
+      {
+        name: "target",
+        url: `https://github.com/${spec.targetRepo}.git`,
+        ...(spec.branch ? { ref: spec.branch } : {}),
+        token_secret: tokenKey,
+      },
+    ],
+  };
+}
+
 /** Clone catalog AgentDef per-task: rename, label with task id, add repo with token-secret (for subsystem init); recipe preserved. */
 export function injectRepoToken(
   catalog: AgentDefinition,
@@ -44,35 +92,11 @@ export function injectRepoToken(
     ...catalog,
     metadata: {
       name,
-      labels: {
-        ...(catalog.metadata?.labels ?? {}),
-        [TASK_ID_LABEL]: spec.taskId,
-      },
+      labels: taskLabels(catalog, spec.taskId),
     },
     spec: {
       ...catalog.spec,
-      resources: {
-        ...(catalog.spec?.resources ?? {}),
-        // Conversation is per-RUN (id-identified); rides per-task clone like repo token; catalog recipe cannot carry it.
-        ...(spec.conversation
-          ? {
-              conversation: {
-                source: spec.conversation.source,
-                id: spec.conversation.id,
-                pin: spec.conversation.pin,
-                headers_secret: spec.conversation.headersSecret,
-              },
-            }
-          : {}),
-        repos: [
-          {
-            name: "target",
-            url: `https://github.com/${spec.targetRepo}.git`,
-            ...(spec.branch ? { ref: spec.branch } : {}),
-            token_secret: tokenKey,
-          },
-        ],
-      },
+      resources: taskResources(catalog, spec, tokenKey),
     },
   };
 }

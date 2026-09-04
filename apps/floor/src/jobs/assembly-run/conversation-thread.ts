@@ -12,6 +12,33 @@ export interface ThreadContext {
 export type ThreadResolution =
   { ok: true; thread: ConversationThread } | { ok: false; error: string };
 
+function taskThreadResolution(
+  ctx: ThreadContext,
+  nodeId: string,
+): ThreadResolution {
+  return ctx.taskId
+    ? { ok: true, thread: { kind: "task", value: ctx.taskId, nodeId } }
+    : { ok: false, error: `continues.key "task" but the line has no task` };
+}
+
+function argsThreadResolution(
+  key: string,
+  ctx: ThreadContext,
+  nodeId: string,
+): ThreadResolution {
+  const name = key.slice("args.".length);
+  const value = ctx.args[name];
+
+  if (typeof value !== "string" || value.length === 0) {
+    return {
+      ok: false,
+      error: `continues.key "${key}" but the run carries no ${name}`,
+    };
+  }
+
+  return { ok: true, thread: { kind: "args", value, nodeId } };
+}
+
 /** Turns `continues.key` into the thread to look up; a named arg the run does NOT carry is an ERROR, not an empty thread, since silently starting fresh is indistinguishable from remembering nothing. */
 export function resolveThread(
   key: string,
@@ -26,25 +53,12 @@ export function resolveThread(
   }
 
   if (key === "task") {
-    return ctx.taskId
-      ? { ok: true, thread: { kind: "task", value: ctx.taskId, nodeId } }
-      : { ok: false, error: `continues.key "task" but the line has no task` };
+    return taskThreadResolution(ctx, nodeId);
   }
 
-  if (!key.startsWith("args.")) {
-    return { ok: false, error: `unsupported continues.key "${key}"` };
-  }
-  const name = key.slice("args.".length);
-  const value = ctx.args[name];
-
-  if (typeof value !== "string" || value.length === 0) {
-    return {
-      ok: false,
-      error: `continues.key "${key}" but the run carries no ${name}`,
-    };
-  }
-
-  return { ok: true, thread: { kind: "args", value, nodeId } };
+  return key.startsWith("args.")
+    ? argsThreadResolution(key, ctx, nodeId)
+    : { ok: false, error: `unsupported continues.key "${key}"` };
 }
 
 /** Whether this execution may continue a previous run's conversation, given this node's most recent outcome — a RETRY never continues (must be reproducible); tests WHY it's revisited, not iteration count, since rounds (FR6.21) are revisits too. */

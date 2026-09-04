@@ -15,6 +15,22 @@ interface RepoNotifyRow {
   settings?: { dark_factory?: DarkFactorySettings; slack_channel_id?: string };
 }
 
+interface RepoNotifySettings {
+  darkFactory?: DarkFactorySettings;
+  slackChannelId?: string;
+}
+
+function repoNotifySettings(
+  row: RepoNotifyRow | undefined,
+): RepoNotifySettings {
+  const settings = row?.settings;
+
+  return {
+    darkFactory: settings?.dark_factory,
+    slackChannelId: settings?.slack_channel_id,
+  };
+}
+
 /** NotifyPort over Slack; posts to Slack when decision fires and token + channel present. */
 export class NotifySlack implements NotifyPort {
   constructor(
@@ -33,14 +49,13 @@ export class NotifySlack implements NotifyPort {
       [repo],
     );
     const row = rows[0] as RepoNotifyRow | undefined;
-    const channels = resolveDarkFactorySettings(
-      row?.settings?.dark_factory,
-    ).notify;
+    const { darkFactory, slackChannelId } = repoNotifySettings(row);
+    const channels = resolveDarkFactorySettings(darkFactory).notify;
     const decision = decideNotify(level, { channels });
 
     const token = this.env.LORE_SLACK_BOT_TOKEN;
     // The override picks the destination; `decision` already decided whether to post.
-    const channel = opts.channel ?? row?.settings?.slack_channel_id;
+    const channel = opts.channel ?? slackChannelId;
 
     if (decision.fire && token && channel) {
       await this.post(token, channel, message);

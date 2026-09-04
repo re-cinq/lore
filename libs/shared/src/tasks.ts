@@ -23,6 +23,59 @@ const DEPENDS_RE = /\[DEPENDS ON:\s*([^\]]+)\]/;
 const PHASE_RE = /^##\s+Phase\s+(\d+)/i;
 const FILE_PATH_RE = /\|\s*`?([^`\s]+)`?\s*$/;
 
+/** Parses one trimmed task-list line into a `ParsedTask` for `phase`, or null when the line isn't a task row. */
+function parseTaskLine(trimmed: string, phase: number): ParsedTask | null {
+  const taskMatch = trimmed.match(TASK_RE);
+
+  if (!taskMatch) {
+    return null;
+  }
+
+  const completed = taskMatch[1] === "x";
+  const specTaskId = taskMatch[2];
+  let rest = trimmed.slice(taskMatch[0].length);
+
+  // Check for [P] marker
+  const parallelizable = PARALLEL_RE.test(rest);
+
+  if (parallelizable) {
+    rest = rest.replace(PARALLEL_RE, "");
+  }
+
+  // Check for [DEPENDS ON: ...] marker
+  const depsMatch = rest.match(DEPENDS_RE);
+  const dependsOn: string[] = [];
+
+  if (depsMatch) {
+    dependsOn.push(
+      ...depsMatch[1]
+        .split(",")
+        .map((dep) => dep.trim())
+        .filter((dep) => dep.length > 0),
+    );
+    rest = rest.replace(DEPENDS_RE, "").trim();
+  }
+
+  // Check for | file_path suffix
+  let filePath: string | undefined;
+  const fileMatch = rest.match(FILE_PATH_RE);
+
+  if (fileMatch) {
+    filePath = fileMatch[1];
+    rest = rest.replace(FILE_PATH_RE, "").trim();
+  }
+
+  return {
+    specTaskId,
+    description: rest.trim(),
+    dependsOn,
+    parallelizable,
+    completed,
+    phase,
+    filePath,
+  };
+}
+
 export function parseTasks(markdown: string): ParsedTask[] {
   const tasks: ParsedTask[] = [];
   let currentPhase = 0;
@@ -38,55 +91,11 @@ export function parseTasks(markdown: string): ParsedTask[] {
       continue;
     }
 
-    const taskMatch = trimmed.match(TASK_RE);
+    const task = parseTaskLine(trimmed, currentPhase);
 
-    if (!taskMatch) {
-      continue;
+    if (task) {
+      tasks.push(task);
     }
-
-    const completed = taskMatch[1] === "x";
-    const specTaskId = taskMatch[2];
-    let rest = trimmed.slice(taskMatch[0].length);
-
-    // Check for [P] marker
-    const parallelizable = PARALLEL_RE.test(rest);
-
-    if (parallelizable) {
-      rest = rest.replace(PARALLEL_RE, "");
-    }
-
-    // Check for [DEPENDS ON: ...] marker
-    const depsMatch = rest.match(DEPENDS_RE);
-    const dependsOn: string[] = [];
-
-    if (depsMatch) {
-      dependsOn.push(
-        ...depsMatch[1]
-          .split(",")
-          .map((dep) => dep.trim())
-          .filter((dep) => dep.length > 0),
-      );
-      rest = rest.replace(DEPENDS_RE, "").trim();
-    }
-
-    // Check for | file_path suffix
-    let filePath: string | undefined;
-    const fileMatch = rest.match(FILE_PATH_RE);
-
-    if (fileMatch) {
-      filePath = fileMatch[1];
-      rest = rest.replace(FILE_PATH_RE, "").trim();
-    }
-
-    tasks.push({
-      specTaskId,
-      description: rest.trim(),
-      dependsOn,
-      parallelizable,
-      completed,
-      phase: currentPhase,
-      filePath,
-    });
   }
 
   return tasks;
@@ -94,41 +103,46 @@ export function parseTasks(markdown: string): ParsedTask[] {
 
 // ── Phase-based dependency inference ────────────────────────────────
 
+/** Groups tasks by their `phase` number, preserving each phase's task order. */
+function groupTasksByPhase(tasks: ParsedTask[]): Map<number, ParsedTask[]> {
+  const phases = new Map<number, ParsedTask[]>();
+
+  for (const task of tasks) {
+    const group = phases.get(task.phase) ?? [];
+
+    group.push(task);
+    phases.set(task.phase, group);
+  }
+
+  return phases;
+}
+
+/** True when every task sits in the (unheaded) default phase, so there's no phase structure to infer from. */
+function hasNoPhaseStructure(phaseNumbers: number[]): boolean {
+  return phaseNumbers.length === 1 && phaseNumbers[0] === 0;
+}
+
 /** Infer dependencies from phase structure; [DEPENDS ON:] markers take precedence. */
 export function inferPhaseDependencies(tasks: ParsedTask[]): ParsedTask[] {
   if (tasks.length === 0) {
     return tasks;
   }
 
-  // Group tasks by phase
-  const phases = new Map<number, ParsedTask[]>();
-
-  for (const task of tasks) {
-    const group = phases.get(task.phase) || [];
-
-    group.push(task);
-    phases.set(task.phase, group);
-  }
-
-  // If all tasks are phase 0 (no phase headers), return unchanged
+  const phases = groupTasksByPhase(tasks);
   const phaseNumbers = [...phases.keys()].sort((a, b) => a - b);
 
-  if (phaseNumbers.length === 1 && phaseNumbers[0] === 0) {
+  if (hasNoPhaseStructure(phaseNumbers)) {
     return tasks;
   }
 
-  // Build the dependency-enriched tasks
   const result: ParsedTask[] = [];
+  let prevPhaseIds: string[] = [];
 
-  for (let i = 0; i < phaseNumbers.length; i++) {
-    const phaseNum = phaseNumbers[i];
+  for (const phaseNum of phaseNumbers) {
     const phaseTasks = phases.get(phaseNum)!;
-    const prevPhaseNum = i > 0 ? phaseNumbers[i - 1] : null;
-    const prevPhaseTasks =
-      prevPhaseNum !== null ? phases.get(prevPhaseNum)! : [];
-    const prevPhaseIds = prevPhaseTasks.map((t) => t.specTaskId);
 
     result.push(...enrichPhaseTasks(phaseTasks, prevPhaseIds));
+    prevPhaseIds = phaseTasks.map((task) => task.specTaskId);
   }
 
   return result;
@@ -142,6 +156,22 @@ function nextSequentialId(
   return task.parallelizable ? current : task.specTaskId;
 }
 
+/** Cross-phase (all previous-phase ids) + intra-phase (chain onto the last non-[P] task) inferred dependencies for one task. */
+function inferDeps(
+  task: ParsedTask,
+  prevPhaseIds: string[],
+  lastSequentialId: string | null,
+): string[] {
+  const inferredDeps = [...prevPhaseIds];
+  const sequentialDep = task.parallelizable ? null : lastSequentialId;
+
+  if (sequentialDep && !inferredDeps.includes(sequentialDep)) {
+    inferredDeps.push(sequentialDep);
+  }
+
+  return inferredDeps;
+}
+
 function enrichPhaseTasks(
   phaseTasks: ParsedTask[],
   prevPhaseIds: string[],
@@ -152,30 +182,11 @@ function enrichPhaseTasks(
 
   for (const task of phaseTasks) {
     // Skip tasks that already have explicit dependencies
-    if (task.dependsOn.length > 0) {
-      enriched.push(task);
-      lastSequentialId = nextSequentialId(task, lastSequentialId);
-      continue;
-    }
+    const enrichedTask = task.dependsOn.length
+      ? task
+      : { ...task, dependsOn: inferDeps(task, prevPhaseIds, lastSequentialId) };
 
-    const inferredDeps: string[] = [];
-
-    // Cross-phase: depend on all tasks from previous phase
-    if (prevPhaseIds.length > 0) {
-      inferredDeps.push(...prevPhaseIds);
-    }
-
-    // Intra-phase: non-[P] tasks chain sequentially
-    const sequentialDep = task.parallelizable ? null : lastSequentialId;
-
-    if (sequentialDep && !inferredDeps.includes(sequentialDep)) {
-      inferredDeps.push(sequentialDep);
-    }
-
-    enriched.push({
-      ...task,
-      dependsOn: inferredDeps,
-    });
+    enriched.push(enrichedTask);
     lastSequentialId = nextSequentialId(task, lastSequentialId);
   }
 

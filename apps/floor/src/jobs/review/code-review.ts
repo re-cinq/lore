@@ -207,6 +207,21 @@ export interface CommentContext {
   actor?: string;
 }
 
+/** True once the PR is open and either forced or the auto-review gate says go. */
+function reviewGateOpen(
+  pr: PullRef,
+  input: { autoReview: boolean; forced?: boolean },
+): boolean {
+  if (pr.state !== "open") {
+    return false;
+  }
+
+  return (
+    input.forced ||
+    decideReviewOnOpen({ autoReview: input.autoReview, pr }).start
+  );
+}
+
 /** Start a code-review line and post the how-to comment; forced bypasses auto-review gate. */
 export async function startReview(
   project: CodeReviewProject,
@@ -221,14 +236,7 @@ export async function startReview(
 ): Promise<string | null> {
   const pr = await project.pulls.get(input.prNumber);
 
-  if (!pr || pr.state !== "open") {
-    return null;
-  }
-
-  if (
-    !input.forced &&
-    !decideReviewOnOpen({ autoReview: input.autoReview, pr }).start
-  ) {
+  if (!pr || !reviewGateOpen(pr, input)) {
     return null;
   }
   const subjectKey = reviewSubject(input.prNumber);
@@ -285,6 +293,36 @@ export async function startRecheck(
       description: recheckDescription(input.repo, input.prNumber, pr.branch),
     },
   });
+}
+
+/** Only a "request changes" review spawns a work order; an unset state defaults to that. */
+function isChangesRequestedReview(reviewState: string | undefined): boolean {
+  return (reviewState ?? "changes_requested") === "changes_requested";
+}
+
+/** Inline review comments belonging to one review, or none when the review carries no id. */
+async function inlineReviewComments(
+  project: CodeReviewProject,
+  prNumber: number,
+  reviewId: number | null | undefined,
+): Promise<ReviewComment[]> {
+  if (!reviewId) {
+    return [];
+  }
+  const comments = await project.pulls.listComments(prNumber);
+
+  return comments.filter((c) => c.review_id === reviewId);
+}
+
+/** Formats a submitted review's body + inline comments, falling back when there is no text. */
+function reviewSubmittedFeedback(
+  body: string | undefined,
+  inline: ReviewComment[],
+): string {
+  return (
+    reviewFeedback(body ?? "", inline) ||
+    "changes requested in a submitted review"
+  );
 }
 
 export function createCodeReviewHandlers(deps: CodeReviewDeps): {
@@ -359,7 +397,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     }
 
     // Only "request changes" reviews spawn a work order
-    if ((p.review_state ?? "changes_requested") !== "changes_requested") {
+    if (!isChangesRequestedReview(p.review_state)) {
       return;
     }
     const project = await deps.project(p.repo);
@@ -369,12 +407,12 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     if (!decideReviewOnReply({ autoReview, pr, commentAuthor: author }).start) {
       return;
     }
-    const inline = p.review_id
-      ? (await project.pulls.listComments(p.pr_number)).filter(
-          (c) => c.review_id === p.review_id,
-        )
-      : [];
-    const feedback = reviewFeedback(p.review_body ?? "", inline);
+    const inline = await inlineReviewComments(
+      project,
+      p.pr_number,
+      p.review_id,
+    );
+    const feedback = reviewSubmittedFeedback(p.review_body, inline);
     const ctx: CommentContext = {
       repo: p.repo,
       pr_number: p.pr_number,

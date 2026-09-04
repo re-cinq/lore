@@ -1,5 +1,5 @@
 import { extractAssertions } from "../index.js";
-import type { Project } from "../index.js";
+import type { Project, SpecChunkRow } from "../index.js";
 import {
   isAssertionSource,
   shouldSkipDrift,
@@ -17,6 +17,128 @@ export interface SpecDriftOptions {
   repoFilter: string;
   /** The data facade to read/write through — Postgres Floor-side, HTTP (no DB) in a station pod. */
   project: Project;
+}
+
+interface DriftRunState {
+  totalChecked: number;
+  totalDrift: number;
+  filteredDocs: number;
+  filed: number;
+  deferred: number;
+}
+
+interface SpecDriftContext {
+  project: Project;
+  repo: string;
+  knownSymbols: Set<string>;
+  activeIssues: Set<number> | null;
+  graphEnabled: boolean;
+}
+
+type FileDrift = (copy: DriftTaskCopy) => Promise<void>;
+
+// Cap is enforced inside createDriftTask after dedup, so a deduped spec never burns the per-run budget.
+function makeFileDrift(
+  ctx: SpecDriftContext,
+  spec: SpecChunkRow,
+  state: DriftRunState,
+): FileDrift {
+  return async (copy: DriftTaskCopy): Promise<void> => {
+    const outcome = await createDriftTask(
+      ctx.project,
+      { repo: ctx.repo, path: spec.filePath },
+      copy,
+      {
+        atCap: state.filed >= MAX_DRIFT_TASKS_PER_REPO_RUN,
+        activeIssues: ctx.activeIssues,
+      },
+    );
+
+    if (outcome === "filed") {
+      state.totalDrift++;
+      state.filed++;
+
+      return;
+    }
+
+    if (outcome === "deferred") {
+      state.deferred++;
+    }
+  };
+}
+
+// Graph-primary: when projected, per-statement violated/drifted flags are authoritative (deterministic, no symbol-membership false positives). True when the graph was authoritative for this spec.
+async function tryGraphDrift(
+  ctx: SpecDriftContext,
+  spec: SpecChunkRow,
+  fileDrift: FileDrift,
+): Promise<boolean> {
+  const graph = ctx.graphEnabled
+    ? await detectGraphDrift(ctx.project, spec.filePath)
+    : null;
+
+  return applyGraphDrift(graph, ctx.repo, spec.filePath, fileDrift);
+}
+
+// Heuristic fallback: de-noised symbol membership — top-level kinds only, with an absolute miss floor.
+async function tryHeuristicDrift(
+  ctx: SpecDriftContext,
+  spec: SpecChunkRow,
+  fileDrift: FileDrift,
+): Promise<void> {
+  const assertions = await extractAssertions(spec.content, spec.filePath, {
+    jobName: "spec_drift",
+  });
+
+  if (assertions.length === 0) {
+    console.log(
+      `[job] spec-drift: ${ctx.repo}:${spec.filePath} — no assertions extracted`,
+    );
+
+    return;
+  }
+  const decision = decideHeuristicDrift(assertions, ctx.knownSymbols);
+
+  console.log(
+    `[job] spec-drift: ${ctx.repo}:${spec.filePath} — ${decision.scored} scorable, ${decision.missing.length} missing (${(decision.divergence * 100).toFixed(0)}%)`,
+  );
+
+  if (decision.drifted) {
+    await fileDrift(heuristicTaskCopy(spec.filePath, decision));
+  }
+}
+
+async function processSpecDrift(
+  ctx: SpecDriftContext,
+  spec: SpecChunkRow,
+  state: DriftRunState,
+): Promise<void> {
+  // Skip prose artifacts (research/plan/tasks/quickstart) — they always read as 100% drifted.
+  if (!isAssertionSource(spec.filePath)) {
+    state.filteredDocs++;
+    console.log(
+      `[job] spec-drift: skipping ${ctx.repo}:${spec.filePath} — prose doc, not an assertion source`,
+    );
+
+    return;
+  }
+
+  try {
+    state.totalChecked++;
+
+    const fileDrift = makeFileDrift(ctx, spec, state);
+
+    if (await tryGraphDrift(ctx, spec, fileDrift)) {
+      return; // graph is authoritative for this spec
+    }
+
+    await tryHeuristicDrift(ctx, spec, fileDrift);
+  } catch (err) {
+    console.error(
+      `[job] spec-drift: error processing ${ctx.repo}:${spec.filePath}:`,
+      err,
+    );
+  }
 }
 
 /** Spec Drift Detection Job (one repo per run, weekly via `cron.spec_drift.tick`): graph-primary drift detection per spec, falling back to LLM-assertion/symbol-membership heuristics, then files a gap-fill task per drifted spec (stable-key dedup, per-run cap). */
@@ -39,91 +161,33 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
 
   const activeIssues = await fetchActiveIssues(project);
 
-  let totalChecked = 0;
-  let totalDrift = 0;
-  let filteredDocs = 0;
-  let filed = 0;
-  let deferred = 0;
-
   // Graph-primary detection is authoritative when populated; without LORE_DGRAPH_HTTP every spec falls back to the heuristic.
   const graphEnabled = !!process.env.LORE_DGRAPH_HTTP;
 
+  const state: DriftRunState = {
+    totalChecked: 0,
+    totalDrift: 0,
+    filteredDocs: 0,
+    filed: 0,
+    deferred: 0,
+  };
+  const ctx: SpecDriftContext = {
+    project,
+    repo,
+    knownSymbols,
+    activeIssues,
+    graphEnabled,
+  };
+
   for (const spec of specs) {
-    // Skip prose artifacts (research/plan/tasks/quickstart) — they always read as 100% drifted.
-    if (!isAssertionSource(spec.filePath)) {
-      filteredDocs++;
-      console.log(
-        `[job] spec-drift: skipping ${repo}:${spec.filePath} — prose doc, not an assertion source`,
-      );
-      continue;
-    }
-
-    try {
-      totalChecked++;
-
-      // Cap is enforced inside createDriftTask after dedup, so a deduped spec never burns the per-run budget.
-      const fileDrift = async (copy: DriftTaskCopy): Promise<void> => {
-        const outcome = await createDriftTask(
-          project,
-          { repo, path: spec.filePath },
-          copy,
-          { atCap: filed >= MAX_DRIFT_TASKS_PER_REPO_RUN, activeIssues },
-        );
-
-        if (outcome === "filed") {
-          totalDrift++;
-          filed++;
-
-          return;
-        }
-
-        if (outcome === "deferred") {
-          deferred++;
-        }
-      };
-
-      // Graph-primary: when projected, per-statement violated/drifted flags are authoritative (deterministic, no symbol-membership false positives).
-      const graph = graphEnabled
-        ? await detectGraphDrift(project, spec.filePath)
-        : null;
-
-      if (await applyGraphDrift(graph, repo, spec.filePath, fileDrift)) {
-        continue; // graph is authoritative for this spec
-      }
-
-      // Heuristic fallback: de-noised symbol membership — top-level kinds only, with an absolute miss floor.
-      const assertions = await extractAssertions(spec.content, spec.filePath, {
-        jobName: "spec_drift",
-      });
-
-      if (assertions.length === 0) {
-        console.log(
-          `[job] spec-drift: ${repo}:${spec.filePath} — no assertions extracted`,
-        );
-        continue;
-      }
-      const decision = decideHeuristicDrift(assertions, knownSymbols);
-
-      console.log(
-        `[job] spec-drift: ${repo}:${spec.filePath} — ${decision.scored} scorable, ${decision.missing.length} missing (${(decision.divergence * 100).toFixed(0)}%)`,
-      );
-
-      if (decision.drifted) {
-        await fileDrift(heuristicTaskCopy(spec.filePath, decision));
-      }
-    } catch (err) {
-      console.error(
-        `[job] spec-drift: error processing ${repo}:${spec.filePath}:`,
-        err,
-      );
-    }
+    await processSpecDrift(ctx, spec, state);
   }
 
   const deferredNote =
-    deferred > 0
-      ? `; deferred ${deferred} over the ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap`
+    state.deferred > 0
+      ? `; deferred ${state.deferred} over the ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap`
       : "";
-  const summary = `Checked ${totalChecked} specs in ${repo} (${totalDrift} drifted${deferredNote}); skipped ${filteredDocs} prose docs`;
+  const summary = `Checked ${state.totalChecked} specs in ${repo} (${state.totalDrift} drifted${deferredNote}); skipped ${state.filteredDocs} prose docs`;
 
   console.log(`[job] spec-drift: ${summary}`);
 

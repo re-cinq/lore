@@ -97,9 +97,25 @@ export interface AssembledResult {
 
 const templates = new Map<string, Template>();
 
+function resolveTemplateDir(dir?: string): string {
+  return dir || join(import.meta.dirname || process.cwd(), "..", "templates");
+}
+
+function loadTemplateFile(templateDir: string, file: string): void {
+  try {
+    const raw = readFileSync(join(templateDir, file), "utf-8");
+    const template = parseYaml(raw) as Template;
+
+    if (template.name && template.sections) {
+      templates.set(template.name, template);
+    }
+  } catch (err) {
+    console.warn(`[context-assembly] Failed to load template ${file}:`, err);
+  }
+}
+
 export function loadTemplates(dir?: string): void {
-  const templateDir =
-    dir || join(import.meta.dirname || process.cwd(), "..", "templates");
+  const templateDir = resolveTemplateDir(dir);
 
   if (!existsSync(templateDir)) {
     console.warn(
@@ -114,16 +130,7 @@ export function loadTemplates(dir?: string): void {
   );
 
   for (const file of files) {
-    try {
-      const raw = readFileSync(join(templateDir, file), "utf-8");
-      const template = parseYaml(raw) as Template;
-
-      if (template.name && template.sections) {
-        templates.set(template.name, template);
-      }
-    } catch (err) {
-      console.warn(`[context-assembly] Failed to load template ${file}:`, err);
-    }
+    loadTemplateFile(templateDir, file);
   }
   console.log(
     `[context-assembly] Loaded ${templates.size} templates: ${[...templates.keys()].join(", ")}`,
@@ -324,6 +331,10 @@ const STOPWORDS = new Set([
 ]);
 
 /** Distinctive terms from a query: drop stopwords + ≤2-char words, de-dupe case-insensitively, preserve order, cap at `max`. */
+function isKeyTermCandidate(lower: string, seen: Set<string>): boolean {
+  return lower.length > 2 && !STOPWORDS.has(lower) && !seen.has(lower);
+}
+
 export function extractKeyTerms(query: string, max = 12): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -331,7 +342,7 @@ export function extractKeyTerms(query: string, max = 12): string[] {
   for (const raw of query.split(/[^A-Za-z0-9_.-]+/)) {
     const lower = raw.toLowerCase();
 
-    if (lower.length <= 2 || STOPWORDS.has(lower) || seen.has(lower)) {
+    if (!isKeyTermCandidate(lower, seen)) {
       continue;
     }
     seen.add(lower);
@@ -519,6 +530,53 @@ type SourceFetcher = (
   repo?: string,
   agentId?: string,
 ) => Promise<FetchResult>;
+
+async function linkedReposFor(pool: PgPool, repo: string): Promise<string[]> {
+  const { rows } = await pool.query<{
+    settings: { cross_repo_repos?: string[] } | null;
+  }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
+
+  return rows[0]?.settings?.cross_repo_repos || [];
+}
+
+/** Linked repos may live in any team schema, so the search spans every provisioned chunk schema plus org_shared. */
+async function searchCrossRepoChunks(
+  pool: PgPool,
+  query: string,
+  repo: string,
+  { linkedRepos, schemas }: { linkedRepos: string[]; schemas: string[] },
+): Promise<ChunkSearchHit[]> {
+  const repoFilter = linkedRepos.length > 0 ? "repo = ANY($1)" : "repo != $1";
+  const branches = schemas.map(
+    (schema) =>
+      `SELECT content, repo, file_path, ts_rank(search_tsv, plainto_tsquery($2)) AS score
+       FROM ${schema}.chunks
+       WHERE ${repoFilter} AND search_tsv @@ plainto_tsquery($2)`,
+  );
+  const { rows } = await pool.query<ChunkSearchHit>(
+    `SELECT content, repo, file_path, score FROM (${branches.join(" UNION ALL ")}) AS matches
+     ORDER BY score DESC LIMIT 5`,
+    [linkedRepos.length > 0 ? linkedRepos : repo, query],
+  );
+
+  return rows;
+}
+
+/** Only portable, high-transfer-score content from other repos passes through. */
+function onlyTransferable(
+  rows: ChunkSearchHit[],
+): (ChunkSearchHit & { transferScore: number })[] {
+  return rows
+    .map((r) => ({ ...r, transferScore: computeTransferScore(r.content) }))
+    .filter((r) => r.transferScore >= 0.5);
+}
+
+/** The repo's incidents array, or empty when settings carry none (malformed or absent alike). */
+function incidentsListFrom(
+  settings: { incidents?: Incident[] } | null | undefined,
+): Incident[] {
+  return Array.isArray(settings?.incidents) ? settings.incidents : [];
+}
 
 // cross_repo has no shipped template section to drive it through assembleContext, hence the direct export.
 export const fetchers: Record<string, SourceFetcher> = {
@@ -735,41 +793,19 @@ export const fetchers: Record<string, SourceFetcher> = {
     }
 
     try {
-      const [{ rows: repoRows }, schemas] = await Promise.all([
-        pool.query<{ settings: { cross_repo_repos?: string[] } | null }>(
-          `SELECT settings FROM lore.repos WHERE full_name = $1`,
-          [repo],
-        ),
+      const [linkedRepos, schemas] = await Promise.all([
+        linkedReposFor(pool, repo),
         listChunkSchemas(pool),
       ]);
-      const linkedRepos: string[] =
-        repoRows[0]?.settings?.cross_repo_repos || [];
-
-      // Linked repos may live in any team schema, so the search spans every provisioned chunk schema plus org_shared.
-      const repoFilter =
-        linkedRepos.length > 0 ? "repo = ANY($1)" : "repo != $1";
-      const branches = schemas.map(
-        (schema) =>
-          `SELECT content, repo, file_path, ts_rank(search_tsv, plainto_tsquery($2)) AS score
-           FROM ${schema}.chunks
-           WHERE ${repoFilter} AND search_tsv @@ plainto_tsquery($2)`,
-      );
-      const { rows } = await pool.query<ChunkSearchHit>(
-        `SELECT content, repo, file_path, score FROM (${branches.join(" UNION ALL ")}) AS matches
-         ORDER BY score DESC LIMIT 5`,
-        [linkedRepos.length > 0 ? linkedRepos : repo, query],
-      );
+      const rows = await searchCrossRepoChunks(pool, query, repo, {
+        linkedRepos,
+        schemas,
+      });
 
       if (rows.length === 0) {
         return { sources: [], status: "empty" };
       }
-      // Only portable, high-transfer-score content from other repos passes through.
-      const scored = rows
-        .map((r) => ({
-          ...r,
-          transferScore: computeTransferScore(r.content),
-        }))
-        .filter((r) => r.transferScore >= 0.5);
+      const scored = onlyTransferable(rows);
 
       if (scored.length === 0) {
         return { sources: [], status: "empty" };
@@ -800,17 +836,13 @@ export const fetchers: Record<string, SourceFetcher> = {
       const { rows } = await pool.query<{
         settings: { incidents?: Incident[] } | null;
       }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
-      const settings = rows[0]?.settings;
+      const incidents = incidentsListFrom(rows[0]?.settings);
 
-      if (
-        !settings?.incidents ||
-        !Array.isArray(settings.incidents) ||
-        settings.incidents.length === 0
-      ) {
+      if (incidents.length === 0) {
         return { sources: [], status: "empty" };
       }
       const cutoff = Date.now() - 30 * 86400000;
-      const recent = settings.incidents.filter(
+      const recent = incidents.filter(
         (i) => new Date(i.date).getTime() > cutoff,
       );
 
@@ -917,6 +949,18 @@ interface SectionBudget {
   nonEmptyWeight: number;
 }
 
+function emptyStatusReason(status: FetchStatus): string {
+  return STATUS_REASON[status] || "empty";
+}
+
+/** Caps any single competing document to half the budget so a mega-doc can't crowd out smaller ones; a lone document keeps it all. */
+function perDocCapFor(
+  deduped: SourceItem[],
+  allocatedBudget: number,
+): number | undefined {
+  return deduped.length > 1 ? Math.floor(allocatedBudget * 0.5) : undefined;
+}
+
 function fitSection(
   deduped: SourceItem[],
   status: FetchStatus,
@@ -932,7 +976,7 @@ function fitSection(
   };
 
   if (deduped.length === 0) {
-    return { ...excluded, omitReason: STATUS_REASON[status] || "empty" };
+    return { ...excluded, omitReason: emptyStatusReason(status) };
   }
 
   if (remaining <= 0) {
@@ -948,10 +992,11 @@ function fitSection(
   if (allocatedBudget <= 100) {
     return { ...excluded, allocatedBudget, omitReason: "budget exhausted" };
   }
-  // Cap any single competing document to half the budget so a mega-doc can't crowd out smaller ones; a lone document keeps it all.
-  const perDocCap =
-    deduped.length > 1 ? Math.floor(allocatedBudget * 0.5) : undefined;
-  const fit = fitItemsToBudget(deduped, allocatedBudget, perDocCap);
+  const fit = fitItemsToBudget(
+    deduped,
+    allocatedBudget,
+    perDocCapFor(deduped, allocatedBudget),
+  );
 
   return {
     allocatedBudget,

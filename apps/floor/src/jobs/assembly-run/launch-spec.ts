@@ -177,22 +177,33 @@ export interface NodeDispatch {
   prompt: string | null;
 }
 
-/** Resolve what a visit is dispatched WITH, before its row is written — separate from the spec build because the station-run row is minted between the two (same module so a field added to one is visible to the other); the conversation resolves FIRST since it decides how much round content the prompt carries (FR-15.11). */
-export async function resolveNodeDispatch(
-  input: Omit<NodeLaunchInput, "stationRunId">,
-  deps: NodeLaunchDeps,
-): Promise<NodeDispatch> {
-  const { node, task, iteration, priorOutcome } = input;
-  // Only agent nodes hold a conversation — a station runs a deterministic command.
-  const conversation =
-    node.type === "agent" && deps.resolveConversation
-      ? await deps.resolveConversation(node, task, iteration, priorOutcome)
-      : undefined;
-  const content = resolveRoundContent(task, conversation);
+interface ConversationResolutionInput {
+  node: RunGraphNode;
+  task: FloorAssemblyRunTask;
+  iteration: number;
+  priorOutcome: string | null;
+}
 
-  const incomingFailure = input.incomingFailure ?? null;
-  // The incoming failure already gets its own block — repeating it as a prior attempt would show the agent the same output twice.
-  const priorFailures = (input.priorFailures ?? []).filter(
+// Only agent nodes hold a conversation — a station runs a deterministic command.
+async function resolveConversationFor(
+  input: ConversationResolutionInput,
+  deps: NodeLaunchDeps,
+): Promise<LoreTaskSpec["conversation"] | undefined> {
+  const { node, task, iteration, priorOutcome } = input;
+
+  if (node.type !== "agent" || !deps.resolveConversation) {
+    return undefined;
+  }
+
+  return await deps.resolveConversation(node, task, iteration, priorOutcome);
+}
+
+// The incoming failure already gets its own block — repeating it as a prior attempt would show the agent the same output twice.
+function dedupedPriorFailures(
+  priorFailures: readonly PriorFailure[] | undefined,
+  incomingFailure: IncomingFailure | null,
+): PriorFailure[] {
+  return (priorFailures ?? []).filter(
     (f) =>
       !(
         incomingFailure &&
@@ -200,20 +211,59 @@ export async function resolveNodeDispatch(
         f.detail === incomingFailure.detail
       ),
   );
+}
+
+interface PromptResolutionInput {
+  node: RunGraphNode;
+  content: string;
+  incomingFailure: IncomingFailure | null;
+  priorFailures: readonly PriorFailure[];
+}
+
+function resolvedPromptFor(
+  input: PromptResolutionInput,
+  deps: NodeLaunchDeps,
+): string | null {
+  const { node, content, incomingFailure, priorFailures } = input;
+
+  if (node.type !== "agent") {
+    return null;
+  }
+
+  return withPriorFailures(
+    withIncomingFailure(
+      deps.resolvePrompt(node.prompt_ref ?? node.type, content),
+      incomingFailure,
+    ),
+    priorFailures,
+  );
+}
+
+/** Resolve what a visit is dispatched WITH, before its row is written — separate from the spec build because the station-run row is minted between the two (same module so a field added to one is visible to the other); the conversation resolves FIRST since it decides how much round content the prompt carries (FR-15.11). */
+export async function resolveNodeDispatch(
+  input: Omit<NodeLaunchInput, "stationRunId">,
+  deps: NodeLaunchDeps,
+): Promise<NodeDispatch> {
+  const { node, task, iteration, priorOutcome } = input;
+  const conversation = await resolveConversationFor(
+    { node, task, iteration, priorOutcome },
+    deps,
+  );
+  const content = resolveRoundContent(task, conversation);
+
+  const incomingFailure = input.incomingFailure ?? null;
+  const priorFailures = dedupedPriorFailures(
+    input.priorFailures,
+    incomingFailure,
+  );
 
   return {
     conversation,
     content,
-    prompt:
-      node.type === "agent"
-        ? withPriorFailures(
-            withIncomingFailure(
-              deps.resolvePrompt(node.prompt_ref ?? node.type, content),
-              incomingFailure,
-            ),
-            priorFailures,
-          )
-        : null,
+    prompt: resolvedPromptFor(
+      { node, content, incomingFailure, priorFailures },
+      deps,
+    ),
   };
 }
 

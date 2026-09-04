@@ -31,12 +31,7 @@ export function summarizeStatement(text: string): string {
     : flat;
 }
 
-/** Slices a before/after pair to the neighbourhood of the first divergence, not a fixed prefix — a long shared prefix would otherwise hide the actual edit. */
-export function windowRewrite(
-  before: string,
-  after: string,
-  width = 110,
-): { before: string; after: string } {
+function commonPrefixLength(before: string, after: string): number {
   let head = 0;
 
   while (
@@ -46,6 +41,15 @@ export function windowRewrite(
   ) {
     head += 1;
   }
+
+  return head;
+}
+
+function commonSuffixLength(
+  before: string,
+  after: string,
+  head: number,
+): number {
   let tail = 0;
 
   while (
@@ -55,6 +59,18 @@ export function windowRewrite(
   ) {
     tail += 1;
   }
+
+  return tail;
+}
+
+/** Slices a before/after pair to the neighbourhood of the first divergence, not a fixed prefix — a long shared prefix would otherwise hide the actual edit. */
+export function windowRewrite(
+  before: string,
+  after: string,
+  width = 110,
+): { before: string; after: string } {
+  const head = commonPrefixLength(before, after);
+  const tail = commonSuffixLength(before, after, head);
   const start = Math.max(0, head - Math.floor(width / 3));
   const slice = (text: string) => {
     const end = Math.min(

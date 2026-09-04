@@ -6,17 +6,14 @@ const CREDIT_PROBE_MODEL = "claude-haiku-4-5-20251001";
 /** Matches the account-level billing errors Anthropic returns on 402/403/429. */
 const BILLING_ERROR = /credit|balance|billing/i;
 
-/** True only on a billing/credit error from a minimal Anthropic request; `false` when unset, on network errors, or non-billing status (let the real calls surface the actual problem). */
-export async function anthropicCreditsExhausted(
-  env: NodeJS.ProcessEnv = process.env,
-  fetchImpl: typeof fetch = fetch,
+function isBillingErrorStatus(status: number): boolean {
+  return status === 429 || status === 403;
+}
+
+async function probeBillingError(
+  apiKey: string,
+  fetchImpl: typeof fetch,
 ): Promise<boolean> {
-  const apiKey = env.ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
-    return false;
-  }
-
   try {
     const resp = await fetchImpl("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -32,14 +29,27 @@ export async function anthropicCreditsExhausted(
       }),
     });
 
-    if (resp.status === 429 || resp.status === 403) {
-      const body = await resp.text().catch(() => "");
-
-      return BILLING_ERROR.test(body);
+    if (!isBillingErrorStatus(resp.status)) {
+      return false;
     }
+    const body = await resp.text().catch(() => "");
 
-    return false;
+    return BILLING_ERROR.test(body);
   } catch {
     return false; // network error — proceed and let individual tasks handle it
   }
+}
+
+/** True only on a billing/credit error from a minimal Anthropic request; `false` when unset, on network errors, or non-billing status (let the real calls surface the actual problem). */
+export async function anthropicCreditsExhausted(
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+  const apiKey = env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    return false;
+  }
+
+  return probeBillingError(apiKey, fetchImpl);
 }

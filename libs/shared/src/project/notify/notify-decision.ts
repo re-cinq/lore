@@ -6,6 +6,10 @@ export interface NotifySettings {
   channels: NotifyChannel[];
 }
 
+function isWatchedLevel(level: NotifyLevel): boolean {
+  return level === "watched" || level === "completion";
+}
+
 export function decideNotify(
   level: NotifyLevel,
   settings: NotifySettings,
@@ -20,10 +24,7 @@ export function decideNotify(
     return { fire: true, matchedChannels: ["escalation"] };
   }
 
-  if (
-    (level === "watched" || level === "completion") &&
-    channels.includes("watched")
-  ) {
+  if (isWatchedLevel(level) && channels.includes("watched")) {
     return { fire: true, matchedChannels: ["watched"] };
   }
 

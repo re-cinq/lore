@@ -70,20 +70,22 @@ function cloneRef(task: FloorAssemblyRunTask): string {
   return typeof ref === "string" && ref.length > 0 ? ref : task.branch;
 }
 
-/** The knob/args map a station node's pod receives as `station_input.params`, extracted so the recorded input names the SAME map the pod was handed. */
-export function stationNodeParams(
-  node: RunGraphNode,
-  task: FloorAssemblyRunTask,
-): Record<string, string> {
-  const params: Record<string, string> = {};
-
-  // Line args (string/number) ride into params so a station reads its input without a DB round-trip.
-  for (const [key, value] of Object.entries(task.args ?? {})) {
+// Line args (string/number) ride into params so a station reads its input without a DB round-trip.
+function addLineArgParams(
+  params: Record<string, string>,
+  args: Record<string, unknown> | undefined,
+): void {
+  for (const [key, value] of Object.entries(args ?? {})) {
     if (typeof value === "string" || typeof value === "number") {
       params[key] = String(value);
     }
   }
+}
 
+function addStationFieldParams(
+  params: Record<string, string>,
+  node: RunGraphNode,
+): void {
   for (const field of STATION_PARAM_FIELDS) {
     const value = node[field];
 
@@ -91,6 +93,17 @@ export function stationNodeParams(
       params[field] = value;
     }
   }
+}
+
+/** The knob/args map a station node's pod receives as `station_input.params`, extracted so the recorded input names the SAME map the pod was handed. */
+export function stationNodeParams(
+  node: RunGraphNode,
+  task: FloorAssemblyRunTask,
+): Record<string, string> {
+  const params: Record<string, string> = {};
+
+  addLineArgParams(params, task.args);
+  addStationFieldParams(params, node);
 
   return params;
 }

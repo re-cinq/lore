@@ -15,20 +15,29 @@ export type ArtifactRecoveryDecision =
   | { kind: "wait" }
   | { kind: "none" };
 
-/** Decide from the run's station-run rows and cloned graph; a run predating the clone column (FR6.38) falls back to CR presence to distinguish a human station's row. */
-export function decideArtifactRecovery(
+/** The newest non-human-station station-run row, scanning newest-first; a run predating the clone column (FR6.38) falls back to CR presence to distinguish a human station's row. */
+function findWorkRow(
   nodes: readonly RecoveryNode[],
   graph: RunGraph | null,
-  runOpen: boolean,
-): ArtifactRecoveryDecision {
+): RecoveryNode | undefined {
   const nodeTypes = new Map(graph?.nodes.map((n) => [n.id, n.type]) ?? []);
-  const workRow = [...nodes]
+
+  return [...nodes]
     .reverse()
     .find((row) =>
       graph
         ? !isHumanStation(nodeTypes.get(row.nodeId))
         : row.agentCrName !== null,
     );
+}
+
+/** Decide from the run's station-run rows and cloned graph. */
+export function decideArtifactRecovery(
+  nodes: readonly RecoveryNode[],
+  graph: RunGraph | null,
+  runOpen: boolean,
+): ArtifactRecoveryDecision {
+  const workRow = findWorkRow(nodes, graph);
 
   if (!workRow) {
     return { kind: "none" };

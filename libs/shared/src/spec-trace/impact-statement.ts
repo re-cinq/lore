@@ -51,6 +51,25 @@ export const STATEMENT_PROJECTION = `Statement.xid
       spec: Statement.spec { Spec.file_path Spec.title }
       section: Statement.section { Section.heading }`;
 
+function specFieldsOf(stmt: GraphStatement): {
+  specPath: string;
+  specTitle: string;
+} {
+  return {
+    specPath: stmt.spec?.["Spec.file_path"] ?? "",
+    specTitle: stmt.spec?.["Spec.title"] ?? "",
+  };
+}
+
+const statementTextOf = (stmt: GraphStatement): string =>
+  stmt["Statement.text"] ?? "";
+
+const statementXidOf = (
+  stmt: GraphStatement,
+  specPath: string,
+  statementText: string,
+): string => stmt["Statement.xid"] ?? `${specPath}::${statementText}`;
+
 /** Builds an ImpactStatement from a graph Statement, carrying its xid for dedup. */
 export function toImpactStatement(
   stmt: GraphStatement,
@@ -58,15 +77,15 @@ export function toImpactStatement(
   tests: ImpactStatement["tests"],
   evidence: Evidence,
 ): ImpactStatement & { xid: string } {
-  const specPath = stmt.spec?.["Spec.file_path"] ?? "";
+  const { specPath, specTitle } = specFieldsOf(stmt);
+  const statementText = statementTextOf(stmt);
 
   return {
-    xid:
-      stmt["Statement.xid"] ?? `${specPath}::${stmt["Statement.text"] ?? ""}`,
+    xid: statementXidOf(stmt, specPath, statementText),
     specPath,
-    specTitle: stmt.spec?.["Spec.title"] ?? "",
+    specTitle,
     section: stmt.section?.["Section.heading"],
-    statementText: stmt["Statement.text"] ?? "",
+    statementText,
     statementAnchor: specPath,
     tests,
     changedFile,

@@ -117,6 +117,21 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
   return normalizeTaskFromObject(raw as Record<string, unknown>, id);
 }
 
+function storyTitle(s: Record<string, unknown>): string | false {
+  const titleField = typeof s.title === "string" && s.title;
+  const nameField = typeof s.name === "string" && s.name;
+
+  return titleField || nameField;
+}
+
+function applyStoryLabels(story: UserStory, s: Record<string, unknown>): void {
+  const labels = asStringList(s.labels);
+
+  if (labels.length) {
+    story.labels = labels;
+  }
+}
+
 function normalizeStory(raw: unknown): UserStory {
   enforceTrue(
     !(!raw || typeof raw !== "object" || Array.isArray(raw)),
@@ -124,9 +139,7 @@ function normalizeStory(raw: unknown): UserStory {
     "decomposition: each story must be an object",
   );
   const s = raw as Record<string, unknown>;
-  const titleField = typeof s.title === "string" && s.title;
-  const nameField = typeof s.name === "string" && s.name;
-  const title = titleField || nameField;
+  const title = storyTitle(s);
 
   enforceTrue(title, Error, "decomposition: each story needs a title");
   const tasksRaw = Array.isArray(s.tasks) ? s.tasks : [];
@@ -139,11 +152,8 @@ function normalizeStory(raw: unknown): UserStory {
     ),
     tasks: tasksRaw.map(normalizeTask),
   };
-  const labels = asStringList(s.labels);
 
-  if (labels.length) {
-    story.labels = labels;
-  }
+  applyStoryLabels(story, s);
 
   return story;
 }

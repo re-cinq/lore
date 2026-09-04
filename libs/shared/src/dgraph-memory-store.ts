@@ -86,6 +86,93 @@ function toMemoryRow(row: Record<string, unknown>): MemoryRow {
   };
 }
 
+function listMemoriesVars(opts: {
+  agentId?: string;
+  limit?: number;
+  offset?: number;
+}): Record<string, string> {
+  return {
+    $agent: opts.agentId ?? "",
+    $now: new Date().toISOString(),
+    $first: String(opts.limit ?? 50),
+    $offset: String(opts.offset ?? 0),
+  };
+}
+
+function toMemorySummary(row: Record<string, unknown>): {
+  key: string;
+  agent_id: string;
+  version: number;
+} {
+  const { key, agent_id, version } = stripMemoryPrefix(row);
+
+  return {
+    key: key as string,
+    agent_id: agent_id as string,
+    version: version as number,
+  };
+}
+
+type DgraphQueryResult = { data: Record<string, Record<string, unknown>[]> };
+
+function extractMemoryRows(res: DgraphQueryResult): Record<string, unknown>[] {
+  return res.data?.memories ?? [];
+}
+
+function extractTotalCount(res: DgraphQueryResult): number {
+  return (res.data?.total?.[0]?.count as number) ?? 0;
+}
+
+function buildSearchQuery(
+  hasEmbedding: boolean,
+  kmemBlock: string,
+  vmemBlock: string,
+): string {
+  if (!hasEmbedding) {
+    return `query search($q: string) {\n${kmemBlock}\n}`;
+  }
+
+  return `query search($q: string, $vec: string) {\n${kmemBlock}\n${vmemBlock}\n}`;
+}
+
+function searchVars(
+  query: string,
+  embedding: number[] | undefined,
+): Record<string, string> {
+  const vars: Record<string, string> = { $q: query };
+
+  if (embedding) {
+    vars.$vec = toVectorLiteral(embedding);
+  }
+
+  return vars;
+}
+
+function extractRows(
+  res: DgraphQueryResult,
+  key: string,
+): Record<string, unknown>[] {
+  return res.data?.[key] ?? [];
+}
+
+function mergedSearchLists(
+  res: DgraphQueryResult,
+  hasEmbedding: boolean,
+  toItems: (rows: Record<string, unknown>[]) => RankedItem[],
+): RankedItem[][] {
+  const kmemItems = toItems(extractRows(res, "kmem"));
+
+  if (!hasEmbedding) {
+    return [kmemItems];
+  }
+
+  return [toItems(extractRows(res, "vmem")), kmemItems];
+}
+
+function limitResults<T>(results: T[], limit: number | undefined): T[] {
+  return limit ? results.slice(0, limit) : results;
+}
+
 /** Reads the assigned uid of a blank node back out of a mutation result; `label` is the blank node name without its `_:` prefix. */
 function newUid(mutateResult: unknown, label: string): string | undefined {
   return (mutateResult as { data?: { uids?: Record<string, string> } }).data
@@ -104,7 +191,33 @@ export interface GraphHop {
   valid_from?: string;
 }
 
-/** Walks a `@recurse` tree depth-first, flattening it into per-hop `GraphHop`s until `maxDepth`; `GraphRel.target` arrives as an object under `@recurse` and is normalized defensively. */
+// `GraphRel.target` arrives as an object under `@recurse` and is normalized defensively.
+function resolveRelTarget(
+  rel: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const targetNode = rel["GraphRel.target"];
+
+  return (Array.isArray(targetNode) ? targetNode[0] : targetNode) as
+    Record<string, unknown> | undefined;
+}
+
+function buildHop(
+  entity: Record<string, unknown>,
+  rel: Record<string, unknown>,
+  target: Record<string, unknown> | undefined,
+  depth: number,
+): GraphHop {
+  return {
+    entity: entity["Entity.name"] as string,
+    relation: rel["GraphRel.relation_type"] as string,
+    related_entity: target?.["Entity.name"] as string,
+    direction: "outgoing",
+    depth,
+    valid_from: rel["GraphRel.valid_from"] as string | undefined,
+  };
+}
+
+/** Walks a `@recurse` tree depth-first, flattening it into per-hop `GraphHop`s until `maxDepth`. */
 function flattenHops(
   entity: Record<string, unknown>,
   maxDepth: number,
@@ -117,18 +230,9 @@ function flattenHops(
   const hops: GraphHop[] = [];
 
   for (const rel of rels) {
-    const targetNode = rel["GraphRel.target"];
-    const target = (Array.isArray(targetNode) ? targetNode[0] : targetNode) as
-      Record<string, unknown> | undefined;
+    const target = resolveRelTarget(rel);
 
-    hops.push({
-      entity: entity["Entity.name"] as string,
-      relation: rel["GraphRel.relation_type"] as string,
-      related_entity: target?.["Entity.name"] as string,
-      direction: "outgoing",
-      depth,
-      valid_from: rel["GraphRel.valid_from"] as string | undefined,
-    });
+    hops.push(buildHop(entity, rel, target, depth));
 
     if (target) {
       hops.push(...flattenHops(target, maxDepth, depth + 1));
@@ -136,6 +240,42 @@ function flattenHops(
   }
 
   return hops;
+}
+
+/** The Fact-deactivate + FactConflict pair for one candidate, or empty when it's the new fact itself or not actually similar. */
+function contradictionNodes(
+  candidate: Record<string, unknown>,
+  embedding: number[],
+  newUid: string | undefined,
+  now: string,
+): Record<string, unknown>[] {
+  const candEmbedding = parseEmbedding(candidate["Fact.embedding"]);
+
+  if (!candEmbedding) {
+    return [];
+  }
+  const similarity = cosineSimilarity(embedding, candEmbedding);
+
+  if (similarity < FACT_SIMILARITY_THRESHOLD) {
+    return [];
+  }
+
+  return [
+    {
+      uid: candidate.uid,
+      "Fact.active": false,
+      "Fact.valid_to": now,
+      ...(newUid ? { "Fact.invalidated_by": { uid: newUid } } : {}),
+    },
+    {
+      "dgraph.type": "FactConflict",
+      "FactConflict.xid": randomUUID(),
+      "FactConflict.old_fact": { uid: candidate.uid },
+      ...(newUid ? { "FactConflict.new_fact": { uid: newUid } } : {}),
+      "FactConflict.similarity": similarity,
+      "FactConflict.created_at": now,
+    },
+  ];
 }
 
 // ── Store ────────────────────────────────────────────────────────────
@@ -302,31 +442,7 @@ export class DgraphMemoryStore implements MemoryStore {
       if (candidate["Fact.xid"] === newXid) {
         continue;
       }
-      const candEmbedding = parseEmbedding(candidate["Fact.embedding"]);
-
-      if (!candEmbedding) {
-        continue;
-      }
-      const similarity = cosineSimilarity(embedding, candEmbedding);
-
-      if (similarity < FACT_SIMILARITY_THRESHOLD) {
-        continue;
-      }
-
-      nodes.push({
-        uid: candidate.uid,
-        "Fact.active": false,
-        "Fact.valid_to": now,
-        ...(newUid ? { "Fact.invalidated_by": { uid: newUid } } : {}),
-      });
-      nodes.push({
-        "dgraph.type": "FactConflict",
-        "FactConflict.xid": randomUUID(),
-        "FactConflict.old_fact": { uid: candidate.uid },
-        ...(newUid ? { "FactConflict.new_fact": { uid: newUid } } : {}),
-        "FactConflict.similarity": similarity,
-        "FactConflict.created_at": now,
-      });
+      nodes.push(...contradictionNodes(candidate, embedding, newUid, now));
     }
 
     if (nodes.length === 0) {
@@ -443,24 +559,12 @@ export class DgraphMemoryStore implements MemoryStore {
             count(uid)
           }
         }`,
-        {
-          $agent: opts.agentId ?? "",
-          $now: new Date().toISOString(),
-          $first: String(opts.limit ?? 50),
-          $offset: String(opts.offset ?? 0),
-        },
-      );
-      const memories = (res.data?.memories ?? []).map(
-        (row: Record<string, unknown>) => {
-          const { key, agent_id, version } = stripMemoryPrefix(row);
-
-          return { key, agent_id, version };
-        },
+        listMemoriesVars(opts),
       );
 
       return {
-        memories,
-        total: (res.data?.total?.[0]?.count as number) ?? 0,
+        memories: extractMemoryRows(res).map(toMemorySummary),
+        total: extractTotalCount(res),
       };
     });
   }
@@ -643,29 +747,15 @@ export class DgraphMemoryStore implements MemoryStore {
       const vmemBlock = `vmem(func: similar_to(Memory.embedding, 20, $vec)) @filter(eq(Memory.is_deleted, false)) {
             Memory.key Memory.value Memory.agent_id
           }`;
+      const hasEmbedding = Boolean(opts.embedding);
+      const queryText = buildSearchQuery(hasEmbedding, kmemBlock, vmemBlock);
+      const res = await txn.queryWithVars(
+        queryText,
+        searchVars(query, opts.embedding),
+      );
+      const fused = rrfMerge(mergedSearchLists(res, hasEmbedding, toItems));
 
-      const queryText = opts.embedding
-        ? `query search($q: string, $vec: string) {
-          ${kmemBlock}
-          ${vmemBlock}
-        }`
-        : `query search($q: string) {
-          ${kmemBlock}
-        }`;
-      const vars: Record<string, string> = { $q: query };
-
-      if (opts.embedding) {
-        vars.$vec = toVectorLiteral(opts.embedding);
-      }
-
-      const res = await txn.queryWithVars(queryText, vars);
-      const kmemItems = toItems(res.data?.kmem ?? []);
-      const lists = opts.embedding
-        ? [toItems(res.data?.vmem ?? []), kmemItems]
-        : [kmemItems];
-      const fused = rrfMerge(lists);
-
-      return opts.limit ? fused.slice(0, opts.limit) : fused;
+      return limitResults(fused, opts.limit);
     });
   }
 }

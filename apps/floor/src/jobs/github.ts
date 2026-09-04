@@ -49,6 +49,35 @@ export const onReviewSubmitted: EventHandler = async (params) => {
   await autoMergeForPR(repo, pr_number);
 };
 
+interface IssueDispatchSettings {
+  dispatchLabel: string;
+  dispatchDefaultType: string;
+}
+
+/** Parses the repo's raw settings blob (string or already-parsed) into dispatch label/type, falling back to defaults. */
+function resolveIssueDispatch(repoSettings: unknown): IssueDispatchSettings {
+  const defaults: IssueDispatchSettings = {
+    dispatchLabel: "lore",
+    dispatchDefaultType: "general",
+  };
+
+  if (!repoSettings) {
+    return defaults;
+  }
+  const parsed = (
+    typeof repoSettings === "string" ? JSON.parse(repoSettings) : repoSettings
+  ) as {
+    dispatch_label?: string;
+    dispatch_default_type?: string;
+  };
+
+  return {
+    dispatchLabel: parsed.dispatch_label || defaults.dispatchLabel,
+    dispatchDefaultType:
+      parsed.dispatch_default_type || defaults.dispatchDefaultType,
+  };
+}
+
 /** issues.labeled dispatch: a configured label on an Issue creates a pipeline task. */
 export const issuesLabeled: EventHandler = async (params) => {
   const { repo, label, issue } = params as {
@@ -62,21 +91,9 @@ export const issuesLabeled: EventHandler = async (params) => {
       labels: string[];
     };
   };
-  let dispatchLabel = "lore";
-  let dispatchDefaultType = "general";
   const repoSettings = await settings().rawSettings(repo);
-
-  if (repoSettings) {
-    const parsed = (
-      typeof repoSettings === "string" ? JSON.parse(repoSettings) : repoSettings
-    ) as {
-      dispatch_label?: string;
-      dispatch_default_type?: string;
-    };
-
-    dispatchLabel = parsed.dispatch_label || dispatchLabel;
-    dispatchDefaultType = parsed.dispatch_default_type || dispatchDefaultType;
-  }
+  const { dispatchLabel, dispatchDefaultType } =
+    resolveIssueDispatch(repoSettings);
 
   if (label !== dispatchLabel) {
     return;
@@ -141,6 +158,19 @@ export const specPrResumeLine: EventHandler = async (params) => {
   });
 };
 
+/** True when a merged PR carries the `spec` label and its branch names a spec slug — the only PRs whose tasks.md should sync. Closed-unmerged reaches this event too, so `merged` is checked first. */
+function mergedSpecSlug(
+  merged: boolean,
+  labels: string[],
+  branch: string,
+): string | null {
+  if (!merged || !labels.includes("spec")) {
+    return null;
+  }
+
+  return specSlugFromBranch(branch);
+}
+
 /** pull_request closed+merged: a merged spec PR → sync its tasks.md into spec-tasks. */
 export const specPrMerge: EventHandler = async (params) => {
   const { repo, branch, merged, merge_commit_sha, labels } = params as {
@@ -151,14 +181,7 @@ export const specPrMerge: EventHandler = async (params) => {
     labels: string[];
   };
 
-  if (!merged) {
-    return;
-  } // closed-unmerged reaches here too now — only merges sync spec tasks
-
-  if (!labels.includes("spec")) {
-    return;
-  }
-  const specSlug = specSlugFromBranch(branch);
+  const specSlug = mergedSpecSlug(merged, labels, branch);
 
   if (!specSlug) {
     return;

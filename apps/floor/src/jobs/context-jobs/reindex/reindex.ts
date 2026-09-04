@@ -226,6 +226,35 @@ export async function backfillUningestedFiles(
 
 // ── Ingest a single file ────────────────────────────────────────────
 
+/** Generate and store the embedding for one already-inserted chunk (input already capped at 8k in the service). */
+async function embedAndStoreChunk(
+  schema: string,
+  filePath: string,
+  chunk: { content: string; metadata: { chunk_index: unknown } },
+  chunkId: string | null,
+): Promise<void> {
+  const embedding = await getQueryEmbedding(chunk.content);
+
+  if (!chunkId) {
+    return;
+  }
+
+  if (!embedding) {
+    console.log(
+      `[job] Ingested ${filePath} chunk ${chunk.metadata.chunk_index} without embedding (id ${chunkId})`,
+    );
+
+    return;
+  }
+
+  const embeddingStr = `[${embedding.join(",")}]`;
+
+  await chunks().setEmbedding(schema, chunkId, embeddingStr);
+  console.log(
+    `[job] Embedded ${filePath} chunk ${chunk.metadata.chunk_index} (id ${chunkId})`,
+  );
+}
+
 async function ingestFile(
   filePath: string,
   fullName: string,
@@ -270,25 +299,7 @@ async function ingestFile(
       }),
     });
 
-    // Generate and store embedding per chunk (input already capped at 8k in the service)
-    const embedding = await getQueryEmbedding(chunk.content);
-
-    if (embedding && chunkId) {
-      const embeddingStr = `[${embedding.join(",")}]`;
-
-      await chunks().setEmbedding(schema, chunkId, embeddingStr);
-      console.log(
-        `[job] Embedded ${filePath} chunk ${chunk.metadata.chunk_index} (id ${chunkId})`,
-      );
-
-      continue;
-    }
-
-    if (chunkId) {
-      console.log(
-        `[job] Ingested ${filePath} chunk ${chunk.metadata.chunk_index} without embedding (id ${chunkId})`,
-      );
-    }
+    await embedAndStoreChunk(schema, filePath, chunk, chunkId);
   }
 
   return true;
@@ -296,49 +307,77 @@ async function ingestFile(
 
 // ── Main job ─────────────────────────────────────────────────────────
 
-/** One repo's reindex, or null when it has no usable schema. Every sweep below is independently fail-soft: a repo keeps whatever the earlier passes ingested. */
-async function reindexRepo(repo: {
-  full_name: string;
-  last_ingested_at: Date | null;
-}): Promise<number | null> {
-  const schema = await resolveSchema(repo.full_name);
+/** Resolves the repo's schema and relocates legacy org_shared rows into it before chunk count; null when the schema is unusable. */
+async function resolvedTargetSchema(fullName: string): Promise<string | null> {
+  const schema = await resolveSchema(fullName);
 
   if (!SCHEMA_RE.test(schema)) {
-    console.error(
-      `[job] Invalid schema "${schema}" for ${repo.full_name}, skipping`,
-    );
+    console.error(`[job] Invalid schema "${schema}" for ${fullName}, skipping`);
 
     return null;
   }
 
   // Relocate legacy org_shared rows into the resolved schema before chunk count.
   if (schema !== "org_shared") {
-    await adoptLegacyOrgSharedChunks(schema, repo.full_name);
+    await adoptLegacyOrgSharedChunks(schema, fullName);
+  }
+
+  return schema;
+}
+
+interface FileSelection {
+  treePaths: string[] | null;
+  filePaths: string[];
+}
+
+async function selectFilesToIngest(
+  fullName: string,
+  lastIngestedAt: Date | null,
+): Promise<FileSelection> {
+  const treePaths = lastIngestedAt ? null : await getTree(fullName);
+  const filePaths = lastIngestedAt
+    ? await getChangedFiles(fullName, lastIngestedAt)
+    : selectSeedFiles(treePaths ?? []);
+
+  return { treePaths, filePaths };
+}
+
+async function ingestChangedFiles(
+  filePaths: string[],
+  fullName: string,
+  schema: string,
+): Promise<number> {
+  if (filePaths.length === 0) {
+    console.log(`[job] No files to reindex for ${fullName}`);
+
+    return 0;
+  }
+
+  console.log(`[job] Processing ${filePaths.length} files for ${fullName}`);
+
+  return ingestRepoFiles(filePaths, fullName, schema);
+}
+
+/** One repo's reindex, or null when it has no usable schema. Every sweep below is independently fail-soft: a repo keeps whatever the earlier passes ingested. */
+async function reindexRepo(repo: {
+  full_name: string;
+  last_ingested_at: Date | null;
+}): Promise<number | null> {
+  const schema = await resolvedTargetSchema(repo.full_name);
+
+  if (!schema) {
+    return null;
   }
   const target = { schema, repo: repo.full_name };
   // Zero chunks means the first ingestion failed, so the incremental window is meaningless — seed the whole repo instead.
   const hasChunks = (await chunks().countChunks(schema, repo.full_name)) > 0;
   const lastIngestedAt = hasChunks ? repo.last_ingested_at : null;
-  let treePaths: string[] | null = lastIngestedAt
-    ? null
-    : await getTree(repo.full_name);
-  const filePaths = lastIngestedAt
-    ? await getChangedFiles(repo.full_name, lastIngestedAt)
-    : selectSeedFiles(treePaths ?? []);
+  const selection = await selectFilesToIngest(repo.full_name, lastIngestedAt);
+  let treePaths = selection.treePaths;
+  const filePaths = selection.filePaths;
   const ingest = (filePath: string) =>
     ingestFile(filePath, repo.full_name, schema);
-  let fileCount = 0;
-
-  if (filePaths.length === 0) {
-    console.log(`[job] No files to reindex for ${repo.full_name}`);
-  }
-
-  if (filePaths.length > 0) {
-    console.log(
-      `[job] Processing ${filePaths.length} files for ${repo.full_name}`,
-    );
-    fileCount += await ingestRepoFiles(filePaths, repo.full_name, schema);
-  }
+  let fileCount = await ingestChangedFiles(filePaths, repo.full_name, schema);
   const processed = new Set(filePaths);
 
   // Chunker-upgrade heal: re-ingest code files for fix in issue #995.
@@ -418,6 +457,10 @@ async function verifyChunks(
   );
 }
 
+function lastIngestedLabel(date: Date | null): string {
+  return date?.toISOString() ?? "never";
+}
+
 export async function reindexJob(): Promise<string> {
   const repos = await settings().onboardedRepos();
 
@@ -432,7 +475,7 @@ export async function reindexJob(): Promise<string> {
 
   for (const repo of repos) {
     console.log(
-      `[job] Reindexing ${repo.full_name} (last ingested: ${repo.last_ingested_at?.toISOString() ?? "never"})`,
+      `[job] Reindexing ${repo.full_name} (last ingested: ${lastIngestedLabel(repo.last_ingested_at)})`,
     );
 
     try {

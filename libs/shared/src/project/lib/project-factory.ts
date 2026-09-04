@@ -1,6 +1,7 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import type { PgPool, DgraphClientPort } from "../../memory-store.js";
 import type { ProjectProviders } from "./providers.js";
+import type { PipelineRepositories } from "../pipeline/pipeline-repositories.js";
 import type { LeasePool } from "../leases/lease-backends.js";
 import { Project } from "./project.js";
 
@@ -54,12 +55,33 @@ export interface ProjectOptions {
   providers?: ProjectProviders;
 }
 
+/** The org-wide pipeline bundle's adapter, when the caller already built one — else a fresh per-repo instance. */
+function fromPipelineOrDefault<K extends keyof PipelineRepositories>(
+  pipeline: ProjectProviders["pipeline"],
+  key: K,
+  fallback: PipelineRepositories[K],
+): PipelineRepositories[K] {
+  return pipeline?.[key] ?? fallback;
+}
+
+/** Normalizes the optional `{ env, providers }` bag callers pass, each field defaulted independently. */
+function resolveProjectOptions(options: ProjectOptions): {
+  env: NodeJS.ProcessEnv;
+  providers: ProjectProviders;
+} {
+  return {
+    env: options.env ?? process.env,
+    providers: options.providers ?? {},
+  };
+}
+
 export async function createProject(
   fullName: string,
   pgPool: PgPool,
   dgraphClient: DgraphClientPort,
-  { env = process.env, providers = {} }: ProjectOptions = {},
+  options: ProjectOptions = {},
 ): Promise<Project> {
+  const { env, providers } = resolveProjectOptions(options);
   const ports = new Map<string, unknown>();
 
   const { MemoryStoreBridge } =
@@ -89,7 +111,11 @@ export async function createProject(
 
   ports.set(
     "assemblyRuns",
-    providers.pipeline?.assemblyRuns ?? new PgAssemblyRuns(pgPool),
+    fromPipelineOrDefault(
+      providers.pipeline,
+      "assemblyRuns",
+      new PgAssemblyRuns(pgPool),
+    ),
   );
 
   const { PlatformGitHub } = await import("./platform-github.js");
@@ -133,7 +159,10 @@ export async function createProject(
 
   const { PgAudit } = await import("../audit/audit-pg.js");
 
-  ports.set("audit", providers.pipeline?.audit ?? new PgAudit(pgPool));
+  ports.set(
+    "audit",
+    fromPipelineOrDefault(providers.pipeline, "audit", new PgAudit(pgPool)),
+  );
 
   const { PgUsage } = await import("../usage/usage-pg.js");
 

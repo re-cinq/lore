@@ -13,6 +13,22 @@ function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+interface ParsedVisit {
+  assemblyRunId: string | null;
+  nodeId: string | null;
+  iteration: unknown;
+}
+
+function isCompleteVisit(
+  visit: ParsedVisit,
+): visit is { assemblyRunId: string; nodeId: string; iteration: number } {
+  const namesTheVisit = visit.assemblyRunId !== null && visit.nodeId !== null;
+  const countsTheIteration =
+    typeof visit.iteration === "number" && Number.isInteger(visit.iteration);
+
+  return namesTheVisit && countsTheIteration;
+}
+
 /** Identity from source; requires all fields present or returns null (all-or-nothing). */
 export function parseCarriedRunIdentity(
   source: unknown,
@@ -22,21 +38,20 @@ export function parseCarriedRunIdentity(
   }
 
   const fields = source as Record<string, unknown>;
-  const assemblyRunId = nonEmptyString(fields.assembly_run);
-  const nodeId = nonEmptyString(fields.node);
-  const iteration = fields.iteration;
-  const namesTheVisit = assemblyRunId !== null && nodeId !== null;
-  const countsTheIteration =
-    typeof iteration === "number" && Number.isInteger(iteration);
+  const visit: ParsedVisit = {
+    assemblyRunId: nonEmptyString(fields.assembly_run),
+    nodeId: nonEmptyString(fields.node),
+    iteration: fields.iteration,
+  };
 
-  if (!namesTheVisit || !countsTheIteration) {
+  if (!isCompleteVisit(visit)) {
     return null;
   }
 
   return {
-    assemblyRunId,
-    nodeId,
-    iteration,
+    assemblyRunId: visit.assemblyRunId,
+    nodeId: visit.nodeId,
+    iteration: visit.iteration,
     stationRunId: nonEmptyString(fields.station_run),
   };
 }

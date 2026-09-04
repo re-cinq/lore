@@ -88,6 +88,17 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
   }
 }
 
+/** Buckets events by event_name, preserving arrival order within each family. */
+function groupByFamily(events: EventRow[]): Map<string, EventRow[]> {
+  const byFamily = new Map<string, EventRow[]>();
+
+  for (const ev of events) {
+    byFamily.set(ev.event_name, [...(byFamily.get(ev.event_name) ?? []), ev]);
+  }
+
+  return byFamily;
+}
+
 export async function drainOnce(deps: LoopDeps): Promise<number> {
   const serialFamilies = deps.serialFamilies ?? SERIAL_FAMILIES;
   const batch = await deps.claim(deps.batchSize ?? 20, [...busyFamilies]);
@@ -107,14 +118,9 @@ export async function drainOnce(deps: LoopDeps): Promise<number> {
     .filter((ev) => !serialFamilies.has(ev.event_name))
     .map((ev) => handleOne(ev, deps).catch(logTransitionFailure(ev)));
 
-  const serialByFamily = new Map<string, EventRow[]>();
-
-  for (const ev of batch.filter((e) => serialFamilies.has(e.event_name))) {
-    serialByFamily.set(ev.event_name, [
-      ...(serialByFamily.get(ev.event_name) ?? []),
-      ev,
-    ]);
-  }
+  const serialByFamily = groupByFamily(
+    batch.filter((ev) => serialFamilies.has(ev.event_name)),
+  );
 
   const deadlineMs = deps.serialDeadlineMs ?? SERIAL_DEADLINE_MS;
   const serial = [...serialByFamily.entries()].map(async ([family, events]) => {

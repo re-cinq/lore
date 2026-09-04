@@ -21,31 +21,44 @@ export type PromptfooEvalResult =
   | { ok: false; reason: "exec-failed"; error: unknown }
   | { ok: false; reason: "no-stats" };
 
+type RawPromptfooStats = { passRate?: number; passes?: number; total?: number };
+type RawPromptfooOutput = {
+  stats?: RawPromptfooStats;
+  results?: { stats?: RawPromptfooStats };
+};
+
+function rawStats(output: RawPromptfooOutput): RawPromptfooStats | undefined {
+  return output.stats ?? output.results?.stats;
+}
+
+function toPromptfooStats(stats: {
+  passRate: number;
+  passes?: number;
+  total?: number;
+}): PromptfooStats {
+  return {
+    passRate: stats.passRate,
+    passes: stats.passes ?? null,
+    total: stats.total ?? null,
+  };
+}
+
 /** Pure parse of `promptfoo eval --output json` stdout — stats live at the root or under `results` depending on the promptfoo version; null when neither. */
 export function parsePromptfooStats(stdout: string): PromptfooStats | null {
-  let output: {
-    stats?: { passRate?: number; passes?: number; total?: number };
-    results?: {
-      stats?: { passRate?: number; passes?: number; total?: number };
-    };
-  };
+  let output: RawPromptfooOutput;
 
   try {
     output = JSON.parse(stdout);
   } catch {
     return null;
   }
-  const stats = output.stats ?? output.results?.stats;
+  const stats = rawStats(output);
 
   if (!stats || typeof stats.passRate !== "number") {
     return null;
   }
 
-  return {
-    passRate: stats.passRate,
-    passes: stats.passes ?? null,
-    total: stats.total ?? null,
-  };
+  return toPromptfooStats({ ...stats, passRate: stats.passRate });
 }
 
 /** Is the promptfoo CLI runnable? (`npx promptfoo --version`). */

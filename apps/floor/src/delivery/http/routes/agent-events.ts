@@ -64,6 +64,51 @@ export interface CostIngestSummary {
   firstIssue?: string;
 }
 
+type SettledCostRow =
+  | { row: LlmCallRow; result: LlmCallResult }
+  | { row: LlmCallRow; err: unknown };
+
+function applySuccessfulCostRow(
+  summary: CostIngestSummary,
+  entry: { row: LlmCallRow; result: LlmCallResult },
+): void {
+  summary.recorded++;
+
+  if (entry.result?.correlated === false) {
+    summary.uncorrelated++;
+    summary.firstIssue ??= `uncorrelated id ${entry.row.taskId}`;
+  }
+}
+
+function applyFailedCostRow(
+  summary: CostIngestSummary,
+  entry: { row: LlmCallRow; err: unknown },
+): void {
+  summary.failed++;
+  const msg = errorMessage(entry.err);
+
+  summary.firstIssue ??= `insert failed for ${entry.row.taskId}: ${msg}`;
+  console.warn(
+    `[floor] llm_calls insert failed for ${entry.row.taskId}: ${msg}`,
+  );
+}
+
+// Folds one settled insert into the running summary; the failed/uncorrelated split this hides is why recordAgentCosts stays a plain loop over it.
+function applySettledCostRow(
+  summary: CostIngestSummary,
+  entry: SettledCostRow,
+): void {
+  summary.firstTaskId ??= entry.row.taskId;
+
+  if (!("err" in entry)) {
+    applySuccessfulCostRow(summary, entry);
+
+    return;
+  }
+
+  applyFailedCostRow(summary, entry);
+}
+
 // Persist one cost row per agent run: an unmatched id stores uncorrelated (counted, not dropped), and a genuine insert error is skipped rather than failing the batch — both feed the metric + audit summary (#945).
 async function recordAgentCosts(
   rows: readonly LlmCallRow[],
@@ -74,7 +119,7 @@ async function recordAgentCosts(
 
   // Inserts run in parallel (relay holds the request open across a serial chain otherwise), but the fold below stays sequential over Promise.all's index-ordered results so firstTaskId/firstIssue name the first row, not whichever settled first.
   const settled = await Promise.all(
-    rows.map(async (row) => {
+    rows.map(async (row): Promise<SettledCostRow> => {
       try {
         return { row, result: await logCall({ ...row, jobName: "agent" }) };
       } catch (err) {
@@ -84,24 +129,7 @@ async function recordAgentCosts(
   );
 
   for (const entry of settled) {
-    s.firstTaskId ??= entry.row.taskId;
-
-    if ("err" in entry) {
-      s.failed++;
-      const msg = errorMessage(entry.err);
-
-      s.firstIssue ??= `insert failed for ${entry.row.taskId}: ${msg}`;
-      console.warn(
-        `[floor] llm_calls insert failed for ${entry.row.taskId}: ${msg}`,
-      );
-      continue;
-    }
-    s.recorded++;
-
-    if (entry.result?.correlated === false) {
-      s.uncorrelated++;
-      s.firstIssue ??= `uncorrelated id ${entry.row.taskId}`;
-    }
+    applySettledCostRow(s, entry);
   }
 
   countAnomaly("cost_uncorrelated", s.uncorrelated);
@@ -216,6 +244,38 @@ async function mergeArtifacts(
   }
 }
 
+// Visible, not silent: redaction that breaks a line's JSON and the batch cap are the store's only lossy paths.
+function reportTurnAnomalies(turnsDropped: number, turnsCapped: number): void {
+  if (turnsDropped > 0) {
+    countAnomaly("turn_dropped_redaction", turnsDropped);
+    console.warn(
+      `[floor] ${turnsDropped} turn(s) dropped: redaction left the line unparseable`,
+    );
+  }
+
+  if (turnsCapped > 0) {
+    countAnomaly("turn_dropped_cap", turnsCapped);
+    console.warn(
+      `[floor] ${turnsCapped} turn(s) dropped: batch cap of ${MAX_RUN_TURNS_PER_BATCH} reached`,
+    );
+  }
+}
+
+// A failed audit write must not 500 the endpoint — a degraded batch still succeeds (FR5.6); losing the audit row beats dropping the whole ingest.
+async function writeCostDegradedAudit(cost: CostIngestSummary): Promise<void> {
+  const audit = costDegradedAudit(cost);
+
+  if (!audit) {
+    return;
+  }
+
+  await writeAuditLog(audit).catch((err) =>
+    console.warn(
+      `[floor] cost-degraded audit write skipped: ${errorMessage(err)}`,
+    ),
+  );
+}
+
 export interface AgentEventsRouteDeps {
   // The registry lookup that lets a satellite's own token in; absent means only the bus-wide token opens the door (pre-satellite behavior).
   findByTokenHash?: RegistryOrSharedTokenDeps["findByTokenHash"];
@@ -259,32 +319,8 @@ export function agentEventsRoute(deps: AgentEventsRouteDeps = {}): ServerRoute {
 
       await mergeArtifacts(fileEvents);
 
-      if (turnsDropped > 0) {
-        // Visible, not silent: redaction that breaks a line's JSON is the store's only lossy path, and an agent can provoke it to keep a line out of its own transcript.
-        countAnomaly("turn_dropped_redaction", turnsDropped);
-        console.warn(
-          `[floor] ${turnsDropped} turn(s) dropped: redaction left the line unparseable`,
-        );
-      }
-
-      if (turnsCapped > 0) {
-        // The other lossy path — a transcript store that quietly truncates is worse than one that says it truncated.
-        countAnomaly("turn_dropped_cap", turnsCapped);
-        console.warn(
-          `[floor] ${turnsCapped} turn(s) dropped: batch cap of ${MAX_RUN_TURNS_PER_BATCH} reached`,
-        );
-      }
-
-      const audit = costDegradedAudit(cost);
-
-      if (audit) {
-        // A failed audit write must not 500 the endpoint — a degraded batch still succeeds (FR5.6); losing the audit row beats dropping the whole ingest.
-        await writeAuditLog(audit).catch((err) =>
-          console.warn(
-            `[floor] cost-degraded audit write skipped: ${errorMessage(err)}`,
-          ),
-        );
-      }
+      reportTurnAnomalies(turnsDropped, turnsCapped);
+      await writeCostDegradedAudit(cost);
 
       request.app.span?.setAttributes({
         "agent_events.count": costRows.length,

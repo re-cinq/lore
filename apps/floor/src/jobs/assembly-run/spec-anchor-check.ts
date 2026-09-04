@@ -33,6 +33,11 @@ function targetCandidates(specPath: string, target: string): string[] {
   ].filter((candidate) => !candidate.startsWith(".."));
 }
 
+/** First candidate path, or the raw target when nothing resolves relative-safe. */
+function firstTargetCandidate(specPath: string, target: string): string {
+  return targetCandidates(specPath, target)[0] ?? target;
+}
+
 function resolveTarget(
   specPath: string,
   target: string,
@@ -49,6 +54,49 @@ function resolveTarget(
   return null;
 }
 
+/** Classifies one `#Lnn` match, or null if it resolves cleanly. */
+function anchorAt(
+  specPath: string,
+  target: string,
+  line: number,
+  readLines: (path: string) => string[] | null,
+): RottenAnchor | null {
+  if (/^[a-z]+:\/\//.test(target)) {
+    return null;
+  }
+  const resolved = resolveTarget(specPath, target, readLines);
+
+  if (!resolved) {
+    return {
+      specPath,
+      target: firstTargetCandidate(specPath, target),
+      line,
+      reason: "missing file",
+    };
+  }
+  const targetLine = resolved.lines[line - 1];
+
+  if (targetLine === undefined) {
+    return {
+      specPath,
+      target: resolved.path,
+      line,
+      reason: "line out of range",
+    };
+  }
+  const trimmed = targetLine.trim();
+
+  if (trimmed.length === 0) {
+    return { specPath, target: resolved.path, line, reason: "blank line" };
+  }
+
+  if (commentReason(resolved.path, trimmed)) {
+    return { specPath, target: resolved.path, line, reason: "comment line" };
+  }
+
+  return null;
+}
+
 function rottenAnchorsInSpec(
   spec: { path: string; content: string },
   readLines: (path: string) => string[] | null,
@@ -58,51 +106,10 @@ function rottenAnchorsInSpec(
   for (const match of spec.content.matchAll(ANCHOR)) {
     const target = match[1];
     const line = parseInt(match[2], 10);
+    const anchor = anchorAt(spec.path, target, line, readLines);
 
-    if (/^[a-z]+:\/\//.test(target)) {
-      continue;
-    }
-    const resolved = resolveTarget(spec.path, target, readLines);
-
-    if (!resolved) {
-      rotten.push({
-        specPath: spec.path,
-        target: targetCandidates(spec.path, target)[0] ?? target,
-        line,
-        reason: "missing file",
-      });
-      continue;
-    }
-    const targetLine = resolved.lines[line - 1];
-
-    if (targetLine === undefined) {
-      rotten.push({
-        specPath: spec.path,
-        target: resolved.path,
-        line,
-        reason: "line out of range",
-      });
-      continue;
-    }
-    const trimmed = targetLine.trim();
-
-    if (trimmed.length === 0) {
-      rotten.push({
-        specPath: spec.path,
-        target: resolved.path,
-        line,
-        reason: "blank line",
-      });
-      continue;
-    }
-
-    if (commentReason(resolved.path, trimmed)) {
-      rotten.push({
-        specPath: spec.path,
-        target: resolved.path,
-        line,
-        reason: "comment line",
-      });
+    if (anchor) {
+      rotten.push(anchor);
     }
   }
 
@@ -114,6 +121,10 @@ export function findRottenAnchors(
   readLines: (path: string) => string[] | null,
 ): RottenAnchor[] {
   return specs.flatMap((spec) => rottenAnchorsInSpec(spec, readLines));
+}
+
+function linesOf(content: string | null): string[] | null {
+  return content?.split(/\r?\n/) ?? null;
 }
 
 export interface RottenAnchorReportInput {
@@ -165,7 +176,7 @@ export async function rottenAnchorReport(
   for (const candidate of candidates) {
     const content = await input.repo.read(candidate, input.branch);
 
-    cache.set(candidate, content?.split(/\r?\n/) ?? null);
+    cache.set(candidate, linesOf(content));
   }
   const rotten = findRottenAnchors(specs, readLines);
 

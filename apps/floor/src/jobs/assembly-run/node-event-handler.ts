@@ -65,6 +65,28 @@ export function reportedStatus(status: unknown): AgentNodeStatus | null {
   };
 }
 
+/** The event's raw terminal status, or null when the CR was claimed by a cluster this Floor cannot read (left open for the reaper instead of fabricating an outcome). */
+async function resolveRawStatus(
+  event: NodeEvent,
+  params: Record<string, unknown>,
+  deps: NodeEventDeps,
+): Promise<AgentNodeStatus | null> {
+  const reported = reportedStatus(params.status);
+
+  // Only an older cluster-agent's event (no status) needs a cluster interrogated; an unreachable CR would otherwise read as "agent produced nothing" (2026-08-27 regression).
+  if (reported === null && (await claimUnreadableFromThisFloor(event, deps))) {
+    return null;
+  }
+
+  // Unwrap the NDJSON envelope once: every text parser below must read the agent text, not the stream carrying it.
+  return (
+    reported ??
+    (await deps.readAgentStatus(event.agentName)) ?? {
+      phase: String(params.phase ?? ""),
+    }
+  );
+}
+
 export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
   return async (params) => {
     const event = readNodeEvent(params);
@@ -73,20 +95,11 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     if (!target) {
       return;
     }
-    const reported = reportedStatus(params.status);
+    const rawStatus = await resolveRawStatus(event, params, deps);
 
-    // Only an older cluster-agent's event (no status) needs a cluster interrogated; an unreachable CR would otherwise read as "agent produced nothing" (2026-08-27 regression). Hand off to the cluster-aware reaper instead of fabricating an outcome.
-    const leftToReaper =
-      reported === null && (await claimUnreadableFromThisFloor(event, deps));
-
-    if (leftToReaper) {
+    if (!rawStatus) {
       return;
     }
-    // Unwrap the NDJSON envelope once: every text parser below must read the agent text, not the stream carrying it.
-    const rawStatus = reported ??
-      (await deps.readAgentStatus(event.agentName)) ?? {
-        phase: String(params.phase ?? ""),
-      };
     const status = normalizeAgentStatus(rawStatus);
     // Merged BEFORE the walk moves — the artifact sink is a separate racing HTTP post, so without this the next station could miss an arg its predecessor already produced (a re-merge is a no-op).
     const result = await deliverTerminalArtifacts(
@@ -315,20 +328,27 @@ async function routeCommentTriage(
   }
 }
 
+const numberArg = (value: unknown): number => Number(value) || 0;
+
+const stringArgOrUndefined = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const numberArgOrNull = (value: unknown): number | null =>
+  typeof value === "number" ? value : null;
+
 function contextFromRow(row: AssemblyRunRecord): CommentContext {
   const a = row.args;
 
   return {
     repo: row.repo,
-    pr_number: Number(a.pr_number) || 0,
+    pr_number: numberArg(a.pr_number),
     branch: row.branch ?? "",
-    head_sha: typeof a.head_sha === "string" ? a.head_sha : undefined,
-    comment_id: Number(a.comment_id) || 0,
+    head_sha: stringArgOrUndefined(a.head_sha),
+    comment_id: numberArg(a.comment_id),
     comment_body: String(a.comment_body ?? ""),
-    in_reply_to_id:
-      typeof a.in_reply_to_id === "number" ? a.in_reply_to_id : null,
+    in_reply_to_id: numberArgOrNull(a.in_reply_to_id),
     // Dropping this left "By" blank on runs a human asked for; the keyword fast path (same destination) kept it.
-    actor: typeof a.actor === "string" ? a.actor : undefined,
+    actor: stringArgOrUndefined(a.actor),
   };
 }
 

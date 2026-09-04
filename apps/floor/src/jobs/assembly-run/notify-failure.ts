@@ -64,6 +64,28 @@ export interface FailureNotifyPorts {
   uiUrl?: string;
 }
 
+interface ResolvedFailurePorts {
+  notify: (level: NotifyLevel, message: string) => Promise<unknown>;
+  comment: (prNumber: number, body: string) => Promise<unknown>;
+}
+
+/** Production resolves the send surfaces per repo; a caller can override either for tests. */
+function resolveFailurePorts(
+  row: AssemblyRunRecord,
+  ports: FailureNotifyPorts,
+): ResolvedFailurePorts {
+  return {
+    notify:
+      ports.notify ??
+      (async (level, message) =>
+        (await projectFor(row.repo)).notify.notify(level, message)),
+    comment:
+      ports.comment ??
+      (async (prNumber, body) =>
+        (await projectFor(row.repo)).pulls.comment(prNumber, body)),
+  };
+}
+
 export async function notifyLineFailure(
   row: AssemblyRunRecord,
   outcome: string,
@@ -77,14 +99,7 @@ export async function notifyLineFailure(
     ports.uiUrl ?? process.env.LORE_UI_URL,
   );
 
-  const notify =
-    ports.notify ??
-    (async (level: NotifyLevel, message: string) =>
-      (await projectFor(row.repo)).notify.notify(level, message));
-  const comment =
-    ports.comment ??
-    (async (prNumber: number, body: string) =>
-      (await projectFor(row.repo)).pulls.comment(prNumber, body));
+  const { notify, comment } = resolveFailurePorts(row, ports);
 
   await attempt(row, "notify", ports.audit, () =>
     notify("escalation", notice.message),

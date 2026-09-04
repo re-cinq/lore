@@ -36,20 +36,21 @@ export type CodeLinkRef = SpecLinkRef;
 
 const LINK_INSIDE_PAREN_RE = /\[([^\]]+)\]\(([^)]+)\)/g;
 
-// Walks backward counting paren depth (a naive `\(([^()]*)\)` regex fails since markdown links themselves contain `()`); tolerates a trailing period + whitespace.
-function findTrailingParenSpan(
-  s: string,
-): { open: number; innerStart: number; innerEnd: number } | null {
+function trimTrailingSpaceAndPeriod(s: string): number {
   let end = s.length;
 
   while (end > 0 && /[\s.]/.test(s[end - 1])) {
     end--;
   }
 
-  if (end === 0 || s[end - 1] !== ")") {
-    return null;
-  }
+  return end;
+}
 
+// Walks backward counting paren depth (a naive `\(([^()]*)\)` regex fails since markdown links themselves contain `()`).
+function matchingOpenParen(
+  s: string,
+  end: number,
+): { open: number; innerStart: number; innerEnd: number } | null {
   let depth = 1;
 
   for (let i = end - 2; i >= 0; i--) {
@@ -60,16 +61,29 @@ function findTrailingParenSpan(
       continue;
     }
 
-    if (c === "(" && depth === 1) {
-      return { open: i, innerStart: i + 1, innerEnd: end - 1 };
+    if (c !== "(") {
+      continue;
     }
+    depth--;
 
-    if (c === "(") {
-      depth--;
+    if (depth === 0) {
+      return { open: i, innerStart: i + 1, innerEnd: end - 1 };
     }
   }
 
   return null;
+}
+
+function findTrailingParenSpan(
+  s: string,
+): { open: number; innerStart: number; innerEnd: number } | null {
+  const end = trimTrailingSpaceAndPeriod(s);
+
+  if (end === 0 || s[end - 1] !== ")") {
+    return null;
+  }
+
+  return matchingOpenParen(s, end);
 }
 
 /** Turn a `[label](path#Lline)` regex match into a normalized link ref. */

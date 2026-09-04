@@ -107,11 +107,20 @@ function testSelectorsOf(row: StmtRow): string[] {
   return [...seen];
 }
 
-function toStatement(row: StmtRow): GraphContextStatement {
+function specFieldsOf(row: StmtRow): { specPath: string; specTitle: string } {
   return {
-    xid: row["Statement.xid"] ?? row.uid,
     specPath: row.spec?.["Spec.file_path"] ?? "",
     specTitle: row.spec?.["Spec.title"] ?? "",
+  };
+}
+
+function toStatement(row: StmtRow): GraphContextStatement {
+  const { specPath, specTitle } = specFieldsOf(row);
+
+  return {
+    xid: row["Statement.xid"] ?? row.uid,
+    specPath,
+    specTitle,
     section: row.section?.["Section.heading"],
     statementText: (row["Statement.text"] ?? "").trim(),
     signal: signalOf(row),

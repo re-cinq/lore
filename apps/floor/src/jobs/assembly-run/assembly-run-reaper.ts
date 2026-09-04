@@ -372,6 +372,32 @@ async function failLongQueuedLine(
   return 1;
 }
 
+interface FailedOutcomeAlertTarget {
+  row: AssemblyRunRecord;
+  node: RunGraphNode;
+  status: AgentNodeStatus;
+}
+
+// Both alert channels fire under the same condition; splitting this out is the whole reason settleResolvedNode's complexity stays low.
+async function alertOnFailedOutcome(
+  target: FailedOutcomeAlertTarget,
+  result: Awaited<ReturnType<typeof deliverTerminalArtifacts>>,
+  deps: AssemblyLineReaperDeps,
+): Promise<void> {
+  if (result.outcome !== "failed") {
+    return;
+  }
+  const { row, node, status } = target;
+
+  if (deps.alertBilling) {
+    await deps.alertBilling(row.repo, node.type, status);
+  }
+
+  if (deps.alertAgentConfig) {
+    await deps.alertAgentConfig(row.repo, node.type, status);
+  }
+}
+
 /** A dropped event lands here instead — same review/check, artifacts, and alerts the event path would have delivered, or the account-dry alarm depends on which door the event came through (#1456). */
 async function settleResolvedNode(
   params: {
@@ -391,13 +417,7 @@ async function settleResolvedNode(
     deps,
   );
 
-  if (result.outcome === "failed" && deps.alertBilling) {
-    await deps.alertBilling(row.repo, node.type, status);
-  }
-
-  if (result.outcome === "failed" && deps.alertAgentConfig) {
-    await deps.alertAgentConfig(row.repo, node.type, status);
-  }
+  await alertOnFailedOutcome({ row, node, status }, result, deps);
 
   if (result.failureClass) {
     deps.llmGate?.trip(result.failureClass, result.failureDetail);
@@ -510,13 +530,32 @@ async function recoverOpenNode(
   );
 }
 
+/** A node whose pod stopped reporting died of infrastructure, not the work — say so instead of a bare `failed` with no story. */
+async function applyTimeoutRecovery(
+  found: OpenNodeContext,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  const { row, node, openNode, budgetMinutes } = found;
+
+  await failOpenNode(found, ctx, {
+    outcome: "failed",
+    failureClass: "infra",
+    failureDetail: `${nodeKind(node)} node timed out after ${budgetMinutes ?? DEFAULT_TIMEOUT_MINUTES} minutes without reporting`,
+  });
+  console.warn(
+    `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${nodeKind(node)}-timeout)`,
+  );
+
+  return "timeout";
+}
+
 /** Carries out one recovery verdict. Every branch ends the node or puts its row back on the shelf; nothing here decides, it only acts. */
 async function applyRecovery(
   recovery: ReturnType<typeof decideNodeRecovery>,
   found: OpenNodeContext,
   ctx: ReapContext,
 ): Promise<ReapOutcome> {
-  const { row, node, openNode, budgetMinutes } = found;
+  const { row, node, openNode } = found;
 
   if (recovery.kind === "resolve") {
     await settleResolvedNode(
@@ -528,17 +567,7 @@ async function applyRecovery(
   }
 
   if (recovery.kind === "timeout") {
-    await failOpenNode(found, ctx, {
-      outcome: "failed",
-      failureClass: "infra",
-      // A node whose pod stopped reporting died of infrastructure, not the work — say so instead of a bare `failed` with no story.
-      failureDetail: `${nodeKind(node)} node timed out after ${budgetMinutes ?? DEFAULT_TIMEOUT_MINUTES} minutes without reporting`,
-    });
-    console.warn(
-      `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${nodeKind(node)}-timeout)`,
-    );
-
-    return "timeout";
+    return await applyTimeoutRecovery(found, ctx);
   }
 
   if (recovery.kind === "queue-timeout") {
@@ -618,18 +647,40 @@ async function requeueOffline(
   return "requeued";
 }
 
+function reapNowMs(deps: AssemblyLineReaperDeps): number {
+  return (deps.now?.() ?? new Date()).getTime();
+}
+
+function reapQueueWaitMs(deps: AssemblyLineReaperDeps): number {
+  return deps.queueWaitMs ?? stationQueueWaitMs();
+}
+
+async function reapOfflineAgents(
+  deps: AssemblyLineReaperDeps,
+  nowMs: number,
+): Promise<Set<string>> {
+  return (
+    (await deps.offlineClusterAgents?.(
+      new Date(nowMs - OFFLINE_THRESHOLD_MS),
+    )) ?? new Set<string>()
+  );
+}
+
+async function reapClusterAgents(
+  deps: AssemblyLineReaperDeps,
+): Promise<ClusterAgent[]> {
+  return (await deps.listClusterAgents?.()) ?? [];
+}
+
 /** Everything one tick reads once and every line then shares: the clock, the queue budget, which clusters are dead, and the capacity picture that explains an unclaimed node. */
 async function buildReapContext(
   deps: AssemblyLineReaperDeps,
 ): Promise<ReapContext> {
-  const nowMs = (deps.now?.() ?? new Date()).getTime();
-  const queueWaitMs = deps.queueWaitMs ?? stationQueueWaitMs();
-  const offlineAgents =
-    (await deps.offlineClusterAgents?.(
-      new Date(nowMs - OFFLINE_THRESHOLD_MS),
-    )) ?? new Set<string>();
+  const nowMs = reapNowMs(deps);
+  const queueWaitMs = reapQueueWaitMs(deps);
+  const offlineAgents = await reapOfflineAgents(deps, nowMs);
   // AFTER the offline sweep, which mutates what this reads — reading first would misreport a cluster that just died as "capable ... it may be wedged".
-  const clusterAgents = (await deps.listClusterAgents?.()) ?? [];
+  const clusterAgents = await reapClusterAgents(deps);
 
   return {
     deps,

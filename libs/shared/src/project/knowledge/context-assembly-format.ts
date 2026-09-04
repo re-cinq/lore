@@ -67,11 +67,8 @@ function isBetter(candidate: SourceItem, current: SourceItem): boolean {
   return ai > bi;
 }
 
-export function serializeDocument(
-  source: SourceItem,
-  opts: { truncated?: boolean } = {},
-): string {
-  const attrs = [
+function documentAttrs(source: SourceItem, truncated: boolean): string[] {
+  return [
     source.source_path ? `source="${escapeXmlAttr(source.source_path)}"` : "",
     source.content_type ? `type="${escapeXmlAttr(source.content_type)}"` : "",
     source.repo ? `repo="${escapeXmlAttr(source.repo)}"` : "",
@@ -79,8 +76,15 @@ export function serializeDocument(
       ? `relevance="${source.score.toFixed(2)}"`
       : "",
     `tokens="${source.tokens}"`,
-    opts.truncated ? 'truncated="true"' : "",
-  ]
+    truncated ? 'truncated="true"' : "",
+  ];
+}
+
+export function serializeDocument(
+  source: SourceItem,
+  opts: { truncated?: boolean } = {},
+): string {
+  const attrs = documentAttrs(source, opts.truncated ?? false)
     .filter(Boolean)
     .join(" ");
 
