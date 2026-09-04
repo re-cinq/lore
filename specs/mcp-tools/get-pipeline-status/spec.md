@@ -22,7 +22,7 @@ error.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L87)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-lifecycle.ts#L163)).
 
 - **name**: `lore_get_pipeline_status`
 - **description** (verbatim):

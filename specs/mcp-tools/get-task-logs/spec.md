@@ -21,7 +21,7 @@ say whether the task has finished so a poller can stop.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L671)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools-logs.ts#L76)).
 
 - **name**: `lore_get_task_logs`
 - **description** (verbatim):

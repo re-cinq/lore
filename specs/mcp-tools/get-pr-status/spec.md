@@ -22,7 +22,7 @@ without scripting the GitHub REST API.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L112)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools-lifecycle.ts#L182)).
 
 - **name**: `lore_get_pr_status`
 - **description** (verbatim):

@@ -67,7 +67,7 @@ records latency + success into `memory.audit_log` and an OTEL span.
    non-fatal (stays disabled).
 4. Delegate to the engine
    `assembleContext(pool, query, template, max_tokens, repo, agent_id, enableCrossRepo)`
-   ([engine](../../../libs/shared/src/project/knowledge/context-assembly.ts#L441), re-exported
+   ([engine](../../../libs/shared/src/project/knowledge/context-assembly.ts#L225), re-exported
    [here](../../../libs/server-core/src/features/context/context-assembly.ts#L10)). The engine
    returns `{ text, sections: { tokens, … }[] }` — its retrieval/ranking/XML-emission
    contract is owned by [`context-assembly`](../../context-assembly/spec.md).
@@ -117,7 +117,7 @@ The local task runner pre-fetched none of this: `withLoreWorkflowPreamble` opens
 every locally-run task with `lore_assemble_context` as step 1 and ends with the
 task itself, and there is no second, pre-loaded shape of the preamble to diverge
 from it (the pre-run fetch was removed 2026-08-28).
-([validated by `opens every local run with lore_assemble_context as step 1`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L706), [`ends with the task, so the instructions read as preamble to it`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L712), [`has one shape — nothing is pre-fetched, so there is no pre-loaded branch`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L716); implemented by [`runner.local.ts:789`](apps/mcp-server/src/features/pipeline/runner.local.ts#L789))
+([validated by `opens every local run with lore_assemble_context as step 1`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L706), [`ends with the task, so the instructions read as preamble to it`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L712), [`has one shape — nothing is pre-fetched, so there is no pre-loaded branch`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L716); implemented by [`runner-local-spawn.ts:28`](apps/mcp-server/src/features/pipeline/runner-local-spawn.ts#L28))
 
 The `/api/context` endpoint runs full assembly when a `query` param is present and
 a raw chunk fetch when it is absent.

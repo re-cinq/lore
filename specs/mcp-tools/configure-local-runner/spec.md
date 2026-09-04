@@ -42,7 +42,7 @@ Views or updates the local runner config on your machine; returns current config
 ## Behavior
 
 1. `readConfig()`
-   ([reader](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L30)) —
+   ([reader](../../../apps/mcp-server/src/features/pipeline/runner-local-storage.ts#L25)) —
    parse `~/.lore/local-runner.json`; on any read/parse failure return the
    defaults `{enabled:false, max_concurrent:2, repos:[], task_types:
    ["implementation","general","runbook","gap-fill"], model:"claude-sonnet-4-6"}`.
@@ -50,7 +50,7 @@ Views or updates the local runner config on your machine; returns current config
    `task_types`, `model` all falsy), return the current config as pretty JSON.
 3. **Update mode** — overwrite each provided field
    (`max_concurrent` is applied only when `!== undefined`), then `writeConfig`
-   ([writer](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L44))
+   ([writer](../../../apps/mcp-server/src/features/pipeline/runner-local-storage.ts#L39))
    (mkdir-p the parent, write pretty JSON) and return `"Config updated:\n{json}"`.
 4. Any thrown error is caught and returned as `"Error: {message}"`.
 

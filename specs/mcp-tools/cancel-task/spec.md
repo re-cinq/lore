@@ -22,7 +22,7 @@ or misleading.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L163)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-listing.ts#L53)).
 
 - **name**: `lore_cancel_task`
 - **description** (verbatim):

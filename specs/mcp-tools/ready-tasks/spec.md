@@ -22,7 +22,7 @@ picks the next workable item without scanning the whole backlog.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L262)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-spec-tasks.ts#L53)).
 
 - **name**: `lore_ready_tasks`
 - **description** (verbatim):

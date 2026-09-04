@@ -1,691 +1,57 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
-import TestPreview from "./TestPreview";
+import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
-import type {
-  SpecGraph,
-  SpecGraphNode,
-  SpecRing,
-  RingSection,
-  RingStatement,
-} from "@/lib/spec-graph";
-import { resolveExclusion, type Disc } from "@/lib/ring-exclusion";
-import { visibleSegments } from "@/lib/segment-clip";
-import { resolveSpacing, type Anchor } from "@/lib/anchor-spacing";
+import type { SpecGraph, SpecGraphNode } from "@/lib/spec-graph";
 import {
-  captureGraphState,
-  applyGraphState,
   serializeGraphState,
-  parseGraphState,
+  captureGraphState,
 } from "@/lib/graph-persistence";
-import {
-  nodeDegrees,
-  crowdedCharge,
-  crowdedCollideRadius,
-} from "@/lib/graph-crowding";
-import {
-  settleTicks,
-  boundingRadius,
-  connectedComponents,
-  rimTargets,
-  radialTree,
-  separateSmallComponents,
-  countCrossings,
-  featureRingRadius,
-} from "@/lib/graph-layout";
-import { nodeMatchesQuery } from "@/lib/graph-search";
-import { aggregateLeaves, shouldAggregate } from "@/lib/graph-aggregation";
-import { buildContainmentForest, bundleControlIds } from "@/lib/edge-bundling";
-import {
-  invertPoint,
-  applyPoint,
-  findNodeAtPoint,
-  type ZoomTransform,
-} from "@/lib/graph-viewport";
-import { featureStatusColor } from "../features/feature-status";
 import { cssToken, resolveColor } from "@/lib/theme-token-resolve";
+import { COLORS, colorOf } from "./spec-graph-visual";
+import { prepareGraphLayout } from "./spec-graph-data-prep";
+import { createGraphSimulation } from "./spec-graph-simulation";
+import { createFocusState } from "./spec-graph-focus-state";
+import { createCanvasDrawer, isAggregating } from "./spec-graph-canvas-draw";
+import { drawState, type GraphController } from "./spec-graph-controller-types";
+import { update, measureCrossings } from "./spec-graph-controller-nodes";
+import { toggleExpand } from "./spec-graph-controller-rings";
+import {
+  createZoom,
+  wireBackgroundClick,
+  renderFrame,
+} from "./spec-graph-controller-interaction";
+import {
+  resolveRenderTargets,
+  restoreExpandedRings,
+  elementSize,
+  devicePixelRatioSafe,
+} from "./spec-graph-seed-layout";
+import {
+  CrossingsLabel,
+  HoverTooltip,
+  SelectedNodeCard,
+} from "./SpecGraphOverlays";
 
-const RING_CLEARANCE = 24;
-const ANCHOR_SEPARATION = 80;
+export { computeRing } from "./spec-graph-ring-layout";
+export { nodeLinks } from "./spec-graph-node-links";
 
-// Below this zoom, leaves collapse into per-parent count badges (semantic zoom); above they expand back.
-const LOD_THRESHOLD = 0.5;
-// curveBundle straightening: 1 = fully bundled to the hierarchy spine, 0 = straight.
-const BUNDLE_BETA = 0.85;
-const HIT_SLOP = 4; // forgiveness (px) around a canvas leaf's radius when clicking
-
-// Containment tree (Feature ⊃ Spec ⊃ Statement/AC) the bundler routes along.
-const CONTAINMENT_KINDS = new Set([
-  "in_feature",
-  "in_spec",
-  "in_section",
-  "has_statement",
-]);
-// Ownership edges anchor tree-less leaf under owning Statement/AC so cross-spec edges have bundling hierarchy.
-const OWNERSHIP_KINDS = new Set([
-  "validated_by",
-  "implemented_by",
-  "decided_by",
-]);
-// High-cardinality leaves rendered on the canvas layer (not the SVG skeleton).
-const LEAF_CANVAS_TYPES = new Set<SpecGraphNode["type"]>([
-  "TestChunk",
-  "CodeChunk",
-  "File",
-]);
-
-// Radial-tree layout: Feature tree-centres spread on circle of boundR·FEATURE_SPREAD; small components on rim.
-const RING_GAP = 100;
-const FEATURE_SPREAD = 0.6;
-const RIM_MARGIN = 780;
-const SMALL_COMPONENT_MAX = 5;
-
-type SimNode = SpecGraphNode & d3.SimulationNodeDatum;
-type SimLink = d3.SimulationLinkDatum<SimNode> & {
-  kind: string;
-  controlIds?: string[];
-};
-
-const TESTED_FILL = "var(--success)";
-const UNTESTED_FILL = "var(--danger)";
-
-// Spec's expansion: inner ring (sections by count & coverage), outer ring (statements green/red by test status).
-interface SectionArc {
-  uid: string;
-  heading: string;
-  total: number;
-  tested: number;
-  d: string;
-}
-interface StatementArc {
-  uid: string;
-  tested: boolean;
-  text: string;
-  mid: number;
-  d: string;
-}
-interface ExpandData {
-  specPath: string;
-  outerMid: number;
-  outerR1: number;
-  sections: SectionArc[];
-  statements: StatementArc[];
-}
-
-function groupStatementsBySection(
-  statements: RingStatement[],
-): Map<string, RingStatement[]> {
-  const bySec = new Map<string, RingStatement[]>();
-
-  for (const st of statements) {
-    const list = bySec.get(st.sectionUid);
-
-    if (list) {
-      list.push(st);
-      continue;
-    }
-
-    bySec.set(st.sectionUid, [st]);
-  }
-
-  return bySec;
-}
-
-interface StatementArcLayout {
-  span: Map<string, { a0: number; a1: number }>;
-  bySec: Map<string, RingStatement[]>;
-  arc: d3.Arc<unknown, d3.DefaultArcObject>;
-  outerR0: number;
-  outerR1: number;
-}
-
-/** One section's statement arcs, spread evenly across the angle span its section arc already claimed. */
-function statementArcsForSection(
-  sec: RingSection,
-  layout: StatementArcLayout,
-): StatementArc[] {
-  const { span, bySec, arc, outerR0, outerR1 } = layout;
-  const sp = span.get(sec.uid);
-  const sts = bySec.get(sec.uid) ?? [];
-
-  if (!sp || sts.length === 0) {
-    return [];
-  }
-
-  const w = (sp.a1 - sp.a0) / sts.length;
-
-  return sts.map((st, i) => {
-    const a0 = sp.a0 + i * w;
-    const a1 = a0 + w;
-
-    return {
-      uid: st.uid,
-      tested: st.tested,
-      text: st.text,
-      mid: (a0 + a1) / 2,
-      d:
-        arc({
-          innerRadius: outerR0,
-          outerRadius: outerR1,
-          startAngle: a0 + 0.004,
-          endAngle: a1 - 0.004,
-        }) ?? "",
-    };
-  });
-}
-
-/** Lays out a spec's two rings: section arcs (inner) + per-statement arcs (outer). */
-export function computeRing(specPath: string, ring: SpecRing): ExpandData {
-  const TWO_PI = Math.PI * 2;
-  const nSt = Math.max(ring.statements.length, 1);
-  // Grow the radius with statement count so each outer arc stays clickable.
-  const outerR0 = Math.max(64, Math.min(150, (nSt * 11) / TWO_PI));
-  const innerR1 = outerR0 - 4;
-  const innerR0 = Math.max(RADIUS.Spec + 6, innerR1 - 16);
-  const outerR1 = outerR0 + 13;
-  const arc = d3.arc();
-
-  const span = new Map<string, { a0: number; a1: number }>();
-  const pie = d3
-    .pie<RingSection>()
-    .sort(null)
-    .value((s) => s.total + 1.2)(ring.sections);
-  const sections: SectionArc[] = pie.map((p) => {
-    span.set(p.data.uid, { a0: p.startAngle, a1: p.endAngle });
-
-    return {
-      uid: p.data.uid,
-      heading: p.data.heading,
-      total: p.data.total,
-      tested: p.data.tested,
-      d:
-        arc({
-          innerRadius: innerR0,
-          outerRadius: innerR1,
-          startAngle: p.startAngle,
-          endAngle: p.endAngle,
-        }) ?? "",
-    };
-  });
-
-  const bySec = groupStatementsBySection(ring.statements);
-  const statements: StatementArc[] = ring.sections.flatMap((sec) =>
-    statementArcsForSection(sec, { span, bySec, arc, outerR0, outerR1 }),
-  );
+function resolveColors(el: SVGSVGElement) {
+  // Canvas needs literal colors (not var() strings); tokens resolved per render, SVG keeps var() refs.
+  const tokenStyles = getComputedStyle(el);
+  const lookup = (name: string) => tokenStyles.getPropertyValue(name);
 
   return {
-    specPath,
-    outerMid: (outerR0 + outerR1) / 2,
-    outerR1,
-    sections,
-    statements,
+    surfaceColor: cssToken(lookup, "--bg-surface", "#ffffff"),
+    edgeColor: cssToken(lookup, "--chart-neutral", "#94a3b8"),
+    badgeTextColor: cssToken(lookup, "--text-on-accent", "#ffffff"),
+    canvasColorOf: (type: SpecGraphNode["type"]) =>
+      resolveColor(lookup, colorOf(type)),
+    coverageTint: d3.interpolateRgb(
+      cssToken(lookup, "--danger", "#dc2626"),
+      cssToken(lookup, "--success", "#16a34a"),
+    ),
   };
-}
-
-const COLORS: Record<SpecGraphNode["type"], string> = {
-  Feature: "var(--chart-feature)",
-  Spec: "var(--chart-spec)",
-  Section: "var(--chart-section)",
-  Statement: "var(--chart-statement)",
-  AcceptanceCriterion: "var(--chart-criterion)",
-  TestChunk: "var(--chart-test)",
-  CodeChunk: "var(--chart-code)",
-  File: "var(--chart-code)",
-  ADR: "var(--chart-adr)",
-};
-const RADIUS: Record<SpecGraphNode["type"], number> = {
-  Feature: 20,
-  Spec: 16,
-  Section: 10,
-  Statement: 8,
-  AcceptanceCriterion: 9,
-  TestChunk: 11,
-  CodeChunk: 11,
-  File: 12,
-  ADR: 13,
-};
-
-// Feature node color by lifecycle status (ADR-027): single-source palette from feature-status.ts.
-const radiusOf = (type: SpecGraphNode["type"]): number => RADIUS[type] ?? 11;
-const colorOf = (type: SpecGraphNode["type"]): string =>
-  COLORS[type] ?? "var(--chart-neutral)";
-// Node fill: status-colored when a Feature carries a persistent lifecycle status.
-const nodeColor = (node: SpecGraphNode): string =>
-  node.type === "Feature" && node.status
-    ? (featureStatusColor(node.status) ?? colorOf(node.type))
-    : colorOf(node.type);
-const isLeafCanvas = (type: SpecGraphNode["type"]): boolean =>
-  LEAF_CANVAS_TYPES.has(type);
-
-// Structural nodes only get persistent labels; leaves show long paths on hover/selection.
-const LABELED_TYPES = new Set<SpecGraphNode["type"]>([
-  "Feature",
-  "Spec",
-  "Section",
-  "ADR",
-]);
-
-// Focus + context: opacity by graph distance from selected node (0=selected, 1-3 hops, 3+ dimmed).
-const LEVEL_OPACITY = [1, 0.85, 0.5, 0.28];
-const FADED = 0.07;
-
-/** Edge opacity from the two endpoints' focus levels: faded when either side has none. */
-function levelPairOpacity(
-  sourceLevel: number | undefined,
-  targetLevel: number | undefined,
-): number {
-  if (sourceLevel === undefined || targetLevel === undefined) {
-    return FADED;
-  }
-
-  return 0.6 * (LEVEL_OPACITY[Math.max(sourceLevel, targetLevel)] ?? FADED);
-}
-
-/** Only test/code chunks get spoked onto a ring; ADRs are anchors (spacing force, never spoked). */
-function isSpokeableLeafType(leaf: SimNode): boolean {
-  return leaf.type === "TestChunk" || leaf.type === "CodeChunk";
-}
-
-/** Only hard-place leaves with a single owner (clean radial spokes); shared chunks float. */
-function hasSingleOwner(nb: string, adj: Map<string, Set<string>>): boolean {
-  return (adj.get(nb)?.size ?? 0) === 1;
-}
-
-const idOf = (node: string | number | SimNode): string =>
-  typeof node === "object" ? node.id : String(node);
-
-type NodeLink = { label: string; href: string; external: boolean };
-
-const SPEC_FAMILY_TYPES = new Set<SpecGraphNode["type"]>([
-  "Spec",
-  "Statement",
-  "Section",
-]);
-
-function loreLink(node: SpecGraphNode): NodeLink | null {
-  if (!SPEC_FAMILY_TYPES.has(node.type) || !node.path) {
-    return null;
-  }
-
-  return {
-    label: "Open in Lore",
-    href: `/specs/${encodeURIComponent(node.path)}`,
-    external: false,
-  };
-}
-
-function githubLink(node: SpecGraphNode, repo: string): NodeLink | null {
-  if (!node.path) {
-    return null;
-  }
-
-  const line = node.line ? `#L${node.line}` : "";
-
-  return {
-    label: "View on GitHub",
-    href: `https://github.com/${repo}/blob/HEAD/${node.path}${line}`,
-    external: true,
-  };
-}
-
-export function nodeLinks(node: SpecGraphNode, repo: string): NodeLink[] {
-  return [loreLink(node), githubLink(node, repo)].filter(
-    (link): link is NodeLink => link !== null,
-  );
-}
-
-// Memoized: re-parse markdown only on text change, not on every cursor move.
-const HoverMarkdown = memo(function HoverMarkdown({ text }: { text: string }) {
-  return (
-    <div className="md-popover">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
-      >
-        {text}
-      </ReactMarkdown>
-    </div>
-  );
-});
-
-// Spec→Section/Statement drill-down gets more length so children don't pile.
-function linkDistance(kind: SimLink["kind"]): number {
-  if (kind === "in_feature") {
-    return 76;
-  }
-
-  if (kind === "in_section" || kind === "has_statement" || kind === "in_spec") {
-    return 62;
-  }
-
-  return 46;
-}
-
-function chargeBase(nodeType: SimNode["type"]): number {
-  if (nodeType === "Feature") {
-    return -320;
-  }
-
-  if (nodeType === "Spec") {
-    return -260;
-  }
-
-  return -200;
-}
-
-function bfsLevels(
-  adj: Map<string, Set<string>>,
-  startId: string,
-  maxDepth: number,
-): Map<string, number> {
-  const level = new Map<string, number>([[startId, 0]]);
-  let frontier = [startId];
-
-  for (let d = 1; d <= maxDepth; d += 1) {
-    const next: string[] = [];
-
-    frontier.forEach((id) => {
-      adj.get(id)?.forEach((nb) => {
-        if (!level.has(nb)) {
-          level.set(nb, d);
-          next.push(nb);
-        }
-      });
-    });
-    frontier = next;
-  }
-
-  return level;
-}
-
-type Point = { x: number; y: number };
-
-/** SVG + canvas + a live 2D context, or null when the DOM isn't ready to draw into yet. */
-function resolveRenderTargets(
-  el: SVGSVGElement | null,
-  canvas: HTMLCanvasElement | null,
-): {
-  el: SVGSVGElement;
-  canvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
-} | null {
-  if (!el || !canvas) {
-    return null;
-  }
-  const ctx = canvas.getContext("2d");
-
-  return ctx ? { el, canvas, ctx } : null;
-}
-
-// Ownership edges anchor tree-less leaves under their owning Statement/AC, extending the containment forest in place.
-function withOwnershipForest(
-  forest: Map<string, string>,
-  links: SpecGraph["links"],
-  ownershipKinds: Set<string>,
-): Map<string, string> {
-  for (const l of links) {
-    if (ownershipKinds.has(l.kind) && !forest.has(l.target)) {
-      forest.set(l.target, l.source);
-    }
-  }
-
-  return forest;
-}
-
-// Cross-cutting edges precompute a bundle spine through the containment forest; containment edges stay straight.
-function withBundleControlIds(
-  links: SimLink[],
-  forest: Map<string, string>,
-  containmentKinds: Set<string>,
-): SimLink[] {
-  for (const l of links) {
-    if (!containmentKinds.has(l.kind)) {
-      l.controlIds = bundleControlIds(
-        forest,
-        idOf(l.source as string | SimNode),
-        idOf(l.target as string | SimNode),
-      );
-    }
-  }
-
-  return links;
-}
-
-/** Best-effort restore of a prior session's node positions + expanded rings from localStorage. */
-function tryRestoreGraphState(
-  storageKey: string,
-  nodes: SimNode[],
-): { savedExpanded: string[]; restoredFromStorage: boolean } {
-  try {
-    const saved = parseGraphState(localStorage.getItem(storageKey));
-
-    if (saved) {
-      applyGraphState(saved, nodes);
-
-      return { savedExpanded: saved.expanded, restoredFromStorage: true };
-    }
-  } catch {
-    // unavailable/corrupt storage — start from a fresh force layout
-  }
-
-  return { savedExpanded: [], restoredFromStorage: false };
-}
-
-// Inverts the containment forest (child → parent) into children lists (parent → children) for radial-tree layout.
-function buildChildrenMap(forest: Map<string, string>): Map<string, string[]> {
-  const childrenOf = new Map<string, string[]>();
-
-  for (const [child, parent] of forest) {
-    (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(
-      child,
-    );
-  }
-
-  return childrenOf;
-}
-
-// Unreached nodes: seed as a spiral near center with a local counter to bound the radius.
-function seedStrayNodes(
-  nodes: readonly SpecGraphNode[],
-  seed: Map<string, Point>,
-  smallIds: Set<string>,
-  viewportCenter: Point,
-): void {
-  let strayIndex = 0;
-
-  for (const node of nodes) {
-    if (seed.has(node.id) || smallIds.has(node.id)) {
-      continue;
-    }
-    const r = 8 + strayIndex * 6;
-    const a = strayIndex * 2.399963229728653;
-
-    seed.set(node.id, {
-      x: viewportCenter.x + r * Math.cos(a),
-      y: viewportCenter.y + r * Math.sin(a),
-    });
-    strayIndex += 1;
-  }
-}
-
-function computeMainExtent(
-  seed: Map<string, Point>,
-  viewportCenter: Point,
-): number {
-  let mainExtent = 0;
-
-  for (const p of seed.values()) {
-    mainExtent = Math.max(
-      mainExtent,
-      Math.hypot(p.x - viewportCenter.x, p.y - viewportCenter.y),
-    );
-  }
-
-  return mainExtent;
-}
-
-function applyRimTargets(
-  seed: Map<string, Point>,
-  rim: Iterable<[string, Point]>,
-): void {
-  for (const [id, p] of rim) {
-    seed.set(id, p);
-  }
-}
-
-// Force-simulation start positions: the radial-tree/rim seed when available, else the viewport center.
-function seedInitialPositions(
-  nodes: SimNode[],
-  seed: Map<string, Point>,
-  viewportCenter: Point,
-): void {
-  for (const n of nodes) {
-    const p = seed.get(n.id) ?? viewportCenter;
-
-    n.x = p.x;
-    n.y = p.y;
-  }
-}
-
-function collectRingDiscs(
-  expanded: Map<string, ExpandData>,
-  nodeById: Map<string, SimNode>,
-): Disc[] {
-  const discs: Disc[] = [];
-
-  for (const [specId, exp] of expanded) {
-    const spec = nodeById.get(specId);
-
-    if (spec) {
-      discs.push({ x: spec.x ?? 0, y: spec.y ?? 0, r: exp.outerR1 });
-    }
-  }
-
-  return discs;
-}
-
-// Feature/Spec/ADR nodes anchor the layout — spread apart from each other, everything else just stays off rings.
-function nodeIsAnchorType(n: SimNode): boolean {
-  return n.type === "Feature" || n.type === "Spec" || n.type === "ADR";
-}
-
-function collectAnchors(nodes: SimNode[]): Anchor[] {
-  const anchors: Anchor[] = [];
-
-  for (const n of nodes) {
-    if (nodeIsAnchorType(n)) {
-      anchors.push({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 });
-    }
-  }
-
-  return anchors;
-}
-
-function nodeIsPinned(n: SimNode): boolean {
-  return n.fx != null || n.fy != null;
-}
-
-// Expanded specs, ring-pinned statements, and drag-pinned nodes sit still — the spacing pass never moves them.
-function nodeIsSpacingFixed(
-  n: SimNode,
-  expanded: Map<string, ExpandData>,
-  ringPinned: Set<string>,
-): boolean {
-  return expanded.has(n.id) || ringPinned.has(n.id) || nodeIsPinned(n);
-}
-
-function resolveSafePosition(
-  n: SimNode,
-  isAnchor: boolean,
-  anchors: Anchor[],
-  discs: Disc[],
-): Point {
-  return isAnchor
-    ? resolveSpacing(
-        { id: n.id, x: n.x ?? 0, y: n.y ?? 0 },
-        anchors,
-        discs,
-        ANCHOR_SEPARATION,
-      )
-    : resolveExclusion({ x: n.x ?? 0, y: n.y ?? 0 }, discs, RING_CLEARANCE);
-}
-
-interface SpacingContext {
-  anchors: Anchor[];
-  discs: Disc[];
-  expanded: Map<string, ExpandData>;
-  ringPinned: Set<string>;
-}
-
-// One node's spacing-pass relaxation: fixed nodes are skipped, everyone else is nudged clear of anchors/rings.
-function relaxNodeSpacing(n: SimNode, spacing: SpacingContext): void {
-  if (nodeIsSpacingFixed(n, spacing.expanded, spacing.ringPinned)) {
-    return;
-  }
-  const safe = resolveSafePosition(
-    n,
-    nodeIsAnchorType(n),
-    spacing.anchors,
-    spacing.discs,
-  );
-
-  if (safe.x === n.x && safe.y === n.y) {
-    return;
-  }
-  n.x = safe.x;
-  n.y = safe.y;
-  n.vx = 0; // kill velocity so the integration step can't pull it back in
-  n.vy = 0;
-}
-
-// Spacing pass: anchors kept clear of each other & rings (resolveSpacing); others just off rings.
-function applySpacingForce(
-  nodes: SimNode[],
-  expanded: Map<string, ExpandData>,
-  nodeById: Map<string, SimNode>,
-  ringPinned: Set<string>,
-): void {
-  const spacing: SpacingContext = {
-    discs: collectRingDiscs(expanded, nodeById),
-    anchors: collectAnchors(nodes),
-    expanded,
-    ringPinned,
-  };
-
-  for (const n of nodes) {
-    relaxNodeSpacing(n, spacing);
-  }
-}
-
-function pointOf(n: SimNode): Point {
-  return { x: n.x ?? 0, y: n.y ?? 0 };
-}
-
-function elementSize(el: SVGSVGElement): { width: number; height: number } {
-  return { width: el.clientWidth || 900, height: el.clientHeight || 600 };
-}
-
-function devicePixelRatioSafe(): number {
-  return window.devicePixelRatio || 1;
-}
-
-// Restore expanded rings from last session; each toggle re-fetches + lays out that spec's ring.
-function restoreExpandedRings(
-  savedExpanded: readonly string[],
-  nodeById: Map<string, SimNode>,
-  toggleExpand: (d: SimNode) => Promise<void>,
-): void {
-  for (const id of savedExpanded) {
-    const spec = nodeById.get(id);
-
-    if (spec) {
-      void toggleExpand(spec);
-    }
-  }
 }
 
 // eslint-disable-next-line max-lines-per-function -- imperative d3 canvas renderer: one effect owning the simulation, the draw loop and the hit testing, which is also why vitest.config excludes it from coverage. Splitting it needs its own piece of work, not a sweep.
@@ -733,18 +99,7 @@ export default function SpecGraphD3({
 
     // Canvas uses CSS pixels; backing store scaled up by DPR for crispness on HiDPI.
     const dpr = devicePixelRatioSafe();
-    // Canvas needs literal colors (not var() strings); tokens resolved per render, SVG keeps var() refs.
-    const tokenStyles = getComputedStyle(el);
-    const lookup = (name: string) => tokenStyles.getPropertyValue(name);
-    const surfaceColor = cssToken(lookup, "--bg-surface", "#ffffff");
-    const edgeColor = cssToken(lookup, "--chart-neutral", "#94a3b8");
-    const badgeTextColor = cssToken(lookup, "--text-on-accent", "#ffffff");
-    const canvasColorOf = (type: SpecGraphNode["type"]) =>
-      resolveColor(lookup, colorOf(type));
-    const coverageTint = d3.interpolateRgb(
-      cssToken(lookup, "--danger", "#dc2626"),
-      cssToken(lookup, "--success", "#16a34a"),
-    );
+    const colors = resolveColors(el);
     const sizeCanvas = () => {
       canvas.width = Math.max(1, Math.round(width * dpr));
       canvas.height = Math.max(1, Math.round(height * dpr));
@@ -752,829 +107,107 @@ export default function SpecGraphD3({
 
     sizeCanvas();
 
-    const nodes: SimNode[] = graph.nodes.map((n) => ({ ...n }));
-    const links: SimLink[] = graph.links.map((l) => ({
-      source: l.source,
-      target: l.target,
-      kind: l.kind,
-    }));
-    // Per-node degree feeds anti-crowding rules in force setup; computed once from link list.
-    const degree = nodeDegrees(graph.links);
-    const degOf = (node: string | number | SimNode) =>
-      degree.get(idOf(node)) ?? 1;
-    const expanded = new Map<string, ExpandData>(); // spec id → its two-ring layout
-    let adj = new Map<string, Set<string>>();
-    let nodeById = new Map<string, SimNode>();
-    let ringPinned = new Set<string>(); // statement ids pinned onto an outer ring
-
-    // Aggregation: collapse single-owner canvas leaves into per-parent badges (applied when zoomed out).
-    const { hidden: aggHidden, badges: aggBadges } = aggregateLeaves(
-      graph.nodes,
-      graph.links,
-      LEAF_CANVAS_TYPES,
-    );
-
-    // Bundling forest: containment tree + tree-home for each leaf so cross-spec edges route through hierarchy.
-    const forest = withOwnershipForest(
-      buildContainmentForest(graph.links, CONTAINMENT_KINDS),
-      graph.links,
-      OWNERSHIP_KINDS,
-    );
-
-    withBundleControlIds(links, forest, CONTAINMENT_KINDS);
-
-    // Persist layout to localStorage for topology restoration; best-effort (handles storage failure).
-    const STORAGE_KEY = `lore.graph:${repo}`;
+    const prep = prepareGraphLayout(graph, repo, width, height);
     const saveState = () => {
       try {
         localStorage.setItem(
-          STORAGE_KEY,
-          serializeGraphState(captureGraphState(nodes, [...expanded.keys()])),
+          prep.storageKey,
+          serializeGraphState(
+            captureGraphState(prep.nodes, [...c.expanded.keys()]),
+          ),
         );
       } catch {
         // storage disabled or over quota — persistence is best-effort
       }
     };
-    const { savedExpanded, restoredFromStorage } = tryRestoreGraphState(
-      STORAGE_KEY,
-      nodes,
-    );
 
-    // Radial-tree-per-feature layout: invert forest into children lists, ring small components outside.
-    const boundR = boundingRadius(graph.nodes.length, graph.links.length);
-    const viewportCenter = { x: width / 2, y: height / 2 };
-    const childrenOf = buildChildrenMap(forest);
-
-    const featureIds = graph.nodes
-      .filter((n) => n.type === "Feature")
-      .map((n) => n.id);
-    // Build each feature tree at origin to measure radius, then place on ring to prevent overlap.
-    const localTrees = featureIds.map((id) =>
-      radialTree(id, childrenOf, { center: { x: 0, y: 0 }, ringGap: RING_GAP }),
-    );
-    let treeRadius = 120;
-
-    localTrees.forEach((tree) => {
-      tree.forEach((p) => {
-        treeRadius = Math.max(treeRadius, Math.hypot(p.x, p.y));
-      });
+    const { sim, linkForce } = createGraphSimulation(prep.nodes, {
+      degOf: prep.degOf,
+      boundR: prep.boundR,
+      seedOf: prep.seedOf,
+      getExpanded: () => c.expanded,
+      getNodeById: () => c.nodeById,
+      getRingPinned: () => c.ringPinned,
+      smallIds: prep.smallIds,
+      viewportCenter: prep.viewportCenter,
     });
-    const ringR = featureRingRadius(
-      featureIds.length,
-      treeRadius,
-      boundR * FEATURE_SPREAD,
-    );
-    const seed = new Map<string, { x: number; y: number }>();
-
-    featureIds.forEach((id, i) => {
-      const a = (2 * Math.PI * i) / featureIds.length;
-      const center =
-        featureIds.length <= 1
-          ? viewportCenter
-          : {
-              x: viewportCenter.x + ringR * Math.cos(a),
-              y: viewportCenter.y + ringR * Math.sin(a),
-            };
-
-      for (const [nodeId, p] of localTrees[i]) {
-        seed.set(nodeId, { x: center.x + p.x, y: center.y + p.y });
-      }
-    });
-
-    // Unreached nodes: seed as spiral near center with LOCAL counter to bound radius.
-    const components = connectedComponents(
-      graph.nodes.map((n) => n.id),
-      graph.links,
-    );
-    const smallComponents = components.filter(
-      (c) => c.length < SMALL_COMPONENT_MAX && !c.some((id) => seed.has(id)),
-    );
-    const smallIds = new Set(smallComponents.flat());
-
-    seedStrayNodes(graph.nodes, seed, smallIds, viewportCenter);
-
-    // Add small components last on rim beyond main graph extent, so they ring the outside.
-    const mainExtent = computeMainExtent(seed, viewportCenter);
-
-    applyRimTargets(
-      seed,
-      rimTargets(smallComponents, viewportCenter, mainExtent + RIM_MARGIN),
-    );
-
-    const seedOf = (d: SimNode) => seed.get(d.id) ?? viewportCenter;
-
-    if (!restoredFromStorage) {
-      seedInitialPositions(nodes, seed, viewportCenter);
-    }
-
-    const linkForce = d3
-      .forceLink<SimNode, SimLink>([])
-      .id((d) => d.id)
-      .distance((l) => linkDistance(l.kind))
-      // d3's standard 1/min(degree): leaves held firm, hub-hub links loose.
-      .strength(
-        (l) => 1 / Math.max(1, Math.min(degOf(l.source), degOf(l.target))),
-      );
-    const sim = d3
-      .forceSimulation<SimNode>([])
-      // Heavier friction (0.7 vs 0.4 default) so forces settle without overshooting.
-      .velocityDecay(0.7)
-      .force("link", linkForce)
-      // Degree-scaled repulsion (softened): nudges neighbors apart; seed/forceX/Y arrange graph.
-      .force(
-        "charge",
-        d3
-          .forceManyBody<SimNode>()
-          .strength((d) => crowdedCharge(chargeBase(d.type), degOf(d)))
-          .distanceMin(12)
-          // Localize repulsion to bound's range so central mass doesn't fling peripheral nodes.
-          .distanceMax(boundR),
-      )
-      // Radial anchoring: forceX/Y pull each node to seeded position, hold circular shape.
-      .force("x", d3.forceX<SimNode>((d) => seedOf(d).x).strength(0.22))
-      .force("y", d3.forceY<SimNode>((d) => seedOf(d).y).strength(0.22))
-      // Anti-crowding rule #3: degree-scaled collision radius prevents piling.
-      .force(
-        "collide",
-        d3
-          .forceCollide<SimNode>((d) =>
-            crowdedCollideRadius(radiusOf(d.type), degOf(d)),
-          )
-          .strength(1),
-      )
-      // Spacing pass: anchors kept clear of each other & rings (resolveSpacing); others just off rings.
-      .force("spacing", () =>
-        applySpacingForce(nodes, expanded, nodeById, ringPinned),
-      )
-      // Hard separation: keep small-component nodes outside main graph, measured dynamically.
-      .force("separate", () => {
-        if (smallIds.size === 0) {
-          return;
-        }
-        const placed = nodes
-          .filter((n) => n.fx == null && n.fy == null)
-          .map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 }));
-
-        for (const [id, p] of separateSmallComponents(
-          placed,
-          smallIds,
-          viewportCenter,
-          RIM_MARGIN,
-        )) {
-          const n = nodeById.get(id);
-
-          if (!n) {
-            continue;
-          }
-          n.x = p.x;
-          n.y = p.y;
-          n.vx = 0;
-          n.vy = 0;
-        }
-      });
 
     const container = svg.append("g");
-    const ringG = container.append("g");
-    const nodeG = container.append("g");
 
-    // Open-ring discs (one per expanded spec), rebuilt each tick; edges clipped via visibleSegments.
-    let ringDiscs: Disc[] = [];
-
-    // View transform (mirrored from d3.zoom): drives SVG + canvas draw, inverts pointer for hit-testing.
-    let transform = d3.zoomIdentity;
-    // Focus + search visual state, shared by the SVG skeleton and the canvas draw.
-    let focusLevels: Map<string, number> | null = null;
-    let searchTerm = "";
-    const matchesSearch = (id: string) => {
-      const n = nodeById.get(id);
-
-      return n ? nodeMatchesQuery(n, searchTerm) : false;
+    const c: GraphController = {
+      el,
+      canvas,
+      repo,
+      svg,
+      container,
+      ringG: container.append("g"),
+      nodeG: container.append("g"),
+      nodes: prep.nodes,
+      links: prep.links,
+      expanded: new Map(),
+      adj: new Map(),
+      nodeById: new Map(),
+      ringPinned: new Set(),
+      ringDiscs: [],
+      aggHidden: prep.aggHidden,
+      forest: prep.forest,
+      boundR: prep.boundR,
+      seedOf: prep.seedOf,
+      viewportCenter: prep.viewportCenter,
+      degOf: prep.degOf,
+      sim,
+      linkForce,
+      // Placeholder: createZoom needs `c` itself, so the real behavior is assigned right after construction, before anything reads it.
+      zoom: null as unknown as d3.ZoomBehavior<SVGSVGElement, unknown>,
+      focus: createFocusState(() => c.nodeById),
+      drawer: createCanvasDrawer({
+        ctx,
+        canvas,
+        dpr,
+        colors,
+        aggHidden: prep.aggHidden,
+        aggBadges: prep.aggBadges,
+      }),
+      transform: d3.zoomIdentity,
+      width,
+      height,
+      selectedIdRef,
+      setSelected,
+      setHover,
+      setCrossings,
+      saveState,
     };
-    const nodeOpacity = (id: string): number => {
-      if (searchTerm.trim()) {
-        return matchesSearch(id) ? 1 : FADED;
-      }
 
-      if (!focusLevels) {
-        return 1;
-      }
-      const lv = focusLevels.get(id);
+    c.zoom = createZoom(c);
 
-      return lv === undefined ? FADED : (LEVEL_OPACITY[lv] ?? FADED);
-    };
-    const edgeOpacity = (sourceId: string, targetId: string): number => {
-      if (searchTerm.trim()) {
-        return matchesSearch(sourceId) && matchesSearch(targetId) ? 0.5 : FADED;
-      }
-
-      if (!focusLevels) {
-        return 0.5;
-      }
-
-      return levelPairOpacity(
-        focusLevels.get(sourceId),
-        focusLevels.get(targetId),
-      );
-    };
-
-    // Leaf nodes on canvas (click-eligible), excludes single-owner leaves in badges.
-    const aggregating = () => shouldAggregate(transform.k, LOD_THRESHOLD);
-    const visibleLeaf = (n: SimNode) =>
-      isLeafCanvas(n.type) && !(aggregating() && aggHidden.has(n.id));
-
-    const bundleLine = d3
-      .line<[number, number]>()
-      .curve(d3.curveBundle.beta(BUNDLE_BETA))
-      .context(ctx);
-
-    // An edge into a ring-represented statement, or touching a collapsed leaf, never gets drawn.
-    function shouldSkipEdge(l: SimLink, collapsing: boolean): boolean {
-      const sId = idOf(l.source as string | SimNode);
-      const tId = idOf(l.target as string | SimNode);
-
-      if (l.kind === "in_spec" && ringPinned.has(tId)) {
-        return true;
-      }
-
-      return collapsing && (aggHidden.has(sId) || aggHidden.has(tId));
-    }
-
-    // Bundled cross-cutting edges follow their spine; everything else is a straight, ring-clipped segment.
-    function strokeEdge(l: SimLink, s: SimNode, t: SimNode): void {
-      const op = edgeOpacity(idOf(s), idOf(t));
-
-      if (op <= FADED) {
-        return;
-      }
-      ctx!.globalAlpha = op;
-      ctx!.strokeStyle = edgeColor;
-
-      const bundlePts = (l.controlIds ?? [])
-        .map((id) => nodeById.get(id))
-        .filter((n): n is SimNode => !!n)
-        .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
-
-      if (bundlePts.length > 2) {
-        ctx!.beginPath();
-        bundleLine(bundlePts);
-        ctx!.stroke();
-
-        return;
-      }
-      // Straight edge, clipped so it never crosses an open ring's interior.
-      const pieces = visibleSegments(pointOf(s), pointOf(t), ringDiscs);
-
-      ctx!.beginPath();
-      pieces.forEach((p) => {
-        ctx!.moveTo(p.a.x, p.a.y);
-        ctx!.lineTo(p.b.x, p.b.y);
-      });
-      ctx!.stroke();
-    }
-
-    function drawEdges(collapsing: boolean): void {
-      ctx!.lineWidth = 1.3 / transform.k;
-
-      for (const l of links) {
-        if (shouldSkipEdge(l, collapsing)) {
-          continue;
-        }
-        strokeEdge(l, l.source as SimNode, l.target as SimNode);
-      }
-    }
-
-    function shouldSkipLeaf(n: SimNode, collapsing: boolean): boolean {
-      if (!isLeafCanvas(n.type) || (collapsing && aggHidden.has(n.id))) {
-        return true;
-      }
-
-      return nodeOpacity(n.id) <= 0;
-    }
-
-    function drawLeafNode(n: SimNode): void {
-      ctx!.globalAlpha = nodeOpacity(n.id);
-      ctx!.fillStyle = canvasColorOf(n.type);
-      ctx!.beginPath();
-      ctx!.arc(n.x ?? 0, n.y ?? 0, radiusOf(n.type), 0, Math.PI * 2);
-      ctx!.fill();
-      ctx!.strokeStyle = surfaceColor;
-      ctx!.stroke();
-    }
-
-    function drawLeafNodes(collapsing: boolean): void {
-      ctx!.lineWidth = 1.5 / transform.k;
-
-      for (const n of nodes) {
-        if (!shouldSkipLeaf(n, collapsing)) {
-          drawLeafNode(n);
-        }
-      }
-    }
-
-    function drawBadge(badge: {
-      parentId: string;
-      type: SpecGraphNode["type"];
-      count: number;
-    }): void {
-      const parent = nodeById.get(badge.parentId);
-
-      if (!parent) {
-        return;
-      }
-      const screen = applyPoint(transform as ZoomTransform, {
-        x: parent.x ?? 0,
-        y: parent.y ?? 0,
-      });
-      const px = screen.x + radiusOf(parent.type) + 8;
-      const py = screen.y - radiusOf(parent.type);
-
-      ctx!.fillStyle = canvasColorOf(badge.type);
-      ctx!.beginPath();
-      ctx!.arc(px, py, 8, 0, Math.PI * 2);
-      ctx!.fill();
-      ctx!.fillStyle = badgeTextColor;
-      ctx!.fillText(String(badge.count), px, py + 0.5);
-    }
-
-    // Screen-space pass: count badges over collapsed parents (CSS pixels, zoom-readable).
-    function drawAggregationBadges(): void {
-      ctx!.save();
-      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx!.globalAlpha = 1;
-      ctx!.font = "600 10px sans-serif";
-      ctx!.textAlign = "center";
-      ctx!.textBaseline = "middle";
-      aggBadges.forEach(drawBadge);
-      ctx!.restore();
-    }
-
-    function draw() {
-      const collapsing = aggregating();
-
-      ctx!.setTransform(1, 0, 0, 1, 0, 0);
-      ctx!.clearRect(0, 0, canvas!.width, canvas!.height);
-
-      // World-space pass: edges then leaf dots, under the zoom transform.
-      ctx!.save();
-      ctx!.scale(dpr, dpr);
-      ctx!.translate(transform.x, transform.y);
-      ctx!.scale(transform.k, transform.k);
-      drawEdges(collapsing);
-      drawLeafNodes(collapsing);
-      ctx!.restore();
-
-      if (collapsing) {
-        drawAggregationBadges();
-      }
-    }
-
-    const zoom = d3
-      .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.05, 4])
-      .on("zoom", (event) => {
-        transform = event.transform;
-        container.attr("transform", transform.toString());
-        draw();
-      });
-
-    svg.call(zoom).on("dblclick.zoom", null).style("cursor", "grab");
+    svg.call(c.zoom).on("dblclick.zoom", null).style("cursor", "grab");
     // Start at identity (d3.zoom stores on node); re-run via resetSignal must clear explicitly.
-    svg.call(zoom.transform, d3.zoomIdentity);
-    transform = d3.zoomIdentity;
+    svg.call(c.zoom.transform, d3.zoomIdentity);
+    c.transform = d3.zoomIdentity;
     selectedIdRef.current = null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset selection when the graph is (re)laid out
     setSelected(null);
 
-    const leafHitNodes = () =>
-      nodes.filter(visibleLeaf).map((n) => ({
-        id: n.id,
-        x: n.x ?? 0,
-        y: n.y ?? 0,
-        r: radiusOf(n.type),
-      }));
+    wireBackgroundClick(c, () => isAggregating(c.transform.k));
 
-    // SVG covers canvas: background click inverts pointer, hit-tests leaf dots.
-    svg.on("click", (event: PointerEvent) => {
-      const [px, py] = d3.pointer(event, el);
-      const world = invertPoint(transform as ZoomTransform, { x: px, y: py });
-      const hitId = findNodeAtPoint(world, leafHitNodes(), HIT_SLOP);
-      const hit = hitId ? nodeById.get(hitId) : undefined;
+    sim.on("tick", () => renderFrame(c));
 
-      if (!hit) {
-        selectedIdRef.current = null;
-        setSelected(null);
-        clearHighlight();
-
-        return;
-      }
-      selectedIdRef.current = hit.id;
-      setSelected(hit);
-      highlight(hit.id);
-      centerOn(hit);
-    });
-
-    const centerOn = (d: SimNode) => {
-      const k = 1.4;
-      const t = d3.zoomIdentity
-        .translate(width / 2 - (d.x ?? 0) * k, height / 2 - (d.y ?? 0) * k)
-        .scale(k);
-
-      svg.transition().duration(500).call(zoom.transform, t);
-    };
-
-    function buildAdj() {
-      adj = new Map();
-
-      for (const l of links) {
-        const s = idOf(l.source as string | SimNode);
-        const t = idOf(l.target as string | SimNode);
-
-        (adj.get(s) ?? adj.set(s, new Set()).get(s)!).add(t);
-        (adj.get(t) ?? adj.set(t, new Set()).get(t)!).add(s);
-      }
-    }
-
-    // Apply focus/search state to SVG, repaint canvas (edges + leaves) reading nodeOpacity/edgeOpacity.
-    function applyVisualState() {
-      nodeG
-        .selectAll<SVGGElement, SimNode>("g")
-        .attr("opacity", (d) => nodeOpacity(d.id));
-      nodeG
-        .selectAll<SVGCircleElement, SimNode>("circle")
-        .attr("stroke-width", (d) => (d.id === selectedIdRef.current ? 4 : 2));
-      draw();
-    }
-
-    function highlight(startId: string) {
-      focusLevels = bfsLevels(adj, startId, 3);
-      applyVisualState();
-    }
-
-    function clearHighlight() {
-      focusLevels = null;
-      applyVisualState();
-    }
-
-    // Live search filter: empty query falls back to current focus (selection or everything visible).
-    function applyFilter(query: string) {
-      searchTerm = query;
-      applyVisualState();
-    }
-
-    // Hide force-nodes that rings represent (statements drawn as outer-ring arcs instead).
-    function applyRingState() {
-      ringPinned = new Set<string>();
-
-      expanded.forEach((exp) => {
-        exp.statements.forEach((s) => {
-          ringPinned.add(s.uid);
-        });
-      });
-      nodeG
-        .selectAll<SVGGElement, SimNode>("g")
-        .style("display", (d) => (ringPinned.has(d.id) ? "none" : ""));
-    }
-
-    function renderRings() {
-      const sel = ringG
-        .selectAll<SVGGElement, [string, ExpandData]>("g.ring")
-        .data([...expanded.entries()], (d) => d[0]);
-
-      sel.exit().remove();
-      sel
-        .enter()
-        .append("g")
-        .attr("class", "ring")
-        .merge(sel)
-        .each(function (entry) {
-          const exp = entry[1];
-          const g = d3.select(this);
-
-          g.selectAll<SVGPathElement, SectionArc>("path.sec")
-            .data(exp.sections, (s) => s.uid)
-            .join("path")
-            .attr("class", "sec")
-            .attr("d", (s) => s.d)
-            .attr("fill", (s) =>
-              s.total > 0
-                ? coverageTint(s.tested / s.total)
-                : "var(--chart-neutral)",
-            )
-            .attr("fill-opacity", 0.5)
-            .attr("stroke", "var(--bg-surface)")
-            .attr("stroke-width", 1)
-            .style("cursor", "pointer")
-            .on("click", (event: PointerEvent, s) => {
-              event.stopPropagation();
-              selectedIdRef.current = null;
-              setSelected({
-                id: s.uid,
-                type: "Section",
-                label: s.heading,
-                path: exp.specPath,
-              });
-            })
-            .on("mouseenter mousemove", (event: PointerEvent, s) => {
-              const [px, py] = d3.pointer(event, el);
-
-              setHover({
-                text: `${s.heading} — ${s.tested}/${s.total} tested`,
-                x: px,
-                y: py,
-              });
-            })
-            .on("mouseleave", () => setHover(null));
-          g.selectAll<SVGPathElement, StatementArc>("path.st")
-            .data(exp.statements, (s) => s.uid)
-            .join("path")
-            .attr("class", "st")
-            .attr("d", (s) => s.d)
-            .attr("fill", (s) => (s.tested ? TESTED_FILL : UNTESTED_FILL))
-            .attr("fill-opacity", 0.78)
-            .style("cursor", "pointer")
-            .on("click", (event: PointerEvent, s) => {
-              event.stopPropagation();
-              selectedIdRef.current = null;
-              setSelected({
-                id: s.uid,
-                type: "Statement",
-                label: "",
-                detail: s.text,
-                path: exp.specPath,
-              });
-            })
-            .on("mouseenter mousemove", (event: PointerEvent, s) => {
-              const [px, py] = d3.pointer(event, el);
-
-              setHover({ text: s.text || "(statement)", x: px, y: py });
-            })
-            .on("mouseleave", () => setHover(null));
-        });
-    }
-
-    function collapseSpecNode(d: SimNode) {
-      expanded.delete(d.id);
-      d.fx = null;
-      d.fy = null;
-      applyRingState();
-      renderRings();
-      sim.alpha(0.4).restart();
-      saveState();
-    }
-
-    async function expandSpecNode(d: SimNode) {
-      if (!d.path) {
-        return;
-      }
-      // Pin spec to prevent ring drift on sim restart, so double-click collapse still hits.
-      d.fx = d.x;
-      d.fy = d.y;
-      const res = await fetch(
-        `/api/repos/${repo}/spec-ring?spec=${encodeURIComponent(d.path)}`,
-        { signal: AbortSignal.timeout(15_000) },
-      );
-
-      if (!res.ok) {
-        return;
-      }
-      const ring = (await res.json()) as SpecRing;
-
-      if (ring.sections.length === 0 && ring.statements.length === 0) {
-        return;
-      }
-      expanded.set(d.id, computeRing(d.path, ring));
-      applyRingState();
-      renderRings();
-      sim.alpha(0.5).restart();
-      saveState();
-    }
-
-    async function toggleExpand(d: SimNode) {
-      if (d.type !== "Spec" || !d.path) {
-        return;
-      }
-
-      if (expanded.has(d.id)) {
-        collapseSpecNode(d);
-
-        return;
-      }
-
-      await expandSpecNode(d);
-    }
-
-    // Layout-quality probe: count edge crossings at settled positions (O(E²), skip dense graphs).
-    const CROSSINGS_EDGE_CAP = 2500;
-
-    function measureCrossings() {
-      if (links.length > CROSSINGS_EDGE_CAP) {
-        setCrossings(-1);
-
-        return;
-      }
-      const pos = new Map(
-        nodes.map((n) => [n.id, { x: n.x ?? 0, y: n.y ?? 0 }]),
-      );
-      const edges = links.map((l) => ({
-        source: idOf(l.source as string | SimNode),
-        target: idOf(l.target as string | SimNode),
-      }));
-
-      setCrossings(countCrossings(edges, pos));
-    }
-
-    function update() {
-      sim.nodes(nodes);
-      linkForce.links(links);
-
-      nodeG
-        .selectAll<SVGGElement, SimNode>("g")
-        .data(
-          nodes.filter((n) => !isLeafCanvas(n.type)),
-          (d) => d.id,
-        )
-        .join((enter) => {
-          const g = enter
-            .append("g")
-            .style("cursor", "pointer")
-            .on("click", (event: PointerEvent, d) => {
-              event.stopPropagation();
-              selectedIdRef.current = d.id;
-              setSelected(d);
-              highlight(d.id);
-              centerOn(d);
-            })
-            .on("dblclick", (event: PointerEvent, d) => {
-              event.stopPropagation();
-              void toggleExpand(d);
-            })
-            .on("mouseenter mousemove", (event: PointerEvent, d) => {
-              const text = (d.detail?.trim() || d.label || d.path || "").trim();
-
-              if (!text) {
-                setHover(null);
-
-                return;
-              }
-              const [px, py] = d3.pointer(event, el);
-
-              setHover({ text, x: px, y: py });
-            })
-            .on("mouseleave", () => setHover(null))
-            .call(
-              d3
-                .drag<SVGGElement, SimNode>()
-                // Elastic drag: link springs tug neighbors while seed forces pull back toward home.
-                .on("start", (event, d) => {
-                  if (!event.active) {
-                    sim.alphaTarget(0.1).restart();
-                  }
-                  d.fx = d.x;
-                  d.fy = d.y;
-                })
-                .on("drag", (event, d) => {
-                  d.fx = event.x;
-                  d.fy = event.y;
-                })
-                .on("end", (event) => {
-                  if (!event.active) {
-                    sim.alphaTarget(0);
-                  }
-                  // Leave fx/fy pinned at the drop point — a dragged node stays put.
-                  saveState();
-                }),
-            );
-
-          g.append("circle")
-            .attr("r", (d) => radiusOf(d.type))
-            .attr("fill", (d) => nodeColor(d))
-            .style("stroke", "var(--bg-surface)")
-            .attr("stroke-width", 2);
-          g.filter((d) => d.label !== "" && LABELED_TYPES.has(d.type))
-            .append("text")
-            .text((d) => d.label)
-            .attr("x", (d) => radiusOf(d.type) + 4)
-            .attr("y", 4)
-            .attr("font-size", "12px")
-            .attr("font-weight", (d) => (d.type === "Spec" ? 600 : 400))
-            .attr("fill", "currentColor")
-            .style("pointer-events", "none");
-
-          return g;
-        });
-
-      buildAdj();
-      nodeById = new Map(nodes.map((n) => [n.id, n]));
-      applyRingState();
-      filterRef.current = applyFilter;
-
-      prewarmIfFresh();
-      sim.alpha(0).restart();
-
-      highlightOrDraw(selectedIdRef.current);
-      measureCrossings();
-    }
-
-    function highlightOrDraw(selectedId: string | null) {
-      if (selectedId && adj.has(selectedId)) {
-        highlight(selectedId);
-
-        return;
-      }
-      draw();
-    }
-
-    // Pre-warm fresh layouts headless, start at alpha 0 for settled positions on first paint.
-    function prewarmIfFresh() {
-      if (restoredFromStorage) {
-        return;
-      }
-      const warm = settleTicks(nodes.length);
-
-      for (let i = 0; i < warm; i += 1) {
-        sim.tick();
-      }
-    }
-
-    // One frame: ring-spoke placement, SVG transforms, canvas draw (driven by sim tick or manual drag).
-    function renderFrame() {
-      // Pin statements on outer ring, fan related nodes radially outward: short spokes never chords.
-      function placeStatementSpokes(exp: ExpandData, cx: number, cy: number) {
-        exp.statements.forEach((s) => {
-          const n = nodeById.get(s.uid);
-
-          if (n) {
-            n.x = cx + exp.outerMid * Math.sin(s.mid);
-            n.y = cy - exp.outerMid * Math.cos(s.mid);
-            n.vx = 0;
-            n.vy = 0;
-          }
-          let k = 0;
-
-          adj.get(s.uid)?.forEach((nb) => {
-            if (ringPinned.has(nb) || expanded.has(nb)) {
-              return;
-            }
-            const leaf = nodeById.get(nb);
-
-            // Only test/code chunks get spoked onto ring; ADRs are anchors (spacing force, never spoked).
-            if (!leaf || !isSpokeableLeafType(leaf)) {
-              return;
-            }
-
-            // Only hard-place leaves with single owner (clean radial spokes); shared chunks float.
-            if (!hasSingleOwner(nb, adj)) {
-              return;
-            }
-            const r = exp.outerR1 + 32 + k * 34;
-
-            leaf.x = cx + r * Math.sin(s.mid);
-            leaf.y = cy - r * Math.cos(s.mid);
-            leaf.vx = 0;
-            leaf.vy = 0;
-            k += 1;
-          });
-        });
-      }
-
-      expanded.forEach((exp, specId) => {
-        const spec = nodeById.get(specId);
-
-        if (!spec) {
-          return;
-        }
-        placeStatementSpokes(exp, spec.x ?? 0, spec.y ?? 0);
-      });
-      ringDiscs = [];
-
-      for (const [specId, exp] of expanded) {
-        const spec = nodeById.get(specId);
-
-        if (spec) {
-          ringDiscs.push({ x: spec.x ?? 0, y: spec.y ?? 0, r: exp.outerR1 });
-        }
-      }
-      nodeG
-        .selectAll<SVGGElement, SimNode>("g")
-        .attr("transform", (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
-      ringG
-        .selectAll<SVGGElement, [string, ExpandData]>("g.ring")
-        .attr("transform", (entry) => {
-          const spec = nodeById.get(entry[0]);
-
-          return `translate(${spec?.x ?? 0},${spec?.y ?? 0})`;
-        });
-      draw();
-    }
-    sim.on("tick", renderFrame);
-
-    update();
+    update(
+      c,
+      prep.restoredFromStorage,
+      (fn) => {
+        filterRef.current = fn;
+      },
+      colors.coverageTint,
+    );
 
     // Restore expanded rings from last session and persist on layout cool for topology preservation.
-    restoreExpandedRings(savedExpanded, nodeById, toggleExpand);
+    restoreExpandedRings(prep.savedExpanded, c.nodeById, (d) =>
+      toggleExpand(c, d, colors.coverageTint),
+    );
     sim.on("end", () => {
       saveState();
-      measureCrossings();
+      measureCrossings(c);
     });
 
     const resize = new ResizeObserver(() => {
@@ -1587,8 +220,10 @@ export default function SpecGraphD3({
       }
       width = w;
       height = h;
+      c.width = w;
+      c.height = h;
       sizeCanvas();
-      draw();
+      c.drawer.draw(drawState(c));
       sim.alpha(0.3).restart();
     });
 
@@ -1695,198 +330,6 @@ export default function SpecGraphD3({
             }}
           />
         )}
-      </div>
-    </div>
-  );
-}
-
-function CrossingsLabel({ crossings }: { crossings: number }) {
-  return (
-    <span title="straight-segment edge crossings at the settled layout (lower is clearer)">
-      · {crossings < 0 ? "crossings: n/a" : `${crossings} crossings`}
-    </span>
-  );
-}
-
-function HoverTooltip({
-  hover,
-}: {
-  hover: { text: string; x: number; y: number };
-}) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: Math.min(hover.x + 14, 9999),
-        top: hover.y + 14,
-        maxWidth: 320,
-        pointerEvents: "none",
-        padding: "6px 9px",
-        borderRadius: 6,
-        border: "1px solid var(--border)",
-        background: "var(--bg-surface)",
-        color: "var(--text)",
-        boxShadow: "var(--shadow-lg)",
-        fontSize: "var(--fs-xs)",
-        lineHeight: 1.4,
-        maxHeight: 240,
-        overflow: "hidden",
-        zIndex: 10,
-      }}
-    >
-      <HoverMarkdown text={hover.text} />
-    </div>
-  );
-}
-
-function SelectedNodeHeader({
-  selected,
-  onClose,
-}: {
-  selected: SpecGraphNode;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}
-    >
-      <span
-        style={{
-          width: 10,
-          height: 10,
-          borderRadius: "50%",
-          background: colorOf(selected.type),
-          display: "inline-block",
-        }}
-      />
-      <strong>{selected.type}</strong>
-      {selected.type === "Spec" && (
-        <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
-          · double-click to expand
-        </span>
-      )}
-      <button
-        onClick={onClose}
-        style={{
-          marginLeft: "auto",
-          border: "none",
-          background: "transparent",
-          color: "var(--text-muted)",
-          cursor: "pointer",
-          fontSize: "var(--fs-base)",
-          lineHeight: 1,
-        }}
-        aria-label="Close"
-      >
-        ×
-      </button>
-    </div>
-  );
-}
-
-function SelectedNodePathLine({ selected }: { selected: SpecGraphNode }) {
-  if (!selected.path) {
-    return null;
-  }
-
-  return (
-    <div
-      style={{
-        color: "var(--text-muted)",
-        fontFamily: "monospace",
-        fontSize: "var(--fs-xs)",
-        marginBottom: 8,
-        wordBreak: "break-all",
-      }}
-    >
-      {selected.path}
-      {selected.line ? `:${selected.line}` : ""}
-    </div>
-  );
-}
-
-function SelectedNodeTestPreview({
-  selected,
-  repo,
-}: {
-  selected: SpecGraphNode;
-  repo: string;
-}) {
-  if (selected.type !== "TestChunk" || !selected.path || !selected.line) {
-    return null;
-  }
-
-  return (
-    <div style={{ marginBottom: 8 }}>
-      <TestPreview
-        repo={repo}
-        path={selected.path}
-        start={selected.line}
-        end={selected.endLine}
-      />
-    </div>
-  );
-}
-
-function SelectedNodeCard({
-  selected,
-  repo,
-  onClose,
-}: {
-  selected: SpecGraphNode;
-  repo: string;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: "50%",
-        top: "50%",
-        transform: "translate(-50%, 28px)",
-        maxWidth: 420,
-        maxHeight: 320,
-        overflow: "auto",
-        padding: 12,
-        borderRadius: 8,
-        border: "1px solid var(--border)",
-        background: "var(--bg-surface)",
-        color: "var(--text)",
-        boxShadow: "var(--shadow-lg)",
-        fontSize: "var(--fs-sm)",
-      }}
-    >
-      <SelectedNodeHeader selected={selected} onClose={onClose} />
-      {selected.label && (
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>{selected.label}</div>
-      )}
-      {selected.detail && (
-        <div
-          className="md-popover"
-          style={{ marginBottom: 8, lineHeight: 1.5 }}
-        >
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeHighlight]}
-          >
-            {selected.detail}
-          </ReactMarkdown>
-        </div>
-      )}
-      <SelectedNodePathLine selected={selected} />
-      <SelectedNodeTestPreview selected={selected} repo={repo} />
-      <div style={{ display: "flex", gap: 12 }}>
-        {nodeLinks(selected, repo).map((l) => (
-          <a
-            key={l.href}
-            href={l.href}
-            target={l.external ? "_blank" : undefined}
-            rel={l.external ? "noreferrer" : undefined}
-            style={{ color: "var(--accent)" }}
-          >
-            {l.label} →
-          </a>
-        ))}
       </div>
     </div>
   );

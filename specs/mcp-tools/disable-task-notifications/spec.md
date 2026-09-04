@@ -20,7 +20,7 @@ tears down the interval and removes the pending cache file.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L534)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-notifications.ts#L116)).
 
 - **name**: `lore_disable_task_notifications`
 - **description** (verbatim):

@@ -176,7 +176,16 @@ export {
 } from "./memory-store.js";
 export { PostgresMemoryStore } from "./postgres-memory-store.js";
 export { ShadowMemoryStore } from "./shadow-memory-store.js";
-export { DgraphMemoryStore } from "./dgraph-memory-store.js";
+export { DgraphMemoryStore, type GraphHop } from "./dgraph-memory-store.js";
+export { toVectorLiteral, newUid } from "./dgraph-vector.js";
+export { withTxn } from "./dgraph-txn.js";
+export { findLatestLive, type MemoryRow } from "./dgraph-memory-queries.js";
+export { flattenHops } from "./dgraph-graph-hops.js";
+export { contradictionNodes } from "./dgraph-fact-contradictions.js";
+export { searchMemories as dgraphSearchMemories } from "./dgraph-search.js";
+export { writeMemory as dgraphWriteMemory } from "./dgraph-memory-crud.js";
+export { persistFact as dgraphPersistFact } from "./dgraph-fact-episode.js";
+export { upsertEdge as dgraphUpsertEdge } from "./dgraph-graph-edges.js";
 export {
   rrfMerge,
   RRF_K,

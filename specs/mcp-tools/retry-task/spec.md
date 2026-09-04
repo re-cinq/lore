@@ -21,7 +21,7 @@ hand is error-prone. Retrying must be refused for tasks that did not fail
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L182)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-listing.ts#L72)).
 
 - **name**: `lore_retry_task`
 - **description** (verbatim):

@@ -1,8 +1,7 @@
 import type { Octokit } from "octokit";
 import type { FileChange } from "./github-port.js";
 import type { PullDraft } from "../pulls/pull-requests-port.js";
-import { withoutBlindRetryOnCreates } from "./octokit-retry-policy.js";
-import { enforceTrue } from "../../lib/enforce.js";
+import { buildOctokit } from "./platform-github-auth.js";
 import type {
   GitHubPort,
   IssueRef,
@@ -26,8 +25,17 @@ import type {
   CheckRun,
   ReviewThread,
 } from "../pulls/pull-requests-port.js";
+import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.js";
+import * as issues from "./platform-github-issues.js";
+import * as repoContent from "./platform-github-repo-content.js";
+import * as repoConfig from "./platform-github-repo-config.js";
+import * as pullsRead from "./platform-github-pulls-read.js";
+import * as pullsReviewReads from "./platform-github-pulls-review-reads.js";
+import * as pullsWrite from "./platform-github-pulls-write.js";
 
-/** One GitHub adapter satisfying BOTH GitHubPort and PullRequestsPort (auth relocated from mcp-server/github-client.ts, REST from agent/github.ts); octokit is imported lazily so the module loads where it's absent. */
+export type { IssueState, CloseReason };
+
+/** One GitHub adapter satisfying BOTH GitHubPort and PullRequestsPort (auth relocated from mcp-server/github-client.ts, REST from agent/github.ts); octokit is imported lazily so the module loads where it's absent. Method bodies delegate to the sibling `platform-github-*` modules, grouped by job (issues, repo content/config, PR reads, PR review reads, PR writes). */
 export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   readonly name = "github";
   private client?: Promise<Octokit>;
@@ -50,181 +58,18 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     );
   }
 
-  // ── GitHubPort ──────────────────────────────────────────────────────
+  // ── GitHubPort: issues ────────────────────────────────────────────────
 
   async listIssues(repo: string, filter?: IssueFilter): Promise<IssueRef[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const issues = await ok.paginate(ok.rest.issues.listForRepo, {
-      owner,
-      repo: name,
-      state: filter?.state ?? "open",
-      labels: filter?.labels?.join(","),
-      per_page: 100,
-    });
-
-    return issues
-      .filter((i) => !i.pull_request)
-      .map((i) => ({
-        repo,
-        number: i.number,
-        title: i.title,
-        state: i.state as IssueState,
-        labels: i.labels
-          .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
-          .filter(Boolean),
-        url: i.html_url,
-        createdAt: i.created_at,
-        ...(i.body ? { body: i.body } : {}),
-      }));
-  }
-
-  async getFileContent(
-    repo: string,
-    path: string,
-    ref?: string,
-  ): Promise<string | null> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    try {
-      const { data: content } = await ok.rest.repos.getContent({
-        owner,
-        repo: name,
-        path,
-        ...(ref ? { ref } : {}),
-      });
-
-      if (
-        !Array.isArray(content) &&
-        content.type === "file" &&
-        content.content
-      ) {
-        return Buffer.from(content.content, "base64").toString("utf-8");
-      }
-
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  async listDirectory(repo: string, path: string): Promise<string[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    try {
-      const { data: entries } = await ok.rest.repos.getContent({
-        owner,
-        repo: name,
-        path,
-      });
-
-      return Array.isArray(entries) ? entries.map((e) => e.name) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  async listTree(repo: string, ref?: string): Promise<string[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const branch = ref ?? (await this.defaultBranch(repo));
-    // getTree is unpaginated (truncated past ~100k entries); a truncated tree must throw, not return — a partial list reads as mass deletion to the reindex prune pass.
-    const { data: tree } = await ok.rest.git.getTree({
-      owner,
-      repo: name,
-      tree_sha: branch,
-      recursive: "true",
-    });
-
-    enforceTrue(
-      !tree.truncated,
-      Error,
-      `Recursive tree fetch for ${repo} was truncated by GitHub — refusing to return a partial file list`,
-    );
-
-    return (tree.tree ?? [])
-      .filter((e) => e.type === "blob" && typeof e.path === "string")
-      .map((e) => e.path as string);
-  }
-
-  getDefaultBranch(repo: string): Promise<string> {
-    return this.defaultBranch(repo);
-  }
-
-  async listCommitsSince(
-    repo: string,
-    since: string,
-  ): Promise<Array<{ sha: string; files: string[] }>> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const commits = await ok.paginate(ok.rest.repos.listCommits, {
-      owner,
-      repo: name,
-      since,
-      per_page: 100,
-    });
-    const result: Array<{ sha: string; files: string[] }> = [];
-
-    for (const c of commits) {
-      try {
-        const { data: detail } = await ok.rest.repos.getCommit({
-          owner,
-          repo: name,
-          ref: c.sha,
-        });
-
-        result.push({
-          sha: c.sha,
-          files: (detail.files ?? []).map((f) => f.filename),
-        });
-      } catch {
-        result.push({ sha: c.sha, files: [] });
-      }
-    }
-
-    return result;
+    return issues.listIssues(await this.octo(), repo, filter);
   }
 
   async getIssue(repo: string, number: number): Promise<IssueRef | null> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    try {
-      const { data: issue } = await ok.rest.issues.get({
-        owner,
-        repo: name,
-        issue_number: number,
-      });
-
-      return {
-        repo,
-        number: issue.number,
-        title: issue.title,
-        state: issue.state as IssueState,
-        labels: issue.labels
-          .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
-          .filter(Boolean),
-        url: issue.html_url,
-      };
-    } catch {
-      return null;
-    }
+    return issues.getIssue(await this.octo(), repo, number);
   }
 
   async getIssueLabels(repo: string, number: number): Promise<string[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: issue } = await ok.rest.issues.get({
-      owner,
-      repo: name,
-      issue_number: number,
-    });
-
-    return issue.labels
-      .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
-      .filter(Boolean);
+    return issues.getIssueLabels(await this.octo(), repo, number);
   }
 
   async createIssue(
@@ -233,60 +78,18 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     body: string,
     labels: string[] = ["lore-managed"],
   ): Promise<IssueRef> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: created } = await ok.rest.issues.create({
-      owner,
-      repo: name,
-      title,
-      body,
-      labels,
-    });
-
-    return {
-      repo,
-      number: created.number,
-      title,
-      state: "open",
-      labels,
-      url: created.html_url,
-    };
+    return issues.createIssue(await this.octo(), repo, { title, body, labels });
   }
 
   async listLabels(repo: string): Promise<string[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const labels = await ok.paginate(ok.rest.issues.listLabelsForRepo, {
-      owner,
-      repo: name,
-      per_page: 100,
-    });
-
-    return labels.map((l) => l.name);
+    return issues.listLabels(await this.octo(), repo);
   }
 
   async createLabels(
     repo: string,
     labels: Array<{ name: string; color?: string; description?: string }>,
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    for (const label of labels) {
-      try {
-        await ok.rest.issues.createLabel({
-          owner,
-          repo: name,
-          name: label.name,
-          color: label.color,
-          description: label.description,
-        });
-      } catch (err) {
-        if ((err as { status?: number }).status !== 422) {
-          throw err;
-        } // 422 = already exists
-      }
-    }
+    return issues.createLabels(await this.octo(), repo, labels);
   }
 
   async commentOnIssue(
@@ -294,15 +97,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     number: number,
     body: string,
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    await ok.rest.issues.createComment({
-      owner,
-      repo: name,
-      issue_number: number,
-      body,
-    });
+    return issues.commentOnIssue(await this.octo(), repo, number, body);
   }
 
   async closeIssue(
@@ -310,16 +105,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     number: number,
     reason: CloseReason = "completed",
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    await ok.rest.issues.update({
-      owner,
-      repo: name,
-      issue_number: number,
-      state: "closed",
-      state_reason: reason,
-    });
+    return issues.closeIssue(await this.octo(), repo, number, reason);
   }
 
   async addIssueLabel(
@@ -327,15 +113,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     number: number,
     label: string,
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    await ok.rest.issues.addLabels({
-      owner,
-      repo: name,
-      issue_number: number,
-      labels: [label],
-    });
+    return issues.addIssueLabel(await this.octo(), repo, number, label);
   }
 
   async removeIssueLabel(
@@ -343,36 +121,40 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     number: number,
     label: string,
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
+    return issues.removeIssueLabel(await this.octo(), repo, number, label);
+  }
 
-    try {
-      await ok.rest.issues.removeLabel({
-        owner,
-        repo: name,
-        issue_number: number,
-        name: label,
-      });
-    } catch {
-      /* label might not exist */
-    }
+  // ── GitHubPort: repo content/branches ───────────────────────────────
+
+  async getFileContent(
+    repo: string,
+    path: string,
+    ref?: string,
+  ): Promise<string | null> {
+    return repoContent.getFileContent(await this.octo(), repo, path, ref);
+  }
+
+  async listDirectory(repo: string, path: string): Promise<string[]> {
+    return repoContent.listDirectory(await this.octo(), repo, path);
+  }
+
+  async listTree(repo: string, ref?: string): Promise<string[]> {
+    return repoContent.listTree(await this.octo(), repo, ref);
+  }
+
+  getDefaultBranch(repo: string): Promise<string> {
+    return this.octo().then((ok) => fetchDefaultBranch(ok, repo));
+  }
+
+  async listCommitsSince(
+    repo: string,
+    since: string,
+  ): Promise<Array<{ sha: string; files: string[] }>> {
+    return repoContent.listCommitsSince(await this.octo(), repo, since);
   }
 
   async branchExists(repo: string, branch: string): Promise<boolean> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    try {
-      await ok.rest.git.getRef({ owner, repo: name, ref: `heads/${branch}` });
-
-      return true;
-    } catch (err) {
-      if ((err as { status?: number }).status === 404) {
-        return false;
-      }
-
-      throw err;
-    }
+    return repoContent.branchExists(await this.octo(), repo, branch);
   }
 
   async createBranch(
@@ -380,155 +162,115 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     branch: string,
     base = "main",
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: ref } = await ok.rest.git.getRef({
-      owner,
-      repo: name,
-      ref: `heads/${base}`,
-    });
-
-    try {
-      await ok.rest.git.createRef({
-        owner,
-        repo: name,
-        ref: `refs/heads/${branch}`,
-        sha: ref.object.sha,
-      });
-    } catch (err) {
-      if ((err as { status?: number }).status !== 422) {
-        throw err;
-      }
-      await ok.rest.git.deleteRef({
-        owner,
-        repo: name,
-        ref: `heads/${branch}`,
-      });
-      await ok.rest.git.createRef({
-        owner,
-        repo: name,
-        ref: `refs/heads/${branch}`,
-        sha: ref.object.sha,
-      });
-    }
+    return repoContent.createBranch(await this.octo(), repo, branch, base);
   }
 
   async commitFile(
     repo: string,
     branch: string,
-    { path, content, message }: FileChange,
+    change: FileChange,
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    let sha: string | undefined;
-
-    for (const ref of [branch, "main"]) {
-      try {
-        const { data: existing } = await ok.rest.repos.getContent({
-          owner,
-          repo: name,
-          path,
-          ref,
-        });
-
-        if (!Array.isArray(existing) && "sha" in existing) {
-          sha = existing.sha;
-          break;
-        }
-      } catch {
-        /* not found on this ref */
-      }
-    }
-    await ok.rest.repos.createOrUpdateFileContents({
-      owner,
-      repo: name,
-      path,
-      branch,
-      message,
-      content: Buffer.from(content).toString("base64"),
-      ...(sha ? { sha } : {}),
-    });
+    return repoContent.commitFile(await this.octo(), repo, branch, change);
   }
 
   async upsertCheckRun(repo: string, input: CheckRunInput): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: checks } = await ok.rest.checks.listForRef({
-      owner,
-      repo: name,
-      ref: input.headSha,
-      check_name: input.name,
-    });
-    const existing = checks.check_runs[0];
-    const output = { title: input.title, summary: input.summary };
-    const fields = {
-      status: input.status,
-      ...(input.conclusion ? { conclusion: input.conclusion } : {}),
-      ...(input.detailsUrl ? { details_url: input.detailsUrl } : {}),
-      output,
-    };
-
-    if (existing) {
-      await ok.rest.checks.update({
-        owner,
-        repo: name,
-        check_run_id: existing.id,
-        ...fields,
-      });
-
-      return;
-    }
-    await ok.rest.checks.create({
-      owner,
-      repo: name,
-      name: input.name,
-      head_sha: input.headSha,
-      ...fields,
-    });
+    return repoConfig.upsertCheckRun(await this.octo(), repo, input);
   }
 
-  // ── PullRequestsPort ────────────────────────────────────────────────
+  async setRepoVariable(
+    repo: string,
+    name: string,
+    value: string,
+  ): Promise<void> {
+    return repoConfig.setRepoVariable(await this.octo(), repo, name, value);
+  }
+
+  async setRepoSecret(
+    repo: string,
+    name: string,
+    value: string,
+  ): Promise<void> {
+    return repoConfig.setRepoSecret(await this.octo(), repo, name, value);
+  }
+
+  // ── PullRequestsPort: reads ─────────────────────────────────────────
 
   async list(repo: string): Promise<PullRef[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const pulls = await ok.paginate(ok.rest.pulls.list, {
-      owner,
-      repo: name,
-      state: "open",
-      per_page: 100,
-    });
-
-    return pulls.map((pr) => toPullRef(repo, pr));
+    return pullsRead.list(await this.octo(), repo);
   }
 
   async get(repo: string, number: number): Promise<PullRef | null> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    try {
-      const { data: pull } = await ok.rest.pulls.get({
-        owner,
-        repo: name,
-        pull_number: number,
-      });
-
-      return toPullRef(repo, pull);
-    } catch {
-      return null;
-    }
+    return pullsRead.get(await this.octo(), repo, number);
   }
 
-  async comment(repo: string, number: number, body: string): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
+  async getDiff(repo: string, number: number): Promise<string> {
+    return pullsRead.getDiff(await this.octo(), repo, number);
+  }
 
-    await ok.rest.issues.createComment({
-      owner,
-      repo: name,
-      issue_number: number,
-      body,
-    });
+  async listCommits(repo: string, number: number): Promise<PullCommit[]> {
+    return pullsRead.listCommits(await this.octo(), repo, number);
+  }
+
+  async isMerged(repo: string, number: number): Promise<boolean> {
+    return pullsRead.isMerged(await this.octo(), repo, number);
+  }
+
+  async isClosed(repo: string, number: number): Promise<boolean> {
+    return pullsRead.isClosed(await this.octo(), repo, number);
+  }
+
+  async getStats(repo: string, number: number): Promise<PullStats> {
+    return pullsRead.getStats(await this.octo(), repo, number);
+  }
+
+  async changedFileCount(
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<number> {
+    return pullsRead.changedFileCount(await this.octo(), repo, base, head);
+  }
+
+  async listFiles(repo: string, number: number): Promise<string[]> {
+    return pullsRead.listFiles(await this.octo(), repo, number);
+  }
+
+  // ── PullRequestsPort: reviews/comments/CI ───────────────────────────
+
+  async listReviews(repo: string, number: number): Promise<PullReview[]> {
+    return pullsReviewReads.listReviews(await this.octo(), repo, number);
+  }
+
+  async listComments(repo: string, number: number): Promise<ReviewComment[]> {
+    return pullsReviewReads.listComments(await this.octo(), repo, number);
+  }
+
+  async listReviewThreads(
+    repo: string,
+    number: number,
+  ): Promise<ReviewThread[]> {
+    return pullsReviewReads.listReviewThreads(await this.octo(), repo, number);
+  }
+
+  async listIssueComments(
+    repo: string,
+    number: number,
+  ): Promise<IssueComment[]> {
+    return pullsReviewReads.listIssueComments(await this.octo(), repo, number);
+  }
+
+  listChecks(repo: string, ref: string): Promise<CheckRun[]> {
+    return this.octo().then((ok) => pullsReviewReads.checkRuns(ok, repo, ref));
+  }
+
+  async ciConclusion(repo: string, ref: string): Promise<CiConclusion> {
+    return pullsReviewReads.ciConclusion(await this.octo(), repo, ref);
+  }
+
+  // ── PullRequestsPort: writes ─────────────────────────────────────────
+
+  async comment(repo: string, number: number, body: string): Promise<void> {
+    return pullsWrite.comment(await this.octo(), repo, number, body);
   }
 
   async review(
@@ -537,16 +279,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     body: string,
     event: PRReviewEvent,
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    await ok.rest.pulls.createReview({
-      owner,
-      repo: name,
-      pull_number: number,
-      body,
-      event,
-    });
+    return pullsWrite.review(await this.octo(), repo, number, { body, event });
   }
 
   async createReview(
@@ -554,22 +287,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     number: number,
     input: CreateReviewInput,
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    await ok.rest.pulls.createReview({
-      owner,
-      repo: name,
-      pull_number: number,
-      body: input.body,
-      event: input.event,
-      comments: input.comments.map((c) => ({
-        path: c.path,
-        line: c.line,
-        ...(c.side ? { side: c.side } : {}),
-        body: c.body,
-      })),
-    });
+    return pullsWrite.createReview(await this.octo(), repo, number, input);
   }
 
   async replyToReviewComment(
@@ -578,28 +296,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     commentId: number,
     body: string,
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    await ok.rest.pulls.createReplyForReviewComment({
-      owner,
-      repo: name,
-      pull_number: number,
-      comment_id: commentId,
+    return pullsWrite.replyToReviewComment(await this.octo(), repo, number, {
+      commentId,
       body,
     });
   }
 
   async addLabel(repo: string, number: number, label: string): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    await ok.rest.issues.addLabels({
-      owner,
-      repo: name,
-      issue_number: number,
-      labels: [label],
-    });
+    return pullsWrite.addLabel(await this.octo(), repo, number, label);
   }
 
   async merge(
@@ -607,175 +311,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     number: number,
     method: MergeMethod = "squash",
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    await ok.rest.pulls.merge({
-      owner,
-      repo: name,
-      pull_number: number,
-      merge_method: method,
-    });
+    return pullsWrite.merge(await this.octo(), repo, number, method);
   }
 
-  async open(
-    repo: string,
-    branch: string,
-    {
-      title,
-      body,
-      base,
-      labels = ["agent-generated"],
-      draft = false,
-    }: PullDraft,
-  ): Promise<PullRef> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: created } = await ok.rest.pulls.create({
-      owner,
-      repo: name,
-      title,
-      body,
-      head: branch,
-      base: base ?? "main",
-      draft,
-    });
-
-    if (labels.length > 0) {
-      await ok.rest.issues.addLabels({
-        owner,
-        repo: name,
-        issue_number: created.number,
-        labels,
-      });
-    }
-
-    return toPullRef(repo, created);
-  }
-
-  async getDiff(repo: string, number: number): Promise<string> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: diff } = await ok.rest.pulls.get({
-      owner,
-      repo: name,
-      pull_number: number,
-      mediaType: { format: "diff" },
-    });
-
-    return diff as unknown as string;
-  }
-
-  async listReviews(repo: string, number: number): Promise<PullReview[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const reviews = await ok.paginate(ok.rest.pulls.listReviews, {
-      owner,
-      repo: name,
-      pull_number: number,
-    });
-
-    return reviews.map((r) => ({
-      id: r.id,
-      state: r.state,
-      body: r.body ?? "",
-      user: r.user?.login ?? "unknown",
-      submitted_at: r.submitted_at ?? "",
-    }));
-  }
-
-  async listComments(repo: string, number: number): Promise<ReviewComment[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const comments = await ok.paginate(ok.rest.pulls.listReviewComments, {
-      owner,
-      repo: name,
-      pull_number: number,
-    });
-
-    return comments.map((c) => ({
-      id: c.id,
-      path: c.path,
-      line: c.line ?? c.original_line ?? null,
-      body: c.body,
-      user: c.user?.login ?? "unknown",
-      created_at: c.created_at,
-      review_id: c.pull_request_review_id ?? null,
-    }));
-  }
-
-  async listReviewThreads(
-    repo: string,
-    number: number,
-  ): Promise<ReviewThread[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const threads: ReviewThread[] = [];
-    let cursor: string | null = null;
-    let hasNextPage = true;
-
-    while (hasNextPage) {
-      const response: ReviewThreadsResponse = await ok.graphql(
-        `query ($owner: String!, $name: String!, $number: Int!, $cursor: String) {
-          repository(owner: $owner, name: $name) {
-            pullRequest(number: $number) {
-              reviewThreads(first: 100, after: $cursor) {
-                pageInfo { hasNextPage endCursor }
-                nodes {
-                  id
-                  isResolved
-                  isOutdated
-                  comments(first: 100) {
-                    pageInfo { hasNextPage }
-                    nodes { databaseId }
-                  }
-                }
-              }
-            }
-          }
-        }`,
-        { owner, name, number, cursor },
-      );
-      const page = response.repository?.pullRequest?.reviewThreads;
-
-      if (!page) {
-        break;
-      }
-
-      page.nodes.forEach((n) => {
-        // 100+-comment threads are out of scope; warn so a failed databaseId join reads as "past the cap", not "no thread".
-        if (n.comments.pageInfo?.hasNextPage) {
-          console.warn(
-            `[github] review thread ${n.id} on ${repo}#${number} has >100 comments — late comments will not join by databaseId`,
-          );
-        }
-        threads.push({
-          id: n.id,
-          isResolved: n.isResolved,
-          isOutdated: n.isOutdated,
-          comments: n.comments.nodes.map((c) => ({
-            databaseId: c.databaseId,
-          })),
-        });
-      });
-      hasNextPage = page.pageInfo.hasNextPage;
-      cursor = page.pageInfo.endCursor;
-    }
-
-    return threads;
-  }
-
-  async resolveReviewThread(threadId: string): Promise<void> {
-    const ok = await this.octo();
-
-    await ok.graphql(
-      `mutation ($threadId: ID!) {
-        resolveReviewThread(input: { threadId: $threadId }) {
-          thread { id isResolved }
-        }
-      }`,
-      { threadId },
-    );
+  async open(repo: string, branch: string, draft: PullDraft): Promise<PullRef> {
+    return pullsWrite.open(await this.octo(), repo, branch, draft);
   }
 
   async update(
@@ -783,276 +323,15 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     number: number,
     fields: { title?: string; body?: string },
   ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    await ok.rest.pulls.update({
-      owner,
-      repo: name,
-      pull_number: number,
-      ...(fields.title !== undefined ? { title: fields.title } : {}),
-      ...(fields.body !== undefined ? { body: fields.body } : {}),
-    });
+    return pullsWrite.update(await this.octo(), repo, number, fields);
   }
 
   async markReady(repo: string, number: number): Promise<void> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-
-    // Read first: mutation needs the PR's NODE id (PullRef lacks it) and GitHub errors on an already-ready PR — treat "already ready" as success, not an error.
-    const current = (await ok.graphql(
-      `query ($owner: String!, $name: String!, $number: Int!) {
-        repository(owner: $owner, name: $name) {
-          pullRequest(number: $number) { id isDraft }
-        }
-      }`,
-      { owner, name, number },
-    )) as {
-      repository?: { pullRequest?: { id: string; isDraft: boolean } | null };
-    };
-
-    const pr = current.repository?.pullRequest;
-
-    if (!pr?.isDraft) {
-      return;
-    }
-
-    await ok.graphql(
-      `mutation ($pullRequestId: ID!) {
-        markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) {
-          pullRequest { id isDraft }
-        }
-      }`,
-      { pullRequestId: pr.id },
-    );
+    return pullsWrite.markReady(await this.octo(), repo, number);
   }
 
-  async listIssueComments(
-    repo: string,
-    number: number,
-  ): Promise<IssueComment[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const comments = await ok.paginate(ok.rest.issues.listComments, {
-      owner,
-      repo: name,
-      issue_number: number,
-    });
-
-    return comments
-      .filter(
-        (c) =>
-          !c.body?.startsWith("PR created:") &&
-          !c.body?.startsWith("Agent ") &&
-          !c.body?.startsWith("Task "),
-      )
-      .map((c) => ({
-        body: c.body ?? "",
-        user: c.user?.login ?? "unknown",
-        created_at: c.created_at,
-      }));
-  }
-
-  async listCommits(repo: string, number: number): Promise<PullCommit[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const commits = await ok.paginate(ok.rest.pulls.listCommits, {
-      owner,
-      repo: name,
-      pull_number: number,
-    });
-
-    return commits.map((c) => ({
-      sha: c.sha,
-      message: c.commit.message,
-      date: c.commit.committer?.date ?? "",
-    }));
-  }
-
-  async isMerged(repo: string, number: number): Promise<boolean> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: pull } = await ok.rest.pulls.get({
-      owner,
-      repo: name,
-      pull_number: number,
-    });
-
-    return pull.merged;
-  }
-
-  async isClosed(repo: string, number: number): Promise<boolean> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: pull } = await ok.rest.pulls.get({
-      owner,
-      repo: name,
-      pull_number: number,
-    });
-
-    return pull.state === "closed" && !pull.merged;
-  }
-
-  async getStats(repo: string, number: number): Promise<PullStats> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: pull } = await ok.rest.pulls.get({
-      owner,
-      repo: name,
-      pull_number: number,
-    });
-
-    return {
-      files_changed: pull.changed_files,
-      additions: pull.additions,
-      deletions: pull.deletions,
-      comments: pull.comments + pull.review_comments,
-      merged_at: pull.merged_at,
-      created_at: pull.created_at,
-    };
-  }
-
-  async changedFileCount(
-    repo: string,
-    base: string,
-    head: string,
-  ): Promise<number> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: comparison } = await ok.rest.repos.compareCommitsWithBasehead(
-      {
-        owner,
-        repo: name,
-        basehead: `${base}...${head}`,
-      },
-    );
-
-    return comparison.files?.length ?? 0;
-  }
-
-  /** All check runs for a ref, paginated once — source for both ciConclusion and the raw listChecks the auto-merge gate reads. */
-  private async checkRuns(repo: string, ref: string): Promise<CheckRun[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const runs = await ok.paginate(ok.rest.checks.listForRef, {
-      owner,
-      repo: name,
-      ref,
-      per_page: 100,
-    });
-
-    return runs.map((r) => ({
-      name: r.name,
-      status: r.status,
-      conclusion: r.conclusion,
-    }));
-  }
-
-  listChecks(repo: string, ref: string): Promise<CheckRun[]> {
-    return this.checkRuns(repo, ref);
-  }
-
-  async listFiles(repo: string, number: number): Promise<string[]> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const files = await ok.paginate(ok.rest.pulls.listFiles, {
-      owner,
-      repo: name,
-      pull_number: number,
-      per_page: 100,
-    });
-
-    return files.map((f) => f.filename);
-  }
-
-  async ciConclusion(repo: string, ref: string): Promise<CiConclusion> {
-    const runs = await this.checkRuns(repo, ref);
-
-    if (runs.length === 0) {
-      return "none";
-    }
-
-    if (runs.some((r) => r.status !== "completed")) {
-      return "pending";
-    }
-    const failed = new Set([
-      "failure",
-      "cancelled",
-      "timed_out",
-      "action_required",
-      "stale",
-    ]);
-
-    if (runs.some((r) => r.conclusion != null && failed.has(r.conclusion))) {
-      return "failure";
-    }
-
-    return "success";
-  }
-
-  // ── repo config (consumed by the settings adapter) ──────────────────
-
-  async setRepoVariable(
-    repo: string,
-    name: string,
-    value: string,
-  ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, repoName] = split(repo);
-
-    try {
-      await ok.rest.actions.updateRepoVariable({
-        owner,
-        repo: repoName,
-        name,
-        value,
-      });
-    } catch {
-      await ok.rest.actions.createRepoVariable({
-        owner,
-        repo: repoName,
-        name,
-        value,
-      });
-    }
-  }
-
-  async setRepoSecret(
-    repo: string,
-    name: string,
-    value: string,
-  ): Promise<void> {
-    const ok = await this.octo();
-    const [owner, repoName] = split(repo);
-    const { data: pubKey } = await ok.rest.actions.getRepoPublicKey({
-      owner,
-      repo: repoName,
-    });
-    // Indirected through a variable so tsc doesn't demand a declaration file; runtime-deps.test.ts pins it as a production dep of libs/shared instead.
-    const spec = "libsodium-wrappers";
-    const sodium = ((await import(spec)) as { default: Sodium }).default;
-
-    await sodium.ready;
-    const keyBytes = sodium.from_base64(
-      pubKey.key,
-      sodium.base64_variants.ORIGINAL,
-    );
-    const encrypted = sodium.crypto_box_seal(
-      sodium.from_string(value),
-      keyBytes,
-    );
-    const encryptedValue = sodium.to_base64(
-      encrypted,
-      sodium.base64_variants.ORIGINAL,
-    );
-
-    await ok.rest.actions.createOrUpdateRepoSecret({
-      owner,
-      repo: repoName,
-      secret_name: name,
-      encrypted_value: encryptedValue,
-      key_id: pubKey.key_id,
-    });
+  async resolveReviewThread(threadId: string): Promise<void> {
+    return pullsWrite.resolveReviewThread(await this.octo(), threadId);
   }
 
   // ── auth ────────────────────────────────────────────────────────────
@@ -1067,106 +346,9 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   private octo(): Promise<Octokit> {
     if (!this.client) {
-      this.client = this.build();
+      this.client = buildOctokit(this.env);
     }
 
     return this.client;
   }
-
-  private async build(): Promise<Octokit> {
-    const { Octokit } = await import("octokit");
-    const appId = this.env.GITHUB_APP_ID;
-    const privateKey = this.env.GITHUB_APP_PRIVATE_KEY;
-    const installationId = this.env.GITHUB_APP_INSTALLATION_ID;
-
-    if (appId && privateKey && installationId) {
-      const { createAppAuth } = await import("@octokit/auth-app");
-
-      return withoutBlindRetryOnCreates(
-        new Octokit({
-          authStrategy: createAppAuth,
-          auth: { appId, privateKey, installationId },
-        }),
-      );
-    }
-    const token = this.env.GITHUB_TOKEN;
-
-    if (token) {
-      return withoutBlindRetryOnCreates(new Octokit({ auth: token }));
-    }
-    throw new Error(
-      "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN",
-    );
-  }
-
-  private async defaultBranch(repo: string): Promise<string> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data: repository } = await ok.rest.repos.get({ owner, repo: name });
-
-    return repository.default_branch;
-  }
-}
-
-interface Sodium {
-  ready: Promise<void>;
-  base64_variants: { ORIGINAL: number };
-  from_base64(input: string, variant: number): Uint8Array;
-  from_string(input: string): Uint8Array;
-  crypto_box_seal(message: Uint8Array, publicKey: Uint8Array): Uint8Array;
-  to_base64(input: Uint8Array, variant: number): string;
-}
-
-/** The reviewThreads GraphQL response — only the fields the mapper reads. */
-interface ReviewThreadsResponse {
-  repository?: {
-    pullRequest?: {
-      reviewThreads: {
-        pageInfo: { hasNextPage: boolean; endCursor: string | null };
-        nodes: Array<{
-          id: string;
-          isResolved: boolean;
-          isOutdated: boolean;
-          comments: {
-            pageInfo?: { hasNextPage: boolean };
-            nodes: Array<{ databaseId: number | null }>;
-          };
-        }>;
-      };
-    };
-  };
-}
-
-function split(repo: string): [string, string] {
-  const [owner, name] = repo.split("/");
-
-  return [owner, name];
-}
-
-function toPullRef(
-  repo: string,
-  pr: {
-    number: number;
-    title: string;
-    head: { ref: string; sha?: string };
-    state: string;
-    merged_at?: string | null;
-    html_url: string;
-    labels?: Array<{ name: string }>;
-    user?: { login?: string } | null;
-    draft?: boolean;
-  },
-): PullRef {
-  return {
-    repo,
-    number: pr.number,
-    title: pr.title,
-    branch: pr.head.ref,
-    state: pr.merged_at ? "merged" : (pr.state as "open" | "closed"),
-    labels: (pr.labels ?? []).map((l) => l.name),
-    url: pr.html_url,
-    author: pr.user?.login ?? "",
-    draft: pr.draft ?? false,
-    headSha: pr.head.sha,
-  };
 }
