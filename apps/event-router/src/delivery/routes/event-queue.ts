@@ -19,107 +19,126 @@ export interface EventQueueRoutesDeps {
   bearerToken?: string;
 }
 
+/** Every route is bearer-guarded with the router's own token; the check is the first line of each handler so an unauthenticated call never reaches the queue. */
+function guard(
+  deps: EventQueueRoutesDeps,
+  headers: Record<string, unknown>,
+): void {
+  enforceBearer(headers, deps.bearerToken);
+}
+
 export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
-  const guard = (headers: Record<string, unknown>): void =>
-    enforceBearer(headers, deps.bearerToken);
-
   return [
-    {
-      method: "POST",
-      path: "/api/events/claim",
-      options: { auth: false, payload: { parse: false } },
-      handler: async (request, h) => {
-        guard(request.headers);
-        const { limit, excludeEventNames } = parseBody(
-          rawBody(request),
-          ClaimBody,
-          "claim",
-        );
-
-        return h
-          .response({
-            events: await deps
-              .queue()
-              .claimBatch(limit, excludeEventNames ?? []),
-          })
-          .code(200);
-      },
-    },
-    {
-      method: "POST",
-      path: "/api/events/{id}/ack",
-      options: { auth: false },
-      handler: async (request, h) => {
-        guard(request.headers);
-        await deps.queue().markDone(request.params.id);
-
-        return h.response().code(204);
-      },
-    },
-    {
-      method: "POST",
-      path: "/api/events/{id}/fail",
-      options: { auth: false, payload: { parse: false } },
-      handler: async (request, h) => {
-        guard(request.headers);
-        const { error, backoffSeconds } = parseBody(
-          rawBody(request),
-          FailBody,
-          "failure",
-        );
-
-        await deps.queue().markFailed(request.params.id, error, backoffSeconds);
-
-        return h.response().code(204);
-      },
-    },
-    {
-      // Separate from fail: drainer judges budget, not the service.
-      method: "POST",
-      path: "/api/events/{id}/dead",
-      options: { auth: false, payload: { parse: false } },
-      handler: async (request, h) => {
-        guard(request.headers);
-        const { error } = parseBody(rawBody(request), DeadBody, "dead-letter");
-
-        await deps.queue().markDead(request.params.id, error);
-
-        return h.response().code(204);
-      },
-    },
-    {
-      method: "POST",
-      path: "/api/events/reap",
-      options: { auth: false, payload: { parse: false } },
-      handler: async (request, h) => {
-        guard(request.headers);
-        const { timeoutSeconds } = parseBody(
-          rawBody(request),
-          ReapBody,
-          "reap",
-        );
-
-        return h
-          .response({ reaped: await deps.queue().reapStuck(timeoutSeconds) })
-          .code(200);
-      },
-    },
-    {
-      method: "POST",
-      path: "/api/events/prune",
-      options: { auth: false, payload: { parse: false } },
-      handler: async (request, h) => {
-        guard(request.headers);
-        const { olderThanDays } = parseBody(
-          rawBody(request),
-          PruneBody,
-          "prune",
-        );
-
-        return h
-          .response({ pruned: await deps.queue().pruneHandled(olderThanDays) })
-          .code(200);
-      },
-    },
+    claimEventsRoute(deps),
+    ackEventRoute(deps),
+    failEventRoute(deps),
+    deadEventRoute(deps),
+    reapEventsRoute(deps),
+    pruneEventsRoute(deps),
   ];
+}
+
+function claimEventsRoute(deps: EventQueueRoutesDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/events/claim",
+    options: { auth: false, payload: { parse: false } },
+    handler: async (request, h) => {
+      guard(deps, request.headers);
+      const { limit, excludeEventNames } = parseBody(
+        rawBody(request),
+        ClaimBody,
+        "claim",
+      );
+
+      return h
+        .response({
+          events: await deps.queue().claimBatch(limit, excludeEventNames ?? []),
+        })
+        .code(200);
+    },
+  };
+}
+
+function ackEventRoute(deps: EventQueueRoutesDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/events/{id}/ack",
+    options: { auth: false },
+    handler: async (request, h) => {
+      guard(deps, request.headers);
+      await deps.queue().markDone(request.params.id);
+
+      return h.response().code(204);
+    },
+  };
+}
+
+function failEventRoute(deps: EventQueueRoutesDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/events/{id}/fail",
+    options: { auth: false, payload: { parse: false } },
+    handler: async (request, h) => {
+      guard(deps, request.headers);
+      const { error, backoffSeconds } = parseBody(
+        rawBody(request),
+        FailBody,
+        "failure",
+      );
+
+      await deps.queue().markFailed(request.params.id, error, backoffSeconds);
+
+      return h.response().code(204);
+    },
+  };
+}
+
+function deadEventRoute(deps: EventQueueRoutesDeps): ServerRoute {
+  return {
+    // Separate from fail: drainer judges budget, not the service.
+    method: "POST",
+    path: "/api/events/{id}/dead",
+    options: { auth: false, payload: { parse: false } },
+    handler: async (request, h) => {
+      guard(deps, request.headers);
+      const { error } = parseBody(rawBody(request), DeadBody, "dead-letter");
+
+      await deps.queue().markDead(request.params.id, error);
+
+      return h.response().code(204);
+    },
+  };
+}
+
+function reapEventsRoute(deps: EventQueueRoutesDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/events/reap",
+    options: { auth: false, payload: { parse: false } },
+    handler: async (request, h) => {
+      guard(deps, request.headers);
+      const { timeoutSeconds } = parseBody(rawBody(request), ReapBody, "reap");
+
+      return h
+        .response({ reaped: await deps.queue().reapStuck(timeoutSeconds) })
+        .code(200);
+    },
+  };
+}
+
+function pruneEventsRoute(deps: EventQueueRoutesDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/events/prune",
+    options: { auth: false, payload: { parse: false } },
+    handler: async (request, h) => {
+      guard(deps, request.headers);
+      const { olderThanDays } = parseBody(rawBody(request), PruneBody, "prune");
+
+      return h
+        .response({ pruned: await deps.queue().pruneHandled(olderThanDays) })
+        .code(200);
+    },
+  };
 }

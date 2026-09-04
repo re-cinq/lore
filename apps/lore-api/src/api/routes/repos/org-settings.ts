@@ -36,95 +36,107 @@ const RepoSessionsSchema = z.object({
 
 export function orgSettingsRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
-    {
-      method: "GET",
-      path: "/api/settings",
-      options: zodResponse(bearerScope("admin"), OrgSettingsSchema, {
-        name: "OrgSettings",
-        description: "Org-wide settings and the repo count they cover",
-      }),
-      handler: async (_request, h) => {
-        const pool = getPool();
+    readOrgSettingsRoute(getPool),
 
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const { rows: settings } = await pool.query(
-          `SELECT key, value, updated_at FROM lore.settings ORDER BY key`,
-        );
-        const { rows: countRows } = await pool.query<{ count: number }>(
-          `SELECT count(*)::int as count FROM lore.repos`,
-        );
+    writeOrgSettingsRoute(getPool),
 
-        return h.response({
-          settings,
-          repo_count: countRows[0]?.count ?? 0,
-        });
-      },
-    },
-
-    {
-      method: "PUT",
-      path: "/api/settings",
-      options: zodResponse(
-        {
-          ...bearerScope("admin"),
-          validate: { payload: zodValidate(SettingsBody) },
-        },
-        OkSchema,
-        { name: "OrgSettingsSaved", description: "The settings were written" },
-      ),
-      handler: async (request, h) => {
-        const pool = getPool();
-
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const { entries } = request.payload as SettingsBody;
-
-        const unknown = entries.find((entry) => !WRITABLE_KEYS.has(entry.key));
-
-        if (unknown) {
-          return h
-            .response({ error: `not a writable setting: ${unknown.key}` })
-            .code(400);
-        }
-
-        for (const { key, value } of entries) {
-          // A blank value is "leave it alone", not "erase it" — the form posts every field every time.
-          if (!value.trim()) {
-            continue;
-          }
-          await pool.query(
-            `INSERT INTO lore.settings (key, value) VALUES ($1, $2)
-             ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`,
-            [key, value.trim()],
-          );
-        }
-
-        return h.response({ ok: true });
-      },
-    },
-
-    {
-      method: "GET",
-      path: "/api/repos/{owner}/{repo}/sessions",
-      options: zodResponse(bearerScope("read"), RepoSessionsSchema, {
-        name: "RepoSessions",
-        description: "Local-session activity against a repo",
-      }),
-      handler: async (request, h) => {
-        const pool = getPool();
-
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const repo = `${request.params.owner}/${request.params.repo}`;
-        const { rows } = await pool.query<{
-          devs: number;
-          last: string | null;
-        }>(
-          `SELECT count(DISTINCT agent_id)::int AS devs, max(created_at) AS last
-             FROM memory.episodes WHERE source = 'session' AND ref = $1`,
-          [repo],
-        );
-
-        return h.response(rows[0] ?? { devs: 0, last: null });
-      },
-    },
+    repoSessionsRoute(getPool),
   ];
+}
+
+function readOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/settings",
+    options: zodResponse(bearerScope("admin"), OrgSettingsSchema, {
+      name: "OrgSettings",
+      description: "Org-wide settings and the repo count they cover",
+    }),
+    handler: async (_request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const { rows: settings } = await pool.query(
+        `SELECT key, value, updated_at FROM lore.settings ORDER BY key`,
+      );
+      const { rows: countRows } = await pool.query<{ count: number }>(
+        `SELECT count(*)::int as count FROM lore.repos`,
+      );
+
+      return h.response({
+        settings,
+        repo_count: countRows[0]?.count ?? 0,
+      });
+    },
+  };
+}
+
+function writeOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "PUT",
+    path: "/api/settings",
+    options: zodResponse(
+      {
+        ...bearerScope("admin"),
+        validate: { payload: zodValidate(SettingsBody) },
+      },
+      OkSchema,
+      { name: "OrgSettingsSaved", description: "The settings were written" },
+    ),
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const { entries } = request.payload as SettingsBody;
+
+      const unknown = entries.find((entry) => !WRITABLE_KEYS.has(entry.key));
+
+      if (unknown) {
+        return h
+          .response({ error: `not a writable setting: ${unknown.key}` })
+          .code(400);
+      }
+
+      for (const { key, value } of entries) {
+        // A blank value is "leave it alone", not "erase it" — the form posts every field every time.
+        if (!value.trim()) {
+          continue;
+        }
+        await pool.query(
+          `INSERT INTO lore.settings (key, value) VALUES ($1, $2)
+           ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`,
+          [key, value.trim()],
+        );
+      }
+
+      return h.response({ ok: true });
+    },
+  };
+}
+
+function repoSessionsRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/sessions",
+    options: zodResponse(bearerScope("read"), RepoSessionsSchema, {
+      name: "RepoSessions",
+      description: "Local-session activity against a repo",
+    }),
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const repo = `${request.params.owner}/${request.params.repo}`;
+      const { rows } = await pool.query<{
+        devs: number;
+        last: string | null;
+      }>(
+        `SELECT count(DISTINCT agent_id)::int AS devs, max(created_at) AS last
+           FROM memory.episodes WHERE source = 'session' AND ref = $1`,
+        [repo],
+      );
+
+      return h.response(rows[0] ?? { devs: 0, last: null });
+    },
+  };
 }
