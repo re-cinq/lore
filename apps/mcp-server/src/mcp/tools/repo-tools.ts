@@ -7,6 +7,7 @@ import {
   proxyGetApi,
   deniedError,
   unreachableError,
+  textResult,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
@@ -59,9 +60,7 @@ function registerListReposTool(server: McpServer) {
         );
 
         if (!proxied.ok && proxied.reason === "not_configured") {
-          return {
-            content: [{ type: "text" as const, text: NOT_CONFIGURED }],
-          };
+          return textResult(NOT_CONFIGURED);
         }
 
         if (!proxied.ok && proxied.reason === "denied") {
@@ -86,24 +85,12 @@ function registerListReposTool(server: McpServer) {
       }
 
       if (repos.length === 0) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "No repos onboarded yet. Use lore_onboard_repo to add one.",
-            },
-          ],
-        };
+        return textResult(
+          "No repos onboarded yet. Use lore_onboard_repo to add one.",
+        );
       }
 
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({ repos, total }, null, 2),
-          },
-        ],
-      };
+      return textResult(JSON.stringify({ repos, total }, null, 2));
     },
   );
 }
@@ -120,11 +107,11 @@ function registerOnboardRepoTool(server: McpServer) {
       });
 
       if (proxied.ok) {
-        return { content: [{ type: "text" as const, text: proxied.body }] };
+        return textResult(proxied.body);
       }
 
       if (proxied.reason === "not_configured") {
-        return { content: [{ type: "text" as const, text: NOT_CONFIGURED }] };
+        return textResult(NOT_CONFIGURED);
       }
 
       if (proxied.reason === "denied") {
@@ -133,7 +120,7 @@ function registerOnboardRepoTool(server: McpServer) {
 
       // A 409 is the guard refusing a duplicate, not an outage — return the body verbatim so the caller keeps `blocked`/`task_id` to poll or pass reonboard.
       if (proxied.status === 409 && proxied.body) {
-        return { content: [{ type: "text" as const, text: proxied.body }] };
+        return textResult(proxied.body);
       }
 
       return unreachableError("lore_onboard_repo", proxied.detail);
@@ -151,14 +138,9 @@ function registerIngestFilesTool(server: McpServer) {
         const resolvedRepo = repo || detectCurrentRepo();
 
         if (!resolvedRepo) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
-              },
-            ],
-          };
+          return textResult(
+            "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
+          );
         }
 
         // Proxy to GKE ingest API
@@ -166,14 +148,9 @@ function registerIngestFilesTool(server: McpServer) {
         const apiToken = process.env.LORE_INGEST_TOKEN;
 
         if (!apiUrl || !apiToken) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
-              },
-            ],
-          };
+          return textResult(
+            "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
+          );
         }
 
         // Get the latest commit SHA — only use local HEAD if repo matches
@@ -207,14 +184,9 @@ function registerIngestFilesTool(server: McpServer) {
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: res.statusText }));
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
-              },
-            ],
-          };
+          return textResult(
+            `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
+          );
         }
 
         const result = (await res.json()) as {
@@ -224,20 +196,11 @@ function registerIngestFilesTool(server: McpServer) {
 
         invalidateCache(["lore_assemble_context"], resolvedRepo);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
-            },
-          ],
-        };
+        return textResult(
+          `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
+        );
       } catch (err) {
-        return {
-          content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
-          ],
-        };
+        return textResult(`Error: ${errorMessage(err)}`);
       }
     },
   );

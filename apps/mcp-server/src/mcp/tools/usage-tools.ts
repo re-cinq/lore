@@ -7,6 +7,7 @@ import {
   notConfiguredError,
   deniedError,
   type ProxyResult,
+  textResult,
 } from "./deps.js";
 
 // Usage + analytics read from pipeline.tasks/pipeline.llm_calls, reachable only by the remote API (no local pool, ADR-032); both tools just proxy and pretty-print.
@@ -17,14 +18,7 @@ function renderProxied(
   { op, subject, toolName }: { op: string; subject: string; toolName: string },
 ): { content: [{ type: "text"; text: string }] } {
   if (proxied.ok) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(JSON.parse(proxied.body), null, 2),
-        },
-      ],
-    };
+    return textResult(JSON.stringify(JSON.parse(proxied.body), null, 2));
   }
 
   if (proxied.reason === "not_configured") {
@@ -36,14 +30,9 @@ function renderProxied(
   }
 
   // A read with no local fallback: surface the server's reason plainly rather than the write-oriented "refusing local-file fallback" copy.
-  return {
-    content: [
-      {
-        type: "text" as const,
-        text: `Could not fetch ${subject} from the Lore API: ${proxied.detail}`,
-      },
-    ],
-  };
+  return textResult(
+    `Could not fetch ${subject} from the Lore API: ${proxied.detail}`,
+  );
 }
 
 export function registerUsageTools(server: McpServer) {
@@ -70,11 +59,7 @@ export function registerUsageTools(server: McpServer) {
           toolName: "lore_my_usage",
         });
       } catch (err) {
-        return {
-          content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
-          ],
-        };
+        return textResult(`Error: ${errorMessage(err)}`);
       }
     },
   );
@@ -98,14 +83,7 @@ export function registerUsageTools(server: McpServer) {
           toolName: "lore_get_analytics",
         });
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error fetching analytics: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error fetching analytics: ${errorMessage(err)}`);
       }
     },
   );

@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { textResult } from "./deps.js";
 import {
   runUpdate,
   getUpdateStatus,
@@ -17,14 +18,9 @@ export function registerUpdateTools(server: McpServer) {
         : "";
       const output = await runUpdate();
 
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `${header}${output}\n\nRestart Claude Code to load the rebuilt MCP.`,
-          },
-        ],
-      };
+      return textResult(
+        `${header}${output}\n\nRestart Claude Code to load the rebuilt MCP.`,
+      );
     },
   );
 }

@@ -1,6 +1,7 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { textResult } from "./deps.js";
 
 export function registerSpecTraceLocalTools(server: McpServer) {
   server.tool(
@@ -21,13 +22,9 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
           root,
         );
 
-        return { content: [{ type: "text" as const, text }] };
+        return textResult(text);
       } catch (err) {
-        return {
-          content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
-          ],
-        };
+        return textResult(`Error: ${errorMessage(err)}`);
       }
     },
   );
@@ -57,13 +54,9 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
           root,
         );
 
-        return { content: [{ type: "text" as const, text }] };
+        return textResult(text);
       } catch (err) {
-        return {
-          content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
-          ],
-        };
+        return textResult(`Error: ${errorMessage(err)}`);
       }
     },
   );

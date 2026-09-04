@@ -1,6 +1,7 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { textResult } from "./deps.js";
 import type { PendingTask } from "../../features/pipeline/runner.local.js";
 
 /** Registers the task via the API, returning the server-issued id, or null when offline. */
@@ -164,14 +165,9 @@ function registerRunTaskLocallyTool(server: McpServer) {
         const repo = detectRepo();
 
         if (!repo) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Error: not in a git repository with a GitHub remote",
-              },
-            ],
-          };
+          return textResult(
+            "Error: not in a git repository with a GitHub remote",
+          );
         }
 
         // Warn if the task description references a different repo
@@ -184,14 +180,9 @@ function registerRunTaskLocallyTool(server: McpServer) {
           repoRefMatch[1] !== repo &&
           !args.description.toLowerCase().includes(repo)
         ) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Warning: This task references ${repoRefMatch[1]} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoRefMatch[1].split("/")[1]} && claude`,
-              },
-            ],
-          };
+          return textResult(
+            `Warning: This task references ${repoRefMatch[1]} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoRefMatch[1].split("/")[1]} && claude`,
+          );
         }
 
         // Create pipeline task via API; fall back to a generated UUID offline.
@@ -211,20 +202,11 @@ function registerRunTaskLocallyTool(server: McpServer) {
           repoRoot: getRepoRoot() || undefined,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Task running locally in background.\n\nTask ID: ${task.taskId}\nBranch: ${task.branch}\nWorktree: ${task.worktreePath}\nLogs: ${task.logFile}\nPID: ${task.pid}\n\nYour session continues normally. Watch progress in the statusline.`,
-            },
-          ],
-        };
+        return textResult(
+          `Task running locally in background.\n\nTask ID: ${task.taskId}\nBranch: ${task.branch}\nWorktree: ${task.worktreePath}\nLogs: ${task.logFile}\nPID: ${task.pid}\n\nYour session continues normally. Watch progress in the statusline.`,
+        );
       } catch (err) {
-        return {
-          content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
-          ],
-        };
+        return textResult(`Error: ${errorMessage(err)}`);
       }
     },
   );
@@ -242,22 +224,16 @@ function registerListLocalTasksTool(server: McpServer) {
         const tasks = listLocalTasks();
 
         if (tasks.length === 0) {
-          return {
-            content: [{ type: "text" as const, text: "No local tasks." }],
-          };
+          return textResult("No local tasks.");
         }
         const lines = tasks.map(
           (t) =>
             `${t.taskId.substring(0, 8)} ${t.status} ${t.repo} ${t.branch}${t.prUrl ? " → " + t.prUrl : ""}${t.error ? " ✗ " + t.error : ""}`,
         );
 
-        return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+        return textResult(lines.join("\n"));
       } catch (err) {
-        return {
-          content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
-          ],
-        };
+        return textResult(`Error: ${errorMessage(err)}`);
       }
     },
   );
@@ -276,22 +252,13 @@ function registerCancelLocalTaskTool(server: McpServer) {
           await import("../../features/pipeline/runner.local.js");
         const result = cancelLocalTask(args.task_id);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: result.cancelled
-                ? `Task ${args.task_id} cancelled. Worktree cleaned up.`
-                : `Could not cancel: ${result.error}`,
-            },
-          ],
-        };
+        return textResult(
+          result.cancelled
+            ? `Task ${args.task_id} cancelled. Worktree cleaned up.`
+            : `Could not cancel: ${result.error}`,
+        );
       } catch (err) {
-        return {
-          content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
-          ],
-        };
+        return textResult(`Error: ${errorMessage(err)}`);
       }
     },
   );
@@ -319,14 +286,9 @@ function registerClaimAndRunLocallyTool(server: McpServer) {
         }
 
         if (!task) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Task ${args.task_id} not found or not in pending status. Run lore_list_pending_tasks first.`,
-              },
-            ],
-          };
+          return textResult(
+            `Task ${args.task_id} not found or not in pending status. Run lore_list_pending_tasks first.`,
+          );
         }
 
         // Claim via API (best effort)
@@ -366,20 +328,11 @@ function registerClaimAndRunLocallyTool(server: McpServer) {
         // Remove from pending
         skipTask(task.id);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
-            },
-          ],
-        };
+        return textResult(
+          `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
+        );
       } catch (err) {
-        return {
-          content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
-          ],
-        };
+        return textResult(`Error: ${errorMessage(err)}`);
       }
     },
   );
@@ -402,11 +355,7 @@ function registerConfigureLocalRunnerTool(server: McpServer) {
           !args.max_concurrent && noRepoOrTypeArgs && !args.model;
 
         if (noArgsProvided) {
-          return {
-            content: [
-              { type: "text" as const, text: JSON.stringify(config, null, 2) },
-            ],
-          };
+          return textResult(JSON.stringify(config, null, 2));
         }
 
         // Update provided fields
@@ -428,20 +377,11 @@ function registerConfigureLocalRunnerTool(server: McpServer) {
 
         writeConfig(config);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Config updated:\n${JSON.stringify(config, null, 2)}`,
-            },
-          ],
-        };
+        return textResult(
+          `Config updated:\n${JSON.stringify(config, null, 2)}`,
+        );
       } catch (err) {
-        return {
-          content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
-          ],
-        };
+        return textResult(`Error: ${errorMessage(err)}`);
       }
     },
   );

@@ -43,7 +43,7 @@ function completeOnly(body: string): boolean {
 }
 
 function toolText(text: string): ToolText {
-  return { content: [{ type: "text" as const, text }] };
+  return textResult(text);
 }
 
 function undetectedRepoError(): ToolText {
@@ -145,21 +145,12 @@ async function listPendingTasksViaApi(
     : remoteTasks;
 
   if (tasks.length === 0) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: filterRepo
-            ? `No pending tasks for ${filterRepo}.`
-            : "No pending tasks.",
-        },
-      ],
-    };
+    return textResult(
+      filterRepo ? `No pending tasks for ${filterRepo}.` : "No pending tasks.",
+    );
   }
 
-  return {
-    content: [{ type: "text" as const, text: formatPendingTasksByRepo(tasks) }],
-  };
+  return textResult(formatPendingTasksByRepo(tasks));
 }
 
 // Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
@@ -480,34 +471,15 @@ function registerGetPipelineStatusTool(server: McpServer) {
           }
 
           if (!res.ok) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Remote error: ${res.statusText}`,
-                },
-              ],
-            };
+            return textResult(`Remote error: ${res.statusText}`);
           }
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(await res.json(), null, 2),
-              },
-            ],
-          };
+          return textResult(JSON.stringify(await res.json(), null, 2));
         }
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error getting pipeline status: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(
+          `Error getting pipeline status: ${errorMessage(err)}`,
+        );
       }
     },
   );
@@ -527,14 +499,7 @@ function registerGetPrStatusTool(server: McpServer) {
         const proxied = await proxyGetApi(`/api/pr-status?${params}`);
 
         if (proxied.ok) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(JSON.parse(proxied.body), null, 2),
-              },
-            ],
-          };
+          return textResult(JSON.stringify(JSON.parse(proxied.body), null, 2));
         }
 
         if (proxied.reason === "not_configured") {
@@ -546,23 +511,11 @@ function registerGetPrStatusTool(server: McpServer) {
         }
 
         // A read with no local fallback: surface the server's reason plainly rather than the write-oriented "unreachable" copy.
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Could not fetch PR status from the Lore API: ${proxied.detail}`,
-            },
-          ],
-        };
+        return textResult(
+          `Could not fetch PR status from the Lore API: ${proxied.detail}`,
+        );
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error getting PR status: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error getting PR status: ${errorMessage(err)}`);
       }
     },
   );
@@ -580,14 +533,9 @@ function registerListPipelineTasksTool(server: McpServer) {
           const apiToken = process.env.LORE_INGEST_TOKEN;
 
           if (!apiUrl || !apiToken) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access.",
-                },
-              ],
-            };
+            return textResult(
+              "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access.",
+            );
           }
           const params = new URLSearchParams();
 
@@ -602,34 +550,13 @@ function registerListPipelineTasksTool(server: McpServer) {
           });
 
           if (!res.ok) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Remote error: ${res.statusText}`,
-                },
-              ],
-            };
+            return textResult(`Remote error: ${res.statusText}`);
           }
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(await res.json(), null, 2),
-              },
-            ],
-          };
+          return textResult(JSON.stringify(await res.json(), null, 2));
         }
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error listing pipeline tasks: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error listing pipeline tasks: ${errorMessage(err)}`);
       }
     },
   );
@@ -829,14 +756,7 @@ function registerGetTaskLogsTool(server: McpServer) {
         const apiToken = process.env.LORE_INGEST_TOKEN;
 
         if (!apiUrl || !apiToken) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Task logs require LORE_API_URL.",
-              },
-            ],
-          };
+          return textResult("Task logs require LORE_API_URL.");
         }
         const params = new URLSearchParams({ task_id, offset: String(offset) });
 
@@ -880,7 +800,7 @@ function registerGetTaskLogsTool(server: McpServer) {
         );
 
         if (proxied.ok) {
-          return { content: [{ type: "text" as const, text: proxied.body }] };
+          return textResult(proxied.body);
         }
 
         if (proxied.reason === "denied") {
@@ -891,20 +811,9 @@ function registerGetTaskLogsTool(server: McpServer) {
           return unreachableError("lore_get_task_logs", proxied.detail);
         }
 
-        return {
-          content: [
-            { type: "text" as const, text: "Task logs require LORE_API_URL." },
-          ],
-        };
+        return textResult("Task logs require LORE_API_URL.");
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error getting task logs: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error getting task logs: ${errorMessage(err)}`);
       }
     },
   );
@@ -922,14 +831,7 @@ function registerGetJobLogsTool(server: McpServer) {
         const apiToken = process.env.LORE_INGEST_TOKEN;
 
         if (!apiUrl || !apiToken) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Job-run logs require LORE_API_URL.",
-              },
-            ],
-          };
+          return textResult("Job-run logs require LORE_API_URL.");
         }
         const params = new URLSearchParams({ job_name, run_id });
         const proxied = await withReadCache(
@@ -966,7 +868,7 @@ function registerGetJobLogsTool(server: McpServer) {
         );
 
         if (proxied.ok) {
-          return { content: [{ type: "text" as const, text: proxied.body }] };
+          return textResult(proxied.body);
         }
 
         if (proxied.reason === "denied") {
@@ -977,23 +879,9 @@ function registerGetJobLogsTool(server: McpServer) {
           return unreachableError("lore_get_job_logs", proxied.detail);
         }
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "Job-run logs require LORE_API_URL.",
-            },
-          ],
-        };
+        return textResult("Job-run logs require LORE_API_URL.");
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error getting job logs: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error getting job logs: ${errorMessage(err)}`);
       }
     },
   );
@@ -1021,34 +909,20 @@ function registerListPendingTasksTool(server: McpServer) {
           : allTasks;
 
         if (tasks.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: filterRepo
-                  ? `No pending tasks for ${filterRepo}.`
-                  : "No pending tasks.",
-              },
-            ],
-          };
+          return textResult(
+            filterRepo
+              ? `No pending tasks for ${filterRepo}.`
+              : "No pending tasks.",
+          );
         }
         const lines = tasks.map(
           (t) =>
             `${t.id.substring(0, 8)} ${t.task_type} ${t.target_repo}${t.issue_number ? " #" + t.issue_number : ""}\n  ${t.description}`,
         );
 
-        return {
-          content: [{ type: "text" as const, text: lines.join("\n\n") }],
-        };
+        return textResult(lines.join("\n\n"));
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error listing pending tasks: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error listing pending tasks: ${errorMessage(err)}`);
       }
     },
   );
@@ -1068,23 +942,9 @@ function registerSkipTaskTool(server: McpServer) {
 
         skipTask(args.task_id);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Task ${args.task_id} skipped. GKE will handle it.`,
-            },
-          ],
-        };
+        return textResult(`Task ${args.task_id} skipped. GKE will handle it.`);
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error skipping task: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error skipping task: ${errorMessage(err)}`);
       }
     },
   );
@@ -1101,27 +961,15 @@ function registerEnableTaskNotificationsTool(server: McpServer) {
           await import("../../features/pipeline/runner.local.js");
 
         if (isNotifierRunning()) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Task notifications already active.",
-              },
-            ],
-          };
+          return textResult("Task notifications already active.");
         }
         const repos =
           args.repos || ([detectRepo()].filter(Boolean) as string[]);
 
         if (repos.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote.",
-              },
-            ],
-          };
+          return textResult(
+            "Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote.",
+          );
         }
         const taskTypes = args.task_types || [
           "implementation",
@@ -1132,23 +980,13 @@ function registerEnableTaskNotificationsTool(server: McpServer) {
 
         startNotifier(repos, taskTypes);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Watching for pending tasks on ${repos.join(", ")}.\nTypes: ${taskTypes.join(", ")}\nCheck the statusline for new tasks.`,
-            },
-          ],
-        };
+        return textResult(
+          `Watching for pending tasks on ${repos.join(", ")}.\nTypes: ${taskTypes.join(", ")}\nCheck the statusline for new tasks.`,
+        );
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error enabling task notifications: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(
+          `Error enabling task notifications: ${errorMessage(err)}`,
+        );
       }
     },
   );
@@ -1166,20 +1004,11 @@ function registerDisableTaskNotificationsTool(server: McpServer) {
 
         stopNotifier();
 
-        return {
-          content: [
-            { type: "text" as const, text: "Task notifications stopped." },
-          ],
-        };
+        return textResult("Task notifications stopped.");
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error disabling task notifications: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(
+          `Error disabling task notifications: ${errorMessage(err)}`,
+        );
       }
     },
   );

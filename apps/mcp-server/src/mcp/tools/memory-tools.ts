@@ -19,6 +19,7 @@ import {
   unreachableError,
   deniedError,
   notConfiguredError,
+  textResult,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
@@ -199,7 +200,7 @@ function registerWriteMemoryTool(server: McpServer) {
         if (proxied.ok) {
           invalidateCache(MEMORY_DERIVED_READS);
 
-          return { content: [{ type: "text" as const, text: proxied.body }] };
+          return textResult(proxied.body);
         }
 
         if (proxied.reason === "unreachable") {
@@ -212,18 +213,9 @@ function registerWriteMemoryTool(server: McpServer) {
         // File fallback only when LORE_API_URL is not configured (true offline mode)
         const result = writeMemoryFile(key, value, agent_id, ttl);
 
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result) }],
-        };
+        return textResult(JSON.stringify(result));
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error writing memory: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error writing memory: ${errorMessage(err)}`);
       }
     },
   );
@@ -261,7 +253,7 @@ function registerReadMemoryTool(server: McpServer) {
         );
 
         if (proxied.ok) {
-          return { content: [{ type: "text" as const, text: proxied.body }] };
+          return textResult(proxied.body);
         }
 
         if (proxied.reason === "unreachable") {
@@ -274,27 +266,12 @@ function registerReadMemoryTool(server: McpServer) {
         const result = readMemoryFile(key, agent_id, ver);
 
         if (!result) {
-          return {
-            content: [
-              { type: "text" as const, text: `Memory "${key}" not found.` },
-            ],
-          };
+          return textResult(`Memory "${key}" not found.`);
         }
 
-        return {
-          content: [
-            { type: "text" as const, text: JSON.stringify(result, null, 2) },
-          ],
-        };
+        return textResult(JSON.stringify(result, null, 2));
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error reading memory: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error reading memory: ${errorMessage(err)}`);
       }
     },
   );
@@ -315,7 +292,7 @@ function registerDeleteMemoryTool(server: McpServer) {
         if (proxied.ok) {
           invalidateCache(MEMORY_DERIVED_READS);
 
-          return { content: [{ type: "text" as const, text: proxied.body }] };
+          return textResult(proxied.body);
         }
 
         if (proxied.reason === "unreachable") {
@@ -327,18 +304,9 @@ function registerDeleteMemoryTool(server: McpServer) {
         }
         const result = deleteMemoryFile(key, agent_id);
 
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result) }],
-        };
+        return textResult(JSON.stringify(result));
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error deleting memory: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error deleting memory: ${errorMessage(err)}`);
       }
     },
   );
@@ -369,7 +337,7 @@ function registerListMemoriesTool(server: McpServer) {
         );
 
         if (proxied.ok) {
-          return { content: [{ type: "text" as const, text: proxied.body }] };
+          return textResult(proxied.body);
         }
 
         if (proxied.reason === "unreachable") {
@@ -381,20 +349,9 @@ function registerListMemoriesTool(server: McpServer) {
         }
         const result = listMemoriesFile(agent_id, limit, offset);
 
-        return {
-          content: [
-            { type: "text" as const, text: JSON.stringify(result, null, 2) },
-          ],
-        };
+        return textResult(JSON.stringify(result, null, 2));
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error listing memories: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error listing memories: ${errorMessage(err)}`);
       }
     },
   );
@@ -432,7 +389,7 @@ function registerSearchMemoryTool(server: McpServer) {
         );
 
         if (proxied.ok) {
-          return { content: [{ type: "text" as const, text: proxied.body }] };
+          return textResult(proxied.body);
         }
 
         if (proxied.reason === "unreachable") {
@@ -444,20 +401,9 @@ function registerSearchMemoryTool(server: McpServer) {
         }
         const results = searchMemoryFile(query, agent_id, limit);
 
-        return {
-          content: [
-            { type: "text" as const, text: JSON.stringify(results, null, 2) },
-          ],
-        };
+        return textResult(JSON.stringify(results, null, 2));
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error searching memories: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error searching memories: ${errorMessage(err)}`);
       }
     },
   );
@@ -481,7 +427,7 @@ function registerWriteEpisodeTool(server: McpServer) {
         if (proxied.ok) {
           invalidateCache(EPISODE_DERIVED_READS);
 
-          return { content: [{ type: "text" as const, text: proxied.body }] };
+          return textResult(proxied.body);
         }
 
         if (proxied.reason === "unreachable") {
@@ -492,23 +438,11 @@ function registerWriteEpisodeTool(server: McpServer) {
           return deniedError("lore_write_episode", proxied.detail);
         }
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "Episodes require PostgreSQL or LORE_API_URL. Neither is configured.",
-            },
-          ],
-        };
+        return textResult(
+          "Episodes require PostgreSQL or LORE_API_URL. Neither is configured.",
+        );
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error writing episode: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error writing episode: ${errorMessage(err)}`);
       }
     },
   );
@@ -551,9 +485,7 @@ function registerQueryGraphTool(server: McpServer) {
           );
 
           if (proxied.ok) {
-            return {
-              content: [{ type: "text" as const, text: proxied.body }],
-            };
+            return textResult(proxied.body);
           }
 
           if (proxied.reason === "unreachable") {
@@ -564,23 +496,11 @@ function registerQueryGraphTool(server: McpServer) {
             return deniedError("lore_query_graph", proxied.detail);
           }
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL.",
-              },
-            ],
-          };
+          return textResult(
+            "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL.",
+          );
         } catch (err) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Error querying graph: ${errorMessage(err)}`,
-              },
-            ],
-          };
+          return textResult(`Error querying graph: ${errorMessage(err)}`);
         }
       });
     },
@@ -600,14 +520,7 @@ function registerAgentStatsTool(server: McpServer) {
         const proxied = await proxyGetApi(`/api/agent-stats?${params}`);
 
         if (proxied.ok) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(JSON.parse(proxied.body), null, 2),
-              },
-            ],
-          };
+          return textResult(JSON.stringify(JSON.parse(proxied.body), null, 2));
         }
 
         if (proxied.reason === "not_configured") {
@@ -618,23 +531,11 @@ function registerAgentStatsTool(server: McpServer) {
           return deniedError("lore_agent_stats", proxied.detail);
         }
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Could not fetch agent stats from the Lore API: ${proxied.detail}`,
-            },
-          ],
-        };
+        return textResult(
+          `Could not fetch agent stats from the Lore API: ${proxied.detail}`,
+        );
       } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error fetching agent stats: ${errorMessage(err)}`,
-            },
-          ],
-        };
+        return textResult(`Error fetching agent stats: ${errorMessage(err)}`);
       }
     },
   );

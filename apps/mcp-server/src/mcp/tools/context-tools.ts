@@ -16,6 +16,7 @@ import {
   withReadCache,
   unreachableError,
   deniedError,
+  textResult,
 } from "./deps.js";
 import { updateBanner } from "../../features/update/mcp-update.js";
 
@@ -50,15 +51,13 @@ async function searchDbContext(
   });
 
   if (results.length === 0) {
-    return {
-      content: [{ type: "text" as const, text: `No results for "${query}".` }],
-    };
+    return textResult(`No results for "${query}".`);
   }
   const text = results
     .map((r) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`)
     .join("\n\n---\n\n");
 
-  return { content: [{ type: "text" as const, text }] };
+  return textResult(text);
 }
 
 interface ParagraphScan {
@@ -188,14 +187,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
         : CONTEXT_PATH;
 
       if (!existsSync(searchRoot)) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error: search path not found at ${searchRoot}.`,
-            },
-          ],
-        };
+        return textResult(`Error: search path not found at ${searchRoot}.`);
       }
       const pattern = team
         ? join(searchRoot, "**/*.md")
@@ -217,17 +209,13 @@ Use this when you want chunk-level evidence or the exact wording of a convention
       });
 
       if (results.length === 0) {
-        return {
-          content: [
-            { type: "text" as const, text: `No results found for "${query}".` },
-          ],
-        };
+        return textResult(`No results found for "${query}".`);
       }
       const text = results
         .map((r) => `**Source:** ${r.source}\n\n${r.paragraph}`)
         .join("\n\n---\n\n");
 
-      return { content: [{ type: "text" as const, text }] };
+      return textResult(text);
     },
   );
 }
@@ -246,14 +234,9 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
           const apiToken = process.env.LORE_INGEST_TOKEN;
 
           if (!apiUrl || !apiToken) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
-                },
-              ],
-            };
+            return textResult(
+              "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
+            );
           }
           const resolvedRepo = repo || detectCurrentRepo() || "";
           // Only sent when non-default so these extras also seed the cache key, keeping a 16000-token request from being served an 8000-token cached body.
@@ -299,9 +282,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
           if (proxied.ok) {
             const banner = await updateBanner();
 
-            return {
-              content: [{ type: "text" as const, text: banner + proxied.body }],
-            };
+            return textResult(banner + proxied.body);
           }
 
           if (proxied.reason === "unreachable") {
@@ -312,23 +293,11 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
             return deniedError("lore_assemble_context", proxied.detail);
           }
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
-              },
-            ],
-          };
+          return textResult(
+            "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
+          );
         } catch (err) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Error assembling context: ${errorMessage(err)}`,
-              },
-            ],
-          };
+          return textResult(`Error assembling context: ${errorMessage(err)}`);
         }
       });
     },

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
-import { proxyGetApi, withReadCache } from "./deps.js";
+import { proxyGetApi, withReadCache, textResult } from "./deps.js";
 import { runQueryTrace } from "@re-cinq/lore-server-core/features/spec-trace/query-trace.js";
 
 export function registerSpecTraceTools(server: McpServer) {
@@ -44,7 +44,7 @@ export function registerSpecTraceTools(server: McpServer) {
         { proxyGet: cachedGet, detectRepo: detectCurrentRepo },
       );
 
-      return { content: [{ type: "text" as const, text }] };
+      return textResult(text);
     },
   );
 }
