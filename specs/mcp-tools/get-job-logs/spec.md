@@ -21,7 +21,7 @@ that full log by `(job_name, run_id)` without cluster access.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L392)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools-logs.ts#L115)).
 
 - **name**: `lore_get_job_logs`
 - **description** (verbatim):
@@ -45,7 +45,7 @@ Fetches the full stdout/stderr of one scheduled CronJob run (keyed by job_name +
      token; on 2xx return the raw body. Otherwise (or non-2xx) return
      `"Job-run logs require LORE_API_URL."`
    - **GKE mode (`LORE_DB_HOST` set)** — direct GCS read (below).
-2. **GCS read** ([GCS read body](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L417)) —
+2. **GCS read** ([GCS read body](../../../apps/mcp-server/src/mcp/tools/pipeline-tools-logs.ts#L22)) —
    dynamically import `@google-cloud/storage`; bucket =
    `process.env.LORE_LOG_BUCKET || "lore-task-logs"`; object key
    `__job_runs__/{job_name}/{run_id}/output.log`.

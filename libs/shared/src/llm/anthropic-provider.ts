@@ -13,49 +13,21 @@ import type {
 } from "./llm-provider.js";
 import {
   getCacheControl,
-  computeCachePrefixHash,
   analyzeCacheBreak,
-  type CacheBreakAnalysis,
+  computeCachePrefixHash,
 } from "./prompt-cache.js";
-import type { ModelPricing } from "./model-pricing.js";
+import {
+  formatBreakLogTag,
+  cachePrefixHash,
+  logToolCall,
+} from "./anthropic-cache-log.js";
+
+// Per-model pricing + usage/cost accounting live in anthropic-pricing.ts, re-exported for import-path back-compat.
+export { computeCost, type TokenUsage } from "./anthropic-pricing.js";
+import { extractUsage, computeCost } from "./anthropic-pricing.js";
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_MAX_TOKENS = 8192;
-
-// $/token from published $/1M rates; cache 1.25x write/0.1x read multipliers; reverify vs shared/live-sources.md when adding tier.
-const MODEL_PRICING: Record<string, ModelPricing> = {
-  "claude-fable-5": {
-    inputPerToken: 10.0 / 1_000_000,
-    outputPerToken: 50.0 / 1_000_000,
-  },
-  "claude-opus-5": {
-    inputPerToken: 5.0 / 1_000_000,
-    outputPerToken: 25.0 / 1_000_000,
-  },
-  "claude-opus-4-8": {
-    inputPerToken: 5.0 / 1_000_000,
-    outputPerToken: 25.0 / 1_000_000,
-  },
-  "claude-sonnet-5": {
-    inputPerToken: 2.0 / 1_000_000,
-    outputPerToken: 10.0 / 1_000_000,
-  },
-  "claude-sonnet-4-6": {
-    inputPerToken: 3.0 / 1_000_000,
-    outputPerToken: 15.0 / 1_000_000,
-  },
-  "claude-haiku-4-5-20251001": {
-    inputPerToken: 0.8 / 1_000_000,
-    outputPerToken: 4.0 / 1_000_000,
-  },
-};
-
-// Unrecognized model (new tier or dated snapshot) uses cheapest tier for logging (least-wrong default cost).
-const FALLBACK_PRICING = MODEL_PRICING["claude-haiku-4-5-20251001"];
-
-function pricingFor(model: string): ModelPricing {
-  return MODEL_PRICING[model] ?? FALLBACK_PRICING;
-}
 
 export function buildCacheableSystem(
   systemPrompt: string,
@@ -86,25 +58,6 @@ export function buildCacheableTools(
   ];
 }
 
-function orUnknown(value: string | number | undefined): string | number {
-  return value ?? "?";
-}
-
-function formatBreakLogTag(a: CacheBreakAnalysis): string {
-  switch (a.status) {
-    case "hit":
-      return "hit";
-    case "first-call":
-      return "first-call";
-    case "prompt-changed":
-      return `break:${orUnknown(a.reason)}`;
-    case "ttl-expired":
-      return `break:ttl(${orUnknown(a.ageMinutes)}m)`;
-    case "unknown-miss":
-      return "miss:?";
-  }
-}
-
 /** Resolves the model/maxTokens/system-param triple shared by every completion call. */
 function resolveModel(req: { model?: string }, defaultModel: string): string {
   return req.model || defaultModel;
@@ -123,45 +76,10 @@ function systemParam(
     : {};
 }
 
-function extractUsage(response: Anthropic.Message): TokenUsage {
-  return {
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
-    cacheCreationTokens: response.usage.cache_creation_input_tokens ?? 0,
-    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
-  };
-}
-
 function firstTextBlock(response: Anthropic.Message): string {
   const block = response.content[0];
 
   return block.type === "text" ? block.text : "";
-}
-
-export interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-}
-
-export function computeCost(
-  model: string,
-  {
-    inputTokens,
-    outputTokens,
-    cacheCreationTokens,
-    cacheReadTokens,
-  }: TokenUsage,
-): number {
-  const pricing = pricingFor(model);
-
-  return (
-    inputTokens * pricing.inputPerToken +
-    outputTokens * pricing.outputPerToken +
-    cacheCreationTokens * pricing.inputPerToken * 1.25 +
-    cacheReadTokens * pricing.inputPerToken * 0.1
-  );
 }
 
 export interface AnthropicProviderOptions {
@@ -372,21 +290,6 @@ export class AnthropicProvider implements LlmProvider {
   }
 }
 
-/** The cache prefix is system + tool schemas; hashing it is how a break is attributed to one or the other. */
-function cachePrefixHash(
-  systemPrompt: string | undefined,
-  tools: Anthropic.Tool[],
-): ReturnType<typeof computeCachePrefixHash> {
-  return computeCachePrefixHash(
-    systemPrompt,
-    tools.map((t) => ({
-      name: t.name,
-      description: t.description ?? "",
-      input_schema: t.input_schema,
-    })),
-  );
-}
-
 /** A tool call that produced no tool_use block answered something else entirely — the stop reason is the only clue, so it rides in the error. */
 function toolInput<T>(response: Anthropic.Message): T {
   const block = response.content.find((b) => b.type === "tool_use");
@@ -398,18 +301,4 @@ function toolInput<T>(response: Anthropic.Message): T {
   );
 
   return block.input as T;
-}
-
-function logToolCall(call: {
-  model: string;
-  usage: ReturnType<typeof extractUsage>;
-  costUsd: number;
-  durationMs: number;
-  breakTag: string;
-}): void {
-  const { model, usage, costUsd, durationMs, breakTag } = call;
-
-  console.log(
-    `[llm] tool call: ${model} ${usage.inputTokens}+${usage.outputTokens} tokens (cache ${breakTag} w/r ${usage.cacheCreationTokens}/${usage.cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
-  );
 }

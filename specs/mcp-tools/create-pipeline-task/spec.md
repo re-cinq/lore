@@ -26,7 +26,7 @@ the task will be picked up.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L25)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-lifecycle.ts#L125)).
 
 - **name**: `lore_create_pipeline_task`
 - **description** (verbatim):

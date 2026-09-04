@@ -22,7 +22,7 @@ or misleading.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L163)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-listing.ts#L53)).
 
 - **name**: `lore_cancel_task`
 - **description** (verbatim):
@@ -45,7 +45,7 @@ Cancels a server-side pipeline task, flipping it to 'cancelled' and best-effort 
 2. The route calls the shared `cancelTask(pool, task_id)`, so an unknown id
    answers `404 Task not found` and a terminal state answers
    `409 Cannot cancel task in {status} state` rather than silently no-op'ing.
-3. **Shared CRUD** ([`cancelTask`](../../../libs/shared/src/pipeline-tasks.ts#L195)):
+3. **Shared CRUD** ([`cancelTask`](../../../libs/shared/src/pipeline-task-actions.ts#L41)):
    1. `getTask(pool, taskId)` (SELECT row + events); if `null`, throw `"Task not found"`.
    2. If `status ∈ {merged, failed, cancelled}`, throw `"Cannot cancel task in {status} state"`.
    3. Otherwise `updateTaskStatus(pool, taskId, "cancelled", {cancelled_by: "user"})`

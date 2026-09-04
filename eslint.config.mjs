@@ -112,8 +112,8 @@ export default tseslint.config(
       // max-params 81. max-comment-lines, max-params and complexity reached
       // zero on 2026-09-04, followed by no-vague-names and
       // no-row-types-outside-models, and all are errors; max-lines-per-function
-      // is ratcheted to 100 the same day. `max-lines` below is the one open
-      // queue, added after the others closed.
+      // is ratcheted to 100 the same day. `max-lines` below was added after the
+      // others closed and reached zero on 2026-09-04; no queue is open now.
       "max-params": ["error", { max: 4 }],
       "lore/max-comment-lines": ["error", { max: 1 }],
       "lore/no-vague-names": "error",
@@ -134,12 +134,11 @@ export default tseslint.config(
       complexity: ["error", 6],
       // A module that needs 300 lines to state its job is usually holding more
       // than one. Counting matches max-lines-per-function so the two agree, and
-      // tests are exempt below. Starts at `warn` with a 75-file queue: splitting
-      // a file moves an import path, so every one ripples into its callers, and
-      // the five over 900 lines are a boundary decision rather than an
-      // extraction. Promote to error when the queue reaches zero.
+      // tests are exempt below. Queue of 75 drained on 2026-09-04, so this is
+      // an error. A budget can say a file is too big but not where its seam
+      // belongs, so each split was a named job, never a cut at line 300.
       "max-lines": [
-        "warn",
+        "error",
         { max: 300, skipBlankLines: true, skipComments: true },
       ],
     },

@@ -24,7 +24,7 @@ updates in place instead of duplicating.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L231)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-spec-tasks.ts#L18)).
 
 - **name**: `lore_sync_tasks`
 - **description** (verbatim):

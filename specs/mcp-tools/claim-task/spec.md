@@ -21,7 +21,7 @@ one caller wins; everyone else is told the task is already taken.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L292)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-spec-tasks.ts#L88)).
 
 - **name**: `lore_claim_task`
 - **description** (verbatim):

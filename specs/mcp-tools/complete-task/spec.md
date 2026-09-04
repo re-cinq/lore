@@ -22,7 +22,7 @@ unit of work without re-running a full readiness scan.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L317)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-spec-tasks.ts#L115)).
 
 - **name**: `lore_complete_task`
 - **description** (verbatim):

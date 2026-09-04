@@ -22,7 +22,7 @@ pending file written by the notifier.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L429)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-notifications.ts#L11)).
 
 - **name**: `lore_list_pending_tasks`
 - **description** (verbatim):

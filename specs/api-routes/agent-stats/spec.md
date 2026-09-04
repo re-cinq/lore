@@ -45,8 +45,8 @@ credentials, and the tool proxies.
 1. Null request pool **or** `!isMemoryDbAvailable()` → 503
    `{ error: DB_UNAVAILABLE }`.
 2. `agentStatsBundle(pool, agent_id)` fans out three reads via `Promise.all`:
-   - `agentHealth(agent_id)` ([handler](../../../libs/server-core/src/features/memory/memory.ts#L408)) → memory count, last active, snapshot count.
-   - `agentStats(agent_id)` ([handler](../../../libs/server-core/src/features/memory/memory.ts#L423)) → total/active/invalidated facts, total searches, shared pools created.
+   - `agentHealth(agent_id)` ([handler](../../../libs/server-core/src/features/memory/memory-stats.ts#L6)) → memory count, last active, snapshot count.
+   - `agentStats(agent_id)` ([handler](../../../libs/server-core/src/features/memory/memory-stats.ts#L21)) → total/active/invalidated facts, total searches, shared pools created.
    - A recent-episodes preview: the five newest `memory.episodes` rows for the
      agent with a 200-char content preview and a per-episode fact count.
 3. The episode reads are best-effort — the preview falls back to `[]` and the

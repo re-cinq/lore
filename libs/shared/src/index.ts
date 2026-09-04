@@ -17,12 +17,16 @@ export {
   type PipelineTaskRow,
   type TaskListRow,
 } from "./pipeline-tasks.js";
+// "./pipeline-task-actions.js"'s retryTask/cancelTask/escalateTask/reviseTask/markTaskMerged and "./pipeline-task-status.js"'s setTaskStatus/setTaskStatusIf/ALLOWED_TASK_COLUMNS are already re-exported above via pipeline-tasks.js.
+export { enforceRepoTrustForTaskType } from "./pipeline-task-trust.js";
 export {
   chunkFile,
   buildIngestedChunkMetadata,
   CHUNKER_VERSION,
   type Chunk,
 } from "./chunker.js";
+export * from "./chunker-symbols.js";
+export * from "./chunker-ast.js";
 export { redactSecrets } from "./redact.js";
 export {
   tokenSecretKey,
@@ -80,73 +84,8 @@ export {
   buildVertexUrl,
 } from "./embeddings/embedding-service.js";
 export { resolveAgentId } from "./agent-id.js";
-export { projectSpecFile } from "./spec-trace/project-spec-file.js";
-export { projectAdrFile } from "./spec-trace/project-adr-file.js";
-export {
-  descriptorsFromVitestList,
-  groupRunsByFile,
-  type VitestListEntry,
-} from "./spec-trace/trace-descriptors.js";
-export {
-  bindDescriptorsToSpecLinks,
-  type SpecSource,
-} from "./spec-trace/bind-descriptors-to-spec-links.js";
-export { resolveTestLines } from "./spec-trace/resolve-test-lines.js";
-export {
-  parseSpecAnchor,
-  parseSpecAnchors,
-  type SpecAnchor,
-} from "./spec-trace/spec-anchor.js";
+export * from "./index-spec-trace.js";
 export { mapWithLimit } from "./concurrency/map-with-limit.js";
-export {
-  ingestSpecTrace,
-  type SpecTraceOutcome,
-} from "./spec-trace/ingest-spec-trace.js";
-export {
-  deleteSpecSubtree,
-  deleteAdrSubtree,
-} from "./spec-trace/prune-removed-docs.js";
-export { pruneTestFiles } from "./spec-trace/prune-test-files.js";
-export {
-  assembleTraceDocument,
-  fetchTraceDocument,
-  listSpecDocuments,
-  listAdrDocuments,
-  listAllSpecDocuments,
-  listAllAdrDocuments,
-  listSpecSummaries,
-  listAdrSummaries,
-  type SpecSummary,
-  type AdrSummary,
-  type TraceDocument,
-  type TraceStatement,
-  type TraceSection,
-  type TraceLinkRef,
-  type TraceCoverage,
-  type StatementState as TraceStatementState,
-} from "./spec-trace/assemble-trace-document.js";
-export {
-  fetchSpecGraph,
-  fetchSpecRing,
-  flattenSpecGraph,
-  flattenSpecRing,
-  mergePersistentFeatures,
-  specLabel,
-  adrLabel,
-  UNGROUPED_SECTION,
-  type SpecGraph,
-  type SpecGraphNode,
-  type SpecGraphLink,
-  type PersistentFeatureNode,
-  type SpecRing,
-  type RingSection,
-  type RingStatement,
-} from "./spec-trace/spec-graph.js";
-export {
-  planTraceUnits,
-  runTraceUnits,
-  type TraceUnit,
-} from "./spec-trace/trace-units.js";
 export { Llm } from "./llm/llm.js";
 export { selectProvider } from "./llm/select-provider.js";
 export { NoLlmProvider } from "./llm/no-llm-provider.js";
@@ -163,46 +102,6 @@ export type {
   LlmToolResult,
   LlmUsage,
 } from "./llm/llm-provider.js";
-export {
-  computeImpact,
-  buildImpactAnnotations,
-  buildImpactComment,
-  IMPACT_COMMENT_MARKER,
-  parseRanges,
-  type ChangedRange,
-  type ChangedDoc,
-  type ImpactOptions,
-  type ImpactReport,
-  type ImpactStatement,
-  type OrphanStatement,
-  type ImpactAnnotation,
-} from "./spec-trace/trace-impact.js";
-export {
-  readGraphBaseline,
-  stampGraphBaseline,
-  type GraphBaseline,
-} from "./spec-trace/graph-baseline.js";
-export {
-  assembleGraphContext,
-  fetchGraphContext,
-  DEFAULT_LIMIT as GRAPH_CONTEXT_DEFAULT_LIMIT,
-  type GraphContextBlock,
-  type GraphContextStatement,
-  type GraphContextResult,
-  type GraphSignal,
-} from "./spec-trace/graph-context.js";
-export {
-  runIngestGraph,
-  selectIngestFiles,
-  summarizeIngest,
-  chunkGlobsForKind,
-  INGEST_KINDS,
-  type IngestKind,
-  type IngestGraphParams,
-  type IngestGraphSummary,
-  type IngestGraphPorts,
-  type IngestKindDef,
-} from "./spec-trace/ingest-graph-task.js";
 export {
   parseTasks,
   inferPhaseDependencies,
@@ -260,126 +159,8 @@ export {
   type RefContext,
   type Segment,
 } from "./references.js";
-export {
-  parseSpecTitle,
-  extractSummary,
-  reassembleSpec,
-} from "./spec-summary.js";
-export {
-  segmentBlocks,
-  reassembleBlocks,
-  type Block,
-  type BlockKind,
-} from "./spec-blocks.js";
-export {
-  segmentStatements,
-  classifyByHeuristic,
-  buildIntroOrdinals,
-  type Statement,
-  type StatementKind,
-  type Testability,
-  type UntestableCategory,
-  type Classification,
-} from "./spec-segment.js";
-export {
-  docStatusPill,
-  parseDocStatus,
-  statusTier,
-  rewriteAdrStatusRow,
-  rewriteSpecStatusRow,
-  type DocKind,
-  type DocStatus,
-  type DocStatusPill,
-  type RewriteStatusOptions,
-  type StatusBucket,
-  type StatusTier,
-} from "./spec-status.js";
-export {
-  coverageStatusLabel,
-  coverageTier,
-  expectedStatus,
-  statementCoverage,
-  statusLabel,
-  unlinkedTestableStatements,
-  type CoverageTier,
-  type StatementCoverage,
-  type UnlinkedStatement,
-} from "./spec-status-coverage.js";
-export {
-  openSpecStatusFlipPr,
-  type StatusFlipOptions,
-  type StatusFlipResult,
-} from "./spec-status-flip.js";
-export { isTestFile, isDocFile, normalizeTestName } from "./test-paths.js";
-export {
-  parseTestCommandManifest,
-  resolveTestCommandManifest,
-  decideTestInterfaceCheck,
-  substituteSelector,
-  type TestCommandManifest,
-  type CoverageFormat,
-  type TestInterfaceCheck,
-} from "./test-command-manifest.js";
-export {
-  parseTestDescriptors,
-  parseRunResult,
-  type TestDescriptor,
-  type CoveredChunk,
-  type RunResult,
-  type TaggedRunResult,
-} from "./test-report.js";
-export {
-  LORE_INGEST_WORKFLOW_PATH,
-  LORE_INGEST_WORKFLOW_VERSION,
-  LORE_INGEST_WORKFLOW_CONTENT,
-  ingestWorkflowStatus,
-  parseIngestWorkflowVersion,
-  type IngestWorkflowStatus,
-} from "./ingest-workflow.js";
-export {
-  TRACE_IMPACT_WORKFLOW_PATH,
-  TRACE_IMPACT_WORKFLOW_VERSION,
-  TRACE_IMPACT_WORKFLOW_CONTENT,
-  traceImpactWorkflowStatus,
-  parseTraceImpactWorkflowVersion,
-  type TraceImpactWorkflowStatus,
-} from "./trace-impact-workflow.js";
-export {
-  parseTestLinksInStatement,
-  parseCodeLinksInStatement,
-  linksForStatements,
-  findMisplacedCoverageLinks,
-  resolveLinkPath,
-  type SpecLinkRef,
-  type TestLinkRef,
-  type CodeLinkRef,
-} from "./spec-link-parser.js";
-export {
-  specFeatureSlug,
-  hasDirectoryAffinity,
-  cosineSimilarity,
-  matchedAssertion,
-  deriveTestName,
-  parseEmbedding,
-  selectCandidates,
-  staleLinkKeys,
-  staleStatementOrdinals,
-  argmaxByTest,
-  hashSpecContent,
-  MAX_CANDIDATES_PER_SPEC,
-  EMBEDDING_THRESHOLD,
-  JUDGE_SCORE_THRESHOLD,
-  type Assertion,
-  type MatchKind,
-  type SpecTestLink,
-  type TestChunk,
-  type JudgeCandidate,
-  type SpecInput,
-  type CandidateSelection,
-  type Judgment,
-} from "./spec-judge.js";
-
-export { extractAssertions, type LlmJobContext } from "./spec-judge-llm.js";
+// Re-exported via index-spec-content.js: "./spec-summary.js" "./spec-blocks.js" "./spec-segment.js" "./spec-sentence-split.js" "./spec-status.js" "./spec-status-coverage.js" "./spec-status-flip.js" "./test-paths.js" "./test-command-manifest.js" "./test-report.js" "./ingest-workflow.js" "./trace-impact-workflow.js" "./spec-link-parser.js" "./spec-judge.js" "./spec-judge-llm.js"
+export * from "./index-spec-content.js";
 
 export {
   memoryStore,
@@ -395,7 +176,16 @@ export {
 } from "./memory-store.js";
 export { PostgresMemoryStore } from "./postgres-memory-store.js";
 export { ShadowMemoryStore } from "./shadow-memory-store.js";
-export { DgraphMemoryStore } from "./dgraph-memory-store.js";
+export { DgraphMemoryStore, type GraphHop } from "./dgraph-memory-store.js";
+export { toVectorLiteral, newUid } from "./dgraph-vector.js";
+export { withTxn } from "./dgraph-txn.js";
+export { findLatestLive, type MemoryRow } from "./dgraph-memory-queries.js";
+export { flattenHops } from "./dgraph-graph-hops.js";
+export { contradictionNodes } from "./dgraph-fact-contradictions.js";
+export { searchMemories as dgraphSearchMemories } from "./dgraph-search.js";
+export { writeMemory as dgraphWriteMemory } from "./dgraph-memory-crud.js";
+export { persistFact as dgraphPersistFact } from "./dgraph-fact-episode.js";
+export { upsertEdge as dgraphUpsertEdge } from "./dgraph-graph-edges.js";
 export {
   rrfMerge,
   RRF_K,

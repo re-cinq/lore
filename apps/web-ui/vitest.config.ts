@@ -40,6 +40,21 @@ export default defineConfig({
         "src/app/repos/[owner]/[repo]/graph/SpecGraphD3.tsx",
         "src/app/repos/[owner]/[repo]/graph/TestPreview.tsx",
         "src/app/repos/[owner]/[repo]/graph/IngestButtons.tsx",
+        // Split out of the SpecGraphD3.tsx shell above, so the same exemption follows them; the pure halves it also yielded (spec-graph-ring-layout, spec-graph-node-links) stay measured.
+        "src/app/repos/[owner]/[repo]/graph/SpecGraphOverlays.tsx",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-canvas-draw.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-canvas-draw-edges.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-canvas-draw-leaves.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-controller-interaction.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-controller-nodes.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-controller-rings.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-controller-types.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-data-prep.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-focus-state.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-seed-layout.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-simulation.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-spacing.ts",
+        "src/app/repos/[owner]/[repo]/graph/spec-graph-visual.ts",
         // Feature-planning UI shells (interactive/IO like graph shells; pure logic in feature-status.ts).
         "src/app/repos/[owner]/[repo]/features/**/*.tsx",
         // Infinite-scroll pager (IntersectionObserver + fetch shell; query logic in events/pagination.ts).
