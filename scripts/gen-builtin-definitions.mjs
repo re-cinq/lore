@@ -105,8 +105,8 @@ function emitDefinition(line) {
   ].join("\n");
 }
 
-const allLines = [...(await loadBuiltinAssemblyLines()).values()].sort(
-  (a, b) => a.name.localeCompare(b.name),
+const allLines = [...(await loadBuiltinAssemblyLines()).values()].sort((a, b) =>
+  a.name.localeCompare(b.name),
 );
 const prReviewLines = allLines.filter((l) => PR_REVIEW_NAMES.has(l.name));
 const internalEventLines = allLines.filter((l) =>
