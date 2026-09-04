@@ -25,6 +25,39 @@ interface NodeRow {
   finishedAt: Date | null;
 }
 
+interface NodeFacts {
+  type: string | null;
+  promptRef: string | null;
+  route: string | null;
+  station: string | null;
+  stationInherited: boolean;
+}
+
+/** The graph facts for a node row: null/defaulted for pre-clone runs whose blueprint is gone, otherwise read straight off the run's own graph. */
+function nodeFacts(
+  node: RunGraphNode | undefined,
+  args: Record<string, unknown>,
+): NodeFacts {
+  if (!node) {
+    return {
+      type: null,
+      promptRef: null,
+      // Resolved against THIS run's args (FR6.40); null when a placeholder is missing rather than serving a half-built href.
+      route: resolveRoute(undefined, args),
+      station: null,
+      stationInherited: false,
+    };
+  }
+
+  return {
+    type: node.type,
+    promptRef: node.prompt_ref ?? null,
+    route: resolveRoute(node.route, args),
+    station: node.station ?? null,
+    stationInherited: node.station_inherited,
+  };
+}
+
 /** A node row joined to the run's OWN graph (FR6.38 — station/route resolved once at clone time, else re-deriving from current YAML rewrites history). Graph facts are null for pre-clone runs whose blueprint is gone. */
 function describeNode(
   row: NodeRow,
@@ -39,12 +72,7 @@ function describeNode(
     commitSha: row.commitSha,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
-    type: node?.type ?? null,
-    promptRef: node?.prompt_ref ?? null,
-    // Resolved against THIS run's args (FR6.40); null when a placeholder is missing rather than serving a half-built href.
-    route: resolveRoute(node?.route, args),
-    station: node?.station ?? null,
-    stationInherited: node?.station_inherited ?? false,
+    ...nodeFacts(node, args),
   };
 }
 

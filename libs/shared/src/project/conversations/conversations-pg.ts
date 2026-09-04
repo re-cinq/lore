@@ -28,6 +28,23 @@ const toRecord = (row: ConversationDbRow): ConversationRecord => ({
   createdAt: row.created_at.toISOString(),
 });
 
+function refParams(ref?: ExecutionRef): [string | null, number | null] {
+  return [ref?.assemblyLineId ?? null, ref?.iteration ?? null];
+}
+
+function latestForParams(
+  thread: ConversationThread,
+  opts: { exclude?: ExecutionRef; from?: ExecutionRef },
+): unknown[] {
+  return [
+    thread.kind,
+    thread.value,
+    thread.nodeId,
+    ...refParams(opts.exclude),
+    ...refParams(opts.from),
+  ];
+}
+
 export class PgConversations implements ConversationsPort {
   constructor(private readonly pool: PgPool) {}
 
@@ -93,15 +110,7 @@ export class PgConversations implements ConversationsPort {
           ))
         ORDER BY created_at DESC
         LIMIT 1`,
-      [
-        thread.kind,
-        thread.value,
-        thread.nodeId,
-        opts.exclude?.assemblyLineId ?? null,
-        opts.exclude?.iteration ?? null,
-        opts.from?.assemblyLineId ?? null,
-        opts.from?.iteration ?? null,
-      ],
+      latestForParams(thread, opts),
     );
 
     return result.rows.length > 0 ? toRecord(result.rows[0]) : null;

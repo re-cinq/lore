@@ -206,10 +206,11 @@ function sinksFor(
   };
 }
 
-function llmSpec(
+/** {context} filled per run with CONTEXT_BOOTSTRAP; only true where the pod has a Lore MCP to call (#1629). */
+function llmPrompt(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
-): AgentDefinitionSpec {
+): string {
   // Unreachable: agentDefToCrds already ran validateCatalogEntry's promptless refusal; kept for the type narrowing below.
   enforceTrue(
     def.prompt,
@@ -217,6 +218,63 @@ function llmSpec(
     `recipe ${def.name} has no prompt — the subsystem rejects a promptless AgentDefinition at admission`,
   );
 
+  return opts.mcpUrl
+    ? `${def.prompt.trimEnd()}\n\n{context}`
+    : def.prompt.trimEnd();
+}
+
+function llmSecretsBlock(secretKey: string | undefined) {
+  return secretKey ? { secrets: [{ name: secretKey, ref: secretKey }] } : {};
+}
+
+function mcpServersBlock(opts: CatalogCrdOptions) {
+  return opts.mcpUrl
+    ? {
+        mcp_servers: [
+          {
+            name: "lore",
+            transport: "http" as const,
+            url: opts.mcpUrl,
+            headers_secret: "lore-mcp-auth",
+          },
+        ],
+      }
+    : {};
+}
+
+/** A recipe's own skills APPEND to lore-context rather than replacing it. */
+function skillsBlock(def: ResolvedAgentDefinition, opts: CatalogCrdOptions) {
+  return opts.skillsUrl
+    ? {
+        skills: [
+          "lore-context",
+          ...(def.config?.skills ?? []).filter(
+            (name) => name !== "lore-context",
+          ),
+        ],
+        skills_source: opts.skillsUrl,
+      }
+    : {};
+}
+
+function llmResources(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+  secretKey: string | undefined,
+) {
+  return {
+    ...llmSecretsBlock(secretKey),
+    // Every agent pod commits its own work; git refuses without an identity and a pod has no ambient git config.
+    env: GIT_IDENTITY,
+    ...mcpServersBlock(opts),
+    ...skillsBlock(def, opts),
+  };
+}
+
+function llmSpec(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+): AgentDefinitionSpec {
   // Key follows the MODEL's family, not the cluster's habit — must never disagree with validateCatalogEntry's default family.
   const family = def.model ? modelFamily(def.model) : "anthropic";
   const secretKey = family ? secretKeysOf(opts)[family] : undefined;
@@ -224,41 +282,10 @@ function llmSpec(
   return {
     description: `Lore ${def.name} recipe.`,
     ...(def.model ? { model: def.model } : {}),
-    // {context} filled per run with CONTEXT_BOOTSTRAP; only true where the pod has a Lore MCP to call (#1629).
-    prompt: opts.mcpUrl
-      ? `${def.prompt.trimEnd()}\n\n{context}`
-      : def.prompt.trimEnd(),
+    prompt: llmPrompt(def, opts),
     permission_mode: "bypass",
     max_turns: AGENT_MAX_TURNS,
-    resources: {
-      ...(secretKey ? { secrets: [{ name: secretKey, ref: secretKey }] } : {}),
-      // Every agent pod commits its own work; git refuses without an identity and a pod has no ambient git config.
-      env: GIT_IDENTITY,
-      ...(opts.mcpUrl
-        ? {
-            mcp_servers: [
-              {
-                name: "lore",
-                transport: "http" as const,
-                url: opts.mcpUrl,
-                headers_secret: "lore-mcp-auth",
-              },
-            ],
-          }
-        : {}),
-      // A recipe's own skills APPEND to lore-context rather than replacing it.
-      ...(opts.skillsUrl
-        ? {
-            skills: [
-              "lore-context",
-              ...(def.config?.skills ?? []).filter(
-                (name) => name !== "lore-context",
-              ),
-            ],
-            skills_source: opts.skillsUrl,
-          }
-        : {}),
-    },
+    resources: llmResources(def, opts, secretKey),
     // Defense-in-depth: an agent must never spawn more pipeline work from inside a run; recipe denies (#1160) append after.
     disallowed_tools: [
       "mcp__lore__lore_create_pipeline_task",
@@ -268,20 +295,50 @@ function llmSpec(
   };
 }
 
+function stationCommand(def: ResolvedAgentDefinition): unknown {
+  return def.config?.command ?? ["lore-station", def.name.replace(/^def-/, "")];
+}
+
+/** Row stores the central cluster's dgraph endpoint verbatim; a cluster with dgraph elsewhere substitutes its own. */
+function stationEnvEntries(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+) {
+  return Object.entries(def.config?.env ?? {}).map(([name, value]) => ({
+    name,
+    value:
+      name === "LORE_DGRAPH_HTTP" && opts.dgraphUrl ? opts.dgraphUrl : value,
+  }));
+}
+
+/** Every station pod reads/writes over HTTP (createStationProject, D7); API base URL ships on every recipe, per-station env appends. */
+function stationEnv(def: ResolvedAgentDefinition, opts: CatalogCrdOptions) {
+  return [
+    ...(opts.apiUrl ? [{ name: "LORE_API_URL", value: opts.apiUrl }] : []),
+    ...stationEnvEntries(def, opts),
+  ];
+}
+
+/** Model credential only where the station calls a model — comment-triage silently dropped a missing key into "ignore" and reported success. */
+function stationSecrets(
+  def: ResolvedAgentDefinition,
+  anthropicKey: string | undefined,
+) {
+  return [
+    { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
+    // needs_model stations call Anthropic (comment-triage's Haiku); family-specific stations declare their own model instead.
+    ...(def.config?.needs_model && anthropicKey
+      ? [{ name: anthropicKey, ref: anthropicKey }]
+      : []),
+  ];
+}
+
 /** exec-vendor recipe (ADR-031): non-LLM node run by lore-station's entrypoint; whole node input rides {station_input}. */
 function stationSpec(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
 ): AgentDefinitionSpec {
   const anthropicKey = secretKeysOf(opts).anthropic;
-  const envEntries = Object.entries(def.config?.env ?? {}).map(
-    ([name, value]) => ({
-      name,
-      // Row stores the central cluster's dgraph endpoint verbatim; a cluster with dgraph elsewhere substitutes its own.
-      value:
-        name === "LORE_DGRAPH_HTTP" && opts.dgraphUrl ? opts.dgraphUrl : value,
-    }),
-  );
 
   return {
     description: `Lore ${def.name} station recipe.`,
@@ -289,26 +346,10 @@ function stationSpec(
     prompt: "{station_input}",
     permission_mode: "bypass",
     max_turns: 1,
-    tool_config: {
-      command: def.config?.command ?? [
-        "lore-station",
-        def.name.replace(/^def-/, ""),
-      ],
-    },
+    tool_config: { command: stationCommand(def) },
     resources: {
-      // Every station pod reads/writes over HTTP (createStationProject, D7); API base URL ships on every recipe, per-station env appends.
-      env: [
-        ...(opts.apiUrl ? [{ name: "LORE_API_URL", value: opts.apiUrl }] : []),
-        ...envEntries,
-      ],
-      // Model credential only where the station calls a model — comment-triage silently dropped a missing key into "ignore" and reported success.
-      secrets: [
-        { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
-        // needs_model stations call Anthropic (comment-triage's Haiku); family-specific stations declare their own model instead.
-        ...(def.config?.needs_model && anthropicKey
-          ? [{ name: anthropicKey, ref: anthropicKey }]
-          : []),
-      ],
+      env: stationEnv(def, opts),
+      secrets: stationSecrets(def, anthropicKey),
     },
     output: sinksFor(def, opts),
   };

@@ -73,6 +73,16 @@ export function resultEnvelope(agentText: string): string {
   return JSON.stringify({ type: "result", result: agentText });
 }
 
+/** The scripted node output: the literal override, or a synthesized `LORE_NODE_RESULT` envelope for the given outcome. */
+function resolveCompletionOutput(input: CompleteAgentNodeInput): string {
+  return (
+    input.output ??
+    resultEnvelope(
+      `LORE_NODE_RESULT: {"outcome":"${input.outcome ?? "success"}"}`,
+    )
+  );
+}
+
 /** An attributed file-artifact envelope line — the sink lane's shape. */
 export function fileArtifactEnvelope(input: {
   taskId: string;
@@ -169,6 +179,21 @@ export function createLineHarness(
     }
   }
 
+  /** Claims a still-queued row for the named agent (or central by default) as `claimNextStationRun` would; a no-op when the row is already claimed or absent. */
+  async function claimQueuedNode(
+    claimed: (typeof runs.nodes)[number] | undefined,
+    claimedBy: string | undefined,
+  ): Promise<void> {
+    if (!claimed || claimed.status !== "queued") {
+      return;
+    }
+    claimed.status = "claimed";
+    await ensureFleet();
+    claimed.clusterAgentId =
+      claimedBy ?? agentIds.get(CENTRAL_CLUSTER_AGENT_NAME) ?? null;
+    claimed.claimedAt = new Date();
+  }
+
   /** One cluster-agent polling for work through the real `mayClaim` gate + `claimNextStationRun` scan; null is the 204 an agent backs off on. */
   async function claimAs(name: string) {
     await ensureFleet();
@@ -244,11 +269,7 @@ export function createLineHarness(
     const iteration = input.iteration ?? 1;
     const phase = input.phase ?? "Succeeded";
     const agentName = nodeAgentName(assemblyRunId, nodeId, iteration);
-    const output =
-      input.output ??
-      resultEnvelope(
-        `LORE_NODE_RESULT: {"outcome":"${input.outcome ?? "success"}"}`,
-      );
+    const output = resolveCompletionOutput(input);
 
     // Written straight onto the row rather than through `claimNextStationRun`, since that scan claims the next queued row of any node, not necessarily this one.
     const claimed = runs.nodes.find(
@@ -259,13 +280,7 @@ export function createLineHarness(
         n.outcome === null,
     );
 
-    if (claimed && claimed.status === "queued") {
-      claimed.status = "claimed";
-      await ensureFleet();
-      claimed.clusterAgentId =
-        input.claimedBy ?? agentIds.get(CENTRAL_CLUSTER_AGENT_NAME) ?? null;
-      claimed.claimedAt = new Date();
-    }
+    await claimQueuedNode(claimed, input.claimedBy);
 
     if (!input.statusUnreadable) {
       statusByAgent.set(agentName, { phase, output });

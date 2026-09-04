@@ -58,6 +58,14 @@ function toOpenSummary(row: AssemblyRunRecord): OpenRunSummary {
   };
 }
 
+/** Fork's subjectKey prefers the caller's override, falling back to source's. */
+function inheritedSubjectKey(
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord,
+): string | undefined {
+  return input.subjectKey ?? source.subjectKey ?? undefined;
+}
+
 /** Fork inherits branch/taskId/subject (+args unless overridden) from source — the subject rides along because a fork re-runs the same work and must hold its source's guard (legal only from a terminal run). */
 function inheritFromSource(
   input: AssemblyRunStartInput,
@@ -71,7 +79,7 @@ function inheritFromSource(
     ...input,
     branch: source.branch ?? undefined,
     taskId: source.taskId ?? undefined,
-    subjectKey: input.subjectKey ?? source.subjectKey ?? undefined,
+    subjectKey: inheritedSubjectKey(input, source),
     args: input.args ?? source.args,
   };
 }
@@ -101,6 +109,27 @@ function matchesTaskAndTiming(
   );
 }
 
+/** Marks one open node row stranded by its run finishing without it — a visit that DID report keeps its own outcome (the `??` fallbacks only fill what's still unset). */
+function strandNode(node: SeedAssemblyLineNode, now: Date): void {
+  node.finishedAt = now;
+  node.outcome = node.outcome ?? "failed";
+  node.failureClass = node.failureClass ?? "unknown";
+  node.failureDetail =
+    node.failureDetail ??
+    "the run finished while this visit was still open — the visit never reported an outcome";
+}
+
+/** Extracted from newRow so its many `??` defaults don't inflate that function's complexity. */
+function resumeRefs(input: AssemblyRunStartInput): {
+  resumedFromRunId: string | null;
+  resumedFromNodeId: string | null;
+} {
+  return {
+    resumedFromRunId: input.resumeFrom?.lineId ?? null,
+    resumedFromNodeId: input.resumeFrom?.nodeId ?? null,
+  };
+}
+
 /** In-memory AssemblyRunsPort — the behavioral spec of the Pg adapter; clock is injectable for deterministic ordering in tests. */
 export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   rows: AssemblyRunRecord[] = [];
@@ -110,43 +139,38 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
 
   constructor(public clock: () => Date = () => new Date()) {}
 
-  async start(input: AssemblyRunStartInput): Promise<string> {
-    // Start-or-JOIN: a subject already in flight yields its run rather than a second one; the check IS the enforcement here since the double is single-threaded (Pg reaches the same answer via unique-violation).
-    const open = input.subjectKey
-      ? await this.findOpenBySubject(input.repo, input.subjectKey)
-      : null;
-
-    if (open) {
-      return open.id;
-    }
-
+  /** Validates a resumeFrom fork before minting anything, so a rejected resume leaves no half-created line (mirrors the Pg one-CTE shape). Returns the source row (if any) and the inherited node prefix. */
+  private async resolveFork(input: AssemblyRunStartInput): Promise<{
+    source: AssemblyRunRecord | null;
+    inherited: StationRunRecord[];
+  }> {
     const resumeFrom = input.resumeFrom;
-    const source = resumeFrom ? await this.getById(resumeFrom.lineId) : null;
-    // Validate the fork before minting anything, so a rejected resume leaves no half-created line (mirrors the Pg one-CTE shape).
-    const inherited = resumeFrom
-      ? resolveResumePrefix(
-          input,
-          source,
-          await this.listStationRuns(resumeFrom.lineId),
-        ).prefix
-      : [];
-    const id = randomUUID();
-    const row = this.newRow(id, inheritFromSource(input, source));
 
-    row.inheritedNodeCount = inherited.length;
-    // Fork carries source's hash; plain start carries none until the Floor stamps it (Pg plain-start CTE likewise never writes it).
-    row.blueprintHash = source?.blueprintHash ?? null;
-    // Fork replays source's rows, so it must walk the same graph (hash guard already proved the blueprint still matches).
-    row.graph = source?.graph ?? null;
-    this.rows.push(row);
+    if (!resumeFrom) {
+      return { source: null, inherited: [] };
+    }
+    const source = await this.getById(resumeFrom.lineId);
+    const inherited = resolveResumePrefix(
+      input,
+      source,
+      await this.listStationRuns(resumeFrom.lineId),
+    ).prefix;
 
+    return { source, inherited };
+  }
+
+  /** Copies a fork's inherited node rows into THIS run's own identity space (own station_run_id, no source CR name / verdict — see inline notes below). */
+  private seedInheritedNodes(
+    inherited: StationRunRecord[],
+    assemblyRunId: string,
+  ): void {
     for (const node of inherited) {
       this.nodes.push({
         ...node,
         id: String(this.nodes.length + 1),
         // Copied row is of THIS run, so it gets its own identity — sharing a station_run_id would merge telemetry.
         stationRunId: randomUUID(),
-        assemblyRunId: id,
+        assemblyRunId,
         // Copied rows never carry the source's CR name — run-viz/cost joins resolve by newest node row, so an echoed name would steal late-arriving source rows.
         agentCrName: null,
         // Nor its verdict — getNextTransition replays the copied prefix and would fail the fork on an inherited permanent-failure visit on first advance.
@@ -154,6 +178,13 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
         failureDetail: null,
       });
     }
+  }
+
+  private recordStartEvent(
+    id: string,
+    input: AssemblyRunStartInput,
+    row: AssemblyRunRecord,
+  ): void {
     this.events.push({
       eventName: RUN_START_EVENT,
       source: "internal",
@@ -168,6 +199,45 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       },
       dedupeKey: `${RUN_START_EVENT}:${id}`,
     });
+  }
+
+  private async findOpenRunForStart(
+    input: AssemblyRunStartInput,
+  ): Promise<OpenRunSummary | null> {
+    // Start-or-JOIN: a subject already in flight yields its run rather than a second one; the check IS the enforcement here since the double is single-threaded (Pg reaches the same answer via unique-violation).
+    if (!input.subjectKey) {
+      return null;
+    }
+
+    return this.findOpenBySubject(input.repo, input.subjectKey);
+  }
+
+  /** Stamps a freshly-minted row with fork-derived fields — inherited count, plus source's hash/graph (fork carries source's hash/graph; a plain start carries neither until the Floor stamps them, mirroring the Pg plain-start CTE, and a fork must walk the same graph its hash guard already proved still matches). */
+  private applyForkFields(
+    row: AssemblyRunRecord,
+    source: AssemblyRunRecord | null,
+    inherited: StationRunRecord[],
+  ): void {
+    row.inheritedNodeCount = inherited.length;
+    row.blueprintHash = source?.blueprintHash ?? null;
+    row.graph = source?.graph ?? null;
+  }
+
+  async start(input: AssemblyRunStartInput): Promise<string> {
+    const open = await this.findOpenRunForStart(input);
+
+    if (open) {
+      return open.id;
+    }
+
+    const { source, inherited } = await this.resolveFork(input);
+    const id = randomUUID();
+    const row = this.newRow(id, inheritFromSource(input, source));
+
+    this.applyForkFields(row, source, inherited);
+    this.rows.push(row);
+    this.seedInheritedNodes(inherited, id);
+    this.recordStartEvent(id, input, row);
 
     return id;
   }
@@ -200,6 +270,17 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     row.graph = graph ?? null;
   }
 
+  /** A visit still open under a finishing run is stranded: the reaper sweeps only OPEN runs, so nothing would ever close it, and the spend page bills an unfinished visit at its cap. A visit that DID report keeps its own outcome. */
+  private strandOpenNodes(assemblyRunId: string): void {
+    const now = this.clock();
+
+    for (const node of this.nodes) {
+      if (node.assemblyRunId === assemblyRunId && node.finishedAt === null) {
+        strandNode(node, now);
+      }
+    }
+  }
+
   async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
     const row = this.mustFind(id);
 
@@ -212,18 +293,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     row.outcome = outcome;
     row.reason = reason ?? null;
     row.finishedAt = this.clock();
-
-    // A visit still open under a finishing run is stranded: the reaper sweeps only OPEN runs, so nothing would ever close it, and the spend page bills an unfinished visit at its cap. A visit that DID report keeps its own outcome.
-    for (const node of this.nodes) {
-      if (node.assemblyRunId === id && node.finishedAt === null) {
-        node.finishedAt = this.clock();
-        node.outcome = node.outcome ?? "failed";
-        node.failureClass = node.failureClass ?? "unknown";
-        node.failureDetail =
-          node.failureDetail ??
-          "the run finished while this visit was still open — the visit never reported an outcome";
-      }
-    }
+    this.strandOpenNodes(id);
 
     return true;
   }
@@ -577,8 +647,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       outcome: null,
       reason: null,
       blueprintHash: null,
-      resumedFromRunId: input.resumeFrom?.lineId ?? null,
-      resumedFromNodeId: input.resumeFrom?.nodeId ?? null,
+      ...resumeRefs(input),
       inheritedNodeCount: 0,
       createdAt: this.clock(),
       startedAt: null,

@@ -246,6 +246,46 @@ async function readRepoSettings(targetRepo: string): Promise<RepoSettings> {
   }
 }
 
+interface TaskContextBundle {
+  branch?: string;
+  feedback?: string;
+}
+
+/** A revision runs on the branch it is revising, and says what it is revising. */
+function applyRevisionFeedback(
+  task: PipelineTask,
+  contextBundle: TaskContextBundle,
+): void {
+  if (!contextBundle.feedback) {
+    return;
+  }
+
+  task.description = `REVISION FEEDBACK: ${contextBundle.feedback}\n\nOriginal task: ${task.description}`;
+}
+
+function resolveBranchName(
+  task: PipelineTask,
+  contextBundle: TaskContextBundle,
+): string {
+  return (
+    contextBundle.branch ||
+    `lore/${task.task_type}/${slugify(task.description)}-${task.id.substring(0, 8)}`
+  );
+}
+
+/** The resolved agent definition wins, then legacy per-repo overrides, then the task-type config. */
+function resolveModel(
+  agentDef: Awaited<ReturnType<Project["agentDefs"]["resolve"]>> | null,
+  repoOverrides: { model?: string } | undefined,
+  taskType: string,
+): string | undefined {
+  return (
+    agentDef?.model ||
+    repoOverrides?.model ||
+    getTaskTypeConfig(taskType)?.model
+  );
+}
+
 /** How this task runs: which branch, which model, which agent definition, and whether the repo puts it through the Floor-side graph. */
 async function resolveTaskPlan(
   task: PipelineTask,
@@ -258,30 +298,55 @@ async function resolveTaskPlan(
     .resolve(task.task_type)
     .catch(() => null);
   const repoOverrides = repoSettings.task_overrides?.[task.task_type];
-  const contextBundle = (task.context_bundle || {}) as {
-    branch?: string;
-    feedback?: string;
-  };
+  const contextBundle = (task.context_bundle || {}) as TaskContextBundle;
 
-  // A revision runs on the branch it is revising, and says what it is revising.
-  if (contextBundle.feedback) {
-    task.description = `REVISION FEEDBACK: ${contextBundle.feedback}\n\nOriginal task: ${task.description}`;
-  }
+  applyRevisionFeedback(task, contextBundle);
 
   return {
     repoSettings,
     repoOverrides,
     agentDef,
-    branchName:
-      contextBundle.branch ||
-      `lore/${task.task_type}/${slugify(task.description)}-${task.id.substring(0, 8)}`,
-    // The resolved agent definition wins, then legacy per-repo overrides.
-    model:
-      agentDef?.model ||
-      repoOverrides?.model ||
-      getTaskTypeConfig(task.task_type)?.model,
+    branchName: resolveBranchName(task, contextBundle),
+    model: resolveModel(agentDef, repoOverrides, task.task_type),
     darkFactoryEnabled: repoSettings?.dark_factory?.enabled === true,
   };
+}
+
+async function commentTaskFailureOnIssue(
+  project: Project,
+  issueNumber: number,
+  failureReason: string,
+  meta: Record<string, unknown>,
+): Promise<void> {
+  const hint = "hint" in meta && meta.hint ? ` — ${meta.hint}` : "";
+
+  await project.issues
+    .comment(issueNumber, `Task failed: \`${failureReason}\`${hint}`)
+    .catch(() => {});
+  await project.issues.addLabel(issueNumber, "lore-failed").catch(() => {});
+}
+
+async function handleProcessTaskFailure(
+  task: PipelineTask,
+  project: Project,
+  issueNumber: number | null,
+  err: unknown,
+): Promise<void> {
+  const failureReason: string = errorMessage(err);
+  const meta =
+    err instanceof TaskFailure
+      ? { error: failureReason, details: err.details }
+      : { error: failureReason, ...classifyError(failureReason) };
+
+  await setStatus(task.id, "failed", {
+    failure_reason: failureReason,
+  });
+  await insertEvent(task.id, "running", "failed", meta);
+
+  if (issueNumber) {
+    await commentTaskFailureOnIssue(project, issueNumber, failureReason, meta);
+  }
+  console.error(`[floor] Task ${task.id} failed: ${failureReason}`);
 }
 
 async function processTask(task: PipelineTask): Promise<void> {
@@ -322,27 +387,7 @@ async function processTask(task: PipelineTask): Promise<void> {
       ...plan,
     });
   } catch (err) {
-    const failureReason: string = errorMessage(err);
-    const meta =
-      err instanceof TaskFailure
-        ? { error: failureReason, details: err.details }
-        : { error: failureReason, ...classifyError(failureReason) };
-
-    await setStatus(task.id, "failed", {
-      failure_reason: failureReason,
-    });
-    await insertEvent(task.id, "running", "failed", meta);
-
-    // Update issue with failure
-    if (issueNumber) {
-      const hint = "hint" in meta && meta.hint ? ` — ${meta.hint}` : "";
-
-      await project.issues
-        .comment(issueNumber, `Task failed: \`${failureReason}\`${hint}`)
-        .catch(() => {});
-      await project.issues.addLabel(issueNumber, "lore-failed").catch(() => {});
-    }
-    console.error(`[floor] Task ${task.id} failed: ${failureReason}`);
+    await handleProcessTaskFailure(task, project, issueNumber, err);
   }
 }
 
@@ -366,6 +411,27 @@ async function lookupDarkFactoryBaseBranch(
   }
 }
 
+/** Whether the issue-creation gate says to skip, logging why when the skip is worth reporting (a general task's skip isn't — it never files one by design). */
+function shouldSkipIssue(
+  task: PipelineTask,
+  isFeaturePlanningType: boolean,
+  gate: { create: boolean; reason: string },
+  targetRepo: string,
+): boolean {
+  // A general task never files one, and a feature-planning line files its own.
+  const eligible = task.task_type !== "general" && !isFeaturePlanningType;
+  const skip = !eligible || !gate.create;
+  const skipIsNoteworthy = task.task_type !== "general";
+
+  if (skip && skipIsNoteworthy) {
+    console.log(
+      `[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${gate.reason})`,
+    );
+  }
+
+  return skip;
+}
+
 /** Existing, new, or no Issue: dark mode defers creation per `create_issue` unless `with_issue: true` forces it (FR3.2). */
 async function ensureIssue(
   task: PipelineTask,
@@ -382,21 +448,11 @@ async function ensureIssue(
 
     return existing;
   }
+
   const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
   const gate = await shouldCreateIssue(task);
-  // A general task never files one, and a feature-planning line files its own.
-  const eligible = task.task_type !== "general" && !isFeaturePlanningType;
 
-  // A general task files none by design, so its skip is not worth reporting.
-  const skipIsNoteworthy = task.task_type !== "general";
-
-  if ((!eligible || !gate.create) && skipIsNoteworthy) {
-    console.log(
-      `[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${gate.reason})`,
-    );
-  }
-
-  if (!eligible || !gate.create) {
+  if (shouldSkipIssue(task, isFeaturePlanningType, gate, targetRepo)) {
     return null;
   }
 

@@ -24,6 +24,57 @@ export interface SeedRepo {
   onboarded_at?: Date | null;
 }
 
+function repoNameParts(fullName: string): [string, string] {
+  const [owner = "", name = ""] = fullName.split("/");
+
+  return [owner, name];
+}
+
+function repoIdentity(
+  row: SeedRepo,
+): Pick<RepoRecord, "id" | "owner" | "name" | "fullName"> {
+  const [owner, name] = repoNameParts(row.full_name);
+
+  return { id: row.id ?? randomUUID(), owner, name, fullName: row.full_name };
+}
+
+function repoMeta(
+  row: SeedRepo,
+): Pick<RepoRecord, "team" | "onboardedAt" | "lastIngestedAt"> {
+  return {
+    team: row.team ?? null,
+    onboardedAt: row.onboarded_at ?? new Date(0),
+    lastIngestedAt: row.last_ingested_at ?? null,
+  };
+}
+
+function repoOnboarding(
+  row: SeedRepo,
+): Pick<RepoRecord, "onboardingPrUrl" | "onboardingPrMerged"> {
+  return {
+    onboardingPrUrl: row.onboarding_pr_url ?? null,
+    onboardingPrMerged: row.onboarding_pr_merged ?? false,
+  };
+}
+
+function repoExtras(
+  row: SeedRepo,
+): Pick<RepoRecord, "settings" | "outcomeStats"> {
+  return {
+    settings: row.settings ?? null,
+    outcomeStats: row.outcome_stats ?? null,
+  };
+}
+
+function toRepoRecord(row: SeedRepo): RepoRecord {
+  return {
+    ...repoIdentity(row),
+    ...repoMeta(row),
+    ...repoOnboarding(row),
+    ...repoExtras(row),
+  };
+}
+
 /** In-memory SettingsPort double; var/secret writes captured in {@link vars}/{@link secrets}. */
 export class InMemorySettings implements SettingsPort {
   readonly vars: Array<{ repo: string; name: string; value: string }> = [];
@@ -79,21 +130,7 @@ export class InMemorySettings implements SettingsPort {
       return null;
     }
 
-    const [owner = "", name = ""] = row.full_name.split("/");
-
-    return {
-      id: row.id ?? randomUUID(),
-      owner,
-      name,
-      fullName: row.full_name,
-      team: row.team ?? null,
-      onboardedAt: row.onboarded_at ?? new Date(0),
-      lastIngestedAt: row.last_ingested_at ?? null,
-      onboardingPrUrl: row.onboarding_pr_url ?? null,
-      onboardingPrMerged: row.onboarding_pr_merged ?? false,
-      settings: row.settings ?? null,
-      outcomeStats: row.outcome_stats ?? null,
-    };
+    return toRepoRecord(row);
   }
 
   async rawSettings(repo: string): Promise<Record<string, unknown> | null> {

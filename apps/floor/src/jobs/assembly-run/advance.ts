@@ -279,6 +279,31 @@ async function loadWalkState(
   };
 }
 
+/** Gated BEFORE the conversation lookup/row/CR: an agent node dispatched into a dry account would boot, install, call the API once, and die — only agent nodes are gated. */
+function isAgentDispatchBlocked(
+  node: RunGraphNode,
+  deps: AdvanceDeps,
+): boolean {
+  return node.type === "agent" && (deps.llmGate?.isBlocked() ?? false);
+}
+
+interface PriorFailuresLookup {
+  node: RunGraphNode;
+  assemblyRun: AssemblyRunRecord;
+  nodeId: string;
+  visits: NodeVisit[];
+}
+
+/** Fork chain included; only an agent's prompt reads it, only a fork pays the source-run reads. */
+async function priorFailuresIfAgent(
+  { node, assemblyRun, nodeId, visits }: PriorFailuresLookup,
+  deps: AdvanceDeps,
+): Promise<PriorFailure[] | undefined> {
+  return node.type === "agent"
+    ? collectPriorNodeFailures(assemblyRun, nodeId, visits, deps)
+    : undefined;
+}
+
 export async function advanceLine(
   assemblyLineId: string,
   deps: AdvanceDeps,
@@ -305,8 +330,7 @@ export async function advanceLine(
     `AssemblyLine ${runGraph.name}: unknown node "${transition.nodeId}"`,
   );
 
-  // Gated BEFORE the conversation lookup/row/CR: an agent node dispatched into a dry account would boot, install, call the API once, and die — only agent nodes are gated.
-  if (node.type === "agent" && deps.llmGate?.isBlocked()) {
+  if (isAgentDispatchBlocked(node, deps)) {
     // Logged because parking is otherwise INVISIBLE: this returns void, so the caller cannot distinguish "parked" from "advanced".
     console.log(
       `[llm-dispatch-gate] parked ${assemblyRun.id} at node "${node.id}" — agent dispatch is blocked`,
@@ -324,16 +348,10 @@ export async function advanceLine(
       priorOutcome: priorOutcomeOf(visits, transition.nodeId),
       // How a retried node learns why it is running again instead of repeating itself.
       incomingFailure: incomingFailureOf(visits),
-      // Fork chain included; only an agent's prompt reads it, only a fork pays the source-run reads.
-      priorFailures:
-        node.type === "agent"
-          ? await collectPriorNodeFailures(
-              assemblyRun,
-              transition.nodeId,
-              visits,
-              deps,
-            )
-          : undefined,
+      priorFailures: await priorFailuresIfAgent(
+        { node, assemblyRun, nodeId: transition.nodeId, visits },
+        deps,
+      ),
     },
     deps,
   );
@@ -360,22 +378,33 @@ interface NodeLaunch {
   deps: AdvanceDeps;
 }
 
-/** Record the visit, then hand the node to whoever runs it: a human station parks and waits, a service node is published for the pooled service, and everything else arms its row for a cluster-agent to claim. */
-async function launchNode({
-  node,
-  task,
-  dispatch,
-  visits,
-  assemblyRun,
-  iteration,
-  deps,
-}: NodeLaunch): Promise<void> {
+/** Required tags for the cluster-agent claim (FR3) — only a POD-dispatched node's row carries them; the repo-settings read is paid only when it matters. */
+async function requiredTagsForPod(
+  dispatchedAsPod: boolean,
+  node: RunGraphNode,
+  repo: string,
+  deps: AdvanceDeps,
+): Promise<string[] | undefined> {
+  if (!dispatchedAsPod) {
+    return undefined;
+  }
+
+  return resolveRequiredTags(
+    node.type,
+    node.required_tags,
+    await deps.repoSettings(repo),
+  );
+}
+
+// Row before CR: a crash between them leaves an open row the reaper resolves by reading the deterministically named CR; the row also MINTS the station-run id so a converged duplicate reuses it. A service node names no CR (null), so the reaper never mistakes it for the crash-between-row-and-launch case and relaunches it as a duplicate pod.
+async function ensureStationRunFor(
+  { node, task, dispatch, assemblyRun, iteration, deps }: NodeLaunch,
+  runsInService: boolean,
+  dispatchedAsPod: boolean,
+): Promise<{ stationRunId: string; nodeRowId: string }> {
   const assemblyLineId = assemblyRun.id;
-  // Row before CR: a crash between them leaves an open row the reaper resolves by reading the deterministically named CR; the row also MINTS the station-run id so a converged duplicate reuses it. A service node names no CR (null), so the reaper never mistakes it for the crash-between-row-and-launch case and relaunches it as a duplicate pod.
-  const runsInService = isServiceNode(node.type);
-  // Only a POD node's row parks `queued` for a cluster-agent's claim (FR3) — human/service rows keep `running` and are never claimable.
-  const dispatchedAsPod = !isHumanStation(node.type) && !runsInService;
-  const { stationRunId, nodeRowId } = await deps.assemblyRuns.ensureStationRun({
+
+  return deps.assemblyRuns.ensureStationRun({
     assemblyRunId: assemblyLineId,
     nodeId: node.id,
     iteration,
@@ -383,48 +412,49 @@ async function launchNode({
       ? null
       : nodeAgentName(assemblyLineId, node.id, iteration),
     input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
+    // Only a POD node's row parks `queued` for a cluster-agent's claim (FR3) — human/service rows keep `running` and are never claimable.
     status: dispatchedAsPod ? "queued" : undefined,
-    requiredTags: dispatchedAsPod
-      ? resolveRequiredTags(
-          node.type,
-          node.required_tags,
-          await deps.repoSettings(assemblyRun.repo),
-        )
-      : undefined,
+    requiredTags: await requiredTagsForPod(
+      dispatchedAsPod,
+      node,
+      assemblyRun.repo,
+      deps,
+    ),
   });
+}
 
-  // A human station's worker is outside the pod system (wizard/PR page); the row parks the walk, nothing dispatches, and the outcome arrives later as a resume.
-  if (isHumanStation(node.type)) {
-    return;
-  }
+/** Published, not launched: the row already exists, so the service has something to report against, and the dedupe key is that row — a redelivered event cannot run the node twice. */
+async function publishServiceNodeEvent(
+  { node, task, assemblyRun, iteration, deps }: NodeLaunch,
+  stationRunId: string,
+): Promise<void> {
+  await deps.publishNode?.({
+    eventName: SERVICE_NODE_EVENT,
+    dedupeKey: serviceNodeDedupeKey(stationRunId),
+    params: {
+      stationRunId,
+      assemblyLineId: assemblyRun.id,
+      nodeId: node.id,
+      iteration,
+      nodeType: node.type,
+      repo: assemblyRun.repo,
+      branch: assemblyRun.branch,
+      taskId: assemblyRun.taskId ?? null,
+      params: stationNodeParams(node, task),
+    },
+  });
+}
 
-  // Published, not launched: the row already exists, so the service has something to report against, and the dedupe key is that row — a redelivered event cannot run the node twice.
-  if (runsInService) {
-    await deps.publishNode?.({
-      eventName: SERVICE_NODE_EVENT,
-      dedupeKey: serviceNodeDedupeKey(stationRunId),
-      params: {
-        stationRunId,
-        assemblyLineId,
-        nodeId: node.id,
-        iteration: iteration,
-        nodeType: node.type,
-        repo: assemblyRun.repo,
-        branch: assemblyRun.branch,
-        taskId: assemblyRun.taskId ?? null,
-        params: stationNodeParams(node, task),
-      },
-    });
-
-    return;
-  }
-
-  // Arms the queued row with the dispatch spec for a cluster-agent to claim (FR3) instead of pushing to a single one; written AFTER ensureStationRun so only armed rows are claimable.
+/** Arms the queued row with the dispatch spec for a cluster-agent to claim (FR3) instead of pushing to a single one; written AFTER ensureStationRun so only armed rows are claimable. */
+async function dispatchStationRun(
+  { node, task, dispatch, visits, iteration, deps }: NodeLaunch,
+  ids: { stationRunId: string; nodeRowId: string },
+): Promise<void> {
   const spec = nodeLaunchSpec(dispatch, {
     node,
     task,
     iteration,
-    stationRunId,
+    stationRunId: ids.stationRunId,
     priorOutcome: priorOutcomeOf(visits, node.id),
     incomingFailure: incomingFailureOf(visits),
   });
@@ -437,7 +467,32 @@ async function launchNode({
     );
   }
 
-  await deps.assemblyRuns.enqueueStationRunDispatch(nodeRowId, spec);
+  await deps.assemblyRuns.enqueueStationRunDispatch(ids.nodeRowId, spec);
+}
+
+/** Record the visit, then hand the node to whoever runs it: a human station parks and waits, a service node is published for the pooled service, and everything else arms its row for a cluster-agent to claim. */
+async function launchNode(launch: NodeLaunch): Promise<void> {
+  const { node } = launch;
+  const runsInService = isServiceNode(node.type);
+  const dispatchedAsPod = !isHumanStation(node.type) && !runsInService;
+  const { stationRunId, nodeRowId } = await ensureStationRunFor(
+    launch,
+    runsInService,
+    dispatchedAsPod,
+  );
+
+  // A human station's worker is outside the pod system (wizard/PR page); the row parks the walk, nothing dispatches, and the outcome arrives later as a resume.
+  if (isHumanStation(node.type)) {
+    return;
+  }
+
+  if (runsInService) {
+    await publishServiceNodeEvent(launch, stationRunId);
+
+    return;
+  }
+
+  await dispatchStationRun(launch, { stationRunId, nodeRowId });
 }
 
 /** Complete only on completed/lease_held; fail everything else, so a future fail outcome added to Transition can never record a failed run as complete. */
@@ -611,6 +666,17 @@ export async function finishNodeAndAdvance(
   await advanceLine(input.assemblyLineId, deps);
 }
 
+/** The node matching `nodeId` in the run's current graph, or undefined when the run has no graph or the graph does not carry that id. */
+async function findRunNode(
+  row: AssemblyRunRecord,
+  nodeId: string,
+  deps: Pick<AdvanceDeps, "definitions">,
+): Promise<RunGraphNode | undefined> {
+  const graph = await resolveRunGraph(row, deps.definitions);
+
+  return graph?.nodes.find((candidate) => candidate.id === nodeId);
+}
+
 /** Runs the node-finished reaction and never lets it stop the walk — same bias as `maybeStampPr`: a failed follow-up is a log line, not a permanently parked run. */
 async function reactToNodeFinished(
   assemblyLineId: string,
@@ -624,28 +690,41 @@ async function reactToNodeFinished(
 
   try {
     const row = await deps.assemblyRuns.getById(assemblyLineId);
-    const node = row
-      ? (await resolveRunGraph(row, deps.definitions))?.nodes.find(
-          (candidate) => candidate.id === nodeId,
-        )
-      : undefined;
 
-    // A node the graph does not know is a wiring bug (snapshot graph disagrees with the finished id) — logged rather than silently dropped, since silence is the exact failure this hook was re-keyed to prevent.
-    if (row && !node) {
+    if (!row) {
+      return;
+    }
+    const node = await findRunNode(row, nodeId, deps);
+
+    if (!node) {
+      // A node the graph does not know is a wiring bug (snapshot graph disagrees with the finished id) — logged rather than silently dropped, since silence is the exact failure this hook was re-keyed to prevent.
       console.warn(
         `[assembly-run] ${assemblyLineId}: node ${nodeId} is not in the run's graph — node-finished reaction skipped`,
       );
-    }
 
-    if (row && node) {
-      await deps.onNodeFinished(row, node, result);
+      return;
     }
+    await deps.onNodeFinished(row, node, result);
   } catch (err) {
     console.warn(
       `[assembly-run] node-finished reaction failed for ${nodeId}:`,
       (err as Error).message,
     );
   }
+}
+
+/** The type of the node the walk lands on next from `fromNodeId`, following this outcome's edge; undefined without a graph or a matching edge. */
+function nextNodeTypeAfter(
+  graph: Awaited<ReturnType<typeof resolveRunGraph>>,
+  fromNodeId: string,
+  outcome: NodeResult["outcome"],
+): string | undefined {
+  if (!graph) {
+    return undefined;
+  }
+  const toId = selectEdge(graph, fromNodeId, outcome)?.to;
+
+  return graph.nodes.find((n) => n.id === toId)?.type;
 }
 
 /** Flips the PR out of draft when the finished step hands off to the human wait; never fails the run — a draft PR is recoverable, discarding finished work is not. */
@@ -666,15 +745,12 @@ async function maybeMarkPrReady(
 
   try {
     const graph = await resolveRunGraph(assemblyRun, deps.definitions);
-    const node = graph?.nodes.find((n) => n.id === nodeId);
-    const next = node
-      ? selectEdge(graph!, nodeId, result.outcome)?.to
-      : undefined;
+    const nextNodeType = nextNodeTypeAfter(graph, nodeId, result.outcome);
 
     if (
       !decideMarkReady({
         outcome: result.outcome,
-        nextNodeType: graph?.nodes.find((n) => n.id === next)?.type,
+        nextNodeType,
         args: assemblyRun.args,
       })
     ) {
@@ -689,6 +765,27 @@ async function maybeMarkPrReady(
   } catch (err) {
     console.error("[spec-pr] mark-ready failed:", (err as Error).message);
   }
+}
+
+/** An empty-branch stamp failure (#1330) fails the line outright — otherwise the wait node downstream parks forever on a PR that cannot exist. Any other failure is transient and left for the reaper to re-drive. */
+async function handleStampFailure(
+  err: unknown,
+  assemblyRun: AssemblyRunRecord,
+  deps: AdvanceDeps,
+): Promise<void> {
+  const message = (err as Error).message;
+
+  console.error("[spec-pr] stamp failed:", message);
+
+  if (decideStampFailure(message) !== "empty-branch") {
+    return;
+  }
+  await finishLine(
+    assemblyRun,
+    "error",
+    emptyBranchReason(assemblyRun.branch),
+    deps,
+  );
 }
 
 /** Stamps the PR from the `push` node's result; never throws for a transient failure (the reaper re-drives), but an EMPTY branch (#1330) fails the line instead — otherwise the wait node downstream parks forever on a PR that cannot exist. */
@@ -708,9 +805,7 @@ async function maybeStampPr(
   }
 
   try {
-    const node = (
-      await resolveRunGraph(assemblyRun, deps.definitions)
-    )?.nodes.find((n) => n.id === nodeId);
+    const node = await findRunNode(assemblyRun, nodeId, deps);
 
     if (
       !decidePrStamp({
@@ -724,17 +819,6 @@ async function maybeStampPr(
 
     await deps.stampPr(assemblyRun);
   } catch (err) {
-    const message = (err as Error).message;
-
-    console.error("[spec-pr] stamp failed:", message);
-
-    if (decideStampFailure(message) === "empty-branch") {
-      await finishLine(
-        assemblyRun,
-        "error",
-        emptyBranchReason(assemblyRun.branch),
-        deps,
-      );
-    }
+    await handleStampFailure(err, assemblyRun, deps);
   }
 }

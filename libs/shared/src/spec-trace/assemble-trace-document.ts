@@ -369,45 +369,49 @@ type LinkableRow = Pick<
   "uid" | "vb" | "ib" | "db"
 >;
 
-function linksOf(stmt: LinkableRow): TraceLinkRef[] {
-  const links: TraceLinkRef[] = [];
-
-  for (const t of stmt.vb ?? []) {
+function testLinks(vb: LinkableRow["vb"]): TraceLinkRef[] {
+  return (vb ?? []).map((t) => {
     const path = t["TestChunk.file_path"];
 
-    links.push({
+    return {
       kind: "test",
       label: path ? basename(path) : t.uid,
       path,
       line: t["TestChunk.start_line"],
       detail: t["TestChunk.test_name"],
-    });
-  }
+    };
+  });
+}
 
-  for (const c of stmt.ib ?? []) {
+function codeLinks(ib: LinkableRow["ib"]): TraceLinkRef[] {
+  return (ib ?? []).map((c) => {
     const path = c["CodeChunk.file_path"];
 
-    links.push({
+    return {
       kind: "code",
       label: c["CodeChunk.symbol_name"] ?? (path ? basename(path) : c.uid),
       path,
       line: c["CodeChunk.start_line"],
-    });
-  }
+    };
+  });
+}
 
-  for (const a of stmt.db ?? []) {
+function adrLinks(db: LinkableRow["db"]): TraceLinkRef[] {
+  return (db ?? []).map((a) => {
     const path = a["ADR.file_path"];
     const num = a["ADR.number"];
     const pathLabel = path ? basename(path) : a.uid;
 
-    links.push({
+    return {
       kind: "adr",
       label: num !== undefined ? `ADR-${num}` : pathLabel,
       path,
-    });
-  }
+    };
+  });
+}
 
-  return links;
+function linksOf(stmt: LinkableRow): TraceLinkRef[] {
+  return [...testLinks(stmt.vb), ...codeLinks(stmt.ib), ...adrLinks(stmt.db)];
 }
 
 function stateOf(
@@ -438,22 +442,18 @@ function docTitle(specTitle: string | undefined, cardTitle: string): string {
   return specTitle?.trim() || cardTitle;
 }
 
-export function assembleTraceDocument(
-  graph: TraceDocumentResult,
-): TraceDocument {
-  const spec = graph.q?.[0];
+function emptyTraceDocument(): TraceDocument {
+  return {
+    filePath: "",
+    ...cardSummary("", [], []),
+    sections: [],
+    statements: [],
+    coverage: { testable: 0, covered: 0, untestable: 0, ratio: 0 },
+  };
+}
 
-  if (!spec) {
-    return {
-      filePath: "",
-      ...cardSummary("", [], []),
-      sections: [],
-      statements: [],
-      coverage: { testable: 0, covered: 0, untestable: 0, ratio: 0 },
-    };
-  }
-
-  const sections: TraceSection[] = (spec.sections ?? [])
+function sectionsOf(spec: SpecRow): TraceSection[] {
+  return (spec.sections ?? [])
     .map((s) => ({
       uid: s.uid,
       heading: s["Section.heading"] ?? "(section)",
@@ -461,8 +461,12 @@ export function assembleTraceDocument(
       level: s["Section.level"],
     }))
     .sort((left, right) => left.ordinal - right.ordinal);
+}
 
-  const fromStatements: TraceStatement[] = (spec.stmts ?? []).map((st) => {
+function statementsFromStatements(
+  stmts: NonNullable<SpecRow["stmts"]>,
+): TraceStatement[] {
+  return stmts.map((st) => {
     const links = linksOf(st);
 
     return {
@@ -481,47 +485,65 @@ export function assembleTraceDocument(
       links,
     };
   });
+}
 
-  const fromAcceptanceCriteria: TraceStatement[] = (spec.acs ?? []).map(
-    (ac) => {
-      const links = linksOf(ac);
+function statementsFromAcceptanceCriteria(
+  acs: NonNullable<SpecRow["acs"]>,
+): TraceStatement[] {
+  return acs.map((ac) => {
+    const links = linksOf(ac);
 
-      return {
-        uid: ac.uid,
-        ordinal: ac["AcceptanceCriterion.ordinal"] ?? 0,
-        text: (ac["AcceptanceCriterion.text"] ?? "").trim(),
-        kind: "acceptance-criterion",
-        state: stateOf(
-          undefined,
-          links.some((l) => l.kind === "test"),
-        ),
-        links,
-      };
-    },
-  );
+    return {
+      uid: ac.uid,
+      ordinal: ac["AcceptanceCriterion.ordinal"] ?? 0,
+      text: (ac["AcceptanceCriterion.text"] ?? "").trim(),
+      kind: "acceptance-criterion",
+      state: stateOf(
+        undefined,
+        links.some((l) => l.kind === "test"),
+      ),
+      links,
+    };
+  });
+}
 
-  const statements: TraceStatement[] = [
-    ...fromStatements,
-    ...fromAcceptanceCriteria,
-  ].sort((left, right) => left.ordinal - right.ordinal);
-
+function coverageOf(statements: TraceStatement[]): TraceCoverage {
   const untestable = statements.filter((s) => s.state === "narrative").length;
   const covered = statements.filter((s) => s.state === "tested").length;
   const testable = statements.length - untestable;
 
-  const card = cardSummary(spec["Spec.file_path"] ?? "", sections, statements);
+  return {
+    testable,
+    covered,
+    untestable,
+    ratio: testable === 0 ? 0 : covered / testable,
+  };
+}
+
+function buildTraceDocumentFromSpec(spec: SpecRow): TraceDocument {
+  const filePath = spec["Spec.file_path"] ?? "";
+  const sections = sectionsOf(spec);
+  const statements: TraceStatement[] = [
+    ...statementsFromStatements(spec.stmts ?? []),
+    ...statementsFromAcceptanceCriteria(spec.acs ?? []),
+  ].sort((left, right) => left.ordinal - right.ordinal);
+
+  const card = cardSummary(filePath, sections, statements);
 
   return {
-    filePath: spec["Spec.file_path"] ?? "",
+    filePath,
     title: docTitle(spec["Spec.title"], card.title),
     description: card.description,
     sections,
     statements,
-    coverage: {
-      testable,
-      covered,
-      untestable,
-      ratio: testable === 0 ? 0 : covered / testable,
-    },
+    coverage: coverageOf(statements),
   };
+}
+
+export function assembleTraceDocument(
+  graph: TraceDocumentResult,
+): TraceDocument {
+  const spec = graph.q?.[0];
+
+  return spec ? buildTraceDocumentFromSpec(spec) : emptyTraceDocument();
 }

@@ -109,6 +109,25 @@ export const INGEST_KINDS: Record<string, IngestKindDef> = {
   },
 };
 
+/** The directory glob a single markdown path chunks into for `def`, or undefined when the path isn't one of this kind's files. */
+function chunkGlobForPath(
+  path: string,
+  def: IngestKindDef,
+): string | undefined {
+  if (!path.endsWith(".md")) {
+    return undefined;
+  }
+  const prefix = def.prefixes.find((p) => path.startsWith(p));
+
+  if (!prefix) {
+    return undefined;
+  }
+  const rest = path.slice(prefix.length);
+  const slash = rest.indexOf("/");
+
+  return slash === -1 ? prefix : `${prefix}${rest.slice(0, slash + 1)}`;
+}
+
 /** Per-directory chunk globs for a kind's files, so a forced full-repo re-embed (which outlives the event bus's stuck-row timeout as one event) can be split into per-glob chunks that finish in seconds. */
 export function chunkGlobsForKind(
   kind: string,
@@ -123,18 +142,11 @@ export function chunkGlobsForKind(
   const globs = new Set<string>();
 
   for (const path of tree) {
-    if (!path.endsWith(".md")) {
-      continue;
-    }
-    const prefix = def.prefixes.find((p) => path.startsWith(p));
+    const glob = chunkGlobForPath(path, def);
 
-    if (!prefix) {
-      continue;
+    if (glob) {
+      globs.add(glob);
     }
-    const rest = path.slice(prefix.length);
-    const slash = rest.indexOf("/");
-
-    globs.add(slash === -1 ? prefix : `${prefix}${rest.slice(0, slash + 1)}`);
   }
 
   return [...globs].sort();
@@ -182,19 +194,36 @@ export interface IngestCounts {
   pruned?: number;
 }
 
+function ingestStatus(
+  attempted: number,
+  allAttemptedFailed: boolean,
+): IngestGraphSummary["status"] {
+  return attempted > 0 && allAttemptedFailed ? "failed" : "completed";
+}
+
+function ingestMessage(
+  kind: IngestKind,
+  status: IngestGraphSummary["status"],
+  counts: IngestCounts & { failed: number },
+): string {
+  if (status === "failed") {
+    return `${kind}: all ${counts.attempted} file(s) failed to project`;
+  }
+  const prunedSuffix =
+    counts.pruned !== undefined ? `, pruned ${counts.pruned}` : "";
+
+  return `${kind}: projected ${counts.projected}, skipped ${counts.skipped}, failed ${counts.failed}${prunedSuffix}`;
+}
+
 export function summarizeIngest(
   kind: IngestKind,
-  { attempted, projected, skipped, failedFiles, pruned }: IngestCounts,
+  counts: IngestCounts,
 ): IngestGraphSummary {
+  const { attempted, projected, skipped, failedFiles, pruned } = counts;
   const failed = failedFiles.length;
   const allAttemptedFailed = projected === 0 && skipped === 0 && failed > 0;
-  const status: IngestGraphSummary["status"] =
-    attempted > 0 && allAttemptedFailed ? "failed" : "completed";
-  const message =
-    status === "failed"
-      ? `${kind}: all ${attempted} file(s) failed to project`
-      : `${kind}: projected ${projected}, skipped ${skipped}, failed ${failed}` +
-        (pruned !== undefined ? `, pruned ${pruned}` : "");
+  const status = ingestStatus(attempted, allAttemptedFailed);
+  const message = ingestMessage(kind, status, { ...counts, failed });
 
   return {
     kind,
@@ -249,6 +278,112 @@ async function ingestTestsKind(
   };
 }
 
+interface ProjectFilesResult {
+  projected: number;
+  skipped: number;
+  failedFiles: string[];
+}
+
+interface ProjectFilesContext {
+  params: IngestGraphParams;
+  ports: IngestGraphPorts;
+  dgraph: NonNullable<IngestGraphPorts["dgraph"]>;
+  def: IngestKindDef;
+}
+
+/** Projects one file, folding the outcome into `result` in place. */
+async function projectOneFile(
+  ctx: ProjectFilesContext,
+  filePath: string,
+  result: ProjectFilesResult,
+): Promise<void> {
+  const { params, ports, dgraph, def } = ctx;
+
+  try {
+    const content = await ports.readFile(filePath, params.ref);
+    const projected = await def.project(
+      { repo: params.repo, filePath, content },
+      dgraph,
+      { embed: ports.embed, force: params.force },
+    );
+
+    if (projected.projected) {
+      result.projected += 1;
+
+      return;
+    }
+    result.skipped += 1;
+  } catch (err) {
+    // Per-file isolation must NOT mean a silent failure — log the reason so a failed projection is debuggable from pod/runner logs.
+    const reason =
+      err instanceof Error ? (err.stack ?? err.message) : String(err);
+
+    console.error(
+      `[ingest-graph] ${params.kind} ${params.repo} :: ${filePath} failed to project: ${reason}`,
+    );
+    result.failedFiles.push(filePath);
+  }
+}
+
+/** SEQUENTIAL on purpose: every file's projection upserts the shared Repo node, so an unbounded Promise.all causes Dgraph transaction conflicts at scale (a 100+-spec repo failed most files on the first pass). */
+async function projectFiles(
+  ctx: ProjectFilesContext,
+  files: string[],
+): Promise<ProjectFilesResult> {
+  const result: ProjectFilesResult = {
+    projected: 0,
+    skipped: 0,
+    failedFiles: [],
+  };
+
+  for (const filePath of files) {
+    await projectOneFile(ctx, filePath, result);
+  }
+
+  return result;
+}
+
+interface RunKindIngestContext extends ProjectFilesContext {
+  registry: Record<string, IngestKindDef>;
+}
+
+/** The known-kind path: select files, project them, prune disappeared docs, summarize. */
+async function runKindIngest({
+  params,
+  ports,
+  dgraph,
+  def,
+  registry,
+}: RunKindIngestContext): Promise<IngestGraphSummary> {
+  const patterns = await loadKindPatterns(ports, params.kind, params.ref);
+  const files = selectIngestFiles(
+    await ports.listTree(params.ref),
+    params.kind,
+    { glob: params.glob, patterns },
+    registry,
+  );
+  const { projected, skipped, failedFiles } = await projectFiles(
+    { params, ports, dgraph, def },
+    files,
+  );
+
+  const pruned = await pruneDisappearedDocs(params, ports, registry, {
+    def,
+    files,
+    patterns,
+    allAttemptedFailed:
+      projected === 0 && skipped === 0 && failedFiles.length > 0,
+  });
+
+  return summarizeIngest(params.kind, {
+    attempted: files.length,
+    projected,
+    skipped,
+    failedFiles,
+    pruned,
+  });
+}
+
 export async function runIngestGraph(
   params: IngestGraphParams,
   ports: IngestGraphPorts,
@@ -271,59 +406,56 @@ export async function runIngestGraph(
     return skippedSummary(params.kind, `unknown ingest kind "${params.kind}"`);
   }
 
-  const patterns = await loadKindPatterns(ports, params.kind, params.ref);
-  const files = selectIngestFiles(
-    await ports.listTree(params.ref),
-    params.kind,
-    { glob: params.glob, patterns },
-    registry,
-  );
-  // SEQUENTIAL on purpose: every file's projection upserts the shared Repo node, so an unbounded Promise.all causes Dgraph transaction conflicts at scale (a 100+-spec repo failed most files on the first pass).
-  let projected = 0;
-  let skipped = 0;
-  const failedFiles: string[] = [];
+  return runKindIngest({ params, ports, dgraph: ports.dgraph, def, registry });
+}
 
-  for (const filePath of files) {
+interface DeletePruneCandidatesContext {
+  def: IngestKindDef;
+  dgraph: NonNullable<IngestGraphPorts["dgraph"]>;
+  repo: string;
+  kind: IngestKind;
+}
+
+/** Deletes each candidate's subtree, logging (not throwing) on a per-file failure. Returns the count actually deleted. */
+async function deletePruneCandidates(
+  ctx: DeletePruneCandidatesContext,
+  candidates: string[],
+): Promise<number> {
+  const { def, dgraph, repo, kind } = ctx;
+  let pruned = 0;
+
+  for (const filePath of candidates) {
     try {
-      const content = await ports.readFile(filePath, params.ref);
-      const result = await def.project(
-        { repo: params.repo, filePath, content },
-        ports.dgraph,
-        { embed: ports.embed, force: params.force },
-      );
-
-      if (result.projected) {
-        projected += 1;
-        continue;
-      }
-      skipped += 1;
+      await def.prune!.deleteSubtree(dgraph, repo, filePath);
+      pruned += 1;
     } catch (err) {
-      // Per-file isolation must NOT mean a silent failure — log the reason so a failed projection is debuggable from pod/runner logs.
       const reason =
         err instanceof Error ? (err.stack ?? err.message) : String(err);
 
       console.error(
-        `[ingest-graph] ${params.kind} ${params.repo} :: ${filePath} failed to project: ${reason}`,
+        `[ingest-graph] ${kind} ${repo} :: failed to prune ${filePath}: ${reason}`,
       );
-      failedFiles.push(filePath);
     }
   }
 
-  const pruned = await pruneDisappearedDocs(params, ports, registry, {
-    def,
-    files,
-    patterns,
-    allAttemptedFailed:
-      projected === 0 && skipped === 0 && failedFiles.length > 0,
-  });
+  return pruned;
+}
 
-  return summarizeIngest(params.kind, {
-    attempted: files.length,
-    projected,
-    skipped,
-    failedFiles,
-    pruned,
-  });
+interface PruneRun {
+  def: IngestKindDef;
+  files: string[];
+  patterns?: string[];
+  allAttemptedFailed: boolean;
+}
+
+function prunePreflightSkipped(
+  def: IngestKindDef,
+  dgraph: IngestGraphPorts["dgraph"],
+  run: PruneRun,
+): boolean {
+  return (
+    !def.prune || !dgraph || run.files.length === 0 || run.allAttemptedFailed
+  );
 }
 
 /** Deletes subtrees of graph docs whose files left the tree; skips on no prune seam/empty/suspicious selection/all-failed run/doc-list read error. INVARIANT: must run at the repo's default-branch HEAD (graph is branch-agnostic) — `lore-ingest.yml` enforces `branches: [main]`. */
@@ -331,61 +463,18 @@ async function pruneDisappearedDocs(
   params: IngestGraphParams,
   ports: IngestGraphPorts,
   registry: Record<string, IngestKindDef>,
-  run: {
-    def: IngestKindDef;
-    files: string[];
-    patterns?: string[];
-    allAttemptedFailed: boolean;
-  },
+  run: PruneRun,
 ): Promise<number | undefined> {
-  const { def, files, patterns, allAttemptedFailed } = run;
-  const emptySelection = files.length === 0;
-  const pruneSkipped = emptySelection || allAttemptedFailed;
-
-  if (!def.prune || !ports.dgraph || pruneSkipped) {
+  if (prunePreflightSkipped(run.def, ports.dgraph, run)) {
     return undefined;
   }
-  const dgraph = ports.dgraph;
-  let pruned = 0;
+  const { def, files, patterns } = run;
+  const dgraph = ports.dgraph!;
+
+  let graphDocPaths: string[];
 
   try {
-    const graphDocPaths = await def.prune.listDocPaths(dgraph, params.repo);
-    const isInScope = (path: string) =>
-      selectIngestFiles(
-        [path],
-        params.kind,
-        { glob: params.glob, patterns },
-        registry,
-      ).length === 1;
-
-    const selection = selectPruneCandidates(
-      graphDocPaths,
-      files,
-      isInScope,
-      params.force,
-    );
-
-    if (selection.outcome === "refused-suspicious-tree") {
-      console.error(
-        `[ingest-graph] ${params.kind} ${params.repo} :: prune refused: suspicious tree read (${selection.candidateCount} of ${selection.inScopeDocCount} in-scope docs missing — rerun with force to override)`,
-      );
-
-      return undefined;
-    }
-
-    for (const filePath of selection.candidates) {
-      try {
-        await def.prune.deleteSubtree(dgraph, params.repo, filePath);
-        pruned += 1;
-      } catch (err) {
-        const reason =
-          err instanceof Error ? (err.stack ?? err.message) : String(err);
-
-        console.error(
-          `[ingest-graph] ${params.kind} ${params.repo} :: failed to prune ${filePath}: ${reason}`,
-        );
-      }
-    }
+    graphDocPaths = await def.prune!.listDocPaths(dgraph, params.repo);
   } catch (err) {
     const reason =
       err instanceof Error ? (err.stack ?? err.message) : String(err);
@@ -398,5 +487,31 @@ async function pruneDisappearedDocs(
     return undefined;
   }
 
-  return pruned;
+  const isInScope = (path: string) =>
+    selectIngestFiles(
+      [path],
+      params.kind,
+      { glob: params.glob, patterns },
+      registry,
+    ).length === 1;
+
+  const selection = selectPruneCandidates(
+    graphDocPaths,
+    files,
+    isInScope,
+    params.force,
+  );
+
+  if (selection.outcome === "refused-suspicious-tree") {
+    console.error(
+      `[ingest-graph] ${params.kind} ${params.repo} :: prune refused: suspicious tree read (${selection.candidateCount} of ${selection.inScopeDocCount} in-scope docs missing — rerun with force to override)`,
+    );
+
+    return undefined;
+  }
+
+  return deletePruneCandidates(
+    { def, dgraph, repo: params.repo, kind: params.kind },
+    selection.candidates,
+  );
 }

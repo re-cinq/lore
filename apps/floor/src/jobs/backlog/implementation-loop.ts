@@ -63,6 +63,93 @@ export function createImplementationLoopTickHandler(
   };
 }
 
+interface BacklogPick {
+  picked: IssueRef | null;
+  guarded: number[];
+}
+
+/** Walks past guarded tickets rather than stopping on the first one — returning on the guarded HEAD froze the backlog behind one unmerged PR twice (27h 2026-08-30, overnight 2026-09-02). */
+async function pickBacklogTicket(
+  repo: string,
+  ordered: IssueRef[],
+  deps: LoopTickDeps,
+): Promise<BacklogPick> {
+  const guarded: number[] = [];
+
+  for (const candidate of ordered) {
+    if (await deps.activeTaskByIssue(repo, candidate.number)) {
+      guarded.push(candidate.number);
+      continue;
+    }
+
+    return { picked: candidate, guarded };
+  }
+
+  return { picked: null, guarded };
+}
+
+/** A backlog that EXISTS but can't be picked must say so — silence here once ate a morning of diagnosis. */
+function logNoPick(repo: string, guarded: number[]): void {
+  if (guarded.length === 0) {
+    return;
+  }
+
+  console.log(
+    `[implementation-loop] ${repo}: no pick — ${guarded.length} eligible ticket(s), all awaiting an earlier task (${guarded.map((n) => `#${n}`).join(", ")})`,
+  );
+}
+
+function buildLineArgs(
+  picked: IssueRef,
+  resume: ReturnType<typeof decideBranchResume>,
+): Record<string, unknown> {
+  return {
+    pr_draft: true,
+    // Rides onto the run's args so the PR footer can close the ticket on merge.
+    issue_number: picked.number,
+    // PR title from issue until pr-ready node updates it from the branch.
+    issue_title: picked.title,
+    ...(resume.resume ? resume.lineArgs : {}),
+  };
+}
+
+interface LoopDispatchInput {
+  repo: string;
+  picked: IssueRef;
+  branch: string;
+  resume: ReturnType<typeof decideBranchResume>;
+}
+
+/** Creates the backlog task and stamps the issue link onto it; console-logs whether it resumed an existing branch. */
+async function dispatchLoopTask(
+  input: LoopDispatchInput,
+  deps: LoopTickDeps,
+): Promise<void> {
+  const { repo, picked, branch, resume } = input;
+  const task = await deps.createTask({
+    description: implementationTicketDescription(picked),
+    taskType: "implementation-loop",
+    targetRepo: repo,
+    createdBy: "implementation-loop",
+    contextBundle: {
+      github_issue_number: picked.number,
+      ...(picked.url ? { github_issue_url: picked.url } : {}),
+      branch,
+      // Draft PR: the line declares the flag; a draft gets no Lore code review, avoiding twelve reviews on twelve round-pushes.
+      line_args: buildLineArgs(picked, resume),
+    },
+  });
+
+  await deps.setTaskColumns(task.task_id, {
+    issue_number: picked.number,
+    ...(picked.url ? { issue_url: picked.url } : {}),
+  });
+  console.log(
+    `[implementation-loop] ${repo}: picked #${picked.number} as task ${task.task_id}` +
+      (resume.resume ? ` (continuing ${branch})` : ""),
+  );
+}
+
 async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   if (!implementationLoopEnabled(await deps.rawSettings(repo))) {
     return;
@@ -71,32 +158,16 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   if (await deps.findOpenBySubject(repo, backlogSubject())) {
     return;
   }
-  // Walk past guarded tickets rather than stopping on the first one — returning on the guarded HEAD froze the backlog behind one unmerged PR twice (27h 2026-08-30, overnight 2026-09-02).
+
   const ordered = orderBacklog(await deps.listIssues(repo));
-  const guarded: number[] = [];
-  let picked: (typeof ordered)[number] | null = null;
-
-  for (const candidate of ordered) {
-    if (await deps.activeTaskByIssue(repo, candidate.number)) {
-      guarded.push(candidate.number);
-      continue;
-    }
-    picked = candidate;
-    break;
-  }
-
-  // A backlog that EXISTS but can't be picked must say so — silence here once ate a morning of diagnosis.
-  if (!picked && guarded.length > 0) {
-    console.log(
-      `[implementation-loop] ${repo}: no pick — ${guarded.length} eligible ticket(s), all awaiting an earlier task (${guarded.map((n) => `#${n}`).join(", ")})`,
-    );
-
-    return;
-  }
+  const { picked, guarded } = await pickBacklogTicket(repo, ordered, deps);
 
   if (!picked) {
+    logNoPick(repo, guarded);
+
     return;
   }
+
   const branch = implementationLoopBranch(picked.number);
   // Continuing a branch is silent by design: recorded on the run's args, not GitHub. Deleting the branch is the owner's restart lever.
   const [branchExists, openPr] = await Promise.all([
@@ -109,35 +180,7 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
     openPr,
   });
 
-  const task = await deps.createTask({
-    description: implementationTicketDescription(picked),
-    taskType: "implementation-loop",
-    targetRepo: repo,
-    createdBy: "implementation-loop",
-    contextBundle: {
-      github_issue_number: picked.number,
-      ...(picked.url ? { github_issue_url: picked.url } : {}),
-      branch,
-      // Draft PR: the line declares the flag; a draft gets no Lore code review, avoiding twelve reviews on twelve round-pushes.
-      line_args: {
-        pr_draft: true,
-        // Rides onto the run's args so the PR footer can close the ticket on merge.
-        issue_number: picked.number,
-        // PR title from issue until pr-ready node updates it from the branch.
-        issue_title: picked.title,
-        ...(resume.resume ? resume.lineArgs : {}),
-      },
-    },
-  });
-
-  await deps.setTaskColumns(task.task_id, {
-    issue_number: picked.number,
-    ...(picked.url ? { issue_url: picked.url } : {}),
-  });
-  console.log(
-    `[implementation-loop] ${repo}: picked #${picked.number} as task ${task.task_id}` +
-      (resume.resume ? ` (continuing ${branch})` : ""),
-  );
+  await dispatchLoopTask({ repo, picked, branch, resume }, deps);
 }
 
 /** Production wiring for the `cron.implementation_loop.tick` handler. */

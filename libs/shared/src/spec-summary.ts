@@ -29,38 +29,46 @@ function featureDir(filePath: string): string | null {
   return null;
 }
 
+function paragraphLines(block: string): string[] {
+  return block
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/** True when a paragraph's first line is markdown structure (heading, table, blockquote, code fence, list) rather than prose. */
+function isMarkdownSyntaxLine(first: string): boolean {
+  if (first.startsWith("#") || first.startsWith("|") || first.startsWith(">")) {
+    return true;
+  }
+
+  return first.startsWith("```") || /^[-*]\s/.test(first);
+}
+
+function truncateWithEllipsis(text: string, maxLength: number): string {
+  return text.length > maxLength
+    ? text.slice(0, maxLength).trimEnd() + "…"
+    : text;
+}
+
 /** First real prose paragraph (skips headings, tables, blockquotes, code fences, lists), whitespace-collapsed and truncated to `maxLength` with an ellipsis. */
 export function extractSummary(content: string, maxLength = 280): string {
   const paragraphs = content.split(/\n\s*\n/);
 
   for (const block of paragraphs) {
-    const lines = block
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
+    const lines = paragraphLines(block);
 
-    if (lines.length === 0) {
+    if (lines.length === 0 || isMarkdownSyntaxLine(lines[0])) {
       continue;
     }
-    const first = lines[0];
 
-    const isBlockPrefix =
-      first.startsWith("#") || first.startsWith("|") || first.startsWith(">");
-    const isMarkdownSyntax =
-      isBlockPrefix || first.startsWith("```") || /^[-*]\s/.test(first);
-
-    if (isMarkdownSyntax) {
-      continue;
-    }
     const text = lines.join(" ").replace(/\s+/g, " ").trim();
 
     if (text.length === 0) {
       continue;
     }
 
-    return text.length > maxLength
-      ? text.slice(0, maxLength).trimEnd() + "…"
-      : text;
+    return truncateWithEllipsis(text, maxLength);
   }
 
   return "";

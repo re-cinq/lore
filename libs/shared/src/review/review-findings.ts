@@ -121,48 +121,80 @@ const WHITESPACE_ESCAPES: Record<string, string> = {
   "\t": "\\t",
 };
 
-function repairUnescapedStringContent(text: string): string {
-  let result = "";
-  let inString = false;
+interface RepairState {
+  result: string;
+  inString: boolean;
+}
 
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
+function appendNonStringChar(state: RepairState, ch: string): void {
+  state.inString = ch === '"';
+  state.result += ch;
+}
 
-    if (!inString) {
-      inString = ch === '"';
-      result += ch;
-      continue;
-    }
+// An escape sequence: copy it and its target verbatim, untouched.
+function appendEscapeSequence(
+  state: RepairState,
+  text: string,
+  i: number,
+): number {
+  state.result += text[i] + (text[i + 1] ?? "");
 
-    if (ch === "\\") {
-      // An escape sequence: copy it and its target verbatim, untouched.
-      result += ch + (text[i + 1] ?? "");
-      i++;
-      continue;
-    }
+  return i + 1;
+}
 
-    if (ch === "\n" || ch === "\r" || ch === "\t") {
-      result += WHITESPACE_ESCAPES[ch];
-      continue;
-    }
+function appendQuoteChar(state: RepairState, text: string, i: number): number {
+  if (closesAString(text, i + 1)) {
+    state.inString = false;
+    state.result += '"';
 
-    if (ch === '"' && closesAString(text, i + 1)) {
-      inString = false;
-      result += ch;
+    return i;
+  }
+  state.result += '\\"';
 
-      continue;
-    }
+  return i;
+}
 
-    if (ch === '"') {
-      result += '\\"';
+function appendInStringChar(
+  state: RepairState,
+  text: string,
+  i: number,
+): number {
+  const ch = text[i];
 
-      continue;
-    }
+  if (ch === "\\") {
+    return appendEscapeSequence(state, text, i);
+  }
+  const escaped = WHITESPACE_ESCAPES[ch];
 
-    result += ch;
+  if (escaped !== undefined) {
+    state.result += escaped;
+
+    return i;
   }
 
-  return result;
+  return ch === '"'
+    ? appendQuoteChar(state, text, i)
+    : appendPlainChar(state, ch, i);
+}
+
+function appendPlainChar(state: RepairState, ch: string, i: number): number {
+  state.result += ch;
+
+  return i;
+}
+
+function repairUnescapedStringContent(text: string): string {
+  const state: RepairState = { result: "", inString: false };
+
+  for (let i = 0; i < text.length; i++) {
+    if (!state.inString) {
+      appendNonStringChar(state, text[i]);
+      continue;
+    }
+    i = appendInStringChar(state, text, i);
+  }
+
+  return state.result;
 }
 
 // Whether the char at text[from] (skipping whitespace) can only follow a closing JSON string quote (`,}]:` or EOF); including `:` has a known false-positive on a quoted-then-colon narrative value, but that just falls back to `null`, never a silent corruption.
@@ -192,20 +224,33 @@ function isReviewOutput(value: unknown): value is ReviewOutput {
   return Array.isArray(value.findings) && value.findings.every(isReviewFinding);
 }
 
+function hasRequiredFindingFields(value: Record<string, unknown>): boolean {
+  return (
+    typeof value.path === "string" &&
+    typeof value.line === "number" &&
+    typeof value.subject === "string" &&
+    includes(LABELS, value.label)
+  );
+}
+
+function hasValidOptionalFindingFields(
+  value: Record<string, unknown>,
+): boolean {
+  return (
+    optional(value.side, (v) => includes(SIDES, v)) &&
+    optional(value.decoration, (v) => includes(DECORATIONS, v)) &&
+    optional(value.discussion, (v) => typeof v === "string") &&
+    optional(value.suggestion, (v) => typeof v === "string")
+  );
+}
+
 function isReviewFinding(value: unknown): value is ReviewFinding {
   if (!isRecord(value)) {
     return false;
   }
 
   return (
-    typeof value.path === "string" &&
-    typeof value.line === "number" &&
-    typeof value.subject === "string" &&
-    includes(LABELS, value.label) &&
-    optional(value.side, (v) => includes(SIDES, v)) &&
-    optional(value.decoration, (v) => includes(DECORATIONS, v)) &&
-    optional(value.discussion, (v) => typeof v === "string") &&
-    optional(value.suggestion, (v) => typeof v === "string")
+    hasRequiredFindingFields(value) && hasValidOptionalFindingFields(value)
   );
 }
 

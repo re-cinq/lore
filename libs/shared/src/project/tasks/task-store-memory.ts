@@ -53,6 +53,40 @@ export interface StoredTaskEvent {
 /** Per-repo `lore.repos.settings` seed for the create trust gate. */
 export type SeedRepoSettings = Record<string, { trust?: { level?: string } }>;
 
+function listRowIdentity(t: SeedStoreTask) {
+  return {
+    id: t.id,
+    description: t.description ?? "",
+    task_type: t.task_type ?? "",
+    status: t.status ?? "",
+  };
+}
+
+function listRowRepo(t: SeedStoreTask) {
+  return {
+    target_repo: t.target_repo ?? null,
+    agent_id: t.agent_id ?? null,
+    pr_url: t.pr_url ?? null,
+  };
+}
+
+function listRowTimestamps(t: SeedStoreTask) {
+  return {
+    created_by: t.created_by ?? "",
+    created_at: t.created_at ?? "",
+    updated_at: t.updated_at ?? "",
+  };
+}
+
+/** listTasks selects the 10-column TaskListRow subset, not SELECT * — fields outside it (context_bundle, priority, …) are absent in Pg too. */
+function toListRow(t: SeedStoreTask) {
+  return {
+    ...listRowIdentity(t),
+    ...listRowRepo(t),
+    ...listRowTimestamps(t),
+  };
+}
+
 /** Translates a SQL LIKE pattern to a RegExp, including the quirk that the Pg adapter doesn't escape %/_ in the caller's prefix — they act as wildcards there too. */
 function likeToRegExp(pattern: string): RegExp {
   const source = pattern
@@ -93,6 +127,58 @@ export class InMemoryTaskStore implements TaskStorePort {
     return (this.findById(id) as PipelineTask | undefined) ?? null;
   }
 
+  /** Gate only fires for a seeded repo row — mirrors the Pg read of lore.repos, where an absent row (or read error) skips the check. */
+  private enforceTrustGate(repo: string | undefined, taskType: string): void {
+    if (repo && this.repoSettings[repo]) {
+      enforceTrustAllowsTaskType(
+        this.repoSettings[repo].trust?.level,
+        taskType,
+        repo,
+      );
+    }
+  }
+
+  private buildTaskRow(
+    input: CreateTaskInput,
+    fields: {
+      taskType: string;
+      repo: string | undefined;
+      createdBy: string;
+      priority: string;
+      createdAt: string;
+    },
+  ): SeedStoreTask {
+    const task: SeedStoreTask = {
+      id: randomUUID(),
+      description: input.description,
+      task_type: fields.taskType,
+      target_repo: fields.repo ?? null,
+      // `status` comes from the pipeline.tasks column default.
+      status: "pending",
+      created_by: fields.createdBy,
+      context_bundle: input.contextBundle ?? null,
+      priority: fields.priority,
+      created_at: fields.createdAt,
+      updated_at: fields.createdAt,
+    };
+
+    if (input.taskGroupId) {
+      task.task_group_id = input.taskGroupId;
+    }
+
+    return task;
+  }
+
+  private applyContextRefs(task: SeedStoreTask, input: CreateTaskInput): void {
+    const refs = input.contextRefs;
+    const hasRefs =
+      refs && (refs.fact_ids.length > 0 || refs.memory_ids.length > 0);
+
+    if (hasRefs) {
+      task.context_refs = refs;
+    }
+  }
+
   async create(input: CreateTaskInput): Promise<CreatedTask> {
     const taskType = input.taskType ?? "general";
     const repo = input.targetRepo;
@@ -103,43 +189,19 @@ export class InMemoryTaskStore implements TaskStorePort {
       Error,
       "Description too long (max 10000 chars)",
     );
-
-    // Gate only fires for a seeded repo row — mirrors the Pg read of lore.repos, where an absent row (or read error) skips the check.
-    if (repo && this.repoSettings[repo]) {
-      enforceTrustAllowsTaskType(
-        this.repoSettings[repo].trust?.level,
-        taskType,
-        repo,
-      );
-    }
+    this.enforceTrustGate(repo, taskType);
     const priority = input.priority === "immediate" ? "immediate" : "normal";
     const createdAt = this.now().toISOString();
-    const task: SeedStoreTask = {
-      id: randomUUID(),
-      description: input.description,
-      task_type: taskType,
-      target_repo: repo ?? null,
-      // `status` comes from the pipeline.tasks column default.
-      status: "pending",
-      created_by: createdBy,
-      context_bundle: input.contextBundle ?? null,
+    const task = this.buildTaskRow(input, {
+      taskType,
+      repo,
+      createdBy,
       priority,
-      created_at: createdAt,
-      updated_at: createdAt,
-    };
+      createdAt,
+    });
 
-    if (input.taskGroupId) {
-      task.task_group_id = input.taskGroupId;
-    }
     this.tasks.push(task);
-
-    if (
-      input.contextRefs &&
-      (input.contextRefs.fact_ids.length > 0 ||
-        input.contextRefs.memory_ids.length > 0)
-    ) {
-      task.context_refs = input.contextRefs;
-    }
+    this.applyContextRefs(task, input);
     await this.recordEvent(task.id, null, "pending", {
       created_by: createdBy,
       priority,
@@ -180,19 +242,7 @@ export class InMemoryTaskStore implements TaskStorePort {
     const matching = this.tasks
       .filter((t) => !status || t.status === status)
       .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
-    // listTasks selects the 10-column TaskListRow subset, not SELECT * — fields outside it (context_bundle, priority, …) are absent in Pg too.
-    const rows = matching.slice(0, limit).map((t) => ({
-      id: t.id,
-      description: t.description ?? "",
-      task_type: t.task_type ?? "",
-      status: t.status ?? "",
-      target_repo: t.target_repo ?? null,
-      agent_id: t.agent_id ?? null,
-      pr_url: t.pr_url ?? null,
-      created_by: t.created_by ?? "",
-      created_at: t.created_at ?? "",
-      updated_at: t.updated_at ?? "",
-    }));
+    const rows = matching.slice(0, limit).map(toListRow);
 
     return {
       tasks: rows as unknown as PipelineTask[],

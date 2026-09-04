@@ -154,14 +154,13 @@ export function adrLabel(path: string): string {
   return m ? `${m[1]} (${m[2]})` : base;
 }
 
-// Emits validated_by/implemented_by/decided_by edges (plus covers fan-out) for one owner; caller emits the owner node + its in_spec link.
-function emitOwnerLinks(
+function emitValidatedByLinks(
   ownerUid: string,
-  owner: OwnerLinks,
+  vb: OwnerLinks["vb"],
   nodes: Map<string, SpecGraphNode>,
   links: SpecGraphLink[],
 ): void {
-  for (const t of owner.vb ?? []) {
+  for (const t of vb ?? []) {
     const p = t["TestChunk.file_path"] ?? t.uid;
 
     nodes.set(t.uid, {
@@ -176,9 +175,16 @@ function emitOwnerLinks(
     links.push({ source: ownerUid, target: t.uid, kind: "validated_by" });
     emitCoveredFileNodes(t, nodes, links);
   }
+}
 
-  // implemented_by CodeChunks are aggregated to the same per-path File node for display.
-  for (const c of owner.ib ?? []) {
+// implemented_by CodeChunks are aggregated to the same per-path File node for display.
+function emitImplementedByLinks(
+  ownerUid: string,
+  ib: OwnerLinks["ib"],
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
+  for (const c of ib ?? []) {
     const p = c["CodeChunk.file_path"] ?? c.uid;
     const fileId = `file|${p}`;
 
@@ -192,13 +198,32 @@ function emitOwnerLinks(
     }
     links.push({ source: ownerUid, target: fileId, kind: "implemented_by" });
   }
+}
 
-  for (const a of owner.db ?? []) {
+function emitDecidedByLinks(
+  ownerUid: string,
+  db: OwnerLinks["db"],
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
+  for (const a of db ?? []) {
     const p = a["ADR.file_path"] ?? a.uid;
 
     nodes.set(a.uid, { id: a.uid, type: "ADR", label: adrLabel(p), path: p });
     links.push({ source: ownerUid, target: a.uid, kind: "decided_by" });
   }
+}
+
+// Emits validated_by/implemented_by/decided_by edges (plus covers fan-out) for one owner; caller emits the owner node + its in_spec link.
+function emitOwnerLinks(
+  ownerUid: string,
+  owner: OwnerLinks,
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
+  emitValidatedByLinks(ownerUid, owner.vb, nodes, links);
+  emitImplementedByLinks(ownerUid, owner.ib, nodes, links);
+  emitDecidedByLinks(ownerUid, owner.db, nodes, links);
 }
 
 // The File this test exercises, reached via Coverage (HAS_COVERAGE → COVERS); one node per path (deduped).
@@ -260,34 +285,59 @@ export function flattenSpecGraph(graph: GraphResult): SpecGraph {
   return { nodes: [...nodes.values()], links };
 }
 
+interface GraphSink {
+  nodes: Map<string, SpecGraphNode>;
+  links: SpecGraphLink[];
+}
+
+function emitStatementNode(
+  specUid: string,
+  specPath: string,
+  st: NonNullable<NonNullable<GraphResult["q"]>[number]["stmts"]>[number],
+  sink: GraphSink,
+): void {
+  sink.nodes.set(st.uid, {
+    id: st.uid,
+    type: "Statement",
+    label: "",
+    path: specPath,
+    detail: (st["Statement.text"] ?? "").trim(),
+  });
+  sink.links.push({ source: specUid, target: st.uid, kind: "in_spec" });
+  emitOwnerLinks(st.uid, st, sink.nodes, sink.links);
+}
+
+function emitAcceptanceCriterionNode(
+  specUid: string,
+  specPath: string,
+  ac: NonNullable<NonNullable<GraphResult["q"]>[number]["acs"]>[number],
+  sink: GraphSink,
+): void {
+  sink.nodes.set(ac.uid, {
+    id: ac.uid,
+    type: "AcceptanceCriterion",
+    label: "",
+    path: specPath,
+    detail: (ac["AcceptanceCriterion.text"] ?? "").trim(),
+  });
+  sink.links.push({ source: specUid, target: ac.uid, kind: "in_spec" });
+  emitOwnerLinks(ac.uid, ac, sink.nodes, sink.links);
+}
+
 function emitSpecChildNodes(
   spec: NonNullable<GraphResult["q"]>[number],
   specPath: string,
   nodes: Map<string, SpecGraphNode>,
   links: SpecGraphLink[],
 ): void {
+  const sink: GraphSink = { nodes, links };
+
   for (const st of spec.stmts ?? []) {
-    nodes.set(st.uid, {
-      id: st.uid,
-      type: "Statement",
-      label: "",
-      path: specPath,
-      detail: (st["Statement.text"] ?? "").trim(),
-    });
-    links.push({ source: spec.uid, target: st.uid, kind: "in_spec" });
-    emitOwnerLinks(st.uid, st, nodes, links);
+    emitStatementNode(spec.uid, specPath, st, sink);
   }
 
   for (const ac of spec.acs ?? []) {
-    nodes.set(ac.uid, {
-      id: ac.uid,
-      type: "AcceptanceCriterion",
-      label: "",
-      path: specPath,
-      detail: (ac["AcceptanceCriterion.text"] ?? "").trim(),
-    });
-    links.push({ source: spec.uid, target: ac.uid, kind: "in_spec" });
-    emitOwnerLinks(ac.uid, ac, nodes, links);
+    emitAcceptanceCriterionNode(spec.uid, specPath, ac, sink);
   }
 }
 

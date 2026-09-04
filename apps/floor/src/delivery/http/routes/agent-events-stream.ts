@@ -176,12 +176,55 @@ export function streamRunEvents(
   return { teardown, ready };
 }
 
-export function agentEventsStreamRoute(
-  deps?: Pick<
-    RunEventStreamDeps,
-    "events" | "bus" | "pageSize" | "heartbeatMs" | "highWaterMark"
-  >,
-): ServerRoute {
+type StreamRouteDeps = Pick<
+  RunEventStreamDeps,
+  "events" | "bus" | "pageSize" | "heartbeatMs" | "highWaterMark"
+>;
+
+function resolveStreamRouteDeps(
+  deps: StreamRouteDeps | undefined,
+): StreamRouteDeps {
+  const { events, bus, pageSize, heartbeatMs, highWaterMark } = deps ?? {};
+
+  return {
+    events: events ?? pipeline().agentRunEvents,
+    bus: bus ?? agentEventBus(),
+    pageSize,
+    heartbeatMs,
+    highWaterMark,
+  };
+}
+
+/** The bus refuses past MAX_SUBSCRIBERS_PER_RUN (capacity, not a bug → 503); matched on message prefix since subscribe throws a plain Error. Anything else rethrows as-is. */
+function rethrowStreamStartError(err: unknown): never {
+  const isCapacityError =
+    err instanceof Error && err.message.startsWith("agent event bus: ");
+
+  if (!isCapacityError) {
+    throw err;
+  }
+
+  throw apiError(503)("too many subscribers for this run");
+}
+
+function startRunEventStream(
+  stream: PassThrough,
+  assemblyLineId: string,
+  after: string,
+  deps: StreamRouteDeps | undefined,
+): RunEventStream {
+  try {
+    return streamRunEvents(stream, {
+      assemblyLineId,
+      after,
+      ...resolveStreamRouteDeps(deps),
+    });
+  } catch (err) {
+    rethrowStreamStartError(err);
+  }
+}
+
+export function agentEventsStreamRoute(deps?: StreamRouteDeps): ServerRoute {
   return {
     method: "GET",
     path: "/api/agent-events/stream/{assemblyRunId}",
@@ -193,30 +236,7 @@ export function agentEventsStreamRoute(
         request.headers["last-event-id"],
         request.query.after,
       );
-
-      let run: RunEventStream;
-
-      try {
-        run = streamRunEvents(stream, {
-          assemblyLineId,
-          after,
-          events: deps?.events ?? pipeline().agentRunEvents,
-          bus: deps?.bus ?? agentEventBus(),
-          pageSize: deps?.pageSize,
-          heartbeatMs: deps?.heartbeatMs,
-          highWaterMark: deps?.highWaterMark,
-        });
-      } catch (err) {
-        // The bus refuses past MAX_SUBSCRIBERS_PER_RUN (capacity, not a bug → 503); matched on message prefix since subscribe throws a plain Error.
-        const capacity =
-          err instanceof Error && err.message.startsWith("agent event bus: ");
-
-        if (!capacity) {
-          throw err;
-        }
-
-        throw apiError(503)("too many subscribers for this run");
-      }
+      const run = startRunEventStream(stream, assemblyLineId, after, deps);
 
       request.raw.req.on("close", run.teardown);
 
