@@ -38,7 +38,32 @@ export default function SettingsView({
   return (
     <div>
       <h1>Settings</h1>
+      <AppearanceSection />
+      <PlatformStats
+        repoCount={repoCount}
+        totalTasks={totalTasks}
+        tasksToday={tasksToday}
+      />
+      <PlatformConfigForm
+        apiUrl={apiUrl}
+        ingestToken={ingestToken}
+        saveSettings={saveSettings}
+        regenerateToken={regenerateToken}
+      />
+      <ApprovalGatesForm
+        approvalConfig={approvalConfig}
+        repoLines={repoLines}
+        saveApprovalConfig={saveApprovalConfig}
+      />
+      <InstallCommand apiUrl={apiUrl} ingestToken={ingestToken} />
+    </div>
+  );
+}
 
+/** Theme lives in the browser, so this section is the one part of Settings that is per-device rather than per-org. */
+function AppearanceSection() {
+  return (
+    <>
       <h2>Appearance</h2>
       <div className={`spec-card ${styles.appearanceCard}`}>
         <p className={`meta ${styles.appearanceNote}`}>
@@ -47,22 +72,44 @@ export default function SettingsView({
         </p>
         <ThemeSwitcher />
       </div>
+    </>
+  );
+}
 
-      <div className={styles.statsRow}>
-        <div className={`spec-card ${styles.statCard}`}>
-          <div className="meta">Onboarded Repos</div>
-          <div className={styles.statValue}>{repoCount ?? 0}</div>
-        </div>
-        <div className={`spec-card ${styles.statCard}`}>
-          <div className="meta">Total Tasks</div>
-          <div className={styles.statValue}>{totalTasks ?? 0}</div>
-        </div>
-        <div className={`spec-card ${styles.statCard}`}>
-          <div className="meta">Tasks Today</div>
-          <div className={styles.statValue}>{tasksToday ?? 0}</div>
-        </div>
+function PlatformStats({
+  repoCount,
+  totalTasks,
+  tasksToday,
+}: Pick<SettingsViewProps, "repoCount" | "totalTasks" | "tasksToday">) {
+  return (
+    <div className={styles.statsRow}>
+      <div className={`spec-card ${styles.statCard}`}>
+        <div className="meta">Onboarded Repos</div>
+        <div className={styles.statValue}>{repoCount ?? 0}</div>
       </div>
+      <div className={`spec-card ${styles.statCard}`}>
+        <div className="meta">Total Tasks</div>
+        <div className={styles.statValue}>{totalTasks ?? 0}</div>
+      </div>
+      <div className={`spec-card ${styles.statCard}`}>
+        <div className="meta">Tasks Today</div>
+        <div className={styles.statValue}>{tasksToday ?? 0}</div>
+      </div>
+    </div>
+  );
+}
 
+function PlatformConfigForm({
+  apiUrl,
+  ingestToken,
+  saveSettings,
+  regenerateToken,
+}: Pick<
+  SettingsViewProps,
+  "apiUrl" | "ingestToken" | "saveSettings" | "regenerateToken"
+>) {
+  return (
+    <>
       <h2>Platform Configuration</h2>
       <form action={saveSettings} className={`task-form ${styles.form}`}>
         <label>Lore API URL</label>
@@ -103,7 +150,21 @@ export default function SettingsView({
           all repos and developer installs.
         </span>
       </form>
+    </>
+  );
+}
 
+/** The gate that makes a human add a label before an agent picks a task up, plus the two ways around it: per-task-type and per-repo. */
+function ApprovalGatesForm({
+  approvalConfig,
+  repoLines,
+  saveApprovalConfig,
+}: Pick<
+  SettingsViewProps,
+  "approvalConfig" | "repoLines" | "saveApprovalConfig"
+>) {
+  return (
+    <>
       <h2 className={styles.sectionHeading}>Approval Gates</h2>
       <form action={saveApprovalConfig} className={`task-form ${styles.form}`}>
         <label className={styles.checkboxLabel}>
@@ -163,7 +224,16 @@ export default function SettingsView({
           <button type="submit">Save Approval Config</button>
         </div>
       </form>
+    </>
+  );
+}
 
+function InstallCommand({
+  apiUrl,
+  ingestToken,
+}: Pick<SettingsViewProps, "apiUrl" | "ingestToken">) {
+  return (
+    <>
       <h2 className={styles.sectionHeading}>Developer Install Command</h2>
       <div className="spec-card">
         <pre
@@ -175,6 +245,6 @@ cd lore && scripts/install.sh
 git config --global lore.ingest-token ${ingestToken || "<token>"}
 git config --global lore.api-url ${apiUrl || "https://your-lore-api.example.com"}`}</pre>
       </div>
-    </div>
+    </>
   );
 }

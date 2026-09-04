@@ -62,111 +62,141 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
       actions={props.actions}
     >
       <p className={`${styles.why} ${WHY_CLASS[detail.tone]}`}>{detail.why}</p>
-
-      {detail.failures.length > 0 ? (
-        <div className={styles.failures}>
-          <div className={styles.failuresHead}>
-            Errored steps ({detail.failures.length})
-          </div>
-          <ul className={styles.failList}>
-            {detail.failures.map((step, i) => (
-              <li key={i} className={styles.failItem}>
-                <span className={styles.failTool}>{step.tool}</span>
-                <span className={styles.failDetail}>{step.detail}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      <dl className={styles.facts}>
-        <Fact label="Attempt">{detail.iteration || "—"}</Fact>
-        <Fact label="Duration">{detail.durationLabel}</Fact>
-        <Fact label="Started">
-          {detail.startedAt ? (
-            <time dateTime={detail.startedAt} title={detail.startedAt}>
-              {formatRelativeTime(detail.startedAt)}
-            </time>
-          ) : (
-            "—"
-          )}
-        </Fact>
-        <Fact label="Outcome">{detail.outcomeLabel}</Fact>
-        <Fact label="Files touched">{detail.files.length || "—"}</Fact>
-        <Fact label="Transcript">
-          {detail.eventCount} event{detail.eventCount === 1 ? "" : "s"}
-          {detail.droppedCount > 0 ? ` (+${detail.droppedCount} dropped)` : ""}
-        </Fact>
-        {detail.agentCrName ? (
-          <Fact label="Agent CR">
-            <span className={styles.mono}>{detail.agentCrName}</span>
-          </Fact>
-        ) : null}
-        {detail.commitSha ? (
-          <Fact label="Commit">
-            <a
-              className={styles.mono}
-              href={`https://github.com/${props.repo}/commit/${detail.commitSha}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {detail.commitSha.substring(0, 7)}
-            </a>
-          </Fact>
-        ) : null}
-      </dl>
-
-      {props.attempts.length > 1 ? (
-        <div className={styles.attempts}>
-          <div className={styles.attemptsHead}>
-            Attempts ({props.attempts.length})
-          </div>
-          <ol className={styles.attemptList}>
-            {props.attempts.map((step) => (
-              <li key={step.iteration} className={styles.attemptItem}>
-                <span className={styles.attemptMeta}>
-                  attempt {step.iteration}
-                </span>
-                <StatusPill label={step.label} tone={step.tone} />
-                <span className={styles.attemptMeta}>
-                  {formatDuration(step.durationSeconds)}
-                </span>
-                {step.agentCrName ? (
-                  <span className={`${styles.attemptMeta} ${styles.mono}`}>
-                    {step.agentCrName}
-                  </span>
-                ) : null}
-                {step.commitSha ? (
-                  <a
-                    className={styles.mono}
-                    href={`https://github.com/${props.repo}/commit/${step.commitSha}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {step.commitSha.substring(0, 7)}
-                  </a>
-                ) : null}
-                {step.transition ? (
-                  <span className={styles.attemptEdge}>{step.transition}</span>
-                ) : null}
-                {step.reason ? (
-                  <span className={styles.attemptReason}>{step.reason}</span>
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        </div>
-      ) : null}
-
-      {detail.files.length > 0 ? (
-        <ul className={styles.files}>
-          {detail.files.map((file) => (
-            <li key={file} className={styles.mono}>
-              {file}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <ErroredSteps failures={detail.failures} />
+      <NodeFacts detail={detail} repo={props.repo} />
+      <AttemptHistory attempts={props.attempts} repo={props.repo} />
+      <TouchedFiles files={detail.files} />
     </CollapsibleCard>
+  );
+}
+
+/** Only a failed node lists these: a succeeded node can carry errored tool calls it retried past, which are the reason for nothing. */
+function ErroredSteps({ failures }: { failures: NodeDetail["failures"] }) {
+  if (failures.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.failures}>
+      <div className={styles.failuresHead}>
+        Errored steps ({failures.length})
+      </div>
+      <ul className={styles.failList}>
+        {failures.map((step, i) => (
+          <li key={i} className={styles.failItem}>
+            <span className={styles.failTool}>{step.tool}</span>
+            <span className={styles.failDetail}>{step.detail}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function NodeFacts({ detail, repo }: { detail: NodeDetail; repo: string }) {
+  return (
+    <dl className={styles.facts}>
+      <Fact label="Attempt">{detail.iteration || "—"}</Fact>
+      <Fact label="Duration">{detail.durationLabel}</Fact>
+      <Fact label="Started">
+        {detail.startedAt ? (
+          <time dateTime={detail.startedAt} title={detail.startedAt}>
+            {formatRelativeTime(detail.startedAt)}
+          </time>
+        ) : (
+          "—"
+        )}
+      </Fact>
+      <Fact label="Outcome">{detail.outcomeLabel}</Fact>
+      <Fact label="Files touched">{detail.files.length || "—"}</Fact>
+      <Fact label="Transcript">
+        {detail.eventCount} event{detail.eventCount === 1 ? "" : "s"}
+        {detail.droppedCount > 0 ? ` (+${detail.droppedCount} dropped)` : ""}
+      </Fact>
+      {detail.agentCrName ? (
+        <Fact label="Agent CR">
+          <span className={styles.mono}>{detail.agentCrName}</span>
+        </Fact>
+      ) : null}
+      {detail.commitSha ? (
+        <Fact label="Commit">
+          <a
+            className={styles.mono}
+            href={`https://github.com/${repo}/commit/${detail.commitSha}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {detail.commitSha.substring(0, 7)}
+          </a>
+        </Fact>
+      ) : null}
+    </dl>
+  );
+}
+
+/** Only shown once a node has been visited more than once — a single attempt is already the card above. */
+function AttemptHistory({
+  attempts,
+  repo,
+}: {
+  attempts: RunNodeDetailProps["attempts"];
+  repo: string;
+}) {
+  if (attempts.length <= 1) {
+    return null;
+  }
+
+  return (
+    <div className={styles.attempts}>
+      <div className={styles.attemptsHead}>Attempts ({attempts.length})</div>
+      <ol className={styles.attemptList}>
+        {attempts.map((step) => (
+          <li key={step.iteration} className={styles.attemptItem}>
+            <span className={styles.attemptMeta}>attempt {step.iteration}</span>
+            <StatusPill label={step.label} tone={step.tone} />
+            <span className={styles.attemptMeta}>
+              {formatDuration(step.durationSeconds)}
+            </span>
+            {step.agentCrName ? (
+              <span className={`${styles.attemptMeta} ${styles.mono}`}>
+                {step.agentCrName}
+              </span>
+            ) : null}
+            {step.commitSha ? (
+              <a
+                className={styles.mono}
+                href={`https://github.com/${repo}/commit/${step.commitSha}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {step.commitSha.substring(0, 7)}
+              </a>
+            ) : null}
+            {step.transition ? (
+              <span className={styles.attemptEdge}>{step.transition}</span>
+            ) : null}
+            {step.reason ? (
+              <span className={styles.attemptReason}>{step.reason}</span>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function TouchedFiles({ files }: { files: string[] }) {
+  if (files.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul className={styles.files}>
+      {files.map((file) => (
+        <li key={file} className={styles.mono}>
+          {file}
+        </li>
+      ))}
+    </ul>
   );
 }

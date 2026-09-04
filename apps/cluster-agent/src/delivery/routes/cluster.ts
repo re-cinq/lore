@@ -57,149 +57,189 @@ export interface ClusterRoutesDeps {
   restart?: () => void;
 }
 
+/** Every route is bearer-guarded with this agent's own token; the check is the first line of each handler so an unauthenticated call never reaches the cluster. */
+function guard(
+  opts: ClusterRoutesDeps,
+  headers: Record<string, unknown>,
+): void {
+  enforceBearer(headers, opts.bearerToken);
+}
+
 export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
-  const guard = (headers: Record<string, unknown>): void =>
-    enforceBearer(headers, opts.bearerToken);
-
   return [
-    {
-      // 200 with `found:false` rather than 404 — "no such CR" is an ordinary answer, and a 404 would be indistinguishable from the route being absent.
-      method: "GET",
-      path: "/api/cluster/agents/{name}",
-      options: { auth: false },
-      handler: async (request, h) => {
-        guard(request.headers);
-        const cr = await opts.deps().agents.get(request.params.name);
-
-        return h.response({ found: cr !== null, cr }).code(200);
-      },
-    },
-    {
-      method: "GET",
-      path: "/api/cluster/agents",
-      options: { auth: false },
-      handler: async (request, h) => {
-        guard(request.headers);
-        const q = request.query as Record<string, string | undefined>;
-        const limit = Number(q.limit ?? MAX_PAGE);
-
-        enforceTrue(
-          Number.isInteger(limit) && limit > 0 && limit <= MAX_PAGE,
-          apiError(400),
-          `limit must be an integer in 1..${MAX_PAGE} — a larger page is what blew the heap on 2026-07-24`,
-        );
-
-        return h
-          .response(
-            await opts.deps().agents.list({
-              labelSelector: q.labelSelector,
-              limit,
-              continue: q.continue,
-            }),
-          )
-          .code(200);
-      },
-    },
-    {
-      method: "DELETE",
-      path: "/api/cluster/agents/{name}",
-      options: { auth: false },
-      handler: async (request, h) => {
-        guard(request.headers);
-        await opts.deps().agents.remove(request.params.name);
-
-        return h.response().code(204);
-      },
-    },
-    {
-      method: "GET",
-      path: "/api/cluster/agents/{name}/pod-info",
-      options: { auth: false },
-      handler: async (request, h) => {
-        guard(request.headers);
-        const pod = await opts.deps().pods.agentInfo(request.params.name);
-
-        return h
-          .response({
-            found: pod !== null,
-            phase: pod?.phase ?? null,
-            jobName: pod?.jobName ?? null,
-          })
-          .code(200);
-      },
-    },
-    {
-      method: "GET",
-      path: "/api/cluster/jobs/{jobName}/pods",
-      options: { auth: false },
-      handler: async (request, h) => {
-        guard(request.headers);
-
-        return h
-          .response({
-            pods: await opts.deps().pods.podsForJob(request.params.jobName),
-          })
-          .code(200);
-      },
-    },
-    {
-      method: "GET",
-      path: "/api/cluster/pods",
-      options: { auth: false },
-      handler: async (request, h) => {
-        guard(request.headers);
-
-        return h
-          .response({ pods: await opts.deps().pods.listRunning() })
-          .code(200);
-      },
-    },
-    {
-      method: "GET",
-      path: "/api/cluster/pods/{podName}/log",
-      options: { auth: false },
-      handler: async (request, h) => {
-        guard(request.headers);
-        const asked = Number(
-          (request.query as Record<string, string | undefined>).tail ??
-            MAX_TAIL,
-        );
-        const tail = Number.isInteger(asked) && asked > 0 ? asked : MAX_TAIL;
-
-        return h
-          .response({
-            logs: await opts
-              .deps()
-              .pods.podLog(request.params.podName, Math.min(tail, MAX_TAIL)),
-          })
-          .code(200);
-      },
-    },
-    {
-      // The mint side is NOT a route — every launch is an in-process claim; what crosses the network is the reclaim, which the Floor drives when a task settles.
-      method: "DELETE",
-      path: "/api/cluster/per-task-tokens/{taskId}",
-      options: { auth: false },
-      handler: async (request, h) => {
-        guard(request.headers);
-        await opts.deps().tokens.cleanup(request.params.taskId);
-
-        return h.response().code(204);
-      },
-    },
-    {
-      method: "POST",
-      path: "/api/cluster/restart",
-      options: { auth: false },
-      handler: (request, h) => {
-        guard(request.headers);
-        const restart = opts.restart ?? (() => process.exit(0));
-
-        // Deferred so the response reaches the caller before the process exits.
-        setImmediate(restart);
-
-        return h.response().code(204);
-      },
-    },
+    agentByNameRoute(opts),
+    listAgentsRoute(opts),
+    deleteAgentRoute(opts),
+    podInfoRoute(opts),
+    jobPodsRoute(opts),
+    listPodsRoute(opts),
+    podLogRoute(opts),
+    deletePerTaskTokenRoute(opts),
+    restartRoute(opts),
   ];
+}
+
+function agentByNameRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    // 200 with `found:false` rather than 404 — "no such CR" is an ordinary answer, and a 404 would be indistinguishable from the route being absent.
+    method: "GET",
+    path: "/api/cluster/agents/{name}",
+    options: { auth: false },
+    handler: async (request, h) => {
+      guard(opts, request.headers);
+      const cr = await opts.deps().agents.get(request.params.name);
+
+      return h.response({ found: cr !== null, cr }).code(200);
+    },
+  };
+}
+
+function listAgentsRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/cluster/agents",
+    options: { auth: false },
+    handler: async (request, h) => {
+      guard(opts, request.headers);
+      const q = request.query as Record<string, string | undefined>;
+      const limit = Number(q.limit ?? MAX_PAGE);
+
+      enforceTrue(
+        Number.isInteger(limit) && limit > 0 && limit <= MAX_PAGE,
+        apiError(400),
+        `limit must be an integer in 1..${MAX_PAGE} — a larger page is what blew the heap on 2026-07-24`,
+      );
+
+      return h
+        .response(
+          await opts.deps().agents.list({
+            labelSelector: q.labelSelector,
+            limit,
+            continue: q.continue,
+          }),
+        )
+        .code(200);
+    },
+  };
+}
+
+function deleteAgentRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    method: "DELETE",
+    path: "/api/cluster/agents/{name}",
+    options: { auth: false },
+    handler: async (request, h) => {
+      guard(opts, request.headers);
+      await opts.deps().agents.remove(request.params.name);
+
+      return h.response().code(204);
+    },
+  };
+}
+
+function podInfoRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/cluster/agents/{name}/pod-info",
+    options: { auth: false },
+    handler: async (request, h) => {
+      guard(opts, request.headers);
+      const pod = await opts.deps().pods.agentInfo(request.params.name);
+
+      return h
+        .response({
+          found: pod !== null,
+          phase: pod?.phase ?? null,
+          jobName: pod?.jobName ?? null,
+        })
+        .code(200);
+    },
+  };
+}
+
+function jobPodsRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/cluster/jobs/{jobName}/pods",
+    options: { auth: false },
+    handler: async (request, h) => {
+      guard(opts, request.headers);
+
+      return h
+        .response({
+          pods: await opts.deps().pods.podsForJob(request.params.jobName),
+        })
+        .code(200);
+    },
+  };
+}
+
+function listPodsRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/cluster/pods",
+    options: { auth: false },
+    handler: async (request, h) => {
+      guard(opts, request.headers);
+
+      return h
+        .response({ pods: await opts.deps().pods.listRunning() })
+        .code(200);
+    },
+  };
+}
+
+function podLogRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/cluster/pods/{podName}/log",
+    options: { auth: false },
+    handler: async (request, h) => {
+      guard(opts, request.headers);
+      const asked = Number(
+        (request.query as Record<string, string | undefined>).tail ?? MAX_TAIL,
+      );
+      const tail = Number.isInteger(asked) && asked > 0 ? asked : MAX_TAIL;
+
+      return h
+        .response({
+          logs: await opts
+            .deps()
+            .pods.podLog(request.params.podName, Math.min(tail, MAX_TAIL)),
+        })
+        .code(200);
+    },
+  };
+}
+
+function deletePerTaskTokenRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    // The mint side is NOT a route — every launch is an in-process claim; what crosses the network is the reclaim, which the Floor drives when a task settles.
+    method: "DELETE",
+    path: "/api/cluster/per-task-tokens/{taskId}",
+    options: { auth: false },
+    handler: async (request, h) => {
+      guard(opts, request.headers);
+      await opts.deps().tokens.cleanup(request.params.taskId);
+
+      return h.response().code(204);
+    },
+  };
+}
+
+function restartRoute(opts: ClusterRoutesDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/cluster/restart",
+    options: { auth: false },
+    handler: (request, h) => {
+      guard(opts, request.headers);
+      const restart = opts.restart ?? (() => process.exit(0));
+
+      // Deferred so the response reaches the caller before the process exits.
+      setImmediate(restart);
+
+      return h.response().code(204);
+    },
+  };
 }

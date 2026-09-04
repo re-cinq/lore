@@ -118,45 +118,10 @@ export default function AgentList({
   orgEditable?: boolean;
 }) {
   const showEdit = base !== null || orgEditable;
-  const editHref = (name: string) =>
-    base !== null
-      ? `${base}/agents/${encodeURIComponent(name)}/edit`
-      : `/agents/edit/${encodeURIComponent(name)}`;
-
-  const renderHint = () => {
-    if (base !== null) {
-      return (
-        <p className={styles.hint}>
-          Per-repo agent definitions. An <strong>org</strong> definition is the
-          organisation default; editing one creates a <strong>project</strong>{" "}
-          definition for this repo, and later edits update that project
-          definition.
-        </p>
-      );
-    }
-
-    if (orgEditable) {
-      return (
-        <p className={styles.hint}>
-          The org-default catalog every repo inherits. Editing here updates the
-          organisation default for every repo without its own override; a
-          repo&apos;s Agents tab still overrides per repo.
-        </p>
-      );
-    }
-
-    return (
-      <p className={styles.hint}>
-        The org-default catalog every repo inherits. Editing is a per-repo act —
-        open a repo&apos;s Agents tab to override a definition there.
-      </p>
-    );
-  };
 
   return (
     <div>
-      {renderHint()}
-
+      <ScopeHint base={base} orgEditable={orgEditable} />
       {agents.length === 0 ? (
         <div className={`empty-state ${styles.emptyLeft}`}>
           <p>No agent definitions resolved for this repo.</p>
@@ -177,64 +142,117 @@ export default function AgentList({
               </tr>
             </thead>
             <tbody>
-              {agents.map((a) => {
-                const isProject = a.project_id != null && a.project_id !== "";
-                const use = usageLine(a, usage?.refs ?? null);
-                const rollout = rolloutCell(a, usage?.applied ?? null);
-
-                return (
-                  <tr key={a.name}>
-                    <td className={styles.name}>{a.name}</td>
-                    <td>
-                      <span
-                        className="status-pill"
-                        style={
-                          {
-                            "--pill-color": isProject
-                              ? "var(--accent)"
-                              : "var(--text-muted)",
-                          } as CSSProperties
-                        }
-                      >
-                        {isProject ? "project" : "org"}
-                      </span>
-                    </td>
-                    <td className={styles.detail}>{a.model ?? "(inherit)"}</td>
-                    <td className={styles.detail}>
-                      {a.timeout_minutes ?? "–"}m
-                    </td>
-                    <td
-                      className={styles.detail}
-                      data-testid={`mode-${a.name}`}
-                    >
-                      {modeLabel(a, usage?.refs ?? null)}
-                    </td>
-                    <td
-                      className={`${styles.detail} ${use.dormant ? styles.detailDormant : ""}`}
-                      data-testid={`usage-${a.name}`}
-                    >
-                      {use.text}
-                    </td>
-                    <td
-                      className={`${styles.detail} ${rollout.bad ? styles.detailBad : ""}`}
-                      data-testid={`rollout-${a.name}`}
-                    >
-                      {rollout.text}
-                    </td>
-                    {showEdit && (
-                      <td>
-                        <Link className="btn-secondary" href={editHref(a.name)}>
-                          Edit
-                        </Link>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
+              {agents.map((a) => (
+                <AgentRow
+                  key={a.name}
+                  agent={a}
+                  usage={usage}
+                  editHref={showEdit ? editHref(base, a.name) : null}
+                />
+              ))}
             </tbody>
           </table>
         </div>
       )}
     </div>
+  );
+}
+
+/** Editing is a per-repo act everywhere except the org catalog, so where you are decides what an edit means. */
+function ScopeHint({
+  base,
+  orgEditable,
+}: {
+  base: string | null;
+  orgEditable: boolean;
+}) {
+  if (base !== null) {
+    return (
+      <p className={styles.hint}>
+        Per-repo agent definitions. An <strong>org</strong> definition is the
+        organisation default; editing one creates a <strong>project</strong>{" "}
+        definition for this repo, and later edits update that project
+        definition.
+      </p>
+    );
+  }
+
+  if (orgEditable) {
+    return (
+      <p className={styles.hint}>
+        The org-default catalog every repo inherits. Editing here updates the
+        organisation default for every repo without its own override; a
+        repo&apos;s Agents tab still overrides per repo.
+      </p>
+    );
+  }
+
+  return (
+    <p className={styles.hint}>
+      The org-default catalog every repo inherits. Editing is a per-repo act —
+      open a repo&apos;s Agents tab to override a definition there.
+    </p>
+  );
+}
+
+function editHref(base: string | null, name: string): string {
+  return base !== null
+    ? `${base}/agents/${encodeURIComponent(name)}/edit`
+    : `/agents/edit/${encodeURIComponent(name)}`;
+}
+
+function AgentRow({
+  agent,
+  usage,
+  editHref,
+}: {
+  agent: AgentDefinition;
+  usage: AgentUsage | null;
+  editHref: string | null;
+}) {
+  const isProject = agent.project_id != null && agent.project_id !== "";
+  const use = usageLine(agent, usage?.refs ?? null);
+  const rollout = rolloutCell(agent, usage?.applied ?? null);
+
+  return (
+    <tr>
+      <td className={styles.name}>{agent.name}</td>
+      <td>
+        <span
+          className="status-pill"
+          style={
+            {
+              "--pill-color": isProject ? "var(--accent)" : "var(--text-muted)",
+            } as CSSProperties
+          }
+        >
+          {isProject ? "project" : "org"}
+        </span>
+      </td>
+      <td className={styles.detail}>{agent.model ?? "(inherit)"}</td>
+      <td className={styles.detail}>{agent.timeout_minutes ?? "–"}m</td>
+      <td className={styles.detail} data-testid={`mode-${agent.name}`}>
+        {modeLabel(agent, usage?.refs ?? null)}
+      </td>
+      <td
+        className={`${styles.detail} ${use.dormant ? styles.detailDormant : ""}`}
+        data-testid={`usage-${agent.name}`}
+      >
+        {use.text}
+      </td>
+      <td
+        className={`${styles.detail} ${rollout.bad ? styles.detailBad : ""}`}
+        data-testid={`rollout-${agent.name}`}
+      >
+        {rollout.text}
+      </td>
+      {editHref && (
+        <td>
+          <Link className="btn-secondary" href={editHref}>
+            Edit
+          </Link>
+        </td>
+      )}
+    </tr>
   );
 }

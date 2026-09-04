@@ -10,6 +10,8 @@ export interface DataTableProps<T> {
   rows: readonly T[];
   rowKey: (row: T, index: number) => string;
   cells: (row: T) => ReactNode[];
+  /** Extra class for one row — a highlighted or invalidated row, not styling per cell. */
+  rowClass?: (row: T) => string | undefined;
   /** Column indexes rendered monospace — identifiers and figures, not prose. */
   monoColumns?: number[];
   /** What to show when there are no rows — a sentence, or a whole empty state. */
@@ -23,6 +25,7 @@ export default function DataTable<T>({
   rowKey,
   cells,
   monoColumns = [],
+  rowClass,
   empty = "No data",
 }: DataTableProps<T>) {
   return (
@@ -38,7 +41,7 @@ export default function DataTable<T>({
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr key={rowKey(row, index)}>
+            <tr key={rowKey(row, index)} className={rowClass?.(row)}>
               {cells(row).map((cell, index) => (
                 <td
                   key={columns[index]}

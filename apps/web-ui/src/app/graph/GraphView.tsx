@@ -1,5 +1,6 @@
 import styles from "./GraphView.module.css";
 import type { components } from "@/lib/api/schema";
+import DataTable from "@/components/DataTable";
 
 // Aliases over /api/graph-browse; Entity/Edge include subqueries, route states them.
 
@@ -40,159 +41,148 @@ export default function GraphView({
         Live knowledge graph built from episodes and memories. Entities and
         relationships are extracted automatically.
       </p>
-
-      <div className={styles.statRow}>
-        <div className="stat-card">
-          <div className="stat-value">{stats.entity_count}</div>
-          <div className="stat-label">Entities</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.active_edge_count}</div>
-          <div className="stat-label">Active edges</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.invalidated_edge_count}</div>
-          <div className="stat-label">Invalidated edges</div>
-        </div>
-      </div>
-
+      <GraphStats stats={stats} />
       {entityTypes.length > 0 && (
-        <div className={styles.filterRow}>
-          <a
-            href="/graph"
-            className={!type ? "op-badge op-search" : "op-badge"}
-          >
-            all
-          </a>
-          {entityTypes.map((t) => (
-            <a
-              key={t.entity_type}
-              href={`/graph?type=${t.entity_type}`}
-              className={
-                type === t.entity_type ? "op-badge op-search" : "op-badge"
-              }
-            >
-              {t.entity_type} ({t.cnt})
-            </a>
-          ))}
-        </div>
+        <TypeFilters entityTypes={entityTypes} type={type} />
       )}
-
-      <h2>Entities</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Repo</th>
-            <th>Edges</th>
-            <th>Updated</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {entities.map((e) => (
-            <tr
-              key={e.id}
-              className={
-                entity?.toLowerCase() === e.name.toLowerCase()
-                  ? styles.activeRow
-                  : undefined
-              }
-            >
-              <td>
-                <strong>{e.name}</strong>
-              </td>
-              <td>
-                <span className="op-badge">{e.entity_type}</span>
-              </td>
-              <td>{e.repo || "—"}</td>
-              <td>{e.edge_count}</td>
-              <td>{new Date(e.updated_at).toLocaleDateString()}</td>
-              <td>
-                <a
-                  href={`/graph?entity=${encodeURIComponent(e.name)}${type ? `&type=${type}` : ""}`}
-                >
-                  explore
-                </a>
-              </td>
-            </tr>
-          ))}
-          {entities.length === 0 && (
-            <tr>
-              <td colSpan={6} className={styles.emptyCell}>
-                No entities yet. Write episodes to populate the graph.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-
+      <EntityTable entities={entities} entity={entity} type={type} />
       {entity && (
-        <>
-          <h2>Relationships for &quot;{entity}&quot;</h2>
-          <div className={styles.invalidToggle}>
-            <a
-              href={`/graph?entity=${encodeURIComponent(entity)}${showInvalid ? "" : "&show_invalid=1"}`}
-              className={styles.invalidToggleLink}
-            >
-              {showInvalid ? "Hide invalidated" : "Show invalidated edges"}
-            </a>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Source</th>
-                <th>Relation</th>
-                <th>Target</th>
-                <th>Since</th>
-                <th>Status</th>
-                <th>From</th>
-              </tr>
-            </thead>
-            <tbody>
-              {edges.map((e, i) => (
-                <tr
-                  key={i}
-                  className={e.valid_to ? styles.invalidatedRow : undefined}
-                >
-                  <td>
-                    <strong>{e.source_name}</strong>{" "}
-                    <span className="meta">({e.source_type})</span>
-                  </td>
-                  <td>
-                    <span className="op-badge">{e.relation_type}</span>
-                  </td>
-                  <td>
-                    <strong>{e.target_name}</strong>{" "}
-                    <span className="meta">({e.target_type})</span>
-                  </td>
-                  <td>{new Date(e.valid_from).toLocaleDateString()}</td>
-                  <td>
-                    {e.valid_to ? (
-                      <span className="op-badge op-delete">
-                        invalidated {new Date(e.valid_to).toLocaleDateString()}
-                      </span>
-                    ) : (
-                      <span className="op-badge op-write">active</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className="meta">{e.source_label}</span>
-                  </td>
-                </tr>
-              ))}
-              {edges.length === 0 && (
-                <tr>
-                  <td colSpan={6} className={styles.emptyCell}>
-                    No relationships found for this entity.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </>
+        <EdgeTable entity={entity} edges={edges} showInvalid={showInvalid} />
       )}
     </div>
+  );
+}
+
+function GraphStats({ stats }: Pick<GraphViewProps, "stats">) {
+  const cards: [number, string][] = [
+    [stats.entity_count, "Entities"],
+    [stats.active_edge_count, "Active edges"],
+    [stats.invalidated_edge_count, "Invalidated edges"],
+  ];
+
+  return (
+    <div className={styles.statRow}>
+      {cards.map(([value, label]) => (
+        <div className="stat-card" key={label}>
+          <div className="stat-value">{value}</div>
+          <div className="stat-label">{label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TypeFilters({
+  entityTypes,
+  type,
+}: Pick<GraphViewProps, "entityTypes" | "type">) {
+  const badge = (active: boolean) =>
+    active ? "op-badge op-search" : "op-badge";
+
+  return (
+    <div className={styles.filterRow}>
+      <a href="/graph" className={badge(!type)}>
+        all
+      </a>
+      {entityTypes.map((t) => (
+        <a
+          key={t.entity_type}
+          href={`/graph?type=${t.entity_type}`}
+          className={badge(type === t.entity_type)}
+        >
+          {t.entity_type} ({t.cnt})
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function EntityTable({
+  entities,
+  entity,
+  type,
+}: Pick<GraphViewProps, "entities" | "entity" | "type">) {
+  return (
+    <DataTable
+      title="Entities"
+      columns={["Name", "Type", "Repo", "Edges", "Updated", ""]}
+      rows={entities}
+      rowKey={(e) => e.id}
+      rowClass={(e) =>
+        entity?.toLowerCase() === e.name.toLowerCase()
+          ? styles.activeRow
+          : undefined
+      }
+      empty="No entities yet. Write episodes to populate the graph."
+      cells={(e) => [
+        <strong key="name">{e.name}</strong>,
+        <span className="op-badge" key="type">
+          {e.entity_type}
+        </span>,
+        e.repo || "—",
+        e.edge_count,
+        new Date(e.updated_at).toLocaleDateString(),
+        <a
+          key="explore"
+          href={`/graph?entity=${encodeURIComponent(e.name)}${type ? `&type=${type}` : ""}`}
+        >
+          explore
+        </a>,
+      ]}
+    />
+  );
+}
+
+/** An invalidated edge is history, not noise — it stays available behind the toggle so a contradiction can be read after the fact. */
+function EdgeTable({
+  entity,
+  edges,
+  showInvalid,
+}: Pick<GraphViewProps, "entity" | "edges" | "showInvalid">) {
+  return (
+    <>
+      <h2>Relationships for &quot;{entity}&quot;</h2>
+      <div className={styles.invalidToggle}>
+        <a
+          href={`/graph?entity=${encodeURIComponent(entity ?? "")}${showInvalid ? "" : "&show_invalid=1"}`}
+          className={styles.invalidToggleLink}
+        >
+          {showInvalid ? "Hide invalidated" : "Show invalidated edges"}
+        </a>
+      </div>
+      <DataTable
+        columns={["Source", "Relation", "Target", "Since", "Status", "From"]}
+        rows={edges}
+        rowKey={(_e, i) => String(i)}
+        rowClass={(e) => (e.valid_to ? styles.invalidatedRow : undefined)}
+        empty="No relationships found for this entity."
+        cells={(e) => [
+          <span key="source">
+            <strong>{e.source_name}</strong>{" "}
+            <span className="meta">({e.source_type})</span>
+          </span>,
+          <span className="op-badge" key="rel">
+            {e.relation_type}
+          </span>,
+          <span key="target">
+            <strong>{e.target_name}</strong>{" "}
+            <span className="meta">({e.target_type})</span>
+          </span>,
+          new Date(e.valid_from).toLocaleDateString(),
+          e.valid_to ? (
+            <span className="op-badge op-delete" key="status">
+              invalidated {new Date(e.valid_to).toLocaleDateString()}
+            </span>
+          ) : (
+            <span className="op-badge op-write" key="status">
+              active
+            </span>
+          ),
+          <span className="meta" key="from">
+            {e.source_label}
+          </span>,
+        ]}
+      />
+    </>
   );
 }

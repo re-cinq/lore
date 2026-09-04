@@ -25,39 +25,73 @@ export default function DarkFactoryConsoleView({
   return (
     <div>
       <h2>Dark Factory</h2>
+      <ActivationCard
+        owner={owner}
+        repo={repo}
+        activation={activation}
+        trustLevel={trustLevel}
+      />
+      <AutoMergePolicy config={config} />
+      <WorkItems workItems={workItems} />
+      <DecisionFeed decisions={decisions} />
+    </div>
+  );
+}
 
-      <div className="spec-card">
-        <div className={styles.stateRow}>
-          <span className={`${styles.badge} ${BADGE_CLASS[activation.state]}`}>
-            {cap(activation.state)}
-          </span>
-          <span className="meta">{activation.reason}</span>
-        </div>
-        <div className={styles.gates}>
-          <span>
-            Repo gate:{" "}
-            {activation.repoEnabled ? (
-              <>
-                <Icon name="check" size={13} inline /> enabled
-              </>
-            ) : (
-              <>
-                <Icon name="error" size={13} inline /> disabled
-              </>
-            )}
-          </span>
-          <span>Trust: {trustLevel}</span>
-        </div>
-        <p className="meta">
-          Enabling/disabling and editing this policy needs the two-key approval
-          ceremony —{" "}
-          <Link href={`/repos/${owner}/${repo}/dark-factory/settings`}>
-            Dark Factory settings
-          </Link>
-          .
-        </p>
+/** Two gates decide whether the factory runs dark on this repo: the repo's own switch and its trust level. Both are shown, because either one alone explains an "off". */
+function ActivationCard({
+  owner,
+  repo,
+  activation,
+  trustLevel,
+}: {
+  owner: string;
+  repo: string;
+  activation: DarkFactoryConsoleModel["activation"];
+  trustLevel: DarkFactoryConsoleModel["trustLevel"];
+}) {
+  return (
+    <div className="spec-card">
+      <div className={styles.stateRow}>
+        <span className={`${styles.badge} ${BADGE_CLASS[activation.state]}`}>
+          {cap(activation.state)}
+        </span>
+        <span className="meta">{activation.reason}</span>
       </div>
+      <div className={styles.gates}>
+        <span>
+          Repo gate:{" "}
+          {activation.repoEnabled ? (
+            <>
+              <Icon name="check" size={13} inline /> enabled
+            </>
+          ) : (
+            <>
+              <Icon name="error" size={13} inline /> disabled
+            </>
+          )}
+        </span>
+        <span>Trust: {trustLevel}</span>
+      </div>
+      <p className="meta">
+        Enabling/disabling and editing this policy needs the two-key approval
+        ceremony —{" "}
+        <Link href={`/repos/${owner}/${repo}/dark-factory/settings`}>
+          Dark Factory settings
+        </Link>
+        .
+      </p>
+    </div>
+  );
+}
 
+function AutoMergePolicy({
+  config,
+}: {
+  config: DarkFactoryConsoleModel["config"];
+}) {
+  return (
+    <>
       <h3>Auto-merge policy</h3>
       <div className="spec-card">
         <dl className={styles.config}>
@@ -95,7 +129,17 @@ export default function DarkFactoryConsoleView({
           </div>
         </dl>
       </div>
+    </>
+  );
+}
 
+function WorkItems({
+  workItems,
+}: {
+  workItems: DarkFactoryConsoleModel["workItems"];
+}) {
+  return (
+    <>
       <h3>What it works on</h3>
       {workItems.length > 0 ? (
         <table>
@@ -127,7 +171,17 @@ export default function DarkFactoryConsoleView({
       ) : (
         <Alert variant="secondary">No recent tasks.</Alert>
       )}
+    </>
+  );
+}
 
+function DecisionFeed({
+  decisions,
+}: {
+  decisions: DarkFactoryConsoleModel["decisions"];
+}) {
+  return (
+    <>
       <h3>Decision feed</h3>
       {decisions.length > 0 ? (
         <ul className={styles.feed}>
@@ -141,6 +195,6 @@ export default function DarkFactoryConsoleView({
       ) : (
         <Alert variant="secondary">No dark-factory audit events yet.</Alert>
       )}
-    </div>
+    </>
   );
 }
