@@ -276,6 +276,31 @@ function QueryForm({
   );
 }
 
+/** Empty/fallback rendering when there is no trace to walk through: nothing assembled, or plain text with no trace. */
+function assemblyEmptyState(
+  result: NonNullable<AssembledContextViewProps["result"]>,
+  trace: NonNullable<AssembledContextViewProps["result"]>["trace"],
+) {
+  if (trace) {
+    return null;
+  }
+
+  if (result.text === null) {
+    return (
+      <Alert variant="secondary">
+        No context assembled — the repo may not be onboarded or ingested yet.
+      </Alert>
+    );
+  }
+
+  /* Fallback when the trace is unavailable: plain assembled text. */
+  return (
+    <div className={styles.fallback}>
+      <Markdown markdown={result.text ?? ""} />
+    </div>
+  );
+}
+
 /** The assembled block plus the trace of how it got that way; without a trace only the plain text is available, and without either there is nothing to show. */
 function AssemblyResult({
   owner,
@@ -287,27 +312,15 @@ function AssemblyResult({
   raw: boolean;
   onToggleRaw: () => void;
 }) {
-  const trace = result?.trace;
-
   if (!result) {
     return null;
   }
 
-  if (result.text === null && !trace) {
-    return (
-      <Alert variant="secondary">
-        No context assembled — the repo may not be onboarded or ingested yet.
-      </Alert>
-    );
-  }
+  const trace = result.trace;
+  const emptyState = assemblyEmptyState(result, trace);
 
-  if (!trace) {
-    /* Fallback when the trace is unavailable: plain assembled text. */
-    return (
-      <div className={styles.fallback}>
-        <Markdown markdown={result.text ?? ""} />
-      </div>
-    );
+  if (emptyState || !trace) {
+    return emptyState;
   }
 
   return (

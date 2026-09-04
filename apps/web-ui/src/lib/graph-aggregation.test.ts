@@ -58,6 +58,15 @@ describe("aggregateLeaves", () => {
     ]);
   });
 
+  it("ignores a collapsible-type node with no links at all", () => {
+    const nodes = [{ id: "orphan", type: "TestChunk" as const }];
+
+    const result = aggregateLeaves(nodes, [], COLLAPSIBLE);
+
+    expect(result.hidden.size).toBe(0);
+    expect(result.badges).toEqual([]);
+  });
+
   it("returns no badges when no collapsible leaves exist", () => {
     const nodes = [
       { id: "feat1", type: "Feature" as const },

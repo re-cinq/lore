@@ -189,4 +189,44 @@ describe("RunNodeDetail", () => {
 
     expect(screen.queryByText(/^Attempts \(/)).not.toBeInTheDocument();
   });
+
+  it("shows singular event count, dropped events and touched file count", () => {
+    const erroredEvent = (
+      over: Partial<import("@/lib/run-stream-types").RunStreamEvent>,
+    ): import("@/lib/run-stream-types").RunStreamEvent => ({
+      id: "1",
+      taskId: "t",
+      agentCrName: "cr-1",
+      assemblyLineId: "al",
+      stationRunId: null,
+      nodeId: "implement",
+      iteration: 1,
+      eventType: "tool_result",
+      toolName: "eslint",
+      toolUseId: null,
+      isError: false,
+      filePaths: ["src/a.ts"],
+      summary: null,
+      payload: {},
+      createdAt: "2026-07-14T10:00:00Z",
+      ...over,
+    });
+
+    render(
+      <RunNodeDetail
+        nodeId="implement"
+        state={state({ transcript: [erroredEvent({})], droppedCount: 3 })}
+        row={row()}
+        definition={implementationDefinition}
+        reason={null}
+        repo="re-cinq/lore"
+        attempts={[]}
+      />,
+    );
+
+    expect(screen.getByText("1 event (+3 dropped)")).toBeInTheDocument();
+    expect(screen.getByText("Files touched").nextSibling).toHaveTextContent(
+      "1",
+    );
+  });
 });

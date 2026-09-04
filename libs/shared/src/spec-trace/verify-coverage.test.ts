@@ -5,6 +5,7 @@ import { findRepoRoot } from "../lib/repo-root.js";
 import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { verifyCoverageLink } from "./verify-coverage.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -54,54 +55,19 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
     }
   }
 
-  async function deleteRepoNodes(
-    repo: string,
-    statementXid: string,
-  ): Promise<void> {
-    const txn = dgraphClient.newTxn();
-
-    try {
-      const res = await txn.queryWithVars(
-        `query nodes($repo: string, $sx: string) {
-          coverage(func: eq(Coverage.repo, $repo)) { uid }
-          codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
-          testchunks(func: eq(TestChunk.repo, $repo)) { uid }
-          statements(func: eq(Statement.xid, $sx)) { uid }
-        }`,
-        { $repo: repo, $sx: statementXid },
-      );
-      const written = res.data as {
-        coverage?: { uid: string }[];
-        codechunks?: { uid: string }[];
-        testchunks?: { uid: string }[];
-        statements?: { uid: string }[];
-      };
-      const uids = [
-        ...(written.coverage ?? []),
-        ...(written.codechunks ?? []),
-        ...(written.testchunks ?? []),
-        ...(written.statements ?? []),
-      ].map((node) => node.uid);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
-      // eslint-disable-next-line no-empty
-    } catch {
-    } finally {
-      await txn.discard().catch(() => {});
-    }
-  }
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "coverage", type: "Coverage" },
+    { alias: "codechunks", type: "CodeChunk" },
+    { alias: "testchunks", type: "TestChunk" },
+    { alias: "statements", type: "Statement", field: "xid", varName: "sx" },
+  ]);
 
   let createdRepo = "";
   let createdStatementXid = "";
 
   afterEach(async () => {
     if (createdRepo) {
-      await deleteRepoNodes(createdRepo, createdStatementXid);
+      await deleteRepoNodes(createdRepo, { sx: createdStatementXid });
     }
   });
 

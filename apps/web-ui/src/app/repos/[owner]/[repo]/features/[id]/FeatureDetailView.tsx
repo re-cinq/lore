@@ -75,6 +75,20 @@ function FinalizedView({
   );
 }
 
+/** Only show the live graph below to avoid a frozen server-rendered twin while a node is working. */
+function showsLiveGraphBelow(
+  run: AssemblyRunSummary | null,
+  feature: FeatureWithIterations,
+): boolean {
+  if (run === null) {
+    return false;
+  }
+
+  const phase = featurePhaseOf({ run, feature });
+
+  return phase.kind === "planning" || phase.kind === "writing-spec";
+}
+
 export default function FeatureDetailView({
   owner,
   repo,
@@ -107,11 +121,7 @@ export default function FeatureDetailView({
   const onCreateDraft = (title: string, prompt: string) =>
     startTransition(() => split(title, prompt));
   const base = `/repos/${owner}/${repo}`;
-  // Only show live graph below to avoid frozen server-rendered twin when node is working.
-  const phase = featurePhaseOf({ run, feature });
-  const liveGraphBelow =
-    run !== null &&
-    (phase.kind === "planning" || phase.kind === "writing-spec");
+  const liveGraphBelow = showsLiveGraphBelow(run, feature);
 
   return (
     <div>

@@ -18,6 +18,15 @@ function fakePool(returnRows: unknown[] = []): {
   return { pool, calls };
 }
 
+function firstCall(calls: Array<{ text: string; params?: unknown[] }>): {
+  text: string;
+  params: unknown[];
+} {
+  const call = calls[0] ?? { text: "", params: [] };
+
+  return { text: call.text, params: call.params ?? [] };
+}
+
 describe("PgUsage adapter", () => {
   it("inserts an llm_calls row, defaulting cost and null task", async () => {
     const { pool, calls } = fakePool();
@@ -61,17 +70,17 @@ describe("PgUsage adapter", () => {
       durationMs: 10,
     });
 
-    expect(calls[0]?.text).toContain(
-      "LEFT JOIN pipeline.tasks t ON t.id = g.given",
-    );
-    expect(calls[0]?.text).toContain(
+    const call = firstCall(calls);
+
+    expect(call.text).toContain("LEFT JOIN pipeline.tasks t ON t.id = g.given");
+    expect(call.text).toContain(
       "LEFT JOIN pipeline.assembly_runs al ON al.id = g.given AND t.id IS NULL",
     );
-    expect(calls[0]?.text).toContain("n.agent_cr_name = g.cr");
-    expect(calls[0]?.text).toContain("COALESCE(node.assembly_run_id, al.id)");
-    expect(calls[0]?.params?.[0]).toBe("d6f1c2a0-0000-0000-0000-000000000000");
-    expect(calls[0]?.params?.[1]).toBe("abc12345-review");
-    expect(calls[0]?.params?.[6]).toBe(0.5);
+    expect(call.text).toContain("n.agent_cr_name = g.cr");
+    expect(call.text).toContain("COALESCE(node.assembly_run_id, al.id)");
+    expect(call.params[0]).toBe("d6f1c2a0-0000-0000-0000-000000000000");
+    expect(call.params[1]).toBe("abc12345-review");
+    expect(call.params[6]).toBe(0.5);
   });
 
   it("prefers a carried identity and skips the CR-name lateral for that row", async () => {

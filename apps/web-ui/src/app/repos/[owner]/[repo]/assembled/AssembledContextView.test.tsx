@@ -203,4 +203,41 @@ describe("AssembledContextView — assembly trace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Raw" }));
     expect(screen.getByText(/## Decision/)).toBeInTheDocument();
   });
+
+  it("renders the cross-repo and freshness badges when the trace carries them", () => {
+    render(
+      <AssembledContextView
+        {...withTrace({
+          crossRepo: true,
+          freshness: { state: "stale", message: "7 days" },
+        })}
+      />,
+    );
+    expect(screen.getByText("cross-repo")).toBeInTheDocument();
+    expect(screen.getByText("stale")).toBeInTheDocument();
+  });
+
+  it("copies the assembled prompt text to the clipboard on Copy click", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+      writable: true,
+    });
+    render(<AssembledContextView {...withTrace()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(writeText).toHaveBeenCalledWith("<context></context>");
+  });
+
+  it("falls back to the plain assembled text when the result carries no trace", () => {
+    render(
+      <AssembledContextView
+        {...baseProps({
+          result: { text: "plain assembled text", sections: [] },
+        })}
+      />,
+    );
+    expect(screen.getByText("plain assembled text")).toBeInTheDocument();
+  });
 });

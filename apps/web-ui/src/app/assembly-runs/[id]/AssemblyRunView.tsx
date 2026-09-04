@@ -9,6 +9,57 @@ export interface AssemblyRunViewProps {
   run: AssemblyRun;
 }
 
+function ReasonFact({ reason }: { reason: string | null }) {
+  if (!reason) {
+    return null;
+  }
+
+  return (
+    <>
+      <dt>Reason</dt>
+      <dd className={styles.reason}>{reason}</dd>
+    </>
+  );
+}
+
+function TaskFact({ taskId }: { taskId: string | null }) {
+  if (!taskId) {
+    return null;
+  }
+
+  return (
+    <>
+      <dt>Task</dt>
+      <dd>
+        <Link href={`/tasks/${taskId}`}>View task →</Link>
+      </dd>
+    </>
+  );
+}
+
+function PrFact({
+  prUrl,
+  prNumber,
+}: {
+  prUrl: string | null;
+  prNumber: number | null;
+}) {
+  if (!prUrl || !prNumber) {
+    return null;
+  }
+
+  return (
+    <>
+      <dt>PR</dt>
+      <dd>
+        <a href={prUrl} target="_blank" rel="noreferrer">
+          #{prNumber}
+        </a>
+      </dd>
+    </>
+  );
+}
+
 // Run header — line-level facts only; per-node state lives in the visualization panel below.
 export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
   const visual = runStatusVisual(run.status, run.outcome);
@@ -31,32 +82,11 @@ export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
         <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
         <dt>Outcome</dt>
         <dd>{run.outcome ?? EM_DASH}</dd>
-        {run.reason ? (
-          <>
-            <dt>Reason</dt>
-            <dd className={styles.reason}>{run.reason}</dd>
-          </>
-        ) : null}
+        <ReasonFact reason={run.reason} />
         <dt>Duration</dt>
         <dd>{formatDuration(run.durationSeconds)}</dd>
-        {run.taskId ? (
-          <>
-            <dt>Task</dt>
-            <dd>
-              <Link href={`/tasks/${run.taskId}`}>View task →</Link>
-            </dd>
-          </>
-        ) : null}
-        {run.prUrl && run.prNumber ? (
-          <>
-            <dt>PR</dt>
-            <dd>
-              <a href={run.prUrl} target="_blank" rel="noreferrer">
-                #{run.prNumber}
-              </a>
-            </dd>
-          </>
-        ) : null}
+        <TaskFact taskId={run.taskId} />
+        <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
       </dl>
     </div>
   );

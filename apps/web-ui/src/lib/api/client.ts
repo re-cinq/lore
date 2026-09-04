@@ -23,6 +23,22 @@ export interface FetchOptions {
   revalidate?: number;
 }
 
+function buildRequestInit(token: string, options: FetchOptions): RequestInit {
+  return {
+    method: options.method ?? "GET",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    ...(options.body === undefined
+      ? {}
+      : { body: JSON.stringify(options.body) }),
+    ...(options.revalidate === undefined
+      ? { cache: "no-store" as const }
+      : { next: { revalidate: options.revalidate } }),
+  };
+}
+
 /** Never throws: transport failure is a result, not an exception, so the caller decides whether it is fatal (see `enforceOk`). */
 export async function apiFetch<T>(
   service: Service,
@@ -37,17 +53,7 @@ export async function apiFetch<T>(
 
   try {
     const res = await fetch(`${baseUrl}${path}`, {
-      method: options.method ?? "GET",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
-      ...(options.body === undefined
-        ? {}
-        : { body: JSON.stringify(options.body) }),
-      ...(options.revalidate === undefined
-        ? { cache: "no-store" as const }
-        : { next: { revalidate: options.revalidate } }),
+      ...buildRequestInit(token, options),
     });
 
     return await toApiResult<T>(res);

@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { driftCheckFile } from "./drift-check-file.js";
 import type { DriftedStatement } from "./format-drift-report.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -57,44 +58,12 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     }
   }
 
-  async function deleteRepoNodes(repo: string): Promise<void> {
-    const txn = dgraphClient.newTxn();
-
-    try {
-      const res = await txn.queryWithVars(
-        `query nodes($repo: string) {
-          testchunks(func: eq(TestChunk.repo, $repo)) { uid }
-          codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
-          coverages(func: eq(Coverage.repo, $repo)) { uid }
-          testsuites(func: eq(TestSuite.repo, $repo)) { uid }
-        }`,
-        { $repo: repo },
-      );
-      const written = res.data as {
-        testchunks?: { uid: string }[];
-        codechunks?: { uid: string }[];
-        coverages?: { uid: string }[];
-        testsuites?: { uid: string }[];
-      };
-      const uids = [
-        ...(written.testchunks ?? []),
-        ...(written.codechunks ?? []),
-        ...(written.coverages ?? []),
-        ...(written.testsuites ?? []),
-      ].map((node) => node.uid);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
-    } catch {
-      void 0;
-    } finally {
-      await txn.discard().catch(() => {});
-    }
-  }
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "testchunks", type: "TestChunk" },
+    { alias: "codechunks", type: "CodeChunk" },
+    { alias: "coverages", type: "Coverage" },
+    { alias: "testsuites", type: "TestSuite" },
+  ]);
 
   async function deleteStatementNode(statementXid: string): Promise<void> {
     const txn = dgraphClient.newTxn();

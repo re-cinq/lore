@@ -16,22 +16,26 @@ export interface LayoutLink {
   target: string;
 }
 
-/** Partition nodes into connected components via union-find. */
-export function connectedComponents(
-  nodeIds: string[],
-  links: LayoutLink[],
-): string[][] {
-  const parent = new Map<string, string>();
+/** Adds `id` as its own parent when the union-find map hasn't seen it yet. */
+function ensureSelfParent(parent: Map<string, string>, id: string): void {
+  if (!parent.has(id)) {
+    parent.set(id, id);
+  }
+}
+
+/** Path-compressing find/union pair sharing one parent map. */
+function unionFind(parent: Map<string, string>) {
   const find = (node: string): string => {
+    // Every node walked here was seeded into `parent` up front, so lookups never miss.
     let root = node;
 
-    while ((parent.get(root) ?? root) !== root) {
-      root = parent.get(root) ?? root;
+    while (parent.get(root)! !== root) {
+      root = parent.get(root)!;
     }
     let cur = node;
 
     while (cur !== root) {
-      const next = parent.get(cur) ?? cur;
+      const next = parent.get(cur)!;
 
       parent.set(cur, root);
       cur = next;
@@ -43,29 +47,47 @@ export function connectedComponents(
     parent.set(find(a), find(b));
   };
 
+  return { find, union };
+}
+
+/** Appends `id` to its root's group, creating the group on the first member. */
+function pushToGroup(
+  groups: Map<string, string[]>,
+  root: string,
+  id: string,
+): void {
+  const members = groups.get(root);
+
+  if (members) {
+    members.push(id);
+
+    return;
+  }
+  groups.set(root, [id]);
+}
+
+/** Partition nodes into connected components via union-find. */
+export function connectedComponents(
+  nodeIds: string[],
+  links: LayoutLink[],
+): string[][] {
+  const parent = new Map<string, string>();
+  const { find, union } = unionFind(parent);
+
   for (const id of nodeIds) {
-    if (!parent.has(id)) {
-      parent.set(id, id);
-    }
+    ensureSelfParent(parent, id);
   }
 
   for (const { source, target } of links) {
-    if (!parent.has(source)) {
-      parent.set(source, source);
-    }
-
-    if (!parent.has(target)) {
-      parent.set(target, target);
-    }
+    ensureSelfParent(parent, source);
+    ensureSelfParent(parent, target);
     union(source, target);
   }
 
   const groups = new Map<string, string[]>();
 
   for (const id of nodeIds) {
-    const root = find(id);
-
-    (groups.get(root) ?? groups.set(root, []).get(root)!).push(id);
+    pushToGroup(groups, find(id), id);
   }
 
   return [...groups.values()];
@@ -185,18 +207,28 @@ function containOverflowVelocity(
   return { vx: vx * damp, vy: vy * damp };
 }
 
+const DEFAULT_CONTAINMENT: Required<ContainmentOptions> = {
+  returnPull: 0.1,
+  maxReturn: 6,
+  dampScale: 300,
+  epsilon: 1e-3,
+};
+
+function resolveContainment(
+  opts: ContainmentOptions = {},
+): Required<ContainmentOptions> {
+  return { ...DEFAULT_CONTAINMENT, ...opts };
+}
+
 /** Keep node velocity inside radius border; damp speed by overshoot. */
 export function containedVelocity(
   point: Point,
   velocity: { vx: number; vy: number },
   { center, radius }: { center: Point; radius: number },
-  {
-    returnPull = 0.1,
-    maxReturn = 6,
-    dampScale = 300,
-    epsilon = 1e-3,
-  }: ContainmentOptions = {},
+  options?: ContainmentOptions,
 ): { vx: number; vy: number } {
+  const { returnPull, maxReturn, dampScale, epsilon } =
+    resolveContainment(options);
   let vx = velocity.vx;
   let vy = velocity.vy;
   const dx = point.x - center.x;
@@ -235,6 +267,58 @@ export interface RadialTreeOptions {
   angleEnd?: number;
 }
 
+function resolveAngleRange(opts: RadialTreeOptions): {
+  angleStart: number;
+  angleEnd: number;
+} {
+  return {
+    angleStart: opts.angleStart ?? 0,
+    angleEnd: opts.angleEnd ?? Math.PI * 2,
+  };
+}
+
+/** Fills in each non-leaf's angle as the mean of its children's (post-order guarantees they're set). */
+function fillParentAngles(
+  postOrder: string[],
+  childrenOf: Map<string, string[]>,
+  angle: Map<string, number>,
+  angleStart: number,
+): void {
+  for (const id of postOrder) {
+    if (angle.has(id)) {
+      continue;
+    }
+    const children = childrenOf.get(id) ?? [];
+    const sum = children.reduce(
+      (acc, child) => acc + (angle.get(child) ?? 0),
+      0,
+    );
+
+    angle.set(id, children.length ? sum / children.length : angleStart);
+  }
+}
+
+function positionsFromAngles(
+  depth: Map<string, number>,
+  angle: Map<string, number>,
+  angleStart: number,
+  layout: { center: Point; ringGap: number },
+): Map<string, Point> {
+  const positions = new Map<string, Point>();
+
+  for (const [id, d] of depth) {
+    const a = angle.get(id) ?? angleStart;
+    const r = d * layout.ringGap;
+
+    positions.set(id, {
+      x: layout.center.x + r * Math.cos(a),
+      y: layout.center.y + r * Math.sin(a),
+    });
+  }
+
+  return positions;
+}
+
 /** Radial-tree seed positions; depth→radius, leaves spread evenly. */
 export function radialTree(
   root: string,
@@ -242,8 +326,7 @@ export function radialTree(
   opts: RadialTreeOptions,
 ): Map<string, Point> {
   const { center, ringGap } = opts;
-  const angleStart = opts.angleStart ?? 0;
-  const angleEnd = opts.angleEnd ?? Math.PI * 2;
+  const { angleStart, angleEnd } = resolveAngleRange(opts);
 
   const depth = new Map<string, number>();
   const postOrder: string[] = [];
@@ -279,33 +362,9 @@ export function radialTree(
     angle.set(id, angleStart + (span * (i + 0.5)) / leafCount),
   );
 
-  // Children precede parents in post-order, so a parent's children angles are set.
-  for (const id of postOrder) {
-    if (angle.has(id)) {
-      continue;
-    }
-    const children = childrenOf.get(id) ?? [];
-    const sum = children.reduce(
-      (acc, child) => acc + (angle.get(child) ?? 0),
-      0,
-    );
+  fillParentAngles(postOrder, childrenOf, angle, angleStart);
 
-    angle.set(id, children.length ? sum / children.length : angleStart);
-  }
-
-  const positions = new Map<string, Point>();
-
-  for (const [id, d] of depth) {
-    const a = angle.get(id) ?? angleStart;
-    const r = d * ringGap;
-
-    positions.set(id, {
-      x: center.x + r * Math.cos(a),
-      y: center.y + r * Math.sin(a),
-    });
-  }
-
-  return positions;
+  return positionsFromAngles(depth, angle, angleStart, { center, ringGap });
 }
 
 export interface PlacedNode {
@@ -382,12 +441,12 @@ export function countCrossings(
   return crossings;
 }
 
-export function separateSmallComponents(
+/** Farthest non-small node from `center`, the anchor the small ones must clear. */
+function maxRadiusExcluding(
   nodes: PlacedNode[],
   smallIds: Set<string>,
   center: Point,
-  margin: number,
-): Map<string, Point> {
+): number {
   let mainRadius = 0;
 
   for (const node of nodes) {
@@ -399,7 +458,17 @@ export function separateSmallComponents(
       Math.hypot(node.x - center.x, node.y - center.y),
     );
   }
-  const barrier = mainRadius + margin;
+
+  return mainRadius;
+}
+
+/** Pushes every small node still inside `barrier` radially out to it. */
+function pushPastBarrier(
+  nodes: PlacedNode[],
+  smallIds: Set<string>,
+  center: Point,
+  barrier: number,
+): Map<string, Point> {
   const moved = new Map<string, Point>();
 
   for (const node of nodes) {
@@ -420,4 +489,15 @@ export function separateSmallComponents(
   }
 
   return moved;
+}
+
+export function separateSmallComponents(
+  nodes: PlacedNode[],
+  smallIds: Set<string>,
+  center: Point,
+  margin: number,
+): Map<string, Point> {
+  const barrier = maxRadiusExcluding(nodes, smallIds, center) + margin;
+
+  return pushPastBarrier(nodes, smallIds, center, barrier);
 }

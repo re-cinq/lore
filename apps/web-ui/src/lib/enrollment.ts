@@ -159,113 +159,141 @@ function unknownWebhookDetail(reason: string | undefined): string {
   return "could not read the webhook";
 }
 
+const WEBHOOK_STATE: Record<
+  WebhookCheck["state"],
+  { status: CheckStatus; fixable: boolean }
+> = {
+  configured: { status: "pass", fixable: false },
+  missing: { status: "fail", fixable: true },
+  wrong_url: { status: "warn", fixable: true },
+  inactive: { status: "warn", fixable: true },
+  narrow_events: { status: "warn", fixable: true },
+  delivery_failing: { status: "warn", fixable: true },
+  unknown: { status: "unknown", fixable: false },
+};
+
+const WEBHOOK_DETAIL: Record<
+  WebhookCheck["state"],
+  (w: WebhookCheck) => string
+> = {
+  configured: () => "delivering to the Floor",
+  missing: () => "no webhook — GitHub events are not delivered",
+  wrong_url: (w) =>
+    `points at ${w.url ?? "an old host"} — repoint to the Floor`,
+  inactive: () => "webhook is disabled",
+  narrow_events: () => "missing event types (PRs / checks / reviews)",
+  delivery_failing: (w) =>
+    `last delivery ${w.lastCode ?? "failed"} — secret mismatch; re-set up`,
+  unknown: (w) => unknownWebhookDetail(w.reason),
+};
+
+/** Manual setup fields (URL + signing secret) only make sense while the hook isn't already delivering. */
+function applyManualSetupFields(check: Check, w: WebhookCheck): void {
+  if (!w.canonicalUrl || w.state === "configured") {
+    return;
+  }
+  check.copy = { value: w.canonicalUrl, label: "set this URL" };
+
+  if (w.secret) {
+    check.secret = { value: w.secret, label: "and this secret" };
+  }
+}
+
 function webhookCheckRow(w: WebhookCheck): Check {
-  const WEBHOOK: Record<
-    WebhookCheck["state"],
-    { status: CheckStatus; detail: string; fixable: boolean }
-  > = {
-    configured: {
-      status: "pass",
-      detail: "delivering to the Floor",
-      fixable: false,
-    },
-    missing: {
-      status: "fail",
-      detail: "no webhook — GitHub events are not delivered",
-      fixable: true,
-    },
-    wrong_url: {
-      status: "warn",
-      detail: `points at ${w.url ?? "an old host"} — repoint to the Floor`,
-      fixable: true,
-    },
-    inactive: {
-      status: "warn",
-      detail: "webhook is disabled",
-      fixable: true,
-    },
-    narrow_events: {
-      status: "warn",
-      detail: "missing event types (PRs / checks / reviews)",
-      fixable: true,
-    },
-    delivery_failing: {
-      status: "warn",
-      detail: `last delivery ${w.lastCode ?? "failed"} — secret mismatch; re-set up`,
-      fixable: true,
-    },
-    unknown: {
-      status: "unknown",
-      detail: unknownWebhookDetail(w.reason),
-      fixable: false,
-    },
-  };
-  const m = WEBHOOK[w.state] ?? WEBHOOK.unknown;
+  const stateInfo = WEBHOOK_STATE[w.state] ?? WEBHOOK_STATE.unknown;
+  const detail = (WEBHOOK_DETAIL[w.state] ?? WEBHOOK_DETAIL.unknown)(w);
   const check: Check = {
     id: "webhook",
     label: "GitHub webhook → Floor",
-    status: m.status,
-    detail: m.detail,
+    status: stateInfo.status,
+    detail,
   };
 
-  if (m.fixable) {
+  if (stateInfo.fixable) {
     check.action = { kind: "setup-webhook", text: "set up" };
   }
-
-  // Show URL for manual setup when known and not configured; signing secret included.
-  if (w.canonicalUrl && w.state !== "configured") {
-    check.copy = { value: w.canonicalUrl, label: "set this URL" };
-  }
-
-  const manualSetupShown = Boolean(w.canonicalUrl) && w.state !== "configured";
-
-  if (manualSetupShown && w.secret) {
-    check.secret = { value: w.secret, label: "and this secret" };
-  }
+  applyManualSetupFields(check, w);
 
   return check;
 }
 
-export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
-  const input = { ...rawInput, now: rawInput.now ?? Date.now() };
-  const checks: Check[] = [];
-
-  checks.push({
+function onboardedCheck(onboarded: boolean, onboardedAt: string | null): Check {
+  return {
     id: "onboarded",
     label: "Onboarded",
-    status: input.onboarded ? "pass" : "fail",
-    detail: onboardedDetail(input.onboarded, input.onboardedAt),
-  });
+    status: onboarded ? "pass" : "fail",
+    detail: onboardedDetail(onboarded, onboardedAt),
+  };
+}
+
+function onboardingPrCheck(prUrl: string, prMerged: boolean): Check {
+  return {
+    id: "onboarding-pr",
+    label: "Onboarding PR merged",
+    status: prMerged ? "pass" : "warn",
+    detail: prMerged ? undefined : "open",
+    link: prMerged ? undefined : { href: prUrl, text: "review & merge" },
+  };
+}
+
+function conventionsCheck(hasConventions: boolean): Check {
+  return {
+    id: "conventions",
+    label: "Conventions ingested",
+    status: hasConventions ? "pass" : "fail",
+    detail: hasConventions ? undefined : "AGENTS.md / CLAUDE.md not in context",
+  };
+}
+
+function teamCheck(team: string | null): Check {
+  return {
+    id: "team",
+    label: "Team assigned",
+    status: team ? "pass" : "warn",
+    detail: team ?? "using org_shared",
+  };
+}
+
+function localMcpDetail(
+  now: number,
+  developerCount: number,
+  lastActivity: string | null,
+): string {
+  if (developerCount === 0) {
+    return "no local Claude Code sessions yet";
+  }
+  const plural = developerCount === 1 ? "" : "s";
+  const lastSeen = lastActivity ? ` · last ${daysAgo(now, lastActivity)}` : "";
+
+  return `${developerCount} developer${plural}${lastSeen}`;
+}
+
+function localMcpCheck(
+  now: number,
+  developerCount: number,
+  lastActivity: string | null,
+): Check {
+  return {
+    id: "local-mcp",
+    label: "Used locally via MCP",
+    status: developerCount > 0 ? "pass" : "fail",
+    detail: localMcpDetail(now, developerCount, lastActivity),
+  };
+}
+
+export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
+  const input = { ...rawInput, now: rawInput.now ?? Date.now() };
+  const checks: Check[] = [onboardedCheck(input.onboarded, input.onboardedAt)];
 
   if (input.onboardingPrUrl) {
-    checks.push({
-      id: "onboarding-pr",
-      label: "Onboarding PR merged",
-      status: input.onboardingPrMerged ? "pass" : "warn",
-      detail: input.onboardingPrMerged ? undefined : "open",
-      link: input.onboardingPrMerged
-        ? undefined
-        : { href: input.onboardingPrUrl, text: "review & merge" },
-    });
+    checks.push(
+      onboardingPrCheck(input.onboardingPrUrl, input.onboardingPrMerged),
+    );
   }
 
   checks.push(ingestedCheck(input.lastIngestedAt, input.now, input.chunkCount));
-
-  checks.push({
-    id: "conventions",
-    label: "Conventions ingested",
-    status: input.hasConventions ? "pass" : "fail",
-    detail: input.hasConventions
-      ? undefined
-      : "AGENTS.md / CLAUDE.md not in context",
-  });
-
-  checks.push({
-    id: "team",
-    label: "Team assigned",
-    status: input.team ? "pass" : "warn",
-    detail: input.team ?? "using org_shared",
-  });
+  checks.push(conventionsCheck(input.hasConventions));
+  checks.push(teamCheck(input.team));
 
   for (const [path, exists] of Object.entries(input.githubFiles)) {
     checks.push(githubFileCheck(path, exists));
@@ -275,17 +303,13 @@ export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
     checks.push(webhookCheckRow(input.webhook));
   }
 
-  const { developerCount, lastActivity } = input.localMcp;
-
-  checks.push({
-    id: "local-mcp",
-    label: "Used locally via MCP",
-    status: developerCount > 0 ? "pass" : "fail",
-    detail:
-      developerCount > 0
-        ? `${developerCount} developer${developerCount === 1 ? "" : "s"}${lastActivity ? ` · last ${daysAgo(input.now, lastActivity)}` : ""}`
-        : "no local Claude Code sessions yet",
-  });
+  checks.push(
+    localMcpCheck(
+      input.now,
+      input.localMcp.developerCount,
+      input.localMcp.lastActivity,
+    ),
+  );
 
   return checks;
 }

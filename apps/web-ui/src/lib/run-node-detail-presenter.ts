@@ -3,6 +3,7 @@
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyRunNode } from "./assembly-runs";
 import type { NodeRunState } from "./run-event-reducer";
+import type { RunStreamEvent } from "./run-stream-types";
 import { nodeRunVisual, type NodeStatusTone } from "./run-node-status";
 import { humanStation } from "./human-station";
 import { formatDuration } from "./assembly-run-presenter";
@@ -59,33 +60,33 @@ function uniqueFiles(state: NodeRunState | undefined): string[] {
   return [...files];
 }
 
+function isFailedResult(event: RunStreamEvent): boolean {
+  return (
+    event.eventType === "result" && event.isError && Boolean(event.summary)
+  );
+}
+
 /** Last errored result line's summary; closest thing to a failure message in the stream. */
 function failureSummary(state: NodeRunState | undefined): string | null {
-  for (const event of [...(state?.transcript ?? [])].reverse()) {
-    if (event.eventType === "result" && event.isError && event.summary) {
-      return event.summary;
-    }
-  }
+  const failure = [...(state?.transcript ?? [])].reverse().find(isFailedResult);
 
-  return null;
+  return failure?.summary ?? null;
+}
+
+function toFailedStep(event: RunStreamEvent): FailedStep {
+  return {
+    tool:
+      event.toolName ??
+      (event.eventType === "result" ? "agent" : event.eventType),
+    detail: event.summary ?? "",
+  };
 }
 
 /** Every errored step with message, in order; concrete causes (tool calls, verdicts) behind the one-line why. */
 function erroredSteps(state: NodeRunState | undefined): FailedStep[] {
-  const steps: FailedStep[] = [];
-
-  for (const event of state?.transcript ?? []) {
-    if (event.isError && event.summary) {
-      steps.push({
-        tool:
-          event.toolName ??
-          (event.eventType === "result" ? "agent" : event.eventType),
-        detail: event.summary,
-      });
-    }
-  }
-
-  return steps;
+  return (state?.transcript ?? [])
+    .filter((event) => event.isError && event.summary)
+    .map(toFailedStep);
 }
 
 interface NodeStanding {
@@ -184,6 +185,48 @@ function resolveFailures(
   return tone === "err" ? erroredSteps(state) : [];
 }
 
+interface WhyArgs {
+  noun: string;
+  type: string | undefined;
+  input: NodeDetailInput;
+  terminal: boolean;
+  duration: string;
+}
+
+// Parked human station: reader needs to know whose move it is (often their own).
+function whyWaiting({ type }: WhyArgs): string {
+  return (
+    humanStation(type)?.whyParked ??
+    "Parked — waiting for you to review this round."
+  );
+}
+
+function whyOk({ noun, input, terminal, duration }: WhyArgs): string {
+  const finalNote = terminal ? " Final step of the run." : "";
+
+  return `Ran ${noun} and emitted ${input.row?.outcome ?? "success"} in ${duration}.${finalNote}`;
+}
+
+function whyErr({ noun, input }: WhyArgs): string {
+  return `Failed: ${failureSummary(input.state) ?? input.reason ?? `${noun} did not complete`}.`;
+}
+
+function whyIdle({ terminal }: WhyArgs): string {
+  return terminal
+    ? "Terminal marker — the run ends here."
+    : "Not reached — the run finished along another branch before it ran.";
+}
+
+const WHY_BY_TONE: Record<NodeStatusTone, (args: WhyArgs) => string> = {
+  running: ({ noun }) => `In progress — ${noun} is running.`,
+  waiting: whyWaiting,
+  ok: whyOk,
+  warn: ({ noun, duration }) =>
+    `Ran ${noun} and requested changes in ${duration}.`,
+  err: whyErr,
+  idle: whyIdle,
+};
+
 function whyText(
   input: NodeDetailInput,
   type: string | undefined,
@@ -191,37 +234,7 @@ function whyText(
 ): string {
   const noun = type ? `the ${type} node` : "this step";
 
-  if (tone === "running") {
-    return `In progress — ${noun} is running.`;
-  }
-
-  // Parked human station: reader needs to know whose move it is (often their own).
-  if (tone === "waiting") {
-    return (
-      humanStation(type)?.whyParked ??
-      "Parked — waiting for you to review this round."
-    );
-  }
-
-  if (tone === "ok") {
-    return `Ran ${noun} and emitted ${input.row?.outcome ?? "success"} in ${duration}.${
-      terminal ? " Final step of the run." : ""
-    }`;
-  }
-
-  if (tone === "warn") {
-    return `Ran ${noun} and requested changes in ${duration}.`;
-  }
-
-  if (tone === "err") {
-    return `Failed: ${failureSummary(input.state) ?? input.reason ?? `${noun} did not complete`}.`;
-  }
-
-  if (terminal) {
-    return "Terminal marker — the run ends here.";
-  }
-
-  return "Not reached — the run finished along another branch before it ran.";
+  return WHY_BY_TONE[tone]({ noun, type, input, terminal, duration });
 }
 
 export function describeNode(input: NodeDetailInput): NodeDetail {

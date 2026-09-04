@@ -21,20 +21,25 @@ export interface DocSearch<T> {
   textOf?: (item: T) => string;
 }
 
-export function filterDocCards<T>(
+function matchedCards<T>(
+  cards: T[],
+  needle: string,
+  textOf?: (item: T) => string,
+): T[] {
+  if (!needle || !textOf) {
+    return cards;
+  }
+
+  return cards.filter((card) => textOf(card).toLowerCase().includes(needle));
+}
+
+function countByStatus<T>(
   cards: T[],
   statusOf: (card: T) => SpecStatusInfo | undefined,
-  filter: SpecStatusFilter,
-  { query, textOf }: DocSearch<T> = {},
-): DocFilterResult<T> {
-  const needle = query?.trim().toLowerCase() ?? "";
-  const matched =
-    needle && textOf
-      ? cards.filter((card) => textOf(card).toLowerCase().includes(needle))
-      : cards;
+): Partial<Record<SpecStatus, number>> {
   const counts: Partial<Record<SpecStatus, number>> = {};
 
-  for (const card of matched) {
+  for (const card of cards) {
     const status = statusOf(card);
 
     if (status) {
@@ -42,8 +47,20 @@ export function filterDocCards<T>(
     }
   }
 
+  return counts;
+}
+
+export function filterDocCards<T>(
+  cards: T[],
+  statusOf: (card: T) => SpecStatusInfo | undefined,
+  filter: SpecStatusFilter,
+  { query, textOf }: DocSearch<T> = {},
+): DocFilterResult<T> {
+  const needle = query?.trim().toLowerCase() ?? "";
+  const matched = matchedCards(cards, needle, textOf);
+
   return {
-    counts,
+    counts: countByStatus(matched, statusOf),
     visible: matched.filter((card) =>
       matchesSpecStatusFilter(statusOf(card), filter),
     ),

@@ -31,7 +31,6 @@ export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
     return <p className={styles.empty}>No assembly line runs.</p>;
   }
   const skipCount = runs.filter(isCoordinationSkip).length;
-  const skipLabel = `${skipCount} coordination skip${skipCount === 1 ? "" : "s"}`;
   // A coordination skip did no work — it deferred to a run already holding the branch — so it stays hidden unless asked for.
   const visibleRuns = showSkips
     ? runs
@@ -40,36 +39,69 @@ export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
   return (
     <table className={styles.table}>
       <RunsTableHead />
-      <tbody>
-        {visibleRuns.length === 0 ? (
-          <tr>
-            <td colSpan={TABLE_COLUMNS} className={styles.empty}>
-              All runs are coordination skips — use the toggle below to reveal
-              them.
-            </td>
-          </tr>
-        ) : (
-          visibleRuns.map((run) => <RunRow run={run} key={run.id} />)
-        )}
-      </tbody>
-      {skipCount > 0 ? (
-        <tfoot>
-          <tr>
-            <td colSpan={TABLE_COLUMNS}>
-              <button
-                type="button"
-                className={styles.skipToggle}
-                aria-expanded={showSkips}
-                onClick={() => setShowSkips((s) => !s)}
-                title="Runs that deferred to another run already holding the same branch and did no work (lease_held)."
-              >
-                {showSkips ? `Hide ${skipLabel}` : `Show ${skipLabel}`}
-              </button>
-            </td>
-          </tr>
-        </tfoot>
-      ) : null}
+      <TableBody visibleRuns={visibleRuns} />
+      <SkipToggleFooter
+        skipCount={skipCount}
+        showSkips={showSkips}
+        onToggle={() => setShowSkips((s) => !s)}
+      />
     </table>
+  );
+}
+
+function TableBody({ visibleRuns }: { visibleRuns: AssemblyRun[] }) {
+  if (visibleRuns.length === 0) {
+    return (
+      <tbody>
+        <tr>
+          <td colSpan={TABLE_COLUMNS} className={styles.empty}>
+            All runs are coordination skips — use the toggle below to reveal
+            them.
+          </td>
+        </tr>
+      </tbody>
+    );
+  }
+
+  return (
+    <tbody>
+      {visibleRuns.map((run) => (
+        <RunRow run={run} key={run.id} />
+      ))}
+    </tbody>
+  );
+}
+
+function SkipToggleFooter({
+  skipCount,
+  showSkips,
+  onToggle,
+}: {
+  skipCount: number;
+  showSkips: boolean;
+  onToggle: () => void;
+}) {
+  if (skipCount === 0) {
+    return null;
+  }
+  const skipLabel = `${skipCount} coordination skip${skipCount === 1 ? "" : "s"}`;
+
+  return (
+    <tfoot>
+      <tr>
+        <td colSpan={TABLE_COLUMNS}>
+          <button
+            type="button"
+            className={styles.skipToggle}
+            aria-expanded={showSkips}
+            onClick={onToggle}
+            title="Runs that deferred to another run already holding the same branch and did no work (lease_held)."
+          >
+            {showSkips ? `Hide ${skipLabel}` : `Show ${skipLabel}`}
+          </button>
+        </td>
+      </tr>
+    </tfoot>
   );
 }
 
@@ -95,9 +127,35 @@ function RunsTableHead() {
   );
 }
 
-function RunRow({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
-  const visual = runStatusVisual(run.status, run.outcome);
+function BranchCell({ branch }: { branch: string | null }) {
+  if (!branch) {
+    return <>{EM_DASH}</>;
+  }
 
+  return (
+    <span className={styles.branchText} title={branch}>
+      {branch}
+    </span>
+  );
+}
+
+function StatusCell({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
+  const visual = runStatusVisual(run.status, run.outcome);
+  const showReason = run.status === "failed" && run.reason;
+
+  return (
+    <>
+      <span
+        className={`${styles.dot} ${styles[visual.tone]}`}
+        aria-hidden="true"
+      />
+      {visual.label}
+      {showReason ? <span className={styles.reason}>{run.reason}</span> : null}
+    </>
+  );
+}
+
+function RunRow({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
   return (
     <tr>
       <td>
@@ -108,23 +166,10 @@ function RunRow({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
         <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
       </td>
       <td className={styles.branch}>
-        {run.branch ? (
-          <span className={styles.branchText} title={run.branch}>
-            {run.branch}
-          </span>
-        ) : (
-          EM_DASH
-        )}
+        <BranchCell branch={run.branch} />
       </td>
       <td>
-        <span
-          className={`${styles.dot} ${styles[visual.tone]}`}
-          aria-hidden="true"
-        />
-        {visual.label}
-        {run.status === "failed" && run.reason ? (
-          <span className={styles.reason}>{run.reason}</span>
-        ) : null}
+        <StatusCell run={run} />
       </td>
       <td>
         <RunPrCell run={run} />

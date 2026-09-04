@@ -49,37 +49,52 @@ export default async function RepoOverview({
   );
 }
 
+type OverviewPanels = Awaited<ReturnType<typeof fetchOverviewPanels>>;
+
+function buildEnrollmentChecks(
+  panels: OverviewPanels,
+  chunkSummary: { count: number; convention_files: string[] },
+  webhook: Awaited<ReturnType<typeof withWebhookSecret>>,
+) {
+  return computeEnrollmentChecks({
+    ...enrollmentFromRepo(panels.repoInfo),
+    chunkCount: chunkSummary.count,
+    hasConventions: chunkSummary.convention_files.length > 0,
+    githubFiles: panels.githubFiles,
+    webhook,
+    localMcp: {
+      developerCount: panels.localMcpRow?.devs ?? 0,
+      lastActivity: isoTimestamp(panels.localMcpRow?.last),
+    },
+  });
+}
+
+// Dark Factory dashboard counts (T052) — a figure that failed to load reads as zero, not as a gap.
+function weeklyCounts(activityCounts: OverviewPanels["activityCounts"]) {
+  return {
+    darkTasksWeek: activityCounts.tasks ?? 0,
+    autoMergedWeek: activityCounts.auto_merged ?? 0,
+    escalationsWeek: activityCounts.escalations ?? 0,
+  };
+}
+
 /** Everything the overview renders, fetched fail-soft. A failed call costs its own panel, never the page. */
 async function loadRepoOverview(fullName: string) {
   const panels = await fetchOverviewPanels(fullName);
-  const { repoInfo, activityCounts } = panels;
   const [chunkSummary, webhook] = await Promise.all([
     getRepoChunkSummary(fullName).then((r) =>
       r.status === "ok" ? r.data : { count: 0, convention_files: [] },
     ),
     withWebhookSecret(fullName, panels.webhook),
   ]);
-  const settings = overviewSettings(repoInfo?.settings);
+  const settings = overviewSettings(panels.repoInfo?.settings);
 
   return {
     readme: panels.readme,
-    enrollmentChecks: computeEnrollmentChecks({
-      ...enrollmentFromRepo(repoInfo),
-      chunkCount: chunkSummary.count,
-      hasConventions: chunkSummary.convention_files.length > 0,
-      githubFiles: panels.githubFiles,
-      webhook,
-      localMcp: {
-        developerCount: panels.localMcpRow?.devs ?? 0,
-        lastActivity: isoTimestamp(panels.localMcpRow?.last),
-      },
-    }),
+    enrollmentChecks: buildEnrollmentChecks(panels, chunkSummary, webhook),
     darkFactoryEnabled: settings.darkFactoryEnabled,
     trustLevel: settings.trustLevel,
-    // Dark Factory dashboard counts (T052) — a figure that failed to load reads as zero, not as a gap.
-    darkTasksWeek: activityCounts.tasks ?? 0,
-    autoMergedWeek: activityCounts.auto_merged ?? 0,
-    escalationsWeek: activityCounts.escalations ?? 0,
+    ...weeklyCounts(panels.activityCounts),
     recentTasks: panels.recentTasks as unknown as RecentTask[],
     latestEvents: panels.latestEvents,
   };

@@ -17,46 +17,56 @@ export interface DecompStoryGroup {
   tasks: DecompTask[];
 }
 
+function taskFromRow(r: DecompTaskRow): DecompTask {
+  return {
+    specTaskId: r.context_bundle?.spec_task_id ?? "",
+    description: r.description,
+    status: r.status,
+    phase: r.context_bundle?.phase ?? 0,
+  };
+}
+
+function groupByStory(rows: DecompTaskRow[]): Map<number | null, DecompTask[]> {
+  const byStory = new Map<number | null, DecompTask[]>();
+
+  for (const r of rows) {
+    const key = r.context_bundle?.story_issue ?? null;
+    const list = byStory.get(key);
+
+    if (list) {
+      list.push(taskFromRow(r));
+      continue;
+    }
+    byStory.set(key, [taskFromRow(r)]);
+  }
+
+  return byStory;
+}
+
+/** null (no story issue) sorts last. */
+function compareStoryIssues(a: number | null, b: number | null): number {
+  if (a === null) {
+    return 1;
+  }
+
+  if (b === null) {
+    return -1;
+  }
+
+  return a - b;
+}
+
 /** Group spec-task rows by story Issue (issue order, null last). */
 export function groupDecomposition(rows: DecompTaskRow[]): {
   stories: DecompStoryGroup[];
   total: number;
 } {
-  const byStory = new Map<number | null, DecompTask[]>();
-
-  for (const r of rows) {
-    const key = r.context_bundle?.story_issue ?? null;
-    const task: DecompTask = {
-      specTaskId: r.context_bundle?.spec_task_id ?? "",
-      description: r.description,
-      status: r.status,
-      phase: r.context_bundle?.phase ?? 0,
-    };
-    const list = byStory.get(key);
-
-    if (list) {
-      list.push(task);
-      continue;
-    }
-    byStory.set(key, [task]);
-  }
-
-  const stories = [...byStory.entries()]
+  const stories = [...groupByStory(rows).entries()]
     .map(([storyIssue, tasks]) => ({
       storyIssue,
       tasks: tasks.sort((a, b) => a.specTaskId.localeCompare(b.specTaskId)),
     }))
-    .sort((a, b) => {
-      if (a.storyIssue === null) {
-        return 1;
-      }
-
-      if (b.storyIssue === null) {
-        return -1;
-      }
-
-      return a.storyIssue - b.storyIssue;
-    });
+    .sort((a, b) => compareStoryIssues(a.storyIssue, b.storyIssue));
 
   return { stories, total: rows.length };
 }

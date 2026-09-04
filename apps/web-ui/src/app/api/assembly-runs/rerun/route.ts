@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
+import { resolveSessionAccessToken } from "@/lib/session-access-token";
+import { resolveLoreApiConfig } from "@/lib/lore-api-config";
 import { serverError } from "@/lib/api-error";
 
 // "Retry from this node" backend (specs/fork-rerun-from-node): resolves the source run's repo/blueprint server-side (client is trusted with ids, never authz facts), authorizes, then forks via POST /api/assembly-runs resume_from.
@@ -13,16 +13,39 @@ interface RerunRequest {
   iteration: number | undefined;
 }
 
+function formField(form: FormData, name: string): string {
+  return String(form.get(name) ?? "");
+}
+
+// Empty field → undefined not 0: Number("") is 0 but should fail the positive-integer check below.
+function parseIteration(field: string): number | undefined {
+  const trimmed = field.trim();
+
+  return trimmed === "" ? undefined : Number(trimmed);
+}
+
+function iterationError(iteration: number | undefined): NextResponse | null {
+  if (
+    iteration === undefined ||
+    (Number.isInteger(iteration) && iteration >= 1)
+  ) {
+    return null;
+  }
+
+  return NextResponse.json(
+    { error: "iteration must be a positive integer" },
+    { status: 400 },
+  );
+}
+
 /** The form's fields, or the 400 explaining what is wrong with them. */
 async function readRerunForm(
   req: Request,
 ): Promise<RerunRequest | NextResponse> {
   const form = await req.formData();
-  const runId = String(form.get("run_id") ?? "");
-  const nodeId = String(form.get("node_id") ?? "");
-  // Empty field → undefined not 0: Number("") is 0 but should fail positive-integer check.
-  const iterationField = String(form.get("iteration") ?? "").trim();
-  const iteration = iterationField === "" ? undefined : Number(iterationField);
+  const runId = formField(form, "run_id");
+  const nodeId = formField(form, "node_id");
+  const iteration = parseIteration(formField(form, "iteration"));
 
   if (!runId || !nodeId) {
     return NextResponse.json(
@@ -31,14 +54,10 @@ async function readRerunForm(
     );
   }
 
-  if (
-    iteration !== undefined &&
-    (!Number.isInteger(iteration) || iteration < 1)
-  ) {
-    return NextResponse.json(
-      { error: "iteration must be a positive integer" },
-      { status: 400 },
-    );
+  const badIteration = iterationError(iteration);
+
+  if (badIteration) {
+    return badIteration;
   }
 
   return { runId, nodeId, iteration };
@@ -64,6 +83,29 @@ async function readSourceRun(
   const { line } = (await runRes.json()) as {
     line: { repo: string; blueprintName: string };
   };
+
+  return line;
+}
+
+/** Resolves the source run, then authorizes against ITS repo (not form input). */
+async function readAuthorizedSourceRun(
+  apiUrl: string,
+  headers: Record<string, string>,
+  accessToken: string,
+  runId: string,
+): Promise<{ repo: string; blueprintName: string } | NextResponse> {
+  const line = await readSourceRun(apiUrl, headers, runId);
+
+  if (line instanceof Response) {
+    return line;
+  }
+
+  if (!(await userCanAccessRepo(accessToken, line.repo))) {
+    return NextResponse.json(
+      { error: "Access denied — you do not have access to this repo" },
+      { status: 403 },
+    );
+  }
 
   return line;
 }
@@ -108,11 +150,9 @@ async function startFork(
 
 export async function POST(req: Request) {
   try {
-    const session = (await getServerSession(authOptions)) as {
-      accessToken?: string;
-    } | null;
+    const accessToken = await resolveSessionAccessToken();
 
-    if (!session?.accessToken) {
+    if (!accessToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const rerun = await readRerunForm(req);
@@ -120,28 +160,25 @@ export async function POST(req: Request) {
     if (rerun instanceof Response) {
       return rerun;
     }
-    const apiUrl = process.env.LORE_API_URL;
-    const token = process.env.LORE_INGEST_TOKEN;
+    const apiConfig = resolveLoreApiConfig();
 
-    if (!apiUrl || !token) {
+    if (!apiConfig) {
       return NextResponse.json(
         { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
         { status: 500 },
       );
     }
+    const { apiUrl, token } = apiConfig;
     const headers = { Authorization: `Bearer ${token}` };
-    const line = await readSourceRun(apiUrl, headers, rerun.runId);
+    const line = await readAuthorizedSourceRun(
+      apiUrl,
+      headers,
+      accessToken,
+      rerun.runId,
+    );
 
     if (line instanceof Response) {
       return line;
-    }
-
-    // Fork runs against SOURCE run's repo, not form input (access check is on source repo).
-    if (!(await userCanAccessRepo(session.accessToken, line.repo))) {
-      return NextResponse.json(
-        { error: "Access denied — you do not have access to this repo" },
-        { status: 403 },
-      );
     }
 
     return startFork(apiUrl, headers, line, rerun);

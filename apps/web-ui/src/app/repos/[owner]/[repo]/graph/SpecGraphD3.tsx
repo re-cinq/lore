@@ -116,8 +116,70 @@ interface ExpandData {
   statements: StatementArc[];
 }
 
+function groupStatementsBySection(
+  statements: RingStatement[],
+): Map<string, RingStatement[]> {
+  const bySec = new Map<string, RingStatement[]>();
+
+  for (const st of statements) {
+    const list = bySec.get(st.sectionUid);
+
+    if (list) {
+      list.push(st);
+      continue;
+    }
+
+    bySec.set(st.sectionUid, [st]);
+  }
+
+  return bySec;
+}
+
+interface StatementArcLayout {
+  span: Map<string, { a0: number; a1: number }>;
+  bySec: Map<string, RingStatement[]>;
+  arc: d3.Arc<unknown, d3.DefaultArcObject>;
+  outerR0: number;
+  outerR1: number;
+}
+
+/** One section's statement arcs, spread evenly across the angle span its section arc already claimed. */
+function statementArcsForSection(
+  sec: RingSection,
+  layout: StatementArcLayout,
+): StatementArc[] {
+  const { span, bySec, arc, outerR0, outerR1 } = layout;
+  const sp = span.get(sec.uid);
+  const sts = bySec.get(sec.uid) ?? [];
+
+  if (!sp || sts.length === 0) {
+    return [];
+  }
+
+  const w = (sp.a1 - sp.a0) / sts.length;
+
+  return sts.map((st, i) => {
+    const a0 = sp.a0 + i * w;
+    const a1 = a0 + w;
+
+    return {
+      uid: st.uid,
+      tested: st.tested,
+      text: st.text,
+      mid: (a0 + a1) / 2,
+      d:
+        arc({
+          innerRadius: outerR0,
+          outerRadius: outerR1,
+          startAngle: a0 + 0.004,
+          endAngle: a1 - 0.004,
+        }) ?? "",
+    };
+  });
+}
+
 /** Lays out a spec's two rings: section arcs (inner) + per-statement arcs (outer). */
-function computeRing(specPath: string, ring: SpecRing): ExpandData {
+export function computeRing(specPath: string, ring: SpecRing): ExpandData {
   const TWO_PI = Math.PI * 2;
   const nSt = Math.max(ring.statements.length, 1);
   // Grow the radius with statement count so each outer arc stays clickable.
@@ -150,45 +212,10 @@ function computeRing(specPath: string, ring: SpecRing): ExpandData {
     };
   });
 
-  const bySec = new Map<string, RingStatement[]>();
-
-  for (const st of ring.statements) {
-    (
-      bySec.get(st.sectionUid) ??
-      bySec.set(st.sectionUid, []).get(st.sectionUid)!
-    ).push(st);
-  }
-
-  const statements: StatementArc[] = [];
-
-  for (const sec of ring.sections) {
-    const sp = span.get(sec.uid);
-    const sts = bySec.get(sec.uid) ?? [];
-
-    if (!sp || sts.length === 0) {
-      continue;
-    }
-    const w = (sp.a1 - sp.a0) / sts.length;
-
-    sts.forEach((st, i) => {
-      const a0 = sp.a0 + i * w;
-      const a1 = a0 + w;
-
-      statements.push({
-        uid: st.uid,
-        tested: st.tested,
-        text: st.text,
-        mid: (a0 + a1) / 2,
-        d:
-          arc({
-            innerRadius: outerR0,
-            outerRadius: outerR1,
-            startAngle: a0 + 0.004,
-            endAngle: a1 - 0.004,
-          }) ?? "",
-      });
-    });
-  }
+  const bySec = groupStatementsBySection(ring.statements);
+  const statements: StatementArc[] = ring.sections.flatMap((sec) =>
+    statementArcsForSection(sec, { span, bySec, arc, outerR0, outerR1 }),
+  );
 
   return {
     specPath,
@@ -246,39 +273,69 @@ const LABELED_TYPES = new Set<SpecGraphNode["type"]>([
 const LEVEL_OPACITY = [1, 0.85, 0.5, 0.28];
 const FADED = 0.07;
 
+/** Edge opacity from the two endpoints' focus levels: faded when either side has none. */
+function levelPairOpacity(
+  sourceLevel: number | undefined,
+  targetLevel: number | undefined,
+): number {
+  if (sourceLevel === undefined || targetLevel === undefined) {
+    return FADED;
+  }
+
+  return 0.6 * (LEVEL_OPACITY[Math.max(sourceLevel, targetLevel)] ?? FADED);
+}
+
+/** Only test/code chunks get spoked onto a ring; ADRs are anchors (spacing force, never spoked). */
+function isSpokeableLeafType(leaf: SimNode): boolean {
+  return leaf.type === "TestChunk" || leaf.type === "CodeChunk";
+}
+
+/** Only hard-place leaves with a single owner (clean radial spokes); shared chunks float. */
+function hasSingleOwner(nb: string, adj: Map<string, Set<string>>): boolean {
+  return (adj.get(nb)?.size ?? 0) === 1;
+}
+
 const idOf = (node: string | number | SimNode): string =>
   typeof node === "object" ? node.id : String(node);
 
-function nodeLinks(
-  node: SpecGraphNode,
-  repo: string,
-): Array<{ label: string; href: string; external: boolean }> {
-  const out: Array<{ label: string; href: string; external: boolean }> = [];
+type NodeLink = { label: string; href: string; external: boolean };
 
-  const isSpecFamily =
-    node.type === "Spec" ||
-    node.type === "Statement" ||
-    node.type === "Section";
+const SPEC_FAMILY_TYPES = new Set<SpecGraphNode["type"]>([
+  "Spec",
+  "Statement",
+  "Section",
+]);
 
-  if (isSpecFamily && node.path) {
-    out.push({
-      label: "Open in Lore",
-      href: `/specs/${encodeURIComponent(node.path)}`,
-      external: false,
-    });
+function loreLink(node: SpecGraphNode): NodeLink | null {
+  if (!SPEC_FAMILY_TYPES.has(node.type) || !node.path) {
+    return null;
   }
 
-  if (node.path) {
-    const line = node.line ? `#L${node.line}` : "";
+  return {
+    label: "Open in Lore",
+    href: `/specs/${encodeURIComponent(node.path)}`,
+    external: false,
+  };
+}
 
-    out.push({
-      label: "View on GitHub",
-      href: `https://github.com/${repo}/blob/HEAD/${node.path}${line}`,
-      external: true,
-    });
+function githubLink(node: SpecGraphNode, repo: string): NodeLink | null {
+  if (!node.path) {
+    return null;
   }
 
-  return out;
+  const line = node.line ? `#L${node.line}` : "";
+
+  return {
+    label: "View on GitHub",
+    href: `https://github.com/${repo}/blob/HEAD/${node.path}${line}`,
+    external: true,
+  };
+}
+
+export function nodeLinks(node: SpecGraphNode, repo: string): NodeLink[] {
+  return [loreLink(node), githubLink(node, repo)].filter(
+    (link): link is NodeLink => link !== null,
+  );
 }
 
 // Memoized: re-parse markdown only on text change, not on every cursor move.
@@ -913,14 +970,11 @@ export default function SpecGraphD3({
       if (!focusLevels) {
         return 0.5;
       }
-      const ls = focusLevels.get(sourceId);
-      const lt = focusLevels.get(targetId);
 
-      if (ls === undefined || lt === undefined) {
-        return FADED;
-      }
-
-      return 0.6 * (LEVEL_OPACITY[Math.max(ls, lt)] ?? FADED);
+      return levelPairOpacity(
+        focusLevels.get(sourceId),
+        focusLevels.get(targetId),
+      );
     };
 
     // Leaf nodes on canvas (click-eligible), excludes single-owner leaves in badges.
@@ -1258,20 +1312,18 @@ export default function SpecGraphD3({
         });
     }
 
-    async function toggleExpand(d: SimNode) {
-      if (d.type !== "Spec" || !d.path) {
-        return;
-      }
+    function collapseSpecNode(d: SimNode) {
+      expanded.delete(d.id);
+      d.fx = null;
+      d.fy = null;
+      applyRingState();
+      renderRings();
+      sim.alpha(0.4).restart();
+      saveState();
+    }
 
-      if (expanded.has(d.id)) {
-        expanded.delete(d.id);
-        d.fx = null;
-        d.fy = null;
-        applyRingState();
-        renderRings();
-        sim.alpha(0.4).restart();
-        saveState();
-
+    async function expandSpecNode(d: SimNode) {
+      if (!d.path) {
         return;
       }
       // Pin spec to prevent ring drift on sim restart, so double-click collapse still hits.
@@ -1295,6 +1347,20 @@ export default function SpecGraphD3({
       renderRings();
       sim.alpha(0.5).restart();
       saveState();
+    }
+
+    async function toggleExpand(d: SimNode) {
+      if (d.type !== "Spec" || !d.path) {
+        return;
+      }
+
+      if (expanded.has(d.id)) {
+        collapseSpecNode(d);
+
+        return;
+      }
+
+      await expandSpecNode(d);
     }
 
     // Layout-quality probe: count edge crossings at settled positions (O(E²), skip dense graphs).
@@ -1402,26 +1468,32 @@ export default function SpecGraphD3({
       applyRingState();
       filterRef.current = applyFilter;
 
-      // Pre-warm fresh layouts headless, start at alpha 0 for settled positions on first paint.
-      if (!restoredFromStorage) {
-        const warm = settleTicks(nodes.length);
-
-        for (let i = 0; i < warm; i += 1) {
-          sim.tick();
-        }
-      }
+      prewarmIfFresh();
       sim.alpha(0).restart();
 
-      const selectedId = selectedIdRef.current;
+      highlightOrDraw(selectedIdRef.current);
+      measureCrossings();
+    }
 
+    function highlightOrDraw(selectedId: string | null) {
       if (selectedId && adj.has(selectedId)) {
         highlight(selectedId);
-      }
 
-      if (!(selectedId && adj.has(selectedId))) {
-        draw();
+        return;
       }
-      measureCrossings();
+      draw();
+    }
+
+    // Pre-warm fresh layouts headless, start at alpha 0 for settled positions on first paint.
+    function prewarmIfFresh() {
+      if (restoredFromStorage) {
+        return;
+      }
+      const warm = settleTicks(nodes.length);
+
+      for (let i = 0; i < warm; i += 1) {
+        sim.tick();
+      }
     }
 
     // One frame: ring-spoke placement, SVG transforms, canvas draw (driven by sim tick or manual drag).
@@ -1446,15 +1518,12 @@ export default function SpecGraphD3({
             const leaf = nodeById.get(nb);
 
             // Only test/code chunks get spoked onto ring; ADRs are anchors (spacing force, never spoked).
-            if (
-              !leaf ||
-              (leaf.type !== "TestChunk" && leaf.type !== "CodeChunk")
-            ) {
+            if (!leaf || !isSpokeableLeafType(leaf)) {
               return;
             }
 
             // Only hard-place leaves with single owner (clean radial spokes); shared chunks float.
-            if ((adj.get(nb)?.size ?? 0) !== 1) {
+            if (!hasSingleOwner(nb, adj)) {
               return;
             }
             const r = exp.outerR1 + 32 + k * 34;
@@ -1578,11 +1647,7 @@ export default function SpecGraphD3({
           click to focus · double-click a spec to expand · scroll to zoom · drag
           to pan
         </span>
-        {crossings !== null && (
-          <span title="straight-segment edge crossings at the settled layout (lower is clearer)">
-            · {crossings < 0 ? "crossings: n/a" : `${crossings} crossings`}
-          </span>
-        )}
+        {crossings !== null && <CrossingsLabel crossings={crossings} />}
       </div>
       <div
         style={{
@@ -1619,155 +1684,209 @@ export default function SpecGraphD3({
             background: "transparent",
           }}
         />
-        {hover && (
-          <div
-            style={{
-              position: "absolute",
-              left: Math.min(hover.x + 14, 9999),
-              top: hover.y + 14,
-              maxWidth: 320,
-              pointerEvents: "none",
-              padding: "6px 9px",
-              borderRadius: 6,
-              border: "1px solid var(--border)",
-              background: "var(--bg-surface)",
-              color: "var(--text)",
-              boxShadow: "var(--shadow-lg)",
-              fontSize: "var(--fs-xs)",
-              lineHeight: 1.4,
-              maxHeight: 240,
-              overflow: "hidden",
-              zIndex: 10,
-            }}
-          >
-            <HoverMarkdown text={hover.text} />
-          </div>
-        )}
+        {hover && <HoverTooltip hover={hover} />}
         {selected && (
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, 28px)",
-              maxWidth: 420,
-              maxHeight: 320,
-              overflow: "auto",
-              padding: 12,
-              borderRadius: 8,
-              border: "1px solid var(--border)",
-              background: "var(--bg-surface)",
-              color: "var(--text)",
-              boxShadow: "var(--shadow-lg)",
-              fontSize: "var(--fs-sm)",
+          <SelectedNodeCard
+            selected={selected}
+            repo={repo}
+            onClose={() => {
+              selectedIdRef.current = null;
+              setSelected(null);
             }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                marginBottom: 6,
-              }}
-            >
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  background: colorOf(selected.type),
-                  display: "inline-block",
-                }}
-              />
-              <strong>{selected.type}</strong>
-              {selected.type === "Spec" && (
-                <span
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "var(--fs-xs)",
-                  }}
-                >
-                  · double-click to expand
-                </span>
-              )}
-              <button
-                onClick={() => {
-                  selectedIdRef.current = null;
-                  setSelected(null);
-                }}
-                style={{
-                  marginLeft: "auto",
-                  border: "none",
-                  background: "transparent",
-                  color: "var(--text-muted)",
-                  cursor: "pointer",
-                  fontSize: "var(--fs-base)",
-                  lineHeight: 1,
-                }}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-            {selected.label && (
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                {selected.label}
-              </div>
-            )}
-            {selected.detail && (
-              <div
-                className="md-popover"
-                style={{ marginBottom: 8, lineHeight: 1.5 }}
-              >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeHighlight]}
-                >
-                  {selected.detail}
-                </ReactMarkdown>
-              </div>
-            )}
-            {selected.path && (
-              <div
-                style={{
-                  color: "var(--text-muted)",
-                  fontFamily: "monospace",
-                  fontSize: "var(--fs-xs)",
-                  marginBottom: 8,
-                  wordBreak: "break-all",
-                }}
-              >
-                {selected.path}
-                {selected.line ? `:${selected.line}` : ""}
-              </div>
-            )}
-            {selected.type === "TestChunk" &&
-              selected.path &&
-              selected.line && (
-                <div style={{ marginBottom: 8 }}>
-                  <TestPreview
-                    repo={repo}
-                    path={selected.path}
-                    start={selected.line}
-                    end={selected.endLine}
-                  />
-                </div>
-              )}
-            <div style={{ display: "flex", gap: 12 }}>
-              {nodeLinks(selected, repo).map((l) => (
-                <a
-                  key={l.href}
-                  href={l.href}
-                  target={l.external ? "_blank" : undefined}
-                  rel={l.external ? "noreferrer" : undefined}
-                  style={{ color: "var(--accent)" }}
-                >
-                  {l.label} →
-                </a>
-              ))}
-            </div>
-          </div>
+          />
         )}
+      </div>
+    </div>
+  );
+}
+
+function CrossingsLabel({ crossings }: { crossings: number }) {
+  return (
+    <span title="straight-segment edge crossings at the settled layout (lower is clearer)">
+      · {crossings < 0 ? "crossings: n/a" : `${crossings} crossings`}
+    </span>
+  );
+}
+
+function HoverTooltip({
+  hover,
+}: {
+  hover: { text: string; x: number; y: number };
+}) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: Math.min(hover.x + 14, 9999),
+        top: hover.y + 14,
+        maxWidth: 320,
+        pointerEvents: "none",
+        padding: "6px 9px",
+        borderRadius: 6,
+        border: "1px solid var(--border)",
+        background: "var(--bg-surface)",
+        color: "var(--text)",
+        boxShadow: "var(--shadow-lg)",
+        fontSize: "var(--fs-xs)",
+        lineHeight: 1.4,
+        maxHeight: 240,
+        overflow: "hidden",
+        zIndex: 10,
+      }}
+    >
+      <HoverMarkdown text={hover.text} />
+    </div>
+  );
+}
+
+function SelectedNodeHeader({
+  selected,
+  onClose,
+}: {
+  selected: SpecGraphNode;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}
+    >
+      <span
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: "50%",
+          background: colorOf(selected.type),
+          display: "inline-block",
+        }}
+      />
+      <strong>{selected.type}</strong>
+      {selected.type === "Spec" && (
+        <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
+          · double-click to expand
+        </span>
+      )}
+      <button
+        onClick={onClose}
+        style={{
+          marginLeft: "auto",
+          border: "none",
+          background: "transparent",
+          color: "var(--text-muted)",
+          cursor: "pointer",
+          fontSize: "var(--fs-base)",
+          lineHeight: 1,
+        }}
+        aria-label="Close"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+function SelectedNodePathLine({ selected }: { selected: SpecGraphNode }) {
+  if (!selected.path) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        color: "var(--text-muted)",
+        fontFamily: "monospace",
+        fontSize: "var(--fs-xs)",
+        marginBottom: 8,
+        wordBreak: "break-all",
+      }}
+    >
+      {selected.path}
+      {selected.line ? `:${selected.line}` : ""}
+    </div>
+  );
+}
+
+function SelectedNodeTestPreview({
+  selected,
+  repo,
+}: {
+  selected: SpecGraphNode;
+  repo: string;
+}) {
+  if (selected.type !== "TestChunk" || !selected.path || !selected.line) {
+    return null;
+  }
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <TestPreview
+        repo={repo}
+        path={selected.path}
+        start={selected.line}
+        end={selected.endLine}
+      />
+    </div>
+  );
+}
+
+function SelectedNodeCard({
+  selected,
+  repo,
+  onClose,
+}: {
+  selected: SpecGraphNode;
+  repo: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, 28px)",
+        maxWidth: 420,
+        maxHeight: 320,
+        overflow: "auto",
+        padding: 12,
+        borderRadius: 8,
+        border: "1px solid var(--border)",
+        background: "var(--bg-surface)",
+        color: "var(--text)",
+        boxShadow: "var(--shadow-lg)",
+        fontSize: "var(--fs-sm)",
+      }}
+    >
+      <SelectedNodeHeader selected={selected} onClose={onClose} />
+      {selected.label && (
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{selected.label}</div>
+      )}
+      {selected.detail && (
+        <div
+          className="md-popover"
+          style={{ marginBottom: 8, lineHeight: 1.5 }}
+        >
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeHighlight]}
+          >
+            {selected.detail}
+          </ReactMarkdown>
+        </div>
+      )}
+      <SelectedNodePathLine selected={selected} />
+      <SelectedNodeTestPreview selected={selected} repo={repo} />
+      <div style={{ display: "flex", gap: 12 }}>
+        {nodeLinks(selected, repo).map((l) => (
+          <a
+            key={l.href}
+            href={l.href}
+            target={l.external ? "_blank" : undefined}
+            rel={l.external ? "noreferrer" : undefined}
+            style={{ color: "var(--accent)" }}
+          >
+            {l.label} →
+          </a>
+        ))}
       </div>
     </div>
   );

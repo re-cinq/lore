@@ -99,10 +99,10 @@ The handler never touches `_pool` — deferred Dgraph projection seam.
 ## Acceptance Criteria
 
 A report with two tests (one spec-anchored) and two passing results yields the
-correct chunk/validated/coverage/edge counts with `violated = 0`. ([validated by `connects Statement to File via validated_by to TestChunk to coverage to covers for a per-it descriptor`](libs/shared/src/spec-trace/ingest-test-report.test.ts#L504))
+correct chunk/validated/coverage/edge counts with `violated = 0`. ([validated by `connects Statement to File via validated_by to TestChunk to coverage to covers for a per-it descriptor`](libs/shared/src/spec-trace/ingest-test-report.test.ts#L463))
 
 Only a failing spec-anchored test increments `violated`; a failing
-non-anchored test does not. ([validated by `marks the spec Statement violated with a reason naming failing test renders when its result passed is false`](libs/shared/src/spec-trace/ingest-test-report.test.ts#L358))
+non-anchored test does not. ([validated by `marks the spec Statement violated with a reason naming failing test renders when its result passed is false`](libs/shared/src/spec-trace/ingest-test-report.test.ts#L317))
 
 The spec-trace trigger fires with the raw report body when the agent env is
 configured. ([validated by `maps a test-report body to one internal.ingest.spec_trace event with kind test-report`](apps/floor/src/listeners/ci-tests-map.test.ts#L5))

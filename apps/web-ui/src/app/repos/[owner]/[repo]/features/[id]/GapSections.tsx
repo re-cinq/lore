@@ -8,6 +8,7 @@ import { sectionsOf } from "@/lib/gap-sections";
 import type {
   GapResult,
   GapQuestion,
+  GapSection,
   SectionAnswers,
   SectionDirection,
 } from "@/lib/feature-types";
@@ -139,6 +140,93 @@ function SectionCard({
   );
 }
 
+function NoSectionsFallback({ draft }: { draft: string }) {
+  if (draft) {
+    return (
+      <SectionCard title="Draft specification" highlight>
+        <Alert>
+          This round returned a single draft rather than reviewable sections.
+        </Alert>
+        <Markdown markdown={draft} />
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard title="No analysis to review">
+      <Alert>
+        This round produced no reviewable analysis. Add direction below and
+        refine again.
+      </Alert>
+    </SectionCard>
+  );
+}
+
+function SectionBody({
+  section,
+  index,
+  gap,
+  feedback,
+  onChange,
+}: {
+  section: GapSection;
+  index: number;
+  gap: GapResult;
+  feedback: FeedbackState;
+  onChange: (next: FeedbackState) => void;
+}) {
+  return (
+    <SectionCard title={section.title} highlight={index === 0}>
+      {section.content && <Markdown markdown={section.content} />}
+      {section.mockups && section.mockups.length > 0 && (
+        <MockupSection
+          mockups={section.mockups}
+          stylesheet={gap.mockup_stylesheet}
+        />
+      )}
+      {section.questions?.map((q) => (
+        <QuestionInput
+          key={q.id}
+          q={q}
+          feedback={feedback}
+          onChange={onChange}
+        />
+      ))}
+      <SectionFeedback
+        sectionKey={section.title}
+        feedback={feedback}
+        onChange={onChange}
+      />
+    </SectionCard>
+  );
+}
+
+function SplitSuggestion({
+  rationale,
+  proposedFeatures,
+  onCreateDraft,
+}: {
+  rationale: string;
+  proposedFeatures: { title: string; scope: string }[];
+  onCreateDraft: (title: string, prompt: string) => void;
+}) {
+  return (
+    <SectionCard title="This feature looks large — consider splitting">
+      <p>{rationale}</p>
+      {proposedFeatures.map((p, i) => (
+        <div key={i} className={styles.splitRow}>
+          <span>
+            <strong>{p.title}</strong> — <span className="meta">{p.scope}</span>
+          </span>
+          <button type="button" onClick={() => onCreateDraft(p.title, p.scope)}>
+            Create draft
+          </button>
+        </div>
+      ))}
+    </SectionCard>
+  );
+}
+
 export default function GapSections({
   gap,
   feedback,
@@ -156,69 +244,24 @@ export default function GapSections({
 
   return (
     <div>
-      {sections.length === 0 && draft && (
-        <SectionCard title="Draft specification" highlight>
-          <Alert>
-            This round returned a single draft rather than reviewable sections.
-          </Alert>
-          <Markdown markdown={draft} />
-        </SectionCard>
-      )}
-      {sections.length === 0 && !draft && (
-        <SectionCard title="No analysis to review">
-          <Alert>
-            This round produced no reviewable analysis. Add direction below and
-            refine again.
-          </Alert>
-        </SectionCard>
-      )}
+      {sections.length === 0 && <NoSectionsFallback draft={draft} />}
       {sections.map((section, i) => (
-        <SectionCard
+        <SectionBody
           key={`${section.title}-${i}`}
-          title={section.title}
-          highlight={i === 0}
-        >
-          {section.content && <Markdown markdown={section.content} />}
-          {section.mockups && section.mockups.length > 0 && (
-            <MockupSection
-              mockups={section.mockups}
-              stylesheet={gap.mockup_stylesheet}
-            />
-          )}
-          {section.questions?.map((q) => (
-            <QuestionInput
-              key={q.id}
-              q={q}
-              feedback={feedback}
-              onChange={onChange}
-            />
-          ))}
-          <SectionFeedback
-            sectionKey={section.title}
-            feedback={feedback}
-            onChange={onChange}
-          />
-        </SectionCard>
+          section={section}
+          index={i}
+          gap={gap}
+          feedback={feedback}
+          onChange={onChange}
+        />
       ))}
 
       {gap.split_suggestion && (
-        <SectionCard title="This feature looks large — consider splitting">
-          <p>{gap.split_suggestion.rationale}</p>
-          {(gap.split_suggestion.proposed_features ?? []).map((p, i) => (
-            <div key={i} className={styles.splitRow}>
-              <span>
-                <strong>{p.title}</strong> —{" "}
-                <span className="meta">{p.scope}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => onCreateDraft(p.title, p.scope)}
-              >
-                Create draft
-              </button>
-            </div>
-          ))}
-        </SectionCard>
+        <SplitSuggestion
+          rationale={gap.split_suggestion.rationale}
+          proposedFeatures={gap.split_suggestion.proposed_features ?? []}
+          onCreateDraft={onCreateDraft}
+        />
       )}
 
       <SectionCard title="Anything else?">

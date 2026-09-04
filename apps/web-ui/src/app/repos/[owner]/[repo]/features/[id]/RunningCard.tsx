@@ -65,6 +65,44 @@ function TokenCount({ tokens }: { tokens: RunTokens | null | undefined }) {
   );
 }
 
+function statusText(spec: boolean, iteration: number): string {
+  return spec
+    ? "Writing the spec — deciding which specs change, then writing them…"
+    : `Analyzing your feature against the project… (round ${iteration})`;
+}
+
+function refreshHint(spec: boolean): string {
+  return spec
+    ? "The spec PR opens when this finishes. This refreshes automatically."
+    : "The planning agent is running. This refreshes automatically.";
+}
+
+function effectiveBudget(
+  run: FeatureRunPayload | null | undefined,
+  nodeId: string | undefined,
+  timeoutMinutes: number,
+): number {
+  return nodeBudgetMinutes(run?.definition, nodeId) ?? timeoutMinutes;
+}
+
+function RunGraph({ run }: { run: FeatureRunPayload | null | undefined }) {
+  if (!run) {
+    return null;
+  }
+
+  return (
+    <RunVisualizationPanel
+      runId={run.id}
+      runStatus={run.status}
+      startedAt={run.startedAt}
+      definition={run.definition}
+      nodes={run.nodes}
+      repo={run.repo}
+      reason={run.reason}
+    />
+  );
+}
+
 export default function RunningCard({
   iteration,
   since,
@@ -87,14 +125,12 @@ export default function RunningCard({
 }) {
   const spec = phase === "spec";
   // Node's deadline when line names one; round's budget only for features with no line.
-  const budget = nodeBudgetMinutes(run?.definition, nodeId) ?? timeoutMinutes;
+  const budget = effectiveBudget(run, nodeId, timeoutMinutes);
 
   return (
     <div className="spec-card">
       <p className={styles.status}>
-        {spec
-          ? "Writing the spec — deciding which specs change, then writing them…"
-          : `Analyzing your feature against the project… (round ${iteration})`}
+        {statusText(spec, iteration)}
         <span className="planning-dots" aria-hidden="true">
           <span />
           <span />
@@ -103,22 +139,8 @@ export default function RunningCard({
         <ElapsedTimer since={since} timeoutMinutes={budget} />
         <TokenCount tokens={run?.tokens} />
       </p>
-      <Alert>
-        {spec
-          ? "The spec PR opens when this finishes. This refreshes automatically."
-          : "The planning agent is running. This refreshes automatically."}
-      </Alert>
-      {run && (
-        <RunVisualizationPanel
-          runId={run.id}
-          runStatus={run.status}
-          startedAt={run.startedAt}
-          definition={run.definition}
-          nodes={run.nodes}
-          repo={run.repo}
-          reason={run.reason}
-        />
-      )}
+      <Alert>{refreshHint(spec)}</Alert>
+      <RunGraph run={run} />
       {liveOutput && <pre className={styles.output}>{liveOutput}</pre>}
     </div>
   );

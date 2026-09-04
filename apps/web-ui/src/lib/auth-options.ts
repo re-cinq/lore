@@ -1,6 +1,31 @@
 import type { NextAuthOptions } from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 
+function loginOf(profile: unknown): string {
+  return (profile as { login?: string })?.login ?? "unknown";
+}
+
+/** null means the request itself failed (network error or non-ok status) — distinct from an empty org list. */
+async function fetchUserOrgs(
+  accessToken: string | undefined,
+): Promise<{ login?: string }[] | null> {
+  try {
+    const res = await fetch(`https://api.github.com/user/orgs`, {
+      signal: AbortSignal.timeout(10_000),
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+    const orgs = await res.json();
+
+    return Array.isArray(orgs) ? orgs : [];
+  } catch {
+    return null;
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GitHubProvider({
@@ -22,42 +47,23 @@ export const authOptions: NextAuthOptions = {
       if (!allowedOrg) {
         return true;
       }
-      const login = (profile as { login?: string })?.login ?? "unknown";
+      const login = loginOf(profile);
+      const orgs = await fetchUserOrgs(account?.access_token);
 
-      try {
-        const res = await fetch(`https://api.github.com/user/orgs`, {
-          signal: AbortSignal.timeout(10_000),
-          headers: { Authorization: `Bearer ${account?.access_token}` },
-        });
-
-        if (!res.ok) {
-          console.error(
-            `[auth] GitHub /user/orgs failed for ${login}: ${res.status} ${res.statusText}`,
-          );
-
-          return false;
-        }
-        const orgs = await res.json();
-        const isMember =
-          Array.isArray(orgs) &&
-          orgs.some((o: { login?: string }) => o.login === allowedOrg);
-
-        if (!isMember) {
-          const orgLogins = Array.isArray(orgs)
-            ? orgs.map((o: { login?: string }) => o.login)
-            : [];
-
-          console.error(
-            `[auth] ${login} not in org "${allowedOrg}". Visible orgs: [${orgLogins.join(", ")}]. User may need to grant OAuth app access to the org.`,
-          );
-        }
-
-        return isMember;
-      } catch (err) {
-        console.error(`[auth] Org check failed for ${login}:`, err);
+      if (orgs === null) {
+        console.error(`[auth] GitHub /user/orgs failed for ${login}`);
 
         return false;
       }
+      const isMember = orgs.some((o) => o.login === allowedOrg);
+
+      if (!isMember) {
+        console.error(
+          `[auth] ${login} not in org "${allowedOrg}". Visible orgs: [${orgs.map((o) => o.login).join(", ")}]. User may need to grant OAuth app access to the org.`,
+        );
+      }
+
+      return isMember;
     },
     async jwt({ token, account }) {
       if (account?.access_token) {

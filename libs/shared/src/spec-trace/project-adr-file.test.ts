@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { projectAdrFile } from "./project-adr-file.js";
 import { recomputeFile } from "./recompute-spec-file.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -39,41 +40,11 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
     });
   });
 
-  async function deleteRepoNodes(repo: string): Promise<void> {
-    const txn = dgraphClient.newTxn();
-
-    try {
-      const res = await txn.queryWithVars(
-        `query nodes($repo: string) {
-          blocks(func: eq(Block.repo, $repo)) { uid }
-          adrs(func: eq(ADR.repo, $repo)) { uid }
-          root(func: eq(Repo.xid, $repo)) { uid }
-        }`,
-        { $repo: repo },
-      );
-      const written = res.data as {
-        blocks?: { uid: string }[];
-        adrs?: { uid: string }[];
-        root?: { uid: string }[];
-      };
-      const uids = [
-        ...(written.blocks ?? []),
-        ...(written.adrs ?? []),
-        ...(written.root ?? []),
-      ].map((node) => node.uid);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
-      // eslint-disable-next-line no-empty
-    } catch {
-    } finally {
-      await txn.discard().catch(() => {});
-    }
-  }
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "blocks", type: "Block" },
+    { alias: "adrs", type: "ADR" },
+    { alias: "root", type: "Repo", field: "xid" },
+  ]);
 
   let createdRepo = "";
 

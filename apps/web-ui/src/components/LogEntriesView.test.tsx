@@ -87,6 +87,24 @@ describe("LogEntriesView", () => {
     expect(details?.textContent).toMatch(/"permissionMode"/);
   });
 
+  it("omits the version parenthetical when the session-init entry carries no version", () => {
+    render(
+      <LogEntriesView
+        entries={[
+          {
+            kind: "session-init",
+            model: "claude-sonnet-4-6",
+            detailsJson: "{}",
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText("session started — claude-sonnet-4-6"),
+    ).toBeInTheDocument();
+  });
+
   it("renders 'thinking… ~444 tokens' italic-dimmed for a thinking-tokens entry", () => {
     render(
       <LogEntriesView entries={[{ kind: "thinking-tokens", tokens: 444 }]} />,

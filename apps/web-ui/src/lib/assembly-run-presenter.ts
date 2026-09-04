@@ -40,43 +40,40 @@ export function formatDuration(seconds: number | null): string {
 export type StatusTone =
   "success" | "danger" | "warning" | "info" | "running" | "muted";
 
+type StatusVisual = { label: string; tone: StatusTone };
+
+const STATUS_VISUALS: Record<string, StatusVisual> = {
+  queued: { label: "Queued", tone: "muted" },
+  running: { label: "Running", tone: "running" },
+  failed: { label: "Failed", tone: "danger" },
+};
+
+// status === "finished" carries the real verdict in outcome — the pg adapter maps only outcome `error` to status `failed`.
+const OUTCOME_VISUALS: Record<string, StatusVisual> = {
+  pr_created: { label: "PR created", tone: "success" },
+  completed: { label: "Completed", tone: "success" },
+  failed: { label: "Failed", tone: "danger" },
+  no_changes: { label: "No changes", tone: "muted" },
+  pr_closed: { label: "PR closed", tone: "muted" },
+  lease_held: { label: "Skipped", tone: "muted" },
+  iteration_max: { label: "Iteration max", tone: "warning" },
+  pending: { label: "Pending", tone: "info" },
+};
+
 /** Maps the run vocabulary (queued/running/finished/failed × outcome) to a display label + tone; `finished` is refined by outcome. */
 export function runStatusVisual(
   status: string,
   outcome: string | null,
-): { label: string; tone: StatusTone } {
-  if (status === "queued") {
-    return { label: "Queued", tone: "muted" };
+): StatusVisual {
+  if (STATUS_VISUALS[status]) {
+    return STATUS_VISUALS[status];
   }
 
-  if (status === "running") {
-    return { label: "Running", tone: "running" };
-  }
-
-  if (status === "failed") {
-    return { label: "Failed", tone: "danger" };
-  }
-
-  // status === "finished" carries the real verdict in outcome — the pg adapter maps only outcome `error` to status `failed`.
-  switch (outcome) {
-    case "pr_created":
-      return { label: "PR created", tone: "success" };
-    case "completed":
-      return { label: "Completed", tone: "success" };
-    case "failed":
-      return { label: "Failed", tone: "danger" };
-    case "no_changes":
-      return { label: "No changes", tone: "muted" };
-    case "pr_closed":
-      return { label: "PR closed", tone: "muted" };
-    case "lease_held":
-      return { label: "Skipped", tone: "muted" };
-    case "iteration_max":
-      return { label: "Iteration max", tone: "warning" };
-    case "pending":
-      return { label: "Pending", tone: "info" };
-    default:
-      // Unknown/future outcome must never masquerade as success — stay neutral.
-      return { label: outcome ?? "Finished", tone: "muted" };
-  }
+  // Unknown/future outcome must never masquerade as success — stay neutral.
+  return (
+    (outcome ? OUTCOME_VISUALS[outcome] : undefined) ?? {
+      label: outcome ?? "Finished",
+      tone: "muted",
+    }
+  );
 }

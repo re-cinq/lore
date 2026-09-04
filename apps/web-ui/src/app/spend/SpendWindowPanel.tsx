@@ -11,6 +11,14 @@ import SpendView, { type SpendWindow } from "./SpendView";
 import type { RecordTopUpState } from "./actions";
 import styles from "./SpendView.module.css";
 
+function describeFetchError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function spendWindowError(body: { error?: string }, status: number): string {
+  return body.error ?? `spend-window returned ${status}`;
+}
+
 const PRESETS: Array<{ key: SpendPreset; label: string }> = [
   { key: "today", label: "Today" },
   { key: "7d", label: "7 days" },
@@ -61,7 +69,7 @@ function useSpendWindow(interval: { from: string; to: string }) {
         }
 
         if (!res.ok) {
-          setError(body.error ?? `spend-window returned ${res.status}`);
+          setError(spendWindowError(body, res.status));
 
           return;
         }
@@ -69,7 +77,7 @@ function useSpendWindow(interval: { from: string; to: string }) {
         setError(null);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
+          setError(describeFetchError(err));
         }
       }
     }

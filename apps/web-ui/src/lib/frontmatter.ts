@@ -22,6 +22,50 @@ function collectBlockListItems(lines: string[], startIndex: number): string[] {
   return values;
 }
 
+function parseFlowList(value: string): string[] | null {
+  if (!value.startsWith("[") || !value.endsWith("]")) {
+    return null;
+  }
+
+  return value.slice(1, -1).split(",").map(unquote).filter(Boolean);
+}
+
+interface MetaLine {
+  lines: string[];
+  index: number;
+  key: string;
+  rawValue: string;
+}
+
+/** Applies one `key: value` line to `meta`; returns the line index to resume from (past any consumed block list). */
+function applyMetaLine(
+  meta: Record<string, string | string[]>,
+  { lines, index, key, rawValue }: MetaLine,
+): number {
+  const value = rawValue.trim();
+  const flowList = parseFlowList(value);
+
+  if (flowList) {
+    meta[key] = flowList;
+
+    return index;
+  }
+
+  if (value !== "") {
+    meta[key] = unquote(value);
+
+    return index;
+  }
+  const blockItems = collectBlockListItems(lines, index + 1);
+
+  if (blockItems.length === 0) {
+    return index;
+  }
+  meta[key] = blockItems;
+
+  return index + blockItems.length;
+}
+
 export function parseFrontmatter(source: string): Frontmatter {
   const match = source.match(LEADING_FRONTMATTER);
 
@@ -38,25 +82,8 @@ export function parseFrontmatter(source: string): Frontmatter {
       continue;
     }
     const [, key, rawValue] = keyValue;
-    const value = rawValue.trim();
 
-    if (value.startsWith("[") && value.endsWith("]")) {
-      meta[key] = value.slice(1, -1).split(",").map(unquote).filter(Boolean);
-      continue;
-    }
-
-    const blockItems = value === "" ? collectBlockListItems(lines, i + 1) : [];
-
-    if (value === "" && blockItems.length === 0) {
-      continue;
-    }
-
-    if (value === "") {
-      meta[key] = blockItems;
-      i += blockItems.length;
-      continue;
-    }
-    meta[key] = unquote(value);
+    i = applyMetaLine(meta, { lines, index: i, key, rawValue });
   }
 
   return { meta, body: source.slice(match[0].length) };

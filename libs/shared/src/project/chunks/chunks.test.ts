@@ -21,6 +21,13 @@ function fakePool(...results: Array<{ rows: any[] }>): {
   return { pool, calls };
 }
 
+function firstCall(calls: Array<{ text: string; params?: unknown[] }>): {
+  text: string;
+  params?: unknown[];
+} {
+  return calls[0] ?? { text: "", params: [] };
+}
+
 const sampleChunk: ChunkInsert = {
   content: "hello world",
   contentType: "spec",
@@ -299,17 +306,17 @@ describe("PgChunks adapter", () => {
       30,
     );
 
+    const call = firstCall(calls);
+
     expect(touched).toBe(2);
-    expect(calls[0]?.text).toContain("SET ingested_at = NOW()");
-    expect(calls[0]?.text).not.toContain("make_interval");
-    expect(calls[0]?.text).toContain("UPDATE platform.chunks");
-    expect(calls[0]?.text).toContain(
-      "metadata->>'ingested_by' = 'reindex-job'",
-    );
-    expect(calls[0]?.text).toContain(
+    expect(call.text).toContain("SET ingested_at = NOW()");
+    expect(call.text).not.toContain("make_interval");
+    expect(call.text).toContain("UPDATE platform.chunks");
+    expect(call.text).toContain("metadata->>'ingested_by' = 'reindex-job'");
+    expect(call.text).toContain(
       "HAVING min(ingested_at) < NOW() - ($3 || ' days')::interval",
     );
-    expect(calls[0]?.params).toEqual(["octo/repo", ["specs/a.md"], "30"]);
+    expect(call.params).toEqual(["octo/repo", ["specs/a.md"], "30"]);
   });
 
   it("reads spec chunks with chunk_index in document order from the team schema", async () => {

@@ -16,13 +16,15 @@ export function isoTimestamp(value: unknown): string | null {
 
 /** The enrollment ladder's view of the repo record: when it was onboarded, whether that PR merged, and when it was last ingested. A missing record reads as not onboarded, never as onboarded-with-blanks. */
 export function enrollmentFromRepo(repoInfo: RepoEnrollmentRecord | null) {
+  const record = repoInfo ?? {};
+
   return {
     onboarded: !!repoInfo,
-    onboardedAt: isoTimestamp(repoInfo?.onboarded_at),
-    onboardingPrMerged: repoInfo?.onboarding_pr_merged === true,
-    onboardingPrUrl: repoInfo?.onboarding_pr_url ?? null,
-    lastIngestedAt: isoTimestamp(repoInfo?.last_ingested_at),
-    team: repoInfo?.team ?? null,
+    onboardedAt: isoTimestamp(record.onboarded_at),
+    onboardingPrMerged: record.onboarding_pr_merged === true,
+    onboardingPrUrl: record.onboarding_pr_url ?? null,
+    lastIngestedAt: isoTimestamp(record.last_ingested_at),
+    team: record.team ?? null,
   };
 }
 

@@ -106,6 +106,7 @@ describe("ChunkBody", () => {
 
     expect(link).not.toBeNull();
     expect(link?.getAttribute("target")).toBeNull();
+    expect(container.textContent).not.toContain("View on GitHub");
   });
 
   it("strips an injected script element from a doc chunk instead of rendering it", () => {

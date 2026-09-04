@@ -69,6 +69,21 @@ describe("runStatusVisual", () => {
     });
   });
 
+  it("maps finished + pr_created, no_changes and pending to their tones", () => {
+    expect(runStatusVisual("finished", "pr_created")).toEqual({
+      label: "PR created",
+      tone: "success",
+    });
+    expect(runStatusVisual("finished", "no_changes")).toEqual({
+      label: "No changes",
+      tone: "muted",
+    });
+    expect(runStatusVisual("finished", "pending")).toEqual({
+      label: "Pending",
+      tone: "info",
+    });
+  });
+
   it("keeps an unknown finished outcome neutral, never success", () => {
     expect(runStatusVisual("finished", "some_future_outcome")).toEqual({
       label: "some_future_outcome",

@@ -72,10 +72,13 @@ export default function PlanningWizard({
     latestIteration: latest,
     task: poll.task,
   });
-  const latestReady = latest?.status === "ready" && !!latest.gap_result;
-  const failed = phase.kind === "failed";
+  const { latestReady, failed } = planningRoundStatus(latest, phase);
+  const { iteration, latestIterationOrNull, latestCreatedAt } = latestRoundMeta(
+    latest,
+    poll.feature.current_iteration,
+  );
 
-  useRefreshWhenRoundLands(latestReady, latest?.iteration ?? null);
+  useRefreshWhenRoundLands(latestReady, latestIterationOrNull);
 
   // Server-rendered feature refreshed when round lands; poll carries only latest iteration, not history.
   const rounds = rewindOptions(feature.iterations);
@@ -95,8 +98,6 @@ export default function PlanningWizard({
 
   useRefreshWhenPlanningEnds(finalizing, poll.feature.status);
 
-  const iteration = latest?.iteration ?? poll.feature.current_iteration;
-
   const phaseCard = phaseView({
     phase,
     poll,
@@ -104,7 +105,7 @@ export default function PlanningWizard({
     iteration,
     timeoutMinutes,
     finalizing,
-    latestCreatedAt: latest?.created_at,
+    latestCreatedAt,
   });
 
   if (phaseCard) {
@@ -136,7 +137,42 @@ export default function PlanningWizard({
   );
 }
 
-/** The analysis to show is the latest round's when it produced one, otherwise the most recent round that did — a failed refine must not hide the analysis before it. */
+/** True/false plus what stage the current round is in, kept off the component's own body so its optional chains don't count against it. */
+function planningRoundStatus(
+  latest: ReturnType<typeof useSeededPoll>["data"]["latestIteration"],
+  phase: ReturnType<typeof featurePhaseOf>,
+) {
+  return {
+    latestReady: latest?.status === "ready" && !!latest.gap_result,
+    failed: phase.kind === "failed",
+  };
+}
+
+/** The round to attribute the current view to, and its timestamps — likewise pulled off the component body. */
+function latestRoundMeta(
+  latest: ReturnType<typeof useSeededPoll>["data"]["latestIteration"],
+  featureIteration: number,
+) {
+  const iteration = latest?.iteration ?? featureIteration;
+
+  return {
+    iteration,
+    latestIterationOrNull: latest ? iteration : null,
+    latestCreatedAt: latest?.created_at,
+  };
+}
+
+/** The round whose analysis to show: the latest one when it produced a result, otherwise the most recent that did — a failed refine must not hide the analysis before it. */
+function resolveGap(
+  latestReady: boolean,
+  latest: ReturnType<typeof useSeededPoll>["data"]["latestIteration"],
+  poll: ReturnType<typeof useSeededPoll>["data"],
+) {
+  const source = latestReady ? latest : poll.lastReady;
+
+  return source?.gap_result ?? null;
+}
+
 function analysisProps(state: {
   poll: ReturnType<typeof useSeededPoll>["data"];
   latest: ReturnType<typeof useSeededPoll>["data"]["latestIteration"];
@@ -154,9 +190,7 @@ function analysisProps(state: {
   return {
     iteration: state.iteration,
     failed: state.failed,
-    gap: latestReady
-      ? (latest?.gap_result ?? null)
-      : (poll.lastReady?.gap_result ?? null),
+    gap: resolveGap(latestReady, latest, poll),
     failureReason: poll.task?.failure_reason,
     answers: latest?.user_answers,
     run: poll.run,
@@ -425,7 +459,82 @@ function RewindPicker({
   );
 }
 
-/** What the machine is doing, if anything: the finished view, the parked spec PR, the decompose progress, or the running card. Returns null when the line wants nothing said and the author's analysis view takes over. */
+/** Gated on the FEATURE as well as the line: a legacy feature mints one line per round, which reports `done` while the author still has a decision to make. */
+function isFeatureSettled(
+  phase: ReturnType<typeof featurePhaseOf>,
+  featureStatus: FeaturePollPayload["feature"]["status"],
+): boolean {
+  return phase.kind === "done" && !isPlanningActive(featureStatus);
+}
+
+/** Whether the line is doing round or spec work, and whether the running card should read "spec". `finalizing` bridges only until the first poll shows the line moving; a line that ends without a PR must give the controls back. */
+function runningPhase(
+  phase: ReturnType<typeof featurePhaseOf>,
+  finalizing: boolean,
+  runStatus: string,
+) {
+  return {
+    working: phase.kind === "planning" || phase.kind === "writing-spec",
+    showSpec:
+      phase.kind === "writing-spec" || (finalizing && runStatus === "running"),
+  };
+}
+
+/** The working NODE's start, not the round's, or a late spec node reads as over budget. */
+function runningCardSince(
+  phase: ReturnType<typeof featurePhaseOf>,
+  latestCreatedAt: string | undefined,
+): string | undefined {
+  return "since" in phase ? (phase.since ?? latestCreatedAt) : undefined;
+}
+
+/** Counts against THAT node's kill deadline, not the round's unenforced budget. */
+function runningCardNodeId(
+  phase: ReturnType<typeof featurePhaseOf>,
+): string | undefined {
+  return "nodeId" in phase ? phase.nodeId : undefined;
+}
+
+/** Same card as a planning round: same line, and the author has no decision to make while it runs. Returns null when the line wants nothing said and the author's analysis view takes over. */
+function runningPhaseCard({
+  phase,
+  poll,
+  iteration,
+  timeoutMinutes,
+  finalizing,
+  latestCreatedAt,
+}: {
+  phase: ReturnType<typeof featurePhaseOf>;
+  poll: FeaturePollPayload;
+  iteration: number;
+  timeoutMinutes: number;
+  finalizing: boolean;
+  latestCreatedAt: string | undefined;
+}): ReactNode {
+  const { working, showSpec } = runningPhase(
+    phase,
+    finalizing,
+    poll.run?.status ?? "running",
+  );
+
+  if (!working && !showSpec) {
+    return null;
+  }
+
+  return (
+    <RunningCard
+      iteration={iteration}
+      since={runningCardSince(phase, latestCreatedAt)}
+      timeoutMinutes={timeoutMinutes}
+      nodeId={runningCardNodeId(phase)}
+      liveOutput={poll.liveOutput}
+      run={poll.run}
+      phase={showSpec ? "spec" : "round"}
+    />
+  );
+}
+
+/** What the machine is doing, if anything: the finished view, the parked spec PR, the decompose progress, or the running card. */
 function phaseView({
   phase,
   poll,
@@ -443,8 +552,7 @@ function phaseView({
   finalizing: boolean;
   latestCreatedAt: string | undefined;
 }): ReactNode {
-  // Gated on the FEATURE as well as the line: a legacy feature mints one line per round, which reports `done` while the author still has a decision to make.
-  if (phase.kind === "done" && !isPlanningActive(poll.feature.status)) {
+  if (isFeatureSettled(phase, poll.feature.status)) {
     return <>{settledView}</>;
   }
 
@@ -464,28 +572,13 @@ function phaseView({
       />
     );
   }
-  const working = phase.kind === "planning" || phase.kind === "writing-spec";
-  // `finalizing` bridges only until the first poll shows the line moving; a line that ends without a PR must give the controls back.
-  const showSpec =
-    phase.kind === "writing-spec" ||
-    (finalizing && (poll.run?.status ?? "running") === "running");
 
-  if (!working && !showSpec) {
-    return null;
-  }
-
-  // Same card as a planning round: same line, and the author has no decision to make while it runs.
-  return (
-    <RunningCard
-      iteration={iteration}
-      // The working NODE's start, not the round's, or a late spec node reads as over budget.
-      since={"since" in phase ? (phase.since ?? latestCreatedAt) : undefined}
-      timeoutMinutes={timeoutMinutes}
-      // Counts against THAT node's kill deadline, not the round's unenforced budget.
-      nodeId={"nodeId" in phase ? phase.nodeId : undefined}
-      liveOutput={poll.liveOutput}
-      run={poll.run}
-      phase={showSpec ? "spec" : "round"}
-    />
-  );
+  return runningPhaseCard({
+    phase,
+    poll,
+    iteration,
+    timeoutMinutes,
+    finalizing,
+    latestCreatedAt,
+  });
 }

@@ -15,6 +15,50 @@ const STATUS: Record<CheckStatus, { icon: IconName; color: string }> = {
   unknown: { icon: "unknown", color: "var(--text-muted)" },
 };
 
+function ReonboardAction({
+  check,
+  reonboardAction,
+}: {
+  check: Check;
+  reonboardAction?: () => Promise<void>;
+}) {
+  if (check.action?.kind !== "reonboard" || !reonboardAction) {
+    return null;
+  }
+
+  return <ReonboardButton action={reonboardAction} text={check.action.text} />;
+}
+
+function SetupWebhookAction({
+  check,
+  setupWebhookAction,
+}: {
+  check: Check;
+  setupWebhookAction?: () => Promise<void>;
+}) {
+  if (check.action?.kind !== "setup-webhook" || !setupWebhookAction) {
+    return null;
+  }
+
+  return (
+    <SetupWebhookButton action={setupWebhookAction} text={check.action.text} />
+  );
+}
+
+function CheckCopy({ check }: { check: Check }) {
+  if (!check.copy) {
+    return null;
+  }
+
+  return (
+    <span className={styles.copyUrl}>
+      {check.copy.label && <span className="meta">{check.copy.label}:</span>}
+      <code className={styles.copyUrlValue}>{check.copy.value}</code>
+      <CopyButton text={check.copy.value} />
+    </span>
+  );
+}
+
 function CheckRow({
   check,
   reonboardAction,
@@ -49,24 +93,12 @@ function CheckRow({
           {check.link.text}
         </a>
       )}
-      {check.action?.kind === "reonboard" && reonboardAction && (
-        <ReonboardButton action={reonboardAction} text={check.action.text} />
-      )}
-      {check.action?.kind === "setup-webhook" && setupWebhookAction && (
-        <SetupWebhookButton
-          action={setupWebhookAction}
-          text={check.action.text}
-        />
-      )}
-      {check.copy && (
-        <span className={styles.copyUrl}>
-          {check.copy.label && (
-            <span className="meta">{check.copy.label}:</span>
-          )}
-          <code className={styles.copyUrlValue}>{check.copy.value}</code>
-          <CopyButton text={check.copy.value} />
-        </span>
-      )}
+      <ReonboardAction check={check} reonboardAction={reonboardAction} />
+      <SetupWebhookAction
+        check={check}
+        setupWebhookAction={setupWebhookAction}
+      />
+      <CheckCopy check={check} />
       {check.secret && (
         <SecretReveal value={check.secret.value} label={check.secret.label} />
       )}

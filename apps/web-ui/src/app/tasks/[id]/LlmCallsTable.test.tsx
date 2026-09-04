@@ -49,4 +49,27 @@ describe("LlmCallsTable", () => {
     expect(screen.getByText("failed")).toBeInTheDocument();
     expect(screen.getByText("rate limited")).toBeInTheDocument();
   });
+
+  it("marks a failed call with no error text and renders no error line", () => {
+    render(
+      <LlmCallsTable
+        llmCalls={[call({ status: "failed", error: null })]}
+        repo="re-cinq/lore"
+      />,
+    );
+
+    expect(screen.getByText("failed")).toBeInTheDocument();
+    expect(screen.queryByText("rate limited")).not.toBeInTheDocument();
+  });
+
+  it("renders an em dash when duration and created_at are absent", () => {
+    render(
+      <LlmCallsTable
+        llmCalls={[call({ duration_ms: 0, created_at: null })]}
+        repo="re-cinq/lore"
+      />,
+    );
+
+    expect(screen.getAllByText("—")).toHaveLength(2);
+  });
 });

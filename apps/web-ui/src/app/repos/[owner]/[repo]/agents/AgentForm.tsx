@@ -255,6 +255,61 @@ function agentFormValues(agent: AgentDefinition | null, isNew: boolean) {
   };
 }
 
+function HiddenFields({
+  repo,
+  isNew,
+  executionMode,
+  reviewRequired,
+}: {
+  repo: string;
+  isNew: boolean;
+  executionMode: string;
+  reviewRequired: string;
+}): React.ReactElement {
+  return (
+    <>
+      <input type="hidden" name="repo" value={repo} />
+      <input type="hidden" name="is_new" value={isNew ? "1" : "0"} />
+      <input type="hidden" name="execution_mode" value={executionMode} />
+      <input type="hidden" name="review_required" value={reviewRequired} />
+    </>
+  );
+}
+
+function ScopeNote({
+  isNew,
+  orgScope,
+  inherited,
+}: {
+  isNew: boolean;
+  orgScope: boolean;
+  inherited: boolean;
+}): React.ReactElement | null {
+  if (isNew) {
+    return null;
+  }
+
+  return <p className={styles.formNote}>{scopeNote(orgScope, inherited)}</p>;
+}
+
+function FormActions({
+  isNew,
+  state,
+}: {
+  isNew: boolean;
+  state: AgentFormState;
+}): React.ReactElement {
+  return (
+    <div className={styles.formActions}>
+      <button type="submit">{isNew ? "Create agent" : "Save agent"}</button>
+      {state.twoKey && (
+        <span className={styles.error}>image change needs an approval PR</span>
+      )}
+      {state.error && <span className={styles.error}>{state.error}</span>}
+    </div>
+  );
+}
+
 /** Agent create/edit form; org editing forks to project agent (upserts via saveAgent). */
 export default function AgentForm({
   repo,
@@ -279,20 +334,18 @@ export default function AgentForm({
 
   return (
     <form action={formAction} className="task-form">
-      <input type="hidden" name="repo" value={repo} />
-      <input type="hidden" name="is_new" value={isNew ? "1" : "0"} />
-      <input type="hidden" name="execution_mode" value={values.executionMode} />
-      <input
-        type="hidden"
-        name="review_required"
-        value={values.reviewRequired}
+      <HiddenFields
+        repo={repo}
+        isNew={isNew}
+        executionMode={values.executionMode}
+        reviewRequired={values.reviewRequired}
       />
 
-      {!isNew && (
-        <p className={styles.formNote}>
-          {scopeNote(orgScope, values.inherited)}
-        </p>
-      )}
+      <ScopeNote
+        isNew={isNew}
+        orgScope={orgScope}
+        inherited={values.inherited}
+      />
 
       <label>Name</label>
       <NameField isNew={isNew} name={values.name} />
@@ -328,15 +381,7 @@ export default function AgentForm({
         <ImageFields image={agent?.image} defaultImage={defaultImage} />
       )}
 
-      <div className={styles.formActions}>
-        <button type="submit">{isNew ? "Create agent" : "Save agent"}</button>
-        {state.twoKey && (
-          <span className={styles.error}>
-            image change needs an approval PR
-          </span>
-        )}
-        {state.error && <span className={styles.error}>{state.error}</span>}
-      </div>
+      <FormActions isNew={isNew} state={state} />
     </form>
   );
 }

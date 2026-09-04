@@ -16,21 +16,49 @@ export interface RecordTopUpProps {
   ) => Promise<RecordTopUpState>;
 }
 
+interface TopUpCopy {
+  summary: string;
+  description: string;
+  submitLabel: string;
+}
+
+function topUpCopy(first: boolean): TopUpCopy {
+  if (first) {
+    return {
+      summary: "Record the starting balance",
+      description:
+        "Anthropic has no balance API, so the starting figure has to come from a person. Read the current credit balance off the Anthropic console and enter it here once; after that, record each top-up as it happens.",
+      submitLabel: "Record balance",
+    };
+  }
+
+  return {
+    summary: "Record a top-up",
+    description:
+      "Enter the amount added. Spend is counted from the earliest entry, so the remaining figure updates as soon as this is saved.",
+    submitLabel: "Record top-up",
+  };
+}
+
+function TopUpStatus({ state }: { state: RecordTopUpState | null }) {
+  return (
+    <>
+      {state?.error && <span className="meta">{state.error}</span>}
+      {state?.recorded && <span className="meta">{state.recorded}</span>}
+    </>
+  );
+}
+
 export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
   const [state, formAction] = useActionState(recordAction, null);
+  const copy = topUpCopy(first);
 
   return (
     // Open when nothing recorded (empty ledger): collapsed once there is a figure to read
     <details className={styles.recordDetails} open={first}>
-      <summary>
-        {first ? "Record the starting balance" : "Record a top-up"}
-      </summary>
+      <summary>{copy.summary}</summary>
       <form action={formAction} className={styles.recordForm}>
-        <p className={`meta ${styles.subnote}`}>
-          {first
-            ? "Anthropic has no balance API, so the starting figure has to come from a person. Read the current credit balance off the Anthropic console and enter it here once; after that, record each top-up as it happens."
-            : "Enter the amount added. Spend is counted from the earliest entry, so the remaining figure updates as soon as this is saved."}
-        </p>
+        <p className={`meta ${styles.subnote}`}>{copy.description}</p>
 
         <label htmlFor="amount_usd">Amount (USD)</label>
         <input
@@ -75,10 +103,9 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
         <LedgerRules />
         <div className={styles.recordActions}>
           <SubmitButton pendingLabel="Recording…">
-            {first ? "Record balance" : "Record top-up"}
+            {copy.submitLabel}
           </SubmitButton>
-          {state?.error && <span className="meta">{state.error}</span>}
-          {state?.recorded && <span className="meta">{state.recorded}</span>}
+          <TopUpStatus state={state} />
         </div>
       </form>
     </details>

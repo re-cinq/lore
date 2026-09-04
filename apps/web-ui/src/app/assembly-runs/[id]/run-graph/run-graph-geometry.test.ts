@@ -1,9 +1,29 @@
 import { describe, it, expect } from "vitest";
 import {
   fitNodeLabel,
+  nodeHeightFor,
+  toLayoutDefinition,
   NODE_LABEL_CHARS,
   NODE_WIDTH,
 } from "./run-graph-geometry";
+import type { VisibleGraph } from "@/lib/graph-view-model";
+import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
+
+const node = (id: string, outcomes: readonly string[] = []) => ({
+  id,
+  type: "agent",
+  outcomes,
+  verdict: null,
+  status: "idle" as const,
+  result: null,
+});
+
+const graph = (over: Partial<VisibleGraph> = {}): VisibleGraph => ({
+  mode: "run",
+  nodes: [],
+  edges: [],
+  ...over,
+});
 
 describe("fitNodeLabel", () => {
   it("keeps 'Waiting for the spec PR' whole — the longest badge the spec ships", () => {
@@ -38,5 +58,69 @@ describe("fitNodeLabel", () => {
       NODE_LABEL_CHARS,
     );
     expect(NODE_WIDTH).toBeGreaterThanOrEqual(216);
+  });
+});
+
+describe("nodeHeightFor", () => {
+  it("uses the base height outside definition mode", () => {
+    expect(nodeHeightFor(graph({ mode: "run", nodes: [node("a")] }))).toEqual(
+      48,
+    );
+  });
+
+  it("uses the base height in definition mode when no node lists outcomes", () => {
+    expect(
+      nodeHeightFor(graph({ mode: "definition", nodes: [node("a")] })),
+    ).toEqual(48);
+  });
+
+  it("grows to fit the widest outcome list in definition mode", () => {
+    expect(
+      nodeHeightFor(
+        graph({
+          mode: "definition",
+          nodes: [node("a", ["success", "failed"]), node("b")],
+        }),
+      ),
+    ).toEqual(48 + 14 + 2 * 15);
+  });
+});
+
+describe("toLayoutDefinition", () => {
+  it("falls back to a synthesized name, entry and exit when no definition is given", () => {
+    const layout = toLayoutDefinition(
+      graph({ nodes: [node("first"), node("second")] }),
+      null,
+    );
+
+    expect(layout.name).toEqual("workflow");
+    expect(layout.entry).toEqual("first");
+    expect(layout.exit).toEqual("");
+  });
+
+  it("falls back to an empty entry when there is no definition and no nodes", () => {
+    const layout = toLayoutDefinition(graph({ nodes: [] }), null);
+
+    expect(layout.entry).toEqual("");
+  });
+
+  it("uses the given definition's own name, entry and exit", () => {
+    const definition: AssemblyLineDefinition = {
+      name: "code-review",
+      description: "",
+      version: 1,
+      entry: "review",
+      exit: "done",
+      nodes: [],
+      edges: [],
+    };
+    const layout = toLayoutDefinition(
+      graph({ nodes: [node("review")] }),
+      definition,
+    );
+
+    expect(layout.name).toEqual("code-review");
+    expect(layout.entry).toEqual("review");
+    expect(layout.exit).toEqual("done");
   });
 });

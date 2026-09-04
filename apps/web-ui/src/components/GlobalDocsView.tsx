@@ -17,6 +17,55 @@ import type {
 const hrefFor = (kind: DocKind, repo: string, filePath: string): string =>
   `/repos/${repo}/${kind === "adr" ? "adrs" : "specs"}/${encodeURIComponent(filePath)}`;
 
+function groupByRepo(
+  visible: Array<{ repo: string; filePath: string }>,
+): Map<string, string[]> {
+  const byRepo = new Map<string, string[]>();
+
+  for (const { repo, filePath } of visible) {
+    const bucket = byRepo.get(repo);
+
+    if (bucket) {
+      bucket.push(filePath);
+      continue;
+    }
+
+    byRepo.set(repo, [filePath]);
+  }
+
+  return byRepo;
+}
+
+function RepoDocList({
+  repo,
+  paths,
+  kind,
+  statusOf,
+}: {
+  repo: string;
+  paths: string[];
+  kind: DocKind;
+  statusOf: (repo: string, filePath: string) => SpecStatusInfo | undefined;
+}) {
+  return (
+    <section className={styles.repoGroup}>
+      <h2 className={styles.repoName}>{repo}</h2>
+      <ul className={styles.docList}>
+        {paths.map((filePath) => {
+          const status = statusOf(repo, filePath);
+
+          return (
+            <li key={filePath} className={styles.docItem}>
+              <Link href={hrefFor(kind, repo, filePath)}>{filePath}</Link>
+              {status && <SpecStatusPill status={status} />}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export default function GlobalDocsView({
   docs,
   statuses = {},
@@ -46,16 +95,7 @@ export default function GlobalDocsView({
     { query, textOf: (doc) => `${doc.repo} ${doc.filePath}` },
   );
 
-  const byRepo = new Map<string, string[]>();
-
-  for (const { repo, filePath } of visible) {
-    const bucket = byRepo.get(repo) ?? [];
-
-    if (!byRepo.has(repo)) {
-      byRepo.set(repo, bucket);
-    }
-    bucket.push(filePath);
-  }
+  const byRepo = groupByRepo(visible);
 
   return (
     <div>
@@ -68,21 +108,13 @@ export default function GlobalDocsView({
         kind={kind}
       />
       {[...byRepo.entries()].map(([repo, paths]) => (
-        <section key={repo} className={styles.repoGroup}>
-          <h2 className={styles.repoName}>{repo}</h2>
-          <ul className={styles.docList}>
-            {paths.map((filePath) => {
-              const status = statusOf(repo, filePath);
-
-              return (
-                <li key={filePath} className={styles.docItem}>
-                  <Link href={hrefFor(kind, repo, filePath)}>{filePath}</Link>
-                  {status && <SpecStatusPill status={status} />}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        <RepoDocList
+          key={repo}
+          repo={repo}
+          paths={paths}
+          kind={kind}
+          statusOf={statusOf}
+        />
       ))}
       {byRepo.size === 0 && <p className={styles.hint}>{noMatchHint}</p>}
     </div>

@@ -38,6 +38,86 @@ function sourceBadgeClass(source: SearchResult["source"]): string {
   return "op-read";
 }
 
+function RepoFilterSelect({
+  repo,
+  repos,
+}: {
+  repo?: string;
+  repos: SearchRepoOption[];
+}) {
+  return (
+    <div className={styles.repoFilter}>
+      <select
+        name="repo"
+        defaultValue={repo || ""}
+        className={styles.repoSelect}
+      >
+        <option value="">All repos</option>
+        {repos.map((r) => (
+          <option key={r.full_name} value={r.full_name}>
+            {r.full_name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function ResultCountLine({
+  q,
+  repo,
+  count,
+}: {
+  q?: string;
+  repo?: string;
+  count: number;
+}) {
+  if (!q) {
+    return null;
+  }
+
+  return (
+    <p className={`meta ${styles.resultCount}`}>
+      {count} result{count !== 1 ? "s" : ""} for &quot;{q}&quot;
+      {repo && (
+        <>
+          {" "}
+          in <strong>{repo}</strong>
+        </>
+      )}
+    </p>
+  );
+}
+
+function SearchResultCard({ result: r }: { result: SearchResult }) {
+  return (
+    <div className="search-result">
+      <div className="result-header">
+        <strong>{r.key}</strong>
+        <span className="meta">
+          agent: {displayAgentId(r.agent_id)} · score: {r.score.toFixed(3)}
+          {r.repo && (
+            <>
+              {" "}
+              · repo: <strong>{r.repo}</strong>
+            </>
+          )}
+        </span>
+      </div>
+      <pre>{r.value}</pre>
+      <div className="result-source">
+        source:{" "}
+        <span className={`op-badge ${sourceBadgeClass(r.source)}`}>
+          {formatEnumLabel(r.source)}
+        </span>
+        {r.repo && (
+          <span className={`badge ${styles.repoBadge}`}>{r.repo}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Cross-source search page: pure render of merged/scored memory/fact/chunk results. */
 export default function SearchView({
   q,
@@ -49,20 +129,7 @@ export default function SearchView({
     <div>
       <h1>Search Memories</h1>
       <form method="get" className="search-form">
-        <div className={styles.repoFilter}>
-          <select
-            name="repo"
-            defaultValue={repo || ""}
-            className={styles.repoSelect}
-          >
-            <option value="">All repos</option>
-            {repos.map((r) => (
-              <option key={r.full_name} value={r.full_name}>
-                {r.full_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <RepoFilterSelect repo={repo} repos={repos} />
         <input
           type="text"
           name="q"
@@ -71,43 +138,9 @@ export default function SearchView({
         />
         <button type="submit">Search</button>
       </form>
-      {q && (
-        <p className={`meta ${styles.resultCount}`}>
-          {results.length} result{results.length !== 1 ? "s" : ""} for &quot;{q}
-          &quot;
-          {repo && (
-            <>
-              {" "}
-              in <strong>{repo}</strong>
-            </>
-          )}
-        </p>
-      )}
+      <ResultCountLine q={q} repo={repo} count={results.length} />
       {results.map((r, i) => (
-        <div key={i} className="search-result">
-          <div className="result-header">
-            <strong>{r.key}</strong>
-            <span className="meta">
-              agent: {displayAgentId(r.agent_id)} · score: {r.score.toFixed(3)}
-              {r.repo && (
-                <>
-                  {" "}
-                  · repo: <strong>{r.repo}</strong>
-                </>
-              )}
-            </span>
-          </div>
-          <pre>{r.value}</pre>
-          <div className="result-source">
-            source:{" "}
-            <span className={`op-badge ${sourceBadgeClass(r.source)}`}>
-              {formatEnumLabel(r.source)}
-            </span>
-            {r.repo && (
-              <span className={`badge ${styles.repoBadge}`}>{r.repo}</span>
-            )}
-          </div>
-        </div>
+        <SearchResultCard key={i} result={r} />
       ))}
       {q && results.length === 0 && (
         <div className="empty-state">

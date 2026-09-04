@@ -1,7 +1,7 @@
 ---
 adr_number: 27
 title: "Smart feature planning: interactive Stations, a Feature port, and a graph-merged Feature node"
-status: draft
+status: in progress
 date: 2026-06-17
 domains: [web-ui, agent, pipeline]
 ---
@@ -102,7 +102,9 @@ of truth in the graph.**
   `(repo, path)`: a match is enriched (the persistent node wins, carrying status +
   id), and a draft with no spec yet is injected as a standalone node. The D3 view
   ([SpecGraphD3.tsx](../apps/web-ui/src/app/repos/[owner]/[repo]/graph/SpecGraphD3.tsx))
-  colors Feature nodes by lifecycle status.
+  colors Feature nodes by lifecycle status; its pure layout helpers — the
+  per-spec ring layout (`computeRing`) and a node's outbound Lore/GitHub links
+  (`nodeLinks`) — are characterization-tested. ([validated by lays out one section arc and one statement arc per section](../apps/web-ui/src/app/repos/[owner]/[repo]/graph/SpecGraphD3.test.ts#L6), [`SpecGraphD3.test.ts:32`](../apps/web-ui/src/app/repos/[owner]/[repo]/graph/SpecGraphD3.test.ts#L32), [`SpecGraphD3.test.ts:50`](../apps/web-ui/src/app/repos/[owner]/[repo]/graph/SpecGraphD3.test.ts#L50), [`SpecGraphD3.test.ts:66`](../apps/web-ui/src/app/repos/[owner]/[repo]/graph/SpecGraphD3.test.ts#L66), [`SpecGraphD3.test.ts:84`](../apps/web-ui/src/app/repos/[owner]/[repo]/graph/SpecGraphD3.test.ts#L84), [`SpecGraphD3.test.ts:104`](../apps/web-ui/src/app/repos/[owner]/[repo]/graph/SpecGraphD3.test.ts#L104), [`SpecGraphD3.test.ts:117`](../apps/web-ui/src/app/repos/[owner]/[repo]/graph/SpecGraphD3.test.ts#L117), [`SpecGraphD3.test.ts:126`](../apps/web-ui/src/app/repos/[owner]/[repo]/graph/SpecGraphD3.test.ts#L126))
 - **Generated mockups are untrusted.** `GapResult.mockups` carry LLM-generated SVG.
   Two layers defend it: (1) `sanitizeSvg()` strips script/foreignObject/handlers/
   external refs on every write path before persistence, and (2) the web UI

@@ -44,21 +44,9 @@ function insideInterval(
   return [enter, exit];
 }
 
-/** Parts of segment outside all discs: complement of merged inside-intervals within [0, 1]. */
-export function visibleSegments(
-  a: Point,
-  b: Point,
-  discs: Disc[],
-): Array<{ a: Point; b: Point }> {
-  const intervals = discs
-    .map((disc) => insideInterval(a, b, disc))
-    .filter((interval): interval is [number, number] => interval !== null)
-    .sort((left, right) => left[0] - right[0]);
-
-  if (intervals.length === 0) {
-    return [{ a, b }];
-  }
-
+function mergeIntervals(
+  intervals: Array<[number, number]>,
+): Array<[number, number]> {
   const merged: Array<[number, number]> = [intervals[0]];
 
   for (const [enter, exit] of intervals.slice(1)) {
@@ -71,6 +59,14 @@ export function visibleSegments(
     merged.push([enter, exit]);
   }
 
+  return merged;
+}
+
+function piecesOutside(
+  a: Point,
+  b: Point,
+  merged: Array<[number, number]>,
+): Array<{ a: Point; b: Point }> {
   const pieces: Array<{ a: Point; b: Point }> = [];
   let cursor = 0;
 
@@ -86,4 +82,22 @@ export function visibleSegments(
   }
 
   return pieces;
+}
+
+/** Parts of segment outside all discs: complement of merged inside-intervals within [0, 1]. */
+export function visibleSegments(
+  a: Point,
+  b: Point,
+  discs: Disc[],
+): Array<{ a: Point; b: Point }> {
+  const intervals = discs
+    .map((disc) => insideInterval(a, b, disc))
+    .filter((interval): interval is [number, number] => interval !== null)
+    .sort((left, right) => left[0] - right[0]);
+
+  if (intervals.length === 0) {
+    return [{ a, b }];
+  }
+
+  return piecesOutside(a, b, mergeIntervals(intervals));
 }

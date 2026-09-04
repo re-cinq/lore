@@ -47,6 +47,27 @@ describe("GapSections", () => {
     expect(screen.queryByText("Draft body.")).toBeNull();
   });
 
+  it("shows the split suggestion with a create-draft control per proposed feature", () => {
+    renderGap({
+      sections: [{ title: "Overview", content: "Section content." }],
+      draft_spec_markdown: "",
+      split_suggestion: {
+        rationale: "This covers two unrelated workflows.",
+        proposed_features: [
+          { title: "Search", scope: "Keyword search over context" },
+          { title: "Onboarding", scope: "Self-service repo onboarding" },
+        ],
+      },
+    } as GapResult);
+
+    expect(
+      screen.getByText("This covers two unrelated workflows."),
+    ).toBeTruthy();
+    expect(
+      screen.getAllByRole("button", { name: "Create draft" }),
+    ).toHaveLength(2);
+  });
+
   it("renders nothing to review when the round produced neither", () => {
     const { container } = renderGap({
       sections: [],

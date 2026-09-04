@@ -70,34 +70,50 @@ export function EntryLine({ entry }: { entry: LogEntry }) {
   );
 }
 
-/** The run's own bookkeeping: start, stop, and the thinking meter. */
-function sessionLine(entry: LogEntry) {
-  if (entry.kind === "lifecycle") {
-    return (
-      <div className={styles.dim}>
-        · {entry.phase ?? "agent"} {entry.status}
-        {entry.exitCode !== undefined ? ` (exit ${entry.exitCode})` : ""}
-      </div>
-    );
-  }
+function lifecycleLine(entry: Extract<LogEntry, { kind: "lifecycle" }>) {
+  const exit = entry.exitCode !== undefined ? ` (exit ${entry.exitCode})` : "";
 
-  if (entry.kind === "session-init") {
-    return (
-      <details className={styles.dim}>
-        <summary className={styles.summary}>
-          session started — {entry.model}
-          {entry.version ? ` (Claude Code ${entry.version})` : ""}
-        </summary>
-        <pre className={styles.detailsPre}>{entry.detailsJson}</pre>
-      </details>
-    );
-  }
+  return (
+    <div className={styles.dim}>
+      · {entry.phase ?? "agent"} {entry.status}
+      {exit}
+    </div>
+  );
+}
 
+function sessionInitLine(entry: Extract<LogEntry, { kind: "session-init" }>) {
+  const version = entry.version ? ` (Claude Code ${entry.version})` : "";
+
+  return (
+    <details className={styles.dim}>
+      <summary className={styles.summary}>
+        session started — {entry.model}
+        {version}
+      </summary>
+      <pre className={styles.detailsPre}>{entry.detailsJson}</pre>
+    </details>
+  );
+}
+
+function thinkingTokensLine(entry: LogEntry) {
   return entry.kind === "thinking-tokens" ? (
     <div className={styles.thinking}>
       thinking… {formatTokens(entry.tokens)} tokens
     </div>
   ) : null;
+}
+
+/** The run's own bookkeeping: start, stop, and the thinking meter. */
+function sessionLine(entry: LogEntry) {
+  if (entry.kind === "lifecycle") {
+    return lifecycleLine(entry);
+  }
+
+  if (entry.kind === "session-init") {
+    return sessionInitLine(entry);
+  }
+
+  return thinkingTokensLine(entry);
 }
 
 /** What the agent said and did: its thinking, its text, its tool calls. */
@@ -153,22 +169,34 @@ function userTextLine(entry: LogEntry) {
   ) : null;
 }
 
+function resultLine(entry: Extract<LogEntry, { kind: "result" }>) {
+  const summaryClass = entry.isError ? styles.error : styles.text;
+
+  return (
+    <div className={styles.resultFooter}>
+      <div className={summaryClass}>{resultSummary(entry)}</div>
+      {entry.text && (
+        <details className={styles.dim}>
+          <summary className={styles.summary}>result</summary>
+          <pre className={styles.detailsPre}>{entry.text}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function agentErrorLine(entry: Extract<LogEntry, { kind: "agent-error" }>) {
+  return (
+    <div className={entry.severity === "error" ? styles.error : styles.dim}>
+      ✗ {entry.severity}: {entry.message}
+    </div>
+  );
+}
+
 /** How the run reports itself: its verdict, its limits, its failures, its artifacts. */
 function reportLine(entry: LogEntry) {
   if (entry.kind === "result") {
-    return (
-      <div className={styles.resultFooter}>
-        <div className={entry.isError ? styles.error : styles.text}>
-          {resultSummary(entry)}
-        </div>
-        {entry.text && (
-          <details className={styles.dim}>
-            <summary className={styles.summary}>result</summary>
-            <pre className={styles.detailsPre}>{entry.text}</pre>
-          </details>
-        )}
-      </div>
-    );
+    return resultLine(entry);
   }
 
   if (entry.kind === "rate-limit") {
@@ -176,11 +204,7 @@ function reportLine(entry: LogEntry) {
   }
 
   if (entry.kind === "agent-error") {
-    return (
-      <div className={entry.severity === "error" ? styles.error : styles.dim}>
-        ✗ {entry.severity}: {entry.message}
-      </div>
-    );
+    return agentErrorLine(entry);
   }
 
   return hookLine(entry) ?? stationLine(entry);

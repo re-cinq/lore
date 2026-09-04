@@ -99,6 +99,16 @@ describe("parseAgentLog", () => {
     );
   });
 
+  it("falls back to 'unknown model' and no version when an init line carries neither", () => {
+    const [entry] = parseAgentLogLine('{"type":"system","subtype":"init"}');
+
+    expect(entry).toEqual({
+      kind: "session-init",
+      model: "unknown model",
+      detailsJson: JSON.stringify({ type: "system", subtype: "init" }, null, 2),
+    });
+  });
+
   it("coalesces a run of three thinking_tokens lines into one entry with the latest count 444", () => {
     const blob = [
       THINKING_TOKENS_11,
@@ -254,6 +264,22 @@ describe("parseAgentLog", () => {
     expect(parseAgentLog(twoBlocks)).toEqual([
       { kind: "thinking", text: "checking the diff first" },
       { kind: "tool-use", summary: "→ Bash: gh pr diff 871" },
+    ]);
+  });
+
+  it("drops a thinking block whose text is blank and a text block whose text is blank", () => {
+    const blankBlocks = JSON.stringify({
+      type: "assistant",
+      message: {
+        content: [
+          { type: "thinking", thinking: "   " },
+          { type: "text", text: "  " },
+        ],
+      },
+    });
+
+    expect(parseAgentLog(blankBlocks)).toEqual([
+      { kind: "raw", text: blankBlocks },
     ]);
   });
 
@@ -661,6 +687,14 @@ describe("gemini stream-json dialect", () => {
     ]);
   });
 
+  it("summarizes a gemini tool_use with no parameters as the bare tool name", () => {
+    expect(
+      parseAgentLog(
+        wrapped('{"type":"tool_use","tool_id":"x","tool_name":"ls"}'),
+      ),
+    ).toEqual([{ kind: "tool-use", summary: "→ ls" }]);
+  });
+
   it("parses a gemini tool_result with status success as a non-error tool-result", () => {
     expect(parseAgentLog(wrapped(GEMINI_TOOL_RESULT_OK))).toEqual([
       {
@@ -720,6 +754,22 @@ describe("gemini stream-json dialect", () => {
     ]);
   });
 
+  it("parses a gemini error event with severity warning", () => {
+    expect(
+      parseAgentLog(
+        wrapped(
+          '{"type":"error","severity":"warning","message":"retrying after a transient failure"}',
+        ),
+      ),
+    ).toEqual([
+      {
+        kind: "agent-error",
+        severity: "warning",
+        message: "retrying after a transient failure",
+      },
+    ]);
+  });
+
   it("parses a gemini result with status success as a non-error result", () => {
     expect(parseAgentLog(wrapped(GEMINI_RESULT_SUCCESS))).toEqual([
       { kind: "result", text: "", isError: false },
@@ -772,6 +822,14 @@ describe("file artifact events", () => {
         content: "",
         reason: "agent exited before writing the file",
       },
+    ]);
+  });
+
+  it("defaults path and content to empty strings when a file event carries neither", () => {
+    expect(
+      parseAgentLogLine('{"kind":"file","event":"pr.description"}'),
+    ).toEqual([
+      { kind: "file", event: "pr.description", path: "", content: "" },
     ]);
   });
 

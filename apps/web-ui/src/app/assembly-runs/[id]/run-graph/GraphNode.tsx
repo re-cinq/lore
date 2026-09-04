@@ -1,4 +1,5 @@
 // One step in the graph: the box, selection, and one of three exclusive bodies (run verdict, outcome list, or plain name) — the aria-label follows the same choice.
+import type { KeyboardEvent } from "react";
 import type { LayoutNode } from "@/lib/dag-layout";
 import type { GraphMode, VisibleNode } from "@/lib/graph-view-model";
 import {
@@ -53,6 +54,52 @@ function nodeAriaLabel(
   return isTerminal ? `${nodeId} — Terminal` : nodeId;
 }
 
+function computeBadge(
+  mode: GraphMode,
+  model: VisibleNode | undefined,
+): NodeStatusVisual | null {
+  if (mode !== "run" || !model) {
+    return null;
+  }
+
+  return runBadge(model);
+}
+
+interface NodeInteraction {
+  role: "button" | "group";
+  tabIndex: number | undefined;
+  onClick: (() => void) | undefined;
+  onKeyDown: ((event: KeyboardEvent<SVGGElement>) => void) | undefined;
+}
+
+function nodeInteraction(
+  nodeId: string,
+  onSelect: ((nodeId: string) => void) | undefined,
+): NodeInteraction {
+  if (!onSelect) {
+    return {
+      role: "group",
+      tabIndex: undefined,
+      onClick: undefined,
+      onKeyDown: undefined,
+    };
+  }
+
+  return {
+    role: "button",
+    tabIndex: 0,
+    onClick: () => onSelect(nodeId),
+    onKeyDown: (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      onSelect(nodeId);
+    },
+  };
+}
+
 export default function GraphNode({
   node,
   model,
@@ -61,12 +108,12 @@ export default function GraphNode({
   isTerminal,
   onSelect,
 }: GraphNodeProps) {
-  const badge = mode === "run" && model ? runBadge(model) : null;
+  const badge = computeBadge(mode, model);
   const outcomes = model?.outcomes ?? [];
   const top = node.y - height / 2;
   const leftEdge = node.x - NODE_WIDTH / 2;
   const title = titleCase(node.id);
-  const interactive = onSelect !== undefined;
+  const interaction = nodeInteraction(node.id, onSelect);
 
   function body() {
     if (badge) {
@@ -106,22 +153,11 @@ export default function GraphNode({
       className={classes(styles.node, badge ? styles[badge.tone] : undefined)}
       data-node={node.id}
       data-tone={badge?.tone ?? "idle"}
-      role={interactive ? "button" : "group"}
+      role={interaction.role}
       aria-label={nodeAriaLabel(node.id, badge, outcomes, isTerminal)}
-      tabIndex={interactive ? 0 : undefined}
-      onClick={interactive ? () => onSelect(node.id) : undefined}
-      onKeyDown={
-        interactive
-          ? (event) => {
-              if (event.key !== "Enter" && event.key !== " ") {
-                return;
-              }
-
-              event.preventDefault();
-              onSelect(node.id);
-            }
-          : undefined
-      }
+      tabIndex={interaction.tabIndex}
+      onClick={interaction.onClick}
+      onKeyDown={interaction.onKeyDown}
     >
       <rect
         className={styles.box}

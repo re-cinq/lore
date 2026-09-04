@@ -24,6 +24,32 @@ export interface ContextCardProps {
   repoLabel?: string;
 }
 
+function PathCell({
+  filePath,
+  detailHref,
+}: {
+  filePath: string | null;
+  detailHref?: string;
+}) {
+  if (detailHref) {
+    return (
+      <Link href={detailHref} className={styles.path}>
+        {filePath}
+      </Link>
+    );
+  }
+
+  return <span className={styles.path}>{filePath ?? "—"}</span>;
+}
+
+function DateCell({ ingestedAt }: { ingestedAt: string | null }) {
+  return (
+    <span className={styles.date}>
+      {ingestedAt ? <TimeAgo date={ingestedAt} inline /> : "—"}
+    </span>
+  );
+}
+
 /** One row in context list: type badge, path, metadata, date, clamped preview. */
 export default function ContextCard({
   chunk,
@@ -41,21 +67,9 @@ export default function ContextCard({
         <span className={badgeClassForType(contentType)}>
           {formatEnumLabel(contentType)}
         </span>
-        {detailHref ? (
-          <Link href={detailHref} className={styles.path}>
-            {chunk.file_path}
-          </Link>
-        ) : (
-          <span className={styles.path}>{chunk.file_path ?? "—"}</span>
-        )}
+        <PathCell filePath={chunk.file_path} detailHref={detailHref} />
         {repoLabel && <span className={styles.repo}>{repoLabel}</span>}
-        <span className={styles.date}>
-          {chunk.ingested_at ? (
-            <TimeAgo date={chunk.ingested_at} inline />
-          ) : (
-            "—"
-          )}
-        </span>
+        <DateCell ingestedAt={chunk.ingested_at} />
       </div>
       {header && <p className={styles.subhead}>{header}</p>}
       <ChunkBody

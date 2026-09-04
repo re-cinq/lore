@@ -44,6 +44,25 @@ function identifiedRows(rows: unknown[]): { id: string }[] {
   );
 }
 
+/** Parses each row and dispatches the ones that classify, returning them in order. */
+function dispatchParsedRows(
+  rows: unknown[],
+  dispatch: (event: RunStreamEvent) => void,
+): RunStreamEvent[] {
+  const parsedRows: RunStreamEvent[] = [];
+
+  for (const row of rows) {
+    const parsed = parseRunStreamRow(row);
+
+    if (parsed !== null) {
+      dispatch(parsed);
+      parsedRows.push(parsed);
+    }
+  }
+
+  return parsedRows;
+}
+
 export interface RunHistory {
   /** Ordered persisted events, retained only to drive the replay scrubber on a terminal run; a live run never scrubs. */
   historyEvents: RunStreamEvent[];
@@ -68,38 +87,48 @@ export function useRunHistory(
   useEffect(() => {
     let cancelled = false;
 
-    async function foldHistory() {
+    async function loadAllPages(): Promise<{
+      ok: boolean;
+      collected: RunStreamEvent[];
+    }> {
       let cursor = "0";
       const collected: RunStreamEvent[] = [];
 
+      for (;;) {
+        const page = await fetchPage(runId, cursor);
+
+        if (cancelled) {
+          return { ok: true, collected };
+        }
+
+        if (!page.ok) {
+          return { ok: false, collected };
+        }
+        collected.push(...dispatchParsedRows(page.rows, dispatch));
+        const next = nextPageCursor(identifiedRows(page.rows));
+
+        if (next === null) {
+          break;
+        }
+        cursor = next;
+      }
+
+      return { ok: true, collected };
+    }
+
+    async function foldHistory() {
       try {
-        for (;;) {
-          const page = await fetchPage(runId, cursor);
+        const { ok, collected } = await loadAllPages();
 
-          if (cancelled) {
-            return;
-          }
+        if (cancelled) {
+          return;
+        }
 
-          if (!page.ok) {
-            setStreamUnavailable(true);
-            setConnection("offline");
+        if (!ok) {
+          setStreamUnavailable(true);
+          setConnection("offline");
 
-            return;
-          }
-          page.rows.forEach((row) => {
-            const parsed = parseRunStreamRow(row);
-
-            if (parsed !== null) {
-              dispatch(parsed);
-              collected.push(parsed);
-            }
-          });
-          const next = nextPageCursor(identifiedRows(page.rows));
-
-          if (next === null) {
-            break;
-          }
-          cursor = next;
+          return;
         }
         setHistoryEvents(collected);
         setHistoryLoadedFor(runId);
@@ -161,14 +190,7 @@ export function useHistoryPoll(
         if (cancelled || !page.ok) {
           return;
         }
-
-        for (const row of page.rows) {
-          const parsed = parseRunStreamRow(row);
-
-          if (parsed !== null) {
-            dispatch(parsed);
-          }
-        }
+        dispatchParsedRows(page.rows, dispatch);
       } catch {
         // The next tick retries; the chip already reads Polling.
       } finally {

@@ -298,6 +298,23 @@ describe("a feature whose spec PR is open", () => {
     expect(await screen.findByTestId("settled")).toBeInTheDocument();
   });
 
+  it("shows decomposition progress once the merge resumes the line", async () => {
+    mount(
+      poll("running", [node("merged", "success"), node("decompose", null)], {
+        ...prOpen,
+        status: "pr-open",
+      }),
+      prOpen,
+    );
+    await tick();
+
+    expect(
+      await screen.findByText(
+        "The filed stories and tasks appear here when it finishes.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows the settled view for a legacy feature that resolves no line", async () => {
     mount(
       {
