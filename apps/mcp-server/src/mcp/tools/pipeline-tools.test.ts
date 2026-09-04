@@ -407,21 +407,17 @@ describe("pipeline tools that proxy to lore-api (ADR-032) with real proxy helper
     expect(result.content[0].text).toContain("denied access");
   });
 
-  it(
-    "lore_list_task_group reports a subject-scoped fetch message when the API is unreachable",
-    async () => {
-      fetchMock.mockRejectedValue(new Error("connect ECONNREFUSED"));
+  it("lore_list_task_group reports a subject-scoped fetch message when the API is unreachable", async () => {
+    fetchMock.mockRejectedValue(new Error("connect ECONNREFUSED"));
 
-      const result = await handlers["lore_list_task_group"]({
-        group_id: "g1",
-      });
+    const result = await handlers["lore_list_task_group"]({
+      group_id: "g1",
+    });
 
-      expect(result.content[0].text).toContain(
-        "Could not fetch the task group from the Lore API",
-      );
-    },
-    10_000,
-  );
+    expect(result.content[0].text).toContain(
+      "Could not fetch the task group from the Lore API",
+    );
+  }, 10_000);
 
   it("lore_retry_task posts the retry action and returns the new task", async () => {
     jsonOk({ task_id: "t2", retry_of: "t1" });
@@ -647,7 +643,11 @@ describe("lore_get_task_logs and lore_get_job_logs proxy", () => {
   it("lore_get_task_logs reports a denied error on a 401", async () => {
     vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
     vi.stubEnv("LORE_INGEST_TOKEN", "tok");
-    fetchMock.mockResolvedValue({ ok: false, status: 401, statusText: "Unauthorized" });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+    });
 
     const result = await handlers["lore_get_task_logs"]({
       task_id: "t1",
@@ -660,7 +660,11 @@ describe("lore_get_task_logs and lore_get_job_logs proxy", () => {
   it("lore_get_task_logs reports an unreachable error on a non-auth failure", async () => {
     vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
     vi.stubEnv("LORE_INGEST_TOKEN", "tok");
-    fetchMock.mockResolvedValue({ ok: false, status: 500, statusText: "Server Error" });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Server Error",
+    });
 
     const result = await handlers["lore_get_task_logs"]({
       task_id: "t1",
