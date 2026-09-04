@@ -1,4 +1,5 @@
 import styles from "./AnalyticsView.module.css";
+import DataTable from "@/components/DataTable";
 import type { components } from "@/lib/api/schema";
 
 export interface TaskSummary {
@@ -54,233 +55,171 @@ export default function AnalyticsView({
     <div>
       <h1>Analytics</h1>
 
-      {/* Task Summary */}
+      <TaskSummaryCards taskSummary={taskSummary} />
+      <RetrievalLatency latencyStats={latencyStats} />
+      <UsageByTaskType usageByTaskType={usageByTaskType} />
+      <TasksByRepo usageByRepo={usageByRepo} />
+      <DailyUsage dailyUsage={dailyUsage} />
+      <RecentJobRuns jobRuns={jobRuns} />
+    </div>
+  );
+}
+
+function TaskSummaryCards({
+  taskSummary,
+}: Pick<AnalyticsViewProps, "taskSummary">) {
+  const cards: [string, number, string | undefined][] = [
+    ["Total Tasks", taskSummary?.total ?? 0, undefined],
+    ["Succeeded", taskSummary?.succeeded ?? 0, styles.statValueSuccess],
+    ["Failed", taskSummary?.failed ?? 0, styles.statValueDanger],
+    ["Active", taskSummary?.active ?? 0, styles.statValueWarning],
+  ];
+
+  return (
+    <>
       <h2>Task Summary</h2>
       <div className={styles.statsRow}>
-        <div className={`spec-card ${styles.statCard}`}>
-          <div className="meta">Total Tasks</div>
-          <div className={styles.statValue}>
-            {Number(taskSummary?.total ?? 0).toLocaleString()}
+        {cards.map(([label, value, tone]) => (
+          <div className={`spec-card ${styles.statCard}`} key={label}>
+            <div className="meta">{label}</div>
+            <div
+              className={
+                tone ? `${styles.statValue} ${tone}` : styles.statValue
+              }
+            >
+              {Number(value).toLocaleString()}
+            </div>
           </div>
-        </div>
-        <div className={`spec-card ${styles.statCard}`}>
-          <div className="meta">Succeeded</div>
-          <div className={`${styles.statValue} ${styles.statValueSuccess}`}>
-            {Number(taskSummary?.succeeded ?? 0).toLocaleString()}
-          </div>
-        </div>
-        <div className={`spec-card ${styles.statCard}`}>
-          <div className="meta">Failed</div>
-          <div className={`${styles.statValue} ${styles.statValueDanger}`}>
-            {Number(taskSummary?.failed ?? 0).toLocaleString()}
-          </div>
-        </div>
-        <div className={`spec-card ${styles.statCard}`}>
-          <div className="meta">Active</div>
-          <div className={`${styles.statValue} ${styles.statValueWarning}`}>
-            {Number(taskSummary?.active ?? 0).toLocaleString()}
-          </div>
-        </div>
+        ))}
       </div>
+    </>
+  );
+}
 
-      {/* Retrieval Performance */}
-      <h2>Retrieval Performance (Last 7 Days)</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Tool</th>
-            <th>Calls</th>
-            <th>p50</th>
-            <th>p95</th>
-            <th>p99</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {latencyStats.map((r) => (
-            <tr key={r.tool}>
-              <td>
-                <span className="badge">{r.tool}</span>
-              </td>
-              <td>{Number(r.call_count).toLocaleString()}</td>
-              <td className={styles.monoCell}>
-                {Number(r.p50_ms).toFixed(0)}ms
-              </td>
-              <td className={styles.monoCell}>
-                {Number(r.p95_ms).toFixed(0)}ms
-              </td>
-              <td className={styles.monoCell}>
-                {Number(r.p99_ms).toFixed(0)}ms
-              </td>
-              <td>
-                {Number(r.p95_ms) > 200 ? (
-                  <span className="op-badge op-delete">&gt;200ms</span>
-                ) : (
-                  <span className="op-badge op-write">OK</span>
-                )}
-              </td>
-            </tr>
-          ))}
-          {latencyStats.length === 0 && (
-            <tr>
-              <td colSpan={6} className={`meta ${styles.emptyCell}`}>
-                No latency data yet. Use search_memory, query_graph, or
-                assemble_context to generate data.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+function RetrievalLatency({
+  latencyStats,
+}: Pick<AnalyticsViewProps, "latencyStats">) {
+  return (
+    <DataTable
+      title="Retrieval Performance (Last 7 Days)"
+      columns={["Tool", "Calls", "p50", "p95", "p99", "Status"]}
+      rows={latencyStats}
+      rowKey={(r) => r.tool}
+      monoColumns={[2, 3, 4]}
+      empty="No latency data yet"
+      cells={(r) => [
+        <span className="badge" key="tool">
+          {r.tool}
+        </span>,
+        Number(r.call_count).toLocaleString(),
+        `${Number(r.p50_ms).toFixed(0)}ms`,
+        `${Number(r.p95_ms).toFixed(0)}ms`,
+        `${Number(r.p99_ms).toFixed(0)}ms`,
+        // 200ms is the retrieval budget: past it, context assembly is what the developer is waiting on.
+        Number(r.p95_ms) > 200 ? (
+          <span className="op-badge op-delete" key="status">
+            &gt;200ms
+          </span>
+        ) : (
+          <span className="op-badge op-write" key="status">
+            OK
+          </span>
+        ),
+      ]}
+    />
+  );
+}
 
-      {/* Usage by Task Type */}
-      <h2>Usage by Task Type</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Task Type</th>
-            <th>Tasks</th>
-            <th>Input Tokens</th>
-            <th>Output Tokens</th>
-          </tr>
-        </thead>
-        <tbody>
-          {usageByTaskType.map((r) => (
-            <tr key={r.task_type}>
-              <td>
-                <span className="badge">{r.task_type}</span>
-              </td>
-              <td>{Number(r.task_count).toLocaleString()}</td>
-              <td className={styles.monoCell}>
-                {Number(r.total_input_tokens).toLocaleString()}
-              </td>
-              <td className={styles.monoCell}>
-                {Number(r.total_output_tokens).toLocaleString()}
-              </td>
-            </tr>
-          ))}
-          {usageByTaskType.length === 0 && (
-            <tr>
-              <td colSpan={4} className={`meta ${styles.emptyCell}`}>
-                No data
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+function UsageByTaskType({
+  usageByTaskType,
+}: Pick<AnalyticsViewProps, "usageByTaskType">) {
+  return (
+    <DataTable
+      title="Usage by Task Type"
+      columns={["Task Type", "Tasks", "Input Tokens", "Output Tokens"]}
+      rows={usageByTaskType}
+      rowKey={(r) => r.task_type}
+      monoColumns={[2, 3]}
+      cells={(r) => [
+        <span className="badge" key="type">
+          {r.task_type}
+        </span>,
+        Number(r.task_count).toLocaleString(),
+        Number(r.total_input_tokens).toLocaleString(),
+        Number(r.total_output_tokens).toLocaleString(),
+      ]}
+    />
+  );
+}
 
-      {/* Tasks by Repo */}
-      <h2>Tasks by Repo</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Repo</th>
-            <th>Tasks</th>
-          </tr>
-        </thead>
-        <tbody>
-          {usageByRepo.map((r) => (
-            <tr key={r.target_repo}>
-              <td className={styles.monoCell}>{r.target_repo}</td>
-              <td>{Number(r.task_count).toLocaleString()}</td>
-            </tr>
-          ))}
-          {usageByRepo.length === 0 && (
-            <tr>
-              <td colSpan={2} className={`meta ${styles.emptyCell}`}>
-                No data
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+function TasksByRepo({ usageByRepo }: Pick<AnalyticsViewProps, "usageByRepo">) {
+  return (
+    <DataTable
+      title="Tasks by Repo"
+      columns={["Repo", "Tasks"]}
+      rows={usageByRepo}
+      rowKey={(r) => r.target_repo}
+      monoColumns={[0]}
+      cells={(r) => [r.target_repo, Number(r.task_count).toLocaleString()]}
+    />
+  );
+}
 
-      {/* Daily Usage (last 14 days) */}
-      <h2>Daily Usage (Last 14 Days)</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>LLM Calls</th>
-            <th>Input Tokens</th>
-            <th>Output Tokens</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dailyUsage.map((r) => (
-            <tr key={r.day}>
-              <td>{new Date(r.day).toLocaleDateString()}</td>
-              <td>{Number(r.calls).toLocaleString()}</td>
-              <td className={styles.monoCell}>
-                {Number(r.input_tokens).toLocaleString()}
-              </td>
-              <td className={styles.monoCell}>
-                {Number(r.output_tokens).toLocaleString()}
-              </td>
-            </tr>
-          ))}
-          {dailyUsage.length === 0 && (
-            <tr>
-              <td colSpan={4} className={`meta ${styles.emptyCell}`}>
-                No data
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+function DailyUsage({ dailyUsage }: Pick<AnalyticsViewProps, "dailyUsage">) {
+  return (
+    <DataTable
+      title="Daily Usage (Last 14 Days)"
+      columns={["Date", "LLM Calls", "Input Tokens", "Output Tokens"]}
+      rows={dailyUsage}
+      rowKey={(r) => r.day}
+      monoColumns={[2, 3]}
+      cells={(r) => [
+        new Date(r.day).toLocaleDateString(),
+        Number(r.calls).toLocaleString(),
+        Number(r.input_tokens).toLocaleString(),
+        Number(r.output_tokens).toLocaleString(),
+      ]}
+    />
+  );
+}
 
-      {/* Recent Job Runs */}
-      <h2>Recent Job Runs</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Job</th>
-            <th>Started</th>
-            <th>Duration</th>
-            <th>Status</th>
-            <th>Result</th>
-            <th>Logs</th>
-          </tr>
-        </thead>
-        <tbody>
-          {jobRuns.map((r) => (
-            <tr key={r.id}>
-              <td>
-                <span className="badge">{r.job_name}</span>
-              </td>
-              <td className="meta">
-                {new Date(r.started_at).toLocaleString()}
-              </td>
-              <td className={styles.monoCell}>
-                {formatDuration(r.started_at, r.completed_at)}
-              </td>
-              <td>
-                <span className={`op-badge op-${r.status}`}>{r.status}</span>
-              </td>
-              <td className={styles.smallCell}>
-                {r.error ? (
-                  <span className={styles.error}>{r.error}</span>
-                ) : (
-                  (r.result_summary ?? "—")
-                )}
-              </td>
-              <td className={styles.smallCell}>
-                {r.log_path ? (
-                  <a href={`/job-runs/${r.id}`}>view</a>
-                ) : (
-                  <span className="meta">—</span>
-                )}
-              </td>
-            </tr>
-          ))}
-          {jobRuns.length === 0 && (
-            <tr>
-              <td colSpan={6} className={`meta ${styles.emptyCell}`}>
-                No job runs
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+function RecentJobRuns({ jobRuns }: Pick<AnalyticsViewProps, "jobRuns">) {
+  return (
+    <DataTable
+      title="Recent Job Runs"
+      columns={["Job", "Started", "Duration", "Status", "Result", "Logs"]}
+      rows={jobRuns}
+      rowKey={(r) => r.id}
+      monoColumns={[2]}
+      empty="No job runs"
+      cells={(r) => [
+        <span className="badge" key="job">
+          {r.job_name}
+        </span>,
+        <span className="meta" key="started">
+          {new Date(r.started_at).toLocaleString()}
+        </span>,
+        formatDuration(r.started_at, r.completed_at),
+        <span className={`op-badge op-${r.status}`} key="status">
+          {r.status}
+        </span>,
+        r.error ? (
+          <span className={styles.error} key="result">
+            {r.error}
+          </span>
+        ) : (
+          (r.result_summary ?? "—")
+        ),
+        r.log_path ? (
+          <a href={`/job-runs/${r.id}`} key="logs">
+            view
+          </a>
+        ) : (
+          <span className="meta" key="logs">
+            —
+          </span>
+        ),
+      ]}
+    />
   );
 }
