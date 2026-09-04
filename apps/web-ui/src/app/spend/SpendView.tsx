@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import styles from "./SpendView.module.css";
 import type { components } from "@/lib/api/schema";
 import RecordTopUp from "./RecordTopUp";
@@ -109,6 +110,61 @@ function BudgetOutlookNote({ budget }: { budget: NonNullable<BudgetRow> }) {
   );
 }
 
+/** Twelve breakdowns of the same spend differ only in their columns, so they are one table that takes them. `empty` is the message for no rows; omit it where an absent breakdown means the vendor never synced rather than spent nothing. */
+function CostTable<T>({
+  title,
+  columns,
+  rows,
+  rowKey,
+  cells,
+  monoColumns = [],
+  empty = "No data",
+}: {
+  title: string;
+  columns: string[];
+  rows: readonly T[];
+  rowKey: (row: T) => string;
+  cells: (row: T) => ReactNode[];
+  monoColumns?: number[];
+  empty?: string;
+}) {
+  return (
+    <>
+      <h2>{title}</h2>
+      <table>
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column}>{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={rowKey(row)}>
+              {cells(row).map((cell, index) => (
+                <td
+                  key={columns[index]}
+                  className={
+                    monoColumns.includes(index) ? styles.mono : undefined
+                  }
+                >
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+          <EmptyRow
+            when={rows.length === 0}
+            colSpan={columns.length}
+            message={empty}
+          />
+        </tbody>
+      </table>
+    </>
+  );
+}
+
 /** The row a table shows instead of nothing. Rendering it from the table body keeps every table's empty state one decision rather than nine. */
 function EmptyRow({
   when,
@@ -149,410 +205,41 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
         hasClusterSpend={llm.by_cluster.some((r) => r.cluster !== null)}
         recordAction={recordAction}
       />
-
-      <h2>LLM by Assembly Line</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Assembly line</th>
-            <th>Runs</th>
-            <th>Cost</th>
-            {/* Cost per run: shows whether model/prompt changes paid off */}
-            <th>Cost / run</th>
-          </tr>
-        </thead>
-        <tbody>
-          {llm.by_blueprint.map((r) => (
-            <tr key={r.blueprint}>
-              <td>{r.blueprint}</td>
-              <td>{num(r.runs)}</td>
-              <td>{usd(r.usd)}</td>
-              <td>{r.runs > 0 ? usd(r.usd / r.runs) : "—"}</td>
-            </tr>
-          ))}
-          <EmptyRow
-            when={llm.by_blueprint.length === 0}
-            colSpan={4}
-            message="No data"
-          />
-        </tbody>
-      </table>
-
-      <h2>Cost by Vendor</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Vendor</th>
-            <th>Calls</th>
-            <th>Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {llm.by_vendor.map((r) => (
-            <tr key={r.vendor}>
-              <td>
-                <span className="badge">{r.vendor}</span>
-              </td>
-              <td>{num(r.calls)}</td>
-              <td>{usd(r.cost_usd)}</td>
-            </tr>
-          ))}
-          <EmptyRow
-            when={llm.by_vendor.length === 0}
-            colSpan={3}
-            message="No data"
-          />
-        </tbody>
-      </table>
-      {/* Only Anthropic draws recorded credits; others bill their own vendor */}
-      {llm.by_vendor.some((r) => r.vendor !== "anthropic") && (
-        <p className={`meta ${styles.subnote}`}>
-          Only Anthropic spend draws the balance above — other vendors bill
-          their own account.
-        </p>
-      )}
-
-      <h2>Cost by Model</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Model</th>
-            <th>Calls</th>
-            <th>Cost</th>
-            <th>Input Tokens</th>
-            <th>Output Tokens</th>
-          </tr>
-        </thead>
-        <tbody>
-          {llm.by_model.map((r) => (
-            <tr key={r.model || "(non-token)"}>
-              <td>
-                <span className="badge">{r.model || "(non-token)"}</span>
-              </td>
-              <td>{num(r.calls)}</td>
-              <td>{usd(r.cost_usd)}</td>
-              <td className={styles.mono}>{num(r.input_tokens)}</td>
-              <td className={styles.mono}>{num(r.output_tokens)}</td>
-            </tr>
-          ))}
-          <EmptyRow
-            when={llm.by_model.length === 0}
-            colSpan={5}
-            message="No data"
-          />
-        </tbody>
-      </table>
-
-      <h2>Cost by Kind</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Kind</th>
-            <th>Calls</th>
-            <th>Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {llm.by_kind.map((r) => (
-            <tr key={r.kind}>
-              <td>{r.kind}</td>
-              <td>{num(r.calls)}</td>
-              <td>{usd(r.cost_usd)}</td>
-            </tr>
-          ))}
-          <EmptyRow
-            when={llm.by_kind.length === 0}
-            colSpan={3}
-            message="No data"
-          />
-        </tbody>
-      </table>
-
-      <h2>Daily Cost</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Calls</th>
-            <th>Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {llm.daily.map((r) => (
-            <tr key={r.bucket_date}>
-              <td>{day(r.bucket_date)}</td>
-              <td>{num(r.calls)}</td>
-              <td>{usd(r.cost_usd)}</td>
-            </tr>
-          ))}
-          <EmptyRow
-            when={llm.daily.length === 0}
-            colSpan={3}
-            message="No data"
-          />
-        </tbody>
-      </table>
-
-      <h2>Cost by Repo</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Repo</th>
-            <th>Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {llm.by_repo.map((r) => (
-            <tr key={r.repo}>
-              <td className={styles.mono}>{r.repo}</td>
-              <td>{usd(r.usd)}</td>
-            </tr>
-          ))}
-          <EmptyRow
-            when={llm.by_repo.length === 0}
-            colSpan={2}
-            message="No run-attributed spend"
-          />
-        </tbody>
-      </table>
-
-      <h2>Cost by Task Type</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Task Type</th>
-            <th>Tasks</th>
-            <th>Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {llm.by_task_type.map((r) => (
-            <tr key={r.task_type}>
-              <td>
-                <span className="badge">{r.task_type}</span>
-              </td>
-              <td>{num(r.tasks)}</td>
-              <td>{usd(r.cost_usd)}</td>
-            </tr>
-          ))}
-          <EmptyRow
-            when={llm.by_task_type.length === 0}
-            colSpan={3}
-            message="No task-attributed spend"
-          />
-        </tbody>
-      </table>
-
-      <h2>Cost by Cluster</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Cluster</th>
-            <th>Calls</th>
-            <th>Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {/* Null bucket: home account spend; rest: registered clusters */}
-          {llm.by_cluster.some((r) => r.cluster === null) && (
-            <tr>
-              <td colSpan={3} className={styles.subhead}>
-                No cluster
-              </td>
-            </tr>
-          )}
-          {llm.by_cluster
-            .filter((r) => r.cluster === null)
-            .map((r) => (
-              <tr key="no-cluster">
-                <td>
-                  <span className="badge">(no cluster)</span>
-                </td>
-                <td>{num(r.calls)}</td>
-                <td>{usd(r.cost_usd)}</td>
-              </tr>
-            ))}
-          {llm.by_cluster.some((r) => r.cluster !== null) && (
-            <tr>
-              <td colSpan={3} className={styles.subhead}>
-                Clusters
-              </td>
-            </tr>
-          )}
-          {llm.by_cluster
-            .filter((r) => r.cluster !== null)
-            .map((r) => (
-              <tr key={r.cluster}>
-                <td>
-                  <span className="badge">{r.cluster}</span>
-                </td>
-                <td>{num(r.calls)}</td>
-                <td>{usd(r.cost_usd)}</td>
-              </tr>
-            ))}
-          <EmptyRow
-            when={llm.by_cluster.length === 0}
-            colSpan={3}
-            message="No cluster-attributed spend"
-          />
-        </tbody>
-      </table>
-
-      {billed.available && (
-        <>
-          <h2>Anthropic Billed by Model</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th>Billed Cost</th>
-                <th>Input Tokens</th>
-                <th>Output Tokens</th>
-              </tr>
-            </thead>
-            <tbody>
-              {billed.by_model.map((r) => (
-                <tr key={r.model || "(non-token)"}>
-                  <td>
-                    <span className="badge">{r.model || "(non-token)"}</span>
-                  </td>
-                  <td>{usd(r.cost_usd)}</td>
-                  <td className={styles.mono}>{num(r.input_tokens)}</td>
-                  <td className={styles.mono}>{num(r.output_tokens)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <h2>Anthropic Daily Billed</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Billed Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {billed.daily.map((r) => (
-                <tr key={r.bucket_date}>
-                  <td>{day(r.bucket_date)}</td>
-                  <td>{usd(r.cost_usd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-
-      {gcp.available && (
-        <>
-          <h2>GCP Billed by Service</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Service</th>
-                <th>Billed Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gcp.by_service.map((r) => (
-                <tr key={r.service}>
-                  <td>{r.service}</td>
-                  <td>{usd(r.cost_usd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <h2>GCP Daily Billed</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Billed Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gcp.daily.map((r) => (
-                <tr key={r.bucket_date}>
-                  <td>{day(r.bucket_date)}</td>
-                  <td>{usd(r.cost_usd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-
-      <h2>Pods Running Now</h2>
-      {compute.live_pods.length === 0 ? (
-        <p className="meta">No run pods are live right now.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Pod</th>
-              <th>Requests</th>
-              <th>$/hour</th>
-              <th>So far</th>
-            </tr>
-          </thead>
-          <tbody>
-            {compute.live_pods.map((pod) => (
-              <tr key={pod.name}>
-                <td>{pod.name}</td>
-                <td>
-                  {pod.requests.cpu ?? "—"} cpu · {pod.requests.memory ?? "—"}
-                </td>
-                <td>{usd(pod.usd_per_hour)}</td>
-                <td>{usd(pod.usd_so_far)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      <h2>Pod-Hours in Interval</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Assembly line</th>
-            <th>Pods</th>
-            <th>Hours</th>
-            <th>Est. cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {compute.pod_hours.map((r) => (
-            <tr key={r.blueprint}>
-              <td>{r.blueprint}</td>
-              <td>{num(r.pods)}</td>
-              <td>{num(r.hours)}</td>
-              <td>{usd(r.est_usd)}</td>
-            </tr>
-          ))}
-          <EmptyRow
-            when={compute.pod_hours.length === 0}
-            colSpan={4}
-            message="No data"
-          />
-        </tbody>
-      </table>
-      <p className={`meta ${styles.subnote}`}>
-        Compute is an estimate from resource requests × on-demand rates ($
-        {compute.rates.cpu_hour_usd}/cpu-h, ${compute.rates.mem_gib_hour_usd}
-        /GiB-h); interval pod-hours assume a {compute.assumed_profile.cpu} cpu /{" "}
-        {compute.assumed_profile.memory} pod. Google&apos;s invoice lags a day
-        and is the truth
-        {gcp.available
-          ? " — the Google Cloud (billed) figures above are that invoice."
-          : "."}
-      </p>
+      <LlmBreakdowns llm={llm} />
+      <BilledBreakdowns billed={billed} gcp={gcp} />
+      <ComputeBreakdowns compute={compute} gcpAvailable={gcp.available} />
     </div>
   );
 }
 
 /** The headline figures: what Lore computed from token counts, what each vendor actually billed, and what the pods cost. A billed card appears only once that vendor has synced. */
+/** One headline figure. `estimate` marks a number Lore computed rather than one a vendor billed, which is the distinction the whole page turns on. */
+function StatCard({
+  label,
+  figure,
+  estimate = false,
+  children,
+}: {
+  label: ReactNode;
+  figure: string;
+  estimate?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <div className={`spec-card ${styles.card}`}>
+      <div className="meta">{label}</div>
+      <div className={estimate ? styles.figureInfo : styles.figure}>
+        {figure}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Subnote({ children }: { children: ReactNode }) {
+  return <div className={`meta ${styles.subnote}`}>{children}</div>;
+}
+
 function SummaryCards({
   interval,
   llm,
@@ -568,70 +255,61 @@ function SummaryCards({
 }) {
   return (
     <div className={styles.cards}>
-      <div className={`spec-card ${styles.card}`}>
-        <div className="meta">
-          Lore-computed cost {day(interval.from)} → {day(interval.to)}
-        </div>
-        <div className={styles.figureInfo}>{usd(llm.total_usd)}</div>
-        <div className={`meta ${styles.subnote}`}>
-          estimate from token counts
-        </div>
-      </div>
-      <div className={`spec-card ${styles.card}`}>
-        <div className="meta">API calls</div>
-        <div className={styles.figure}>{num(llm.calls)}</div>
-      </div>
-      <div className={`spec-card ${styles.card}`}>
-        <div className="meta">Input tokens</div>
-        <div className={styles.figure}>{num(llm.input_tokens)}</div>
-      </div>
-      <div className={`spec-card ${styles.card}`}>
-        <div className="meta">Output tokens</div>
-        <div className={styles.figure}>{num(llm.output_tokens)}</div>
-      </div>
-      {billed.available && (
-        <div className={`spec-card ${styles.card}`}>
-          <div className="meta">Billed cost (Anthropic)</div>
-          <div className={styles.figure}>{usd(billed.total_usd)}</div>
-          <div className={`meta ${styles.subnote}`}>
-            as of {stamp(billed.as_of as string)}
-          </div>
-          {/* Anthropic report lags; surface unbilled amount separately and labeled */}
-          {billed.unbilled_usd > 0 && (
-            <div className={`meta ${styles.subnote}`}>
-              {billed.billed_through
-                ? `billed through ${day(billed.billed_through)}`
-                : "not yet billed"}{" "}
-              — + {usd(billed.unbilled_usd)}{" "}
-              {billed.unbilled_days === 1
-                ? "today"
-                : `over ${num(billed.unbilled_days)} days since`}{" "}
-              (Lore-computed)
-            </div>
-          )}
-        </div>
-      )}
-      <div className={`spec-card ${styles.card}`}>
-        <div className="meta">Kubernetes (estimated)</div>
-        <div className={styles.figureInfo}>{usd(compute.est_total_usd)}</div>
-        <div className={`meta ${styles.subnote}`}>
-          + {usd(compute.live_usd_per_hour)}/h burning now
-        </div>
-      </div>
+      <StatCard
+        label={`Lore-computed cost ${day(interval.from)} → ${day(interval.to)}`}
+        figure={usd(llm.total_usd)}
+        estimate
+      >
+        <Subnote>estimate from token counts</Subnote>
+      </StatCard>
+      <StatCard label="API calls" figure={num(llm.calls)} />
+      <StatCard label="Input tokens" figure={num(llm.input_tokens)} />
+      <StatCard label="Output tokens" figure={num(llm.output_tokens)} />
+      {billed.available && <AnthropicBilledCard billed={billed} />}
+      <StatCard
+        label="Kubernetes (estimated)"
+        figure={usd(compute.est_total_usd)}
+        estimate
+      >
+        <Subnote>+ {usd(compute.live_usd_per_hour)}/h burning now</Subnote>
+      </StatCard>
       {/* GCP invoice synced from BigQuery export; lags a day+, so estimate still needed */}
-      {gcp.available && (
-        <div className={`spec-card ${styles.card}`}>
-          <div className="meta">Google Cloud (billed)</div>
-          <div className={styles.figure}>{usd(gcp.total_usd)}</div>
-          <div className={`meta ${styles.subnote}`}>
-            {gcp.billed_through
-              ? `billed through ${day(gcp.billed_through)}`
-              : "no closed day in this interval yet"}{" "}
-            — net of credits
-          </div>
-        </div>
-      )}
+      {gcp.available && <GcpBilledCard gcp={gcp} />}
     </div>
+  );
+}
+
+/** The Anthropic invoice, plus what Lore metered after the last billed day — the report lags, so the unbilled remainder is surfaced separately and labelled rather than folded in. */
+function AnthropicBilledCard({ billed }: { billed: SpendWindow["billed"] }) {
+  return (
+    <StatCard label="Billed cost (Anthropic)" figure={usd(billed.total_usd)}>
+      <Subnote>as of {stamp(billed.as_of as string)}</Subnote>
+      {billed.unbilled_usd > 0 && (
+        <Subnote>
+          {billed.billed_through
+            ? `billed through ${day(billed.billed_through)}`
+            : "not yet billed"}{" "}
+          — + {usd(billed.unbilled_usd)}{" "}
+          {billed.unbilled_days === 1
+            ? "today"
+            : `over ${num(billed.unbilled_days)} days since`}{" "}
+          (Lore-computed)
+        </Subnote>
+      )}
+    </StatCard>
+  );
+}
+
+function GcpBilledCard({ gcp }: { gcp: SpendWindow["gcp"] }) {
+  return (
+    <StatCard label="Google Cloud (billed)" figure={usd(gcp.total_usd)}>
+      <Subnote>
+        {gcp.billed_through
+          ? `billed through ${day(gcp.billed_through)}`
+          : "no closed day in this interval yet"}{" "}
+        — net of credits
+      </Subnote>
+    </StatCard>
   );
 }
 
@@ -693,6 +371,281 @@ function BalanceSection({
       {recordAction && (
         <RecordTopUp first={!budget} recordAction={recordAction} />
       )}
+    </>
+  );
+}
+
+/** Every cut of what Lore metered itself: by line, vendor, model, kind, day, repo, task type and cluster. */
+function LlmBreakdowns({ llm }: { llm: SpendWindow["llm"] }) {
+  return (
+    <>
+      <CostTable
+        title="LLM by Assembly Line"
+        columns={["Assembly line", "Runs", "Cost", "Cost / run"]}
+        rows={llm.by_blueprint}
+        rowKey={(r) => r.blueprint}
+        cells={(r) => [
+          r.blueprint,
+          num(r.runs),
+          usd(r.usd),
+          // Cost per run: shows whether model/prompt changes paid off.
+          r.runs > 0 ? usd(r.usd / r.runs) : "—",
+        ]}
+      />
+
+      <CostTable
+        title="Cost by Vendor"
+        columns={["Vendor", "Calls", "Cost"]}
+        rows={llm.by_vendor}
+        rowKey={(r) => r.vendor}
+        cells={(r) => [
+          <span className="badge" key="vendor">
+            {r.vendor}
+          </span>,
+          num(r.calls),
+          usd(r.cost_usd),
+        ]}
+      />
+      {/* Only Anthropic draws recorded credits; others bill their own vendor */}
+      {llm.by_vendor.some((r) => r.vendor !== "anthropic") && (
+        <p className={`meta ${styles.subnote}`}>
+          Only Anthropic spend draws the balance above — other vendors bill
+          their own account.
+        </p>
+      )}
+
+      <CostTable
+        title="Cost by Model"
+        columns={["Model", "Calls", "Cost", "Input Tokens", "Output Tokens"]}
+        rows={llm.by_model}
+        rowKey={(r) => r.model || "(non-token)"}
+        monoColumns={[3, 4]}
+        cells={(r) => [
+          <span className="badge" key="model">
+            {r.model || "(non-token)"}
+          </span>,
+          num(r.calls),
+          usd(r.cost_usd),
+          num(r.input_tokens),
+          num(r.output_tokens),
+        ]}
+      />
+
+      <CostTable
+        title="Cost by Kind"
+        columns={["Kind", "Calls", "Cost"]}
+        rows={llm.by_kind}
+        rowKey={(r) => r.kind}
+        cells={(r) => [r.kind, num(r.calls), usd(r.cost_usd)]}
+      />
+
+      <CostTable
+        title="Daily Cost"
+        columns={["Date", "Calls", "Cost"]}
+        rows={llm.daily}
+        rowKey={(r) => r.bucket_date}
+        cells={(r) => [day(r.bucket_date), num(r.calls), usd(r.cost_usd)]}
+      />
+
+      <CostTable
+        title="Cost by Repo"
+        columns={["Repo", "Cost"]}
+        rows={llm.by_repo}
+        rowKey={(r) => r.repo}
+        monoColumns={[0]}
+        empty="No run-attributed spend"
+        cells={(r) => [r.repo, usd(r.usd)]}
+      />
+
+      <CostTable
+        title="Cost by Task Type"
+        columns={["Task Type", "Tasks", "Cost"]}
+        rows={llm.by_task_type}
+        rowKey={(r) => r.task_type}
+        empty="No task-attributed spend"
+        cells={(r) => [
+          <span className="badge" key="task-type">
+            {r.task_type}
+          </span>,
+          num(r.tasks),
+          usd(r.cost_usd),
+        ]}
+      />
+
+      <h2>Cost by Cluster</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Cluster</th>
+            <th>Calls</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {/* Null bucket: home account spend; rest: registered clusters */}
+          {llm.by_cluster.some((r) => r.cluster === null) && (
+            <tr>
+              <td colSpan={3} className={styles.subhead}>
+                No cluster
+              </td>
+            </tr>
+          )}
+          {llm.by_cluster
+            .filter((r) => r.cluster === null)
+            .map((r) => (
+              <tr key="no-cluster">
+                <td>
+                  <span className="badge">(no cluster)</span>
+                </td>
+                <td>{num(r.calls)}</td>
+                <td>{usd(r.cost_usd)}</td>
+              </tr>
+            ))}
+          {llm.by_cluster.some((r) => r.cluster !== null) && (
+            <tr>
+              <td colSpan={3} className={styles.subhead}>
+                Clusters
+              </td>
+            </tr>
+          )}
+          {llm.by_cluster
+            .filter((r) => r.cluster !== null)
+            .map((r) => (
+              <tr key={r.cluster}>
+                <td>
+                  <span className="badge">{r.cluster}</span>
+                </td>
+                <td>{num(r.calls)}</td>
+                <td>{usd(r.cost_usd)}</td>
+              </tr>
+            ))}
+          <EmptyRow
+            when={llm.by_cluster.length === 0}
+            colSpan={3}
+            message="No cluster-attributed spend"
+          />
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+/** What the two vendors actually billed. Each half renders only once that vendor has synced — an absent section means "never synced", not "spent nothing". */
+function BilledBreakdowns({
+  billed,
+  gcp,
+}: {
+  billed: SpendWindow["billed"];
+  gcp: SpendWindow["gcp"];
+}) {
+  return (
+    <>
+      {billed.available && (
+        <>
+          <CostTable
+            title="Anthropic Billed by Model"
+            columns={["Model", "Billed Cost", "Input Tokens", "Output Tokens"]}
+            rows={billed.by_model}
+            rowKey={(r) => r.model || "(non-token)"}
+            monoColumns={[2, 3]}
+            cells={(r) => [
+              <span className="badge" key="model">
+                {r.model || "(non-token)"}
+              </span>,
+              usd(r.cost_usd),
+              num(r.input_tokens),
+              num(r.output_tokens),
+            ]}
+          />
+
+          <CostTable
+            title="Anthropic Daily Billed"
+            columns={["Date", "Billed Cost"]}
+            rows={billed.daily}
+            rowKey={(r) => r.bucket_date}
+            cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
+          />
+        </>
+      )}
+
+      {gcp.available && (
+        <>
+          <CostTable
+            title="GCP Billed by Service"
+            columns={["Service", "Billed Cost"]}
+            rows={gcp.by_service}
+            rowKey={(r) => r.service}
+            cells={(r) => [r.service, usd(r.cost_usd)]}
+          />
+
+          <CostTable
+            title="GCP Daily Billed"
+            columns={["Date", "Billed Cost"]}
+            rows={gcp.daily}
+            rowKey={(r) => r.bucket_date}
+            cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+/** Pods burning money right now, and the hours already spent in the interval. */
+function ComputeBreakdowns({
+  compute,
+  gcpAvailable,
+}: {
+  compute: SpendWindow["compute"];
+  gcpAvailable: boolean;
+}) {
+  return (
+    <>
+      <h2>Pods Running Now</h2>
+      {compute.live_pods.length === 0 ? (
+        <p className="meta">No run pods are live right now.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Pod</th>
+              <th>Requests</th>
+              <th>$/hour</th>
+              <th>So far</th>
+            </tr>
+          </thead>
+          <tbody>
+            {compute.live_pods.map((pod) => (
+              <tr key={pod.name}>
+                <td>{pod.name}</td>
+                <td>
+                  {pod.requests.cpu ?? "—"} cpu · {pod.requests.memory ?? "—"}
+                </td>
+                <td>{usd(pod.usd_per_hour)}</td>
+                <td>{usd(pod.usd_so_far)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <CostTable
+        title="Pod-Hours in Interval"
+        columns={["Assembly line", "Pods", "Hours", "Est. cost"]}
+        rows={compute.pod_hours}
+        rowKey={(r) => r.blueprint}
+        cells={(r) => [r.blueprint, num(r.pods), num(r.hours), usd(r.est_usd)]}
+      />
+      <p className={`meta ${styles.subnote}`}>
+        Compute is an estimate from resource requests × on-demand rates ($
+        {compute.rates.cpu_hour_usd}/cpu-h, ${compute.rates.mem_gib_hour_usd}
+        /GiB-h); interval pod-hours assume a {compute.assumed_profile.cpu} cpu /{" "}
+        {compute.assumed_profile.memory} pod. Google&apos;s invoice lags a day
+        and is the truth
+        {gcpAvailable
+          ? " — the Google Cloud (billed) figures above are that invoice."
+          : "."}
+      </p>
     </>
   );
 }
