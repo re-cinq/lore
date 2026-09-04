@@ -316,21 +316,29 @@ function decodeContent(encoded: string): string {
   return Buffer.from(encoded, "base64").toString("utf-8");
 }
 
-/** Fetches repo context (tree, key files, source samples) for onboarding agents to understand tech stack. */
-export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
-  const [owner, repo] = fullName.split("/");
+type GetContentResult = Awaited<
+  ReturnType<
+    Awaited<ReturnType<typeof getOctokit>>["rest"]["repos"]["getContent"]
+  >
+>["data"];
 
-  enforceTrue(
-    !(!owner || !repo),
-    Error,
-    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
-  );
+/** Extracts file content from a GitHub `getContent` response, or null for a dir/empty file. */
+function fileContentIfPresent(content: GetContentResult): string | null {
+  if (Array.isArray(content)) {
+    return null;
+  }
 
-  const octokit = await getOctokit();
+  return content.type === "file" && content.content
+    ? decodeContent(content.content)
+    : null;
+}
 
-  // 1. Fetch top-level tree
-  let tree: string[] = [];
-
+async function fetchTopLevelTree(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  owner: string,
+  repo: string,
+  fullName: string,
+): Promise<string[]> {
   try {
     const { data: content } = await octokit.rest.repos.getContent({
       owner,
@@ -338,16 +346,22 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
       path: "",
     });
 
-    if (Array.isArray(content)) {
-      tree = content.map((entry) => entry.name);
-    }
+    return Array.isArray(content) ? content.map((entry) => entry.name) : [];
   } catch (err) {
     console.error(
       `[onboard] Failed to fetch tree for ${fullName}: ${errorMessage(err)}`,
     );
-  }
 
-  // 2. Fetch key files (skip 404s)
+    return [];
+  }
+}
+
+async function fetchKeyFiles(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  owner: string,
+  repo: string,
+  fullName: string,
+): Promise<Record<string, string>> {
   const files: Record<string, string> = {};
 
   await Promise.all(
@@ -358,13 +372,10 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
           repo,
           path,
         });
+        const decoded = fileContentIfPresent(content);
 
-        if (
-          !Array.isArray(content) &&
-          content.type === "file" &&
-          content.content
-        ) {
-          files[path] = decodeContent(content.content);
+        if (decoded) {
+          files[path] = decoded;
         }
       } catch (err) {
         if ((err as { status?: number }).status !== 404) {
@@ -376,7 +387,15 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
     }),
   );
 
-  // 3. Sample up to 3 source files from key directories
+  return files;
+}
+
+async function fetchSamples(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  owner: string,
+  repo: string,
+  fullName: string,
+): Promise<Record<string, string>> {
   const samples: Record<string, string> = {};
 
   for (const dir of SAMPLE_DIRS) {
@@ -413,6 +432,24 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
     );
   }
 
+  return samples;
+}
+
+/** Fetches repo context (tree, key files, source samples) for onboarding agents to understand tech stack. */
+export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
+  const [owner, repo] = fullName.split("/");
+
+  enforceTrue(
+    !(!owner || !repo),
+    Error,
+    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
+  );
+
+  const octokit = await getOctokit();
+  const tree = await fetchTopLevelTree(octokit, owner, repo, fullName);
+  const files = await fetchKeyFiles(octokit, owner, repo, fullName);
+  const samples = await fetchSamples(octokit, owner, repo, fullName);
+
   return { tree, files, samples };
 }
 
@@ -440,16 +477,10 @@ async function sampleSourceFiles(
         repo: ref.repo,
         path: entry.path,
       });
+      const full = fileContentIfPresent(content);
 
-      if (
-        !Array.isArray(content) &&
-        content.type === "file" &&
-        content.content
-      ) {
-        const full = decodeContent(content.content);
-        const first200 = full.split("\n").slice(0, 200).join("\n");
-
-        samples[entry.path] = first200;
+      if (full) {
+        samples[entry.path] = full.split("\n").slice(0, 200).join("\n");
       }
     } catch (err) {
       console.error(

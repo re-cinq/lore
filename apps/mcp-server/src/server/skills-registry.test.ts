@@ -75,6 +75,29 @@ describe("handleSkillsRequest", () => {
     expect(captured.status).toBe(404);
   });
 
+  it("404s a /skills/ path with no recognized suffix", async () => {
+    const { res, captured } = mockRes();
+
+    await handleSkillsRequest(
+      req("GET", "/skills/not-a-tarball"),
+      res,
+      skillsRoot,
+    );
+    expect(captured.status).toBe(404);
+  });
+
+  it("returns false for a non-GET method even on a /skills/ path", async () => {
+    const { res } = mockRes();
+
+    expect(
+      await handleSkillsRequest(
+        req("POST", "/skills/lore-context.tar.gz"),
+        res,
+        skillsRoot,
+      ),
+    ).toBe(false);
+  });
+
   it("serves a baked skill as a gzip tarball", async () => {
     const { res, captured, body } = mockRes();
     const done = body();

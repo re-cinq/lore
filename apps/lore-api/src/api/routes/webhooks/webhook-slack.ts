@@ -107,24 +107,32 @@ export interface SlashCommand {
   retryTaskId?: string;
 }
 
-/** `/lore [!] [task_type] <description>`, or `/lore retry <task_id>`. A leading `!` asks for immediate priority; a first word that names a known type claims it, otherwise the whole text is the description. */
-export function parseSlashCommand(commandText: string): SlashCommand {
-  let words = commandText.split(/\s+/);
-  let priority = "normal";
+/** A leading `!` asks for immediate priority; the remaining words are handed on. */
+function extractPriority(words: string[]): {
+  priority: string;
+  rest: string[];
+} {
+  return words[0] === "!"
+    ? { priority: "immediate", rest: words.slice(1) }
+    : { priority: "normal", rest: words };
+}
 
-  if (words[0] === "!") {
-    priority = "immediate";
-    words = words.slice(1);
+/** `retry <task_id>`, or null when the words don't shape a retry command. */
+function retryCommand(words: string[], priority: string): SlashCommand | null {
+  if (words[0] !== "retry" || !words[1]) {
+    return null;
   }
 
-  if (words[0] === "retry" && words[1]) {
-    return {
-      priority,
-      taskType: "general",
-      description: "",
-      retryTaskId: words[1],
-    };
-  }
+  return {
+    priority,
+    taskType: "general",
+    description: "",
+    retryTaskId: words[1],
+  };
+}
+
+/** A first word that names a known type claims it, otherwise the whole text is the description. */
+function namedTaskCommand(words: string[], priority: string): SlashCommand {
   const named = words.length > 1 && KNOWN_TASK_TYPES.includes(words[0]);
 
   return {
@@ -132,6 +140,13 @@ export function parseSlashCommand(commandText: string): SlashCommand {
     taskType: named ? words[0] : "general",
     description: named ? words.slice(1).join(" ") : words.join(" "),
   };
+}
+
+/** `/lore [!] [task_type] <description>`, or `/lore retry <task_id>`. */
+export function parseSlashCommand(commandText: string): SlashCommand {
+  const { priority, rest } = extractPriority(commandText.split(/\s+/));
+
+  return retryCommand(rest, priority) ?? namedTaskCommand(rest, priority);
 }
 
 async function retryReply(retryTaskId: string): Promise<object> {
@@ -198,6 +213,28 @@ async function createReply(
   }
 }
 
+function commandTextFrom(params: URLSearchParams): string {
+  return (params.get("text") || "").trim();
+}
+
+function slackSender(params: URLSearchParams): {
+  channelId: string;
+  userName: string;
+} {
+  return {
+    channelId: params.get("channel_id") || "",
+    userName: params.get("user_name") || "unknown",
+  };
+}
+
+// hapi 204 on empty payload; Slack expects 200 for empty challenge.
+function challengeResponse(h: ResponseToolkit, params: URLSearchParams) {
+  return h
+    .response(params.get("challenge") || "")
+    .type("text/plain")
+    .code(200);
+}
+
 export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -221,13 +258,9 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
       const params = new URLSearchParams(body);
 
       if (params.get("type") === "url_verification") {
-        // hapi 204 on empty payload; Slack expects 200 for empty challenge.
-        return h
-          .response(params.get("challenge") || "")
-          .type("text/plain")
-          .code(200);
+        return challengeResponse(h, params);
       }
-      const commandText = (params.get("text") || "").trim();
+      const commandText = commandTextFrom(params);
 
       if (!commandText) {
         return h.response({ response_type: "ephemeral", text: USAGE });
@@ -239,10 +272,7 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
       }
 
       return h.response(
-        await createReply(getPool(), command, {
-          channelId: params.get("channel_id") || "",
-          userName: params.get("user_name") || "unknown",
-        }),
+        await createReply(getPool(), command, slackSender(params)),
       );
     },
   };

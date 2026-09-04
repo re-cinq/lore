@@ -75,22 +75,30 @@ proxied body, the `unreachableError` message, or
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
-- Handler `readMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L141)).
+- Handler `readMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L256)).
 - `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L15)); `readMemoryFile` (offline).
 - Tables: `memory.memories` (read), `memory.memory_versions` (read), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
 ## Acceptance Criteria
 
-1. A plain read returns the latest non-deleted version for the key. ([validated by `returns the latest non-deleted version for a key`](libs/server-core/src/features/memory/memory.test.ts#L112))
+1. A plain read returns the latest non-deleted version for the key. ([validated by `returns the latest non-deleted version for a key`](libs/server-core/src/features/memory/memory.test.ts#L150))
 
-2. `version: "all"` returns every version newest-first. ([validated by `returns all versions newest-first when version is "all"`](libs/server-core/src/features/memory/memory.test.ts#L139))
+2. `version: "all"` returns every version newest-first. ([validated by `returns all versions newest-first when version is "all"`](libs/server-core/src/features/memory/memory.test.ts#L177))
 
-3. A missing key returns null. ([validated by `returns null when the key does not exist`](libs/server-core/src/features/memory/memory.test.ts#L160))
+3. A missing key returns null. ([validated by `returns null when the key does not exist`](libs/server-core/src/features/memory/memory.test.ts#L198))
 
-4. The tool-level "not found" / proxy / file-fallback framing has no unit seam.
-   *(untested: the handler null→message mapping and the proxy/file branches need
-   a live DB or `LORE_API_URL`; the handler read paths are covered above.)*
+4. The tool-level "not found" / file-fallback framing has no unit seam.
+   *(untested: the handler null→message mapping and the file branch need
+   a live DB or `~/.lore/memory`; the handler read paths are covered above.)*
+
+5. In local stdio mode (no DB), the tool proxies the read and returns the
+   proxied body on success; a 401 is reported as a denied error on the first
+   attempt, without the retriable-status backoff loop. ([validated by `returns
+   the proxied body on a successful
+   read`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L137), [`reports a
+   denied error on a 401 without
+   retrying`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L151))
 
 ## Out of Scope
 

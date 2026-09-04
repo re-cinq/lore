@@ -105,19 +105,31 @@ export function mergeCostAndUsage(
   return [...byKey.values()];
 }
 
+function cacheCreationTokens(result: z.infer<typeof UsageResult>): number {
+  return (
+    (result.cache_creation?.ephemeral_1h_input_tokens ?? 0) +
+    (result.cache_creation?.ephemeral_5m_input_tokens ?? 0)
+  );
+}
+
+function toUsageRow(
+  bucket: z.infer<typeof UsageBucket>,
+  result: z.infer<typeof UsageResult>,
+): UsageRow {
+  return {
+    date: bucket.starting_at.slice(0, 10),
+    model: result.model ?? "",
+    inputTokens: result.uncached_input_tokens ?? 0,
+    outputTokens: result.output_tokens ?? 0,
+    cacheReadTokens: result.cache_read_input_tokens ?? 0,
+    cacheCreationTokens: cacheCreationTokens(result),
+  };
+}
+
 export function parseUsageReport(raw: unknown): UsageRow[] {
   const report = UsageReport.parse(raw);
 
   return report.data.flatMap((bucket) =>
-    bucket.results.map((result) => ({
-      date: bucket.starting_at.slice(0, 10),
-      model: result.model ?? "",
-      inputTokens: result.uncached_input_tokens ?? 0,
-      outputTokens: result.output_tokens ?? 0,
-      cacheReadTokens: result.cache_read_input_tokens ?? 0,
-      cacheCreationTokens:
-        (result.cache_creation?.ephemeral_1h_input_tokens ?? 0) +
-        (result.cache_creation?.ephemeral_5m_input_tokens ?? 0),
-    })),
+    bucket.results.map((result) => toUsageRow(bucket, result)),
   );
 }

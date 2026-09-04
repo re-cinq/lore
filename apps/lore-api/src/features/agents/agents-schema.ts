@@ -56,44 +56,49 @@ export type AgentPatch = Partial<AgentDefinitionInput> & {
   pod_resources?: PodResources | null;
 };
 
+type ParsedAgentPatch = z.infer<ReturnType<typeof AgentInputSchema.partial>>;
+
+const nameField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
+  p.name !== undefined ? { name: p.name } : {};
+
+const modelField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
+  p.model !== undefined ? { model: p.model ?? null } : {};
+
+const timeoutMinutesField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
+  p.timeout_minutes !== undefined
+    ? { timeout_minutes: p.timeout_minutes ?? null }
+    : {};
+
+const promptField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
+  p.prompt !== undefined ? { prompt: p.prompt ?? null } : {};
+
+const imageField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
+  p.image !== undefined ? { image: p.image ?? null } : {};
+
+const executionModeField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
+  p.execution_mode !== undefined ? { execution_mode: p.execution_mode } : {};
+
+const reviewRequiredField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
+  p.review_required !== undefined ? { review_required: p.review_required } : {};
+
+const podResourcesField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
+  p.pod_resources !== undefined
+    ? { pod_resources: p.pod_resources ?? null }
+    : {};
+
 export function parseAgentPatch(body: unknown): AgentPatch {
-  // Patch normalizes only present fields; unset fields stay absent (not nulled).
   const parsed = AgentInputSchema.partial().parse(body);
-  const patch: AgentPatch = {};
 
-  if (parsed.name !== undefined) {
-    patch.name = parsed.name;
-  }
-
-  if (parsed.model !== undefined) {
-    patch.model = parsed.model ?? null;
-  }
-
-  if (parsed.timeout_minutes !== undefined) {
-    patch.timeout_minutes = parsed.timeout_minutes ?? null;
-  }
-
-  if (parsed.prompt !== undefined) {
-    patch.prompt = parsed.prompt ?? null;
-  }
-
-  if (parsed.image !== undefined) {
-    patch.image = parsed.image ?? null;
-  }
-
-  if (parsed.execution_mode !== undefined) {
-    patch.execution_mode = parsed.execution_mode;
-  }
-
-  if (parsed.review_required !== undefined) {
-    patch.review_required = parsed.review_required;
-  }
-
-  if (parsed.pod_resources !== undefined) {
-    patch.pod_resources = parsed.pod_resources ?? null;
-  }
-
-  return patch;
+  return {
+    ...nameField(parsed),
+    ...modelField(parsed),
+    ...timeoutMinutesField(parsed),
+    ...promptField(parsed),
+    ...imageField(parsed),
+    ...executionModeField(parsed),
+    ...reviewRequiredField(parsed),
+    ...podResourcesField(parsed),
+  };
 }
 
 // Merge pod_resources into config; empty result → null → fall through to org layer.

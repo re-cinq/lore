@@ -117,14 +117,14 @@ The local task runner pre-fetched none of this: `withLoreWorkflowPreamble` opens
 every locally-run task with `lore_assemble_context` as step 1 and ends with the
 task itself, and there is no second, pre-loaded shape of the preamble to diverge
 from it (the pre-run fetch was removed 2026-08-28).
-([validated by `opens every local run with lore_assemble_context as step 1`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L441), [`ends with the task, so the instructions read as preamble to it`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L447), [`has one shape — nothing is pre-fetched, so there is no pre-loaded branch`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L451); implemented by [`runner.local.ts:795`](apps/mcp-server/src/features/pipeline/runner.local.ts#L795))
+([validated by `opens every local run with lore_assemble_context as step 1`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L706), [`ends with the task, so the instructions read as preamble to it`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L712), [`has one shape — nothing is pre-fetched, so there is no pre-loaded branch`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L716); implemented by [`runner.local.ts:789`](apps/mcp-server/src/features/pipeline/runner.local.ts#L789))
 
 The `/api/context` endpoint runs full assembly when a `query` param is present and
 a raw chunk fetch when it is absent.
 
 The `max_tokens` input schema enforces the documented floor of 2000 — a lower
 value is rejected and the floor itself is accepted.
-([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L136), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L144))
+([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L188), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L196))
 
 The handler's GKE-proxy success/empty/error envelope framing on the DB-backed path
 is exercised only against live Postgres. *(untested: the success branch needs a

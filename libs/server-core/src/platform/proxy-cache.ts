@@ -214,30 +214,36 @@ export function store(policy: ReadCachePolicy, body: string): void {
   evictIfNeeded();
 }
 
+function matchesTool(file: string, prefixes: Set<string>): boolean {
+  return (
+    file.endsWith(".json") && prefixes.has(file.slice(0, file.indexOf(".") + 1))
+  );
+}
+
+// Scoped entries need a read to confirm repo match; unscoped entries unlink straight off filename.
+function matchesRepoScope(path: string, repo: string | undefined): boolean {
+  if (repo === undefined) {
+    return true;
+  }
+
+  return readJson<CacheEntry | null>(path, null)?.repo === repo;
+}
+
 export function invalidate(tools: string[], repo?: string): void {
   if (!existsSync(entriesDir())) {
     return;
   }
   const prefixes = new Set(tools.map((t) => `${fileToolPrefix(t)}.`));
+  const matches = readdirSync(entriesDir()).filter((file) =>
+    matchesTool(file, prefixes),
+  );
 
-  for (const file of readdirSync(entriesDir())) {
-    if (!file.endsWith(".json")) {
-      continue;
-    }
-
-    if (!prefixes.has(file.slice(0, file.indexOf(".") + 1))) {
-      continue;
-    }
+  for (const file of matches) {
     const path = join(entriesDir(), file);
 
-    // Scoped entries need a read to confirm repo match; unscoped entries unlink straight off filename.
-    if (
-      repo !== undefined &&
-      readJson<CacheEntry | null>(path, null)?.repo !== repo
-    ) {
-      continue;
+    if (matchesRepoScope(path, repo)) {
+      safeUnlink(path);
     }
-    safeUnlink(path);
   }
 }
 

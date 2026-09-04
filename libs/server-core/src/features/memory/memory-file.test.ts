@@ -116,4 +116,23 @@ describe("memory-file round-trips against real disk", () => {
       }),
     ]);
   });
+
+  it("excludes a soft-deleted entry that would otherwise match search", () => {
+    mod.writeMemoryFile("helm-old-tip", "run helm apply", "agent-skip");
+    mod.deleteMemoryFile("helm-old-tip", "agent-skip");
+
+    const results = mod.searchMemoryFile("helm", "agent-skip");
+
+    expect(results).toEqual([]);
+  });
+
+  it("stops collecting matches once the limit is reached", () => {
+    mod.writeMemoryFile("helm-one", "helm value one", "agent-limit");
+    mod.writeMemoryFile("helm-two", "helm value two", "agent-limit");
+    mod.writeMemoryFile("helm-three", "helm value three", "agent-limit");
+
+    const results = mod.searchMemoryFile("helm", "agent-limit", 2);
+
+    expect(results).toHaveLength(2);
+  });
 });

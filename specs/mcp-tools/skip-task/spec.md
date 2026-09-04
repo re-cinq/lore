@@ -40,7 +40,7 @@ Removes one task from the local ~/.lore/pending-tasks.json notification cache so
 ## Behavior
 
 1. Dynamically import `skipTask` from `runner.local`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L897)) and call it
+   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1309)) and call it
    with `task_id`. `skipTask` reads `~/.lore/pending-tasks.json` via
    `listPendingTasks`, filters out the entry whose `id === task_id`, and writes
    the remaining array back to the same file. The task stays `pending` on the
@@ -61,7 +61,7 @@ message. Never throws.
 ## Acceptance Criteria
 
 Skipping a task removes only the entry matching the given id from the pending
-list, leaving the others. ([validated by `runner.local.test.ts:148`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L148))
+list, leaving the others. ([validated by `runner.local.test.ts:148`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L151))
 
 The dynamic import and the success/error message framing run only inside the
 tool handler. *(untested: `skipTask` reads/writes a `~/.lore/pending-tasks.json`

@@ -36,7 +36,7 @@ Registered in `routeList`
 - **Method + path**: `POST /api/task-turns/{taskId}`; `taskId` must be a UUID.
 - **Auth scope**: `write`. Rate-limit bucket `turns` (300/min) — a run-end
   relay is a burst of batches, which must neither starve nor be starved by
-  `default`.
+  `default`. ([validated by `rate-limit.test.ts:39`](../../../apps/lore-api/src/server/plugins/rate-limit.test.ts#L39))
 - **Body**: raw NDJSON (`payload.parse: false`) — one claude stream-json line
   per row, already redacted on the laptop before anything left the machine.
 - **Header** (optional): `x-turn-offset` — the position of this POST's first
@@ -56,19 +56,19 @@ Registered in `routeList`
 ## Behavior
 
 1. Require `LORE_AGENT_URL` + `LORE_AGENT_INTERNAL_TOKEN`, else 503; require
-   the pool, else 503. ([validated by returns 503 when the Floor relay env is not configured](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L128), [validated by returns 503 when the internal token is missing even though the floor URL is set](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L167), [validated by returns 503 when no pool is available](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L122))
+   the pool, else 503. ([validated by returns 503 when the Floor relay env is not configured](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L136), [validated by returns 503 when the internal token is missing even though the floor URL is set](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L175), [validated by returns 503 when no pool is available](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L130))
 2. The task id keys everything the Floor sink writes (`llm_calls`, run events,
    turns), so an unknown id is refused with 404 rather than stored
    uncorrelated. Ownership is NOT checked — any write-scoped token may post
    under any existing task id, matching the `/api/task-logs` precedent (which
    checks nothing at all); the guarantee here is only that fabricated ids are
-   refused. ([validated by returns 404 when the task does not exist](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L112), [validated by returns 400 when taskId is not a uuid](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L143))
+   refused. ([validated by returns 404 when the task does not exist](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L120), [validated by returns 400 when taskId is not a uuid](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L151))
 3. Split the body on newlines; a relayable line must parse as a plain JSON
    object and must NOT be an attributed envelope (`source` + `event` keys —
    the double-peel in `unwrapAttribution` would let a forged inner source
    correlate fake turns to a real assembly run) and must NOT be a
    `kind: "file"` event (it drives planning-round settlement and artifact
-   merge). Everything else is counted in `skipped`. ([validated by skips non-JSON lines, file-kind events, and pre-attributed envelopes](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L84))
+   merge). Everything else is counted in `skipped`. ([validated by skips non-JSON lines, file-kind events, and pre-attributed envelopes](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L84), [`task-turns.test.ts:105`](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L105))
 4. Wrap each survivor as
    `{"source":{"task":<taskId>,"turn_key":<key>},"event":<line>}` — the
    station contract's attribution envelope, raw line embedded verbatim — and
@@ -92,15 +92,15 @@ Registered in `routeList`
    re-inserts `pipeline.llm_calls` cost rows and `agent_run_events` viz rows
    (follow-up #1394), and rows duplicated before #1389 stay until the 30-day
    prune ages them out. ([validated by
-   stamps the same keys when the same body is retried](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L199),
-   [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L212),
-   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L232),
-   [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L219),
-   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L243),
-   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L254))
-6. Zero survivors → 200 `{ forwarded: 0, skipped }` without calling the Floor. ([validated by returns 200 without calling the Floor when no line survives filtering](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L105))
-7. A non-OK upstream response → 502. ([validated by returns 502 when the Floor rejects the forward](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L136))
-8. Write scope is enforced like every task route. ([validated by returns 403 when the token has task scope but not write](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L154))
+   stamps the same keys when the same body is retried](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L207),
+   [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L220),
+   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L240),
+   [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L227),
+   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L251),
+   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L262))
+6. Zero survivors → 200 `{ forwarded: 0, skipped }` without calling the Floor. ([validated by returns 200 without calling the Floor when no line survives filtering](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L113))
+7. A non-OK upstream response → 502. ([validated by returns 502 when the Floor rejects the forward](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L144))
+8. Write scope is enforced like every task route. ([validated by returns 403 when the token has task scope but not write](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L162))
 
 ## Producer (mcp-server local runner)
 
@@ -114,20 +114,23 @@ entirely).
 1. `buildTurnLines` redacts PER LINE — the same rule as the Floor's own turn
    collector, because a whole-text redaction pass can span JSON boundaries and
    erase every line in between. Non-JSON lines are not turns and are skipped
-   silently; a line whose JSON breaks under redaction is dropped and counted. ([validated by keeps parseable stream-json lines untouched](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L286), [validated by skips non-JSON lines without counting them as dropped](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L298), [validated by redacts a secret inside a line and keeps the still-parseable result](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L310), [validated by drops and counts a line whose JSON breaks under redaction](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L323))
+   silently; a line whose JSON breaks under redaction is dropped and counted. ([validated by keeps parseable stream-json lines untouched](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L289), [validated by skips non-JSON lines without counting them as dropped](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L301), [validated by redacts a secret inside a line and keeps the still-parseable result](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L313), [validated by drops and counts a line whose JSON breaks under redaction](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L326))
 2. `batchTurnLines` splits the relay into batches capped by utf-8 bytes
    (~700KB, under lore-api's 1MB body limit) and line count (2000, under the
-   Floor's 10k-turns-per-batch cap). ([validated by splits on the line cap](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L335), [validated by splits on the byte cap measured with Buffer.byteLength](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L345), [validated by emits a line larger than the byte cap as its own batch](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L354))
+   Floor's 10k-turns-per-batch cap). ([validated by splits on the line cap](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L338), [validated by splits on the byte cap measured with Buffer.byteLength](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L348), [validated by emits a line larger than the byte cap as its own batch](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L357))
 3. A line that can never fit one relay request (its own bytes exceed the batch
    cap) is dropped BEFORE batching, with a counted warning — shipping it would
    413 and cost the batches behind it. A failed batch is likewise counted and
    skipped, never allowed to abandon the rest: the terminal result line rides
    last, so aborting mid-relay would silently lose the cost row and the
-   transcript tail. ([validated by keeps lines at or under the byte cap and counts the rest](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L366), [validated by measures utf-8 bytes plus the join newline, not characters](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L376))
+   transcript tail. ([validated by keeps lines at or under the byte cap and counts the rest](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L369), [validated by measures utf-8 bytes plus the join newline, not characters](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L379))
 4. *(Added by #1389:)* `ingestTurns` sends each batch's cumulative line offset
    in `x-turn-offset`, advancing it past failed batches too — a batch consumes
    its transcript positions whether or not it relayed, so a later retry of the
-   same buffer reproduces the same keys. ([validated by stamps each batch with its cumulative line offset](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L413), [validated by advances the offset past a failed batch so later lines keep their positions](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L425))
+   same buffer reproduces the same keys. ([validated by stamps each batch with its cumulative line offset](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L416), [validated by advances the offset past a failed batch so later lines keep their positions](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L428))
+5. `ingestTurns` is a no-op (no fetch) when `LORE_API_URL`/`LORE_INGEST_TOKEN`
+   are not configured, and warns-and-drops a line whose own bytes exceed the
+   relay batch cap without ever fetching it. ([validated by returns without fetching when the API URL or token is not configured](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L442), [validated by warns and drops a line too large to ever fit a relay batch, without fetching it](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L457))
 
 ## Alternatives rejected
 

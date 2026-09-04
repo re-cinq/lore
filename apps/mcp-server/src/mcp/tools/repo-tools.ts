@@ -8,6 +8,7 @@ import {
   deniedError,
   unreachableError,
   textResult,
+  type ProxyResult,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
@@ -43,6 +44,40 @@ export function registerRepoTools(server: McpServer) {
   registerIngestFilesTool(server);
 }
 
+type ToolTextResult = ReturnType<typeof textResult>;
+
+// Maps a failed ProxyResult to the MCP text result callers surface — the same three reasons every proxying tool handles.
+function proxyFailure(
+  toolName: string,
+  notConfiguredText: string,
+  proxied: Extract<ProxyResult, { ok: false }>,
+): ToolTextResult {
+  if (proxied.reason === "not_configured") {
+    return textResult(notConfiguredText);
+  }
+
+  if (proxied.reason === "denied") {
+    return deniedError(toolName, proxied.detail);
+  }
+
+  return unreachableError(toolName, proxied.detail);
+}
+
+// One /api/repos page: repos plus the running total, computed against how many repos are banked so far.
+function repoPage(
+  body: string,
+  bankedSoFar: number,
+): { repos: unknown[]; total: number } {
+  const parsed = JSON.parse(body) as { repos?: unknown[]; total?: number };
+  const repos = Array.isArray(parsed.repos) ? parsed.repos : [];
+  const total =
+    typeof parsed.total === "number"
+      ? parsed.total
+      : bankedSoFar + repos.length;
+
+  return { repos, total };
+}
+
 function registerListReposTool(server: McpServer) {
   server.tool(
     "lore_list_repos",
@@ -59,27 +94,16 @@ function registerListReposTool(server: McpServer) {
           `/api/repos?limit=${pageSize}&offset=${offset}`,
         );
 
-        if (!proxied.ok && proxied.reason === "not_configured") {
-          return textResult(NOT_CONFIGURED);
-        }
-
-        if (!proxied.ok && proxied.reason === "denied") {
-          return deniedError("lore_list_repos", proxied.detail);
-        }
-
         if (!proxied.ok) {
-          return unreachableError("lore_list_repos", proxied.detail);
+          return proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied);
         }
-        const body = JSON.parse(proxied.body) as {
-          repos?: unknown[];
-          total?: number;
-        };
-        const page = Array.isArray(body.repos) ? body.repos : [];
 
-        repos.push(...page);
-        total = typeof body.total === "number" ? body.total : repos.length;
+        const page = repoPage(proxied.body, repos.length);
 
-        if (page.length < pageSize || repos.length >= total) {
+        repos.push(...page.repos);
+        total = page.total;
+
+        if (page.repos.length < pageSize || repos.length >= total) {
           break;
         }
       }
@@ -128,6 +152,78 @@ function registerOnboardRepoTool(server: McpServer) {
   );
 }
 
+interface IngestCredentials {
+  apiUrl: string;
+  apiToken: string;
+}
+
+function ingestCredentials(): IngestCredentials | null {
+  const apiUrl = process.env.LORE_API_URL;
+  const apiToken = process.env.LORE_INGEST_TOKEN;
+
+  if (!apiUrl || !apiToken) {
+    return null;
+  }
+
+  return { apiUrl, apiToken };
+}
+
+// The local HEAD commit only stands in for the target repo when the caller's cwd git remote actually IS that repo; otherwise "HEAD" tells GitHub to resolve the default branch.
+async function resolveCommitSha(resolvedRepo: string): Promise<string> {
+  try {
+    const { execSync } = await import("node:child_process");
+
+    if (detectCurrentRepo() !== resolvedRepo) {
+      return "HEAD";
+    }
+
+    return execSync("git rev-parse HEAD", {
+      encoding: "utf-8",
+      timeout: 5000,
+    }).trim();
+  } catch {
+    return "HEAD";
+  }
+}
+
+interface IngestOutcome {
+  ingested: boolean;
+  message: string;
+}
+
+async function postIngest(
+  credentials: IngestCredentials,
+  files: string[],
+  resolvedRepo: string,
+  commit: string,
+): Promise<IngestOutcome> {
+  const res = await fetch(`${credentials.apiUrl}/api/ingest`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credentials.apiToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ files, repo: resolvedRepo, commit }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+
+    return {
+      ingested: false,
+      message: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
+    };
+  }
+
+  const result = (await res.json()) as { ingested?: number; errors?: number };
+
+  return {
+    ingested: true,
+    message: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
+  };
+}
+
 function registerIngestFilesTool(server: McpServer) {
   server.tool(
     "lore_ingest_files",
@@ -143,62 +239,27 @@ function registerIngestFilesTool(server: McpServer) {
           );
         }
 
-        // Proxy to GKE ingest API
-        const apiUrl = process.env.LORE_API_URL;
-        const apiToken = process.env.LORE_INGEST_TOKEN;
+        const credentials = ingestCredentials();
 
-        if (!apiUrl || !apiToken) {
+        if (!credentials) {
           return textResult(
             "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
           );
         }
 
-        // Get the latest commit SHA — only use local HEAD if repo matches
-        let commit = "HEAD";
-
-        try {
-          const { execSync } = await import("node:child_process");
-          const localRepo = detectCurrentRepo();
-
-          if (localRepo === resolvedRepo) {
-            commit = execSync("git rev-parse HEAD", {
-              encoding: "utf-8",
-              timeout: 5000,
-            }).trim();
-          }
-          // For other repos, "HEAD" tells GitHub to use the default branch
-        } catch {
-          // ignore; fall through
-        }
-
-        const res = await fetch(`${apiUrl}/api/ingest`, {
-          signal: AbortSignal.timeout(30_000),
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ files, repo: resolvedRepo, commit }),
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: res.statusText }));
-
-          return textResult(
-            `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
-          );
-        }
-
-        const result = (await res.json()) as {
-          ingested?: number;
-          errors?: number;
-        };
-
-        invalidateCache(["lore_assemble_context"], resolvedRepo);
-
-        return textResult(
-          `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
+        const commit = await resolveCommitSha(resolvedRepo);
+        const outcome = await postIngest(
+          credentials,
+          files,
+          resolvedRepo,
+          commit,
         );
+
+        if (outcome.ingested) {
+          invalidateCache(["lore_assemble_context"], resolvedRepo);
+        }
+
+        return textResult(outcome.message);
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }

@@ -25,6 +25,42 @@ const IMAGE_ORG_DETAIL =
   "Changing an execution image is CODEOWNERS-gated per repo. Set it through " +
   "/api/repos/{owner}/{repo}/agent-definitions with an approval PR instead.";
 
+function orDefault<T>(value: T | undefined, fallback: T): T {
+  return value ?? fallback;
+}
+
+function orgDefinitionFields(
+  name: string,
+  fields: Omit<ReturnType<typeof parseAgentPatch>, "pod_resources">,
+) {
+  return {
+    name,
+    model: orDefault(fields.model, null),
+    timeout_minutes: orDefault(fields.timeout_minutes, null),
+    prompt: orDefault(fields.prompt, null),
+    image: orDefault(fields.image, null),
+    execution_mode: orDefault(fields.execution_mode, "claude-code" as const),
+    review_required: orDefault(fields.review_required, false),
+    config: orDefault(fields.config, null),
+  };
+}
+
+// Merge happens inside the upsert (atomic under the row lock); yaml is only the fallback for a configless org row, so it never orphans the seed's skills.
+async function resolveOrgPodResourcesUpdate(
+  name: string,
+  podResources: ReturnType<typeof parseAgentPatch>["pod_resources"],
+) {
+  if (podResources === undefined) {
+    return undefined;
+  }
+
+  return {
+    podResources,
+    inheritedConfig:
+      (await new AgentDefsYaml().resolve("", name))?.config ?? null,
+  };
+}
+
 export function orgAgentDefinitionUpdateRoute(
   getPool: () => Pool | null,
 ): ServerRoute {
@@ -60,28 +96,14 @@ export function orgAgentDefinitionUpdateRoute(
         );
 
         const { pod_resources, ...fields } = patch;
-        // Merge happens inside the upsert (atomic under the row lock); yaml is only the fallback for a configless org row, so it never orphans the seed's skills.
-        const podResources =
-          pod_resources === undefined
-            ? undefined
-            : {
-                podResources: pod_resources,
-                inheritedConfig:
-                  (await new AgentDefsYaml().resolve("", name))?.config ?? null,
-              };
+        const podResources = await resolveOrgPodResourcesUpdate(
+          name,
+          pod_resources,
+        );
 
         const agent = await updateOrgDefinition(
           pool,
-          {
-            name,
-            model: fields.model ?? null,
-            timeout_minutes: fields.timeout_minutes ?? null,
-            prompt: fields.prompt ?? null,
-            image: fields.image ?? null,
-            execution_mode: fields.execution_mode ?? "claude-code",
-            review_required: fields.review_required ?? false,
-            config: fields.config ?? null,
-          },
+          orgDefinitionFields(name, fields),
           podResources,
         );
 

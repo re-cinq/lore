@@ -36,6 +36,17 @@ describe("rate-limit ext", () => {
     expect(rateLimit("default")).toBe(true);
   });
 
+  it("routes /api/webhook/github and /api/task-turns/x to webhook and turns buckets", async () => {
+    const { bucketFor } = await import("./rate-limit.js");
+
+    expect(bucketFor("/api/webhook/github")).toBe("webhook");
+    expect(bucketFor("/api/task-turns/abc-123")).toBe("turns");
+    expect(bucketFor("/api/task")).toBe("task");
+    expect(bucketFor("/api/task/abc-123")).toBe("task");
+    expect(bucketFor("/api/tasks")).toBe("task");
+    expect(bucketFor("/api/repo-status")).toBe("default");
+  });
+
   it("trips the default bucket at the 201st request on a native route (/dist)", async () => {
     const server = buildServer(() => null);
     const hit = () =>

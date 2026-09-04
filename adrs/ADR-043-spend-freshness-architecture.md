@@ -153,7 +153,7 @@ same export the sync reads.
   credits summed apart from cost. ([validated by [`gcp-billing.test.ts:48`](apps/stations/src/stations/gcp-cost-sync/gcp-billing.test.ts#L48), [`gcp-billing.test.ts:57`](apps/stations/src/stations/gcp-cost-sync/gcp-billing.test.ts#L57), [`gcp-billing.test.ts:61`](apps/stations/src/stations/gcp-cost-sync/gcp-billing.test.ts#L61))
 - BigQuery's stringly f/v response cells parse positionally into day/service
   rows, an empty window parses to no rows, and an incomplete query job throws
-  rather than storing a partial day. ([validated by [`gcp-billing.test.ts:69`](apps/stations/src/stations/gcp-cost-sync/gcp-billing.test.ts#L69), [`gcp-billing.test.ts:108`](apps/stations/src/stations/gcp-cost-sync/gcp-billing.test.ts#L108), [`gcp-billing.test.ts:112`](apps/stations/src/stations/gcp-cost-sync/gcp-billing.test.ts#L112))
+  rather than storing a partial day. ([validated by [`gcp-billing.test.ts:69`](apps/stations/src/stations/gcp-cost-sync/gcp-billing.test.ts#L69), [`gcp-billing.test.ts:108`](apps/stations/src/stations/gcp-cost-sync/gcp-billing.test.ts#L108), [`gcp-billing.test.ts:112`](apps/stations/src/stations/gcp-cost-sync/gcp-billing.test.ts#L112), [`gcp-billing.test.ts:118`](apps/stations/src/stations/gcp-cost-sync/gcp-billing.test.ts#L118))
 - The window is the Anthropic sync's: today's UTC midnight minus 30 days, 31
   whole candidate days, aligned so `bucket_date` means the same UTC day
   downstream — and re-pulled daily so Google's late restatements self-heal

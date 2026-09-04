@@ -150,6 +150,22 @@ function isExpired(record: MemoryRecord): boolean {
 
 // ── Write ────────────────────────────────────────────────────────────
 
+function resolveExpiresAt(ttlSeconds?: number): string | null {
+  if (!ttlSeconds) {
+    return null;
+  }
+
+  return new Date(Date.now() + ttlSeconds * 1000).toISOString();
+}
+
+function nextVersionFor(existing: MemoryRecord | undefined): number {
+  if (existing && !existing.is_deleted) {
+    return existing.version + 1;
+  }
+
+  return 1;
+}
+
 export function writeMemoryFile(
   key: string,
   value: string,
@@ -158,9 +174,8 @@ export function writeMemoryFile(
 ): WriteResult {
   const id = resolveAgentId(agentId);
   const now = new Date().toISOString();
-  const expiresAt = ttlSeconds
-    ? new Date(Date.now() + ttlSeconds * 1000).toISOString()
-    : null;
+  const expiresAt = resolveExpiresAt(ttlSeconds);
+  const ttl = ttlSeconds ?? null;
 
   // Read current state
   const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
@@ -169,17 +184,14 @@ export function writeMemoryFile(
     {},
   );
 
-  // Determine version
-  const existing = memories[key];
-  const nextVersion =
-    existing && !existing.is_deleted ? existing.version + 1 : 1;
+  const nextVersion = nextVersionFor(memories[key]);
 
   // Update memory record (last-write-wins)
   memories[key] = {
     value,
     version: nextVersion,
     created_at: now,
-    ttl_seconds: ttlSeconds ?? null,
+    ttl_seconds: ttl,
     is_deleted: false,
     expires_at: expiresAt,
   };
@@ -204,7 +216,7 @@ export function writeMemoryFile(
     operation: "write",
     memory_key: key,
     pool_name: null,
-    metadata: { version: nextVersion, ttl_seconds: ttlSeconds ?? null },
+    metadata: { version: nextVersion, ttl_seconds: ttl },
   });
 
   return { key, version: nextVersion, agent_id: id, created_at: now };
@@ -564,32 +576,41 @@ export function restoreSnapshotFile(snapshotPath: string): {
 
 // ── Search (case-insensitive substring) ──────────────────────────────
 
-export function searchMemoryFile(
-  query: string,
-  agentId?: string,
-  limit: number = 10,
-): SearchResult[] {
-  const id = resolveAgentId(agentId);
-  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
-  const lowerQuery = query.toLowerCase();
+function isInactive(record: MemoryRecord): boolean {
+  return record.is_deleted || isExpired(record);
+}
 
+function matchesQuery(
+  key: string,
+  record: MemoryRecord,
+  lowerQuery: string,
+): boolean {
+  return (
+    key.toLowerCase().includes(lowerQuery) ||
+    record.value.toLowerCase().includes(lowerQuery)
+  );
+}
+
+function collectSearchResults(
+  memories: Record<string, MemoryRecord>,
+  agentId: string,
+  lowerQuery: string,
+  limit: number,
+): SearchResult[] {
   const results: SearchResult[] = [];
 
   for (const [key, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) {
+    if (isInactive(record)) {
       continue;
     }
 
-    if (
-      key.toLowerCase().includes(lowerQuery) ||
-      record.value.toLowerCase().includes(lowerQuery)
-    ) {
+    if (matchesQuery(key, record, lowerQuery)) {
       results.push({
         key,
         value: record.value,
         version: record.version,
         score: 1.0,
-        agent_id: id,
+        agent_id: agentId,
         created_at: record.created_at,
         source: "memory",
       });
@@ -599,6 +620,19 @@ export function searchMemoryFile(
       break;
     }
   }
+
+  return results;
+}
+
+export function searchMemoryFile(
+  query: string,
+  agentId?: string,
+  limit: number = 10,
+): SearchResult[] {
+  const id = resolveAgentId(agentId);
+  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
+  const lowerQuery = query.toLowerCase();
+  const results = collectSearchResults(memories, id, lowerQuery, limit);
 
   appendAudit({
     agent_id: id,

@@ -26,30 +26,41 @@ const InstallInfoResponse = z.object({
   repo_url: z.string(),
 });
 
-/** Pure: what this deployment can hand a satellite installer. */
-export function buildInstallInfo(env: {
+interface InstallEnv {
   LORE_API_URL?: string;
   LORE_EVENT_ROUTER_PUBLIC_URL?: string;
   LORE_CLUSTER_AGENT_REGISTRATION_TOKEN?: string;
   LORE_REPO_URL?: string;
-}): InstallInfo {
-  const missing = [
+}
+
+function missingEnvVars(env: InstallEnv): string[] {
+  return [
     env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN
       ? null
       : "LORE_CLUSTER_AGENT_REGISTRATION_TOKEN (satellite registration is disabled)",
     env.LORE_API_URL ? null : "LORE_API_URL",
     env.LORE_EVENT_ROUTER_PUBLIC_URL ? null : "LORE_EVENT_ROUTER_PUBLIC_URL",
   ].filter((entry): entry is string => entry !== null);
+}
+
+function unavailableReason(missing: readonly string[]): string | null {
+  return missing.length === 0
+    ? null
+    : `not configured on the lore-api deployment: ${missing.join(", ")}`;
+}
+
+const orNull = (value: string | undefined): string | null => value ?? null;
+
+/** Pure: what this deployment can hand a satellite installer. */
+export function buildInstallInfo(env: InstallEnv): InstallInfo {
+  const missing = missingEnvVars(env);
 
   return {
     available: missing.length === 0,
-    reason:
-      missing.length === 0
-        ? null
-        : `not configured on the lore-api deployment: ${missing.join(", ")}`,
-    api_url: env.LORE_API_URL ?? null,
-    event_router_url: env.LORE_EVENT_ROUTER_PUBLIC_URL ?? null,
-    registration_token: env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN ?? null,
+    reason: unavailableReason(missing),
+    api_url: orNull(env.LORE_API_URL),
+    event_router_url: orNull(env.LORE_EVENT_ROUTER_PUBLIC_URL),
+    registration_token: orNull(env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN),
     repo_url: env.LORE_REPO_URL ?? DEFAULT_REPO_URL,
   };
 }

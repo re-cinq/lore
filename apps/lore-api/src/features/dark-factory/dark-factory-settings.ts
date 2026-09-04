@@ -64,6 +64,47 @@ export function parseTaskOverrides(raw: unknown): TaskOverridesPatch {
   return TaskOverridesSchema.parse(raw);
 }
 
+function autoMergeFieldsTouched(
+  autoMerge: DarkFactorySettings["auto_merge"],
+): string[] {
+  const { paths, require_green_ci, require_bot_approval } = autoMerge ?? {};
+  const touched: string[] = [];
+
+  if (paths !== undefined) {
+    touched.push("auto_merge.paths");
+  }
+
+  if (require_green_ci === false) {
+    touched.push("auto_merge.require_green_ci");
+  }
+
+  if (require_bot_approval === false) {
+    touched.push("auto_merge.require_bot_approval");
+  }
+
+  return touched;
+}
+
+function hasImageOverride(
+  override: TaskOverridesPatch[string] | undefined,
+): boolean {
+  return override?.execution?.image !== undefined;
+}
+
+function taskOverrideImageFieldsTouched(
+  taskOverrides: TaskOverridesPatch | undefined,
+): string[] {
+  const touched: string[] = [];
+
+  for (const [type, override] of Object.entries(taskOverrides ?? {})) {
+    if (hasImageOverride(override)) {
+      touched.push(`task_overrides.${type}.execution.image`);
+    }
+  }
+
+  return touched;
+}
+
 /** Returns field paths requiring two-key ceremony (admin + CODEOWNERS PR); see FR3.9 + R9 for details. */
 export function twoKeyFieldsTouched(
   patch: DarkFactorySettings,
@@ -74,28 +115,12 @@ export function twoKeyFieldsTouched(
   if (patch.enabled !== undefined) {
     touched.push("enabled");
   }
-
-  if (patch.auto_merge?.paths !== undefined) {
-    touched.push("auto_merge.paths");
-  }
-
-  if (patch.auto_merge?.require_green_ci === false) {
-    touched.push("auto_merge.require_green_ci");
-  }
-
-  if (patch.auto_merge?.require_bot_approval === false) {
-    touched.push("auto_merge.require_bot_approval");
-  }
+  touched.push(...autoMergeFieldsTouched(patch.auto_merge));
 
   if (patch.execution?.image !== undefined) {
     touched.push("execution.image");
   }
-
-  for (const [type, ov] of Object.entries(taskOverrides ?? {})) {
-    if (ov?.execution?.image !== undefined) {
-      touched.push(`task_overrides.${type}.execution.image`);
-    }
-  }
+  touched.push(...taskOverrideImageFieldsTouched(taskOverrides));
 
   return touched;
 }

@@ -111,3 +111,102 @@ describe("extractAndUpdateGraph edge invalidation", () => {
     );
   });
 });
+
+describe("extractAndUpdateGraph failure isolation", () => {
+  it("skips a failed entity upsert and any edge depending on it, keeping the rest", async () => {
+    const raw = JSON.stringify({
+      entities: [
+        { name: "auth-service", type: "service" },
+        { name: "broken-entity", type: "service" },
+      ],
+      edges: [
+        { source: "auth-service", target: "broken-entity", relation: "uses" },
+      ],
+    });
+    const llmCall = async (): Promise<string> => raw;
+    const edgeQueries: string[] = [];
+
+    const pool: PgPool = {
+      async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
+        const isBrokenEntityInsert =
+          text.includes("INSERT INTO memory.entities") &&
+          params?.[0] === "broken-entity";
+
+        if (isBrokenEntityInsert) {
+          return Promise.reject(new Error("db down"));
+        }
+
+        if (text.includes("INSERT INTO memory.entities")) {
+          return { rows: [{ id: "id-auth" }] as T[] };
+        }
+
+        if (text.includes("memory.edges")) {
+          edgeQueries.push(text);
+        }
+
+        return { rows: [] as T[] };
+      },
+    };
+
+    await expect(
+      extractAndUpdateGraph(
+        pool,
+        "text",
+        { repo: null, sourceEpisodeId: null, sourceMemoryId: null },
+        llmCall,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(edgeQueries).toHaveLength(0);
+  });
+
+  it("continues upserting edges after one edge upsert fails", async () => {
+    const raw = JSON.stringify({
+      entities: [
+        { name: "a", type: "service" },
+        { name: "b", type: "service" },
+        { name: "c", type: "service" },
+      ],
+      edges: [
+        { source: "a", target: "b", relation: "uses" },
+        { source: "b", target: "c", relation: "uses" },
+      ],
+    });
+    const llmCall = async (): Promise<string> => raw;
+    const idFor: Record<string, string> = { a: "id-a", b: "id-b", c: "id-c" };
+    const edgeInserts: unknown[][] = [];
+
+    const recordEdgeInsert = <T>(
+      params: unknown[] | undefined,
+    ): Promise<{ rows: T[] }> => {
+      edgeInserts.push(params ?? []);
+
+      return params?.[0] === "id-a"
+        ? Promise.reject(new Error("insert failed"))
+        : Promise.resolve({ rows: [] as T[] });
+    };
+
+    const pool: PgPool = {
+      async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
+        if (text.includes("INSERT INTO memory.entities")) {
+          return { rows: [{ id: idFor[params?.[0] as string] }] as T[] };
+        }
+
+        return text.includes("INSERT INTO memory.edges")
+          ? recordEdgeInsert<T>(params)
+          : { rows: [] as T[] };
+      },
+    };
+
+    await expect(
+      extractAndUpdateGraph(
+        pool,
+        "text",
+        { repo: null, sourceEpisodeId: null, sourceMemoryId: null },
+        llmCall,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(edgeInserts).toHaveLength(2);
+  });
+});

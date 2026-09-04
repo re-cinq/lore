@@ -17,6 +17,33 @@ const IngestStateSchema = z.object({
 
 const UNDEFINED_TABLE = "42P01";
 
+function isUndefinedTableError(err: unknown): boolean {
+  return err instanceof Error && "code" in err && err.code === UNDEFINED_TABLE;
+}
+
+async function lastIngestedCommit(
+  pool: Pool,
+  repo: string,
+  kind: string,
+): Promise<string | null> {
+  try {
+    const { rows } = await pool.query<{ commit_sha: string }>(
+      `SELECT commit_sha FROM pipeline.ingest_state
+        WHERE repo = $1 AND kind = $2`,
+      [repo, kind],
+    );
+
+    return rows[0]?.commit_sha ?? null;
+  } catch (err) {
+    // Unmigrated cluster → full ingest (correct behavior).
+    if (!isUndefinedTableError(err)) {
+      throw err;
+    }
+
+    return null;
+  }
+}
+
 export function ingestStateRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -38,26 +65,7 @@ export function ingestStateRoute(getPool: () => Pool | null): ServerRoute {
         `unknown kind "${kind}" — expected one of ${[...INGEST_DELTA_KINDS].join(", ")}`,
       );
       const repo = `${request.params.owner}/${request.params.repo}`;
-      let commit: string | null = null;
-
-      try {
-        const { rows } = await pool.query<{ commit_sha: string }>(
-          `SELECT commit_sha FROM pipeline.ingest_state
-            WHERE repo = $1 AND kind = $2`,
-          [repo, kind],
-        );
-
-        commit = rows[0]?.commit_sha ?? null;
-      } catch (err) {
-        // Unmigrated cluster → full ingest (correct behavior).
-        if (!(
-          err instanceof Error &&
-          "code" in err &&
-          err.code === UNDEFINED_TABLE
-        )) {
-          throw err;
-        }
-      }
+      const commit = await lastIngestedCommit(pool, repo, kind);
 
       return h.response({ kind, commit });
     },

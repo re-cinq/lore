@@ -2,27 +2,41 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { textResult } from "./deps.js";
-import type { PendingTask } from "../../features/pipeline/runner.local.js";
+import type {
+  PendingTask,
+  LocalRunnerConfig,
+} from "../../features/pipeline/runner.local.js";
+
+interface ApiCredentials {
+  apiUrl: string;
+  token: string;
+}
+
+function resolveApiCredentials(): ApiCredentials | null {
+  const apiUrl = process.env.LORE_API_URL || "";
+  const token = process.env.LORE_INGEST_TOKEN || "";
+
+  return apiUrl && token ? { apiUrl, token } : null;
+}
 
 /** Registers the task via the API, returning the server-issued id, or null when offline. */
-async function createPipelineTaskViaApi(
+export async function createPipelineTaskViaApi(
   description: string,
   taskType: string,
   repo: string,
 ): Promise<string | null> {
-  const apiUrl = process.env.LORE_API_URL || "";
-  const token = process.env.LORE_INGEST_TOKEN || "";
+  const creds = resolveApiCredentials();
 
-  if (!(apiUrl && token)) {
+  if (!creds) {
     return null;
   }
 
   try {
-    const resp = await fetch(`${apiUrl}/api/task`, {
+    const resp = await fetch(`${creds.apiUrl}/api/task`, {
       signal: AbortSignal.timeout(30_000),
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${creds.token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -40,48 +54,53 @@ async function createPipelineTaskViaApi(
   }
 }
 
+interface FetchedTask {
+  status?: string;
+  id: string;
+  description: string;
+  task_type: string;
+  target_repo: string;
+  issue_number?: number;
+  created_at: string;
+}
+
+function toPendingTask(fetchedTask: FetchedTask): PendingTask | undefined {
+  if (fetchedTask.status !== "pending") {
+    return undefined;
+  }
+
+  return {
+    id: fetchedTask.id,
+    description: fetchedTask.description,
+    task_type: fetchedTask.task_type,
+    target_repo: fetchedTask.target_repo,
+    issue_number: fetchedTask.issue_number,
+    created_at: fetchedTask.created_at,
+  };
+}
+
 /** Fetches one task from the API; undefined when unreachable or not pending. */
-async function fetchPendingTaskFromApi(
+export async function fetchPendingTaskFromApi(
   taskId: string,
 ): Promise<PendingTask | undefined> {
-  const apiUrl = process.env.LORE_API_URL || "";
-  const apiToken = process.env.LORE_INGEST_TOKEN || "";
+  const creds = resolveApiCredentials();
 
-  if (!(apiUrl && apiToken)) {
+  if (!creds) {
     return undefined;
   }
 
   try {
-    const resp = await fetch(`${apiUrl}/api/task/${taskId}`, {
+    const resp = await fetch(`${creds.apiUrl}/api/task/${taskId}`, {
       signal: AbortSignal.timeout(30_000),
-      headers: { Authorization: `Bearer ${apiToken}` },
+      headers: { Authorization: `Bearer ${creds.token}` },
     });
 
     if (!resp.ok) {
       return undefined;
     }
-    const fetchedTask = (await resp.json()) as {
-      status?: string;
-      id: string;
-      description: string;
-      task_type: string;
-      target_repo: string;
-      issue_number?: number;
-      created_at: string;
-    };
+    const fetchedTask = (await resp.json()) as FetchedTask;
 
-    if (fetchedTask.status !== "pending") {
-      return undefined;
-    }
-
-    return {
-      id: fetchedTask.id,
-      description: fetchedTask.description,
-      task_type: fetchedTask.task_type,
-      target_repo: fetchedTask.target_repo,
-      issue_number: fetchedTask.issue_number,
-      created_at: fetchedTask.created_at,
-    };
+    return toPendingTask(fetchedTask);
   } catch {
     return undefined;
   }
@@ -153,6 +172,21 @@ export function registerLocalRunnerTools(server: McpServer) {
   registerConfigureLocalRunnerTool(server);
 }
 
+/** Warns when `description` references an `owner/repo` other than the one the caller is in. */
+function wrongRepoWarning(description: string, repo: string): string | null {
+  const repoRefMatch = description.match(/\b([\w-]+\/[\w-]+)(?:#|\s)/);
+
+  if (
+    !repoRefMatch ||
+    repoRefMatch[1] === repo ||
+    description.toLowerCase().includes(repo)
+  ) {
+    return null;
+  }
+
+  return `Warning: This task references ${repoRefMatch[1]} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoRefMatch[1].split("/")[1]} && claude`;
+}
+
 function registerRunTaskLocallyTool(server: McpServer) {
   server.tool(
     "lore_run_task_locally",
@@ -169,20 +203,10 @@ function registerRunTaskLocallyTool(server: McpServer) {
             "Error: not in a git repository with a GitHub remote",
           );
         }
+        const warning = wrongRepoWarning(args.description, repo);
 
-        // Warn if the task description references a different repo
-        const repoRefMatch = args.description.match(
-          /\b([\w-]+\/[\w-]+)(?:#|\s)/,
-        );
-
-        if (
-          repoRefMatch &&
-          repoRefMatch[1] !== repo &&
-          !args.description.toLowerCase().includes(repo)
-        ) {
-          return textResult(
-            `Warning: This task references ${repoRefMatch[1]} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoRefMatch[1].split("/")[1]} && claude`,
-          );
+        if (warning) {
+          return textResult(warning);
         }
 
         // Create pipeline task via API; fall back to a generated UUID offline.
@@ -264,6 +288,42 @@ function registerCancelLocalTaskTool(server: McpServer) {
   );
 }
 
+/** Local pending cache first, then the API fallback (supports cross-repo tasks). */
+async function resolvePendingTask(
+  taskId: string,
+  pending: PendingTask[],
+): Promise<PendingTask | undefined> {
+  const local = pending.find((t) => t.id === taskId || t.id.startsWith(taskId));
+
+  return local ?? (await fetchPendingTaskFromApi(taskId));
+}
+
+async function claimTaskBestEffort(taskId: string): Promise<void> {
+  const creds = resolveApiCredentials();
+
+  if (!creds) {
+    return;
+  }
+
+  try {
+    await fetch(`${creds.apiUrl}/api/task`, {
+      signal: AbortSignal.timeout(30_000),
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${creds.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        task_id: taskId,
+        action: "claim",
+        claimed_by: "local-runner",
+      }),
+    });
+  } catch {
+    /* best effort */
+  }
+}
+
 function registerClaimAndRunLocallyTool(server: McpServer) {
   server.tool(
     "lore_claim_and_run_locally",
@@ -273,49 +333,15 @@ function registerClaimAndRunLocallyTool(server: McpServer) {
       try {
         const { spawnLocalTask, getRepoRoot, skipTask, listPendingTasks } =
           await import("../../features/pipeline/runner.local.js");
-
-        // Find the task in local pending list first, then fall back to API
-        const pending = listPendingTasks();
-        let task = pending.find(
-          (t) => t.id === args.task_id || t.id.startsWith(args.task_id),
-        );
-
-        // If not in local cache, try fetching from API (supports cross-repo tasks)
-        if (!task) {
-          task = await fetchPendingTaskFromApi(args.task_id);
-        }
+        const task = await resolvePendingTask(args.task_id, listPendingTasks());
 
         if (!task) {
           return textResult(
             `Task ${args.task_id} not found or not in pending status. Run lore_list_pending_tasks first.`,
           );
         }
+        await claimTaskBestEffort(task.id);
 
-        // Claim via API (best effort)
-        const apiUrl = process.env.LORE_API_URL || "";
-        const token = process.env.LORE_INGEST_TOKEN || "";
-
-        if (apiUrl && token) {
-          try {
-            await fetch(`${apiUrl}/api/task`, {
-              signal: AbortSignal.timeout(30_000),
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                task_id: task.id,
-                action: "claim",
-                claimed_by: "local-runner",
-              }),
-            });
-          } catch {
-            /* best effort */
-          }
-        }
-
-        // Spawn locally
         const localTask = await spawnLocalTask({
           taskId: task.id,
           prompt: task.description,
@@ -325,7 +351,6 @@ function registerClaimAndRunLocallyTool(server: McpServer) {
           repoRoot: getRepoRoot() || undefined,
         });
 
-        // Remove from pending
         skipTask(task.id);
 
         return textResult(
@@ -336,6 +361,42 @@ function registerClaimAndRunLocallyTool(server: McpServer) {
       }
     },
   );
+}
+
+interface ConfigureLocalRunnerArgs {
+  max_concurrent?: number;
+  repos?: string[];
+  task_types?: string[];
+  model?: string;
+}
+
+function hasNoConfigureArgs(args: ConfigureLocalRunnerArgs): boolean {
+  return !args.max_concurrent && !args.repos && !args.task_types && !args.model;
+}
+
+function applyConfigureUpdate(
+  config: LocalRunnerConfig,
+  args: ConfigureLocalRunnerArgs,
+): LocalRunnerConfig {
+  const next = { ...config };
+
+  if (args.max_concurrent !== undefined) {
+    next.max_concurrent = args.max_concurrent;
+  }
+
+  if (args.repos) {
+    next.repos = args.repos;
+  }
+
+  if (args.task_types) {
+    next.task_types = args.task_types;
+  }
+
+  if (args.model) {
+    next.model = args.model;
+  }
+
+  return next;
 }
 
 function registerConfigureLocalRunnerTool(server: McpServer) {
@@ -349,36 +410,15 @@ function registerConfigureLocalRunnerTool(server: McpServer) {
           await import("../../features/pipeline/runner.local.js");
         const config = readConfig();
 
-        // If no args provided, return current config
-        const noRepoOrTypeArgs = !args.repos && !args.task_types;
-        const noArgsProvided =
-          !args.max_concurrent && noRepoOrTypeArgs && !args.model;
-
-        if (noArgsProvided) {
+        if (hasNoConfigureArgs(args)) {
           return textResult(JSON.stringify(config, null, 2));
         }
+        const updated = applyConfigureUpdate(config, args);
 
-        // Update provided fields
-        if (args.max_concurrent !== undefined) {
-          config.max_concurrent = args.max_concurrent;
-        }
-
-        if (args.repos) {
-          config.repos = args.repos;
-        }
-
-        if (args.task_types) {
-          config.task_types = args.task_types;
-        }
-
-        if (args.model) {
-          config.model = args.model;
-        }
-
-        writeConfig(config);
+        writeConfig(updated);
 
         return textResult(
-          `Config updated:\n${JSON.stringify(config, null, 2)}`,
+          `Config updated:\n${JSON.stringify(updated, null, 2)}`,
         );
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);

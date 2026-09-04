@@ -98,6 +98,42 @@ describe("parseAgentPatch", () => {
       pod_resources: null,
     });
   });
+
+  it("carries every scalar field present in the body", () => {
+    expect(
+      parseAgentPatch({
+        name: "fix-ci",
+        timeout_minutes: 30,
+        prompt: "Fix the failing CI job",
+        image: "golang:1.23",
+        execution_mode: "station",
+        review_required: true,
+      }),
+    ).toEqual({
+      name: "fix-ci",
+      timeout_minutes: 30,
+      prompt: "Fix the failing CI job",
+      image: "golang:1.23",
+      execution_mode: "station",
+      review_required: true,
+    });
+  });
+
+  it("clears nullable fields when explicitly set to null", () => {
+    expect(
+      parseAgentPatch({
+        model: null,
+        timeout_minutes: null,
+        prompt: null,
+        image: null,
+      }),
+    ).toEqual({
+      model: null,
+      timeout_minutes: null,
+      prompt: null,
+      image: null,
+    });
+  });
 });
 
 describe("configWithPodResources", () => {

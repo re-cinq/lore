@@ -100,6 +100,58 @@ describe("lore_list_pending_tasks file-fallback repo filter", () => {
   });
 });
 
+describe("lore_list_pending_tasks API path", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
+    mkdirSync(join(fakeHome, ".lore"), { recursive: true });
+    writeFileSync(join(fakeHome, ".lore", "pending-tasks.json"), "[]");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("groups the API's tasks by repo, filtered by the repo param", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tasks: [
+          {
+            id: "aaaaaaaa1111",
+            description: "wire the widget",
+            task_type: "implementation",
+            target_repo: "re-cinq/lore",
+          },
+          {
+            id: "bbbbbbbb2222",
+            description: "patch the gadget",
+            task_type: "general",
+            target_repo: "other/repo",
+          },
+        ],
+      }),
+    });
+
+    const result = await handlers["lore_list_pending_tasks"]({
+      repo: "re-cinq/lore",
+    });
+
+    expect(result.content[0].text).toContain("re-cinq/lore");
+    expect(result.content[0].text).not.toContain("other/repo");
+  });
+
+  it("falls back to the local file listing when the API responds non-ok", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500 });
+
+    const result = await handlers["lore_list_pending_tasks"]({});
+
+    expect(result.content[0].text).toBe("No pending tasks.");
+  });
+});
+
 describe("zod schema bounds", () => {
   it("rejects a task description over 10000 chars", () => {
     const result = z
@@ -218,6 +270,71 @@ describe("lore_create_pipeline_task onboard refusal", () => {
   });
 });
 
+describe("lore_create_pipeline_task API path", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("returns the not-configured message when the env is unset", async () => {
+    vi.stubEnv("LORE_API_URL", "");
+    vi.stubEnv("LORE_INGEST_TOKEN", "");
+
+    const result = await handlers["lore_create_pipeline_task"]({
+      description: "wire the widget",
+      task_type: "general",
+      target_repo: "re-cinq/lore",
+      priority: "normal",
+    });
+
+    expect(result.content[0].text).toContain("not configured");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports the immediate pickup hint on success", async () => {
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ task_id: "t1", task_type: "general" }),
+    });
+
+    const result = await handlers["lore_create_pipeline_task"]({
+      description: "wire the widget",
+      task_type: "general",
+      target_repo: "re-cinq/lore",
+      priority: "immediate",
+    });
+
+    expect(result.content[0].text).toContain(
+      "The GKE agent will pick this up within 30 seconds.",
+    );
+  });
+
+  it("reports a denied error on a 401", async () => {
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+    });
+
+    const result = await handlers["lore_create_pipeline_task"]({
+      description: "wire the widget",
+      task_type: "general",
+      target_repo: "re-cinq/lore",
+      priority: "normal",
+    });
+
+    expect(result.content[0].text).toContain("denied access");
+  });
+});
+
 describe("pipeline tools that proxy to lore-api (ADR-032) with real proxy helpers and only fetch stubbed", () => {
   const jsonOk = (body: unknown) =>
     fetchMock.mockResolvedValue({ ok: true, json: async () => body });
@@ -276,6 +393,31 @@ describe("pipeline tools that proxy to lore-api (ADR-032) with real proxy helper
       "The Lore API refused cancelling a task: HTTP 409 Conflict: Cannot cancel task in merged state",
     );
   });
+
+  it("lore_cancel_task reports a denied error on a 401 without retrying", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+    });
+
+    const result = await handlers["lore_cancel_task"]({ task_id: "t1" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.content[0].text).toContain("denied access");
+  });
+
+  it("lore_list_task_group reports a subject-scoped fetch message when the API is unreachable", async () => {
+    fetchMock.mockRejectedValue(new Error("connect ECONNREFUSED"));
+
+    const result = await handlers["lore_list_task_group"]({
+      group_id: "g1",
+    });
+
+    expect(result.content[0].text).toContain(
+      "Could not fetch the task group from the Lore API",
+    );
+  }, 10_000);
 
   it("lore_retry_task posts the retry action and returns the new task", async () => {
     jsonOk({ task_id: "t2", retry_of: "t1" });
@@ -452,6 +594,116 @@ describe("pipeline tools that proxy to lore-api (ADR-032) with real proxy helper
       texts.every((t) => t.includes("Lore API not configured")),
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("lore_get_task_logs and lore_get_job_logs proxy", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("lore_get_task_logs reports the require-URL message when the env is unset", async () => {
+    vi.stubEnv("LORE_API_URL", "");
+    vi.stubEnv("LORE_INGEST_TOKEN", "");
+
+    const result = await handlers["lore_get_task_logs"]({
+      task_id: "t1",
+      offset: 0,
+    });
+
+    expect(result.content[0].text).toBe("Task logs require LORE_API_URL.");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("lore_get_task_logs returns the proxied body on success", async () => {
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ logs: "hello", next_offset: 5, complete: true }),
+    });
+
+    const result = await handlers["lore_get_task_logs"]({
+      task_id: "t1",
+      offset: 0,
+    });
+
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      logs: "hello",
+      next_offset: 5,
+      complete: true,
+    });
+  });
+
+  it("lore_get_task_logs reports a denied error on a 401", async () => {
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+    });
+
+    const result = await handlers["lore_get_task_logs"]({
+      task_id: "t1",
+      offset: 0,
+    });
+
+    expect(result.content[0].text).toContain("denied access");
+  });
+
+  it("lore_get_task_logs reports an unreachable error on a non-auth failure", async () => {
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Server Error",
+    });
+
+    const result = await handlers["lore_get_task_logs"]({
+      task_id: "t1",
+      offset: 0,
+    });
+
+    expect(result.content[0].text).toContain("unreachable");
+  });
+
+  it("lore_get_job_logs reports the require-URL message when the env is unset", async () => {
+    vi.stubEnv("LORE_API_URL", "");
+    vi.stubEnv("LORE_INGEST_TOKEN", "");
+
+    const result = await handlers["lore_get_job_logs"]({
+      job_name: "context_reindex",
+      run_id: "r1",
+    });
+
+    expect(result.content[0].text).toBe("Job-run logs require LORE_API_URL.");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("lore_get_job_logs returns the proxied body on success", async () => {
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ logs: "job output", complete: true }),
+    });
+
+    const result = await handlers["lore_get_job_logs"]({
+      job_name: "context_reindex",
+      run_id: "r1",
+    });
+
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      logs: "job output",
+      complete: true,
+    });
   });
 });
 

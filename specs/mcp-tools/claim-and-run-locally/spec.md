@@ -42,7 +42,7 @@ Claims an EXISTING pending pipeline task by id and runs it on your local machine
 ## Behavior
 
 1. **Resolve the task** — search `listPendingTasks()` by exact id or prefix
-   ([reader](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L884)).
+   ([reader](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1300)).
    On a miss, when `LORE_API_URL` + `LORE_INGEST_TOKEN` are set, `GET
    /api/task/{task_id}` and adopt it only when its `status === "pending"`.
 2. When still unresolved, return `"Task {task_id} not found or not in pending
@@ -53,7 +53,7 @@ Claims an EXISTING pending pipeline task by id and runs it on your local machine
    resolve the content source (`resolveContentSource` — cwd tree when it matches,
    else a cached `/tmp` clone), run `executeGraphIngestLocally` in-process (zero
    LLM, no worktree), `skipTask(task.id)`
-   ([remover](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L897)),
+   ([remover](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1309)),
    and return the ingest result. A `resolveContentSource` failure returns
    `"Could not prepare repo source for {repo}: {message}"`.
 5. **Otherwise** — `spawnLocalTask(...)` (worktree + detached `claude`), then
@@ -82,19 +82,35 @@ the ingest result, the "Claimed and running locally" report, or `"Error: …"`.
 ## Acceptance Criteria
 
 `skipTask` removes a task from the pending list by id, leaving the rest.
-([validated by `skipTask filters a task by id from the pending file`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L148))
+([validated by `skipTask filters a task by id from the pending file`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L151))
 
 `listPendingTasks` returns an array (empty when the backing file is absent).
-([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L142))
+([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L145))
 
 `validateRepoMatch` (invoked inside `spawnLocalTask`) throws on a cwd/target-repo
-mismatch. ([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L197))
+mismatch. ([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L200))
 
 The full claim flow (API fetch, claim POST, ingest dispatch, worktree spawn) is
 exercised only end-to-end. *(untested: the orchestration depends on network
 `fetch`, `spawnLocalTask`'s child processes, and the graph-ingest clone — no IO
 seam to substitute without mocks, which the no-mocks convention forbids. The pure
 pending-list helpers it leans on are covered above.)*
+
+`fetchPendingTaskFromApi` (the cross-repo API fallback when the task is not in
+the local pending cache) returns `undefined` without fetching when API
+credentials are absent, `undefined` on a non-ok response or a non-`pending`
+status, the mapped task fields on success, and `undefined` when the request
+throws. ([validated by `returns undefined without fetching when the API URL or
+token is not
+configured`](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.test.ts#L73),
+[`returns undefined when the API responds
+non-ok`](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.test.ts#L84),
+[`returns undefined when the fetched task is not
+pending`](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.test.ts#L94),
+[`returns the pending task's fields on
+success`](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.test.ts#L117),
+[`returns undefined when the request
+throws`](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.test.ts#L148))
 
 ## Out of Scope
 

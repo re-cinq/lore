@@ -117,9 +117,13 @@ null`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L86))
 A stats query returning no rows zeroes the counters. ([validated by `zeroes task
 stats when the stats query returns no rows`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L94))
 
+A duplicated `authorization` header authenticates off its first value. ([validated
+by `authenticates using the first value of a duplicated authorization
+header`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L106))
+
 The dispatcher exempts `/healthz` from rate limiting and bearer auth (no 401/403/429
 is ever returned on this path). ([validated by `returns 200 {status:ok}
-unauthenticated when connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L38), [validated by `rate-limit.test.ts:97`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L94))
+unauthenticated when connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L38), [validated by `rate-limit.test.ts:105`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L105))
 
 ## Out of Scope
 

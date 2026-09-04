@@ -312,6 +312,38 @@ describe("routes — dark-factory settings", () => {
       expect(res.result).toEqual({ error: "github_api_unavailable" });
     });
 
+    it("merges task_overrides for a touched task type", async () => {
+      const pool = makePool();
+
+      clientQueries(pool, {
+        "FOR UPDATE": {
+          rows: [
+            {
+              settings: {
+                task_overrides: { implementation: { model: "sonnet" } },
+              },
+            },
+          ],
+        },
+      });
+      const res = await put(
+        { task_overrides: { implementation: { timeout_minutes: 30 } } },
+        {},
+        pool,
+      );
+
+      expect(res.result).toMatchObject({ ok: true });
+      const updateCall = pool.__client.query.mock.calls.find((call) =>
+        (call[0] as string).includes("UPDATE lore.repos"),
+      );
+
+      expect(
+        (updateCall?.[1] as [{ task_overrides: unknown }])[0].task_overrides,
+      ).toEqual({
+        implementation: { model: "sonnet", timeout_minutes: 30 },
+      });
+    });
+
     it("returns 404 when the repo vanishes inside the transaction", async () => {
       const pool = makePool();
 

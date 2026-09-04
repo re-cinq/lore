@@ -381,6 +381,39 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
   it("PUT rejects a payload without a boolean enabled", async () => {
     expect((await put({ enabled: "yes" })).statusCode).toBe(400);
   });
+
+  it("excludes a task row with no issue number from recent", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "task-no-issue",
+            created_at: "2026-08-26T06:00:00.000Z",
+            status: "completed",
+            description: "Untracked ticket",
+            issue_number: null,
+            issue_url: null,
+            pr_url: null,
+          },
+        ],
+      });
+    pool.query.mockResolvedValue({ rows: [] } as never);
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: { list: async () => [] },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(JSON.parse(res.payload)).toMatchObject({
+      current: null,
+      recent: [],
+    });
+  });
 });
 
 describe("pipelineOf", () => {
@@ -438,6 +471,30 @@ describe("pipelineOf", () => {
 
     expect(pipelineOf(undefined, [])).toBeNull();
     expect(pipelineOf({ ...run, graph: null }, [])).toBeNull();
+  });
+
+  it("keeps the higher iteration when a lower one arrives after it", async () => {
+    const { pipelineOf } = await import("./backlog.js");
+
+    expect(
+      pipelineOf(run, [
+        {
+          assembly_run_id: "run-1",
+          node_id: "implement",
+          iteration: 2,
+          outcome: "success",
+        },
+        {
+          assembly_run_id: "run-1",
+          node_id: "implement",
+          iteration: 1,
+          outcome: "failed",
+        },
+      ]),
+    ).toEqual([
+      { node_id: "implement", state: "success" },
+      { node_id: "await-pr", state: "pending" },
+    ]);
   });
 });
 

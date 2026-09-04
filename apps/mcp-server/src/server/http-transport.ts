@@ -64,6 +64,11 @@ export async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
+/** True for the plain liveness probe — the one route with no `/mcp` or `/skills` prefix. */
+function isHealthzRequest(req: IncomingMessage, url: string): boolean {
+  return req.method === "GET" && url === "/healthz";
+}
+
 function jsonRpcError(res: ServerResponse, status: number, message: string) {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(
@@ -131,13 +136,34 @@ export function startHttpGateway(opts: HttpGatewayOptions): Server {
     });
   });
 
+  // POST mints or resumes a session; GET/DELETE require an already-minted one; anything else 405s.
+  async function routeMcp(
+    req: IncomingMessage,
+    res: ServerResponse,
+    sessionId: string | undefined,
+  ): Promise<void> {
+    if (req.method === "POST") {
+      await handleMcpPost(req, res, sessionId);
+
+      return;
+    }
+
+    if (req.method === "GET" || req.method === "DELETE") {
+      await handleMcpSession(req, res, sessionId);
+
+      return;
+    }
+
+    res.writeHead(405).end();
+  }
+
   async function handle(
     req: IncomingMessage,
     res: ServerResponse,
   ): Promise<void> {
     const url = req.url ?? "";
 
-    if (req.method === "GET" && url === "/healthz") {
+    if (isHealthzRequest(req, url)) {
       res.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
 
       return;
@@ -159,21 +185,12 @@ export function startHttpGateway(opts: HttpGatewayOptions): Server {
 
       return;
     }
-    const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
-    if (req.method === "POST") {
-      await handleMcpPost(req, res, sessionId);
-
-      return;
-    }
-
-    if (req.method === "GET" || req.method === "DELETE") {
-      await handleMcpSession(req, res, sessionId);
-
-      return;
-    }
-
-    res.writeHead(405).end();
+    await routeMcp(
+      req,
+      res,
+      req.headers["mcp-session-id"] as string | undefined,
+    );
   }
 
   /** POST /mcp — an existing session's message, or an initialize minting one. */

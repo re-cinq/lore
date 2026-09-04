@@ -7,36 +7,42 @@ interface DelegateContext {
   seed_query?: string;
 }
 
+const SPEC_FILES = [".specify/spec.md", ".specify/constitution.md"];
+
+function pipelineTaskSection(taskId?: string): string | null {
+  return taskId ? `## Pipeline task\nTask ID: ${taskId}` : null;
+}
+
+function specFileLabel(file: string): string {
+  return file.includes("spec") ? "Spec" : "Constitution";
+}
+
+function specFileSections(): string[] {
+  return SPEC_FILES.filter((file) => existsSync(file)).map(
+    (file) => `## ${specFileLabel(file)}\n${readFileSync(file, "utf8")}`,
+  );
+}
+
+function seedQuerySection(seedQuery?: string): string | null {
+  return seedQuery ? `## Seed query\n${seedQuery}` : null;
+}
+
+function branchSection(branch?: string): string | null {
+  return branch ? `## Branch\n${branch}` : null;
+}
+
 export async function buildContextBundle(
   context?: DelegateContext,
 ): Promise<string> {
-  const parts: string[] = [];
+  const { pipeline_task_id, spec_file, seed_query, branch } = context ?? {};
+  const parts: Array<string | null> = [
+    pipelineTaskSection(pipeline_task_id),
+    ...(spec_file ? specFileSections() : []),
+    seedQuerySection(seed_query),
+    branchSection(branch),
+  ];
 
-  if (context?.pipeline_task_id) {
-    parts.push(`## Pipeline task\nTask ID: ${context.pipeline_task_id}`);
-  }
-
-  if (context?.spec_file) {
-    const presentSpecFiles = [
-      ".specify/spec.md",
-      ".specify/constitution.md",
-    ].filter((file) => existsSync(file));
-
-    for (const file of presentSpecFiles) {
-      const content = readFileSync(file, "utf8");
-      const label = file.includes("spec") ? "Spec" : "Constitution";
-
-      parts.push(`## ${label}\n${content}`);
-    }
-  }
-
-  if (context?.seed_query) {
-    parts.push(`## Seed query\n${context.seed_query}`);
-  }
-
-  if (context?.branch) {
-    parts.push(`## Branch\n${context.branch}`);
-  }
-
-  return parts.join("\n\n---\n\n");
+  return parts
+    .filter((part): part is string => part !== null)
+    .join("\n\n---\n\n");
 }

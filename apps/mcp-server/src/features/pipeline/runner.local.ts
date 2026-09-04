@@ -173,10 +173,12 @@ function getToken(): string {
   }
 }
 
-function warnBestEffort(op: string, err: unknown): void {
-  const msg = err instanceof Error ? err.message : String(err);
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
-  console.error(`[lore] local-runner: ${op} failed: ${msg}`);
+function warnBestEffort(op: string, err: unknown): void {
+  console.error(`[lore] local-runner: ${op} failed: ${errorMessage(err)}`);
 }
 
 async function updateTaskViaAPI(
@@ -495,7 +497,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
     }
     removeWorktree(task);
   } catch (err: unknown) {
-    const errMsg = err instanceof Error ? err.message : String(err);
+    const errMsg = errorMessage(err);
 
     if (idx >= 0) {
       tasks[idx].status = "failed";
@@ -543,6 +545,16 @@ function errFileFor(logFile: string): string {
   return `${logFile}.err`;
 }
 
+/** A blank or non-JSON raw line carries nothing worth redacting or relaying. */
+function isUsableRawLine(line: string): boolean {
+  return line.length > 0 && parsesAsJson(line);
+}
+
+/** True when redaction left the line intact, or still valid JSON despite the edits. */
+function redactedLineIsUsable(redacted: string, original: string): boolean {
+  return redacted === original || parsesAsJson(redacted);
+}
+
 // Redacts per line (matching the Floor's rule — a whole-text pass could span JSON boundaries and erase lines in between); a line whose JSON breaks under redaction is counted in `dropped`.
 export function buildTurnLines(
   rawLog: string,
@@ -554,13 +566,13 @@ export function buildTurnLines(
   for (const raw of rawLog.split("\n")) {
     const line = raw.trim();
 
-    if (!line || !parsesAsJson(line)) {
+    if (!isUsableRawLine(line)) {
       continue;
     }
 
     const redacted = redact(line);
 
-    if (redacted === line || parsesAsJson(redacted)) {
+    if (redactedLineIsUsable(redacted, line)) {
       lines.push(redacted);
       continue;
     }
@@ -1018,6 +1030,27 @@ async function requeueStaleTask(task: LocalTask): Promise<void> {
   }
 }
 
+/** True once a dead task has been unattended long enough that the machine likely slept. */
+function isStaleForRequeue(startedAt: string): boolean {
+  return Date.now() - new Date(startedAt).getTime() > STALE_THRESHOLD_MS;
+}
+
+/** Marks a dead task failed, best-effort-cleans its orphaned worktree, and re-queues it for GKE when stale enough. */
+async function recoverStaleTask(task: LocalTask): Promise<void> {
+  task.status = "failed";
+  task.error = "Process exited unexpectedly";
+
+  try {
+    removeOrphanedWorktree(task.worktreePath);
+  } catch {
+    /* best effort */
+  }
+
+  if (isStaleForRequeue(task.startedAt)) {
+    await requeueStaleTask(task);
+  }
+}
+
 export async function cleanupStaleTasks(): Promise<void> {
   const tasks = readTasks();
   let changed = false;
@@ -1031,23 +1064,8 @@ export async function cleanupStaleTasks(): Promise<void> {
       continue;
     }
 
-    const ageMs = Date.now() - new Date(task.startedAt).getTime();
-
-    task.status = "failed";
-    task.error = "Process exited unexpectedly";
+    await recoverStaleTask(task);
     changed = true;
-
-    // Clean up orphaned worktree (best effort)
-    try {
-      removeOrphanedWorktree(task.worktreePath);
-    } catch {
-      /* best effort */
-    }
-
-    // Re-queue for GKE if stale (> 30 min — likely machine slept)
-    if (ageMs > STALE_THRESHOLD_MS) {
-      await requeueStaleTask(task);
-    }
   }
 
   if (changed) {

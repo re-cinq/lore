@@ -298,6 +298,60 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     expect(JSON.parse(res.payload).error).toContain("LORE_DGRAPH_HTTP");
   });
 
+  it("a non-migration error reading the stored commit surfaces as a 500", async () => {
+    const deps = fakeDeps();
+    const pool = {
+      query: async (sql: string) =>
+        /SELECT commit_sha/.test(sql)
+          ? Promise.reject(new Error("connection reset"))
+          : { rows: [] },
+    } as never;
+    const server = Hapi.server();
+
+    server.auth.scheme("stub", () => ({
+      authenticate: (_request, h) => h.authenticated({ credentials: {} }),
+    }));
+    server.auth.strategy("bearer-scope", "stub");
+    server.auth.default("bearer-scope");
+    server.route(ingestDeltaRoute(() => pool, deps));
+
+    const res = await post(server, {
+      kind: "specs",
+      commit: SHA_B,
+      base_commit: null,
+      files: [{ path: "specs/x/spec.md", content: "x" }],
+    });
+
+    expect(res.statusCode).toBe(500);
+  });
+
+  it("a non-migration error advancing the commit surfaces as a 500", async () => {
+    const deps = fakeDeps();
+    const pool = {
+      query: async (sql: string) =>
+        /INSERT INTO pipeline\.ingest_state/.test(sql)
+          ? Promise.reject(new Error("connection reset"))
+          : { rows: [{ commit_sha: SHA_A }] },
+    } as never;
+    const server = Hapi.server();
+
+    server.auth.scheme("stub", () => ({
+      authenticate: (_request, h) => h.authenticated({ credentials: {} }),
+    }));
+    server.auth.strategy("bearer-scope", "stub");
+    server.auth.default("bearer-scope");
+    server.route(ingestDeltaRoute(() => pool, deps));
+
+    const res = await post(server, {
+      kind: "specs",
+      commit: SHA_B,
+      base_commit: SHA_A,
+      files: [{ path: "specs/x/spec.md", content: "x" }],
+    });
+
+    expect(res.statusCode).toBe(500);
+  });
+
   it("a projection failure surfaces as a 500 and leaves the state unadvanced", async () => {
     const deps = fakeDeps();
 
@@ -315,5 +369,27 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     expect(
       issued.some((q) => /INSERT INTO pipeline\.ingest_state/.test(q.sql)),
     ).toBe(false);
+  });
+
+  it("counts only the files the projector reports as projected", async () => {
+    const deps = fakeDeps();
+
+    deps.projectSpec = vi
+      .fn()
+      .mockResolvedValueOnce({ projected: true })
+      .mockResolvedValueOnce({ projected: false });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(server, {
+      kind: "specs",
+      commit: SHA_B,
+      base_commit: null,
+      files: [
+        { path: "specs/a/spec.md", content: "a" },
+        { path: "specs/b/spec.md", content: "b" },
+      ],
+    });
+
+    expect(deps.projectSpec).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(res.payload)).toMatchObject({ projected: 1 });
   });
 });

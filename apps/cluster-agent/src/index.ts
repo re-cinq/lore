@@ -1,13 +1,21 @@
 // The cluster agent: the only process that talks to this cluster's Kubernetes API, holds no database. Answers requests AND pushes (the Agent-CR watch reports onward to the event-router over HTTP) through one shared EventProxy.
 
 import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import { startServer } from "./delivery/server.js";
+import type { AgentEventsDeps } from "./delivery/routes/agent-events.js";
 import type { ProxyMessage } from "@re-cinq/lore-shared/project/events/event-input-port.js";
 import { AgentWatchInput } from "./listeners/k8s-watch.js";
 import { PodLogInput, podLogStreamingEnabled } from "./inputs/pod-log-input.js";
 import { TelemetrySink } from "./kernel/telemetry-sink.js";
-import { startClaimLoop } from "./claim/start-claim-loop.js";
-import { startPruneLoop } from "./reap/start-prune-loop.js";
+import {
+  startClaimLoop,
+  type ClaimLoopHandle,
+} from "./claim/start-claim-loop.js";
+import {
+  startPruneLoop,
+  type PruneLoopHandle,
+} from "./reap/start-prune-loop.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 
@@ -20,54 +28,56 @@ const DRAIN_TIMEOUT_MS = 5_000;
 /** This agent's per-agent token once registered, lived here since the reporter and the claim loop are wired together in this composition root. */
 let agentToken: string | undefined;
 
-async function main(): Promise<void> {
-  const routerUrl = process.env.EVENT_ROUTER_URL;
-  const floorUrl = process.env.LORE_FLOOR_URL;
+// Resolved per call: the per-agent token is unknown until registration returns and rotates out of band — capturing it at boot reported `undefined` forever (the 2026-08-24 credential-mismatch outage).
+function currentToken(): string | undefined {
+  return process.env.LORE_INGEST_TOKEN ?? agentToken;
+}
 
-  // Claim-based dispatch (FR1/FR3, specs/running-stations-in-any-k8s-cluster) — not optional; dispatch is pull-only. Started before the watch so it can borrow its re-registration.
-  const claimLoop = startClaimLoop(process.env, {
-    onIdentity: (identity) => {
-      agentToken = identity.token;
+// A THUNK — see currentToken. Absent EVENT_ROUTER_URL there is no reporter to build.
+function buildEventProxy(
+  routerUrl: string | undefined,
+  floorUrl: string | undefined,
+  claimLoop: ClaimLoopHandle,
+): EventProxy | null {
+  if (!routerUrl) {
+    return null;
+  }
+
+  return selectEventProxy({
+    local: () => {
+      throw new Error(
+        "the cluster-agent holds no database — there is no local reporter to fall back to",
+      );
     },
+    token: currentToken,
+    retry: REPORT_RETRY,
+    // Telemetry rides the same queue and ladder but lands elsewhere — the Floor projects it, the router has no handler for it.
+    telemetry: floorUrl ? new TelemetrySink(floorUrl, currentToken) : undefined,
+    // A 401 means the held credential is stale — re-register and retry, as the claim/heartbeat loops do. Retrying with the refused token lost run 595d2b0b's terminal event.
+    onUnauthorized: () => claimLoop.reRegister(),
   });
+}
 
-  // Terminal Agent CRs + per-task clones accumulate forever otherwise — 176 of them (40MiB) OOMKilled the controller every 9min on 2026-08-30. Runs HERE (not Floor-side) since the Floor cannot reach a satellite's cluster (#1651).
-  const pruneLoop = startPruneLoop(process.env);
+// Mounted only with somewhere to forward telemetry AND a proxy to queue it in — absent either, a 404 beats a 202 that silently drops the batch.
+function buildAgentEvents(
+  proxy: EventProxy | null,
+  floorUrl: string | undefined,
+): AgentEventsDeps | undefined {
+  if (!proxy || !floorUrl) {
+    return undefined;
+  }
 
-  // A THUNK, resolved per call: the per-agent token is unknown until registration returns and rotates out of band — capturing it at boot reported `undefined` forever (the 2026-08-24 credential-mismatch outage).
-  const proxy = routerUrl
-    ? selectEventProxy({
-        local: () => {
-          throw new Error(
-            "the cluster-agent holds no database — there is no local reporter to fall back to",
-          );
-        },
-        token: () => process.env.LORE_INGEST_TOKEN ?? agentToken,
-        retry: REPORT_RETRY,
-        // Telemetry rides the same queue and ladder but lands elsewhere — the Floor projects it, the router has no handler for it.
-        telemetry: floorUrl
-          ? new TelemetrySink(
-              floorUrl,
-              () => process.env.LORE_INGEST_TOKEN ?? agentToken,
-            )
-          : undefined,
-        // A 401 means the held credential is stale — re-register and retry, as the claim/heartbeat loops do. Retrying with the refused token lost run 595d2b0b's terminal event.
-        onUnauthorized: () => claimLoop.reRegister(),
-      })
-    : null;
+  return {
+    emit: (message: ProxyMessage) => proxy.emit(message),
+    // Resolved per request — the per-agent token rotates on every re-registration.
+    acceptedTokens: () => [process.env.LORE_INGEST_TOKEN, agentToken],
+  };
+}
 
-  // Mounted only with somewhere to forward telemetry AND a proxy to queue it in — absent either, a 404 beats a 202 that silently drops the batch.
-  const agentEvents =
-    proxy && floorUrl
-      ? {
-          emit: (message: ProxyMessage) => proxy.emit(message),
-          // Resolved per request — the per-agent token rotates on every re-registration.
-          acceptedTokens: () => [process.env.LORE_INGEST_TOKEN, agentToken],
-        }
-      : undefined;
-
-  const stopServer = await startServer(PORT, agentEvents);
-
+function logMissingRelays(
+  floorUrl: string | undefined,
+  proxy: EventProxy | null,
+): void {
   if (!floorUrl) {
     // Says what is off, not what is broken — a cluster posting straight to the public agent-events ingress (FR8) reports fine without this relay.
     console.log(
@@ -81,21 +91,27 @@ async function main(): Promise<void> {
       "[cluster-agent] EVENT_ROUTER_URL unset — Agent-CR watch NOT started",
     );
   }
+}
 
-  if (proxy) {
-    proxy.register(new AgentWatchInput());
+function registerProxyInputs(proxy: EventProxy | null): void {
+  if (!proxy) {
+    return;
   }
+  proxy.register(new AgentWatchInput());
 
   // OFF unless asked for — this puts log VOLUME on pipeline.events (a fan-out queue, not bulk data), so it ships dark and is enabled per cluster after a pilot.
-  if (proxy && podLogStreamingEnabled(process.env)) {
+  if (podLogStreamingEnabled(process.env)) {
     proxy.register(new PodLogInput());
   }
+}
 
-  if (proxy) {
-    await proxy.start();
-  }
-
-  const shutdown = async (signal: string): Promise<void> => {
+function makeShutdown(
+  claimLoop: ClaimLoopHandle,
+  pruneLoop: PruneLoopHandle,
+  stopServer: () => Promise<void>,
+  proxy: EventProxy | null,
+): (signal: string) => Promise<void> {
+  return async (signal: string): Promise<void> => {
     console.log(`[cluster-agent] ${signal} — shutting down`);
     // FIRST, before anything that waits — a claim landing during the drain would be recorded but never launched.
     claimLoop.stop();
@@ -112,6 +128,34 @@ async function main(): Promise<void> {
     }
     process.exit(0);
   };
+}
+
+async function main(): Promise<void> {
+  const routerUrl = process.env.EVENT_ROUTER_URL;
+  const floorUrl = process.env.LORE_FLOOR_URL;
+
+  // Claim-based dispatch (FR1/FR3, specs/running-stations-in-any-k8s-cluster) — not optional; dispatch is pull-only. Started before the watch so it can borrow its re-registration.
+  const claimLoop = startClaimLoop(process.env, {
+    onIdentity: (identity) => {
+      agentToken = identity.token;
+    },
+  });
+
+  // Terminal Agent CRs + per-task clones accumulate forever otherwise — 176 of them (40MiB) OOMKilled the controller every 9min on 2026-08-30. Runs HERE (not Floor-side) since the Floor cannot reach a satellite's cluster (#1651).
+  const pruneLoop = startPruneLoop(process.env);
+
+  const proxy = buildEventProxy(routerUrl, floorUrl, claimLoop);
+  const agentEvents = buildAgentEvents(proxy, floorUrl);
+  const stopServer = await startServer(PORT, agentEvents);
+
+  logMissingRelays(floorUrl, proxy);
+  registerProxyInputs(proxy);
+
+  if (proxy) {
+    await proxy.start();
+  }
+
+  const shutdown = makeShutdown(claimLoop, pruneLoop, stopServer, proxy);
 
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
   process.on("SIGINT", () => void shutdown("SIGINT"));

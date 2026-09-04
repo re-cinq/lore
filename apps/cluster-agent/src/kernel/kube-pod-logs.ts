@@ -38,19 +38,32 @@ function isLiveRunningPod(pod: V1Pod): boolean {
   return pod.status?.phase === "Running" || pod.status?.phase === "Pending";
 }
 
-function toRunningPodInfo(pod: V1Pod): RunningPodInfo {
-  const agent = agentContainer(pod);
+function podName(pod: V1Pod): string {
+  return pod.metadata?.name ?? "";
+}
 
+function podPhase(pod: V1Pod): string {
+  return pod.status?.phase ?? "";
+}
+
+function podStartedAt(pod: V1Pod): string | null {
+  return pod.status?.startTime
+    ? new Date(pod.status.startTime).toISOString()
+    : null;
+}
+
+function agentRequests(
+  agent: ReturnType<typeof agentContainer>,
+): Record<string, string> {
+  return { ...(agent?.resources?.requests ?? {}) } as Record<string, string>;
+}
+
+function toRunningPodInfo(pod: V1Pod): RunningPodInfo {
   return {
-    name: pod.metadata?.name ?? "",
-    phase: pod.status?.phase ?? "",
-    startedAt: pod.status?.startTime
-      ? new Date(pod.status.startTime).toISOString()
-      : null,
-    requests: { ...(agent?.resources?.requests ?? {}) } as Record<
-      string,
-      string
-    >,
+    name: podName(pod),
+    phase: podPhase(pod),
+    startedAt: podStartedAt(pod),
+    requests: agentRequests(agentContainer(pod)),
     labels: podLabels(pod),
   };
 }
@@ -58,6 +71,13 @@ function toRunningPodInfo(pod: V1Pod): RunningPodInfo {
 /** Pods belonging to a Job, by the label the Job controller stamps. */
 export function podSelectorForJob(jobName: string): string {
   return `job-name=${jobName}`;
+}
+
+function agentPodInfoOf(agent: AgentCr): AgentPodInfo {
+  return {
+    phase: agent.status?.phase ?? null,
+    jobName: agent.status?.jobName ?? null,
+  };
 }
 
 export class KubePodLogs implements PodLogSource {
@@ -77,10 +97,7 @@ export class KubePodLogs implements PodLogSource {
         name,
       })) as AgentCr;
 
-      return {
-        phase: agent.status?.phase ?? null,
-        jobName: agent.status?.jobName ?? null,
-      };
+      return agentPodInfoOf(agent);
     } catch (err) {
       if (isNotFound(err)) {
         return null;

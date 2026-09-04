@@ -25,6 +25,50 @@ const RepoStatusSchema = z.object({
   error: z.string().optional(),
 });
 
+const STALE_AFTER_MS = 7 * 86400000;
+
+function rowCount(result: { rows: Array<{ c?: string | number }> }): number {
+  return Number(result.rows[0]?.c ?? 0);
+}
+
+function isStale(lastIngested: string | null): boolean {
+  if (!lastIngested) {
+    return true;
+  }
+
+  return Date.now() - new Date(lastIngested).getTime() > STALE_AFTER_MS;
+}
+
+function parseRepoRow(row: {
+  settings: { auto_review?: boolean } | null;
+  last_ingested_at: string | null;
+}): { settings: { auto_review?: boolean }; lastIngested: string | null } {
+  return {
+    settings: row.settings || {},
+    lastIngested: row.last_ingested_at || null,
+  };
+}
+
+async function repoActivity(pool: Pool, repo: string) {
+  const running = await pool.query(
+    `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status = 'running'`,
+    [repo],
+  );
+  const prReady = await pool.query(
+    `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status IN ('pr-created', 'review')`,
+    [repo],
+  );
+  const memories = await pool.query(
+    `SELECT count(*) as c FROM memory.memories WHERE is_deleted = false`,
+  );
+
+  return {
+    running: rowCount(running),
+    pr_ready: rowCount(prReady),
+    memories: rowCount(memories),
+  };
+}
+
 export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -58,32 +102,16 @@ export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
           return h.response({ onboarded: false, repo });
         }
 
-        const settings = repoRow.rows[0].settings || {};
-        const lastIngested = repoRow.rows[0].last_ingested_at || null;
-        const running = await pool.query(
-          `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status = 'running'`,
-          [repo],
-        );
-        const prReady = await pool.query(
-          `SELECT count(*) as c FROM pipeline.tasks WHERE target_repo = $1 AND status IN ('pr-created', 'review')`,
-          [repo],
-        );
-        const memories = await pool.query(
-          `SELECT count(*) as c FROM memory.memories WHERE is_deleted = false`,
-        );
-        const stale =
-          !lastIngested ||
-          Date.now() - new Date(lastIngested).getTime() > 7 * 86400000;
+        const { settings, lastIngested } = parseRepoRow(repoRow.rows[0]);
+        const activity = await repoActivity(pool, repo);
 
         return h.response({
           onboarded: true,
           repo,
-          running: Number(running.rows[0]?.c || 0),
-          pr_ready: Number(prReady.rows[0]?.c || 0),
-          memories: Number(memories.rows[0]?.c || 0),
+          ...activity,
           auto_review: settings.auto_review === true,
           last_ingested_at: lastIngested,
-          stale,
+          stale: isStale(lastIngested),
         });
       } catch (err) {
         console.error("[repo-status] Error:", errorMessage(err));

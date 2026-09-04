@@ -22,6 +22,14 @@ const orgRow = {
   config: { skills: ["lore-context"] },
 };
 
+function paramOr<T>(
+  params: unknown[] | undefined,
+  index: number,
+  fallback: T,
+): T {
+  return (params?.[index] as T | undefined) ?? fallback;
+}
+
 function fakePool(capture: Array<{ text: string; params?: unknown[] }>): Pool {
   return {
     query: async (text: string, params?: unknown[]) => {
@@ -31,9 +39,9 @@ function fakePool(capture: Array<{ text: string; params?: unknown[] }>): Pool {
         rows: [
           {
             ...orgRow,
-            model: params?.[1] ?? orgRow.model,
-            timeout_minutes: params?.[2] ?? orgRow.timeout_minutes,
-            config: params?.[10] ?? orgRow.config,
+            model: paramOr(params, 1, orgRow.model),
+            timeout_minutes: paramOr(params, 2, orgRow.timeout_minutes),
+            config: paramOr(params, 10, orgRow.config),
           },
         ],
       };

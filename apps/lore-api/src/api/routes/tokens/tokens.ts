@@ -68,6 +68,30 @@ const TokenWriteSchema = z.union([
   }),
 ]);
 
+const VALID_TOKEN_SCOPES: TokenScope[] = [
+  "read",
+  "write",
+  "task",
+  "webhook",
+  "admin",
+];
+
+function isTokenScope(scope: string): scope is TokenScope {
+  return VALID_TOKEN_SCOPES.includes(scope as TokenScope);
+}
+
+function resolveScopes(scopes: string[] | undefined): TokenScope[] {
+  return (scopes || ["read"]).filter(isTokenScope);
+}
+
+function expiryIso(expiresInDays: number | undefined): string | null {
+  if (!expiresInDays) {
+    return null;
+  }
+
+  return new Date(Date.now() + expiresInDays * 86400000).toISOString();
+}
+
 /** GET lists, POST writes (separate shapes); wildcard 405 fallback (validation skipped). */
 export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   const listOptions = zodResponse(
@@ -130,53 +154,58 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
     });
   }
 
+  async function revokeToken(pool: Pool, h: ResponseToolkit, tokenId: string) {
+    await pool.query(
+      `UPDATE pipeline.api_tokens SET revoked_at = now() WHERE id = $1`,
+      [tokenId],
+    );
+
+    return h.response({ ok: true });
+  }
+
+  async function createToken(
+    pool: Pool,
+    h: ResponseToolkit,
+    body: TokensPostBody,
+  ) {
+    enforceTrue(body.name, apiError(400), "name required");
+    const { randomBytes } = await import("node:crypto");
+    const rawToken = `lore_${randomBytes(32).toString("hex")}`;
+    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+    const resolvedScopes = resolveScopes(body.scopes);
+    const expiresAt = expiryIso(body.expires_in_days);
+
+    const { rows } = await pool.query(
+      `INSERT INTO pipeline.api_tokens (name, token_hash, scopes, created_by, expires_at)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id, name, scopes, created_at`,
+      [body.name, tokenHash, resolvedScopes, "admin", expiresAt],
+    );
+
+    // Return the raw token ONCE — it cannot be retrieved again
+    return h
+      .response({ ...rows[0], token: rawToken, expires_at: expiresAt })
+      .code(201);
+  }
+
+  function isRevoke(body: TokensPostBody): body is TokensPostBody & {
+    token_id: string;
+  } {
+    return body.action === "revoke" && Boolean(body.token_id);
+  }
+
   async function write(request: Request, h: ResponseToolkit) {
     const pool = getPool();
 
     enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
     try {
-      const { action, name, scopes, expires_in_days, token_id } =
-        (request.payload ?? {}) as TokensPostBody;
+      const body = (request.payload ?? {}) as TokensPostBody;
 
-      if (action === "revoke" && token_id) {
-        await pool.query(
-          `UPDATE pipeline.api_tokens SET revoked_at = now() WHERE id = $1`,
-          [token_id],
-        );
-
-        return h.response({ ok: true });
+      if (isRevoke(body)) {
+        return revokeToken(pool, h, body.token_id);
       }
 
-      // Create new token
-      enforceTrue(name, apiError(400), "name required");
-      const { randomBytes } = await import("node:crypto");
-      const rawToken = `lore_${randomBytes(32).toString("hex")}`;
-      const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-      const validScopes: TokenScope[] = [
-        "read",
-        "write",
-        "task",
-        "webhook",
-        "admin",
-      ];
-      const resolvedScopes = (scopes || ["read"]).filter((s: string) =>
-        validScopes.includes(s as TokenScope),
-      );
-      const expiresAt = expires_in_days
-        ? new Date(Date.now() + expires_in_days * 86400000).toISOString()
-        : null;
-
-      const { rows } = await pool.query(
-        `INSERT INTO pipeline.api_tokens (name, token_hash, scopes, created_by, expires_at)
-           VALUES ($1, $2, $3, $4, $5) RETURNING id, name, scopes, created_at`,
-        [name, tokenHash, resolvedScopes, "admin", expiresAt],
-      );
-
-      // Return the raw token ONCE — it cannot be retrieved again
-      return h
-        .response({ ...rows[0], token: rawToken, expires_at: expiresAt })
-        .code(201);
+      return await createToken(pool, h, body);
     } catch (err) {
       // Guard refusals carry their status; shape only unexpected failures.
       rethrowBoom(err);

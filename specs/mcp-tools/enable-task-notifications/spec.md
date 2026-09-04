@@ -3,7 +3,7 @@
 | Field   | Value                                          |
 |---------|------------------------------------------------|
 | Feature | lore_enable_task_notifications MCP Tool             |
-| Status  | Draft                                          |
+| Status  | In Progress                                    |
 | Created | 2026-06-10                                     |
 | Owner   | Platform Engineering                           |
 | Tool    | `lore_enable_task_notifications`                    |
@@ -43,13 +43,13 @@ Starts a local background poller that watches repos for new 'pending' pipeline t
 1. Dynamically import `startNotifier`, `detectRepo`, `isNotifierRunning` from
    `runner.local`.
 2. If `isNotifierRunning()`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1059)) → return
+   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1296)) → return
    `"Task notifications already active."` (idempotent — single interval).
 3. Resolve `repos = args.repos || [detectRepo()].filter(Boolean)`. If empty →
    `"Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote."`.
 4. Resolve `taskTypes = args.task_types || ["implementation","general","runbook","gap-fill"]`.
 5. `startNotifier(repos, taskTypes)`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1009)): sets a 30s
+   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1246)): sets a 30s
    `setInterval` (runs once immediately) that calls `fetchPendingTasks` (direct
    DB query when a pool is available, else `POST /api/task` `{action:"list"}`)
    and writes the matched tasks to `~/.lore/pending-tasks.json`. Every 5th cycle
@@ -82,6 +82,34 @@ The repo-default (`detectRepo`), no-repos guard, task-type default, and
 message framing run only inside the tool handler. *(untested: starting the
 notifier spawns a live polling interval with file/network/DB side effects; there
 is no pure seam for the orchestration.)*
+
+`fetchPendingTasks` returns `[]` without querying the DB or the API when
+`repos` or `task_types` is empty; queries the DB pool when one is supplied and
+maps its rows; falls through to the API when the DB query throws; returns `[]`
+when no API credentials are configured or the API responds non-2xx; and
+filters the API's tasks down to the requested repos and task types.
+([validated by `returns an empty array without querying anything when repos or
+task types are empty`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L486),
+[`returns rows from the DB pool when one is
+provided`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L501),
+[`falls through to the API when the DB query
+throws`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L535),
+[`returns an empty array when no API credentials are
+configured`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L579),
+[`returns an empty array when the API responds
+non-ok`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L585),
+[`filters API results down to the requested repos and task
+types`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L595))
+
+`cleanupStaleTasks` resolves without throwing when there are no
+locally-tracked tasks to recover. ([validated by `resolves without throwing
+when there are no locally-tracked tasks to
+recover`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L626))
+
+A task whose PID has died is marked failed regardless of how long it ran,
+while a task whose PID is still alive is left untouched. ([validated by
+`marks dead tasks failed and leaves a live one running, unaffected by
+staleness age`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L656))
 
 ## Out of Scope
 

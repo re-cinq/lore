@@ -102,4 +102,17 @@ describe("GET /healthz", () => {
       pending: 0,
     });
   });
+
+  it("authenticates using the first value of a duplicated authorization header", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ today: 1, pending: 1 }] });
+    const res = await inject(pool, {
+      authorization: [AUTH.authorization, "Bearer bogus"] as unknown as string,
+    });
+
+    expect(res.result).toMatchObject({
+      tasks: { processed_today: 1, pending: 1 },
+    });
+  });
 });

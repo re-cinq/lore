@@ -42,7 +42,7 @@ Views or updates the local runner config on your machine; returns current config
 ## Behavior
 
 1. `readConfig()`
-   ([reader](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L41)) —
+   ([reader](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L30)) —
    parse `~/.lore/local-runner.json`; on any read/parse failure return the
    defaults `{enabled:false, max_concurrent:2, repos:[], task_types:
    ["implementation","general","runbook","gap-fill"], model:"claude-sonnet-4-6"}`.
@@ -50,7 +50,7 @@ Views or updates the local runner config on your machine; returns current config
    `task_types`, `model` all falsy), return the current config as pretty JSON.
 3. **Update mode** — overwrite each provided field
    (`max_concurrent` is applied only when `!== undefined`), then `writeConfig`
-   ([writer](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L49))
+   ([writer](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L44))
    (mkdir-p the parent, write pretty JSON) and return `"Config updated:\n{json}"`.
 4. Any thrown error is caught and returned as `"Error: {message}"`.
 
@@ -72,17 +72,17 @@ A single MCP text content block: the pretty-printed current config (view mode),
 ## Acceptance Criteria
 
 `readConfig` returns a config with the expected shape (all five fields, correct
-types). ([validated by `runner.local.test.ts:74`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L74))
+types). ([validated by `runner.local.test.ts:74`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L77))
 
 The default config carries sensible values (`max_concurrent` 2, includes
 `implementation`/`general`, model `claude-sonnet-4-6`).
-([validated by `runner.local.test.ts:88`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L88))
+([validated by `runner.local.test.ts:88`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L91))
 
 The config serializes and round-trips through JSON unchanged.
-([validated by `runner.local.test.ts:114`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L114))
+([validated by `runner.local.test.ts:114`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L117))
 
 The update merge keeps untouched fields and overwrites only provided ones.
-([validated by `runner.local.test.ts:264`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L264))
+([validated by `runner.local.test.ts:264`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L267))
 
 `writeConfig` writing to the live `~/.lore/local-runner.json` path is exercised
 only end-to-end. *(untested: `readConfig`/`writeConfig` use a module-load-fixed

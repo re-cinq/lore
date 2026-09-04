@@ -50,6 +50,37 @@ export function formatSessionSummary(): string {
   return formatSessionSummaryFromLog(sessionLog, sessionStartTime);
 }
 
+interface ToolStats {
+  calls: number;
+  errors: number;
+  totalMs: number;
+}
+
+function tallyByTool(log: ToolCallEntry[]): Record<string, ToolStats> {
+  const toolCounts: Record<string, ToolStats> = {};
+
+  for (const entry of log) {
+    const stats = (toolCounts[entry.tool] ??= {
+      calls: 0,
+      errors: 0,
+      totalMs: 0,
+    });
+
+    stats.calls++;
+    stats.totalMs += entry.durationMs;
+    stats.errors += entry.success ? 0 : 1;
+  }
+
+  return toolCounts;
+}
+
+function formatToolLine(tool: string, stats: ToolStats): string {
+  const avgMs = Math.round(stats.totalMs / stats.calls);
+  const errSuffix = stats.errors > 0 ? ` (${stats.errors} errors)` : "";
+
+  return `  ${tool}: ${stats.calls}x, avg ${avgMs}ms${errSuffix}`;
+}
+
 /** Formats any session log as a human-readable summary (pure formatting, no LLM). */
 export function formatSessionSummaryFromLog(
   log: ToolCallEntry[],
@@ -59,47 +90,23 @@ export function formatSessionSummaryFromLog(
     return "";
   }
 
-  const now = new Date();
-  const start = new Date(startTime);
-  const durationMin = Math.round((now.getTime() - start.getTime()) / 60000);
-
-  // Count calls per tool
-  const toolCounts: Record<
-    string,
-    { calls: number; errors: number; totalMs: number }
-  > = {};
-
-  for (const entry of log) {
-    if (!toolCounts[entry.tool]) {
-      toolCounts[entry.tool] = { calls: 0, errors: 0, totalMs: 0 };
-    }
-    toolCounts[entry.tool].calls++;
-    toolCounts[entry.tool].totalMs += entry.durationMs;
-
-    if (!entry.success) {
-      toolCounts[entry.tool].errors++;
-    }
-  }
-
-  const totalCalls = log.length;
+  const durationMin = Math.round(
+    (Date.now() - new Date(startTime).getTime()) / 60000,
+  );
   const totalErrors = log.filter((e) => !e.success).length;
 
   const lines: string[] = [
-    `Session: ${durationMin}min, ${totalCalls} tool calls, ${totalErrors} errors`,
+    `Session: ${durationMin}min, ${log.length} tool calls, ${totalErrors} errors`,
     "",
     "Tool usage:",
   ];
 
-  // Sort by call count descending
-  const sorted = Object.entries(toolCounts).sort(
+  const sorted = Object.entries(tallyByTool(log)).sort(
     (a, b) => b[1].calls - a[1].calls,
   );
 
   for (const [tool, stats] of sorted) {
-    const avgMs = Math.round(stats.totalMs / stats.calls);
-    const errSuffix = stats.errors > 0 ? ` (${stats.errors} errors)` : "";
-
-    lines.push(`  ${tool}: ${stats.calls}x, avg ${avgMs}ms${errSuffix}`);
+    lines.push(formatToolLine(tool, stats));
   }
 
   return lines.join("\n");

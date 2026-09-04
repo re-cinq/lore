@@ -132,6 +132,62 @@ async function upsertEdge(
 
 // ── Main extraction entry point ────────────────────────────────────
 
+/** Upserts each entity, skipping (and logging) any that fails, so one bad entity never sinks the batch. */
+async function upsertEntities(
+  pool: PgPool,
+  entities: ExtractedGraphEntity[],
+  repo: string | null,
+): Promise<Map<string, string>> {
+  const entityIds = new Map<string, string>();
+
+  for (const entity of entities) {
+    try {
+      const id = await upsertEntity(pool, entity.name, entity.type, repo);
+
+      entityIds.set(entity.name, id);
+    } catch (err) {
+      console.warn(`[graph] Failed to upsert entity "${entity.name}":`, err);
+    }
+  }
+
+  return entityIds;
+}
+
+/** Upserts each edge whose endpoints resolved to an entity id, skipping (and logging) any that fails; returns how many were written. */
+async function upsertEdges(
+  pool: PgPool,
+  edges: ExtractedGraphEdge[],
+  entityIds: Map<string, string>,
+  provenance: GraphProvenance,
+): Promise<number> {
+  let edgeCount = 0;
+
+  for (const edge of edges) {
+    const sourceId = entityIds.get(edge.source);
+    const targetId = entityIds.get(edge.target);
+
+    if (!sourceId || !targetId) {
+      continue;
+    }
+
+    try {
+      await upsertEdge(
+        pool,
+        { sourceId, targetId, relationType: edge.relation },
+        provenance,
+      );
+      edgeCount++;
+    } catch (err) {
+      console.warn(
+        `[graph] Failed to upsert edge "${edge.source}" -${edge.relation}-> "${edge.target}":`,
+        err,
+      );
+    }
+  }
+
+  return edgeCount;
+}
+
 // Extract entities and relationships from text and update the graph; called after fact extraction in the ingestion pipeline.
 export async function extractAndUpdateGraph(
   pool: PgPool,
@@ -147,42 +203,8 @@ export async function extractAndUpdateGraph(
       return;
     }
 
-    const entityIds = new Map<string, string>();
-
-    for (const entity of entities) {
-      try {
-        const id = await upsertEntity(pool, entity.name, entity.type, repo);
-
-        entityIds.set(entity.name, id);
-      } catch (err) {
-        console.warn(`[graph] Failed to upsert entity "${entity.name}":`, err);
-      }
-    }
-
-    let edgeCount = 0;
-
-    for (const edge of edges) {
-      const sourceId = entityIds.get(edge.source);
-      const targetId = entityIds.get(edge.target);
-
-      if (!sourceId || !targetId) {
-        continue;
-      }
-
-      try {
-        await upsertEdge(
-          pool,
-          { sourceId, targetId, relationType: edge.relation },
-          provenance,
-        );
-        edgeCount++;
-      } catch (err) {
-        console.warn(
-          `[graph] Failed to upsert edge "${edge.source}" -${edge.relation}-> "${edge.target}":`,
-          err,
-        );
-      }
-    }
+    const entityIds = await upsertEntities(pool, entities, repo);
+    const edgeCount = await upsertEdges(pool, edges, entityIds, provenance);
 
     console.log(
       `[graph] Updated graph: ${entities.length} entities, ${edgeCount} edges`,
@@ -418,15 +440,18 @@ export async function graphSearchHandler({
         (traversal.length > 0 ? traversal : chains).join("\n"),
     );
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-
-    return text(`Error reading graph: ${message}`);
+    return text(`Error reading graph: ${errorMessage(err)}`);
   }
 }
 
 /** The MCP content envelope these two handlers answer in. */
 function text(message: string): { content: { type: "text"; text: string }[] } {
   return { content: [{ type: "text" as const, text: message }] };
+}
+
+/** Normalizes a caught value to a display string, without assuming it's an Error. */
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /** The static graph, or the message explaining why there is none to read. */

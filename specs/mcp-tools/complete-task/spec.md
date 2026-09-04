@@ -87,12 +87,12 @@ When the completed task carries no `spec_slug`/`spec_task_id` the dependents
 query is skipped. ([validated by `marks a running task completed and records the transition, no slug scan`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L212))
 
 Newly unblocked dependents are appended to the completion message as a bullet
-list. ([validated by `lore_complete_task lists the newly unblocked dependents`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L409))
+list. ([validated by `lore_complete_task lists the newly unblocked dependents`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L551))
 
-A task that was not running renders the not-running message. ([validated by `lore_complete_task reports a task that was not running`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L423))
+A task that was not running renders the not-running message. ([validated by `lore_complete_task reports a task that was not running`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L565))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L433))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L575))
 
 ## Out of Scope
 

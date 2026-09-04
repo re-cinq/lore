@@ -164,6 +164,22 @@ describe("claimOnce", () => {
     expect(d.launched[0].name).toBe("explicit-name");
   });
 
+  it("refuses to launch when neither the row nor the spec names a CR", async () => {
+    const unnamed = {
+      ...CLAIM_BODY,
+      agent_cr_name: null,
+      spec: { ...CLAIM_BODY.spec, name: undefined },
+    };
+    const d = deps([jsonResponse(200, unnamed)]);
+
+    expect(await claimOnce(d.tick)).toEqual({
+      kind: "error",
+      message:
+        "claim for station run run-42 carries no CR name — refusing an unlabelled launch",
+    });
+    expect(d.launched).toEqual([]);
+  });
+
   it("refuses to launch when the row and the spec name different CRs", async () => {
     const disagreeing = {
       ...CLAIM_BODY,

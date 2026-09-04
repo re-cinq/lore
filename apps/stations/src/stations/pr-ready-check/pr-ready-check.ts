@@ -7,7 +7,7 @@ import {
   type ParkedNode,
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
-import { decidePrReady } from "./decide-ready.js";
+import { decidePrReady, type PrReadyVerdict } from "./decide-ready.js";
 
 /** The slice of one open implementation-loop run the sweep reads. */
 export interface LoopRunSlice {
@@ -40,87 +40,125 @@ export interface PrReadyCheckDeps {
 const AWAIT_STATION_TYPE = "pr_review";
 const AWAIT_NODE = "await-pr";
 
+/** One parked run, ready to verdict: the target to report to plus what to report. */
+interface ParkedVerdict {
+  target: ParkedTarget;
+  verdict: PrReadyVerdict;
+}
+
+/** Locates the parked node and gathers everything `decidePrReady` needs, or null to skip this run untallied. */
+async function evaluateParkedRun(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+): Promise<ParkedVerdict | null> {
+  const parked = parkedHumanNode(
+    run.status,
+    await deps.listStationRuns(run.id),
+    run.graph,
+    { type: AWAIT_STATION_TYPE, fallbackNodeId: AWAIT_NODE },
+  );
+
+  if (!parked) {
+    return null;
+  }
+  const prNumber = Number(run.args.pr_number) || 0;
+
+  if (!prNumber) {
+    console.log(
+      `[pr-ready-check] run ${run.id} parked with no pr_number — skipped`,
+    );
+
+    return null;
+  }
+  const headSha = await deps.getPrHeadSha(run.repo, prNumber);
+
+  if (!headSha) {
+    console.log(
+      `[pr-ready-check] PR #${prNumber} on ${run.repo} has no head sha — skipped`,
+    );
+
+    return null;
+  }
+  const [ci, threads, openReviewRunCount, hasCiHistory] = await Promise.all([
+    deps.ciConclusion(run.repo, headSha),
+    deps.listReviewThreads(run.repo, prNumber),
+    deps.countOpenReviewRuns(run.repo, prNumber),
+    deps.hasCiHistory(run.repo),
+  ]);
+
+  return {
+    target: {
+      lineId: run.id,
+      nodeId: parked.nodeId,
+      iteration: parked.iteration,
+    },
+    verdict: decidePrReady({ ci, threads, openReviewRunCount, hasCiHistory }),
+  };
+}
+
+/** Sweep tallies, mutated in place as each run resolves. */
+interface SweepTally {
+  resumed: number;
+  blocked: number;
+  waiting: number;
+  errors: number;
+}
+
+/** Reports one run's verdict (if it has one) and bumps the matching tally. */
+async function reportParkedVerdict(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+  tally: SweepTally,
+): Promise<void> {
+  const evaluated = await evaluateParkedRun(run, deps);
+
+  if (!evaluated) {
+    return;
+  }
+  const { target, verdict } = evaluated;
+
+  if (verdict.kind === "ready") {
+    await deps.report(target, "success");
+    tally.resumed++;
+
+    return;
+  }
+
+  if (verdict.kind === "blocked") {
+    await deps.report(target, verdict.outcome, { reason: verdict.reason });
+    tally.blocked++;
+
+    return;
+  }
+  tally.waiting++;
+}
+
+/** The sweep's one-line summary, with the error count appended only when there was one. */
+function summarizeSweep(totalRuns: number, tally: SweepTally): string {
+  const base = `checked ${totalRuns}, resumed ${tally.resumed}, blocked ${tally.blocked}, waiting ${tally.waiting}`;
+
+  return tally.errors > 0 ? `${base}, errors ${tally.errors}` : base;
+}
+
 /** Resume implementation-loop await-pr nodes whose PR has settled: green CI or unresolved threads with no review run open (specs/implementation-loop FR4). */
 export async function prReadyCheckSweep(
   deps: PrReadyCheckDeps,
 ): Promise<string> {
   const runs = await deps.listOpenLoopRuns();
-  let resumed = 0;
-  let blocked = 0;
-  let waiting = 0;
-  let errors = 0;
+  const tally: SweepTally = { resumed: 0, blocked: 0, waiting: 0, errors: 0 };
 
   for (const run of runs) {
     try {
-      const parked = parkedHumanNode(
-        run.status,
-        await deps.listStationRuns(run.id),
-        run.graph,
-        { type: AWAIT_STATION_TYPE, fallbackNodeId: AWAIT_NODE },
-      );
-
-      if (!parked) {
-        continue;
-      }
-      const prNumber = Number(run.args.pr_number) || 0;
-
-      if (!prNumber) {
-        console.log(
-          `[pr-ready-check] run ${run.id} parked with no pr_number — skipped`,
-        );
-        continue;
-      }
-      const headSha = await deps.getPrHeadSha(run.repo, prNumber);
-
-      if (!headSha) {
-        console.log(
-          `[pr-ready-check] PR #${prNumber} on ${run.repo} has no head sha — skipped`,
-        );
-        continue;
-      }
-      const [ci, threads, openReviewRunCount, hasCiHistory] = await Promise.all(
-        [
-          deps.ciConclusion(run.repo, headSha),
-          deps.listReviewThreads(run.repo, prNumber),
-          deps.countOpenReviewRuns(run.repo, prNumber),
-          deps.hasCiHistory(run.repo),
-        ],
-      );
-      const verdict = decidePrReady({
-        ci,
-        threads,
-        openReviewRunCount,
-        hasCiHistory,
-      });
-      const target: ParkedTarget = {
-        lineId: run.id,
-        nodeId: parked.nodeId,
-        iteration: parked.iteration,
-      };
-
-      if (verdict.kind === "ready") {
-        await deps.report(target, "success");
-        resumed++;
-        continue;
-      }
-
-      if (verdict.kind === "blocked") {
-        await deps.report(target, verdict.outcome, { reason: verdict.reason });
-        blocked++;
-        continue;
-      }
-      waiting++;
+      await reportParkedVerdict(run, deps, tally);
     } catch (err) {
-      errors++;
+      tally.errors++;
       console.error(
         `[pr-ready-check] run ${run.id}: ${(err as Error).message}`,
       );
     }
   }
 
-  const base = `checked ${runs.length}, resumed ${resumed}, blocked ${blocked}, waiting ${waiting}`;
-
-  return errors > 0 ? `${base}, errors ${errors}` : base;
+  return summarizeSweep(runs.length, tally);
 }
 
 /** Production entry — the manifest's run. Deps bound to the stations kernel. */

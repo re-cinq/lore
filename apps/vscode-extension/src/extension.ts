@@ -6,6 +6,7 @@ import {
   buildCoverageIndex,
   mergeIndexes,
   type LinkTarget,
+  type RangeEntry,
   type SpecCodeIndex,
   type SpecSource,
 } from "./spec-index.js";
@@ -14,6 +15,12 @@ import { renderHoverMarkdown } from "./hover.js";
 import { LoreClient } from "./lore-client.js";
 import { detectRepo, gitConfigGlobal } from "./repo.js";
 import type { OpenLocalArgs } from "./command-links.js";
+import {
+  resolveCredentialField,
+  decorationRange,
+  entriesForPath,
+  partitionByLayer,
+} from "./decoration-math.js";
 
 interface State {
   index: SpecCodeIndex;
@@ -57,10 +64,14 @@ function toRepoRelative(root: string, fsPath: string): string | null {
 
 function resolveCredentials(): { apiUrl: string; token: string } | null {
   const config = vscode.workspace.getConfiguration("lore");
-  const apiUrl =
-    config.get<string>("apiUrl")?.trim() || gitConfigGlobal("lore.api-url");
-  const token =
-    config.get<string>("token")?.trim() || gitConfigGlobal("lore.ingest-token");
+  const apiUrl = resolveCredentialField(
+    config.get<string>("apiUrl"),
+    gitConfigGlobal("lore.api-url"),
+  );
+  const token = resolveCredentialField(
+    config.get<string>("token"),
+    gitConfigGlobal("lore.ingest-token"),
+  );
 
   return apiUrl && token ? { apiUrl, token } : null;
 }
@@ -118,6 +129,20 @@ async function rebuildIndex(): Promise<void> {
   applyToVisibleEditors();
 }
 
+function toDecorationOptions(
+  entries: RangeEntry[],
+  lastLine: number,
+): vscode.DecorationOptions[] {
+  return entries.map((entry) => {
+    const { start, end } = decorationRange(entry, lastLine);
+    const hover = new vscode.MarkdownString(renderHoverMarkdown(entry));
+
+    hover.isTrusted = true;
+
+    return { range: new vscode.Range(start, 0, end, 0), hoverMessage: hover };
+  });
+}
+
 function applyToEditor(editor: vscode.TextEditor): void {
   const root = workspaceRoot();
 
@@ -125,30 +150,18 @@ function applyToEditor(editor: vscode.TextEditor): void {
     return;
   }
   const rel = toRepoRelative(root, editor.document.uri.fsPath);
-  const entries = rel ? (state.index.get(rel) ?? []) : [];
+  const entries = entriesForPath(state.index, rel);
+  const lastLine = editor.document.lineCount - 1;
+  const { implemented, covered } = partitionByLayer(entries);
 
-  const implemented: vscode.DecorationOptions[] = [];
-  const covered: vscode.DecorationOptions[] = [];
-
-  for (const entry of entries) {
-    const lastLine = editor.document.lineCount - 1;
-    const start = Math.min(Math.max(entry.startLine - 1, 0), lastLine);
-    const end = Math.min(Math.max(entry.endLine - 1, start), lastLine);
-    const hover = new vscode.MarkdownString(renderHoverMarkdown(entry));
-
-    hover.isTrusted = true;
-    const option: vscode.DecorationOptions = {
-      range: new vscode.Range(start, 0, end, 0),
-      hoverMessage: hover,
-    };
-
-    (entry.layer === "implemented" ? implemented : covered).push(option);
-  }
   editor.setDecorations(
     decImplemented,
-    state.show.implemented ? implemented : [],
+    state.show.implemented ? toDecorationOptions(implemented, lastLine) : [],
   );
-  editor.setDecorations(decCovered, state.show.covered ? covered : []);
+  editor.setDecorations(
+    decCovered,
+    state.show.covered ? toDecorationOptions(covered, lastLine) : [],
+  );
 }
 
 function applyToVisibleEditors(): void {

@@ -81,4 +81,15 @@ describe("ensureFloorWebhook", () => {
       detail: "network down",
     });
   });
+
+  it("falls back to String(err) when the error carries no message", async () => {
+    process.env.LORE_WEBHOOK_URL = URL;
+    process.env.LORE_WEBHOOK_SECRET = "s3cr3t";
+    vi.mocked(ensureRepoWebhook).mockRejectedValue(new Error(""));
+    expect(await ensureFloorWebhook("o/r")).toEqual({
+      ok: false,
+      reason: "ensure_failed",
+      detail: "Error",
+    });
+  });
 });

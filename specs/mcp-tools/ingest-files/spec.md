@@ -90,9 +90,7 @@ The handler returns the config-required message when `LORE_API_URL` /
 `LORE_INGEST_TOKEN` are unset. ([validated by `returns a config-required message when LORE_API_URL / token are unset`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L69))
 
 The local-HEAD commit resolution, the proxy POST, and the success / failure
-framing are exercised only against a live `LORE_API_URL`. *(untested: the
-success and failure branches are a pure live-IO `fetch` proxy with no injectable
-seam; only the two pre-fetch guards are unit-testable.)*
+framing are exercised against a stubbed global `fetch`. ([validated by `uses the real local HEAD commit when the detected repo matches the target`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L87), [`falls back to HEAD as the commit when the detected repo differs from the target`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L118), [`surfaces a non-ok ingest response's error message`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L144), [`reports the caught error message when the ingest request itself throws`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L164))
 
 ## Out of Scope
 

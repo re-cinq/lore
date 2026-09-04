@@ -91,4 +91,8 @@ describe("classifyWebhook", () => {
       reason: "webhook_host_not_configured",
     });
   });
+
+  it("returns missing when a non-matching hook has no config url at all", () => {
+    expect(classifyWebhook([hook({ config: {} })], URL).state).toBe("missing");
+  });
 });

@@ -137,6 +137,93 @@ describe("buildCoverageIndex", () => {
       },
     ]);
   });
+
+  it("ignores a covers link whose test has no validated_by statement", () => {
+    const orphanGraph: SpecGraph = {
+      nodes: [
+        ...graph.nodes,
+        {
+          id: "test-orphan",
+          type: "TestChunk",
+          label: "orphan.test.ts",
+          path: "mcp-server/src/orphan.test.ts",
+          line: 3,
+        },
+        {
+          id: "file|mcp-server/src/orphan.ts",
+          type: "File",
+          label: "orphan.ts",
+          path: "mcp-server/src/orphan.ts",
+          detail: "1-5",
+        },
+      ],
+      links: [
+        ...graph.links,
+        { source: "stmt1", target: "test-orphan", kind: "implemented_by" },
+        {
+          source: "test-orphan",
+          target: "file|mcp-server/src/orphan.ts",
+          kind: "covers",
+        },
+      ],
+    };
+
+    expect(
+      buildCoverageIndex(orphanGraph).get("mcp-server/src/orphan.ts"),
+    ).toBeUndefined();
+  });
+
+  it("omits the related test when the covering test node has no path", () => {
+    const pathlessTestGraph: SpecGraph = {
+      nodes: [
+        {
+          id: "stmt1",
+          type: "Statement",
+          label: "",
+          path: SPEC_PATH,
+          detail: "The runner claims a pending task before GKE picks it up.",
+        },
+        {
+          id: "test-pathless",
+          type: "TestChunk",
+          label: "local-runner.test.ts",
+        },
+        {
+          id: "file|mcp-server/src/local-runner.ts",
+          type: "File",
+          label: "local-runner.ts",
+          path: "mcp-server/src/local-runner.ts",
+          detail: "40-50",
+        },
+      ],
+      links: [
+        { source: "stmt1", target: "test-pathless", kind: "validated_by" },
+        {
+          source: "test-pathless",
+          target: "file|mcp-server/src/local-runner.ts",
+          kind: "covers",
+        },
+      ],
+    };
+
+    expect(
+      buildCoverageIndex(pathlessTestGraph).get(
+        "mcp-server/src/local-runner.ts",
+      ),
+    ).toEqual([
+      {
+        startLine: 40,
+        endLine: 50,
+        layer: "covered",
+        evidence: "execution-verified",
+        statementText:
+          "The runner claims a pending task before GKE picks it up.",
+        specPath: SPEC_PATH,
+        specLine: 0,
+        related: [],
+      },
+    ]);
+  });
 });
 
 describe("mergeIndexes", () => {

@@ -102,6 +102,14 @@ describe("POST /api/task-turns/{taskId}", () => {
     });
   });
 
+  it("skips a JSON line that parses to null or an array, not just an object", async () => {
+    const good = JSON.stringify({ type: "assistant" });
+    const payload = ["null", "[1,2,3]", good].join("\n");
+    const res = await post(payload);
+
+    expect(res.result).toEqual({ forwarded: 1, skipped: 2 });
+  });
+
   it("returns 200 without calling the Floor when no line survives filtering", async () => {
     const res = await post("not json at all");
 

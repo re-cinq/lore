@@ -51,6 +51,57 @@ type LoadDefinitions = () => Promise<ReadonlyMap<string, AssemblyLine>>;
 const defaultStart: StartRun = async ({ blueprintName, repo, ...opts }) =>
   (await projectFor(repo)).assemblyRuns.start(blueprintName, opts);
 
+function buildStartInput(
+  body: z.infer<typeof StartBody>,
+): AssemblyRunStartInput {
+  return {
+    blueprintName: body.definition,
+    repo: body.repo,
+    ...(body.branch === undefined ? {} : { branch: body.branch }),
+    ...(body.args === undefined ? {} : { args: body.args }),
+  };
+}
+
+// The fork's drift guard needs the CURRENT definition's hash as its left-hand side; libs/shared can't derive it (the dependency runs the other way).
+async function startResumedRun(
+  body: z.infer<typeof StartBody>,
+  input: AssemblyRunStartInput,
+  start: StartRun,
+  loadDefinitions: LoadDefinitions,
+): Promise<string> {
+  const resumeFrom = body.resume_from as NonNullable<typeof body.resume_from>;
+  const definition = (await loadDefinitions()).get(body.definition);
+
+  enforceTrue(
+    definition,
+    apiError(400),
+    `unknown definition "${body.definition}"`,
+  );
+
+  try {
+    return await start({
+      ...input,
+      blueprintHash: definitionHash(definition),
+      resumeFrom: {
+        lineId: resumeFrom.run_id,
+        nodeId: resumeFrom.node_id,
+        ...(resumeFrom.iteration === undefined
+          ? {}
+          : { iteration: resumeFrom.iteration }),
+      },
+    });
+  } catch (err) {
+    rethrowBoom(err);
+
+    // Only the port's typed REFUSALS (drift, non-terminal source, missing visit — all pre-write) become a 409; anything else stays the internal failure it is.
+    if (err instanceof ResumeRefusedError) {
+      throw apiError(409)(err.message);
+    }
+
+    throw err;
+  }
+}
+
 export function startRunRoute(
   start: StartRun = defaultStart,
   loadDefinitions: LoadDefinitions = loadBuiltinAssemblyLines,
@@ -73,50 +124,15 @@ export function startRunRoute(
     ),
     handler: async (request, h) => {
       const body = request.payload as z.infer<typeof StartBody>;
-      const input: AssemblyRunStartInput = {
-        blueprintName: body.definition,
-        repo: body.repo,
-        ...(body.branch === undefined ? {} : { branch: body.branch }),
-        ...(body.args === undefined ? {} : { args: body.args }),
-      };
+      const input = buildStartInput(body);
 
       if (body.resume_from === undefined) {
         return h.response({ id: await start(input) }).code(201);
       }
 
-      // The fork's drift guard needs the CURRENT definition's hash as its left-hand side; libs/shared can't derive it (the dependency runs the other way).
-      const definition = (await loadDefinitions()).get(body.definition);
+      const id = await startResumedRun(body, input, start, loadDefinitions);
 
-      enforceTrue(
-        definition,
-        apiError(400),
-        `unknown definition "${body.definition}"`,
-      );
-
-      try {
-        const id = await start({
-          ...input,
-          blueprintHash: definitionHash(definition),
-          resumeFrom: {
-            lineId: body.resume_from.run_id,
-            nodeId: body.resume_from.node_id,
-            ...(body.resume_from.iteration === undefined
-              ? {}
-              : { iteration: body.resume_from.iteration }),
-          },
-        });
-
-        return h.response({ id }).code(201);
-      } catch (err) {
-        rethrowBoom(err);
-
-        // Only the port's typed REFUSALS (drift, non-terminal source, missing visit — all pre-write) become a 409; anything else stays the internal failure it is.
-        if (err instanceof ResumeRefusedError) {
-          throw apiError(409)(err.message);
-        }
-
-        throw err;
-      }
+      return h.response({ id }).code(201);
     },
   };
 }
