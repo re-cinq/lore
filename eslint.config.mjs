@@ -4,6 +4,7 @@ import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import stylistic from "@stylistic/eslint-plugin";
 import markdown from "@eslint/markdown";
+import importX from "eslint-plugin-import-x";
 import lore from "./tools/eslint-plugin-lore/index.mjs";
 
 /**
@@ -47,7 +48,17 @@ export default tseslint.config(
       },
       globals: { ...globals.node },
     },
-    plugins: { lore },
+    plugins: { lore, "import-x": importX },
+    settings: {
+      "import-x/resolver": {
+        typescript: { alwaysTryTypes: true },
+      },
+      // Without this the plugin cannot parse a .ts dependency, so it sees no
+      // imports in it and reports no cycles — a silent pass, not a clean one.
+      "import-x/parsers": {
+        "@typescript-eslint/parser": [".ts", ".tsx", ".mts", ".cts"],
+      },
+    },
     rules: {
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": "error",
@@ -141,6 +152,28 @@ export default tseslint.config(
         "error",
         { max: 300, skipBlankLines: true, skipComments: true },
       ],
+      // Three queues opened 2026-09-04 against the failure modes a generated
+      // patch has that a hand-written one does not. Each starts at `warn` and
+      // is promoted at zero, like the queues above. Sizes at introduction:
+      // no-unnecessary-condition 307, no-cycle 54, no-reexport-only-module 10.
+      //
+      // A condition the types say can never fire is either padding or a bug —
+      // "value is always falsy" and "the types have no overlap" are both dead
+      // code, and the second is usually a comparison someone got wrong. Needs
+      // type info, so it is off wherever projectService is (tests, scripts).
+      "@typescript-eslint/no-unnecessary-condition": "warn",
+      // Splitting a file is how an import cycle gets made, and `max-lines`
+      // above now forces splitting, so this guards a risk the repo just took
+      // on. Cycles resolve at runtime often enough to pass tests and fail in
+      // one import order. The `import-x/parsers` setting above is load-bearing:
+      // without it this rule reports zero on a repo that has 54.
+      "import-x/no-cycle": ["warn", { maxDepth: Infinity }],
+      // The other half of that bargain: a size budget can be met by moving
+      // every body out and leaving the exports, which satisfies the rule
+      // without deciding the module was the wrong shape. Two of the ten were
+      // made by the max-lines sweep that closed the queue above. `index.ts` and
+      // the Next App Router files are exempt — forwarding is their whole job.
+      "lore/no-reexport-only-module": "warn",
     },
   },
 
@@ -248,6 +281,7 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/await-thenable": "off",
+      "@typescript-eslint/no-unnecessary-condition": "off",
     },
   },
 
@@ -264,6 +298,7 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/await-thenable": "off",
+      "@typescript-eslint/no-unnecessary-condition": "off",
       // Zero comments in tests: the test NAME carries the meaning. Queue hit
       // zero on 2026-09-04, so this is an error.
       "lore/max-comment-lines": ["error", { max: 0 }],
