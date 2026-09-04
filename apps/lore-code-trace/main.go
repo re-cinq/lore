@@ -94,6 +94,11 @@ func run(startDir string, post bool, stdout io.Writer) error {
 		return fmt.Errorf("--post requires LORE_INGEST_TOKEN")
 	}
 	client := &http.Client{Timeout: 60 * time.Second}
+	// A delta is projected IN-PROCESS by lore-api before it answers — a 900 KB
+	// chunk of tests plus coverage takes longer than the webhook's immediate
+	// 202 — so the delta path gets a client sized for the work rather than the
+	// 60 s that timed out a bootstrap full ingest on chunk 3/26.
+	deltaClient := &http.Client{Timeout: 5 * time.Minute}
 
 	// The incremental handshake (FR5) is the primary path: lore-api projects the
 	// delta in-process, so a push costs a couple of HTTP calls and no pod. Only a
@@ -102,12 +107,12 @@ func run(startDir string, post bool, stdout io.Writer) error {
 	if apiBase := strings.TrimRight(os.Getenv("LORE_API_URL"), "/"); apiBase != "" {
 		err := runDeltaFlow(ctx, deltaDeps{
 			fetchState: func(ctx context.Context) (*string, error) {
-				return fetchIngestState(ctx, apiBase, token, repo, client)
+				return fetchIngestState(ctx, apiBase, token, repo, deltaClient)
 			},
 			reachable:    func(sha string) bool { return commitReachable(root, sha) },
 			changedSince: func(base string) ([]string, []string, error) { return changedSince(root, base) },
 			post: func(ctx context.Context, d ingestDelta) error {
-				return postIngestDelta(ctx, apiBase, token, repo, d, client)
+				return postIngestDelta(ctx, apiBase, token, repo, d, deltaClient)
 			},
 		}, report)
 		if err == nil {

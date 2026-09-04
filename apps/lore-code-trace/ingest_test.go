@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestFetchIngestStateReturnsTheStoredCommit(t *testing.T) {
@@ -317,5 +319,114 @@ func TestDeltaFlowSendsASmallDeltaAsOneUnchunkedBody(t *testing.T) {
 	if len(*posts) != 1 || (*posts)[0].delta.Seq != nil {
 		t.Fatalf("a delta under the cap must be one unchunked post, got %d post(s), seq %v",
 			len(*posts), (*posts)[0].delta.Seq)
+	}
+}
+
+func noRetrySleep(t *testing.T) {
+	t.Helper()
+	prev := retrySleep
+	retrySleep = func(time.Duration) {}
+	t.Cleanup(func() { retrySleep = prev })
+}
+
+func deltaTo(srv *httptest.Server) error {
+	return postIngestDelta(context.Background(), srv.URL, "tok", "re-cinq/lore",
+		ingestDelta{Kind: "test-report", Commit: "abc123", Report: report()}, srv.Client())
+}
+
+func TestPostIngestDeltaRetriesA5xxAndThenSucceeds(t *testing.T) {
+	// The bootstrap full ingest on 2026-09-03 died on chunk 13/40 with a 502
+	// during a deploy: one transient answer, no retry, and the state never
+	// advanced — so the NEXT push was a full ingest again. Same policy as the
+	// webhook path: a 5xx earns another attempt, and ingest is idempotent.
+	noRetrySleep(t)
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls == 1 {
+			http.Error(w, "<html>bad gateway</html>", http.StatusBadGateway)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"state": "advanced"})
+	}))
+	defer srv.Close()
+
+	if err := deltaTo(srv); err != nil {
+		t.Fatalf("err = %v, want success after a retry", err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want 2", calls)
+	}
+}
+
+func TestPostIngestDeltaRetriesATransportErrorAndThenSucceeds(t *testing.T) {
+	// chunk 28/40 on 2026-09-03: "read: connection reset by peer".
+	noRetrySleep(t)
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls == 1 {
+			conn, _, _ := w.(http.Hijacker).Hijack()
+			conn.Close()
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"state": "advanced"})
+	}))
+	defer srv.Close()
+
+	if err := deltaTo(srv); err != nil {
+		t.Fatalf("err = %v, want success after a retry", err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want 2", calls)
+	}
+}
+
+func TestPostIngestDeltaGivesUpAfterTheAttemptBudget(t *testing.T) {
+	noRetrySleep(t)
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		http.Error(w, "still down", http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	err := deltaTo(srv)
+	if err == nil || !strings.Contains(err.Error(), "after 3 attempts") {
+		t.Fatalf("err = %v, want the exhausted-budget error", err)
+	}
+	if calls != postAttempts {
+		t.Fatalf("calls = %d, want %d", calls, postAttempts)
+	}
+}
+
+func TestPostIngestDeltaNeverRetriesAConflictOrAClientError(t *testing.T) {
+	// A 409 is a lost CAS — re-sending the same base can only lose again; the
+	// flow re-diffs instead. A 400 is a real client error a retry cannot heal.
+	noRetrySleep(t)
+	for _, tc := range []struct {
+		status int
+		body   string
+	}{
+		{http.StatusConflict, `{"error":"stale","commit":"newer99"}`},
+		{http.StatusBadRequest, `{"error":"unknown kind"}`},
+	} {
+		calls := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			calls++
+			w.WriteHeader(tc.status)
+			io.WriteString(w, tc.body)
+		}))
+		err := deltaTo(srv)
+		srv.Close()
+		if err == nil {
+			t.Fatalf("status %d: expected an error", tc.status)
+		}
+		if calls != 1 {
+			t.Fatalf("status %d: calls = %d, want exactly 1 (no retry)", tc.status, calls)
+		}
+		if _, isStale := err.(*staleStateError); tc.status == http.StatusConflict && !isStale {
+			t.Fatalf("409 must surface as *staleStateError, got %T", err)
+		}
 	}
 }
