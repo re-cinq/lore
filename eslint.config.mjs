@@ -116,12 +116,12 @@ export default tseslint.config(
       // the strictest bound the repo currently meets, so it is the strictest
       // one that can be red without blocking unrelated work; the target is
       // still 20. A rule carries ONE severity, so nothing between 20 and 100
-      // is reported any more — to see what is left against the target, drop
-      // `max` here and run eslint, then put it back. Lower it for real as that
-      // queue drains (it was ~1,400 functions on 2026-09-04). Three functions
-      // carry an inline disable with the reason they are not split (a d3
-      // canvas renderer, a test harness whose closures share state, and a
-      // composition root).
+      // is reported any more — to see what is left against the target, set
+      // `max` to 20 here and run eslint, then put it back. Lower it for real
+      // as that queue drains (it was ~1,400 functions on 2026-09-04). Three
+      // functions carry an inline disable with the reason they are not split
+      // (a d3 canvas renderer, a test harness whose closures share state, and
+      // a composition root).
       "max-lines-per-function": [
         "error",
         { max: 100, skipBlankLines: true, skipComments: true },
