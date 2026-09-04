@@ -28,33 +28,72 @@ export interface AgentLike {
   status?: { phase?: string; output?: string; failureReason?: string };
 }
 
-export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
+interface TerminalAgentPhase {
+  phase: TerminalPhase;
+  taskId: string;
+  labels: Record<string, string>;
+}
+
+function agentLabels(agent: AgentLike): Record<string, string> {
+  return agent.metadata?.labels ?? {};
+}
+
+function terminalAgentPhase(agent: AgentLike): TerminalAgentPhase | null {
   const phase = agent.status?.phase;
 
   if (phase !== "Succeeded" && phase !== "Failed") {
     return null;
   }
-  const labels = agent.metadata?.labels ?? {};
+  const labels = agentLabels(agent);
   const taskId = labels[TASK_ID_LABEL];
 
   if (!taskId) {
     return null;
   }
-  const action = TERMINAL_ACTIONS[phase as TerminalPhase];
-  const assemblyLineId =
-    labels[ASSEMBLY_RUN_ID_LABEL] ?? labels[LEGACY_ASSEMBLY_LINE_ID_LABEL];
-  const nodeId = labels[NODE_ID_LABEL];
-  const iteration = Number(labels[NODE_ITERATION_LABEL] ?? "1");
-  const agentName = agent.metadata?.name ?? null;
-  // Full status the watch holds: passthrough so consumer never re-fetches.
-  const status = {
+
+  return { phase, taskId, labels };
+}
+
+/** Full status the watch holds: passthrough so consumer never re-fetches. */
+function agentStatus(agent: AgentLike, phase: TerminalPhase) {
+  return {
     phase,
     output: agent.status?.output,
     failureReason: agent.status?.failureReason,
   };
+}
+
+function assemblyNodeIdentity(labels: Record<string, string>) {
+  return {
+    assemblyLineId:
+      labels[ASSEMBLY_RUN_ID_LABEL] ?? labels[LEGACY_ASSEMBLY_LINE_ID_LABEL],
+    nodeId: labels[NODE_ID_LABEL],
+    iteration: Number(labels[NODE_ITERATION_LABEL] ?? "1"),
+  };
+}
+
+function isAssemblyNodeEvent(
+  assemblyLineId: string | undefined,
+  nodeId: string | undefined,
+  agentName: string | null,
+): agentName is string {
+  return Boolean(assemblyLineId && nodeId && agentName);
+}
+
+export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
+  const terminal = terminalAgentPhase(agent);
+
+  if (!terminal) {
+    return null;
+  }
+  const { phase, taskId, labels } = terminal;
+  const action = TERMINAL_ACTIONS[phase];
+  const { assemblyLineId, nodeId, iteration } = assemblyNodeIdentity(labels);
+  const agentName = agent.metadata?.name ?? null;
+  const status = agentStatus(agent, phase);
 
   // Assembly-line NODE CR: own event family, deduped per CR name (task-keyed dedupe swallows later nodes).
-  if (assemblyLineId && nodeId && agentName) {
+  if (isAssemblyNodeEvent(assemblyLineId, nodeId, agentName)) {
     return {
       eventName: `kubernetes.agent_node.${action}`,
       source: "kubernetes",

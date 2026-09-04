@@ -464,6 +464,62 @@ async function settleJobRun(
   await deps.jobRuns.fail(jobRunId, reason ?? outcome);
 }
 
+/** Telemetry only, swallowed on failure like maybeStampPr — an unwritten episode is still a finished run. */
+async function recordRunEpisodeIfOwned(
+  assemblyRun: AssemblyRunRecord,
+  outcome: string,
+  reason: string | undefined,
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (!deps.recordRunEpisode || lineWritesOwnEpisode(assemblyRun.graph)) {
+    return;
+  }
+
+  try {
+    await deps.recordRunEpisode(assemblyRun, outcome, reason);
+  } catch (err) {
+    console.warn(
+      `[assembly-run] episode for ${assemblyRun.id} not recorded:`,
+      (err as Error).message,
+    );
+  }
+}
+
+async function callOnRunClosed(
+  assemblyRun: AssemblyRunRecord,
+  outcome: string,
+  reason: string | undefined,
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (!deps.onRunClosed) {
+    return;
+  }
+
+  try {
+    await deps.onRunClosed(assemblyRun, outcome, reason);
+  } catch (err) {
+    console.error("[on-run-closed] hook threw:", (err as Error).message);
+  }
+}
+
+/** Only the winning finisher tells the user — losers would duplicate the Slack message and PR comment. */
+async function notifyFailureIfApplicable(
+  assemblyRun: AssemblyRunRecord,
+  outcome: string,
+  reason: string | undefined,
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (!isFailureOutcome(outcome) || !deps.notifyFailure) {
+    return;
+  }
+
+  try {
+    await deps.notifyFailure(assemblyRun, outcome, reason);
+  } catch (err) {
+    console.error("[notify-failure] notifier threw:", (err as Error).message);
+  }
+}
+
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
 export async function finishLine(
   assemblyRun: AssemblyRunRecord,
@@ -487,43 +543,20 @@ export async function finishLine(
   // finish is first-writer-wins — a losing racer still reaches here, so cleanupToken MUST be idempotent (cleanupPerTaskToken swallows 404s).
   await deps.cleanupToken(assemblyRun.taskId ?? assemblyRun.id);
 
-  // Telemetry only, swallowed on failure like maybeStampPr — an unwritten episode is still a finished run. Winner-gated like every side effect below — an event-vs-reaper race can otherwise write one run's episode twice.
-  if (
-    closedNow &&
-    deps.recordRunEpisode &&
-    !lineWritesOwnEpisode(assemblyRun.graph)
-  ) {
-    try {
-      await deps.recordRunEpisode(assemblyRun, outcome, reason);
-    } catch (err) {
-      console.warn(
-        `[assembly-run] episode for ${assemblyRun.id} not recorded:`,
-        (err as Error).message,
-      );
-    }
+  if (!closedNow) {
+    return;
   }
 
+  // Winner-gated below — an event-vs-reaper race can otherwise write one run's episode twice.
+  await recordRunEpisodeIfOwned(assemblyRun, outcome, reason, deps);
+
   // Without this a line-backed task stays `running` forever — the watcher's post-completion path returns early for node CRs.
-  if (closedNow && deps.settleTask) {
+  if (deps.settleTask) {
     await deps.settleTask(assemblyRun, outcome, reason);
   }
 
-  if (closedNow && deps.onRunClosed) {
-    try {
-      await deps.onRunClosed(assemblyRun, outcome, reason);
-    } catch (err) {
-      console.error("[on-run-closed] hook threw:", (err as Error).message);
-    }
-  }
-
-  // Only the winning finisher tells the user — losers would duplicate the Slack message and PR comment.
-  if (closedNow && isFailureOutcome(outcome) && deps.notifyFailure) {
-    try {
-      await deps.notifyFailure(assemblyRun, outcome, reason);
-    } catch (err) {
-      console.error("[notify-failure] notifier threw:", (err as Error).message);
-    }
-  }
+  await callOnRunClosed(assemblyRun, outcome, reason, deps);
+  await notifyFailureIfApplicable(assemblyRun, outcome, reason, deps);
 }
 
 /** Record one node's terminal outcome (CAS — first writer decides) and advance the line; `iteration` targets the exact revisit whose CR fired so a late duplicate event can't overwrite the current one. */

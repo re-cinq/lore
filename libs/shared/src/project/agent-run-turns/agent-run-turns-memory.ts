@@ -5,8 +5,47 @@ import {
   type AgentRunTurnRow,
   type AgentRunTurnsRepository,
 } from "./agent-run-turns-port.js";
+import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+interface ResolvedTurnIdentity {
+  assemblyLineId: string | null;
+  stationRunId: string | null;
+  nodeId: string | null;
+  iteration: number | null;
+}
+
+function identityFromCarried(
+  carried: CarriedRunIdentity,
+): ResolvedTurnIdentity {
+  return {
+    assemblyLineId: carried.assemblyRunId,
+    stationRunId: carried.stationRunId,
+    nodeId: carried.nodeId,
+    iteration: carried.iteration,
+  };
+}
+
+function identityFromInferred(
+  inferred: AgentRunTurnNodeRef | undefined,
+): ResolvedTurnIdentity {
+  if (!inferred) {
+    return {
+      assemblyLineId: null,
+      stationRunId: null,
+      nodeId: null,
+      iteration: null,
+    };
+  }
+
+  return {
+    assemblyLineId: inferred.assemblyLineId,
+    stationRunId: inferred.stationRunId ?? null,
+    nodeId: inferred.nodeId,
+    iteration: inferred.iteration,
+  };
+}
 
 /** In-memory {@link AgentRunTurnsRepository} with Pg-equivalent contract: write-time correlation (newest node wins), ascending id capped reads, horizon pruning, envelope JSON roundtrip. Non-null dedupKey already stored skips row (#1389). Seed with registerNode; inject now for deterministic pruneOld. */
 export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
@@ -95,19 +134,12 @@ export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
   }
 
   private persist(insert: AgentRunTurnInsert): AgentRunTurnRow {
-    // Stated beats inferred, whole — see agent-run-events-memory.
-    const carried = insert.carried ?? undefined;
-    const inferred = carried ? undefined : this.correlate(insert.agentCrName);
-    const node = carried ?? inferred;
+    const identity = this.resolveIdentity(insert);
     const row: AgentRunTurnRow = {
       id: String(this.nextId++),
       taskId: insert.taskId,
       agentCrName: insert.agentCrName,
-      assemblyLineId:
-        carried?.assemblyRunId ?? inferred?.assemblyLineId ?? null,
-      stationRunId: node?.stationRunId ?? null,
-      nodeId: node?.nodeId ?? null,
-      iteration: node?.iteration ?? null,
+      ...identity,
       eventType: insert.eventType,
       envelope: JSON.parse(insert.envelope) as Record<string, unknown>,
       createdAt: this.now(),
@@ -116,6 +148,13 @@ export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
     this.rows.push(row);
 
     return row;
+  }
+
+  /** Stated beats inferred, whole — see agent-run-events-memory. */
+  private resolveIdentity(insert: AgentRunTurnInsert): ResolvedTurnIdentity {
+    return insert.carried
+      ? identityFromCarried(insert.carried)
+      : identityFromInferred(this.correlate(insert.agentCrName));
   }
 
   private correlate(

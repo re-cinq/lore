@@ -53,26 +53,23 @@ export function formatTrailers(t: Trailers): string {
   return lines.join("\n");
 }
 
-// Parses the trailer block (last paragraph, contiguous `Key: value` lines); returns null on no trailer paragraph, mixed lines, a missing required key, or a non-integer Lore-Iteration.
-export function parseTrailers(message: string): Trailers | null {
+function lastTrailerParagraphLines(message: string): string[] {
   const normalized = message.replace(/\r\n/g, "\n").trimEnd();
 
   if (!normalized) {
-    return null;
+    return [];
   }
 
   const paragraphs = normalized.split(/\n\s*\n/);
   const last = paragraphs[paragraphs.length - 1];
 
-  const lines = last
+  return last
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
+}
 
-  if (lines.length === 0) {
-    return null;
-  }
-
+function trailerMap(lines: string[]): Map<string, string> | null {
   const map = new Map<string, string>();
 
   for (const line of lines) {
@@ -84,18 +81,14 @@ export function parseTrailers(message: string): Trailers | null {
     map.set(m[1], m[2]);
   }
 
-  for (const k of REQUIRED_KEYS) {
-    if (!map.has(k)) {
-      return null;
-    }
-  }
+  return map;
+}
 
-  const iteration = Number.parseInt(map.get(ITERATION_KEY)!, 10);
+function hasRequiredKeys(map: Map<string, string>): boolean {
+  return REQUIRED_KEYS.every((k) => map.has(k));
+}
 
-  if (!Number.isFinite(iteration)) {
-    return null;
-  }
-
+function extractExtras(map: Map<string, string>): Record<string, string> {
   const extras: Record<string, string> = {};
 
   for (const [k, v] of map.entries()) {
@@ -104,6 +97,11 @@ export function parseTrailers(message: string): Trailers | null {
     }
   }
 
+  return extras;
+}
+
+function buildTrailers(map: Map<string, string>, iteration: number): Trailers {
+  const extras = extractExtras(map);
   const assemblyLineId =
     map.get(ASSEMBLY_RUN_KEY) ?? map.get(LEGACY_ASSEMBLY_LINE_KEY);
 
@@ -114,6 +112,29 @@ export function parseTrailers(message: string): Trailers | null {
     ...(assemblyLineId ? { assemblyLineId } : {}),
     ...(Object.keys(extras).length > 0 ? { extras } : {}),
   };
+}
+
+// Parses the trailer block (last paragraph, contiguous `Key: value` lines); returns null on no trailer paragraph, mixed lines, a missing required key, or a non-integer Lore-Iteration.
+export function parseTrailers(message: string): Trailers | null {
+  const lines = lastTrailerParagraphLines(message);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const map = trailerMap(lines);
+
+  if (!map || !hasRequiredKeys(map)) {
+    return null;
+  }
+
+  const iteration = Number.parseInt(map.get(ITERATION_KEY)!, 10);
+
+  if (!Number.isFinite(iteration)) {
+    return null;
+  }
+
+  return buildTrailers(map, iteration);
 }
 
 /** A generation-time provenance link declaring that a test target validates one numbered spec statement. */

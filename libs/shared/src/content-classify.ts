@@ -7,51 +7,51 @@ const BINARY_RE =
 const CODE_RE =
   /\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp|css|scss|sass|less)$/;
 
-export function classifyFile(path: string): ContentType | null {
-  // Retired docs live in the repo-root graveyard/ and must never be indexed.
-  if (path.startsWith("graveyard/")) {
-    return null;
-  }
-
-  // Fixtures not content; fake links would be real rot to validator (#1015).
-  if (/(?:^|\/)(?:fixtures|__fixtures__)\//.test(path)) {
-    return null;
-  }
-
-  if (BINARY_RE.test(path)) {
-    return null;
-  }
-
-  if (
+function isDocFile(path: string): boolean {
+  return (
     path.endsWith("CLAUDE.md") ||
     path.endsWith("AGENTS.md") ||
     path.endsWith("CODEOWNERS")
-  ) {
-    return "doc";
-  }
+  );
+}
 
+function isSpecPath(path: string): boolean {
+  return /(?:^|\/)specs\//.test(path) || path.startsWith(".specify/");
+}
+
+function isMarkupDoc(path: string): boolean {
+  return (
+    path.endsWith(".md") || path.endsWith(".yaml") || path.endsWith(".yml")
+  );
+}
+
+interface ClassifyRule {
+  test: (path: string) => boolean;
+  type: ContentType | null;
+}
+
+const CLASSIFY_RULES: ClassifyRule[] = [
+  // Retired docs live in the repo-root graveyard/ and must never be indexed.
+  { test: (path) => path.startsWith("graveyard/"), type: null },
+  // Fixtures not content; fake links would be real rot to validator (#1015).
+  {
+    test: (path) => /(?:^|\/)(?:fixtures|__fixtures__)\//.test(path),
+    type: null,
+  },
+  { test: (path) => BINARY_RE.test(path), type: null },
+  { test: isDocFile, type: "doc" },
   // Extension wins over directory: a source file is code wherever it lives.
-  if (CODE_RE.test(path)) {
-    return "code";
-  }
+  { test: (path) => CODE_RE.test(path), type: "code" },
+  { test: (path) => /(?:^|\/)adrs\//.test(path), type: "adr" },
+  { test: isSpecPath, type: "spec" },
+  { test: (path) => /(?:^|\/)runbooks\//.test(path), type: "doc" },
+  { test: isMarkupDoc, type: "doc" },
+];
 
-  if (/(?:^|\/)adrs\//.test(path)) {
-    return "adr";
-  }
+export function classifyFile(path: string): ContentType | null {
+  const rule = CLASSIFY_RULES.find((r) => r.test(path));
 
-  if (/(?:^|\/)specs\//.test(path) || path.startsWith(".specify/")) {
-    return "spec";
-  }
-
-  if (/(?:^|\/)runbooks\//.test(path)) {
-    return "doc";
-  }
-
-  if (path.endsWith(".md") || path.endsWith(".yaml") || path.endsWith(".yml")) {
-    return "doc";
-  }
-
-  return null;
+  return rule ? rule.type : null;
 }
 
 /** Read-side twin of classifyFile; drops exclusions (#1018: stale debris resurfacing as findings); auto-inherited. */

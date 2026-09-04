@@ -365,17 +365,16 @@ interface RingResult {
   }>;
 }
 
-/** Pure: a spec's two-ring structure — sections (inner) + per-statement coverage (outer). */
-export function flattenSpecRing(graph: RingResult): SpecRing {
-  const spec = graph.q?.[0];
-
-  if (!spec) {
-    return { sections: [], statements: [] };
-  }
+function indexRingSections(
+  sections: NonNullable<RingResult["q"]>[number]["sections"],
+): {
+  byUid: Map<string, RingSection>;
+  order: string[];
+} {
   const byUid = new Map<string, RingSection>();
   const order: string[] = [];
 
-  for (const sec of spec.sections ?? []) {
+  for (const sec of sections ?? []) {
     byUid.set(sec.uid, {
       uid: sec.uid,
       heading: sec["Section.heading"] ?? "(section)",
@@ -384,31 +383,61 @@ export function flattenSpecRing(graph: RingResult): SpecRing {
     });
     order.push(sec.uid);
   }
+
+  return { byUid, order };
+}
+
+function resolveRingOwner(
+  secUid: string | undefined,
+  byUid: Map<string, RingSection>,
+  ungrouped: RingSection,
+): RingSection {
+  return (secUid && byUid.get(secUid)) || ungrouped;
+}
+
+function tallyRingOwner(owner: RingSection, tested: boolean): void {
+  owner.total += 1;
+
+  if (tested) {
+    owner.tested += 1;
+  }
+}
+
+function flattenRingStatements(
+  stmts: NonNullable<RingResult["q"]>[number]["stmts"],
+  byUid: Map<string, RingSection>,
+  ungrouped: RingSection,
+): RingStatement[] {
+  return (stmts ?? []).map((st) => {
+    const owner = resolveRingOwner(st.sec?.uid, byUid, ungrouped);
+    const tested = (st.v ?? 0) > 0;
+
+    tallyRingOwner(owner, tested);
+
+    return {
+      uid: st.uid,
+      sectionUid: owner.uid,
+      tested,
+      text: (st["Statement.text"] ?? "").trim(),
+    };
+  });
+}
+
+/** Pure: a spec's two-ring structure — sections (inner) + per-statement coverage (outer). */
+export function flattenSpecRing(graph: RingResult): SpecRing {
+  const spec = graph.q?.[0];
+
+  if (!spec) {
+    return { sections: [], statements: [] };
+  }
+  const { byUid, order } = indexRingSections(spec.sections);
   const ungrouped: RingSection = {
     uid: UNGROUPED_SECTION,
     heading: "(ungrouped)",
     total: 0,
     tested: 0,
   };
-  const statements: RingStatement[] = [];
-
-  for (const st of spec.stmts ?? []) {
-    const secUid = st.sec?.uid;
-    const owner = (secUid && byUid.get(secUid)) || ungrouped;
-    const tested = (st.v ?? 0) > 0;
-
-    owner.total += 1;
-
-    if (tested) {
-      owner.tested += 1;
-    }
-    statements.push({
-      uid: st.uid,
-      sectionUid: owner.uid,
-      tested,
-      text: (st["Statement.text"] ?? "").trim(),
-    });
-  }
+  const statements = flattenRingStatements(spec.stmts, byUid, ungrouped);
   const sections = order.map((u) => byUid.get(u)!);
 
   if (ungrouped.total > 0) {

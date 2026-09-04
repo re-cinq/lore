@@ -207,63 +207,94 @@ function* lines(body: string): Generator<string> {
   }
 }
 
+function ingestCostAndFileRows(sink: AgentSink, envelope: unknown): void {
+  const costRow = rowFromEnvelope(envelope);
+
+  if (costRow) {
+    sink.costRows.push(costRow);
+  }
+  const fileEvent = fileEventFromEnvelope(envelope);
+
+  if (fileEvent) {
+    sink.fileEvents.push(fileEvent);
+  }
+}
+
+function ingestTurn(
+  sink: AgentSink,
+  envelope: unknown,
+  line: string,
+  collectTurns: boolean,
+): void {
+  if (!collectTurns) {
+    return;
+  }
+
+  if (sink.turns.length >= MAX_RUN_TURNS_PER_BATCH) {
+    sink.turnsCapped++;
+
+    return;
+  }
+  const turn = turnFromEnvelope(envelope, line);
+
+  if (turn === null) {
+    sink.turnsDropped++;
+
+    return;
+  }
+  sink.turns.push(turn);
+}
+
+function ingestRunEvents(
+  sink: AgentSink,
+  envelope: unknown,
+  projectRunEvents: boolean,
+): void {
+  if (!projectRunEvents || sink.runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
+    return;
+  }
+  collectRunEventsUpToCap(sink.runEvents, envelope);
+}
+
+function parseEnvelopeLine(line: string): unknown {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Parse the NDJSON sink body ONCE into cost rows + (optionally) run-visualization rows + (optionally) full-fidelity turns; single-pass parsing bounds peak memory (the regression that OOM-looped the single Floor replica). Blank/unparseable lines are skipped; a task-less line still collects as a turn. Nothing throws. */
 export function parseAgentSink(
   ndjson: string,
   projectRunEvents = true,
   collectTurns = true,
 ): AgentSink {
-  const costRows: LlmCallRow[] = [];
-  const runEvents: AgentRunEventInsert[] = [];
-  const fileEvents: AgentFileEvent[] = [];
-  const turns: AgentRunTurnInsert[] = [];
-  let turnsDropped = 0;
-  let turnsCapped = 0;
+  const sink: AgentSink = {
+    costRows: [],
+    runEvents: [],
+    fileEvents: [],
+    turns: [],
+    turnsDropped: 0,
+    turnsCapped: 0,
+  };
 
   for (const line of lines(ndjson)) {
     if (!line.trim()) {
       continue;
     }
-    let envelope: unknown;
+    const envelope = parseEnvelopeLine(line);
 
-    try {
-      envelope = JSON.parse(line);
-    } catch {
+    if (envelope === undefined) {
       continue;
     }
-    const costRow = rowFromEnvelope(envelope);
 
-    if (costRow) {
-      costRows.push(costRow);
-    }
-    const fileEvent = fileEventFromEnvelope(envelope);
-
-    if (fileEvent) {
-      fileEvents.push(fileEvent);
-    }
-
-    const wantTurn = collectTurns && turns.length < MAX_RUN_TURNS_PER_BATCH;
-
-    if (collectTurns && !wantTurn) {
-      turnsCapped++;
-    }
-    const turn = wantTurn ? turnFromEnvelope(envelope, line) : null;
-
-    if (wantTurn && turn === null) {
-      turnsDropped++;
-    }
-
-    if (turn) {
-      turns.push(turn);
-    }
-
-    if (!projectRunEvents || runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
-      continue;
-    }
-    collectRunEventsUpToCap(runEvents, envelope);
+    ingestCostAndFileRows(sink, envelope);
+    ingestTurn(sink, envelope, line, collectTurns);
+    ingestRunEvents(sink, envelope, projectRunEvents);
   }
 
-  return { costRows, runEvents, fileEvents, turns, turnsDropped, turnsCapped };
+  return sink;
 }
 
 function collectRunEventsUpToCap(

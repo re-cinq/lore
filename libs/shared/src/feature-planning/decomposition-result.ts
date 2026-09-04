@@ -37,33 +37,44 @@ function asStringList(v: unknown): string[] {
   return [];
 }
 
-function normalizeTask(raw: unknown, index: number): DecompTask {
-  const id = `T${String(index + 1).padStart(3, "0")}`;
+function normalizeTaskFromString(raw: string, id: string): DecompTask {
+  enforceTrue(raw.trim(), Error, "decomposition: task description is required");
 
-  if (typeof raw === "string") {
-    enforceTrue(
-      raw.trim(),
-      Error,
-      "decomposition: task description is required",
-    );
+  return {
+    id,
+    description: raw,
+    depends_on: [],
+    parallelizable: false,
+    phase: 0,
+  };
+}
 
-    return {
-      id,
-      description: raw,
-      depends_on: [],
-      parallelizable: false,
-      phase: 0,
-    };
-  }
-  enforceTrue(
-    !(!raw || typeof raw !== "object"),
-    Error,
-    "decomposition: task must be an object or string",
-  );
-  const t = raw as Record<string, unknown>;
+function taskDescription(t: Record<string, unknown>): string | false {
   const descriptionField = typeof t.description === "string" && t.description;
   const textField = typeof t.text === "string" && t.text;
-  const description = descriptionField || textField;
+
+  return descriptionField || textField;
+}
+
+function taskFilePath(t: Record<string, unknown>): string | undefined {
+  const filePath = t.file_path ?? t.filePath;
+
+  return typeof filePath === "string" && filePath ? filePath : undefined;
+}
+
+function taskId(t: Record<string, unknown>, fallback: string): string {
+  return typeof t.id === "string" && t.id ? t.id : fallback;
+}
+
+function taskPhase(t: Record<string, unknown>): number {
+  return typeof t.phase === "number" ? t.phase : 0;
+}
+
+function normalizeTaskFromObject(
+  t: Record<string, unknown>,
+  id: string,
+): DecompTask {
+  const description = taskDescription(t);
 
   enforceTrue(
     description,
@@ -71,15 +82,15 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
     "decomposition: task description is required",
   );
   const task: DecompTask = {
-    id: typeof t.id === "string" && t.id ? t.id : id,
+    id: taskId(t, id),
     description,
     depends_on: asStringList(t.depends_on ?? t.dependsOn),
     parallelizable: t.parallelizable === true,
-    phase: typeof t.phase === "number" ? t.phase : 0,
+    phase: taskPhase(t),
   };
-  const filePath = t.file_path ?? t.filePath;
+  const filePath = taskFilePath(t);
 
-  if (typeof filePath === "string" && filePath) {
+  if (filePath) {
     task.file_path = filePath;
   }
   const labels = asStringList(t.labels);
@@ -89,6 +100,21 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
   }
 
   return task;
+}
+
+function normalizeTask(raw: unknown, index: number): DecompTask {
+  const id = `T${String(index + 1).padStart(3, "0")}`;
+
+  if (typeof raw === "string") {
+    return normalizeTaskFromString(raw, id);
+  }
+  enforceTrue(
+    !(!raw || typeof raw !== "object"),
+    Error,
+    "decomposition: task must be an object or string",
+  );
+
+  return normalizeTaskFromObject(raw as Record<string, unknown>, id);
 }
 
 function normalizeStory(raw: unknown): UserStory {

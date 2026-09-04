@@ -23,6 +23,127 @@ interface Candidate {
   repo: string;
 }
 
+interface ReaperTally {
+  orphaned: number;
+  transitioned: number;
+  recovered: number;
+}
+
+/** The assembly run, not the CR listing, is the liveness authority — a transient empty k8s list killed a live round on 2026-08-18 (#1297); direct probe survives only for legacy rounds with no run row. */
+async function loadRoundContext(feature: FeatureWithIterations) {
+  const latest = feature.iterations[feature.iterations.length - 1];
+  const latestRun = latest?.task_id
+    ? (await pipeline().assemblyRuns.listForTask(latest.task_id))[0]
+    : undefined;
+  const runOpen =
+    latestRun !== undefined && ["queued", "running"].includes(latestRun.status);
+
+  return { latest, latestRun, runOpen };
+}
+
+type RoundContext = Awaited<ReturnType<typeof loadRoundContext>>;
+
+/** A round whose agent succeeded but whose result delivery was lost (#1298) heals from the transcript, never orphaned; decideArtifactRecovery's call (#1302) replaced the blanket "open run" exemption that hid this parked-on-author shape. */
+async function tryRecoverFromTranscript(
+  project: Project,
+  feature: FeatureWithIterations,
+  { latest, latestRun, runOpen }: RoundContext,
+): Promise<boolean> {
+  const lostRound = lostArtifactRound(latest, latestRun, feature.status);
+
+  if (lostRound === null) {
+    return false;
+  }
+
+  return recoverLostRound(project, feature.id, lostRound, {
+    graph: latestRun?.graph ?? null,
+    open: runOpen,
+  });
+}
+
+async function applyPlanningRecoveryAction(
+  project: Project,
+  feature: FeatureWithIterations,
+  ctx: RoundContext,
+  { row, now }: { row: Candidate; now: number },
+): Promise<Partial<ReaperTally>> {
+  const { latest, latestRun, runOpen } = ctx;
+  const isActive = await roundStillActive(
+    latest,
+    latestRun !== undefined,
+    runOpen,
+  );
+  const action = decidePlanningRecovery({
+    iterations: feature.iterations,
+    featureStatus: feature.status,
+    isActive,
+    nowMs: now,
+    runOpen,
+  });
+
+  if (action.kind === "orphan") {
+    await recoverOrphan(project, feature, action.iteration);
+    console.log(
+      `[feature-planning-reaper] recovered orphaned round ${action.iteration} for ${row.repo}/${row.id}`,
+    );
+
+    return { orphaned: 1 };
+  }
+
+  if (action.kind !== "transition") {
+    return {};
+  }
+  const gap = latest!.gap_result!;
+
+  await project.features.transitionStatus(
+    feature.id,
+    decideFeatureStatus(gap),
+    {
+      draft_spec_md: gap.draft_spec_markdown,
+    },
+  );
+  console.log(
+    `[feature-planning-reaper] applied missed transition for ${row.repo}/${row.id}`,
+  );
+
+  return { transitioned: 1 };
+}
+
+async function processFeatureCandidate(
+  row: Candidate,
+  now: number,
+): Promise<Partial<ReaperTally>> {
+  const project = await projectFor(row.repo);
+  const feature = await project.features.get(row.id);
+
+  if (!feature) {
+    return {};
+  }
+
+  const ctx = await loadRoundContext(feature);
+  const recoveredFromTranscript = await tryRecoverFromTranscript(
+    project,
+    feature,
+    ctx,
+  );
+
+  if (recoveredFromTranscript) {
+    console.log(
+      `[feature-planning-reaper] recovered round ${ctx.latest!.iteration} for ${row.repo}/${row.id} from the run transcript`,
+    );
+
+    return { recovered: 1 };
+  }
+
+  return applyPlanningRecoveryAction(project, feature, ctx, { row, now });
+}
+
+function mergeTally(tally: ReaperTally, delta: Partial<ReaperTally>): void {
+  tally.orphaned += delta.orphaned ?? 0;
+  tally.transitioned += delta.transitioned ?? 0;
+  tally.recovered += delta.recovered ?? 0;
+}
+
 export async function featurePlanningReaperJob(): Promise<string> {
   // The failed arm is bounded to a day: only a recent failed round can still be an artifact-recovery candidate; lostArtifactRound rejects any older one the loop inspects.
   const rows = await query<Candidate>(
@@ -40,82 +161,13 @@ export async function featurePlanningReaperJob(): Promise<string> {
   }
 
   const now = Date.now();
-  let orphaned = 0;
-  let transitioned = 0;
-  let recovered = 0;
+  const tally: ReaperTally = { orphaned: 0, transitioned: 0, recovered: 0 };
 
   for (const row of rows) {
     try {
-      const project = await projectFor(row.repo);
-      const feature = await project.features.get(row.id);
+      const result = await processFeatureCandidate(row, now);
 
-      if (!feature) {
-        continue;
-      }
-
-      const latest = feature.iterations[feature.iterations.length - 1];
-      // The assembly run, not the CR listing, is the liveness authority — a transient empty k8s list killed a live round on 2026-08-18 (#1297); direct probe survives only for legacy rounds with no run row.
-      const latestRun = latest?.task_id
-        ? (await pipeline().assemblyRuns.listForTask(latest.task_id))[0]
-        : undefined;
-      const runOpen =
-        latestRun !== undefined &&
-        ["queued", "running"].includes(latestRun.status);
-
-      // A round whose agent succeeded but whose result delivery was lost (#1298) heals from the transcript, never orphaned; decideArtifactRecovery's call (#1302) replaced the blanket "open run" exemption that hid this parked-on-author shape.
-      const lostRound = lostArtifactRound(latest, latestRun, feature.status);
-      const recoveredFromTranscript =
-        lostRound !== null &&
-        (await recoverLostRound(project, feature.id, lostRound, {
-          graph: latestRun?.graph ?? null,
-          open: runOpen,
-        }));
-
-      if (recoveredFromTranscript) {
-        recovered++;
-        console.log(
-          `[feature-planning-reaper] recovered round ${latest.iteration} for ${row.repo}/${row.id} from the run transcript`,
-        );
-        continue;
-      }
-
-      const isActive = await roundStillActive(
-        latest,
-        latestRun !== undefined,
-        runOpen,
-      );
-
-      const action = decidePlanningRecovery({
-        iterations: feature.iterations,
-        featureStatus: feature.status,
-        isActive,
-        nowMs: now,
-        runOpen,
-      });
-
-      if (action.kind === "orphan") {
-        await recoverOrphan(project, feature, action.iteration);
-        orphaned++;
-        console.log(
-          `[feature-planning-reaper] recovered orphaned round ${action.iteration} for ${row.repo}/${row.id}`,
-        );
-      }
-
-      if (action.kind === "transition") {
-        const gap = latest!.gap_result!;
-
-        await project.features.transitionStatus(
-          feature.id,
-          decideFeatureStatus(gap),
-          {
-            draft_spec_md: gap.draft_spec_markdown,
-          },
-        );
-        transitioned++;
-        console.log(
-          `[feature-planning-reaper] applied missed transition for ${row.repo}/${row.id}`,
-        );
-      }
+      mergeTally(tally, result);
     } catch (err) {
       console.error(
         `[feature-planning-reaper] ${row.repo}/${row.id}: ${(err as Error).message}`,
@@ -123,7 +175,7 @@ export async function featurePlanningReaperJob(): Promise<string> {
     }
   }
 
-  return `Recovered ${orphaned} orphaned round(s), fixed ${transitioned} missed transition(s), replayed ${recovered} lost artifact(s) across ${rows.length} feature(s)`;
+  return `Recovered ${tally.orphaned} orphaned round(s), fixed ${tally.transitioned} missed transition(s), replayed ${tally.recovered} lost artifact(s) across ${rows.length} feature(s)`;
 }
 
 /** Run decideArtifactRecovery for a lost round and, when it says recover, re-apply the artifact from the run transcript. */

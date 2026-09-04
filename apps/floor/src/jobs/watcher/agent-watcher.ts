@@ -206,63 +206,108 @@ async function finishSingleCrRunRows(
   );
 }
 
-/** Settles one terminal Agent run from its event report; node CRs never arrive here (routed to `kubernetes.agent_node.*` instead). */
-export async function processAgentTerminal(
-  report: AgentTerminalReport,
-): Promise<void> {
-  const { taskId, phase } = report;
+/** Prefer the run row over the Agent CR: it's neither cluster-local nor pruned an hour later. */
+async function findCurrentRun(taskId: string) {
+  const runs = await pipeline().assemblyRuns.listForTask(taskId);
 
+  return (
+    runs.find((row) => ["queued", "running"].includes(row.status)) ??
+    runs[runs.length - 1]
+  );
+}
+
+/** Resolves the task + dispatch facts for a terminal report, or null when there's nothing here to reconcile (task gone/already settled, or the run row carries no dispatch facts). */
+async function buildAgentTerminalContext(
+  report: AgentTerminalReport,
+): Promise<AgentContext | null> {
+  const { taskId } = report;
   // DB-level re-entry guard: a task-less run (e.g. code-review) has nothing here to reconcile.
   const task = await taskStore().getById(taskId);
 
   if (!task || !["running", "queued"].includes(task.status)) {
-    return;
+    return null;
   }
-  // Prefer the run row over the Agent CR: it's neither cluster-local nor pruned an hour later.
-  const runs = await pipeline().assemblyRuns.listForTask(taskId);
-  const run =
-    runs.find((row) => ["queued", "running"].includes(row.status)) ??
-    runs[runs.length - 1];
+  const run = await findCurrentRun(taskId);
   const facts = dispatchFacts(run ?? null, task);
 
   if (!facts) {
-    return;
+    return null;
   }
-  const ctx: AgentContext = {
+
+  return {
     taskId,
     ...facts,
     output: resultTextFromOutput(report.output ?? ""),
   };
+}
 
-  // No `status.prUrl` guard: the DB guard above is the same gate, read from a source that survives the pod.
-  if (phase === "Succeeded" && ctx.taskType !== "review") {
+/** No `status.prUrl` guard: the DB guard in `buildAgentTerminalContext` is the same gate, read from a source that survives the pod. */
+async function applySucceededPhase(ctx: AgentContext): Promise<void> {
+  if (ctx.taskType !== "review") {
     await handleSucceededChanges(ctx);
+
+    return;
+  }
+  // Review verdict (parsed from the reported output — Agent has no reviewResult field).
+  const reviewResult = parseReviewResult(ctx.output);
+
+  if (reviewResult) {
+    await handleReviewVerdict(ctx, reviewResult);
+  }
+}
+
+async function applyTerminalPhaseEffects(
+  ctx: AgentContext,
+  report: AgentTerminalReport,
+): Promise<void> {
+  const { phase } = report;
+
+  if (phase === "Succeeded") {
+    await applySucceededPhase(ctx);
+
+    return;
   }
 
   if (phase === "Failed" && report.failureReason) {
     await handleFailure(ctx, report.failureReason);
   }
+}
 
-  // Review verdict (parsed from the reported output — Agent has no reviewResult field).
-  const reviewResult =
-    phase === "Succeeded" && ctx.taskType === "review"
-      ? parseReviewResult(ctx.output)
-      : undefined;
-
-  if (reviewResult) {
-    await handleReviewVerdict(ctx, reviewResult);
-  }
-
-  // Single-CR task: close its run row + reclaim its token here (#784); station lines do both at line completion.
-  const isAssemblyLineTask = (await assemblyLineNames()).has(ctx.taskType);
+/** Single-CR task: close its run row + reclaim its token here (#784); station lines do both at line completion. */
+async function settleSingleCrTask(
+  taskId: string,
+  taskType: string,
+  phase: string | undefined,
+  failureReason: string | undefined,
+): Promise<void> {
+  const isAssemblyLineTask = (await assemblyLineNames()).has(taskType);
 
   if (!isAssemblyLineTask) {
-    await finishSingleCrRunRows(taskId, phase, report.failureReason);
+    await finishSingleCrRunRows(taskId, phase, failureReason);
   }
 
   if (decideTokenReclaim({ phase, isAssemblyLineTask })) {
     await cleanupPerTaskToken(taskId);
   }
+}
+
+/** Settles one terminal Agent run from its event report; node CRs never arrive here (routed to `kubernetes.agent_node.*` instead). */
+export async function processAgentTerminal(
+  report: AgentTerminalReport,
+): Promise<void> {
+  const ctx = await buildAgentTerminalContext(report);
+
+  if (!ctx) {
+    return;
+  }
+
+  await applyTerminalPhaseEffects(ctx, report);
+  await settleSingleCrTask(
+    ctx.taskId,
+    ctx.taskType,
+    report.phase,
+    report.failureReason,
+  );
 }
 
 /** Closes out a succeeded no-changes task, routing the result through its GitHub Issue. */
@@ -814,56 +859,46 @@ async function escalateReviewToHuman(
   );
 }
 
-/** A review Agent's verdict drives the iteration-capped fix loop on the parent task. */
-async function handleReviewVerdict(
-  ctx: AgentContext,
-  reviewResult: ReviewResult,
-): Promise<void> {
-  const { taskId, branch } = ctx;
+/** Resolves the review task's parent, or undefined if the review is stale/re-entrant or carries no parent link. */
+async function resolveReviewParentTaskId(
+  taskId: string,
+): Promise<string | undefined> {
   const reviewTask = await taskStore().getById(taskId);
 
   if (reviewTask && reviewTask.status !== "running") {
-    return;
+    return undefined;
   }
   const contextBundle = reviewTask?.context_bundle as
     { parent_task_id?: string } | undefined;
-  const parentTaskId: string | undefined = contextBundle?.parent_task_id;
+  const parentTaskId = contextBundle?.parent_task_id;
 
   if (!parentTaskId) {
     console.log(
       `[agent-watcher] Review ${taskId} has no parent task, skipping`,
     );
-
-    return;
   }
 
-  if (reviewResult === "approved") {
-    await completeApprovedReview(taskId, parentTaskId);
+  return parentTaskId;
+}
 
-    return;
+/** Opens (or re-drives) the auto-fix implementation task addressing the review's requested changes. */
+async function fetchReviewComments(parent: PipelineTask) {
+  if (!parent.pr_number) {
+    return [];
   }
 
-  const parent = await taskStore().getById(parentTaskId);
+  return await projectFor(parent.target_repo)
+    .then((p) => p.pulls.listComments(parent.pr_number!))
+    .catch(() => []);
+}
 
-  if (!parent) {
-    return;
-  }
-  const iteration = (Number(parent.review_iteration) || 0) + 1;
-
-  await pipeline().taskQueue.setColumns(parentTaskId, {
-    review_iteration: iteration,
-  });
-
-  if (iteration >= 2) {
-    await escalateReviewToHuman(taskId, parentTaskId, parent, iteration);
-
-    return;
-  }
-  const comments = parent.pr_number
-    ? await projectFor(parent.target_repo)
-        .then((p) => p.pulls.listComments(parent.pr_number!))
-        .catch(() => [])
-    : [];
+async function requestReviewFix(
+  taskId: string,
+  branch: string,
+  parent: PipelineTask,
+  iteration: number,
+): Promise<void> {
+  const comments = await fetchReviewComments(parent);
   const feedback =
     formatReviewFeedback(comments) ||
     "The agent review requested changes. Read the review comments on the PR and address them.";
@@ -879,7 +914,7 @@ async function handleReviewVerdict(
     contextBundle: {
       branch: parent.target_branch,
       review_feedback: feedback,
-      parent_task_id: parentTaskId,
+      parent_task_id: parent.id,
     },
   })) as string;
 
@@ -909,4 +944,41 @@ async function handleReviewVerdict(
   console.log(
     `[agent-watcher] Review changes requested, created fix task ${fixTaskId} (iteration ${iteration})`,
   );
+}
+
+/** A review Agent's verdict drives the iteration-capped fix loop on the parent task. */
+async function handleReviewVerdict(
+  ctx: AgentContext,
+  reviewResult: ReviewResult,
+): Promise<void> {
+  const { taskId, branch } = ctx;
+  const parentTaskId = await resolveReviewParentTaskId(taskId);
+
+  if (!parentTaskId) {
+    return;
+  }
+
+  if (reviewResult === "approved") {
+    await completeApprovedReview(taskId, parentTaskId);
+
+    return;
+  }
+
+  const parent = await taskStore().getById(parentTaskId);
+
+  if (!parent) {
+    return;
+  }
+  const iteration = (Number(parent.review_iteration) || 0) + 1;
+
+  await pipeline().taskQueue.setColumns(parentTaskId, {
+    review_iteration: iteration,
+  });
+
+  if (iteration >= 2) {
+    await escalateReviewToHuman(taskId, parentTaskId, parent, iteration);
+
+    return;
+  }
+  await requestReviewFix(taskId, branch, parent, iteration);
 }

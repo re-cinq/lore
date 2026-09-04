@@ -47,88 +47,91 @@ export function stationLogTail(
   return tail;
 }
 
-/** Finalize a synchronous (Docker) Station run inline — no loretask-watcher locally (ADR-028); mirrors the K8s watcher's post-completion behavior. */
-export async function finalizeStationRun(opts: {
+interface FinalizeStationRunOpts {
   task: PipelineTask;
   targetRepo: string;
   branch: string;
   completion: StationCompletion;
   project: Project;
-}): Promise<void> {
+}
+
+/** Surface the container's own logs — exit 128 is almost always a git/clone failure whose cause is only in the output. */
+async function handleStationExitFailure(
+  opts: FinalizeStationRunOpts,
+): Promise<void> {
+  const { task, completion, project } = opts;
+  const tail = stationLogTail(completion.output);
+  const reason = `Station exited ${completion.exitCode}.${tail ? `\n\n${tail}` : ""}`;
+
+  await markFailedPlanningIteration(task, project);
+  await setStatus(task.id, "failed", { failure_reason: reason });
+  await insertEvent(task.id, "running", "failed", {
+    reason: `station exit ${completion.exitCode}`,
+    exit_code: completion.exitCode,
+  });
+}
+
+/** Non-planning, no file changes → no PR. Just close the task out. */
+async function handleNoChangeCompletion(
+  opts: FinalizeStationRunOpts,
+): Promise<void> {
+  const { task, completion } = opts;
+
+  await setStatus(task.id, "completed");
+  await insertEvent(task.id, "running", "completed", {
+    changedFiles: completion.changedFiles,
+  });
+}
+
+/** The container pushed a branch — open the PR for it. */
+async function openStationPr(opts: FinalizeStationRunOpts): Promise<void> {
   const { task, targetRepo, branch, completion, project } = opts;
+  const copy = await generateArtifactCopy({
+    kind: "pr",
+    taskType: task.task_type,
+    description: task.description,
+    agentOutput: completion.output,
+    changedFiles: completion.changedFiles,
+    repo: targetRepo,
+  });
+  const footer = prFooter({
+    issueNumber: task.issue_number ?? undefined,
+    taskId: task.id,
+  });
+  const pr = await project.pulls.open(branch, {
+    title: copy.title,
+    body: `${copy.body}${footer}`,
+    base: await project.repo.defaultBranch(),
+    labels: ["needs-review"],
+  });
 
-  if (completion.exitCode !== 0) {
-    // Surface the container's own logs — exit 128 is almost always a git/clone failure whose cause is only in the output.
-    const tail = stationLogTail(completion.output);
-    const reason = `Station exited ${completion.exitCode}.${tail ? `\n\n${tail}` : ""}`;
+  await setStatus(task.id, "pr-created", {
+    pr_url: pr.url,
+    pr_number: pr.number,
+    target_branch: branch,
+  });
+  await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
+  // The feature's own move to `pr-open` is NOT done here — `spec-pr.ts` owns that transition (FR6.33).
+}
 
-    await markFailedPlanningIteration(task, project);
-    await setStatus(task.id, "failed", { failure_reason: reason });
-    await insertEvent(task.id, "running", "failed", {
-      reason: `station exit ${completion.exitCode}`,
-      exit_code: completion.exitCode,
-    });
+async function markPlanningResultReady(
+  task: PipelineTask,
+  featureId: string | undefined,
+  iteration: number | undefined,
+): Promise<void> {
+  await setStatus(task.id, "completed");
+  await insertEvent(task.id, "running", "completed", {
+    feature_id: featureId,
+    iteration,
+  });
+}
 
-    return;
-  }
-
-  // Non-planning, no file changes → no PR. Just close the task out.
-  if (task.task_type !== "feature-planning" && completion.changedFiles === 0) {
-    await setStatus(task.id, "completed");
-    await insertEvent(task.id, "running", "completed", {
-      changedFiles: completion.changedFiles,
-    });
-
-    return;
-  }
-
-  if (task.task_type !== "feature-planning") {
-    // The container pushed a branch — open the PR for it.
-    const copy = await generateArtifactCopy({
-      kind: "pr",
-      taskType: task.task_type,
-      description: task.description,
-      agentOutput: completion.output,
-      changedFiles: completion.changedFiles,
-      repo: targetRepo,
-    });
-    const footer = prFooter({
-      issueNumber: task.issue_number ?? undefined,
-      taskId: task.id,
-    });
-    const pr = await project.pulls.open(branch, {
-      title: copy.title,
-      body: `${copy.body}${footer}`,
-      base: await project.repo.defaultBranch(),
-      labels: ["needs-review"],
-    });
-
-    await setStatus(task.id, "pr-created", {
-      pr_url: pr.url,
-      pr_number: pr.number,
-      target_branch: branch,
-    });
-    await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
-
-    // The feature's own move to `pr-open` is NOT done here — `spec-pr.ts` owns that transition (FR6.33).
-    return;
-  }
-
-  // feature-planning self-POSTs its GapResult; verify it landed — exit 0 with nothing posted must surface as a failure, not a silent stuck "analyzing".
-  const featureId = task.context_bundle?.feature_id as string | undefined;
-  const iteration = task.context_bundle?.iteration as number | undefined;
-  const feature = featureId ? await project.features.get(featureId) : null;
-  const row = feature?.iterations.find((i) => i.iteration === iteration);
-
-  if (row?.status === "ready" && row.gap_result) {
-    await setStatus(task.id, "completed");
-    await insertEvent(task.id, "running", "completed", {
-      feature_id: featureId,
-      iteration,
-    });
-
-    return;
-  }
+async function markPlanningResultMissing(
+  opts: FinalizeStationRunOpts,
+  featureId: string | undefined,
+  iteration: number | undefined,
+): Promise<void> {
+  const { task, completion, project } = opts;
   const tail = stationLogTail(completion.output);
   const reason =
     `Planning run finished (exit 0) but posted no result — the agent did not produce a result.json the container could POST.` +
@@ -144,6 +147,68 @@ export async function finalizeStationRun(opts: {
   await insertEvent(task.id, "running", "failed", {
     reason: "planning posted no result",
   });
+}
+
+async function findPlanningIterationRow(
+  project: Project,
+  featureId: string | undefined,
+  iteration: number | undefined,
+) {
+  const feature = featureId ? await project.features.get(featureId) : null;
+
+  return feature?.iterations.find((i) => i.iteration === iteration);
+}
+
+function isPlanningResultReady(
+  row: Awaited<ReturnType<typeof findPlanningIterationRow>>,
+): boolean {
+  return row?.status === "ready" && Boolean(row.gap_result);
+}
+
+/** feature-planning self-POSTs its GapResult; verify it landed — exit 0 with nothing posted must surface as a failure, not a silent stuck "analyzing". */
+async function finalizePlanningResult(
+  opts: FinalizeStationRunOpts,
+): Promise<void> {
+  const { task, project } = opts;
+  const featureId = task.context_bundle?.feature_id as string | undefined;
+  const iteration = task.context_bundle?.iteration as number | undefined;
+  const row = await findPlanningIterationRow(project, featureId, iteration);
+
+  if (isPlanningResultReady(row)) {
+    await markPlanningResultReady(task, featureId, iteration);
+
+    return;
+  }
+  await markPlanningResultMissing(opts, featureId, iteration);
+}
+
+/** Finalize a synchronous (Docker) Station run inline — no loretask-watcher locally (ADR-028); mirrors the K8s watcher's post-completion behavior. */
+export async function finalizeStationRun(
+  opts: FinalizeStationRunOpts,
+): Promise<void> {
+  const { task, completion } = opts;
+
+  if (completion.exitCode !== 0) {
+    await handleStationExitFailure(opts);
+
+    return;
+  }
+
+  const isPlanning = task.task_type === "feature-planning";
+
+  if (!isPlanning && completion.changedFiles === 0) {
+    await handleNoChangeCompletion(opts);
+
+    return;
+  }
+
+  if (!isPlanning) {
+    await openStationPr(opts);
+
+    return;
+  }
+
+  await finalizePlanningResult(opts);
 }
 
 async function markFailedPlanningIteration(
