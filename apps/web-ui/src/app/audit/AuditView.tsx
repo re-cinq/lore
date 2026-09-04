@@ -3,6 +3,7 @@ import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
 import { displayAgentId } from "@/lib/agent-id";
 import { EmptyState } from "@/components/EmptyState";
+import DataTable from "@/components/DataTable";
 import styles from "./AuditView.module.css";
 import type { components } from "@/lib/api/schema";
 
@@ -37,38 +38,8 @@ export default function AuditView({
   hasPrev,
   hasNext,
 }: AuditViewProps) {
-  function buildUrl(newOffset: number): string {
-    const p = new URLSearchParams();
-
-    if (agent) {
-      p.set("agent", agent);
-    }
-
-    if (op) {
-      p.set("op", op);
-    }
-
-    if (newOffset > 0) {
-      p.set("offset", String(newOffset));
-    }
-    const qs = p.toString();
-
-    return `/audit${qs ? `?${qs}` : ""}`;
-  }
-
-  const emptyState =
-    agent || op || totalCount > 0 ? (
-      <EmptyState
-        title="No entries match these filters"
-        description="Try a different agent or operation."
-        action={{ href: "/audit", label: "Clear filters" }}
-      />
-    ) : (
-      <EmptyState
-        title="No activity recorded yet"
-        description="Entries appear here as agents read and write memory."
-      />
-    );
+  const pageUrl = (newOffset: number) =>
+    auditUrl({ agent, op, offset: newOffset });
 
   return (
     <div>
@@ -77,73 +48,33 @@ export default function AuditView({
         Every memory read and write across the org, in time order. Filter by
         agent or operation.
       </p>
-      <form method="get" className="filter-form">
-        <input
-          type="text"
-          name="agent"
-          defaultValue={agent || ""}
-          placeholder="Filter by agent ID..."
-        />
-        <select name="op" defaultValue={op || ""}>
-          <option value="">All operations</option>
-          {operations.map((o) => (
-            <option key={o} value={o}>
-              {formatEnumLabel(o)}
-            </option>
-          ))}
-        </select>
-        <button type="submit">Filter</button>
-      </form>
+      <AuditFilters agent={agent} op={op} operations={operations} />
       <p className={`meta ${styles.count}`}>{totalCount} total entries</p>
-      <table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Agent</th>
-            <th>Operation</th>
-            <th>Key</th>
-            <th>Pool</th>
-            <th>Details</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => (
-            <tr key={e.id}>
-              <td>
-                <TimeAgo date={e.created_at} />
-              </td>
-              <td title={e.agent_id}>{displayAgentId(e.agent_id)}</td>
-              <td>
-                <span className={`op-badge op-${e.operation}`}>
-                  {formatEnumLabel(e.operation)}
-                </span>
-              </td>
-              <td>{e.memory_key || "—"}</td>
-              <td>{e.pool_name || "—"}</td>
-              <td>
-                {e.metadata ? (
-                  <details>
-                    <summary className="meta">view</summary>
-                    <pre className={styles.metadata}>
-                      {JSON.stringify(e.metadata, null, 2)}
-                    </pre>
-                  </details>
-                ) : (
-                  "—"
-                )}
-              </td>
-            </tr>
-          ))}
-          {entries.length === 0 && (
-            <tr>
-              <td colSpan={6}>{emptyState}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <DataTable
+        columns={["Time", "Agent", "Operation", "Key", "Pool", "Details"]}
+        rows={entries}
+        rowKey={(e) => e.id}
+        empty={<AuditEmptyState filtered={!!(agent || op || totalCount > 0)} />}
+        cells={(e) => [
+          <TimeAgo date={e.created_at} key="time" />,
+          <span title={e.agent_id} key="agent">
+            {displayAgentId(e.agent_id)}
+          </span>,
+          <span className={`op-badge op-${e.operation}`} key="op">
+            {formatEnumLabel(e.operation)}
+          </span>,
+          e.memory_key || "—",
+          e.pool_name || "—",
+          e.metadata ? (
+            <MetadataDetails metadata={e.metadata} key="meta" />
+          ) : (
+            "—"
+          ),
+        ]}
+      />
       <div className="pagination">
         <Link
-          href={buildUrl(offset - pageSize)}
+          href={pageUrl(offset - pageSize)}
           className={hasPrev ? "" : "disabled"}
         >
           &larr; Previous
@@ -153,12 +84,99 @@ export default function AuditView({
           {totalCount}
         </span>
         <Link
-          href={buildUrl(offset + pageSize)}
+          href={pageUrl(offset + pageSize)}
           className={hasNext ? "" : "disabled"}
         >
           Next &rarr;
         </Link>
       </div>
     </div>
+  );
+}
+
+/** The current filters carried into a page link, so paging never silently widens the view. */
+function auditUrl({
+  agent,
+  op,
+  offset,
+}: {
+  agent?: string | null;
+  op?: string | null;
+  offset: number;
+}): string {
+  const p = new URLSearchParams();
+
+  if (agent) {
+    p.set("agent", agent);
+  }
+
+  if (op) {
+    p.set("op", op);
+  }
+
+  if (offset > 0) {
+    p.set("offset", String(offset));
+  }
+  const qs = p.toString();
+
+  return `/audit${qs ? `?${qs}` : ""}`;
+}
+
+function AuditFilters({
+  agent,
+  op,
+  operations,
+}: {
+  agent?: string | null;
+  op?: string | null;
+  operations: string[];
+}) {
+  return (
+    <form method="get" className="filter-form">
+      <input
+        type="text"
+        name="agent"
+        defaultValue={agent || ""}
+        placeholder="Filter by agent ID..."
+      />
+      <select name="op" defaultValue={op || ""}>
+        <option value="">All operations</option>
+        {operations.map((o) => (
+          <option key={o} value={o}>
+            {formatEnumLabel(o)}
+          </option>
+        ))}
+      </select>
+      <button type="submit">Filter</button>
+    </form>
+  );
+}
+
+/** An empty page under a filter is a different story from an empty trail, and only the first one has an action. */
+function AuditEmptyState({ filtered }: { filtered: boolean }) {
+  if (filtered) {
+    return (
+      <EmptyState
+        title="No entries match these filters"
+        description="Try a different agent or operation."
+        action={{ href: "/audit", label: "Clear filters" }}
+      />
+    );
+  }
+
+  return (
+    <EmptyState
+      title="No activity recorded yet"
+      description="Entries appear here as agents read and write memory."
+    />
+  );
+}
+
+function MetadataDetails({ metadata }: { metadata: unknown }) {
+  return (
+    <details>
+      <summary className="meta">view</summary>
+      <pre className={styles.metadata}>{JSON.stringify(metadata, null, 2)}</pre>
+    </details>
   );
 }

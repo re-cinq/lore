@@ -30,35 +30,18 @@ export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
   if (runs.length === 0) {
     return <p className={styles.empty}>No assembly line runs.</p>;
   }
-
   const skipCount = runs.filter(isCoordinationSkip).length;
   const skipLabel = `${skipCount} coordination skip${skipCount === 1 ? "" : "s"}`;
+  // A coordination skip did no work — it deferred to a run already holding the branch — so it stays hidden unless asked for.
   const visibleRuns = showSkips
     ? runs
     : runs.filter((r) => !isCoordinationSkip(r));
-  const noVisibleRuns = visibleRuns.length === 0;
 
   return (
     <table className={styles.table}>
-      <thead>
-        <tr>
-          <th>Definition</th>
-          <th>Repo</th>
-          <th>Branch</th>
-          <th>Status</th>
-          <th>PR</th>
-          <th>Duration</th>
-          <th>Started</th>
-          <th title="Who triggered the run — the task creator, or the commenter/reviewer/PR author for webhook-driven lines">
-            By
-          </th>
-          <th title="LLM cost — the backing task's total (shared across its run attempts), or the run's own cost for task-less lines">
-            Cost
-          </th>
-        </tr>
-      </thead>
+      <RunsTableHead />
       <tbody>
-        {noVisibleRuns ? (
+        {visibleRuns.length === 0 ? (
           <tr>
             <td colSpan={TABLE_COLUMNS} className={styles.empty}>
               All runs are coordination skips — use the toggle below to reveal
@@ -66,64 +49,7 @@ export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
             </td>
           </tr>
         ) : (
-          visibleRuns.map((run) => {
-            const visual = runStatusVisual(run.status, run.outcome);
-
-            return (
-              <tr key={run.id}>
-                <td>
-                  <Link href={`/assembly-runs/${run.id}`}>
-                    {run.blueprintName}
-                  </Link>
-                  <span className={styles.subId}>
-                    #{run.id.substring(0, 8)}
-                  </span>
-                </td>
-                <td>
-                  <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
-                </td>
-                <td className={styles.branch}>
-                  {run.branch ? (
-                    <span className={styles.branchText} title={run.branch}>
-                      {run.branch}
-                    </span>
-                  ) : (
-                    EM_DASH
-                  )}
-                </td>
-                <td>
-                  <span
-                    className={`${styles.dot} ${styles[visual.tone]}`}
-                    aria-hidden="true"
-                  />
-                  {visual.label}
-                  {run.status === "failed" && run.reason ? (
-                    <span className={styles.reason}>{run.reason}</span>
-                  ) : null}
-                </td>
-                <td>
-                  {run.prUrl && run.prNumber ? (
-                    <span className={styles.pr}>
-                      <a href={run.prUrl} target="_blank" rel="noreferrer">
-                        #{run.prNumber}
-                      </a>
-                      {run.taskId ? (
-                        <PRStatusBadgePanel taskId={run.taskId} />
-                      ) : null}
-                    </span>
-                  ) : (
-                    EM_DASH
-                  )}
-                </td>
-                <td>{formatDuration(run.durationSeconds)}</td>
-                <td>{formatRelativeTime(run.startedAt ?? run.createdAt)}</td>
-                <td>{run.createdBy ? shortAgentId(run.createdBy) : EM_DASH}</td>
-                <td>
-                  {run.costUsd !== null ? formatCost(run.costUsd) : EM_DASH}
-                </td>
-              </tr>
-            );
-          })
+          visibleRuns.map((run) => <RunRow run={run} key={run.id} />)
         )}
       </tbody>
       {skipCount > 0 ? (
@@ -144,5 +70,85 @@ export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
         </tfoot>
       ) : null}
     </table>
+  );
+}
+
+function RunsTableHead() {
+  return (
+    <thead>
+      <tr>
+        <th>Definition</th>
+        <th>Repo</th>
+        <th>Branch</th>
+        <th>Status</th>
+        <th>PR</th>
+        <th>Duration</th>
+        <th>Started</th>
+        <th title="Who triggered the run — the task creator, or the commenter/reviewer/PR author for webhook-driven lines">
+          By
+        </th>
+        <th title="LLM cost — the backing task's total (shared across its run attempts), or the run's own cost for task-less lines">
+          Cost
+        </th>
+      </tr>
+    </thead>
+  );
+}
+
+function RunRow({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
+  const visual = runStatusVisual(run.status, run.outcome);
+
+  return (
+    <tr>
+      <td>
+        <Link href={`/assembly-runs/${run.id}`}>{run.blueprintName}</Link>
+        <span className={styles.subId}>#{run.id.substring(0, 8)}</span>
+      </td>
+      <td>
+        <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
+      </td>
+      <td className={styles.branch}>
+        {run.branch ? (
+          <span className={styles.branchText} title={run.branch}>
+            {run.branch}
+          </span>
+        ) : (
+          EM_DASH
+        )}
+      </td>
+      <td>
+        <span
+          className={`${styles.dot} ${styles[visual.tone]}`}
+          aria-hidden="true"
+        />
+        {visual.label}
+        {run.status === "failed" && run.reason ? (
+          <span className={styles.reason}>{run.reason}</span>
+        ) : null}
+      </td>
+      <td>
+        <RunPrCell run={run} />
+      </td>
+      <td>{formatDuration(run.durationSeconds)}</td>
+      <td>{formatRelativeTime(run.startedAt ?? run.createdAt)}</td>
+      <td>{run.createdBy ? shortAgentId(run.createdBy) : EM_DASH}</td>
+      <td>{run.costUsd !== null ? formatCost(run.costUsd) : EM_DASH}</td>
+    </tr>
+  );
+}
+
+/** The PR badge is task-scoped, so a task-less line shows its PR link without one. */
+function RunPrCell({ run }: { run: AssemblyRunsTableProps["runs"][number] }) {
+  if (!run.prUrl || !run.prNumber) {
+    return <>{EM_DASH}</>;
+  }
+
+  return (
+    <span className={styles.pr}>
+      <a href={run.prUrl} target="_blank" rel="noreferrer">
+        #{run.prNumber}
+      </a>
+      {run.taskId ? <PRStatusBadgePanel taskId={run.taskId} /> : null}
+    </span>
   );
 }
