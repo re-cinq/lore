@@ -315,75 +315,20 @@ interface SpendWindow {
 async function readLlmSpend(pool: Pool, win: SpendWindow) {
   const { fromTs, toTs } = win;
 
-  const { rows: totals } = await pool.query(
-    `SELECT count(*)::int AS calls, coalesce(sum(cost_usd), 0)::float AS usd,
-            coalesce(sum(input_tokens), 0)::float AS input_tokens,
-            coalesce(sum(output_tokens), 0)::float AS output_tokens
-       FROM pipeline.llm_calls
-      WHERE created_at >= $1 AND created_at < $2`,
-    [fromTs, toTs],
-  );
-  const { rows: byBlueprint } = await pool.query(
-    `SELECT ar.blueprint_name AS blueprint,
-            count(DISTINCT ar.id)::int AS runs,
-            coalesce(sum(l.cost_usd), 0)::float AS usd
-       FROM pipeline.llm_calls l
-       JOIN pipeline.assembly_runs ar ON ar.id = l.assembly_line_id
-      WHERE l.created_at >= $1 AND l.created_at < $2
-      GROUP BY 1 ORDER BY 3 DESC`,
-    [fromTs, toTs],
-  );
-  const { rows: byRepo } = await pool.query(
-    `SELECT ar.repo, coalesce(sum(l.cost_usd), 0)::float AS usd
-       FROM pipeline.llm_calls l
-       JOIN pipeline.assembly_runs ar ON ar.id = l.assembly_line_id
-      WHERE l.created_at >= $1 AND l.created_at < $2
-      GROUP BY 1 ORDER BY 2 DESC`,
-    [fromTs, toTs],
-  );
-  const { rows: byModel } = await pool.query(
-    `SELECT model, COUNT(*)::int AS calls, SUM(cost_usd)::float8 AS cost_usd,
-            SUM(input_tokens)::float8 AS input_tokens,
-            SUM(output_tokens)::float8 AS output_tokens
-       FROM pipeline.llm_calls
-      WHERE created_at >= $1 AND created_at < $2
-      GROUP BY model ORDER BY cost_usd DESC`,
-    [fromTs, toTs],
-  );
+  const { rows: totals } = await pool.query(TOTALS_SQL, [fromTs, toTs]);
+  const { rows: byBlueprint } = await pool.query(BY_BLUEPRINT_SQL, [
+    fromTs,
+    toTs,
+  ]);
+  const { rows: byRepo } = await pool.query(BY_REPO_SQL, [fromTs, toTs]);
+  const { rows: byModel } = await pool.query(BY_MODEL_SQL, [fromTs, toTs]);
   // The only view that separates code-review lines (task-less) from tasks from the memory/curation jobs.
-  const { rows: byKind } = await pool.query(
-    `SELECT
-       CASE
-         WHEN task_id IS NULL AND assembly_line_id IS NOT NULL
-           THEN 'Code review / detection line'
-         WHEN task_id IS NOT NULL
-           THEN 'Task (implementation / spec / general)'
-         WHEN job_name IN ('fact-extraction','graph-extraction','consolidation','auto-curation')
-           THEN 'Memory & curation'
-         ELSE COALESCE(NULLIF(job_name, ''), 'other')
-       END AS kind,
-       COUNT(*)::int AS calls, SUM(cost_usd)::float8 AS cost_usd
-       FROM pipeline.llm_calls
-      WHERE created_at >= $1 AND created_at < $2
-      GROUP BY 1 ORDER BY cost_usd DESC`,
-    [fromTs, toTs],
-  );
-  const { rows: daily } = await pool.query(
-    `SELECT created_at::date::text AS bucket_date, COUNT(*)::int AS calls,
-            SUM(cost_usd)::float8 AS cost_usd
-       FROM pipeline.llm_calls
-      WHERE created_at >= $1 AND created_at < $2
-      GROUP BY 1 ORDER BY 1 DESC`,
-    [fromTs, toTs],
-  );
-  const { rows: byTaskType } = await pool.query(
-    `SELECT t.task_type, COUNT(DISTINCT t.id)::int AS tasks,
-            SUM(lc.cost_usd)::float8 AS cost_usd
-       FROM pipeline.llm_calls lc JOIN pipeline.tasks t ON t.id = lc.task_id
-      WHERE lc.created_at >= $1 AND lc.created_at < $2
-      GROUP BY t.task_type ORDER BY cost_usd DESC`,
-    [fromTs, toTs],
-  );
+  const { rows: byKind } = await pool.query(BY_KIND_SQL, [fromTs, toTs]);
+  const { rows: daily } = await pool.query(DAILY_SQL, [fromTs, toTs]);
+  const { rows: byTaskType } = await pool.query(BY_TASK_TYPE_SQL, [
+    fromTs,
+    toTs,
+  ]);
   // LEFT JOINs on purpose: a direct-API call has no cluster_agent_id and must land in the null bucket, not be dropped by an inner join; optionalTableRows since station_runs/cluster_agents are migration-gated.
   const byCluster = await optionalTableRows<{
     cluster: string | null;
@@ -426,6 +371,60 @@ async function readLlmSpend(pool: Pool, win: SpendWindow) {
     by_cluster: byCluster,
   };
 }
+
+const TOTALS_SQL = `SELECT count(*)::int AS calls, coalesce(sum(cost_usd), 0)::float AS usd,
+            coalesce(sum(input_tokens), 0)::float AS input_tokens,
+            coalesce(sum(output_tokens), 0)::float AS output_tokens
+       FROM pipeline.llm_calls
+      WHERE created_at >= $1 AND created_at < $2`;
+
+const BY_BLUEPRINT_SQL = `SELECT ar.blueprint_name AS blueprint,
+            count(DISTINCT ar.id)::int AS runs,
+            coalesce(sum(l.cost_usd), 0)::float AS usd
+       FROM pipeline.llm_calls l
+       JOIN pipeline.assembly_runs ar ON ar.id = l.assembly_line_id
+      WHERE l.created_at >= $1 AND l.created_at < $2
+      GROUP BY 1 ORDER BY 3 DESC`;
+
+const BY_REPO_SQL = `SELECT ar.repo, coalesce(sum(l.cost_usd), 0)::float AS usd
+       FROM pipeline.llm_calls l
+       JOIN pipeline.assembly_runs ar ON ar.id = l.assembly_line_id
+      WHERE l.created_at >= $1 AND l.created_at < $2
+      GROUP BY 1 ORDER BY 2 DESC`;
+
+const BY_MODEL_SQL = `SELECT model, COUNT(*)::int AS calls, SUM(cost_usd)::float8 AS cost_usd,
+            SUM(input_tokens)::float8 AS input_tokens,
+            SUM(output_tokens)::float8 AS output_tokens
+       FROM pipeline.llm_calls
+      WHERE created_at >= $1 AND created_at < $2
+      GROUP BY model ORDER BY cost_usd DESC`;
+
+const BY_KIND_SQL = `SELECT
+       CASE
+         WHEN task_id IS NULL AND assembly_line_id IS NOT NULL
+           THEN 'Code review / detection line'
+         WHEN task_id IS NOT NULL
+           THEN 'Task (implementation / spec / general)'
+         WHEN job_name IN ('fact-extraction','graph-extraction','consolidation','auto-curation')
+           THEN 'Memory & curation'
+         ELSE COALESCE(NULLIF(job_name, ''), 'other')
+       END AS kind,
+       COUNT(*)::int AS calls, SUM(cost_usd)::float8 AS cost_usd
+       FROM pipeline.llm_calls
+      WHERE created_at >= $1 AND created_at < $2
+      GROUP BY 1 ORDER BY cost_usd DESC`;
+
+const DAILY_SQL = `SELECT created_at::date::text AS bucket_date, COUNT(*)::int AS calls,
+            SUM(cost_usd)::float8 AS cost_usd
+       FROM pipeline.llm_calls
+      WHERE created_at >= $1 AND created_at < $2
+      GROUP BY 1 ORDER BY 1 DESC`;
+
+const BY_TASK_TYPE_SQL = `SELECT t.task_type, COUNT(DISTINCT t.id)::int AS tasks,
+            SUM(lc.cost_usd)::float8 AS cost_usd
+       FROM pipeline.llm_calls lc JOIN pipeline.tasks t ON t.id = lc.task_id
+      WHERE lc.created_at >= $1 AND lc.created_at < $2
+      GROUP BY t.task_type ORDER BY cost_usd DESC`;
 
 interface BilledAnthropicTotals {
   totalUsd: number;
@@ -636,25 +635,7 @@ async function readComputeSpend(
     est_usd: Math.round(row.hours * profileRate * 100) / 100,
   }));
 
-  const nowMs = deps.now().getTime();
-  // A live-read failure yields an empty list — the metered numbers must render regardless of the cluster.
-  const livePods = await deps.livePods().catch(() => []);
-  const live = livePods.map((pod) => {
-    const usdPerHour = podHourlyUsd(pod.requests, rates);
-    const hours = pod.startedAt
-      ? Math.max(0, nowMs - Date.parse(pod.startedAt)) / 3_600_000
-      : 0;
-
-    return {
-      name: pod.name,
-      phase: pod.phase,
-      started_at: pod.startedAt,
-      requests: pod.requests,
-      usd_per_hour: Math.round(usdPerHour * 10000) / 10000,
-      usd_so_far: Math.round(usdPerHour * hours * 10000) / 10000,
-      station_run_id: pod.labels["lore.re-cinq.com/station-run-id"] ?? null,
-    };
-  });
+  const live = await readLivePods(deps, rates);
 
   return {
     rates: {
@@ -671,6 +652,32 @@ async function readComputeSpend(
       Math.round(live.reduce((sum, p) => sum + p.usd_per_hour, 0) * 10000) /
       10000,
   };
+}
+
+/** What the pods running right now are spending. A live-read failure yields an empty list — the metered numbers must render regardless of the cluster. */
+async function readLivePods(
+  deps: SpendWindowDeps,
+  rates: ReturnType<typeof ratesFromEnv>,
+) {
+  const nowMs = deps.now().getTime();
+  const livePods = await deps.livePods().catch(() => []);
+
+  return livePods.map((pod) => {
+    const usdPerHour = podHourlyUsd(pod.requests, rates);
+    const hours = pod.startedAt
+      ? Math.max(0, nowMs - Date.parse(pod.startedAt)) / 3_600_000
+      : 0;
+
+    return {
+      name: pod.name,
+      phase: pod.phase,
+      started_at: pod.startedAt,
+      requests: pod.requests,
+      usd_per_hour: Math.round(usdPerHour * 10000) / 10000,
+      usd_so_far: Math.round(usdPerHour * hours * 10000) / 10000,
+      station_run_id: pod.labels["lore.re-cinq.com/station-run-id"] ?? null,
+    };
+  });
 }
 
 /** The recorded balance, which is NOT interval-scoped: a ledger is a running total, and clipping it to a window would report a balance the account never had. */
