@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // The CI half of the incremental-ingest handshake (specs/ci-incremental-ingest
@@ -92,41 +93,68 @@ func fetchIngestState(ctx context.Context, apiBase, token, repo string, client *
 	return body.Commit, nil
 }
 
-// postIngestDelta sends one delta. A 409 comes back typed so the caller can
-// re-diff; a 404 comes back as errIngestRouteAbsent so it can fall back.
+// postIngestDelta sends one delta under the webhook path's retry policy: a
+// transport error, a 5xx or a 429 earns another attempt with the same backoff
+// (ingest is idempotent, so a re-send is always safe), while a 409 comes back
+// typed at once — a lost CAS can only lose again with the same base, the flow
+// re-diffs instead — and a 404 comes back as errIngestRouteAbsent so the caller
+// can fall back. Any other 4xx is a real client error and aborts immediately.
+//
+// The bootstrap full ingests on 2026-09-03 (26-40 chunks each) died mid-sequence
+// on exactly the transients this covers — a 502 during a deploy, a connection
+// reset, a client timeout — and because the state advances only with the final
+// chunk, each failure made the NEXT push a full ingest again.
 func postIngestDelta(ctx context.Context, apiBase, token, repo string, d ingestDelta, client *http.Client) error {
 	b, err := json.Marshal(d)
 	if err != nil {
 		return fmt.Errorf("encoding delta: %w", err)
 	}
+	var lastErr error
+	for attempt := 1; attempt <= postAttempts; attempt++ {
+		if attempt > 1 {
+			failed := attempt - 1
+			retrySleep(time.Duration(failed*failed) * 2 * time.Second)
+		}
+		err, retry := sendIngestDelta(ctx, apiBase, token, repo, b, client)
+		if !retry {
+			return err
+		}
+		lastErr = err
+	}
+	return fmt.Errorf("%w (after %d attempts)", lastErr, postAttempts)
+}
+
+// sendIngestDelta is one attempt. The second result says whether the failure is
+// worth another try.
+func sendIngestDelta(ctx context.Context, apiBase, token, repo string, body []byte, client *http.Client) (error, bool) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		repoURL(apiBase, repo, "/ingest"), bytes.NewReader(b))
+		repoURL(apiBase, repo, "/ingest"), bytes.NewReader(body))
 	if err != nil {
-		return err
+		return err, false
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("posting delta: %w", err)
+		return fmt.Errorf("posting delta: %w", err), true
 	}
 	defer resp.Body.Close()
 	switch {
 	case resp.StatusCode < 300:
 		io.Copy(io.Discard, resp.Body)
-		return nil
+		return nil, false
 	case resp.StatusCode == http.StatusNotFound:
 		io.Copy(io.Discard, resp.Body)
-		return errIngestRouteAbsent
+		return errIngestRouteAbsent, false
 	case resp.StatusCode == http.StatusConflict:
-		var body struct {
+		var conflict struct {
 			Commit string `json:"commit"`
 		}
-		json.NewDecoder(resp.Body).Decode(&body)
-		return &staleStateError{Current: body.Commit}
+		json.NewDecoder(resp.Body).Decode(&conflict)
+		return &staleStateError{Current: conflict.Commit}, false
 	default:
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return fmt.Errorf("ingest returned %s: %s", resp.Status, bytes.TrimSpace(msg))
+		return fmt.Errorf("ingest returned %s: %s", resp.Status, bytes.TrimSpace(msg)), retryable(resp.StatusCode)
 	}
 }
 
