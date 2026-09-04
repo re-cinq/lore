@@ -10,6 +10,7 @@ import type {
 import ConnectClusterPanel from "./ConnectClusterPanel";
 import PauseClusterButton from "./PauseClusterButton";
 import RestartClusterButton from "./RestartClusterButton";
+import DataTable from "@/components/DataTable";
 
 /** Central cluster: lore-api dials static in-cluster address; satellites have no inbound path. */
 const CENTRAL_CLUSTER_AGENT_NAME = "central";
@@ -58,72 +59,50 @@ export default function ClusterAgentsView({
           description="A cluster-agent joins this roster when it registers against the Lore API."
         />
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Tags</th>
-              <th>Status</th>
-              <th>Last seen</th>
-              <th>Running claims</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {agents.map((agent) => (
-              <tr key={agent.id}>
-                <td>{agent.name}</td>
-                <td>
-                  {agent.tags.length === 0
-                    ? "—"
-                    : agent.tags.map((tag) => (
-                        <span key={tag} className="badge badge-gray">
-                          {tag}
-                        </span>
-                      ))}
-                </td>
-                <td>
-                  <span
-                    className={`badge ${
-                      agent.status === "offline" ? "badge-red" : "badge-green"
-                    }`}
-                  >
-                    {agent.status}
-                  </span>
-                  {/* Liveness and paused status are independent; both badges can show. */}
-                  {agent.paused && (
-                    <span className="badge badge-gray">paused</span>
-                  )}
-                </td>
-                <td>
-                  <TimeAgo date={agent.last_seen_at} />
-                </td>
-                <td>
-                  {agent.running_claims > 0 ? (
-                    <Link href={`/assembly-runs?cluster_agent_id=${agent.id}`}>
-                      {agent.running_claims}
-                    </Link>
-                  ) : (
-                    agent.running_claims
-                  )}
-                </td>
-                <td>
-                  {/* BOUND via .bind() — inline arrow would not serialize to client component. */}
-                  <PauseClusterButton
-                    paused={agent.paused}
-                    toggle={togglePaused.bind(null, agent.id)}
-                  />
-                  {agent.name === CENTRAL_CLUSTER_AGENT_NAME && (
-                    <RestartClusterButton
-                      restart={restart.bind(null, agent.id)}
-                    />
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          columns={[
+            "Name",
+            "Tags",
+            "Status",
+            "Last seen",
+            "Running claims",
+            "",
+          ]}
+          rows={agents}
+          rowKey={(agent) => agent.id}
+          cells={(agent) => [
+            agent.name,
+            <ClusterTags tags={agent.tags} key="tags" />,
+            <ClusterStatus
+              status={agent.status}
+              paused={agent.paused}
+              key="status"
+            />,
+            <TimeAgo date={agent.last_seen_at} key="seen" />,
+            agent.running_claims > 0 ? (
+              <Link
+                href={`/assembly-runs?cluster_agent_id=${agent.id}`}
+                key="claims"
+              >
+                {agent.running_claims}
+              </Link>
+            ) : (
+              agent.running_claims
+            ),
+            // BOUND via .bind() — an inline arrow would not serialize to a client component.
+            <span key="actions">
+              <PauseClusterButton
+                paused={agent.paused}
+                toggle={togglePaused.bind(null, agent.id)}
+              />
+              {agent.name === CENTRAL_CLUSTER_AGENT_NAME && (
+                <RestartClusterButton restart={restart.bind(null, agent.id)} />
+              )}
+            </span>,
+          ]}
+        />
       )}
+
       <h2>Recent offline events</h2>
       <p className="meta">
         A row appears when the reaper marks a cluster offline and requeues a
@@ -132,48 +111,67 @@ export default function ClusterAgentsView({
       {offlineEvents.length === 0 ? (
         <Alert variant="secondary">No offline events recorded.</Alert>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Cluster</th>
-              <th>Node</th>
-              <th>Assembly run</th>
-              <th>Held for</th>
-            </tr>
-          </thead>
-          <tbody>
-            {offlineEvents.map((event, index) => (
-              <tr key={`${event.created_at}-${event.station_run_id ?? index}`}>
-                <td>
-                  <TimeAgo date={event.created_at} />
-                </td>
-                <td>
-                  {event.cluster_agent_id
-                    ? (nameById.get(event.cluster_agent_id) ??
-                      event.cluster_agent_id)
-                    : "—"}
-                </td>
-                <td>{event.node_id ?? "—"}</td>
-                <td>
-                  {event.assembly_run_id ? (
-                    <Link href={`/assembly-runs/${event.assembly_run_id}`}>
-                      {event.assembly_run_id.slice(0, 8)}
-                    </Link>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td>
-                  {event.elapsed_since_claim_ms === null
-                    ? "—"
-                    : formatElapsed(event.elapsed_since_claim_ms)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          columns={["Time", "Cluster", "Node", "Assembly run", "Held for"]}
+          rows={offlineEvents}
+          rowKey={(event, index) =>
+            `${event.created_at}-${event.station_run_id ?? index}`
+          }
+          cells={(event) => [
+            <TimeAgo date={event.created_at} key="time" />,
+            event.cluster_agent_id
+              ? (nameById.get(event.cluster_agent_id) ?? event.cluster_agent_id)
+              : "—",
+            event.node_id ?? "—",
+            event.assembly_run_id ? (
+              <Link href={`/assembly-runs/${event.assembly_run_id}`} key="run">
+                {event.assembly_run_id.slice(0, 8)}
+              </Link>
+            ) : (
+              "—"
+            ),
+            event.elapsed_since_claim_ms === null
+              ? "—"
+              : formatElapsed(event.elapsed_since_claim_ms),
+          ]}
+        />
       )}
     </div>
+  );
+}
+
+function ClusterTags({ tags }: { tags: string[] }) {
+  if (tags.length === 0) {
+    return <>—</>;
+  }
+
+  return (
+    <>
+      {tags.map((tag) => (
+        <span key={tag} className="badge badge-gray">
+          {tag}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** Liveness and paused are independent, so both badges can show at once. */
+function ClusterStatus({
+  status,
+  paused,
+}: {
+  status: string;
+  paused: boolean;
+}) {
+  return (
+    <>
+      <span
+        className={`badge ${status === "offline" ? "badge-red" : "badge-green"}`}
+      >
+        {status}
+      </span>
+      {paused && <span className="badge badge-gray">paused</span>}
+    </>
   );
 }

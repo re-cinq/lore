@@ -52,7 +52,7 @@ describe("AuditView", () => {
     expect(screen.getByText("abcdef01…")).toBeInTheDocument();
     expect(screen.getByText("99887766…")).toBeInTheDocument();
     expect(
-      container.querySelector('td[title="abcdef0123456789"]'),
+      container.querySelector('[title="abcdef0123456789"]'),
     ).toBeInTheDocument();
     const writeBadge = container.querySelector(".op-badge.op-write");
 

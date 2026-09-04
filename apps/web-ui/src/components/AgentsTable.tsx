@@ -5,6 +5,7 @@ import HelpPopover from "@/components/HelpPopover";
 import { EmptyState } from "@/components/EmptyState";
 import { formatCost, truncate, displayCreatedBy } from "@/lib/task-presenter";
 import type { AgentKind } from "@/lib/agent-classify";
+import DataTable from "@/components/DataTable";
 import styles from "./AgentsTable.module.css";
 
 export interface AgentRow {
@@ -43,46 +44,17 @@ export default function AgentsTable({
   embedded = false,
 }: AgentsTableProps) {
   const [showTaskAgents, setShowTaskAgents] = useState(false);
-
   const taskAgentCount = agents.filter((a) => a.kind === "task").length;
+  // Task agents are ephemeral audit rows, so they stay behind the toggle until asked for.
   const visible = showTaskAgents
     ? agents
     : agents.filter((a) => a.kind === "local");
+  // The Why column exists only when some agent has a reason to show.
   const hasWhy = agents.some((a) => a.reason != null || a.reason_type != null);
-  const columnCount = hasWhy ? 8 : 7;
 
   return (
     <div>
-      {!embedded && (
-        <>
-          <div className={styles.head}>
-            <h2 className={styles.heading}>{title}</h2>
-            <HelpPopover label="What agents are">
-              <p>Two kinds of session show up here:</p>
-              <ul>
-                <li>
-                  <strong>Local MCP</strong> agents are developers&apos; own
-                  agents — your stable <code>~/.lore/agent-id</code>. They write{" "}
-                  <strong>memory</strong> and <strong>facts</strong> over the
-                  MCP server but never claim pipeline tasks.
-                </li>
-                <li>
-                  <strong>Task</strong> agents are ephemeral — one per pipeline
-                  task run. They exist for auditing, so they&apos;re hidden
-                  until you ask for them.
-                </li>
-              </ul>
-              <p>
-                <strong>Cost</strong> sums tracked <code>llm_calls</code>;
-                headless agent token spend is not metered, so it is a lower
-                bound.
-              </p>
-            </HelpPopover>
-          </div>
-          {intro && <p className={`meta ${styles.intro}`}>{intro}</p>}
-        </>
-      )}
-
+      {!embedded && <AgentsTableHeading title={title} intro={intro} />}
       {taskAgentCount > 0 && (
         <button
           type="button"
@@ -95,64 +67,97 @@ export default function AgentsTable({
             : `Show task agents (audit) — ${taskAgentCount} hidden`}
         </button>
       )}
-
-      <table>
-        <thead>
-          <tr>
-            <th>Agent</th>
-            <th>Type</th>
-            <th>Created by</th>
-            {hasWhy && <th>Why</th>}
-            <th>Tasks</th>
-            <th>Cost</th>
-            <th>Memories</th>
-            <th>Last Active</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.map((a, index) => (
-            <tr key={a.agent_id ?? `unattributed-${index}`}>
-              <td>
-                {a.agent_id ? (
-                  <a href={`/agents/${encodeURIComponent(a.agent_id)}`}>
-                    {a.agent_id}
-                  </a>
-                ) : (
-                  <span className="meta">—</span>
-                )}
-              </td>
-              <td>
-                <span className="badge">{KIND_LABEL[a.kind]}</span>
-              </td>
-              <td className="meta">{displayCreatedBy(a.created_by)}</td>
-              {hasWhy && (
-                <td>
+      <DataTable
+        columns={[
+          "Agent",
+          "Type",
+          "Created by",
+          ...(hasWhy ? ["Why"] : []),
+          "Tasks",
+          "Cost",
+          "Memories",
+          "Last Active",
+        ]}
+        rows={visible}
+        rowKey={(a, index) => a.agent_id ?? `unattributed-${index}`}
+        empty={
+          <EmptyState
+            title="No agents yet"
+            description="Agents appear as developers use the Lore MCP server. Per-task run agents stay behind the audit toggle."
+          />
+        }
+        cells={(a) => [
+          <AgentLink agentId={a.agent_id} key="agent" />,
+          <span className="badge" key="kind">
+            {KIND_LABEL[a.kind]}
+          </span>,
+          <span className="meta" key="by">
+            {displayCreatedBy(a.created_by)}
+          </span>,
+          ...(hasWhy
+            ? [
+                <span key="why">
                   {a.reason_type && (
                     <span className="badge">{a.reason_type}</span>
                   )}{" "}
                   <span className="meta">{truncate(a.reason, 50)}</span>
-                </td>
-              )}
-              <td>{a.task_count}</td>
-              <td>{formatCost(a.cost_usd)}</td>
-              <td>{a.memory_count}</td>
-              <td className="meta">
-                {a.last_active ? new Date(a.last_active).toLocaleString() : "—"}
-              </td>
-            </tr>
-          ))}
-          {visible.length === 0 && (
-            <tr>
-              <td colSpan={columnCount}>
-                <EmptyState
-                  title="No agents yet"
-                  description="Agents appear as developers use the Lore MCP server. Per-task run agents stay behind the audit toggle."
-                />
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+                </span>,
+              ]
+            : []),
+          a.task_count,
+          formatCost(a.cost_usd),
+          a.memory_count,
+          <span className="meta" key="active">
+            {a.last_active ? new Date(a.last_active).toLocaleString() : "—"}
+          </span>,
+        ]}
+      />
     </div>
+  );
+}
+
+function AgentLink({ agentId }: { agentId: string | null }) {
+  if (!agentId) {
+    return <span className="meta">—</span>;
+  }
+
+  return <a href={`/agents/${encodeURIComponent(agentId)}`}>{agentId}</a>;
+}
+
+/** What an agent IS, said once beside the table rather than in every page that embeds it. */
+function AgentsTableHeading({
+  title,
+  intro,
+}: {
+  title: string;
+  intro?: string;
+}) {
+  return (
+    <>
+      <div className={styles.head}>
+        <h2 className={styles.heading}>{title}</h2>
+        <HelpPopover label="What agents are">
+          <p>Two kinds of session show up here:</p>
+          <ul>
+            <li>
+              <strong>Local MCP</strong> agents are developers&apos; own agents
+              — your stable <code>~/.lore/agent-id</code>. They write{" "}
+              <strong>memory</strong> and <strong>facts</strong> over the MCP
+              server but never claim pipeline tasks.
+            </li>
+            <li>
+              <strong>Task</strong> agents are ephemeral — one per pipeline task
+              run. They exist for auditing, so they&apos;re hidden until you ask
+              for them.
+            </li>
+          </ul>
+          <p>
+            <strong>Cost</strong> sums tracked <code>llm_calls</code>; headless
+            agent token spend is not metered, so it is a lower bound.
+          </p>
+        </HelpPopover>
+      </div>
+      {intro && <p className={`meta ${styles.intro}`}>{intro}</p>}
+    </>
   );
 }

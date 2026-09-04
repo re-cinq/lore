@@ -1,6 +1,7 @@
 import { TimeAgo } from "@/components/TimeAgo";
 import { displayAgentId } from "@/lib/agent-id";
 import { formatEnumLabel } from "@/lib/enum-label";
+import DataTable from "@/components/DataTable";
 import styles from "./EpisodesView.module.css";
 import type { components } from "@/lib/api/schema";
 
@@ -32,20 +33,7 @@ export default function EpisodesView({
   sources,
   pageSize,
 }: EpisodesViewProps) {
-  function buildUrl(newOffset: number): string {
-    const p = new URLSearchParams();
-
-    if (source) {
-      p.set("source", source);
-    }
-
-    if (newOffset > 0) {
-      p.set("offset", String(newOffset));
-    }
-    const qs = p.toString();
-
-    return `/episodes${qs ? `?${qs}` : ""}`;
-  }
+  const pageUrl = (newOffset: number) => episodesUrl(source, newOffset);
 
   return (
     <div>
@@ -66,53 +54,36 @@ export default function EpisodesView({
         <button type="submit">Filter</button>
       </form>
       <p className={`meta ${styles.count}`}>{totalCount} episodes</p>
-      <table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Agent</th>
-            <th>Source</th>
-            <th>Ref</th>
-            <th>Facts</th>
-            <th>Content</th>
-          </tr>
-        </thead>
-        <tbody>
-          {episodes.map((e) => (
-            <tr key={e.id}>
-              <td>
-                <TimeAgo date={e.created_at} />
-              </td>
-              <td title={e.agent_id}>{displayAgentId(e.agent_id)}</td>
-              <td>
-                <span className={`op-badge op-${e.source}`}>
-                  {formatEnumLabel(e.source)}
-                </span>
-              </td>
-              <td>{e.ref || "—"}</td>
-              <td>{e.fact_count}</td>
-              <td>
-                <pre className={styles.contentPre}>
-                  {e.content_preview}
-                  {e.content_preview.length >= 300 ? "..." : ""}
-                </pre>
-              </td>
-            </tr>
-          ))}
-          {episodes.length === 0 && (
-            <tr>
-              <td colSpan={6} className={styles.emptyCell}>
-                No episodes yet. Use the <code>write_episode</code> MCP tool to
-                ingest text.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <DataTable
+        columns={["Time", "Agent", "Source", "Ref", "Facts", "Content"]}
+        rows={episodes}
+        rowKey={(e) => e.id}
+        empty={
+          <span className={styles.emptyCell}>
+            No episodes yet. Use the <code>write_episode</code> MCP tool to
+            ingest text.
+          </span>
+        }
+        cells={(e) => [
+          <TimeAgo date={e.created_at} key="time" />,
+          <span title={e.agent_id} key="agent">
+            {displayAgentId(e.agent_id)}
+          </span>,
+          <span className={`op-badge op-${e.source}`} key="source">
+            {formatEnumLabel(e.source)}
+          </span>,
+          e.ref || "—",
+          e.fact_count,
+          <pre className={styles.contentPre} key="content">
+            {e.content_preview}
+            {e.content_preview.length >= 300 ? "..." : ""}
+          </pre>,
+        ]}
+      />
       {totalCount > pageSize && (
         <div className="pagination">
           <a
-            href={buildUrl(offset - pageSize)}
+            href={pageUrl(offset - pageSize)}
             className={offset > 0 ? "" : "disabled"}
           >
             &larr; Previous
@@ -122,7 +93,7 @@ export default function EpisodesView({
             {totalCount}
           </span>
           <a
-            href={buildUrl(offset + pageSize)}
+            href={pageUrl(offset + pageSize)}
             className={offset + pageSize < totalCount ? "" : "disabled"}
           >
             Next &rarr;
@@ -131,4 +102,23 @@ export default function EpisodesView({
       )}
     </div>
   );
+}
+
+/** The source filter carried into a page link, so paging never silently widens the view. */
+function episodesUrl(
+  source: string | null | undefined,
+  offset: number,
+): string {
+  const p = new URLSearchParams();
+
+  if (source) {
+    p.set("source", source);
+  }
+
+  if (offset > 0) {
+    p.set("offset", String(offset));
+  }
+  const qs = p.toString();
+
+  return `/episodes${qs ? `?${qs}` : ""}`;
 }

@@ -8,12 +8,12 @@ export interface DataTableProps<T> {
   title?: string;
   columns: string[];
   rows: readonly T[];
-  rowKey: (row: T) => string;
+  rowKey: (row: T, index: number) => string;
   cells: (row: T) => ReactNode[];
   /** Column indexes rendered monospace — identifiers and figures, not prose. */
   monoColumns?: number[];
-  /** What to say when there are no rows. */
-  empty?: string;
+  /** What to show when there are no rows — a sentence, or a whole empty state. */
+  empty?: ReactNode;
 }
 
 export default function DataTable<T>({
@@ -37,8 +37,8 @@ export default function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={rowKey(row)}>
+          {rows.map((row, index) => (
+            <tr key={rowKey(row, index)}>
               {cells(row).map((cell, index) => (
                 <td
                   key={columns[index]}
