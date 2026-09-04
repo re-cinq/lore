@@ -53,21 +53,11 @@ export default function PlanningWizard({
   /** Parent owns it for decomposition rows; wizard decides when based on line state. */
   settledView: ReactNode;
 }) {
-  // Seeded from the server render so the first paint is not empty; the mount fetch adds task, run and live output.
-  const { data: poll, refresh: fetchLatest } = useFeaturePlanningPoll({
+  const { data: poll, refresh: fetchLatest } = useSeededPoll(
     owner,
     repo,
-    featureId: feature.id,
-    initial: {
-      feature,
-      latestIteration:
-        feature.iterations[feature.iterations.length - 1] ?? null,
-      task: null,
-      liveOutput: null,
-      lastReady: null,
-      run: null,
-    },
-  });
+    feature,
+  );
   const [feedback, setFeedback] = useState<FeedbackState>(emptyFeedback());
   /** Undefined = continue from latest. */
   const [continueFrom, setContinueFrom] = useState<number | undefined>();
@@ -91,22 +81,17 @@ export default function PlanningWizard({
   const rounds = rewindOptions(feature.iterations);
   const rewinding = isRewind(rounds, continueFrom);
 
-  const submitRefine = () =>
-    startTransition(async () => {
-      await refine(toUserAnswers(feedback), continueFrom);
-      setFeedback(emptyFeedback());
-      setContinueFrom(undefined);
-      await fetchLatest();
-    });
-
-  // Accept carries the same answers as refine to avoid dropping last form input.
-  const submitCreateSpecFile = () =>
-    startTransition(async () => {
-      setFinalizing(true);
-      await onFinalize(toUserAnswers(feedback));
-      setFeedback(emptyFeedback());
-      await fetchLatest();
-    });
+  const { submitRefine, submitCreateSpecFile } = useRoundSubmits({
+    refine,
+    onFinalize,
+    feedback,
+    continueFrom,
+    fetchLatest,
+    startTransition,
+    setFeedback,
+    setContinueFrom,
+    setFinalizing,
+  });
 
   useRefreshWhenPlanningEnds(finalizing, poll.feature.status);
 
@@ -128,28 +113,114 @@ export default function PlanningWizard({
 
   return (
     <AnalysisView
-      iteration={iteration}
-      failed={failed}
-      gap={
-        latestReady
-          ? (latest?.gap_result ?? null)
-          : (poll.lastReady?.gap_result ?? null)
-      }
-      failureReason={poll.task?.failure_reason}
-      answers={latest?.user_answers}
-      run={poll.run}
-      pending={pending}
-      feedback={feedback}
-      onChangeFeedback={setFeedback}
-      onCreateDraft={onCreateDraft}
-      onRefine={submitRefine}
-      onCreateSpecPr={submitCreateSpecFile}
-      rounds={rounds}
-      continueFrom={continueFrom}
-      onContinueFrom={setContinueFrom}
-      rewinding={rewinding}
+      {...analysisProps({
+        poll,
+        latest,
+        latestReady,
+        iteration,
+        failed,
+        pending,
+        feedback,
+        rounds,
+        continueFrom,
+        rewinding,
+      })}
+      handlers={{
+        onChangeFeedback: setFeedback,
+        onCreateDraft,
+        onRefine: submitRefine,
+        onCreateSpecPr: submitCreateSpecFile,
+        onContinueFrom: setContinueFrom,
+      }}
     />
   );
+}
+
+/** The analysis to show is the latest round's when it produced one, otherwise the most recent round that did — a failed refine must not hide the analysis before it. */
+function analysisProps(state: {
+  poll: ReturnType<typeof useSeededPoll>["data"];
+  latest: ReturnType<typeof useSeededPoll>["data"]["latestIteration"];
+  latestReady: boolean;
+  iteration: number;
+  failed: boolean;
+  pending: boolean;
+  feedback: FeedbackState;
+  rounds: ReturnType<typeof rewindOptions>;
+  continueFrom: number | undefined;
+  rewinding: boolean;
+}) {
+  const { poll, latest, latestReady } = state;
+
+  return {
+    iteration: state.iteration,
+    failed: state.failed,
+    gap: latestReady
+      ? (latest?.gap_result ?? null)
+      : (poll.lastReady?.gap_result ?? null),
+    failureReason: poll.task?.failure_reason,
+    answers: latest?.user_answers,
+    run: poll.run,
+    pending: state.pending,
+    feedback: state.feedback,
+    rounds: state.rounds,
+    continueFrom: state.continueFrom,
+    rewinding: state.rewinding,
+  };
+}
+
+/** Seeded from the server render so the first paint is not empty; the mount fetch adds the task, run and live output the page could not have. */
+function useSeededPoll(
+  owner: string,
+  repo: string,
+  feature: FeatureWithIterations,
+) {
+  return useFeaturePlanningPoll({
+    owner,
+    repo,
+    featureId: feature.id,
+    initial: {
+      feature,
+      latestIteration:
+        feature.iterations[feature.iterations.length - 1] ?? null,
+      task: null,
+      liveOutput: null,
+      lastReady: null,
+      run: null,
+    },
+  });
+}
+
+/** The two ways a round ends. Both carry the same answers, because accepting drops the author's last form input otherwise. */
+function useRoundSubmits(ctx: {
+  refine: (
+    userAnswers: SectionAnswers,
+    fromIteration?: number,
+  ) => Promise<void>;
+  onFinalize: (userAnswers: SectionAnswers) => Promise<void>;
+  feedback: FeedbackState;
+  continueFrom: number | undefined;
+  fetchLatest: () => Promise<unknown>;
+  startTransition: (fn: () => Promise<void>) => void;
+  setFeedback: (next: FeedbackState) => void;
+  setContinueFrom: (next: number | undefined) => void;
+  setFinalizing: (next: boolean) => void;
+}) {
+  const submitRefine = () =>
+    ctx.startTransition(async () => {
+      await ctx.refine(toUserAnswers(ctx.feedback), ctx.continueFrom);
+      ctx.setFeedback(emptyFeedback());
+      ctx.setContinueFrom(undefined);
+      await ctx.fetchLatest();
+    });
+  const submitCreateSpecFile = () =>
+    ctx.startTransition(async () => {
+      ctx.setFinalizing(true);
+      await ctx.onFinalize(toUserAnswers(ctx.feedback));
+      ctx.setFeedback(emptyFeedback());
+      await ctx.fetchLatest();
+    });
+
+  return { submitRefine, submitCreateSpecFile };
 }
 
 /** The draft spec renders from the SERVER's copy, so a landed round shows pre-round data until this refreshes it — once per iteration, since refresh() re-renders the parent. */
@@ -195,13 +266,9 @@ function AnalysisView({
   run,
   pending,
   feedback,
-  onChangeFeedback,
-  onCreateDraft,
-  onRefine,
-  onCreateSpecPr,
+  handlers,
   rounds,
   continueFrom,
-  onContinueFrom,
   rewinding,
 }: {
   iteration: number;
@@ -212,15 +279,24 @@ function AnalysisView({
   run: Parameters<typeof FailureBlock>[0]["run"];
   pending: boolean;
   feedback: FeedbackState;
-  onChangeFeedback: (next: FeedbackState) => void;
-  onCreateDraft: (title: string, prompt: string) => void;
-  onRefine: () => void;
-  onCreateSpecPr: () => void;
+  handlers: {
+    onChangeFeedback: (next: FeedbackState) => void;
+    onCreateDraft: (title: string, prompt: string) => void;
+    onRefine: () => void;
+    onCreateSpecPr: () => void;
+    onContinueFrom: (iteration: number) => void;
+  };
   rounds: ReturnType<typeof rewindOptions>;
   continueFrom: number | undefined;
-  onContinueFrom: (iteration: number) => void;
   rewinding: boolean;
 }) {
+  const {
+    onChangeFeedback,
+    onCreateDraft,
+    onRefine,
+    onCreateSpecPr,
+    onContinueFrom,
+  } = handlers;
   const failureBlock = (
     <FailureBlock
       iteration={iteration}
@@ -255,37 +331,65 @@ function AnalysisView({
         onChange={onChangeFeedback}
         onCreateDraft={onCreateDraft}
       />
-      <div className={styles.actions}>
-        <SubmitButton
-          type="button"
-          pending={pending}
-          pendingLabel="Working…"
-          onClick={onRefine}
-        >
-          Refine again
-        </SubmitButton>
-        <button
-          type="button"
-          className="button"
-          disabled={pending}
-          onClick={onCreateSpecPr}
-        >
-          Create the spec PR
-        </button>
-        {rounds.length > 1 && (
-          <RewindPicker
-            rounds={rounds}
-            continueFrom={continueFrom}
-            disabled={pending}
-            onChange={onContinueFrom}
-          />
-        )}
-      </div>
+      <RoundActions
+        pending={pending}
+        rounds={rounds}
+        continueFrom={continueFrom}
+        onRefine={onRefine}
+        onCreateSpecPr={onCreateSpecPr}
+        onContinueFrom={onContinueFrom}
+      />
       {rewinding && (
         <p className={`meta ${styles.rewindNote}`} role="status">
           This round continues round {continueFrom} — rounds after it stay on
           record but are not carried forward.
         </p>
+      )}
+    </div>
+  );
+}
+
+/** The two ways forward from an analysis, and the picker that decides which round the next one continues from. */
+function RoundActions({
+  pending,
+  rounds,
+  continueFrom,
+  onRefine,
+  onCreateSpecPr,
+  onContinueFrom,
+}: {
+  pending: boolean;
+  rounds: ReturnType<typeof rewindOptions>;
+  continueFrom: number | undefined;
+  onRefine: () => void;
+  onCreateSpecPr: () => void;
+  onContinueFrom: (iteration: number) => void;
+}) {
+  return (
+    <div className={styles.actions}>
+      <SubmitButton
+        type="button"
+        pending={pending}
+        pendingLabel="Working…"
+        onClick={onRefine}
+      >
+        Refine again
+      </SubmitButton>
+      <button
+        type="button"
+        className="button"
+        disabled={pending}
+        onClick={onCreateSpecPr}
+      >
+        Create the spec PR
+      </button>
+      {rounds.length > 1 && (
+        <RewindPicker
+          rounds={rounds}
+          continueFrom={continueFrom}
+          disabled={pending}
+          onChange={onContinueFrom}
+        />
       )}
     </div>
   );

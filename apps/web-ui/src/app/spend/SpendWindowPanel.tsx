@@ -27,10 +27,24 @@ export default function SpendWindowPanel({
   ) => Promise<RecordTopUpState>;
 }) {
   const [interval, setInterval] = useState(() => presetInterval("7d"));
+  const { spend, error } = useSpendWindow(interval);
+
+  return (
+    <section aria-label="Spend for the selected interval">
+      <IntervalPicker interval={interval} onChange={setInterval} />
+      {error !== null && <p className="meta">{error}</p>}
+      {spend !== null && (
+        <SpendView spend={spend} recordAction={recordAction} />
+      )}
+    </section>
+  );
+}
+
+/** One fetch per interval, with a cancelled guard so a slow response for a previous interval cannot land over a newer one. */
+function useSpendWindow(interval: { from: string; to: string }) {
   const [spend, setSpend] = useState<SpendWindow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch per interval with cancelled guard to prevent stale data landing mid-flight
   useEffect(() => {
     let cancelled = false;
 
@@ -67,46 +81,53 @@ export default function SpendWindowPanel({
     };
   }, [interval]);
 
+  return { spend, error };
+}
+
+function IntervalPicker({
+  interval,
+  onChange,
+}: {
+  interval: { from: string; to: string };
+  onChange: (
+    update: (current: { from: string; to: string }) => {
+      from: string;
+      to: string;
+    },
+  ) => void;
+}) {
   return (
-    <section aria-label="Spend for the selected interval">
-      <div className={styles.presetRow}>
-        {PRESETS.map((preset) => (
-          <button
-            key={preset.key}
-            type="button"
-            className="btn-secondary"
-            onClick={() => setInterval(presetInterval(preset.key))}
-          >
-            {preset.label}
-          </button>
-        ))}
-        <label className="meta">
-          from{" "}
-          <input
-            type="date"
-            value={interval.from}
-            onChange={(e) =>
-              setInterval((current) => ({ ...current, from: e.target.value }))
-            }
-          />
-        </label>
-        <label className="meta">
-          to{" "}
-          <input
-            type="date"
-            value={interval.to}
-            onChange={(e) =>
-              setInterval((current) => ({ ...current, to: e.target.value }))
-            }
-          />
-        </label>
-      </div>
-
-      {error !== null && <p className="meta">{error}</p>}
-
-      {spend !== null && (
-        <SpendView spend={spend} recordAction={recordAction} />
-      )}
-    </section>
+    <div className={styles.presetRow}>
+      {PRESETS.map((preset) => (
+        <button
+          key={preset.key}
+          type="button"
+          className="btn-secondary"
+          onClick={() => onChange(() => presetInterval(preset.key))}
+        >
+          {preset.label}
+        </button>
+      ))}
+      <label className="meta">
+        from{" "}
+        <input
+          type="date"
+          value={interval.from}
+          onChange={(e) =>
+            onChange((current) => ({ ...current, from: e.target.value }))
+          }
+        />
+      </label>
+      <label className="meta">
+        to{" "}
+        <input
+          type="date"
+          value={interval.to}
+          onChange={(e) =>
+            onChange((current) => ({ ...current, to: e.target.value }))
+          }
+        />
+      </label>
+    </div>
   );
 }

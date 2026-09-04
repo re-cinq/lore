@@ -386,6 +386,7 @@ async function reportRottenAnchors(
   }
 }
 
+// eslint-disable-next-line max-lines-per-function -- composition root: one line per injected dependency, so its length IS the dependency count.
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
     {

@@ -102,6 +102,7 @@ export function fileArtifactEnvelope(input: {
   });
 }
 
+// eslint-disable-next-line max-lines-per-function -- acceptance-test harness: every closure shares one in-memory fleet, run store and status map, and threading that state through arguments would make the doubles harder to read than the thing they double.
 export function createLineHarness(
   overrides: Partial<Pick<AdvanceDeps, "onRunClosed" | "stampPr">> = {},
 ) {

@@ -83,59 +83,23 @@ async function runRegistrant(opts: {
     `[cluster-agent] registered as ${config.name} (${identity.id}), tags [${config.tags.join(", ")}] — claim loop starting`,
   );
 
-  // Single-flight: the heartbeat and claim loops can 401 in the same window, so both callers await the same in-flight re-registration attempt.
-  let reRegistration: Promise<ClusterAgentIdentity | null> | null = null;
-  const reRegister = (): Promise<ClusterAgentIdentity | null> =>
-    (reRegistration ??= registerOnce({
-      config,
-      store,
-      publishTelemetryCredential,
-    })
-      .then((rotated) => {
-        if (rotated) {
-          identity = rotated;
-        }
-
-        return rotated;
-      })
-      .finally(() => {
-        reRegistration = null;
-      }));
+  const reRegister = singleFlightReRegister({
+    config,
+    store,
+    publishTelemetryCredential,
+    adopt: (rotated) => {
+      identity = rotated;
+    },
+  });
 
   onReRegister(reRegister);
 
-  // The catalog sync rides beside the claim loop and GATES its start — the first full-catalog snapshot must resolve an Agent CR's stationRef, bounded by FIRST_SYNC_TIMEOUT_MS so a wedged API cannot block claims forever.
-  const kubeCatalog = new KubeCatalogApi();
-  const catalog: CatalogTarget = {
-    applyPair: (pair) => clusterDeps().catalog.applyPair(pair),
-    deletePair: (name) => clusterDeps().catalog.deletePair(name),
-    getAgentDefinition: (name) => kubeCatalog.getAgentDefinition(name),
-  };
-  let resolveFirstSync = (): void => {};
-  const firstSync = new Promise<void>((resolve) => {
-    resolveFirstSync = resolve;
-  });
-
-  void runCatalogSyncLoop({
-    sync: (ack, snapshot) =>
-      catalogSyncOnce(
-        {
-          apiUrl: config.apiUrl,
-          identity: () => identity,
-          catalog,
-          crdOptions: crdOptionsFromEnv(env),
-          ownSeeded: env.LORE_CATALOG_SYNC_OWN_SEEDED === "1",
-        },
-        ack,
-        snapshot,
-      ),
+  const firstSync = startCatalogSync({
+    env,
+    config,
+    identity: () => identity,
     reRegister,
-    sleep,
-    baseDelayMs: syncIntervalMs(env),
     running,
-    onFirstSync: () => resolveFirstSync(),
-  }).catch((err) => {
-    console.error("[cluster-agent] catalog sync loop crashed:", err);
   });
 
   // The heartbeat rides beside the claim loop, not inside it — an agent busy executing a long claim must still look alive.
@@ -171,6 +135,78 @@ async function runRegistrant(opts: {
     baseDelayMs: claimIntervalMs(env),
     running,
   });
+}
+
+/** Single-flight: the heartbeat and claim loops can 401 in the same window, so both callers await the same in-flight re-registration attempt. */
+function singleFlightReRegister(opts: {
+  config: RegistrationConfig;
+  store: IdentityStore;
+  publishTelemetryCredential: (id: ClusterAgentIdentity) => Promise<void>;
+  adopt: (identity: ClusterAgentIdentity) => void;
+}): () => Promise<ClusterAgentIdentity | null> {
+  let inFlight: Promise<ClusterAgentIdentity | null> | null = null;
+
+  return () =>
+    (inFlight ??= registerOnce({
+      config: opts.config,
+      store: opts.store,
+      publishTelemetryCredential: opts.publishTelemetryCredential,
+    })
+      .then((rotated) => {
+        if (rotated) {
+          opts.adopt(rotated);
+        }
+
+        return rotated;
+      })
+      .finally(() => {
+        inFlight = null;
+      }));
+}
+
+/** The catalog sync rides beside the claim loop and GATES its start — the first full-catalog snapshot must be able to resolve an Agent CR's stationRef. The returned promise settles on that first snapshot. */
+function startCatalogSync(opts: {
+  env: NodeJS.ProcessEnv;
+  config: RegistrationConfig;
+  identity: () => ClusterAgentIdentity;
+  reRegister: () => Promise<ClusterAgentIdentity | null>;
+  running: () => boolean;
+}): Promise<void> {
+  const { env, config, identity, reRegister, running } = opts;
+  const kubeCatalog = new KubeCatalogApi();
+  const catalog: CatalogTarget = {
+    applyPair: (pair) => clusterDeps().catalog.applyPair(pair),
+    deletePair: (name) => clusterDeps().catalog.deletePair(name),
+    getAgentDefinition: (name) => kubeCatalog.getAgentDefinition(name),
+  };
+  let resolveFirstSync = (): void => {};
+  const firstSync = new Promise<void>((resolve) => {
+    resolveFirstSync = resolve;
+  });
+
+  void runCatalogSyncLoop({
+    sync: (ack, snapshot) =>
+      catalogSyncOnce(
+        {
+          apiUrl: config.apiUrl,
+          identity,
+          catalog,
+          crdOptions: crdOptionsFromEnv(env),
+          ownSeeded: env.LORE_CATALOG_SYNC_OWN_SEEDED === "1",
+        },
+        ack,
+        snapshot,
+      ),
+    reRegister,
+    sleep,
+    baseDelayMs: syncIntervalMs(env),
+    running,
+    onFirstSync: () => resolveFirstSync(),
+  }).catch((err) => {
+    console.error("[cluster-agent] catalog sync loop crashed:", err);
+  });
+
+  return firstSync;
 }
 
 export interface StartClaimLoopOpts {

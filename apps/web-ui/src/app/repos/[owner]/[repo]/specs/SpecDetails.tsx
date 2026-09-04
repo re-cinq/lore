@@ -108,6 +108,19 @@ interface MarkMeta {
   drifted?: boolean;
 }
 
+/** The statements to highlight, longest matcher first (so a longer statement claims its text before a shorter one that is a prefix of it), plus the set already claimed in this pass. */
+interface HighlightState {
+  ordered: {
+    ordinal: number;
+    text: string;
+    matcher: string;
+    plain: string;
+    state: StatementState;
+    drifted?: boolean;
+  }[];
+  used: Set<number>;
+}
+
 function buildHighlighter(
   statements: {
     ordinal: number;
@@ -124,148 +137,21 @@ function buildHighlighter(
     state: s.state,
     drifted: s.drifted,
   }));
-  const ordered = [...enriched].sort(
-    (a, b) => b.matcher.length - a.matcher.length,
-  );
-  const used = new Set<number>();
-
-  function markProps(meta: MarkMeta) {
-    return {
-      className: [
-        "stmt",
-        `stmt-${meta.state}`,
-        ...(meta.drifted ? ["stmt-drifted"] : []),
-      ],
-      dataOrdinal: String(meta.ordinal),
-      dataState: meta.state,
-      ...(meta.drifted ? { dataDrifted: "true" } : {}),
-    };
-  }
-
-  function makeMark(text: string, meta: MarkMeta): Element {
-    return {
-      type: "element",
-      tagName: "mark",
-      properties: markProps(meta),
-      children: [{ type: "text", value: text }],
-    };
-  }
-
-  /** Fallback: wrap element's children when its rendered text matches a statement (split by code/bold). */
-  function tryBlockMatch(node: Element): boolean {
-    if (node.tagName !== "p" && node.tagName !== "li") {
-      return false;
-    }
-
-    if (!node.children || node.children.length === 0) {
-      return false;
-    }
-    const rendered = renderedText(node).replace(/\s+/g, " ").trim();
-
-    for (const s of ordered) {
-      if (used.has(s.ordinal) || !s.plain) {
-        continue;
-      }
-
-      if (rendered.startsWith(s.plain)) {
-        used.add(s.ordinal);
-        node.children = [
-          {
-            type: "element",
-            tagName: "mark",
-            properties: markProps(s),
-            children: node.children,
-          },
-        ];
-
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  function processTextNode(node: Text): ElementContent[] | null {
-    for (const s of ordered) {
-      if (used.has(s.ordinal)) {
-        continue;
-      }
-      const idx = node.value.indexOf(s.matcher);
-
-      if (idx < 0) {
-        continue;
-      }
-      used.add(s.ordinal);
-      const before = node.value.slice(0, idx);
-      const after = node.value.slice(idx + s.matcher.length);
-      const parts: ElementContent[] = [];
-
-      if (before) {
-        parts.push({ type: "text", value: before });
-      }
-      parts.push(makeMark(s.matcher, s));
-
-      if (after) {
-        const tail = { type: "text", value: after } as Text;
-        const recursed = processTextNode(tail);
-
-        parts.push(...(recursed ?? [tail]));
-      }
-
-      return parts;
-    }
-
-    return null;
-  }
-
-  function walkElement(node: Element) {
-    if (!node.children || node.children.length === 0) {
-      return;
-    }
-    const next: ElementContent[] = [];
-    let changed = false;
-
-    node.children.forEach((child) => {
-      if (child.type === "element" && child.tagName !== "mark") {
-        walkElement(child);
-      }
-
-      if (child.type !== "text") {
-        next.push(child);
-
-        return;
-      }
-      const replaced = processTextNode(child);
-
-      if (replaced) {
-        next.push(...replaced);
-        changed = true;
-
-        return;
-      }
-      next.push(child);
-    });
-
-    if (changed) {
-      node.children = next;
-    }
-
-    // Fallback: whole-element wrap when contiguous-text-node match finds nothing (e.g. fragmented by inline code).
-    if (!changed) {
-      tryBlockMatch(node);
-    }
-  }
+  const state: HighlightState = {
+    ordered: [...enriched].sort((a, b) => b.matcher.length - a.matcher.length),
+    used: new Set<number>(),
+  };
 
   return function plugin() {
     return function transformer(tree: Root) {
       // react-markdown re-runs on every render with fresh tree; clear matcher state to avoid re-claimed statements.
-      used.clear();
+      state.used.clear();
       const rootChildren: RootContent[] = [];
       let rootChanged = false;
 
       tree.children.forEach((child) => {
         if (child.type === "element") {
-          walkElement(child);
+          walkElement(state, child);
         }
 
         if (child.type !== "text") {
@@ -273,7 +159,7 @@ function buildHighlighter(
 
           return;
         }
-        const replaced = processTextNode(child);
+        const replaced = processTextNode(state, child);
 
         if (replaced) {
           rootChildren.push(...(replaced as RootContent[]));
@@ -289,6 +175,136 @@ function buildHighlighter(
       }
     };
   };
+}
+
+function markProps(meta: MarkMeta) {
+  return {
+    className: [
+      "stmt",
+      `stmt-${meta.state}`,
+      ...(meta.drifted ? ["stmt-drifted"] : []),
+    ],
+    dataOrdinal: String(meta.ordinal),
+    dataState: meta.state,
+    ...(meta.drifted ? { dataDrifted: "true" } : {}),
+  };
+}
+
+function makeMark(text: string, meta: MarkMeta): Element {
+  return {
+    type: "element",
+    tagName: "mark",
+    properties: markProps(meta),
+    children: [{ type: "text", value: text }],
+  };
+}
+
+/** Fallback: wrap element's children when its rendered text matches a statement (split by code/bold). */
+function tryBlockMatch(state: HighlightState, node: Element): boolean {
+  if (node.tagName !== "p" && node.tagName !== "li") {
+    return false;
+  }
+
+  if (!node.children || node.children.length === 0) {
+    return false;
+  }
+  const rendered = renderedText(node).replace(/\s+/g, " ").trim();
+
+  for (const s of state.ordered) {
+    if (state.used.has(s.ordinal) || !s.plain) {
+      continue;
+    }
+
+    if (rendered.startsWith(s.plain)) {
+      state.used.add(s.ordinal);
+      node.children = [
+        {
+          type: "element",
+          tagName: "mark",
+          properties: markProps(s),
+          children: node.children,
+        },
+      ];
+
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function processTextNode(
+  state: HighlightState,
+  node: Text,
+): ElementContent[] | null {
+  for (const s of state.ordered) {
+    if (state.used.has(s.ordinal)) {
+      continue;
+    }
+    const idx = node.value.indexOf(s.matcher);
+
+    if (idx < 0) {
+      continue;
+    }
+    state.used.add(s.ordinal);
+    const before = node.value.slice(0, idx);
+    const after = node.value.slice(idx + s.matcher.length);
+    const parts: ElementContent[] = [];
+
+    if (before) {
+      parts.push({ type: "text", value: before });
+    }
+    parts.push(makeMark(s.matcher, s));
+
+    if (after) {
+      const tail = { type: "text", value: after } as Text;
+      const recursed = processTextNode(state, tail);
+
+      parts.push(...(recursed ?? [tail]));
+    }
+
+    return parts;
+  }
+
+  return null;
+}
+
+function walkElement(state: HighlightState, node: Element) {
+  if (!node.children || node.children.length === 0) {
+    return;
+  }
+  const next: ElementContent[] = [];
+  let changed = false;
+
+  node.children.forEach((child) => {
+    if (child.type === "element" && child.tagName !== "mark") {
+      walkElement(state, child);
+    }
+
+    if (child.type !== "text") {
+      next.push(child);
+
+      return;
+    }
+    const replaced = processTextNode(state, child);
+
+    if (replaced) {
+      next.push(...replaced);
+      changed = true;
+
+      return;
+    }
+    next.push(child);
+  });
+
+  if (changed) {
+    node.children = next;
+  }
+
+  // Fallback: whole-element wrap when contiguous-text-node match finds nothing (e.g. fragmented by inline code).
+  if (!changed) {
+    tryBlockMatch(state, node);
+  }
 }
 
 /** Tooltip inner content: drift notice + state block (narrative/untested/tested); needs repo/branch for links. */
@@ -388,12 +404,7 @@ export default function SpecDetails({
   branch?: string;
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [hover, setHover] = useState<{
-    ordinal: number;
-    x: number;
-    y: number;
-  } | null>(null);
-
+  const { hover, onMouseOver, onMouseLeave } = useStatementHover(wrapperRef);
   const statementsByOrdinal = useMemo(() => {
     const m = new Map<number, StatementInfo>();
 
@@ -418,7 +429,56 @@ export default function SpecDetails({
     return buildHighlighter(enriched);
   }, [statements]);
 
-  function handleMouseOver(e: React.MouseEvent<HTMLDivElement>) {
+  const sanitize = [rehypeSanitize, markdownSanitizeSchema] as const;
+  const rehypePlugins = plugin
+    ? [rehypeRaw, sanitize, plugin]
+    : [rehypeRaw, sanitize];
+  const hovered = hover ? statementsByOrdinal.get(hover.ordinal) : null;
+
+  const mdComponents = useGithubLinks(repo, branch);
+
+  return (
+    <div>
+      <div
+        ref={wrapperRef}
+        className={`${readme.readme} ${styles.specBody}`}
+        onMouseOver={onMouseOver}
+        onMouseLeave={onMouseLeave}
+      >
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          rehypePlugins={rehypePlugins as any}
+          components={mdComponents}
+        >
+          {content}
+        </ReactMarkdown>
+        {hover && hovered && (
+          <div
+            className={styles.popover}
+            style={{
+              ["--popover-x" as string]: `${hover.x}px`,
+              ["--popover-y" as string]: `${hover.y}px`,
+            }}
+            role="tooltip"
+          >
+            <StatementPopover statement={hovered} repo={repo} branch={branch} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Which highlighted statement the pointer is over, and where to put its tooltip — measured against the wrapper, so the popover sits with the text rather than the viewport. */
+function useStatementHover(wrapperRef: React.RefObject<HTMLDivElement | null>) {
+  const [hover, setHover] = useState<{
+    ordinal: number;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  function onMouseOver(e: React.MouseEvent<HTMLDivElement>) {
     const target = (e.target as HTMLElement).closest<HTMLElement>(
       "mark[data-ordinal]",
     );
@@ -443,18 +503,17 @@ export default function SpecDetails({
     setHover({ ordinal, x: left, y: top });
   }
 
-  function handleMouseLeave() {
+  function onMouseLeave() {
     setHover(null);
   }
 
-  const sanitize = [rehypeSanitize, markdownSanitizeSchema] as const;
-  const rehypePlugins = plugin
-    ? [rehypeRaw, sanitize, plugin]
-    : [rehypeRaw, sanitize];
-  const hovered = hover ? statementsByOrdinal.get(hover.ordinal) : null;
+  return { hover, onMouseOver, onMouseLeave };
+}
 
+/** Markdown links resolve against the spec's own repo and branch; anything that leaves the app opens in a new tab. */
+function useGithubLinks(repo: string, branch: string) {
   // Rewrite markdown links to GitHub: open externally instead of in-app.
-  const mdComponents = useMemo(
+  return useMemo(
     () => ({
       a(props: React.ComponentPropsWithoutRef<"a"> & { node?: unknown }) {
         const { href, children, node: _node, ...rest } = props;
@@ -475,37 +534,5 @@ export default function SpecDetails({
       },
     }),
     [repo, branch],
-  );
-
-  return (
-    <div>
-      <div
-        ref={wrapperRef}
-        className={`${readme.readme} ${styles.specBody}`}
-        onMouseOver={handleMouseOver}
-        onMouseLeave={handleMouseLeave}
-      >
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          rehypePlugins={rehypePlugins as any}
-          components={mdComponents}
-        >
-          {content}
-        </ReactMarkdown>
-        {hover && hovered && (
-          <div
-            className={styles.popover}
-            style={{
-              ["--popover-x" as string]: `${hover.x}px`,
-              ["--popover-y" as string]: `${hover.y}px`,
-            }}
-            role="tooltip"
-          >
-            <StatementPopover statement={hovered} repo={repo} branch={branch} />
-          </div>
-        )}
-      </div>
-    </div>
   );
 }

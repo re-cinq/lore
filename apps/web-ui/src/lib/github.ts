@@ -217,46 +217,10 @@ async function openWorkflowPR(
   }
   const ok = await octokit();
   const [owner, name] = split(repo);
-
   const { data: repoData } = await ok.rest.repos.get({ owner, repo: name });
   const base = repoData.default_branch;
 
-  const { data: baseRef } = await ok.rest.git.getRef({
-    owner,
-    repo: name,
-    ref: `heads/${base}`,
-  });
-
-  try {
-    await ok.rest.git.createRef({
-      owner,
-      repo: name,
-      ref: `refs/heads/${branch}`,
-      sha: baseRef.object.sha,
-    });
-  } catch (e) {
-    if (!isAlreadyExists(e)) {
-      throw e;
-    } // branch already exists — commit onto it
-  }
-
-  let sha: string | undefined;
-
-  try {
-    const { data: content } = await ok.rest.repos.getContent({
-      owner,
-      repo: name,
-      path,
-      ref: branch,
-    });
-
-    if (!Array.isArray(content) && "sha" in content) {
-      sha = content.sha;
-    }
-  } catch {
-    // file not on the branch yet — create it fresh
-  }
-
+  await ensureBranch(ok, { owner, name, branch, base });
   await ok.rest.repos.createOrUpdateFileContents({
     owner,
     repo: name,
@@ -264,33 +228,94 @@ async function openWorkflowPR(
     branch,
     message: `lore: install ${path}`,
     content: Buffer.from(content).toString("base64"),
-    ...(sha ? { sha } : {}),
+    // The blob sha is required to overwrite; its absence is what makes this a create.
+    ...(await existingBlobSha(ok, { owner, name, path, branch })),
+  });
+
+  return await openOrFindPr(ok, { owner, name, branch, base, title, body });
+}
+
+/** Create the branch, or commit onto the one already there — a repeat install is a second commit, not a failure. */
+async function ensureBranch(
+  ok: Awaited<ReturnType<typeof octokit>>,
+  at: { owner: string; name: string; branch: string; base: string },
+): Promise<void> {
+  const { data: baseRef } = await ok.rest.git.getRef({
+    owner: at.owner,
+    repo: at.name,
+    ref: `heads/${at.base}`,
   });
 
   try {
-    const { data: pr } = await ok.rest.pulls.create({
-      owner,
-      repo: name,
-      head: branch,
-      base,
-      title,
-      body,
+    await ok.rest.git.createRef({
+      owner: at.owner,
+      repo: at.name,
+      ref: `refs/heads/${at.branch}`,
+      sha: baseRef.object.sha,
+    });
+  } catch (e) {
+    if (!isAlreadyExists(e)) {
+      throw e;
+    }
+  }
+}
+
+/** `{ sha }` when the file is already on the branch, `{}` when it is not — the shape the contents API wants for update vs create. */
+async function existingBlobSha(
+  ok: Awaited<ReturnType<typeof octokit>>,
+  at: { owner: string; name: string; path: string; branch: string },
+): Promise<{ sha?: string }> {
+  try {
+    const { data } = await ok.rest.repos.getContent({
+      owner: at.owner,
+      repo: at.name,
+      path: at.path,
+      ref: at.branch,
     });
 
-    return { url: pr.html_url, number: pr.number };
+    return !Array.isArray(data) && "sha" in data ? { sha: data.sha } : {};
+  } catch {
+    // file not on the branch yet — create it fresh
+    return {};
+  }
+}
+
+/** Opening a PR for a branch that already has one is not an error; the existing PR is the answer. */
+async function openOrFindPr(
+  ok: Awaited<ReturnType<typeof octokit>>,
+  pr: {
+    owner: string;
+    name: string;
+    branch: string;
+    base: string;
+    title: string;
+    body: string;
+  },
+): Promise<{ url: string; number: number } | null> {
+  try {
+    const { data: created } = await ok.rest.pulls.create({
+      owner: pr.owner,
+      repo: pr.name,
+      head: pr.branch,
+      base: pr.base,
+      title: pr.title,
+      body: pr.body,
+    });
+
+    return { url: created.html_url, number: created.number };
   } catch (e) {
     if (!isAlreadyExists(e)) {
       throw e;
     }
     const { data: existing } = await ok.rest.pulls.list({
-      owner,
-      repo: name,
-      head: `${owner}:${branch}`,
+      owner: pr.owner,
+      repo: pr.name,
+      head: `${pr.owner}:${pr.branch}`,
       state: "open",
     });
-    const pr = existing[0];
+    const found = existing[0];
 
-    return pr ? { url: pr.html_url, number: pr.number } : null;
+    return found ? { url: found.html_url, number: found.number } : null;
   }
 }
 

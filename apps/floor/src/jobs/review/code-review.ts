@@ -332,7 +332,18 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
   onCommentTriaged: EventHandler;
   onClose: EventHandler;
 } {
-  const onTrigger: EventHandler = async (params) => {
+  return {
+    onTrigger: onTrigger(deps),
+    onComment: onComment(deps),
+    onReviewSubmitted: onReviewSubmitted(deps),
+    onCommentTriaged: onCommentTriaged(deps),
+    onClose: onClose(deps),
+  };
+}
+
+/** A PR opened or pushed to. The first push gets a deep review; later pushes get a fast re-check with an updated verdict. */
+function onTrigger(deps: CodeReviewDeps): EventHandler {
+  return async (params) => {
     const { repo, pr_number } = params as unknown as OpenParams;
     const autoReview = await deps.autoReview(repo);
 
@@ -353,8 +364,11 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
       deps.uiUrl(),
     );
   };
+}
 
-  const onComment: EventHandler = async (params) => {
+/** A human comment. Bot authors are skipped before any API call — that guard is the loop breaker. */
+function onComment(deps: CodeReviewDeps): EventHandler {
+  return async (params) => {
     const p = params as unknown as CommentParams;
     const autoReview = await deps.autoReview(p.repo);
 
@@ -387,8 +401,11 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
       deps.uiUrl(),
     );
   };
+}
 
-  const onReviewSubmitted: EventHandler = async (params) => {
+/** A submitted review. Only a request-changes review spawns a work order; an approval needs no follow-up line. */
+function onReviewSubmitted(deps: CodeReviewDeps): EventHandler {
+  return async (params) => {
     const p = params as unknown as ReviewSubmittedParams;
     const autoReview = await deps.autoReview(p.repo);
 
@@ -429,9 +446,11 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
       args: route.args,
     });
   };
+}
 
-  /** Route a finished comment-triage line's action to the follow-up line. */
-  const onCommentTriaged: EventHandler = async (params) => {
+/** Route a finished comment-triage line's action to the follow-up line. */
+function onCommentTriaged(deps: CodeReviewDeps): EventHandler {
+  return async (params) => {
     const action = String(params.action ?? "ignore") as TriageAction;
     const ctx = params.context as CommentContext | undefined;
 
@@ -450,8 +469,10 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
       args: route.args,
     });
   };
+}
 
-  const onClose: EventHandler = async (params) => {
+function onClose(deps: CodeReviewDeps): EventHandler {
+  return async (params) => {
     const { repo, pr_number } = params as unknown as OpenParams;
     const project = await deps.project(repo);
 
@@ -467,8 +488,6 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
       closed.map((run) => deps.cleanupToken(run.taskId ?? run.id)),
     );
   };
-
-  return { onTrigger, onComment, onReviewSubmitted, onCommentTriaged, onClose };
 }
 
 const handlers = createCodeReviewHandlers({

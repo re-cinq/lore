@@ -72,31 +72,7 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
 
         {first && <input type="hidden" name="kind" value="opening" />}
 
-        {/* Rules stated on form: blank date ≠ "now"; late-recorded top-up needs no accurate timestamp */}
-        <dl className={styles.legend}>
-          <dt>Amount</dt>
-          <dd>
-            Dollars added. A negative amount is recorded as a correction, which
-            is how a mistyped entry is undone — nothing is ever overwritten.
-          </dd>
-
-          <dt>Date and time</dt>
-          <dd>
-            When the money <em>landed</em>, not when you typed it in. Blank
-            counts from the start of today; a date counts from the start of that
-            day; adding a time counts from that exact moment. Leaving the time
-            out can only ever count more spend against the balance, never less.
-          </dd>
-
-          <dt>Which entry moves the window</dt>
-          <dd>
-            Only the opening entry decides where counting starts. Later top-ups
-            add to the total and nothing else, so recording one days late still
-            gives the right figure — the amount is the part that must be
-            correct.
-          </dd>
-        </dl>
-
+        <LedgerRules />
         <div className={styles.recordActions}>
           <SubmitButton pendingLabel="Recording…">
             {first ? "Record balance" : "Record top-up"}
@@ -106,5 +82,36 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
         </div>
       </form>
     </details>
+  );
+}
+
+/** The rules stated on the form itself: a blank date is not "now", and a top-up recorded late still gives the right figure. */
+function LedgerRules() {
+  return (
+    <>
+      {/* Rules stated on form: blank date ≠ "now"; late-recorded top-up needs no accurate timestamp */}
+      <dl className={styles.legend}>
+        <dt>Amount</dt>
+        <dd>
+          Dollars added. A negative amount is recorded as a correction, which is
+          how a mistyped entry is undone — nothing is ever overwritten.
+        </dd>
+
+        <dt>Date and time</dt>
+        <dd>
+          When the money <em>landed</em>, not when you typed it in. Blank counts
+          from the start of today; a date counts from the start of that day;
+          adding a time counts from that exact moment. Leaving the time out can
+          only ever count more spend against the balance, never less.
+        </dd>
+
+        <dt>Which entry moves the window</dt>
+        <dd>
+          Only the opening entry decides where counting starts. Later top-ups
+          add to the total and nothing else, so recording one days late still
+          gives the right figure — the amount is the part that must be correct.
+        </dd>
+      </dl>
+    </>
   );
 }

@@ -34,19 +34,7 @@ export default function DarkFactoryView({
         <h2 className={styles.title}>
           Dark Factory <span className={styles.gated}>security-gated</span>
         </h2>
-        <HelpPopover label="What Dark Factory does">
-          <p>
-            Autonomous (dark) mode for this repo. Enabling dark mode, widening
-            auto-merge paths, weakening CI/approval requirements, or changing
-            the execution image is security-gated.
-          </p>
-          <ul>
-            <li>
-              Privileged changes need an admin token <strong>and</strong> a
-              CODEOWNERS-approved <code>dark-factory-approval</code> PR.
-            </li>
-          </ul>
-        </HelpPopover>
+        <DarkFactoryHelp />
       </div>
       <p className={`meta ${styles.lede}`}>
         Per-repo autonomy. Reference an approved{" "}
@@ -58,80 +46,8 @@ export default function DarkFactoryView({
       <form action={formAction} className={`task-form ${styles.form}`}>
         <input type="hidden" name="full_name" value={fullName} />
 
-        <label>Dark mode enabled</label>
-        <select
-          name="df_enabled"
-          defaultValue={resolved.enabled ? "yes" : "no"}
-        >
-          <option value="no">No</option>
-          <option value="yes">Yes</option>
-        </select>
-
-        <label>Create GitHub Issue</label>
-        <select name="df_create_issue" defaultValue={resolved.create_issue}>
-          <option value="never">Never</option>
-          <option value="on_gate">On gate / escalation only</option>
-          <option value="always">Always</option>
-        </select>
-
-        <label>Review mode</label>
-        <select name="df_review" defaultValue={resolved.review}>
-          <option value="trust_based">Trust-based</option>
-          <option value="always">Always</option>
-          <option value="never">Never</option>
-        </select>
-
-        <label>Notify channels</label>
-        <select
-          name="df_notify"
-          multiple
-          size={3}
-          defaultValue={resolved.notify}
-        >
-          {NOTIFY_CHANNELS.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-
-        <label>Auto-merge paths (one glob per line)</label>
-        <textarea
-          name="df_am_paths"
-          rows={4}
-          defaultValue={resolved.auto_merge.paths.join("\n")}
-        />
-
-        <label>Auto-merge min trust</label>
-        <select
-          name="df_am_min_trust"
-          defaultValue={resolved.auto_merge.min_trust}
-        >
-          {TRUST_LEVELS.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-
-        <label>Require green CI to auto-merge</label>
-        <select
-          name="df_am_green_ci"
-          defaultValue={resolved.auto_merge.require_green_ci ? "yes" : "no"}
-        >
-          <option value="yes">Yes</option>
-          <option value="no">No (downgrade — gated)</option>
-        </select>
-
-        <label>Require bot approval to auto-merge</label>
-        <select
-          name="df_am_bot_approval"
-          defaultValue={resolved.auto_merge.require_bot_approval ? "yes" : "no"}
-        >
-          <option value="yes">Yes</option>
-          <option value="no">No (downgrade — gated)</option>
-        </select>
-
+        <ModeFields resolved={resolved} />
+        <AutoMergeFields resolved={resolved} />
         <label>Execution image (BYO toolchain)</label>
         <input
           name="df_execution_image"
@@ -139,17 +55,126 @@ export default function DarkFactoryView({
           placeholder={defaultExecutionImage}
         />
 
-        <h3 className={styles.section}>Approval PR (for gated changes)</h3>
-        <span className={`meta ${styles.hint}`}>
-          Required only when changing a security-gated field. Reference an open
-          PR labeled
-          <code> dark-factory-approval</code> approved by a CODEOWNER, as{" "}
-          <code>owner/repo#N</code>.
-        </span>
-        <input name="approval_pr" placeholder="re-cinq/lore#123" />
-
+        <ApprovalPrField />
         <button type="submit">Save Dark Factory</button>
       </form>
     </div>
+  );
+}
+
+function DarkFactoryHelp() {
+  return (
+    <HelpPopover label="What Dark Factory does">
+      <p>
+        Autonomous (dark) mode for this repo. Enabling dark mode, widening
+        auto-merge paths, weakening CI/approval requirements, or changing the
+        execution image is security-gated.
+      </p>
+      <ul>
+        <li>
+          Privileged changes need an admin token <strong>and</strong> a
+          CODEOWNERS-approved <code>dark-factory-approval</code> PR.
+        </li>
+      </ul>
+    </HelpPopover>
+  );
+}
+
+/** What the factory does at all: whether it runs dark, whether it files Issues, whether it reviews, and who hears about it. */
+function ModeFields({ resolved }: { resolved: ResolvedDarkFactorySettings }) {
+  return (
+    <>
+      <label>Dark mode enabled</label>
+      <select name="df_enabled" defaultValue={resolved.enabled ? "yes" : "no"}>
+        <option value="no">No</option>
+        <option value="yes">Yes</option>
+      </select>
+
+      <label>Create GitHub Issue</label>
+      <select name="df_create_issue" defaultValue={resolved.create_issue}>
+        <option value="never">Never</option>
+        <option value="on_gate">On gate / escalation only</option>
+        <option value="always">Always</option>
+      </select>
+
+      <label>Review mode</label>
+      <select name="df_review" defaultValue={resolved.review}>
+        <option value="trust_based">Trust-based</option>
+        <option value="always">Always</option>
+        <option value="never">Never</option>
+      </select>
+
+      <label>Notify channels</label>
+      <select name="df_notify" multiple size={3} defaultValue={resolved.notify}>
+        {NOTIFY_CHANNELS.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
+
+/** When a PR may merge itself. Every "No" here is a downgrade, which is exactly what the approval ceremony gates. */
+function AutoMergeFields({
+  resolved,
+}: {
+  resolved: ResolvedDarkFactorySettings;
+}) {
+  return (
+    <>
+      <label>Auto-merge paths (one glob per line)</label>
+      <textarea
+        name="df_am_paths"
+        rows={4}
+        defaultValue={resolved.auto_merge.paths.join("\n")}
+      />
+
+      <label>Auto-merge min trust</label>
+      <select
+        name="df_am_min_trust"
+        defaultValue={resolved.auto_merge.min_trust}
+      >
+        {TRUST_LEVELS.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+
+      <label>Require green CI to auto-merge</label>
+      <select
+        name="df_am_green_ci"
+        defaultValue={resolved.auto_merge.require_green_ci ? "yes" : "no"}
+      >
+        <option value="yes">Yes</option>
+        <option value="no">No (downgrade — gated)</option>
+      </select>
+
+      <label>Require bot approval to auto-merge</label>
+      <select
+        name="df_am_bot_approval"
+        defaultValue={resolved.auto_merge.require_bot_approval ? "yes" : "no"}
+      >
+        <option value="yes">Yes</option>
+        <option value="no">No (downgrade — gated)</option>
+      </select>
+    </>
+  );
+}
+
+function ApprovalPrField() {
+  return (
+    <>
+      <h3 className={styles.section}>Approval PR (for gated changes)</h3>
+      <span className={`meta ${styles.hint}`}>
+        Required only when changing a security-gated field. Reference an open PR
+        labeled
+        <code> dark-factory-approval</code> approved by a CODEOWNER, as{" "}
+        <code>owner/repo#N</code>.
+      </span>
+      <input name="approval_pr" placeholder="re-cinq/lore#123" />
+    </>
   );
 }
