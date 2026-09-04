@@ -311,6 +311,13 @@ export function deniedError(
   };
 }
 
+/** The MCP content envelope every tool answers in. One place to build it, so a tool returns text rather than assembling a protocol shape. */
+export function textResult(text: string): {
+  content: [{ type: "text"; text: string }];
+} {
+  return { content: [{ type: "text" as const, text }] };
+}
+
 // Format MCP error for unconfigured API endpoint/token; distinct from unreachable.
 export function notConfiguredError(op: string): {
   content: [{ type: "text"; text: string }];

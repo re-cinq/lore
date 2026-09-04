@@ -127,173 +127,176 @@ function taskTicket(
 export function implementationLoopRoutes(
   getPool: () => Pool | null,
 ): ServerRoute[] {
-  return [
-    {
-      method: "GET",
-      path: PATH,
-      options: zodResponse(bearerScope("read"), ImplementationLoopSchema, {
-        name: "ImplementationLoop",
-        description:
-          "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
-      }),
-      handler: async (request, h) => {
-        const pool = getPool();
+  return [readBacklogRoute(getPool), writeBacklogRoute(getPool)];
+}
 
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const repo = repoOf(request.params);
-        const { rows } = await pool.query<{
-          settings: Record<string, unknown> | null;
-        }>("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
+function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: PATH,
+    options: zodResponse(bearerScope("read"), ImplementationLoopSchema, {
+      name: "ImplementationLoop",
+      description:
+        "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
+    }),
+    handler: async (request, h) => {
+      const pool = getPool();
 
-        enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
-        const settings = rows[0].settings ?? {};
-        const enabled =
-          (settings as { implementation_loop?: { enabled?: unknown } })
-            .implementation_loop?.enabled === true;
-        // 2x the display cap: filtering out the open rows must still leave a full recent list.
-        const { rows: taskRows } = await pool.query<LoopTaskRow>(
-          `SELECT id, created_at, status, description, issue_number, issue_url, pr_url
-             FROM pipeline.tasks
-            WHERE target_repo = $1 AND task_type = 'implementation-loop'
-            ORDER BY created_at DESC
-            LIMIT ${RECENT_LIMIT * 2}`,
-          [repo],
-        );
-        const project = await projectFor(repo);
-        const openIssues = await project.issues.list({ state: "open" });
-        const { rows: runRows } = await pool.query<{ id: string }>(
-          `SELECT id FROM pipeline.assembly_runs
-            WHERE repo = $1 AND subject_key = 'backlog'
-              AND status IN ('queued', 'running')
-            ORDER BY created_at DESC LIMIT 1`,
-          [repo],
-        );
-        // Each listed task's latest loop run + node rows, two batched queries; guarded because `= ANY($1)` on an empty JS array makes Postgres guess the type and 500 on a fresh repo.
-        const taskIds = taskRows.map((t) => t.id);
-        const { rows: taskRuns } = taskIds.length
-          ? await pool.query<LoopRunRow>(
-              `SELECT DISTINCT ON (task_id) id, task_id, status, reason, graph
-                 FROM pipeline.assembly_runs
-                WHERE task_id = ANY($1::uuid[])
-                  AND blueprint_name = 'implementation-loop'
-                ORDER BY task_id, created_at DESC`,
-              [taskIds],
-            )
-          : { rows: [] as LoopRunRow[] };
-        const { rows: nodeRows } = taskRuns.length
-          ? await pool.query<NodeRow>(
-              `SELECT assembly_run_id, node_id, iteration, outcome
-                 FROM pipeline.station_runs
-                WHERE assembly_run_id = ANY($1::uuid[])
-                ORDER BY started_at`,
-              [taskRuns.map((r) => r.id)],
-            )
-          : { rows: [] as NodeRow[] };
-        const runByTask = new Map(taskRuns.map((r) => [r.task_id, r]));
-        const currentRow = taskRows.find((t) =>
-          (OPEN_TASK_STATES as readonly string[]).includes(t.status),
-        );
-        const current = currentRow
-          ? taskTicket(
-              currentRow,
-              openIssues,
-              runByTask.get(currentRow.id),
-              nodeRows,
-            )
-          : null;
-        // Mirror the driver's eligibility guard: an issue whose task isn't failed/cancelled is already being worked or addressed — showing it as "next up" duplicated it into next and recent at once.
-        const guardedIssues = new Set(
-          taskRows
-            .filter((t) => !["failed", "cancelled"].includes(t.status))
-            .map((t) => t.issue_number),
-        );
-        const next = orderBacklog(openIssues)
-          .filter((i) => !guardedIssues.has(i.number))
-          .map((i) => ({
-            issue_number: i.number,
-            issue_url: i.url ?? null,
-            title: i.title,
-            priority: priorityOf(i),
-            pr_url: null,
-            state: "queued",
-            created_at: i.createdAt
-              ? new Date(i.createdAt).toISOString()
-              : null,
-            error: null,
-            run_id: null,
-            pipeline: null,
-          }));
-        const recent = taskRows
-          .filter((t) => t !== currentRow)
-          .filter(
-            (t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status),
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const repo = repoOf(request.params);
+      const { rows } = await pool.query<{
+        settings: Record<string, unknown> | null;
+      }>("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
+
+      enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
+      const settings = rows[0].settings ?? {};
+      const enabled =
+        (settings as { implementation_loop?: { enabled?: unknown } })
+          .implementation_loop?.enabled === true;
+      // 2x the display cap: filtering out the open rows must still leave a full recent list.
+      const { rows: taskRows } = await pool.query<LoopTaskRow>(
+        `SELECT id, created_at, status, description, issue_number, issue_url, pr_url
+           FROM pipeline.tasks
+          WHERE target_repo = $1 AND task_type = 'implementation-loop'
+          ORDER BY created_at DESC
+          LIMIT ${RECENT_LIMIT * 2}`,
+        [repo],
+      );
+      const project = await projectFor(repo);
+      const openIssues = await project.issues.list({ state: "open" });
+      const { rows: runRows } = await pool.query<{ id: string }>(
+        `SELECT id FROM pipeline.assembly_runs
+          WHERE repo = $1 AND subject_key = 'backlog'
+            AND status IN ('queued', 'running')
+          ORDER BY created_at DESC LIMIT 1`,
+        [repo],
+      );
+      // Each listed task's latest loop run + node rows, two batched queries; guarded because `= ANY($1)` on an empty JS array makes Postgres guess the type and 500 on a fresh repo.
+      const taskIds = taskRows.map((t) => t.id);
+      const { rows: taskRuns } = taskIds.length
+        ? await pool.query<LoopRunRow>(
+            `SELECT DISTINCT ON (task_id) id, task_id, status, reason, graph
+               FROM pipeline.assembly_runs
+              WHERE task_id = ANY($1::uuid[])
+                AND blueprint_name = 'implementation-loop'
+              ORDER BY task_id, created_at DESC`,
+            [taskIds],
           )
-          .slice(0, RECENT_LIMIT)
-          .map((t) => taskTicket(t, openIssues, runByTask.get(t.id), nodeRows))
-          .filter((t): t is Ticket => t !== null);
+        : { rows: [] as LoopRunRow[] };
+      const { rows: nodeRows } = taskRuns.length
+        ? await pool.query<NodeRow>(
+            `SELECT assembly_run_id, node_id, iteration, outcome
+               FROM pipeline.station_runs
+              WHERE assembly_run_id = ANY($1::uuid[])
+              ORDER BY started_at`,
+            [taskRuns.map((r) => r.id)],
+          )
+        : { rows: [] as NodeRow[] };
+      const runByTask = new Map(taskRuns.map((r) => [r.task_id, r]));
+      const currentRow = taskRows.find((t) =>
+        (OPEN_TASK_STATES as readonly string[]).includes(t.status),
+      );
+      const current = currentRow
+        ? taskTicket(
+            currentRow,
+            openIssues,
+            runByTask.get(currentRow.id),
+            nodeRows,
+          )
+        : null;
+      // Mirror the driver's eligibility guard: an issue whose task isn't failed/cancelled is already being worked or addressed — showing it as "next up" duplicated it into next and recent at once.
+      const guardedIssues = new Set(
+        taskRows
+          .filter((t) => !["failed", "cancelled"].includes(t.status))
+          .map((t) => t.issue_number),
+      );
+      const next = orderBacklog(openIssues)
+        .filter((i) => !guardedIssues.has(i.number))
+        .map((i) => ({
+          issue_number: i.number,
+          issue_url: i.url ?? null,
+          title: i.title,
+          priority: priorityOf(i),
+          pr_url: null,
+          state: "queued",
+          created_at: i.createdAt ? new Date(i.createdAt).toISOString() : null,
+          error: null,
+          run_id: null,
+          pipeline: null,
+        }));
+      const recent = taskRows
+        .filter((t) => t !== currentRow)
+        .filter(
+          (t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status),
+        )
+        .slice(0, RECENT_LIMIT)
+        .map((t) => taskTicket(t, openIssues, runByTask.get(t.id), nodeRows))
+        .filter((t): t is Ticket => t !== null);
 
-        return h
-          .response({
-            enabled,
-            current,
-            current_run_id: runRows[0]?.id ?? null,
-            next,
-            recent,
-          })
-          .code(200);
-      },
+      return h
+        .response({
+          enabled,
+          current,
+          current_run_id: runRows[0]?.id ?? null,
+          next,
+          recent,
+        })
+        .code(200);
     },
-    {
-      method: "PUT",
-      path: PATH,
-      options: zodResponse(
-        {
-          ...bearerScope("admin"),
-          validate: { payload: zodValidate(ToggleBodySchema) },
-        },
-        ToggleResultSchema,
-        {
-          name: "ImplementationLoopToggle",
-          description: "Enable or disable the repo's backlog loop.",
-        },
-      ),
-      handler: async (request, h) => {
-        const pool = getPool();
+  };
+}
 
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const repo = repoOf(request.params);
-        const { enabled } = request.payload as { enabled: boolean };
-        const { rows } = await pool.query<{ full_name: string }>(
-          "SELECT full_name FROM lore.repos WHERE full_name = $1",
-          [repo],
-        );
+function writeBacklogRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "PUT",
+    path: PATH,
+    options: zodResponse(
+      {
+        ...bearerScope("admin"),
+        validate: { payload: zodValidate(ToggleBodySchema) },
+      },
+      ToggleResultSchema,
+      {
+        name: "ImplementationLoopToggle",
+        description: "Enable or disable the repo's backlog loop.",
+      },
+    ),
+    handler: async (request, h) => {
+      const pool = getPool();
 
-        enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
-        await pool.query(
-          `UPDATE lore.repos
-              SET settings = COALESCE(settings, '{}'::jsonb)
-                || jsonb_build_object('implementation_loop',
-                     COALESCE(settings->'implementation_loop', '{}'::jsonb)
-                       || jsonb_build_object('enabled', $2::boolean))
-            WHERE full_name = $1`,
-          [repo, enabled],
-        );
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const repo = repoOf(request.params);
+      const { enabled } = request.payload as { enabled: boolean };
+      const { rows } = await pool.query<{ full_name: string }>(
+        "SELECT full_name FROM lore.repos WHERE full_name = $1",
+        [repo],
+      );
 
-        // Opting in seeds the loop's label taxonomy (FR1/FR7) for repos onboarded before the feature existed; create-or-ignore-existing, and a code-host hiccup must not fail the settings write that already committed.
-        if (enabled) {
-          try {
-            const project = await projectFor(repo);
+      enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
+      await pool.query(
+        `UPDATE lore.repos
+            SET settings = COALESCE(settings, '{}'::jsonb)
+              || jsonb_build_object('implementation_loop',
+                   COALESCE(settings->'implementation_loop', '{}'::jsonb)
+                     || jsonb_build_object('enabled', $2::boolean))
+          WHERE full_name = $1`,
+        [repo, enabled],
+      );
 
-            await project.issues.createLabels(BACKLOG_LABEL_SEED);
-          } catch (err) {
-            console.warn(
-              `[implementation-loop] label seeding for ${repo} failed: ${String(err)}`,
-            );
-          }
+      // Opting in seeds the loop's label taxonomy (FR1/FR7) for repos onboarded before the feature existed; create-or-ignore-existing, and a code-host hiccup must not fail the settings write that already committed.
+      if (enabled) {
+        try {
+          const project = await projectFor(repo);
+
+          await project.issues.createLabels(BACKLOG_LABEL_SEED);
+        } catch (err) {
+          console.warn(
+            `[implementation-loop] label seeding for ${repo} failed: ${String(err)}`,
+          );
         }
+      }
 
-        return h.response({ ok: true as const, enabled }).code(200);
-      },
+      return h.response({ ok: true as const, enabled }).code(200);
     },
-  ];
+  };
 }
