@@ -31,36 +31,48 @@ export function agentCrName(taskId: string): string {
 
 /** Provisions a per-task GitHub token (ADR-031 D6, #697) and materializes the per-task AgentDefinition+Station pair; returns the per-task Station name, or undefined to fall back to the catalog Station. */
 
-/** Maps a LoreTaskSpec to an `Agent` CR body; the recipe (model/prompt/tools) lives on the resolved Station, per-run carries only parameters (incl. the `{context}` fetch-instruction slot). */
-export function specToAgent(spec: LoreTaskSpec, stationRef?: string): AgentCr {
+function agentParameters(spec: LoreTaskSpec): Record<string, string> {
   const parameters: Record<string, string> = {
     description: spec.description,
     prompt: spec.prompt,
     // Always present: renderPrompt leaves an unmatched placeholder intact (so typos surface), so omitting this would ship the literal `{context}` token to the model.
     context: CONTEXT_BOOTSTRAP,
-    ...(spec.parameters ?? {}),
+    ...spec.parameters,
   };
 
   if (spec.prNumber !== undefined) {
     parameters.pr_number = String(spec.prNumber);
   }
 
+  return parameters;
+}
+
+/** Per-task token Station override (#697) wins; then the spec's explicit Station; else the task type's catalog Station. */
+function resolveStationRef(spec: LoreTaskSpec, stationRef?: string): string {
+  if (stationRef) {
+    return stationRef;
+  }
+
+  return spec.stationRef || spec.taskType;
+}
+
+/** Maps a LoreTaskSpec to an `Agent` CR body; the recipe (model/prompt/tools) lives on the resolved Station, per-run carries only parameters (incl. the `{context}` fetch-instruction slot). */
+export function specToAgent(spec: LoreTaskSpec, stationRef?: string): AgentCr {
   return {
     metadata: {
-      name: spec.name ?? agentCrName(spec.taskId),
+      name: spec.name || agentCrName(spec.taskId),
       labels: {
         [TASK_ID_LABEL]: spec.taskId,
         [TASK_TYPE_LABEL]: spec.taskType,
-        ...(spec.extraLabels ?? {}),
+        ...spec.extraLabels,
       },
     },
     spec: {
-      // Per-task token Station override (#697) wins; then the spec's explicit Station; else the task type's catalog Station.
-      stationRef: stationRef ?? spec.stationRef ?? spec.taskType,
+      stationRef: resolveStationRef(spec, stationRef),
       taskId: spec.taskId,
       targetRepo: spec.targetRepo,
       branch: spec.branch,
-      parameters,
+      parameters: agentParameters(spec),
     },
   };
 }

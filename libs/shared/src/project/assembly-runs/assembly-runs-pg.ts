@@ -79,6 +79,16 @@ function blueprintNameList(
   return [...blueprintName];
 }
 
+/** `value ?? null`, spelled as a call so a chain of optional filters isn't one branch per field. */
+function orNull<T>(value: T | null | undefined): T | null {
+  return value ?? null;
+}
+
+/** Clones a readonly filter list, or null when absent. */
+function toArrayOrNull<T>(value: readonly T[] | undefined): T[] | null {
+  return value ? [...value] : null;
+}
+
 export class PgAssemblyRuns implements AssemblyRunsPort {
   constructor(private readonly pool: PgPool) {}
 
@@ -577,15 +587,15 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         ORDER BY created_at DESC, id DESC
         LIMIT $7`,
       [
-        query.repo ?? null,
+        orNull(query.repo),
         blueprints,
-        query.status ? [...query.status] : null,
-        query.taskId ?? null,
-        query.prNumber ?? null,
-        query.createdAfter ?? null,
+        toArrayOrNull(query.status),
+        orNull(query.taskId),
+        orNull(query.prNumber),
+        orNull(query.createdAfter),
         query.limit ?? 50,
-        query.subjectKey ?? null,
-        query.clusterAgentId ?? null,
+        orNull(query.subjectKey),
+        orNull(query.clusterAgentId),
       ],
     );
 

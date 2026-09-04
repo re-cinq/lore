@@ -71,6 +71,18 @@ const COVERAGE_FORMATS: readonly CoverageFormat[] = [
   "json",
 ];
 
+/** Non-empty `list` string, or undefined for anything else. */
+function normalizeList(list: unknown): string | undefined {
+  return typeof list === "string" && list.trim() !== "" ? list : undefined;
+}
+
+/** Recognized `coverage_format` value, or undefined for anything else. */
+function normalizeCoverageFormat(format: unknown): CoverageFormat | undefined {
+  return COVERAGE_FORMATS.includes(format as CoverageFormat)
+    ? (format as CoverageFormat)
+    : undefined;
+}
+
 /** Normalize entry; non-empty `run` is irreducible; `list` and `coverage_format` optional. */
 function normalizeEntry(raw: unknown): TestCommandManifest | null {
   const entry = (raw ?? {}) as Record<string, unknown>;
@@ -79,19 +91,10 @@ function normalizeEntry(raw: unknown): TestCommandManifest | null {
     return null;
   }
 
-  const list =
-    typeof entry.list === "string" && entry.list.trim() !== ""
-      ? entry.list
-      : undefined;
-
   return {
-    list,
+    list: normalizeList(entry.list),
     run: entry.run,
-    coverage_format: COVERAGE_FORMATS.includes(
-      entry.coverage_format as CoverageFormat,
-    )
-      ? (entry.coverage_format as CoverageFormat)
-      : undefined,
+    coverage_format: normalizeCoverageFormat(entry.coverage_format),
     cwd: typeof entry.cwd === "string" ? entry.cwd : ".",
     path_prefix_strip:
       typeof entry.path_prefix_strip === "string"

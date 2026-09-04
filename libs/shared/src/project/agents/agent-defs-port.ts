@@ -50,13 +50,17 @@ const pick = <T>(...layers: (T | null | undefined)[]): T | null => {
   return null;
 };
 
+function projectIdOf(project: AgentDefinition | null): string | null {
+  return project?.project_id ?? null;
+}
+
 /** Field-merges the precedence layers (project beats org beats yaml default); a null nullable field means "inherit the next layer down". Returns null only when every layer is absent. */
 export function resolveAgentConfig(
   project: AgentDefinition | null,
   org: AgentDefinition | null,
   yamlDefault: AgentDefinition | null,
 ): AgentDefinition | null {
-  const top = project ?? org ?? yamlDefault;
+  const top = pick(project, org, yamlDefault);
 
   if (!top) {
     return null;
@@ -75,7 +79,7 @@ export function resolveAgentConfig(
     image: layered("image"),
     execution_mode: layered("execution_mode") ?? "claude-code",
     review_required: layered("review_required") ?? false,
-    project_id: project?.project_id ?? null,
+    project_id: projectIdOf(project),
     // Whole-object, not field-merged — a layer that sets config owns all of it, or splicing project skills into org disallowed_tools would produce a recipe nobody wrote.
     config: layered("config"),
   };

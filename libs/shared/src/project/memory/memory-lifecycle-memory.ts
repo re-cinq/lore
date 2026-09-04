@@ -69,6 +69,36 @@ function newerThanDays(iso: string, days: number): boolean {
   return Date.now() - new Date(iso).getTime() < days * DAY_MS;
 }
 
+/** A fact whose confidence should decay to `stale`: still valid, not already stale/verified, and unretrieved for 30+ days. */
+function isStaleCandidate(f: FactRow): boolean {
+  const isDecayableConfidence =
+    f.confidence !== "stale" && f.confidence !== "verified";
+
+  return (
+    f.valid_to === null &&
+    isDecayableConfidence &&
+    olderThanDays(f.last_retrieved_at ?? f.created_at, 30)
+  );
+}
+
+/** Applies `adjust` to every item whose id is in `ids`, defaulting an absent half-life to `defaultDays` first. Shared by boost (merge success) and penalize (rejection). */
+function adjustHalfLife<
+  T extends { id: string; half_life_days: number | null },
+>(
+  contributors: T[],
+  ids: string[],
+  defaultDays: number,
+  adjust: (days: number) => number,
+): void {
+  for (const contributor of contributors) {
+    if (ids.includes(contributor.id)) {
+      contributor.half_life_days = adjust(
+        contributor.half_life_days ?? defaultDays,
+      );
+    }
+  }
+}
+
 /** In-memory MemoryLifecyclePort — models memories/facts/episodes/audit rows in arrays so every method is behaviorally assertable; seed via the constructor, inspect the public arrays directly in tests. */
 export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
   readonly memories: MemoryLifecycleRow[];
@@ -246,14 +276,7 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     let count = 0;
 
     for (const f of this.facts) {
-      const isDecayableConfidence =
-        f.confidence !== "stale" && f.confidence !== "verified";
-      const eligible =
-        f.valid_to === null &&
-        isDecayableConfidence &&
-        olderThanDays(f.last_retrieved_at ?? f.created_at, 30);
-
-      if (eligible) {
+      if (isStaleCandidate(f)) {
         f.confidence = "stale";
         count++;
       }
@@ -281,34 +304,20 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     factIds: string[],
     memoryIds: string[],
   ): Promise<void> {
-    for (const f of this.facts) {
-      if (factIds.includes(f.id)) {
-        f.half_life_days = Math.min((f.half_life_days ?? 30) + 5, 365);
-      }
-    }
-
-    for (const m of this.memories) {
-      if (memoryIds.includes(m.id)) {
-        m.half_life_days = Math.min((m.half_life_days ?? 60) + 5, 365);
-      }
-    }
+    adjustHalfLife(this.facts, factIds, 30, (days) => Math.min(days + 5, 365));
+    adjustHalfLife(this.memories, memoryIds, 60, (days) =>
+      Math.min(days + 5, 365),
+    );
   }
 
   async penalizeContributors(
     factIds: string[],
     memoryIds: string[],
   ): Promise<void> {
-    for (const f of this.facts) {
-      if (factIds.includes(f.id)) {
-        f.half_life_days = Math.max(7, (f.half_life_days ?? 30) - 3);
-      }
-    }
-
-    for (const m of this.memories) {
-      if (memoryIds.includes(m.id)) {
-        m.half_life_days = Math.max(7, (m.half_life_days ?? 60) - 3);
-      }
-    }
+    adjustHalfLife(this.facts, factIds, 30, (days) => Math.max(7, days - 3));
+    adjustHalfLife(this.memories, memoryIds, 60, (days) =>
+      Math.max(7, days - 3),
+    );
   }
 
   // memory.audit_log ─────────────────────────────────────────────────

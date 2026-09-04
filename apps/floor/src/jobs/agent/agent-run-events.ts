@@ -47,6 +47,21 @@ export function filePathsFromToolInput(input: unknown): string[] {
   return [...new Set(paths)];
 }
 
+interface TruncatedInputValue {
+  stored: unknown;
+  byteSize: number;
+}
+
+// Values arrive from JSON.parse, so JSON.stringify always returns a string; stored as a string once truncated so accounting matches the written size.
+function truncatedInputValue(value: unknown): TruncatedInputValue {
+  const encoded = typeof value === "string" ? value : JSON.stringify(value);
+  const trimmed = truncateForStorage(encoded, TOOL_INPUT_VALUE_MAX_BYTES);
+  const stored =
+    typeof value === "string" || trimmed !== encoded ? trimmed : value;
+
+  return { stored, byteSize: Buffer.byteLength(trimmed, "utf8") };
+}
+
 /** Per-value and whole-input byte caps; dropped keys' count recorded. */
 function truncateToolInput(input: unknown): Record<string, unknown> {
   if (!isRecord(input)) {
@@ -57,19 +72,14 @@ function truncateToolInput(input: unknown): Record<string, unknown> {
   let used = 0;
 
   for (const [index, [key, value]] of entries.entries()) {
-    // Values arrive from JSON.parse, so JSON.stringify always returns a string.
-    const encoded = typeof value === "string" ? value : JSON.stringify(value);
-    const trimmed = truncateForStorage(encoded, TOOL_INPUT_VALUE_MAX_BYTES);
-    const size = Buffer.byteLength(trimmed, "utf8");
+    const { stored, byteSize } = truncatedInputValue(value);
 
-    if (used + size > TOOL_INPUT_TOTAL_MAX_BYTES) {
+    if (used + byteSize > TOOL_INPUT_TOTAL_MAX_BYTES) {
       kept.__truncated__ = `${entries.length - index} input keys omitted`;
       break;
     }
-    // Store trimmed value as string once truncated; accounting matches written size.
-    kept[key] =
-      typeof value === "string" || trimmed !== encoded ? trimmed : value;
-    used += size;
+    kept[key] = stored;
+    used += byteSize;
   }
 
   return kept;
@@ -105,32 +115,29 @@ function toolCallSummary(
     : cap(name);
 }
 
-function assistantBlockRow(
-  block: unknown,
-): Partial<AgentRunEventInsert> | null {
-  if (!isRecord(block)) {
-    return null;
-  }
+function textBlockRow(
+  block: Record<string, unknown>,
+): Partial<AgentRunEventInsert> {
+  return {
+    eventType: "message",
+    summary: cap(str(block.text) ?? ""),
+    payload: {},
+  };
+}
 
-  if (block.type === "text") {
-    return {
-      eventType: "message",
-      summary: cap(str(block.text) ?? ""),
-      payload: {},
-    };
-  }
+function thinkingBlockRow(
+  block: Record<string, unknown>,
+): Partial<AgentRunEventInsert> {
+  return {
+    eventType: "thinking",
+    summary: cap(str(block.thinking) ?? ""),
+    payload: {},
+  };
+}
 
-  if (block.type === "thinking") {
-    return {
-      eventType: "thinking",
-      summary: cap(str(block.thinking) ?? ""),
-      payload: {},
-    };
-  }
-
-  if (block.type !== "tool_use") {
-    return null;
-  }
+function toolUseBlockRow(
+  block: Record<string, unknown>,
+): Partial<AgentRunEventInsert> {
   const name = str(block.name) ?? "unknown";
   const filePaths = filePathsFromToolInput(block.input);
 
@@ -142,6 +149,24 @@ function assistantBlockRow(
     summary: toolCallSummary(name, block.input, filePaths),
     payload: { input: truncateToolInput(block.input) },
   };
+}
+
+function assistantBlockRow(
+  block: unknown,
+): Partial<AgentRunEventInsert> | null {
+  if (!isRecord(block)) {
+    return null;
+  }
+
+  if (block.type === "text") {
+    return textBlockRow(block);
+  }
+
+  if (block.type === "thinking") {
+    return thinkingBlockRow(block);
+  }
+
+  return block.type === "tool_use" ? toolUseBlockRow(block) : null;
 }
 
 function toolResultRow(block: unknown): Partial<AgentRunEventInsert> | null {
@@ -223,38 +248,50 @@ function contentBlocks(ev: Record<string, unknown>): unknown[] {
   return Array.isArray(content) ? content : [];
 }
 
+function isNotNull<T>(row: T | null): row is T {
+  return row !== null;
+}
+
+function assistantRows(
+  ev: Record<string, unknown>,
+): Partial<AgentRunEventInsert>[] {
+  return contentBlocks(ev).map(assistantBlockRow).filter(isNotNull);
+}
+
+function userRows(ev: Record<string, unknown>): Partial<AgentRunEventInsert>[] {
+  return contentBlocks(ev).map(toolResultRow).filter(isNotNull);
+}
+
+// Station progress lines (agent-output.ts): no claude stream, so progress fills transcript; "message" event type.
+function logRows(ev: Record<string, unknown>): Partial<AgentRunEventInsert>[] {
+  const message = str(ev.message);
+
+  return message
+    ? [{ eventType: "message", summary: cap(message), payload: {} }]
+    : [];
+}
+
+type EventRowsHandler = (
+  ev: Record<string, unknown>,
+) => Partial<AgentRunEventInsert>[];
+
+const EVENT_ROW_HANDLERS: Record<string, EventRowsHandler> = {
+  system: systemRows,
+  assistant: assistantRows,
+  user: userRows,
+  log: logRows,
+  result: (ev) => [resultRow(ev)],
+};
+
 /** Stream-json line to rows (before task attribution); unknown kinds dropped (forward-compat contract). */
 function rowsFromEvent(ev: unknown): Partial<AgentRunEventInsert>[] {
   if (!isRecord(ev)) {
     return [];
   }
+  const handler =
+    typeof ev.type === "string" ? EVENT_ROW_HANDLERS[ev.type] : undefined;
 
-  if (ev.type === "system") {
-    return systemRows(ev);
-  }
-
-  if (ev.type === "assistant") {
-    return contentBlocks(ev)
-      .map(assistantBlockRow)
-      .filter((row): row is Partial<AgentRunEventInsert> => row !== null);
-  }
-
-  if (ev.type === "user") {
-    return contentBlocks(ev)
-      .map(toolResultRow)
-      .filter((row): row is Partial<AgentRunEventInsert> => row !== null);
-  }
-
-  // Station progress lines (agent-output.ts): no claude stream, so progress fills transcript; "message" event type.
-  if (ev.type === "log") {
-    const message = str(ev.message);
-
-    return message
-      ? [{ eventType: "message", summary: cap(message), payload: {} }]
-      : [];
-  }
-
-  return ev.type === "result" ? [resultRow(ev)] : [];
+  return handler ? handler(ev) : [];
 }
 
 export function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {

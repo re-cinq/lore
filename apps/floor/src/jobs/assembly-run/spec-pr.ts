@@ -138,6 +138,44 @@ async function existingPrFor(
   return open.find((pr) => pr.branch === branch) ?? null;
 }
 
+function featureIdArg(args: Record<string, unknown>): string | null {
+  return typeof args.feature_id === "string" ? args.feature_id : null;
+}
+
+async function loadFeature(
+  row: AssemblyRunRecord,
+  ports: SpecPrPorts,
+): Promise<Feature | null> {
+  const featureId = featureIdArg(row.args);
+
+  return featureId ? ports.features.get(featureId) : null;
+}
+
+function featureTitle(feature: Feature | null): string | null {
+  return feature?.title ?? null;
+}
+
+interface EnsurePrInput {
+  branch: string;
+  ports: SpecPrPorts;
+  title: string;
+  feature: Feature | null;
+  row: AssemblyRunRecord;
+}
+
+async function ensurePr(input: EnsurePrInput): Promise<PullRef> {
+  const { branch, ports, title, feature, row } = input;
+
+  return (
+    (await existingPrFor(branch, ports.pulls)) ??
+    (await ports.pulls.open(branch, {
+      title,
+      body: prBody(branch, feature, row),
+      draft: decidePrDraft(row.args),
+    }))
+  );
+}
+
 /** Ensure PR on branch, record on line; stamp before feature transition (safer if transition fails). */
 export async function stampLinePr(
   row: AssemblyRunRecord,
@@ -148,21 +186,13 @@ export async function stampLinePr(
   if (!branch) {
     return;
   }
-  const featureId =
-    typeof row.args.feature_id === "string" ? row.args.feature_id : null;
-  const feature = featureId ? await ports.features.get(featureId) : null;
+  const feature = await loadFeature(row, ports);
   const title = draftPrTitle({
-    featureTitle: feature?.title ?? null,
+    featureTitle: featureTitle(feature),
     args: row.args,
     branch,
   });
-  const pr =
-    (await existingPrFor(branch, ports.pulls)) ??
-    (await ports.pulls.open(branch, {
-      title,
-      body: prBody(branch, feature, row),
-      draft: decidePrDraft(row.args),
-    }));
+  const pr = await ensurePr({ branch, ports, title, feature, row });
 
   await ports.assemblyRuns.mergeArgs(row.id, {
     pr_number: pr.number,
@@ -186,6 +216,16 @@ export async function stampLinePr(
   }
 }
 
+function issueNumberArg(args: Record<string, unknown>): number | null {
+  return typeof args.issue_number === "number" ? args.issue_number : null;
+}
+
+function coverageFromExtras(
+  extras: Record<string, string> | undefined,
+): "partial" | "full" {
+  return extras?.["Lore-Issue-Coverage"] === "partial" ? "partial" : "full";
+}
+
 /** Rewrite PR body with pr-ready prose + footer; coverage verdict downgrades Closes→Refs for partial coverage (#1745). */
 export function readyPrBody(
   run: AssemblyRunRecord,
@@ -201,10 +241,8 @@ export function readyPrBody(
   if (!run.taskId) {
     return head;
   }
-  const issueNumber =
-    typeof run.args.issue_number === "number" ? run.args.issue_number : null;
-  const coverage =
-    extras?.["Lore-Issue-Coverage"] === "partial" ? "partial" : "full";
+  const issueNumber = issueNumberArg(run.args);
+  const coverage = coverageFromExtras(extras);
 
   return head + prFooter({ issueNumber, taskId: run.taskId, coverage });
 }
@@ -225,8 +263,7 @@ function prBody(
       ].join("\n")
     : `Opened by the Lore assembly line from \`${branch}\`.`;
 
-  const issueNumber =
-    typeof run.args.issue_number === "number" ? run.args.issue_number : null;
+  const issueNumber = issueNumberArg(run.args);
 
   return run.taskId
     ? head + prFooter({ issueNumber, taskId: run.taskId })

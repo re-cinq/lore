@@ -1,4 +1,5 @@
 import type { PgPool } from "../../memory-store.js";
+import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
 import {
   compareTurnIdAscending,
   type AgentRunTurnInsert,
@@ -38,6 +39,28 @@ function toRow(row: AgentRunTurnDbRow): AgentRunTurnRow {
   };
 }
 
+/** Reads one field off `carried`, or `null` when the event carried no identity at all. */
+function carriedField<T>(
+  carried: CarriedRunIdentity | null | undefined,
+  pick: (identity: CarriedRunIdentity) => T,
+): T | null {
+  return carried ? pick(carried) : null;
+}
+
+function toBatchRow(row: AgentRunTurnInsert): Record<string, unknown> {
+  return {
+    task_id: row.taskId,
+    agent_cr_name: row.agentCrName,
+    assembly_run_id: carriedField(row.carried, (c) => c.assemblyRunId),
+    node_id: carriedField(row.carried, (c) => c.nodeId),
+    iteration: carriedField(row.carried, (c) => c.iteration),
+    station_run_id: carriedField(row.carried, (c) => c.stationRunId),
+    event_type: row.eventType,
+    envelope: row.envelope,
+    dedup_key: row.dedupKey ?? null,
+  };
+}
+
 /** Postgres-backed {@link AgentRunTurnsRepository}. Batch as ONE jsonb parameter via jsonb_to_recordset (varies row count, agent-controlled text never in statement). Envelope as TEXT cast in statement (no roundtrip). Correlation via LEFT JOIN LATERAL for resilience. */
 export class PgAgentRunTurns implements AgentRunTurnsRepository {
   constructor(private readonly pool: PgPool) {}
@@ -49,17 +72,7 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
       return [];
     }
 
-    const batch = rows.map((row) => ({
-      task_id: row.taskId,
-      agent_cr_name: row.agentCrName,
-      assembly_run_id: row.carried?.assemblyRunId ?? null,
-      node_id: row.carried?.nodeId ?? null,
-      iteration: row.carried?.iteration ?? null,
-      station_run_id: row.carried?.stationRunId ?? null,
-      event_type: row.eventType,
-      envelope: row.envelope,
-      dedup_key: row.dedupKey ?? null,
-    }));
+    const batch = rows.map(toBatchRow);
 
     const { rows: inserted } = await this.pool.query<AgentRunTurnDbRow>(
       `INSERT INTO pipeline.agent_run_turns (

@@ -35,25 +35,33 @@ async function checkMissedRuns(): Promise<void> {
   await runDueJobs("missed run");
 }
 
+/** True when the job's cron schedule has fired since `lastRun` (or it never ran). */
+function jobIsDue(cron: string, lastRun: Date | null): boolean {
+  const interval = cronParser.parseExpression(cron);
+  const prev = interval.prev().toDate();
+
+  return !lastRun || lastRun < prev;
+}
+
+async function runIfDue(job: JobDef, label: string): Promise<void> {
+  if (running.has(job.name)) {
+    return;
+  }
+
+  try {
+    const last = await pipeline().jobRuns.lastRun(job.name);
+
+    if (jobIsDue(job.cron, last?.startedAt ?? null)) {
+      await runJob(job);
+    }
+  } catch (err) {
+    console.error(`[scheduler] Error checking ${label} ${job.name}:`, err);
+  }
+}
+
 async function runDueJobs(label: string): Promise<void> {
   for (const job of jobs.values()) {
-    if (running.has(job.name)) {
-      continue;
-    }
-
-    try {
-      const interval = cronParser.parseExpression(job.cron);
-      const prev = interval.prev().toDate();
-
-      const last = await pipeline().jobRuns.lastRun(job.name);
-      const lastRun = last?.startedAt ?? null;
-
-      if (!lastRun || lastRun < prev) {
-        await runJob(job);
-      }
-    } catch (err) {
-      console.error(`[scheduler] Error checking ${label} ${job.name}:`, err);
-    }
+    await runIfDue(job, label);
   }
 }
 

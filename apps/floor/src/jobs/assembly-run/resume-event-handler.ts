@@ -23,48 +23,77 @@ export interface ResumeEventHandlerDeps {
   }) => Promise<void>;
 }
 
+function assemblyLineIdFrom(params: Record<string, unknown>): string {
+  const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
+
+  enforceTrue(
+    typeof assemblyLineId === "string" && assemblyLineId.length > 0,
+    Error,
+    "assembly_run.resume event params missing assemblyRunId",
+  );
+
+  return assemblyLineId as string;
+}
+
+// The line may be parked on several waits; the reporter must say which node it is completing.
+function nodeIdFrom(params: Record<string, unknown>): string {
+  const nodeId = params.nodeId;
+
+  enforceTrue(
+    typeof nodeId === "string" && nodeId.length > 0,
+    Error,
+    "assembly_line.resume event params missing nodeId",
+  );
+
+  return nodeId as string;
+}
+
+// A typo'd outcome would route down an edge nobody wrote, since selectEdge does not fall through.
+function outcomeFrom(params: Record<string, unknown>): StageOutcome {
+  const outcome = String(params.outcome ?? "");
+
+  enforceTrue(
+    OUTCOMES.has(outcome),
+    Error,
+    `assembly_line.resume event has unknown outcome "${outcome}"`,
+  );
+
+  return outcome as StageOutcome;
+}
+
+// Rides in BEFORE the walk advances, via the same args channel a produced artifact uses (FR6.17).
+async function mergeArgsIfObject(
+  deps: ResumeEventHandlerDeps,
+  assemblyLineId: string,
+  args: unknown,
+): Promise<void> {
+  if (args && typeof args === "object" && !Array.isArray(args)) {
+    await deps.assemblyRuns.mergeArgs(
+      assemblyLineId,
+      args as Record<string, unknown>,
+    );
+  }
+}
+
+function iterationFrom(params: Record<string, unknown>): number | undefined {
+  return typeof params.iteration === "number" ? params.iteration : undefined;
+}
+
 export function createResumeEventHandler(
   deps: ResumeEventHandlerDeps,
 ): EventHandler {
   return async (params) => {
-    const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
-    const nodeId = params.nodeId;
-    const outcome = String(params.outcome ?? "");
+    const assemblyLineId = assemblyLineIdFrom(params);
+    const nodeId = nodeIdFrom(params);
+    const outcome = outcomeFrom(params);
 
-    enforceTrue(
-      typeof assemblyLineId === "string" && assemblyLineId.length > 0,
-      Error,
-      "assembly_run.resume event params missing assemblyRunId",
-    );
-    // The line may be parked on several waits; the reporter must say which node it is completing.
-    enforceTrue(
-      typeof nodeId === "string" && nodeId.length > 0,
-      Error,
-      "assembly_line.resume event params missing nodeId",
-    );
-    // A typo'd outcome would route down an edge nobody wrote, since selectEdge does not fall through.
-    enforceTrue(
-      OUTCOMES.has(outcome),
-      Error,
-      `assembly_line.resume event has unknown outcome "${outcome}"`,
-    );
-
-    // Rides in BEFORE the walk advances, via the same args channel a produced artifact uses (FR6.17).
-    const args = params.args;
-
-    if (args && typeof args === "object" && !Array.isArray(args)) {
-      await deps.assemblyRuns.mergeArgs(
-        assemblyLineId,
-        args as Record<string, unknown>,
-      );
-    }
+    await mergeArgsIfObject(deps, assemblyLineId, params.args);
 
     await deps.finishNodeAndAdvance({
       assemblyLineId,
       nodeId,
-      iteration:
-        typeof params.iteration === "number" ? params.iteration : undefined,
-      result: resumedResult(params, outcome as StageOutcome),
+      iteration: iterationFrom(params),
+      result: resumedResult(params, outcome),
     });
   };
 }

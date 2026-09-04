@@ -83,6 +83,26 @@ interface GraphSpecStatements {
   }[];
 }
 
+type GraphStatementRow = NonNullable<GraphSpecStatements["stmts"]>[number];
+
+function toGraphStatementRef(
+  stmt: GraphStatementRow,
+  specTitle: string,
+): GraphStatementRef {
+  return {
+    xid: stmt["Statement.xid"] ?? "",
+    textHash: stmt["Statement.text_hash"] ?? "",
+    text: stmt["Statement.text"] ?? "",
+    specTitle,
+    section: stmt.section?.["Section.heading"],
+    tests: (stmt.tests ?? []).map((test) => ({
+      file: test["TestChunk.file_path"] ?? "",
+      name: test["TestChunk.test_name"] ?? "",
+      line: test["TestChunk.start_line"] ?? 0,
+    })),
+  };
+}
+
 /** Reads a spec's statements as the graph holds them, with their validating tests. */
 export async function readSpecStatements(
   dgraph: DgraphClientPort,
@@ -101,18 +121,7 @@ export async function readSpecStatements(
   return specs.flatMap((spec) =>
     (spec.stmts ?? [])
       .filter((stmt) => stmt["Statement.text_hash"])
-      .map((stmt) => ({
-        xid: stmt["Statement.xid"] ?? "",
-        textHash: stmt["Statement.text_hash"] ?? "",
-        text: stmt["Statement.text"] ?? "",
-        specTitle: spec["Spec.title"] ?? "",
-        section: stmt.section?.["Section.heading"],
-        tests: (stmt.tests ?? []).map((test) => ({
-          file: test["TestChunk.file_path"] ?? "",
-          name: test["TestChunk.test_name"] ?? "",
-          line: test["TestChunk.start_line"] ?? 0,
-        })),
-      })),
+      .map((stmt) => toGraphStatementRef(stmt, spec["Spec.title"] ?? "")),
   );
 }
 

@@ -14,6 +14,30 @@ import {
   linkPrToIssue,
 } from "./task-helpers.js";
 
+interface SpecFileRequest {
+  path: string;
+  prompt: string;
+}
+
+/** Generates one spec artifact's content; returns null when the model says the file isn't needed. */
+async function generateSpecFileContent(
+  file: SpecFileRequest,
+  contextStr: string,
+  model: string | undefined,
+  taskId: string,
+): Promise<string | null> {
+  const result = await Llm.instance.complete({
+    prompt: `${file.prompt}\n\n## Repository Context\n\n${contextStr}`,
+    systemPrompt: `Generate the content for ${file.path}. Output ONLY the file content — no explanation, no markdown code fences, no preamble. Start directly with the file content.`,
+    model,
+    maxTokens: 8192,
+    taskId,
+  });
+  const text = result.text.trim();
+
+  return text === "SKIP" || text.length < 20 ? null : text;
+}
+
 /** Translates a PM's plain-language intent into spec.md/data-model.md/tasks.md matching the target repo's conventions, then opens a PR for engineer review. */
 export async function handleFeatureRequest({
   task,
@@ -109,17 +133,14 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
 
   for (const file of SPEC_FILES) {
     try {
-      const result = await Llm.instance.complete({
-        prompt: `${file.prompt}\n\n## Repository Context\n\n${contextStr}`,
-        systemPrompt: `Generate the content for ${file.path}. Output ONLY the file content — no explanation, no markdown code fences, no preamble. Start directly with the file content.`,
+      const text = await generateSpecFileContent(
+        file,
+        contextStr,
         model,
-        maxTokens: 8192,
-        taskId: task.id,
-      });
+        task.id,
+      );
 
-      const text = result.text.trim();
-
-      if (text === "SKIP" || text.length < 20) {
+      if (text === null) {
         console.log(
           `[floor] Feature request: skipping ${file.path} (not needed)`,
         );

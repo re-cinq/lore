@@ -32,6 +32,24 @@ function redactedLine(
   return redacted;
 }
 
+interface TurnSourceFields {
+  taskId: string | null;
+  agentCrName: string | null;
+  /** The task-turns relay's idempotency key (#1389); pod-produced envelopes carry none, so cluster ingest never dedups. */
+  dedupKey: string | null;
+}
+
+function turnSourceFields(
+  source:
+    { task?: unknown; agent?: unknown; turn_key?: unknown } | null | undefined,
+): TurnSourceFields {
+  return {
+    taskId: str(source?.task),
+    agentCrName: str(source?.agent),
+    dedupKey: str(source?.turn_key),
+  };
+}
+
 /** One turn from an already-parsed envelope plus its raw line; returns null only when redaction broke the JSON — an unattributed or unrecognized line is still kept, since a fidelity store must not drop what it cannot label. */
 export function turnFromEnvelope(
   parsed: unknown,
@@ -46,12 +64,9 @@ export function turnFromEnvelope(
   const { source, event } = unwrapAttribution(parsed);
 
   return {
-    taskId: str(source?.task),
-    agentCrName: str(source?.agent),
+    ...turnSourceFields(source),
     carried: parseCarriedRunIdentity(source),
     eventType: isRecord(event) ? str(event.type) : null,
     envelope,
-    // The task-turns relay's idempotency key (#1389); pod-produced envelopes carry none, so cluster ingest never dedups.
-    dedupKey: str(source?.turn_key),
   };
 }

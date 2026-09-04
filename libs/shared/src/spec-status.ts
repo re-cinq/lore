@@ -149,6 +149,35 @@ export interface RewriteStatusOptions {
   allowTerminal?: boolean;
 }
 
+const isTerminalBucket = (bucket: StatusBucket | null): boolean =>
+  bucket === "shipped" || bucket === "retired";
+
+function rewriteBlocked(
+  current: string | null,
+  opts: RewriteStatusOptions,
+): boolean {
+  if (current === null) {
+    return true;
+  }
+  const bucket = bucketOf(current);
+
+  return !opts.allowTerminal && isTerminalBucket(bucket);
+}
+
+function rewriteStatusLine(line: string, label: string): string | null {
+  const cells = line.split("|");
+  const statusIdx = cells.findIndex(
+    (cell, idx) => idx > 0 && cell.trim().toLowerCase() === "status",
+  );
+
+  if (statusIdx === -1 || statusIdx + 1 >= cells.length) {
+    return null;
+  }
+  cells[statusIdx + 1] = replaceStatusCell(cells[statusIdx + 1], label);
+
+  return cells.join("|");
+}
+
 /** Deterministically flips a spec's `| Status | <value> |` row to `label`; returns null when no status row exists or (unless `allowTerminal`) the value is already terminal (idempotent). */
 export function rewriteSpecStatusRow(
   content: string,
@@ -157,12 +186,7 @@ export function rewriteSpecStatusRow(
 ): string | null {
   const current = specTableStatusValue(content);
 
-  if (current === null) {
-    return null;
-  }
-  const bucket = bucketOf(current);
-
-  if (!opts.allowTerminal && (bucket === "shipped" || bucket === "retired")) {
+  if (rewriteBlocked(current, opts)) {
     return null;
   }
 
@@ -170,16 +194,12 @@ export function rewriteSpecStatusRow(
   const lines = content.split(/\r?\n/);
 
   for (let i = 0; i < lines.length; i++) {
-    const cells = lines[i].split("|");
-    const statusIdx = cells.findIndex(
-      (cell, idx) => idx > 0 && cell.trim().toLowerCase() === "status",
-    );
+    const rewritten = rewriteStatusLine(lines[i], label);
 
-    if (statusIdx === -1 || statusIdx + 1 >= cells.length) {
+    if (rewritten === null) {
       continue;
     }
-    cells[statusIdx + 1] = replaceStatusCell(cells[statusIdx + 1], label);
-    lines[i] = cells.join("|");
+    lines[i] = rewritten;
 
     return lines.join(sep);
   }

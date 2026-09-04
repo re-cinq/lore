@@ -18,6 +18,32 @@ import type {
   InsertTaskInput,
 } from "./task-queue-port.js";
 
+type SpecTaskContextFields = { context_bundle: Record<string, unknown> | null };
+
+const specTaskIdOf = (task: SpecTaskContextFields): string | undefined =>
+  task.context_bundle?.spec_task_id as string | undefined;
+const specSlugOf = (task: SpecTaskContextFields): string | undefined =>
+  task.context_bundle?.spec_slug as string | undefined;
+
+function optionalTaskColumns(input: InsertTaskInput): [string, unknown][] {
+  const candidates: [string, unknown][] = [
+    ["status", input.status],
+    [
+      "context_bundle",
+      input.contextBundle !== undefined
+        ? JSON.stringify(input.contextBundle)
+        : undefined,
+    ],
+    ["created_by", input.createdBy],
+    ["task_group_id", input.taskGroupId],
+  ];
+
+  return candidates.filter(([, value]) => value !== undefined);
+}
+
+const insertedId = (rows: { id?: unknown }[]): string | null =>
+  (rows[0]?.id as string) ?? null;
+
 /** Postgres TaskQueueRepository; org-wide claim/sweep SQL from Floor jobs. */
 export class PgTaskQueue implements TaskQueueRepository {
   constructor(private readonly pool: PgPool) {}
@@ -155,8 +181,8 @@ export class PgTaskQueue implements TaskQueueRepository {
       [id],
     );
 
-    const specTaskId = task.context_bundle?.spec_task_id as string | undefined;
-    const specSlug = task.context_bundle?.spec_slug as string | undefined;
+    const specTaskId = specTaskIdOf(task);
+    const specSlug = specSlugOf(task);
 
     if (!specTaskId || !specSlug) {
       return { completed: true, unblocked: [] };
@@ -280,39 +306,26 @@ export class PgTaskQueue implements TaskQueueRepository {
   }
 
   async insertTask(input: InsertTaskInput): Promise<string | null> {
-    const cols = ["description", "task_type", "target_repo"];
+    const optional = optionalTaskColumns(input);
+    const cols = [
+      "description",
+      "task_type",
+      "target_repo",
+      ...optional.map(([key]) => key),
+    ];
     const vals: unknown[] = [
       input.description,
       input.taskType,
       input.targetRepo,
+      ...optional.map(([, value]) => value),
     ];
-
-    if (input.status !== undefined) {
-      cols.push("status");
-      vals.push(input.status);
-    }
-
-    if (input.contextBundle !== undefined) {
-      cols.push("context_bundle");
-      vals.push(JSON.stringify(input.contextBundle));
-    }
-
-    if (input.createdBy !== undefined) {
-      cols.push("created_by");
-      vals.push(input.createdBy);
-    }
-
-    if (input.taskGroupId !== undefined) {
-      cols.push("task_group_id");
-      vals.push(input.taskGroupId);
-    }
     const placeholders = vals.map((_, i) => `$${i + 1}`).join(", ");
     const { rows } = await this.pool.query(
       `INSERT INTO pipeline.tasks (${cols.join(", ")}) VALUES (${placeholders}) ON CONFLICT DO NOTHING RETURNING id`,
       vals,
     );
 
-    return (rows[0]?.id as string) ?? null;
+    return insertedId(rows);
   }
 
   async setColumns(

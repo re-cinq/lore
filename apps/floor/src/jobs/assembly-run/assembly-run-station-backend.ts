@@ -21,6 +21,18 @@ function subjectKeyFor(spec: LoreTaskSpec): string | undefined {
   return spec.featureId ? featureSubject(spec.featureId) : undefined;
 }
 
+// Per-run values a definition can name with `continues.key: args.<name>`; the engine stays domain-free.
+function launchArgsFor(spec: LoreTaskSpec): Record<string, unknown> {
+  return {
+    // Seeds FIRST — a context-bundle bag must never displace `description`, which fills {description} in every agent prompt.
+    ...(spec.lineArgs ?? {}),
+    description: spec.description,
+    ...(spec.featureId ? { feature_id: spec.featureId } : {}),
+    ...(spec.roundFeedback ? { round_feedback: spec.roundFeedback } : {}),
+    ...(spec.resumeFromTask ? { resume_from_task: spec.resumeFromTask } : {}),
+  };
+}
+
 export class AssemblyLineStationBackend implements StationBackend {
   constructor(private readonly assemblyRuns: AssemblyRunsPort) {}
 
@@ -33,17 +45,7 @@ export class AssemblyLineStationBackend implements StationBackend {
       taskId: spec.taskId,
       // What this run WORKS ON: a feature's planning + finalize runs share a subject, so only one is open at a time.
       ...(subjectKey ? { subjectKey } : {}),
-      // Per-run values a definition can name with `continues.key: args.<name>`; the engine stays domain-free.
-      args: {
-        // Seeds FIRST — a context-bundle bag must never displace `description`, which fills {description} in every agent prompt.
-        ...(spec.lineArgs ?? {}),
-        description: spec.description,
-        ...(spec.featureId ? { feature_id: spec.featureId } : {}),
-        ...(spec.roundFeedback ? { round_feedback: spec.roundFeedback } : {}),
-        ...(spec.resumeFromTask
-          ? { resume_from_task: spec.resumeFromTask }
-          : {}),
-      },
+      args: launchArgsFor(spec),
     });
 
     // Only a subject-keyed start can have joined, so an unkeyed one asks nothing.

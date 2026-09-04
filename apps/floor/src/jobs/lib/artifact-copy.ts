@@ -67,38 +67,47 @@ export function fallbackCopy(input: ArtifactCopyInput): ArtifactCopy {
 const defaultLlm: CopyLlm = (params) =>
   Llm.instance.completeWithTool<{ title?: string; body?: string }>(params);
 
+/** Calls the LLM for title + body; returns null when either comes back blank. */
+async function requestLlmCopy(
+  input: ArtifactCopyInput,
+  llm: CopyLlm,
+): Promise<ArtifactCopy | null> {
+  const result = await llm({
+    prompt: buildCopyPrompt(input),
+    systemPrompt: SYSTEM_PROMPT,
+    toolName: "write_copy",
+    toolDescription: "Provide a title and description for the GitHub artifact",
+    toolSchema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "Imperative title, under 70 chars",
+        },
+        body: { type: "string", description: "Short markdown description" },
+      },
+      required: ["title", "body"],
+    },
+    jobName: "artifact-copy",
+    maxTokens: 600,
+  });
+
+  const title = (result.parsed.title || "").trim();
+  const body = (result.parsed.body || "").trim();
+
+  return title && body ? { title, body, source: "llm" } : null;
+}
+
 /** Asks the model for an engagement-optimized title + description, falling back to deterministic copy if it errors or returns nothing usable. */
 export async function generateArtifactCopy(
   input: ArtifactCopyInput,
   llm: CopyLlm = defaultLlm,
 ): Promise<ArtifactCopy> {
   try {
-    const result = await llm({
-      prompt: buildCopyPrompt(input),
-      systemPrompt: SYSTEM_PROMPT,
-      toolName: "write_copy",
-      toolDescription:
-        "Provide a title and description for the GitHub artifact",
-      toolSchema: {
-        type: "object",
-        properties: {
-          title: {
-            type: "string",
-            description: "Imperative title, under 70 chars",
-          },
-          body: { type: "string", description: "Short markdown description" },
-        },
-        required: ["title", "body"],
-      },
-      jobName: "artifact-copy",
-      maxTokens: 600,
-    });
+    const copy = await requestLlmCopy(input, llm);
 
-    const title = (result.parsed.title || "").trim();
-    const body = (result.parsed.body || "").trim();
-
-    if (title && body) {
-      return { title, body, source: "llm" };
+    if (copy) {
+      return copy;
     }
   } catch {
     // fall through to deterministic copy

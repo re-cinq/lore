@@ -4,6 +4,7 @@ import { hasConnect } from "./memory-store.js";
 import type {
   MemoryRecord,
   MemoryStore,
+  MemoryTxClient,
   PgPool,
   WriteResult,
 } from "./memory-store.js";
@@ -107,6 +108,13 @@ async function upsertMemoryWithVersion(
   return { memoryId, version };
 }
 
+function isNumericVersion(version: string | number | undefined): boolean {
+  return (
+    typeof version === "number" ||
+    (typeof version === "string" && !isNaN(Number(version)))
+  );
+}
+
 function listScope(
   repo: string | undefined,
   agentId: string | undefined,
@@ -124,6 +132,42 @@ function listScope(
   return { filter: "", params: [limit, offset] };
 }
 
+async function beginIfClient(client: MemoryTxClient | null): Promise<void> {
+  if (client) {
+    await client.query("BEGIN");
+  }
+}
+
+async function commitIfClient(client: MemoryTxClient | null): Promise<void> {
+  if (client) {
+    await client.query("COMMIT");
+  }
+}
+
+// The memories row and its version row must land together (#1154): a connect()-capable pool runs the upsert in one transaction; a query-only pool stays sequential.
+async function upsertMemoryTransactionally(
+  pool: PgPool,
+  input: UpsertInput,
+): Promise<{ memoryId: string; version: number }> {
+  const client = hasConnect(pool) ? await pool.connect() : null;
+
+  try {
+    await beginIfClient(client);
+
+    const result = await upsertMemoryWithVersion(client ?? pool, input);
+
+    await commitIfClient(client);
+
+    return result;
+  } catch (err) {
+    // Best-effort: the connection may already be dead, and that failure must not mask the original error.
+    await client?.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client?.release();
+  }
+}
+
 export class PostgresMemoryStore implements MemoryStore {
   readonly backend = "postgres" as const;
 
@@ -131,32 +175,10 @@ export class PostgresMemoryStore implements MemoryStore {
 
   async writeMemory(input: UpsertInput): Promise<WriteResult> {
     const agent = input.agentId;
-
-    // The memories row and its version row must land together (#1154): a connect()-capable pool runs the upsert in one transaction; a query-only pool stays sequential.
-    const client = hasConnect(this.pool) ? await this.pool.connect() : null;
-    let memoryId: string;
-    let version: number;
-
-    try {
-      if (client) {
-        await client.query("BEGIN");
-      }
-
-      ({ memoryId, version } = await upsertMemoryWithVersion(
-        client ?? this.pool,
-        input,
-      ));
-
-      if (client) {
-        await client.query("COMMIT");
-      }
-    } catch (err) {
-      // Best-effort: the connection may already be dead, and that failure must not mask the original error.
-      await client?.query("ROLLBACK").catch(() => undefined);
-      throw err;
-    } finally {
-      client?.release();
-    }
+    const { memoryId, version } = await upsertMemoryTransactionally(
+      this.pool,
+      input,
+    );
 
     await this.auditLog(agent, "write", input.key);
 
@@ -196,10 +218,7 @@ export class PostgresMemoryStore implements MemoryStore {
       return rows;
     }
 
-    if (
-      typeof version === "number" ||
-      (typeof version === "string" && !isNaN(Number(version)))
-    ) {
+    if (isNumericVersion(version)) {
       // Specific version
       const { rows } = await this.pool.query(
         `SELECT mv.version, mv.value, mv.created_at

@@ -46,6 +46,29 @@ export async function writeEpisode(
   }
 }
 
+/** Ask Haiku for a one/two-sentence lesson; returns null when there's nothing notable. */
+async function extractLesson(
+  content: string,
+  taskId: string | undefined,
+): Promise<string | null> {
+  const result = await Llm.instance.complete({
+    prompt: `Extract one concise lesson learned from this task outcome. Focus on what went well, what went wrong, or what pattern should be remembered for future tasks. Return just the lesson in 1-2 sentences. If there's nothing notable, respond with "SKIP".\n\n${content.substring(0, 4000)}`,
+    systemPrompt:
+      "You are a post-task curator extracting reusable lessons from agent task outcomes.",
+    maxTokens: 256,
+    taskId: taskId || undefined,
+    jobName: "auto-curation",
+  });
+
+  const lesson = result.text.trim();
+
+  if (!lesson || lesson.startsWith("SKIP") || lesson.length < 10) {
+    return null;
+  }
+
+  return lesson;
+}
+
 /** Write episode and extract optional "lesson learned" via Haiku, stored for future search. */
 export async function writeEpisodeWithCuration(
   deps: CurationDeps,
@@ -65,20 +88,10 @@ export async function writeEpisodeWithCuration(
     return;
   }
 
-  // Extract a lesson learned via Haiku
   try {
-    const result = await Llm.instance.complete({
-      prompt: `Extract one concise lesson learned from this task outcome. Focus on what went well, what went wrong, or what pattern should be remembered for future tasks. Return just the lesson in 1-2 sentences. If there's nothing notable, respond with "SKIP".\n\n${content.substring(0, 4000)}`,
-      systemPrompt:
-        "You are a post-task curator extracting reusable lessons from agent task outcomes.",
-      maxTokens: 256,
-      taskId: taskId || undefined,
-      jobName: "auto-curation",
-    });
+    const lesson = await extractLesson(content, taskId);
 
-    const lesson = result.text.trim();
-
-    if (!lesson || lesson.startsWith("SKIP") || lesson.length < 10) {
+    if (!lesson) {
       return;
     }
 

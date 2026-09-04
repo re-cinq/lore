@@ -4,6 +4,7 @@ import { requiresApproval } from "@re-cinq/lore-shared";
 import {
   resolveDarkFactorySettings,
   trustMeets,
+  type CreateIssueMode,
   type DarkFactorySettings,
   type ResolvedDarkFactorySettings,
   type ReviewMode,
@@ -38,13 +39,38 @@ export interface IssueGateDecision {
     | "approval_required_overrides_dark_mode";
 }
 
+function overridesWantIssue(
+  overrides: DarkFactoryTaskOverrides | undefined,
+): boolean {
+  return overrides?.with_issue === true;
+}
+
+function darkFactoryDisabled(
+  settings: DarkFactoryRepoSettings | undefined,
+): boolean {
+  return !settings?.enabled;
+}
+
+function createIssuePolicy(
+  settings: DarkFactoryRepoSettings | undefined,
+): CreateIssueMode {
+  return settings?.create_issue ?? "on_gate";
+}
+
+// approvalNeeded is short-circuited before this table is consulted; reaching "on_gate" here means no approval gate, so it suppresses the Issue.
+const GATE_POLICY_DECISIONS: Record<CreateIssueMode, IssueGateDecision> = {
+  never: { create: false, reason: "create_issue_never" },
+  always: { create: true, reason: "create_issue_always" },
+  on_gate: { create: false, reason: "create_issue_on_gate_no_approval" },
+};
+
 /** Pure decision: given the task's approval flag, per-task overrides, and the repo's dark_factory settings, decide whether a GitHub Issue should be created. Exported separately from {@link shouldCreateIssue} so callers can unit-test without the DB round-trip. */
 export function decideIssueCreate(args: {
   approvalNeeded: boolean;
   overrides: DarkFactoryTaskOverrides | undefined;
   settings: DarkFactoryRepoSettings | undefined;
 }): IssueGateDecision {
-  if (args.overrides?.with_issue === true) {
+  if (overridesWantIssue(args.overrides)) {
     return { create: true, reason: "with_issue_override" };
   }
 
@@ -56,21 +82,11 @@ export function decideIssueCreate(args: {
     };
   }
 
-  if (!args.settings?.enabled) {
+  if (darkFactoryDisabled(args.settings)) {
     return { create: true, reason: "default_create" };
   }
 
-  const policy = args.settings.create_issue ?? "on_gate";
-
-  switch (policy) {
-    case "never":
-      return { create: false, reason: "create_issue_never" };
-    case "always":
-      return { create: true, reason: "create_issue_always" };
-    case "on_gate":
-      // approvalNeeded was short-circuited above; reaching here means no approval gate, so suppress the Issue.
-      return { create: false, reason: "create_issue_on_gate_no_approval" };
-  }
+  return GATE_POLICY_DECISIONS[createIssuePolicy(args.settings)];
 }
 
 /** Pure decision (T034): resolves the effective review mode for a task by merging per-task overrides over per-repo dark_factory settings — `human_review: required` forces `always`; disabled defaults to `always`; enabled uses `settings.review` (default `trust_based`, which lets auto-merge gate per-path; `never` skips bot review). */

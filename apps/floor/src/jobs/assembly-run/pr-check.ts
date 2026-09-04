@@ -26,14 +26,17 @@ export function checkName(blueprintName: string): string {
   return CHECK_NAME_ALIAS[blueprintName] ?? blueprintName;
 }
 
+function headShaArg(line: AssemblyRunRecord): string {
+  return typeof line.args.head_sha === "string" ? line.args.head_sha : "";
+}
+
 export function assemblyLineCheck(
   line: AssemblyRunRecord,
   nodes: readonly StationRunRecord[],
   uiUrl?: string,
 ): CheckRunInput | null {
   const prNumber = Number(line.args.pr_number);
-  const headSha =
-    typeof line.args.head_sha === "string" ? line.args.head_sha : "";
+  const headSha = headShaArg(line);
 
   if (!prNumber || !headSha) {
     return null;
@@ -59,35 +62,53 @@ export function assemblyLineCheck(
   return { ...base, status: "completed", conclusion, summary };
 }
 
+type TerminalResult = {
+  conclusion: NonNullable<CheckRunInput["conclusion"]>;
+  summary: string;
+};
+
+// Key on outcome, not status: `outcome: "failed"` still closes the row as `finished`, so any non-benign outcome publishes a red check.
+function failureResult(line: AssemblyRunRecord): TerminalResult | null {
+  if (!isFailureOutcome(line.outcome ?? "")) {
+    return null;
+  }
+  const why = line.reason ? ` — ${line.reason}` : "";
+  const rerunHint = isReviewDefinition(line.blueprintName)
+    ? ` ${REVIEW_RERUN_HINT}`
+    : "";
+
+  return {
+    conclusion: "failure",
+    summary: `${line.blueprintName} failed${why}.${rerunHint}`,
+  };
+}
+
+// The code-review walk routes `changes_requested` → done, so the LINE outcome reads "completed" — read the verdict from the node rows instead (latest iteration wins), or the check misreads "Approved.".
+function hasChangesRequested(
+  line: AssemblyRunRecord,
+  nodes: readonly StationRunRecord[],
+): boolean {
+  return (
+    line.outcome === "changes_requested" ||
+    latestNodeOutcomes(nodes).includes("changes_requested")
+  );
+}
+
 function terminal(
   line: AssemblyRunRecord,
   nodes: readonly StationRunRecord[],
-): {
-  conclusion: NonNullable<CheckRunInput["conclusion"]>;
-  summary: string;
-} {
-  // Key on outcome, not status: `outcome: "failed"` still closes the row as `finished`, so any non-benign outcome publishes a red check.
-  if (isFailureOutcome(line.outcome ?? "")) {
-    const why = line.reason ? ` — ${line.reason}` : "";
-    const rerunHint = isReviewDefinition(line.blueprintName)
-      ? ` ${REVIEW_RERUN_HINT}`
-      : "";
+): TerminalResult {
+  const failure = failureResult(line);
 
-    return {
-      conclusion: "failure",
-      summary: `${line.blueprintName} failed${why}.${rerunHint}`,
-    };
+  if (failure) {
+    return failure;
   }
 
   if (line.outcome === "pr_closed") {
     return { conclusion: "cancelled", summary: "PR closed." };
   }
 
-  // The code-review walk routes `changes_requested` → done, so the LINE outcome reads "completed" — read the verdict from the node rows instead (latest iteration wins), or the check misreads "Approved.".
-  if (
-    line.outcome === "changes_requested" ||
-    latestNodeOutcomes(nodes).includes("changes_requested")
-  ) {
+  if (hasChangesRequested(line, nodes)) {
     return {
       conclusion: "neutral",
       summary:

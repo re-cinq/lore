@@ -402,6 +402,13 @@ export type ValidationExec = (
   opts: { cwd: string; timeoutMs?: number },
 ) => Promise<{ output: string; passed: boolean }>;
 
+function execFailureOutput(err: unknown): string {
+  const e = err as { stdout?: string; stderr?: string; message?: string };
+  const combined = [e.stdout ?? "", e.stderr ?? ""].join("\n").trim();
+
+  return combined || e.message || "unknown error";
+}
+
 /** Default exec — runs the command locally via `execSync`. */
 export const localValidationExec: ValidationExec = async (
   command,
@@ -418,10 +425,7 @@ export const localValidationExec: ValidationExec = async (
 
     return { output: output || "", passed: true };
   } catch (err: unknown) {
-    const e = err as { stdout?: string; stderr?: string; message?: string };
-    const output = [e.stdout || "", e.stderr || ""].join("\n").trim();
-
-    return { output: output || e.message || "unknown error", passed: false };
+    return { output: execFailureOutput(err), passed: false };
   }
 };
 

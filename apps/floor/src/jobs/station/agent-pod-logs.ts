@@ -61,22 +61,41 @@ export async function readAgentLogs(
     return unavailable("no-job", agent.phase);
   }
 
+  return readJobPodLogs({ source, jobName, phase: agent.phase, opts, archive });
+}
+
+interface ReadJobPodLogsParams {
+  source: PodLogSource;
+  jobName: string;
+  phase: string | null;
+  opts: { tailLines?: number };
+  archive: PodLogArchive | undefined;
+}
+
+/** Reads the job's latest pod's logs, falling back to the archive on a missing pod or a TOCTOU 404. */
+async function readJobPodLogs({
+  source,
+  jobName,
+  phase,
+  opts,
+  archive,
+}: ReadJobPodLogsParams): Promise<AgentLogsResult> {
   try {
     const pod = pickLatestPod(await source.podsForJob(jobName));
 
     if (!pod) {
-      return archivedOrNoPod(jobName, agent.phase, opts, archive);
+      return archivedOrNoPod(jobName, phase, opts, archive);
     }
 
     return {
       available: true,
       logs: await source.podLog(pod.name, opts.tailLines),
-      phase: agent.phase,
+      phase,
       podName: pod.name,
     };
   } catch (err) {
     if (isNotFound(err)) {
-      return archivedOrNoPod(jobName, agent.phase, opts, archive);
+      return archivedOrNoPod(jobName, phase, opts, archive);
     }
     throw err;
   }

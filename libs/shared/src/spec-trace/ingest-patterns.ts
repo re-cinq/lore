@@ -2,6 +2,18 @@
 
 import { minimatch } from "minimatch";
 
+/** Filters `value` down to its string entries, or `undefined` when it isn't an array or has none. */
+function stringGlobsOf(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const globs = value.filter(
+    (entry): entry is string => typeof entry === "string",
+  );
+
+  return globs.length ? globs : undefined;
+}
+
 /** Parses the manifest object into `kind → glob[]`, dropping non-array values and non-string entries. */
 export function parseIngestPatterns(raw: unknown): Record<string, string[]> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -10,14 +22,9 @@ export function parseIngestPatterns(raw: unknown): Record<string, string[]> {
   const out: Record<string, string[]> = {};
 
   for (const [kind, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!Array.isArray(value)) {
-      continue;
-    }
-    const globs = value.filter(
-      (entry): entry is string => typeof entry === "string",
-    );
+    const globs = stringGlobsOf(value);
 
-    if (globs.length) {
+    if (globs) {
       out[kind] = globs;
     }
   }

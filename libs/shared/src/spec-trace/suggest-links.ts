@@ -57,6 +57,23 @@ async function nearestByVector(
   });
 }
 
+/** One Statement's raw embedding plus its currently-linked chunk xids, as read back from Dgraph. */
+interface StatementLinkRow {
+  "Statement.embedding"?: unknown;
+  implemented?: Array<{ "CodeChunk.xid"?: string }>;
+  validated?: Array<{ "TestChunk.xid"?: string }>;
+}
+
+/** Collects a Statement row's already-linked CodeChunk/TestChunk xids into one set. */
+function linkedXidsOf(stmt: StatementLinkRow | undefined): Set<string> {
+  return new Set<string>(
+    [
+      ...(stmt?.implemented ?? []).map((node) => node["CodeChunk.xid"]),
+      ...(stmt?.validated ?? []).map((node) => node["TestChunk.xid"]),
+    ].filter((xid): xid is string => xid !== undefined),
+  );
+}
+
 /** Reads the Statement's embedding (normalized to an ANN literal) plus the xids it's already linked to, so suggestions can exclude them. */
 async function readStatementContext(
   dgraph: DgraphClientPort,
@@ -67,25 +84,11 @@ async function readStatementContext(
       `query q($sx: string){ stmt(func: eq(Statement.xid, $sx)){ Statement.embedding implemented: Statement.implemented_by { CodeChunk.xid } validated: Statement.validated_by { TestChunk.xid } } }`,
       { $sx: statementXid },
     );
-    const stmt = (
-      res.data as {
-        stmt?: Array<{
-          "Statement.embedding"?: unknown;
-          implemented?: Array<{ "CodeChunk.xid"?: string }>;
-          validated?: Array<{ "TestChunk.xid"?: string }>;
-        }>;
-      }
-    ).stmt?.[0];
-    const linkedXids = new Set<string>(
-      [
-        ...(stmt?.implemented ?? []).map((node) => node["CodeChunk.xid"]),
-        ...(stmt?.validated ?? []).map((node) => node["TestChunk.xid"]),
-      ].filter((xid): xid is string => xid !== undefined),
-    );
+    const stmt = (res.data as { stmt?: StatementLinkRow[] }).stmt?.[0];
 
     return {
       vecLiteral: toVecLiteral(stmt?.["Statement.embedding"]),
-      linkedXids,
+      linkedXids: linkedXidsOf(stmt),
     };
   });
 }

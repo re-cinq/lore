@@ -76,11 +76,19 @@ async function reemitWhileSubjectOpen(
   await reemitWhileTaskOpen(ev);
 }
 
+/** One string param off the event, or "" when the params object or the key is missing. */
+function eventParamString(
+  ev: NonNullable<ReturnType<typeof mapAgentToEvent>>,
+  key: string,
+): string {
+  return String((ev.params ?? {})[key] ?? "");
+}
+
 /** Node CRs guard on the assembly-line ROW, not a task — dedupe rows persist ~7 days so a handled event's re-emit is a no-op; the reaper handles dead-lettered transitions. */
 async function reemitWhileLineOpen(
   ev: NonNullable<ReturnType<typeof mapAgentToEvent>>,
 ): Promise<void> {
-  const assemblyLineId = String((ev.params ?? {}).assemblyLineId ?? "");
+  const assemblyLineId = eventParamString(ev, "assemblyLineId");
   const row = assemblyLineId
     ? await pipeline().assemblyRuns.getById(assemblyLineId)
     : null;
@@ -94,7 +102,7 @@ async function reemitWhileLineOpen(
 async function reemitWhileTaskOpen(
   ev: NonNullable<ReturnType<typeof mapAgentToEvent>>,
 ): Promise<void> {
-  const taskId = String((ev.params ?? {}).taskId ?? "");
+  const taskId = eventParamString(ev, "taskId");
   const dbStatus = taskId
     ? (await taskStore().getById(taskId))?.status
     : undefined;
@@ -104,17 +112,24 @@ async function reemitWhileTaskOpen(
   }
 }
 
+/** The CR's completion time, or null when it hasn't reached a terminal phase yet. */
+function terminalCompletedAt(status: {
+  phase?: string;
+  completedAt?: string;
+}): Date | null {
+  if (status.phase !== "Succeeded" && status.phase !== "Failed") {
+    return null;
+  }
+
+  return status.completedAt ? new Date(status.completedAt) : null;
+}
+
 /** Delete a terminal CR an hour after it finished — through the cluster agent, whose Role grants delete (the Floor's `agent-launcher` never did, only create/get/list/watch). */
 async function pruneIfOld(
   agent: AgentCr,
   cluster: HttpAgentApi,
 ): Promise<void> {
-  const status = agent.status ?? {};
-
-  if (status.phase !== "Succeeded" && status.phase !== "Failed") {
-    return;
-  }
-  const completedAt = status.completedAt ? new Date(status.completedAt) : null;
+  const completedAt = terminalCompletedAt(agent.status ?? {});
 
   if (!completedAt || Date.now() - completedAt.getTime() <= PRUNE_AFTER_MS) {
     return;

@@ -185,10 +185,9 @@ function sectionBulletsWithinBudget(
   return { bullets, sectionBudget, elided };
 }
 
-export function formatBrokenLinksReport(broken: BrokenLink[]): string {
-  if (broken.length === 0) {
-    return "";
-  }
+function groupBrokenLinksBySpec(
+  broken: BrokenLink[],
+): Map<string, BrokenLink[]> {
   const bySpec = new Map<string, BrokenLink[]>();
 
   for (const b of broken) {
@@ -197,14 +196,35 @@ export function formatBrokenLinksReport(broken: BrokenLink[]): string {
     list.push(b);
     bySpec.set(b.spec_path, list);
   }
-  const lines: string[] = [
+
+  return bySpec;
+}
+
+function pluralSuffix(count: number): string {
+  return count === 1 ? "" : "s";
+}
+
+function reportHeaderLines(broken: BrokenLink[], specCount: number): string[] {
+  return [
     "**Broken or misplaced test links detected**",
     "",
-    `${broken.length} link${broken.length === 1 ? "" : "s"} across ${bySpec.size} spec${bySpec.size === 1 ? "" : "s"} don't resolve to a known test chunk or sit outside the trailing parenthetical.`,
+    `${broken.length} link${pluralSuffix(broken.length)} across ${specCount} spec${pluralSuffix(specCount)} don't resolve to a known test chunk or sit outside the trailing parenthetical.`,
     "",
   ];
-  // Whole bullets only, up to the budget — a raw slice could cut mid-line and drop the footer.
-  let budget = lines.join("\n").length;
+}
+
+interface SpecSectionsResult {
+  lines: string[];
+  elided: number;
+}
+
+// Whole bullets only, up to the budget — a raw slice could cut mid-line and drop the footer.
+function renderSpecSections(
+  bySpec: Map<string, BrokenLink[]>,
+  startBudget: number,
+): SpecSectionsResult {
+  const lines: string[] = [];
+  let budget = startBudget;
   let elided = 0;
 
   for (const [specPath, list] of bySpec) {
@@ -230,9 +250,22 @@ export function formatBrokenLinksReport(broken: BrokenLink[]): string {
     budget = section.sectionBudget + 1;
   }
 
-  if (elided > 0) {
+  return { lines, elided };
+}
+
+export function formatBrokenLinksReport(broken: BrokenLink[]): string {
+  if (broken.length === 0) {
+    return "";
+  }
+  const bySpec = groupBrokenLinksBySpec(broken);
+  const lines = reportHeaderLines(broken, bySpec.size);
+  const sections = renderSpecSections(bySpec, lines.join("\n").length);
+
+  lines.push(...sections.lines);
+
+  if (sections.elided > 0) {
     lines.push(
-      `_…and ${elided} more broken link(s) truncated — see the job logs._`,
+      `_…and ${sections.elided} more broken link(s) truncated — see the job logs._`,
     );
     lines.push("");
   }

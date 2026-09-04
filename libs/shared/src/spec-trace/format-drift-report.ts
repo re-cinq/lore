@@ -6,10 +6,9 @@ export interface DriftedStatement {
   reason: string;
 }
 
-export function formatSpecDriftReport(drifted: DriftedStatement[]): string {
-  if (drifted.length === 0) {
-    return "";
-  }
+function groupBySpec(
+  drifted: DriftedStatement[],
+): Map<string, DriftedStatement[]> {
   const bySpec = new Map<string, DriftedStatement[]>();
 
   for (const finding of drifted) {
@@ -18,10 +17,22 @@ export function formatSpecDriftReport(drifted: DriftedStatement[]): string {
     list.push(finding);
     bySpec.set(finding.specPath, list);
   }
+
+  return bySpec;
+}
+
+const pluralize = (count: number, word: string): string =>
+  `${count} ${word}${count === 1 ? "" : "s"}`;
+
+export function formatSpecDriftReport(drifted: DriftedStatement[]): string {
+  if (drifted.length === 0) {
+    return "";
+  }
+  const bySpec = groupBySpec(drifted);
   const lines: string[] = [
     "**Spec statements drifted from their validating tests**",
     "",
-    `${drifted.length} statement${drifted.length === 1 ? "" : "s"} across ${bySpec.size} spec${bySpec.size === 1 ? "" : "s"} no longer hold against their tests.`,
+    `${pluralize(drifted.length, "statement")} across ${pluralize(bySpec.size, "spec")} no longer hold against their tests.`,
     "",
   ];
 

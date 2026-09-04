@@ -5,7 +5,7 @@ import {
   composePlanningPrompt,
   composeRoundFeedback,
 } from "../../feature-planning/planning-prompt.js";
-import { resolveRoundBasis } from "./features-port.js";
+import { resolveRoundBasis, type RoundBasis } from "./features-port.js";
 import type { SectionAnswers } from "../../feature-planning/planning-prompt.js";
 import type { ParkedAuthorNode } from "./planning-run.js";
 
@@ -45,6 +45,22 @@ export interface RefinementRoundResult {
   runId: string;
 }
 
+/** The resolved (`ok: true`) shape of {@link RoundBasis} — what's left once `enforceTrue(basis.ok, ...)` has thrown on a rejected basis. */
+type ResolvedRoundBasis = Extract<RoundBasis, { ok: true }>;
+
+/** The prior round's iteration number, when the basis names one round. */
+function basisIteration(basis: ResolvedRoundBasis): number | null {
+  return basis.basis?.iteration ?? null;
+}
+
+/** Sent on EVERY round (null when no rewind): the resume MERGES into the line's args, so an omitted key would leave an earlier rewind still steering. */
+function resumeFromIteration(
+  rewoundTo: number | undefined,
+  basis: ResolvedRoundBasis,
+): number | null {
+  return rewoundTo === undefined ? null : basisIteration(basis);
+}
+
 export async function startRefinementRound(
   feature: RefinementFeature,
   input: RefinementInput,
@@ -73,7 +89,7 @@ export async function startRefinementRound(
   const row = await deps.appendIteration(
     feature.id,
     input.answers,
-    basis.basis?.iteration ?? null,
+    basisIteration(basis),
   );
 
   await deps.report(parked, "changes_requested", {
@@ -84,9 +100,7 @@ export async function startRefinementRound(
       answers: input.answers,
     }),
     iteration: row.iteration,
-    // Sent on EVERY round (null when no rewind): the resume MERGES into the line's args, so an omitted key would leave an earlier rewind still steering.
-    resume_from_iteration:
-      input.rewoundTo === undefined ? null : (basis.basis?.iteration ?? null),
+    resume_from_iteration: resumeFromIteration(input.rewoundTo, basis),
   });
 
   return { iteration: row.iteration, runId: parked.lineId };

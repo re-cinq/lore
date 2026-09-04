@@ -16,50 +16,31 @@ export async function contextCoreBuilderJob(): Promise<string> {
     return "No namespaces to evaluate";
   }
 
-  let promoted = 0;
-  let rejected = 0;
-  let unchanged = 0;
+  const tally: Record<"promoted" | "rejected" | "unchanged", number> = {
+    promoted: 0,
+    rejected: 0,
+    unchanged: 0,
+  };
 
   for (const team of namespaces) {
     try {
       const result = await evaluateNamespace(team);
 
-      if (result === "promoted") {
-        promoted++;
-      }
-
-      if (result === "rejected") {
-        rejected++;
-      }
-
-      if (result === "unchanged") {
-        unchanged++;
-      }
+      tally[result]++;
     } catch (err) {
       console.error(`[job] context-core: error evaluating ${team}:`, err);
     }
   }
 
-  const summary = `Evaluated ${namespaces.length} namespaces: ${promoted} promoted, ${rejected} rejected, ${unchanged} unchanged`;
+  const summary = `Evaluated ${namespaces.length} namespaces: ${tally.promoted} promoted, ${tally.rejected} rejected, ${tally.unchanged} unchanged`;
 
   console.log(`[job] context-core: ${summary}`);
 
   return summary;
 }
 
-async function evaluateNamespace(
-  namespace: string,
-): Promise<"promoted" | "rejected" | "unchanged"> {
-  // Count promoted chunks
-  const count = await chunks().countChunksByTeam(namespace);
-
-  if (count === 0) {
-    console.log(`[job] context-core: ${namespace} has 0 chunks, skipping`);
-
-    return "unchanged";
-  }
-
-  // Run PromptFoo eval for this namespace
+/** Runs the namespace's PromptFoo eval; null means "skip" (no config, or eval crashed/timed out) — already logged. */
+async function evalScoreOrSkip(namespace: string): Promise<number | null> {
   const configPath = join("evals", namespace, "promptfooconfig.yaml");
   const evalResult = await runPromptfooEval({ configPath });
 
@@ -69,7 +50,7 @@ async function evaluateNamespace(
       `[job] context-core: no eval config for ${namespace}, skipping`,
     );
 
-    return "unchanged";
+    return null;
   }
 
   if (!evalResult.ok) {
@@ -78,19 +59,24 @@ async function evaluateNamespace(
       evalResult.reason === "exec-failed" ? evalResult.error : "",
     );
 
-    return "unchanged";
+    return null;
   }
-  const currentScore = evalResult.stats.passRate;
 
-  // Get previous production score
-  const prevScore = (await contextCore().latest(namespace)) ?? 0;
-  const delta = currentScore - prevScore;
+  return evalResult.stats.passRate;
+}
 
-  const version = `v${new Date().toISOString().slice(0, 10)}-${namespace}`;
+interface EvalDecisionInput {
+  namespace: string;
+  currentScore: number;
+  prevScore: number;
+  delta: number;
+  version: string;
+}
 
-  console.log(
-    `[job] context-core: ${namespace} — current: ${(currentScore * 100).toFixed(1)}%, prev: ${(prevScore * 100).toFixed(1)}%, delta: ${(delta * 100).toFixed(1)}%`,
-  );
+async function applyEvalDecision(
+  input: EvalDecisionInput,
+): Promise<"promoted" | "rejected" | "unchanged"> {
+  const { namespace, currentScore, prevScore, delta, version } = input;
 
   if (delta >= IMPROVEMENT_THRESHOLD) {
     // Promote: mark as new production baseline
@@ -140,4 +126,41 @@ async function evaluateNamespace(
   );
 
   return "rejected";
+}
+
+async function evaluateNamespace(
+  namespace: string,
+): Promise<"promoted" | "rejected" | "unchanged"> {
+  // Count promoted chunks
+  const count = await chunks().countChunksByTeam(namespace);
+
+  if (count === 0) {
+    console.log(`[job] context-core: ${namespace} has 0 chunks, skipping`);
+
+    return "unchanged";
+  }
+
+  const currentScore = await evalScoreOrSkip(namespace);
+
+  if (currentScore === null) {
+    return "unchanged";
+  }
+
+  // Get previous production score
+  const prevScore = (await contextCore().latest(namespace)) ?? 0;
+  const delta = currentScore - prevScore;
+
+  const version = `v${new Date().toISOString().slice(0, 10)}-${namespace}`;
+
+  console.log(
+    `[job] context-core: ${namespace} — current: ${(currentScore * 100).toFixed(1)}%, prev: ${(prevScore * 100).toFixed(1)}%, delta: ${(delta * 100).toFixed(1)}%`,
+  );
+
+  return applyEvalDecision({
+    namespace,
+    currentScore,
+    prevScore,
+    delta,
+    version,
+  });
 }

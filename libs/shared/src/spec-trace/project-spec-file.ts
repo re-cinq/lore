@@ -366,6 +366,23 @@ async function readLinkTargets(
   });
 }
 
+/** Builds the delete-nquads for a batch of orphan uids, including the Spec's forward edge to each when `forwardEdge` is given (that edge set-unions on upsert, so it must be deleted too or the orphan lingers as a dangling ref). */
+function orphanDeleteNquads(
+  orphanUids: string[],
+  specUid: string,
+  forwardEdge: string | undefined,
+): string {
+  const deletes = orphanUids.map((uid) => `<${uid}> * * .`);
+
+  if (forwardEdge) {
+    deletes.push(
+      ...orphanUids.map((uid) => `<${specUid}> <${forwardEdge}> <${uid}> .`),
+    );
+  }
+
+  return deletes.join("\n");
+}
+
 /** Deletes every `nodeType` child linked to this Spec whose xid isn't in `validXids` — upsert-by-xid never removes nodes, so this reverse-edge sweep is what keeps re-projection idempotent. */
 async function pruneOrphans(
   context: ProjectionContext,
@@ -393,15 +410,10 @@ async function pruneOrphans(
     if (orphanUids.length === 0) {
       return;
     }
-    // The Spec's forward edge (Spec.sections / acceptance_criteria) set-unions on upsert, so it must be deleted too or the orphan lingers as a dangling ref.
-    const deletes = orphanUids.map((uid) => `<${uid}> * * .`);
-
-    if (forwardEdge) {
-      deletes.push(
-        ...orphanUids.map((uid) => `<${specUid}> <${forwardEdge}> <${uid}> .`),
-      );
-    }
-    await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
+    await txn.mutate({
+      deleteNquads: orphanDeleteNquads(orphanUids, specUid, forwardEdge),
+      commitNow: true,
+    });
   });
 }
 
@@ -476,6 +488,60 @@ export interface ProjectionOptions {
   force?: boolean;
 }
 
+/** True when the persisted Spec.content_hash already matches, so re-projection can be skipped. */
+async function isSpecUnchanged(
+  dgraph: DgraphClientPort,
+  specXid: string,
+  force: boolean,
+  contentHash: string,
+): Promise<boolean> {
+  if (force) {
+    return false;
+  }
+
+  return (await readSpecContentHash(dgraph, specXid)) === contentHash;
+}
+
+/** The Spec node's optional own fields — title and feature link, both absent for a bare/root-level spec. */
+interface SpecOwnFields {
+  title: string | null;
+  featureUid: string | undefined;
+}
+
+/** Upserts the Spec node's own scalar/edge fields (title and feature link are optional). */
+async function upsertSpecNode(
+  dgraph: DgraphClientPort,
+  repo: string,
+  filePath: string,
+  { title, featureUid }: SpecOwnFields,
+): Promise<string> {
+  return upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
+    "Spec.repo": repo,
+    "Spec.file_path": filePath,
+    ...(title !== null ? { "Spec.title": title } : {}),
+    ...(featureUid ? { "Spec.feature": { uid: featureUid } } : {}),
+  });
+}
+
+/** Upserts every statement segment's Statement node in turn. */
+async function projectStatements(
+  context: ProjectionContext,
+  statementSegments: SpecSegment[],
+  introOrdinals: Set<number>,
+  sectionUidByHeading: Map<string, string>,
+): Promise<void> {
+  for (const segment of statementSegments) {
+    const classification = classifyByHeuristic(segment, introOrdinals);
+
+    await projectStatement(
+      context,
+      segment,
+      sectionUidByHeading,
+      classification,
+    );
+  }
+}
+
 export async function projectSpecFile(
   { repo, filePath, content }: SourceDocument,
   dgraph: DgraphClientPort,
@@ -483,20 +549,17 @@ export async function projectSpecFile(
 ): Promise<{ projected: boolean }> {
   const contentHash = sha256(content);
 
-  if (
-    !force &&
-    (await readSpecContentHash(dgraph, `${repo}|${filePath}`)) === contentHash
-  ) {
+  const specXid = `${repo}|${filePath}`;
+
+  if (await isSpecUnchanged(dgraph, specXid, force, contentHash)) {
     return { projected: false };
   }
 
   const title = extractTitle(content);
   const featureUid = await projectFeature(dgraph, repo, filePath);
-  const specUid = await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
-    "Spec.repo": repo,
-    "Spec.file_path": filePath,
-    ...(title !== null ? { "Spec.title": title } : {}),
-    ...(featureUid ? { "Spec.feature": { uid: featureUid } } : {}),
+  const specUid = await upsertSpecNode(dgraph, repo, filePath, {
+    title,
+    featureUid,
   });
 
   // Clear the hash now, persist only after every child write succeeds — otherwise a mid-file death leaves the file permanently skipped with partial children.
@@ -516,16 +579,12 @@ export async function projectSpecFile(
 
   const sectionUidByHeading = await projectSections(context, statementSegments);
 
-  for (const segment of statementSegments) {
-    const classification = classifyByHeuristic(segment, introOrdinals);
-
-    await projectStatement(
-      context,
-      segment,
-      sectionUidByHeading,
-      classification,
-    );
-  }
+  await projectStatements(
+    context,
+    statementSegments,
+    introOrdinals,
+    sectionUidByHeading,
+  );
 
   const validStatementXids = new Set(
     statementSegments.map(

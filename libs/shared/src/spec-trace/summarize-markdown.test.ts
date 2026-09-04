@@ -8,6 +8,16 @@ describe("summarizeMarkdown", () => {
     expect(summarizeMarkdown(source).title).toBe("ADR-016: Dark Factory");
   });
 
+  it("keeps the first heading as title when a second heading precedes any prose", () => {
+    const source =
+      "# First Title\n\n## Second Heading\n\nThe lead paragraph.\n";
+
+    expect(summarizeMarkdown(source)).toEqual({
+      title: "First Title",
+      description: "The lead paragraph.",
+    });
+  });
+
   it("returns the first non-heading, non-blank line as description", () => {
     const source =
       "# ADR-016: Dark Factory\n\nWe will adopt a dark factory pipeline.\n\nMore detail follows.\n";

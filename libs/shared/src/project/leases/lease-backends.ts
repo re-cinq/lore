@@ -68,6 +68,36 @@ function acquiredResult(
   return tookOverFrom ? { acquired: true, tookOverFrom } : { acquired: true };
 }
 
+/** Whether a write actually touched a row — `rowCount` is `null` for statements that never report a count. */
+function hadEffect(result: { rowCount: number | null }): boolean {
+  return (result.rowCount ?? 0) > 0;
+}
+
+function previousHolderOf(
+  rows: { previous_holder: string | null }[],
+): string | undefined {
+  return rows[0]?.previous_holder ?? undefined;
+}
+
+function currentHolderOf(rows: { holder: string }[]): string | undefined {
+  return rows[0]?.holder;
+}
+
+/** A rejected acquire result when `existing` is still live at `now`, else null so the caller proceeds to take it. */
+function rejectedIfHeld(
+  existing: FileLeaseRecord | null,
+  now: number,
+  span: Span,
+): AcquireResult | null {
+  if (!existing || new Date(existing.expires_at).getTime() < now) {
+    return null;
+  }
+  span.setAttribute("outcome", "rejected");
+  span.setAttribute("current_holder", existing.holder);
+
+  return { acquired: false, currentHolder: existing.holder };
+}
+
 export class DbLeaseBackend implements LeaseBackend {
   constructor(private readonly pool: LeasePool) {}
 
@@ -106,18 +136,15 @@ export class DbLeaseBackend implements LeaseBackend {
           [branchName, taskId, holder, ttlSec],
         );
 
-        if ((result.rowCount ?? 0) > 0) {
-          return acquiredResult(
-            span,
-            result.rows[0]?.previous_holder ?? undefined,
-          );
+        if (hadEffect(result)) {
+          return acquiredResult(span, previousHolderOf(result.rows));
         }
 
         const cur = await this.pool.query<{ holder: string }>(
           `SELECT holder FROM pipeline.task_leases WHERE branch_name = $1`,
           [branchName],
         );
-        const currentHolder = cur.rows[0]?.holder;
+        const currentHolder = currentHolderOf(cur.rows);
 
         span.setAttribute("outcome", "rejected");
 
@@ -268,14 +295,10 @@ export class FileLeaseBackend implements LeaseBackend {
       try {
         const existing = await this.readRecord(branchName);
         const now = Date.now();
-        const expired =
-          !existing || new Date(existing.expires_at).getTime() < now;
+        const rejected = rejectedIfHeld(existing, now, span);
 
-        if (existing && !expired) {
-          span.setAttribute("outcome", "rejected");
-          span.setAttribute("current_holder", existing.holder);
-
-          return { acquired: false, currentHolder: existing.holder };
+        if (rejected) {
+          return rejected;
         }
 
         const tookOverFrom = existing?.holder;
@@ -287,15 +310,8 @@ export class FileLeaseBackend implements LeaseBackend {
           acquired_at: new Date(now).toISOString(),
           expires_at: new Date(now + ttlSec * 1000).toISOString(),
         });
-        span.setAttribute("outcome", tookOverFrom ? "takeover" : "acquired");
 
-        if (tookOverFrom) {
-          span.setAttribute("took_over_from", tookOverFrom);
-        }
-
-        return tookOverFrom
-          ? { acquired: true, tookOverFrom }
-          : { acquired: true };
+        return acquiredResult(span, tookOverFrom);
       } finally {
         span.end();
       }

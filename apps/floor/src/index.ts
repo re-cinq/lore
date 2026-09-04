@@ -31,6 +31,31 @@ import { CRON_EMITTERS } from "./listeners/cron-emitters.js";
 /** How long shutdown waits for the event queue to drain — long enough to clear a backlog, short enough not to hold a rollout open past its termination grace period. */
 const EVENT_DRAIN_TIMEOUT_MS = 5_000;
 
+function loadTaskTypesSafely(): void {
+  try {
+    loadTaskTypes();
+  } catch (err) {
+    console.warn("[floor] Could not load task types:", err);
+  }
+}
+
+// A repair, not a precondition — reconcile failure here never stops the loop.
+async function reconcileBootDeliveries(): Promise<void> {
+  try {
+    const repaired = await reconcileDeliveries(RECONCILE_WINDOW_MINUTES);
+
+    if (repaired > 0) {
+      console.log(
+        `[floor] reconciled ${repaired} deliveries missed before this boot registered`,
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[floor] boot reconcile failed (${(err as Error).message}) — draining anyway`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   console.log("[floor] Lore Floor Service starting...");
 
@@ -40,11 +65,7 @@ async function main(): Promise<void> {
   Llm.configure({ usage: usage() });
   console.log("[floor] Platform: github (via project facade)");
 
-  try {
-    loadTaskTypes();
-  } catch (err) {
-    console.warn("[floor] Could not load task types:", err);
-  }
+  loadTaskTypesSafely();
 
   await loadApprovalConfig(getPool());
 
@@ -81,19 +102,7 @@ async function main(): Promise<void> {
   await subscribe([...registry.keys()].map((eventName) => ({ eventName })));
 
   // AFTER registering: repairs delivery rows for events captured while unsubscribed (a new name, or before first boot) — a repair, not a precondition, so failure here never stops the loop.
-  try {
-    const repaired = await reconcileDeliveries(RECONCILE_WINDOW_MINUTES);
-
-    if (repaired > 0) {
-      console.log(
-        `[floor] reconciled ${repaired} deliveries missed before this boot registered`,
-      );
-    }
-  } catch (err) {
-    console.warn(
-      `[floor] boot reconcile failed (${(err as Error).message}) — draining anyway`,
-    );
-  }
+  await reconcileBootDeliveries();
 
   // The store is passed in: the stations service drains its own deliveries through the same loop, so the loop cannot reach for one process's store.
   startEventLoop({

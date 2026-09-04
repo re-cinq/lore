@@ -145,6 +145,20 @@ interface CacheObservation {
   now: number;
 }
 
+function changedParts(systemChanged: boolean, toolsChanged: boolean): string[] {
+  const parts: string[] = [];
+
+  if (systemChanged) {
+    parts.push("system");
+  }
+
+  if (toolsChanged) {
+    parts.push("tools");
+  }
+
+  return parts;
+}
+
 function classifyCacheBreak(
   prev: CacheState | undefined,
   newHash: PrefixHash,
@@ -159,9 +173,15 @@ function classifyCacheBreak(
   }
   const systemChanged = prev.systemHash !== newHash.system;
   const toolsChanged = prev.toolsHash !== newHash.tools;
-  const promptUnchanged = !(systemChanged || toolsChanged);
 
-  if (promptUnchanged && cacheCreationTokens > 0) {
+  if (systemChanged || toolsChanged) {
+    return {
+      status: "prompt-changed",
+      reason: changedParts(systemChanged, toolsChanged).join("+"),
+    };
+  }
+
+  if (cacheCreationTokens > 0) {
     // Hashes match but we paid to write again — prefix aged out
     return {
       status: "ttl-expired",
@@ -169,20 +189,7 @@ function classifyCacheBreak(
     };
   }
 
-  if (promptUnchanged) {
-    return { status: "unknown-miss" };
-  }
-  const parts: string[] = [];
-
-  if (systemChanged) {
-    parts.push("system");
-  }
-
-  if (toolsChanged) {
-    parts.push("tools");
-  }
-
-  return { status: "prompt-changed", reason: parts.join("+") };
+  return { status: "unknown-miss" };
 }
 
 export function analyzeCacheBreak(

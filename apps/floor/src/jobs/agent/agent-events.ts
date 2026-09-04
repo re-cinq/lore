@@ -109,9 +109,20 @@ function resultCostUsd(
     : 0;
 }
 
+// Both projections (cost + file-artifact) attribute off the same `source` shape, so the `?.`-laden lookups live here once.
+function sourceTaskId(source: { task?: unknown } | undefined | null): string {
+  return typeof source?.task === "string" ? source.task : "";
+}
+
+function sourceAgentCrName(
+  source: { agent?: unknown } | undefined | null,
+): string | null {
+  return typeof source?.agent === "string" ? source.agent : null;
+}
+
 function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
   const { source, event: ev } = unwrapAttribution(envelope);
-  const taskId = typeof source?.task === "string" ? source.task : "";
+  const taskId = sourceTaskId(source);
 
   if (!taskId) {
     return null;
@@ -131,7 +142,7 @@ function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
 
   return {
     taskId,
-    agentCrName: typeof source?.agent === "string" ? source.agent : null,
+    agentCrName: sourceAgentCrName(source),
     carried: parseCarriedRunIdentity(source),
     model,
     inputTokens: tokens.inputTokens,
@@ -158,7 +169,7 @@ const str = (value: unknown): string | null =>
 /** Project a `kind:"file"` envelope; null for any other line, a nameless artifact, or one with no task attribution (skip-don't-throw, same rule the cost projection uses). */
 function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {
   const { source, event: ev } = unwrapAttribution(envelope);
-  const taskId = typeof source?.task === "string" ? source.task : "";
+  const taskId = sourceTaskId(source);
 
   if (!taskId || !isRecord(ev) || ev.kind !== "file") {
     return null;
@@ -171,7 +182,7 @@ function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {
 
   return {
     taskId,
-    agentCrName: typeof source?.agent === "string" ? source.agent : null,
+    agentCrName: sourceAgentCrName(source),
     event,
     path: str(ev.path) ?? "",
     content: str(ev.content),

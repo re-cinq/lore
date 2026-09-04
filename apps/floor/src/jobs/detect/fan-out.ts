@@ -124,15 +124,80 @@ export interface DetectFanOutDeps {
   listTargetRepos: () => Promise<string[]>;
 }
 
+async function resolveTargetRepos(
+  params: Record<string, unknown>,
+  deps: DetectFanOutDeps,
+): Promise<string[]> {
+  return typeof params.repo === "string" && params.repo.length > 0
+    ? [params.repo]
+    : deps.listTargetRepos();
+}
+
+/** Starts (or joins) the detect run for one repo; never throws for a "superseded" join, only for a genuine `assembly_line.start` failure. */
+async function processDetectRepo(
+  blueprintName: string,
+  repo: string,
+  jobRef: string,
+  deps: DetectFanOutDeps,
+): Promise<void> {
+  // Asked BEFORE the job_run is minted — one created for already-running work has no owner to close it (no job_runs reaper).
+  const inFlight = await deps.assemblyRuns.findOpenBySubject(
+    repo,
+    detectSubject(blueprintName, repo),
+  );
+
+  if (inFlight) {
+    console.log(
+      `[detect] ${blueprintName}: ${repo} already running as ${inFlight.id}, skipping`,
+    );
+
+    return;
+  }
+  const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
+
+  // start() throwing mid-loop would orphan the job_run (no reaper) — fail it before rethrowing so the retry settles cleanly.
+  let id: string;
+
+  try {
+    id = await deps.assemblyRuns.start({
+      blueprintName,
+      repo,
+      branch: detectBranchName(blueprintName, repo),
+      subjectKey: detectSubject(blueprintName, repo),
+      args: { job_run_id: jobRunId },
+    });
+  } catch (err) {
+    await deps.jobRuns
+      .fail(jobRunId, `assembly_line.start failed: ${(err as Error).message}`)
+      .catch(() => {});
+    throw err;
+  }
+
+  // The race: two ticks can both read "nothing in flight"; the loser's start() JOINS the winner's run — a job_run_id mismatch IS the join.
+  const startedRun = await deps.assemblyRuns.getById(id);
+
+  if (startedRun && startedRun.args.job_run_id !== jobRunId) {
+    await deps.jobRuns
+      .fail(jobRunId, `superseded — ${repo} is already running as ${id}`)
+      .catch(() => {});
+    console.log(
+      `[detect] ${blueprintName}: ${repo} joined ${id}; job_run ${jobRunId} closed`,
+    );
+
+    return;
+  }
+
+  console.log(
+    `[detect] ${blueprintName}: started assembly line ${id} for ${repo}`,
+  );
+}
+
 export function createDetectTickHandler(
   blueprintName: string,
   deps: DetectFanOutDeps,
 ): EventHandler {
   return async (params) => {
-    const repos =
-      typeof params.repo === "string" && params.repo.length > 0
-        ? [params.repo]
-        : await deps.listTargetRepos();
+    const repos = await resolveTargetRepos(params, deps);
 
     if (repos.length === 0) {
       console.log(
@@ -145,57 +210,7 @@ export function createDetectTickHandler(
     const jobRef = await deps.jobRef();
 
     for (const repo of repos) {
-      // Asked BEFORE the job_run is minted — one created for already-running work has no owner to close it (no job_runs reaper).
-      const inFlight = await deps.assemblyRuns.findOpenBySubject(
-        repo,
-        detectSubject(blueprintName, repo),
-      );
-
-      if (inFlight) {
-        console.log(
-          `[detect] ${blueprintName}: ${repo} already running as ${inFlight.id}, skipping`,
-        );
-        continue;
-      }
-      const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
-
-      // start() throwing mid-loop would orphan the job_run (no reaper) — fail it before rethrowing so the retry settles cleanly.
-      let id: string;
-
-      try {
-        id = await deps.assemblyRuns.start({
-          blueprintName,
-          repo,
-          branch: detectBranchName(blueprintName, repo),
-          subjectKey: detectSubject(blueprintName, repo),
-          args: { job_run_id: jobRunId },
-        });
-      } catch (err) {
-        await deps.jobRuns
-          .fail(
-            jobRunId,
-            `assembly_line.start failed: ${(err as Error).message}`,
-          )
-          .catch(() => {});
-        throw err;
-      }
-
-      // The race: two ticks can both read "nothing in flight"; the loser's start() JOINS the winner's run — a job_run_id mismatch IS the join.
-      const startedRun = await deps.assemblyRuns.getById(id);
-
-      if (startedRun && startedRun.args.job_run_id !== jobRunId) {
-        await deps.jobRuns
-          .fail(jobRunId, `superseded — ${repo} is already running as ${id}`)
-          .catch(() => {});
-        console.log(
-          `[detect] ${blueprintName}: ${repo} joined ${id}; job_run ${jobRunId} closed`,
-        );
-        continue;
-      }
-
-      console.log(
-        `[detect] ${blueprintName}: started assembly line ${id} for ${repo}`,
-      );
+      await processDetectRepo(blueprintName, repo, jobRef, deps);
     }
   };
 }

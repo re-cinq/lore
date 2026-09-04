@@ -63,15 +63,24 @@ function agentDispatchDefaults(): AgentDispatchDefaults {
   };
 }
 
+/** Currently-running count for one task group, or 0 when the task has no group. */
+function runningCountForGroup(
+  runningByGroup: Map<string, number>,
+  taskGroupId: string | null | undefined,
+): number {
+  return taskGroupId ? runningByGroup.get(taskGroupId) || 0 : 0;
+}
+
 /** Claim one ready spec-task and dispatch its Agent CR; returns whether a CR actually started. A failure after the claim returns the task to `pending` so the next tick retries it. */
 async function dispatchSpecTask(
   task: ReadySpecTask,
   runningByGroup: Map<string, number>,
   defaults: AgentDispatchDefaults,
 ): Promise<boolean> {
-  const runningInGroup = task.task_group_id
-    ? runningByGroup.get(task.task_group_id) || 0
-    : 0;
+  const runningInGroup = runningCountForGroup(
+    runningByGroup,
+    task.task_group_id,
+  );
 
   if (runningInGroup >= MAX_CONCURRENT_PER_GROUP) {
     return false;

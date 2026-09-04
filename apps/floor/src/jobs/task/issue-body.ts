@@ -48,30 +48,43 @@ function renderStatement(s: DriftStatementView): string {
   return `- [${s.reason ?? "drifted"}]${where} ${s.text ?? ""}${links}`.trimEnd();
 }
 
+/** The graph-detected drifted-statements block, or null when the bundle carries none. */
+function driftedStatementsBlock(statements: unknown): string | null {
+  if (!Array.isArray(statements) || statements.length === 0) {
+    return null;
+  }
+  const list = (statements as DriftStatementView[])
+    .map(renderStatement)
+    .join("\n");
+
+  return `**Drifted statements (spec-trace graph)**\n\n${list}`;
+}
+
+/** The heuristic's missing-top-level-symbols block, or null when the bundle carries none. */
+function missingSymbolsBlock(symbols: unknown): string | null {
+  if (!Array.isArray(symbols) || symbols.length === 0) {
+    return null;
+  }
+  const list = (symbols as MissingSymbolView[])
+    .map((s) =>
+      `- ${s.kind ?? "symbol"}: \`${s.name ?? ""}\` — ${s.description ?? ""}`.trimEnd(),
+    )
+    .join("\n");
+
+  return `**Missing symbols (heuristic)**\n\n${list}`;
+}
+
 /** Graph-detected statements when present, else the heuristic's missing top-level symbols; empty when neither rode in the bundle. */
 function driftDetailBlock(task: IssueComposeTask): string {
-  const statements = task.context_bundle?.drifted_statements;
+  const drifted = driftedStatementsBlock(
+    task.context_bundle?.drifted_statements,
+  );
 
-  if (Array.isArray(statements) && statements.length > 0) {
-    const list = (statements as DriftStatementView[])
-      .map(renderStatement)
-      .join("\n");
-
-    return `**Drifted statements (spec-trace graph)**\n\n${list}`;
-  }
-  const symbols = task.context_bundle?.missing_symbols;
-
-  if (Array.isArray(symbols) && symbols.length > 0) {
-    const list = (symbols as MissingSymbolView[])
-      .map((s) =>
-        `- ${s.kind ?? "symbol"}: \`${s.name ?? ""}\` — ${s.description ?? ""}`.trimEnd(),
-      )
-      .join("\n");
-
-    return `**Missing symbols (heuristic)**\n\n${list}`;
+  if (drifted) {
+    return drifted;
   }
 
-  return "";
+  return missingSymbolsBlock(task.context_bundle?.missing_symbols) ?? "";
 }
 
 export function composeIssueBody(

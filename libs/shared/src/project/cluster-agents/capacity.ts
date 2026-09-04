@@ -70,6 +70,17 @@ export function unclaimedDetail(input: {
   return `${opening} — ${becauseOf(input.verdict)}`;
 }
 
+/** A cluster that could have taken it, was up, and did not — distinguishes operator action from wedged. */
+function becauseWedged(agents: ClusterAgent[]): string {
+  const names = agents.map((agent) => agent.name).join(", ");
+  const count = agents.length;
+  const noun = count === 1 ? "cluster-agent" : "cluster-agents";
+  const verb = count === 1 ? "was" : "were";
+  const they = count === 1 ? "it" : "they";
+
+  return `${count} capable ${noun} (${names}) ${verb} active but did not claim it; ${they} may be wedged`;
+}
+
 function becauseOf(verdict: CapacityVerdict): string {
   switch (verdict.kind) {
     case "registry-empty":
@@ -77,15 +88,7 @@ function becauseOf(verdict: CapacityVerdict): string {
     case "none-registered":
     case "all-unavailable":
       return verdict.reason;
-    case "capable": {
-      // A cluster that could have taken it, was up, and did not — distinguishes operator action from wedged.
-      const names = verdict.agents.map((agent) => agent.name).join(", ");
-      const count = verdict.agents.length;
-      const noun = count === 1 ? "cluster-agent" : "cluster-agents";
-      const verb = count === 1 ? "was" : "were";
-      const they = count === 1 ? "it" : "they";
-
-      return `${count} capable ${noun} (${names}) ${verb} active but did not claim it; ${they} may be wedged`;
-    }
+    case "capable":
+      return becauseWedged(verdict.agents);
   }
 }

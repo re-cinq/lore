@@ -80,15 +80,7 @@ function renderLink(s: Suggestion): string {
   return `[${s.label}](${s.test_file}${anchor})`;
 }
 
-// For each statement_ordinal, locates the matching text and appends a `(...)` parenthetical of `[label](path#Lline)` links (comma-separated when multiple); skips already-linked or not-found statements.
-export function proposeLinkInsertions(
-  content: string,
-  suggestions: Suggestion[],
-): InsertionResult {
-  if (suggestions.length === 0) {
-    return { newContent: content, diffPreview: "", applied: 0, skipped: [] };
-  }
-
+function groupByOrdinal(suggestions: Suggestion[]): Map<number, Suggestion[]> {
   const byOrdinal = new Map<number, Suggestion[]>();
 
   for (const s of suggestions) {
@@ -98,50 +90,117 @@ export function proposeLinkInsertions(
     byOrdinal.set(s.statement_ordinal, list);
   }
 
-  const skipped: SkipReason[] = [];
-  let applied = 0;
-  let newContent = content;
+  return byOrdinal;
+}
 
-  // Process ordinals deepest (latest) first so prior insertions don't shift later match indices.
-  const ordered = [...byOrdinal.entries()]
+interface OrderedInsertion {
+  ord: number;
+  list: Suggestion[];
+  text: string;
+}
+
+// Process ordinals deepest (latest) first so prior insertions don't shift later match indices.
+function orderInsertions(
+  byOrdinal: Map<number, Suggestion[]>,
+  content: string,
+): OrderedInsertion[] {
+  return [...byOrdinal.entries()]
     .map(([ord, list]) => ({
       ord,
       list,
       text: list[0].statement_text,
-      idx: newContent.indexOf(list[0].statement_text),
+      idx: content.indexOf(list[0].statement_text),
     }))
     .sort((a, b) => b.idx - a.idx);
+}
 
-  for (const { ord, list, text } of ordered) {
-    if (text.length === 0) {
-      skipped.push({ statement_ordinal: ord, reason: "not-found" });
+type InsertionOutcome =
+  | { kind: "skip"; reason: SkipReason }
+  | { kind: "insert"; newContent: string; applied: number };
+
+function insertOne(entry: OrderedInsertion, content: string): InsertionOutcome {
+  const { ord, list, text } = entry;
+
+  if (text.length === 0) {
+    return {
+      kind: "skip",
+      reason: { statement_ordinal: ord, reason: "not-found" },
+    };
+  }
+
+  const idx = content.indexOf(text);
+
+  if (idx < 0) {
+    return {
+      kind: "skip",
+      reason: { statement_ordinal: ord, reason: "not-found" },
+    };
+  }
+
+  if (parseTestLinksInStatement(text).length > 0) {
+    return {
+      kind: "skip",
+      reason: { statement_ordinal: ord, reason: "already-linked" },
+    };
+  }
+
+  const tail = ` (${list.map(renderLink).join(", ")})`;
+  const insertionPoint = idx + text.length;
+
+  return {
+    kind: "insert",
+    newContent:
+      content.slice(0, insertionPoint) + tail + content.slice(insertionPoint),
+    applied: list.length,
+  };
+}
+
+// For each statement_ordinal, locates the matching text and appends a `(...)` parenthetical of `[label](path#Lline)` links (comma-separated when multiple); skips already-linked or not-found statements.
+export function proposeLinkInsertions(
+  content: string,
+  suggestions: Suggestion[],
+): InsertionResult {
+  if (suggestions.length === 0) {
+    return { newContent: content, diffPreview: "", applied: 0, skipped: [] };
+  }
+
+  const ordered = orderInsertions(groupByOrdinal(suggestions), content);
+  const skipped: SkipReason[] = [];
+  let applied = 0;
+  let newContent = content;
+
+  for (const entry of ordered) {
+    const outcome = insertOne(entry, newContent);
+
+    if (outcome.kind === "skip") {
+      skipped.push(outcome.reason);
       continue;
     }
-    const idx = newContent.indexOf(text);
-
-    if (idx < 0) {
-      skipped.push({ statement_ordinal: ord, reason: "not-found" });
-      continue;
-    }
-    const existingLinks = parseTestLinksInStatement(text);
-
-    if (existingLinks.length > 0) {
-      skipped.push({ statement_ordinal: ord, reason: "already-linked" });
-      continue;
-    }
-    const tail = ` (${list.map(renderLink).join(", ")})`;
-    const insertionPoint = idx + text.length;
-
-    newContent =
-      newContent.slice(0, insertionPoint) +
-      tail +
-      newContent.slice(insertionPoint);
-    applied += list.length;
+    newContent = outcome.newContent;
+    applied += outcome.applied;
   }
 
   const diffPreview = applied > 0 ? buildUnifiedDiff(content, newContent) : "";
 
   return { newContent, diffPreview, applied, skipped };
+}
+
+function diffLine(before: string, after: string): string[] {
+  if (before === after) {
+    return [];
+  }
+
+  const lines: string[] = [];
+
+  if (before) {
+    lines.push(`-${before}`);
+  }
+
+  if (after) {
+    lines.push(`+${after}`);
+  }
+
+  return lines;
 }
 
 /** Tiny unified-diff renderer for the PR body. */
@@ -152,20 +211,7 @@ function buildUnifiedDiff(before: string, after: string): string {
   const maxLen = Math.max(beforeLines.length, afterLines.length);
 
   for (let i = 0; i < maxLen; i++) {
-    const b = beforeLines[i] ?? "";
-    const a = afterLines[i] ?? "";
-
-    if (b === a) {
-      continue;
-    }
-
-    if (b) {
-      out.push(`-${b}`);
-    }
-
-    if (a) {
-      out.push(`+${a}`);
-    }
+    out.push(...diffLine(beforeLines[i] || "", afterLines[i] || ""));
   }
 
   return out.join("\n");
@@ -207,31 +253,84 @@ function formatTestableStatements(
 
 const JUDGE_SCORE_THRESHOLD = 0.5;
 
+type JudgeVerdict = Omit<
+  Judgment,
+  "test_file" | "test_name" | "test_line" | "symbol" | "match_kind"
+>;
+
+interface JudgeSuggestion {
+  matches: boolean;
+  statement_ordinal?: number;
+  score?: number;
+  rationale: string;
+}
+
+function noMatchVerdict(rationale: string): JudgeVerdict {
+  return {
+    matches: false,
+    statement_ordinal: null,
+    statement_text: null,
+    match_score: 0,
+    rationale,
+  };
+}
+
+function cleanRationale(raw: string): string {
+  const rationale = raw.trim();
+
+  return rationale.length > 0
+    ? rationale
+    : "Judged relevant; no rationale returned.";
+}
+
+function isValidScore(score: unknown): score is number {
+  return typeof score === "number" && score >= 0 && score <= 1;
+}
+
+function resolveJudgeVerdict(
+  testable: { ordinal: number; text: string }[],
+  suggestion: JudgeSuggestion,
+): JudgeVerdict {
+  const rationale = cleanRationale(suggestion.rationale || "");
+
+  if (suggestion.matches !== true) {
+    return noMatchVerdict(rationale);
+  }
+
+  const ordinal =
+    typeof suggestion.statement_ordinal === "number"
+      ? suggestion.statement_ordinal
+      : null;
+  const match = testable.find((s) => s.ordinal === ordinal);
+
+  if (!match) {
+    return noMatchVerdict(
+      `Judge picked ordinal ${ordinal} not in the enumerated set; dropped.`,
+    );
+  }
+
+  const score = isValidScore(suggestion.score)
+    ? suggestion.score
+    : JUDGE_SCORE_THRESHOLD;
+
+  return {
+    matches: true,
+    statement_ordinal: match.ordinal,
+    statement_text: match.text,
+    match_score: score,
+    rationale,
+  };
+}
+
 async function judgeLink(
   spec: { file_path: string; content: string },
   testable: { ordinal: number; text: string }[],
   candidate: JudgeCandidate,
-): Promise<
-  Omit<
-    Judgment,
-    "test_file" | "test_name" | "test_line" | "symbol" | "match_kind"
-  >
-> {
+): Promise<JudgeVerdict> {
   if (testable.length === 0) {
-    return {
-      matches: false,
-      statement_ordinal: null,
-      statement_text: null,
-      match_score: 0,
-      rationale: "No testable statements; nothing to validate.",
-    };
+    return noMatchVerdict("No testable statements; nothing to validate.");
   }
-  const result = await Llm.instance.completeWithTool<{
-    matches: boolean;
-    statement_ordinal?: number;
-    score?: number;
-    rationale: string;
-  }>({
+  const result = await Llm.instance.completeWithTool<JudgeSuggestion>({
     prompt: `Decide whether the TEST validates a SPECIFIC enumerated TESTABLE STATEMENT below. Answer true only when the test exercises a behaviour described by ONE statement — not merely shared vocabulary.
 
 If true, pick the SINGLE statement most strongly validated (its ordinal) and a confidence \`score\` 0.0–1.0. If false, omit ordinal/score.
@@ -254,52 +353,7 @@ ${candidate.content.substring(0, 4000)}
     jobName: "spec_coverage_backfill",
   });
 
-  const suggestion = result.parsed;
-  const matches = suggestion.matches === true;
-  const rationale = (suggestion.rationale || "").trim();
-  const safeRationale =
-    rationale.length > 0
-      ? rationale
-      : "Judged relevant; no rationale returned.";
-
-  if (!matches) {
-    return {
-      matches: false,
-      statement_ordinal: null,
-      statement_text: null,
-      match_score: 0,
-      rationale: safeRationale,
-    };
-  }
-  const ordinal =
-    typeof suggestion.statement_ordinal === "number"
-      ? suggestion.statement_ordinal
-      : null;
-  const match = testable.find((s) => s.ordinal === ordinal);
-
-  if (!match) {
-    return {
-      matches: false,
-      statement_ordinal: null,
-      statement_text: null,
-      match_score: 0,
-      rationale: `Judge picked ordinal ${ordinal} not in the enumerated set; dropped.`,
-    };
-  }
-  const score =
-    typeof suggestion.score === "number" &&
-    suggestion.score >= 0 &&
-    suggestion.score <= 1
-      ? suggestion.score
-      : JUDGE_SCORE_THRESHOLD;
-
-  return {
-    matches: true,
-    statement_ordinal: match.ordinal,
-    statement_text: match.text,
-    match_score: score,
-    rationale: safeRationale,
-  };
+  return resolveJudgeVerdict(testable, result.parsed);
 }
 
 // ── LLM classifier (batched fallback), inlined from the v2 linker ──
@@ -343,25 +397,34 @@ interface LLMClassification {
   category?: UntestableCategory;
 }
 
+interface ResolvedClassification {
+  testability: "testable" | "untestable";
+  category: UntestableCategory | null;
+}
+
+function classificationFromLLM(
+  c: LLMClassification,
+): [number, ResolvedClassification] | null {
+  if (typeof c.ordinal !== "number") {
+    return null;
+  }
+
+  const untestable = c.testability === "untestable";
+
+  return [
+    c.ordinal,
+    {
+      testability: untestable ? "untestable" : "testable",
+      category: untestable ? (c.category ?? null) : null,
+    },
+  ];
+}
+
 async function classifyLLM(
   specPath: string,
   unclassified: Statement[],
-): Promise<
-  Map<
-    number,
-    {
-      testability: "testable" | "untestable";
-      category: UntestableCategory | null;
-    }
-  >
-> {
-  const result = new Map<
-    number,
-    {
-      testability: "testable" | "untestable";
-      category: UntestableCategory | null;
-    }
-  >();
+): Promise<Map<number, ResolvedClassification>> {
+  const result = new Map<number, ResolvedClassification>();
 
   if (unclassified.length === 0) {
     return result;
@@ -398,13 +461,12 @@ ${formatted}`,
     });
 
     for (const c of llm.parsed.classifications || []) {
-      if (typeof c.ordinal !== "number") {
+      const entry = classificationFromLLM(c);
+
+      if (!entry) {
         continue;
       }
-      result.set(c.ordinal, {
-        testability: c.testability === "untestable" ? "untestable" : "testable",
-        category: c.testability === "untestable" ? (c.category ?? null) : null,
-      });
+      result.set(entry[0], entry[1]);
     }
   } catch (err) {
     console.warn(
@@ -539,6 +601,73 @@ export interface BackfillOptions {
   project: Project;
 }
 
+function resolveSpecsToProcess(
+  specRows: SpecChunkWithEmbedding[],
+  specPathFilter: string | undefined,
+): SpecChunkWithEmbedding[] {
+  if (!specPathFilter) {
+    return specRows;
+  }
+
+  return specRows.filter((s) => s.filePath === specPathFilter);
+}
+
+// Group spec chunks by file_path for reassembly.
+function groupSpecsByPath(
+  specs: SpecChunkWithEmbedding[],
+): Map<string, SpecChunkWithEmbedding[]> {
+  const byPath = new Map<string, SpecChunkWithEmbedding[]>();
+
+  for (const s of specs) {
+    const list = byPath.get(s.filePath) ?? [];
+
+    list.push(s);
+    byPath.set(s.filePath, list);
+  }
+
+  return byPath;
+}
+
+interface BackfillOneSpecArgs {
+  project: Project;
+  repo: string;
+  specPath: string;
+  chunks: SpecChunkWithEmbedding[];
+  codeChunks: TestChunk[];
+}
+
+async function backfillOneSpec(
+  args: BackfillOneSpecArgs,
+): Promise<SpecBackfillSummary | null> {
+  const { project, repo, specPath, chunks, codeChunks } = args;
+
+  if (!isAssertionSource(specPath)) {
+    return null;
+  }
+
+  try {
+    const summary = await runBackfillForSpec(
+      project,
+      repo,
+      { path: specPath, chunks },
+      codeChunks,
+    );
+
+    console.log(
+      `[job] spec-coverage-backfill: ${repo}:${specPath} — ${summary.suggestions} suggestions, ${summary.prUrl || "no PR"}`,
+    );
+
+    return summary;
+  } catch (err) {
+    console.error(
+      `[job] spec-coverage-backfill: error on ${repo}:${specPath}:`,
+      err,
+    );
+
+    return null;
+  }
+}
+
 export async function specCoverageBackfillJob(
   opts: BackfillOptions,
 ): Promise<string> {
@@ -549,9 +678,7 @@ export async function specCoverageBackfillJob(
   const specRows = dropIngestExcluded(
     await project.chunks.specChunksForBackfill(),
   );
-  const specs = opts.specPathFilter
-    ? specRows.filter((s) => s.filePath === opts.specPathFilter)
-    : specRows;
+  const specs = resolveSpecsToProcess(specRows, opts.specPathFilter);
 
   if (specs.length === 0) {
     console.log(`[job] spec-coverage-backfill: no specs for ${repo}`);
@@ -561,48 +688,29 @@ export async function specCoverageBackfillJob(
 
   // Test chunks loaded once per repo and reused for every spec.
   const codeChunks = await buildTestChunks(project);
-
-  // Group spec chunks by file_path for reassembly.
-  const byPath = new Map<string, SpecChunkWithEmbedding[]>();
-
-  for (const s of specs) {
-    const list = byPath.get(s.filePath) ?? [];
-
-    list.push(s);
-    byPath.set(s.filePath, list);
-  }
+  const byPath = groupSpecsByPath(specs);
 
   let totalSpecs = 0;
   let totalSuggestions = 0;
   let totalPrsOpened = 0;
 
   for (const [specPath, chunks] of byPath) {
-    if (!isAssertionSource(specPath)) {
+    const summary = await backfillOneSpec({
+      project,
+      repo,
+      specPath,
+      chunks,
+      codeChunks,
+    });
+
+    if (!summary) {
       continue;
     }
+    totalSpecs++;
+    totalSuggestions += summary.suggestions;
 
-    try {
-      const summary = await runBackfillForSpec(
-        project,
-        repo,
-        { path: specPath, chunks },
-        codeChunks,
-      );
-
-      totalSpecs++;
-      totalSuggestions += summary.suggestions;
-
-      if (summary.prUrl) {
-        totalPrsOpened++;
-      }
-      console.log(
-        `[job] spec-coverage-backfill: ${repo}:${specPath} — ${summary.suggestions} suggestions, ${summary.prUrl ?? "no PR"}`,
-      );
-    } catch (err) {
-      console.error(
-        `[job] spec-coverage-backfill: error on ${repo}:${specPath}:`,
-        err,
-      );
+    if (summary.prUrl) {
+      totalPrsOpened++;
     }
   }
 
@@ -633,6 +741,117 @@ interface SpecBackfillSummary {
   prUrl: string | null;
 }
 
+function firstChunkEmbedding(
+  chunks: SpecChunkWithEmbedding[],
+): SpecChunkWithEmbedding["embedding"] | undefined {
+  const first = chunks[0];
+
+  return first ? first.embedding : undefined;
+}
+
+// Judge each candidate against the un-linked testable subset.
+async function judgeCandidates(
+  specPath: string,
+  content: string,
+  unlinked: Array<{ ordinal: number; text: string }>,
+  candidates: JudgeCandidate[],
+): Promise<Judgment[]> {
+  const judgments: Judgment[] = [];
+
+  for (const candidate of candidates) {
+    const verdict = await judgeLink(
+      { file_path: specPath, content },
+      unlinked,
+      candidate,
+    );
+
+    judgments.push({
+      test_file: candidate.test_file,
+      test_name: candidate.test_name,
+      test_line: candidate.test_line,
+      symbol: candidate.symbol,
+      match_kind: candidate.match_kind as MatchKind,
+      ...verdict,
+    });
+  }
+
+  return judgments;
+}
+
+// Build Suggestion[] from confirmed judgments + the unlinked text map.
+function buildSuggestionsFromJudgments(
+  confirmed: Judgment[],
+  unlinked: Array<{ ordinal: number; text: string }>,
+): Suggestion[] {
+  const textByOrdinal = new Map(unlinked.map((u) => [u.ordinal, u.text]));
+
+  return confirmed
+    .filter(
+      (j) =>
+        j.statement_ordinal !== null && textByOrdinal.has(j.statement_ordinal),
+    )
+    .map((j) => ({
+      statement_ordinal: j.statement_ordinal as number,
+      statement_text: textByOrdinal.get(
+        j.statement_ordinal as number,
+      ) as string,
+      test_file: j.test_file,
+      test_line: j.test_line,
+      label: buildLabel(j.test_file, j.test_line),
+    }));
+}
+
+interface OpenBackfillPrArgs {
+  project: Project;
+  repo: string;
+  specPath: string;
+  newContent: string;
+  applied: number;
+  confirmed: Judgment[];
+  diffPreview: string;
+}
+
+async function openBackfillPr(
+  args: OpenBackfillPrArgs,
+): Promise<string | null> {
+  const {
+    project,
+    repo,
+    specPath,
+    newContent,
+    applied,
+    confirmed,
+    diffPreview,
+  } = args;
+  const branch = buildBranchName(specPath);
+  const title = `Suggested test links for ${specPath}`;
+  const body = buildPrBody(specPath, applied, confirmed, diffPreview);
+
+  try {
+    await project.repo.createBranch(branch);
+    await project.repo.commitFile(
+      branch,
+      specPath,
+      newContent,
+      `lore: backfill suggested test links for ${specPath}`,
+    );
+    const pr = await project.pulls.open(branch, {
+      title,
+      body,
+      labels: ["lore-managed", "spec-coverage-backfill"],
+    });
+
+    return pr.url;
+  } catch (err) {
+    console.error(
+      `[job] spec-coverage-backfill: failed to open PR for ${repo}:${specPath}:`,
+      err,
+    );
+
+    return null;
+  }
+}
+
 async function runBackfillForSpec(
   project: Project,
   repo: string,
@@ -661,7 +880,7 @@ async function runBackfillForSpec(
   const assertions = await extractAssertions(content, specPath, {
     jobName: "spec_coverage_backfill",
   });
-  const specEmbedding = parseEmbedding(chunks[0]?.embedding);
+  const specEmbedding = parseEmbedding(firstChunkEmbedding(chunks));
   const { candidates } = selectCandidates(
     { repo, file_path: specPath, content, embedding: specEmbedding },
     assertions,
@@ -672,47 +891,19 @@ async function runBackfillForSpec(
     return { suggestions: 0, prUrl: null };
   }
 
-  // Judge each candidate against the un-linked testable subset.
-  const judgments: Judgment[] = [];
-
-  for (const candidate of candidates) {
-    const verdict = await judgeLink(
-      { file_path: specPath, content },
-      unlinked,
-      candidate,
-    );
-
-    judgments.push({
-      test_file: candidate.test_file,
-      test_name: candidate.test_name,
-      test_line: candidate.test_line,
-      symbol: candidate.symbol,
-      match_kind: candidate.match_kind as MatchKind,
-      ...verdict,
-    });
-  }
+  const judgments = await judgeCandidates(
+    specPath,
+    content,
+    unlinked,
+    candidates,
+  );
   const confirmed = argmaxByTest(judgments);
 
   if (confirmed.length === 0) {
     return { suggestions: 0, prUrl: null };
   }
 
-  // Build Suggestion[] from confirmed judgments + the unlinked text map.
-  const textByOrdinal = new Map(unlinked.map((u) => [u.ordinal, u.text]));
-  const suggestions: Suggestion[] = confirmed
-    .filter(
-      (j) =>
-        j.statement_ordinal !== null && textByOrdinal.has(j.statement_ordinal),
-    )
-    .map((j) => ({
-      statement_ordinal: j.statement_ordinal as number,
-      statement_text: textByOrdinal.get(
-        j.statement_ordinal as number,
-      ) as string,
-      test_file: j.test_file,
-      test_line: j.test_line,
-      label: buildLabel(j.test_file, j.test_line),
-    }));
+  const suggestions = buildSuggestionsFromJudgments(confirmed, unlinked);
 
   if (suggestions.length === 0) {
     return { suggestions: 0, prUrl: null };
@@ -727,32 +918,15 @@ async function runBackfillForSpec(
     return { suggestions: 0, prUrl: null };
   }
 
-  // Open the PR.
-  const branch = buildBranchName(specPath);
-  const title = `Suggested test links for ${specPath}`;
-  const body = buildPrBody(specPath, applied, confirmed, diffPreview);
+  const prUrl = await openBackfillPr({
+    project,
+    repo,
+    specPath,
+    newContent,
+    applied,
+    confirmed,
+    diffPreview,
+  });
 
-  try {
-    await project.repo.createBranch(branch);
-    await project.repo.commitFile(
-      branch,
-      specPath,
-      newContent,
-      `lore: backfill suggested test links for ${specPath}`,
-    );
-    const pr = await project.pulls.open(branch, {
-      title,
-      body,
-      labels: ["lore-managed", "spec-coverage-backfill"],
-    });
-
-    return { suggestions: applied, prUrl: pr.url };
-  } catch (err) {
-    console.error(
-      `[job] spec-coverage-backfill: failed to open PR for ${repo}:${specPath}:`,
-      err,
-    );
-
-    return { suggestions: applied, prUrl: null };
-  }
+  return { suggestions: applied, prUrl };
 }

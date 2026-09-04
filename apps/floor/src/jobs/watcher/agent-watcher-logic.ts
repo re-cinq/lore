@@ -49,21 +49,24 @@ export function decideTokenReclaim(input: {
   return terminal && !input.isAssemblyLineTask;
 }
 
+/** Post-handler statuses that map directly to a run outcome, independent of CR phase. */
+const TERMINAL_STATUS_OUTCOME: Record<string, string> = {
+  "pr-created": "pr_created",
+  review: "pr_created",
+  failed: "failed",
+  "needs-human-help": "failed",
+  completed: "completed",
+};
+
 /** Map a task's post-handler status onto the run row's outcome vocabulary. */
 export function runOutcomeFromTaskStatus(
   status: string,
   phase?: string,
 ): string {
-  if (status === "pr-created" || status === "review") {
-    return "pr_created";
-  }
+  const mapped = TERMINAL_STATUS_OUTCOME[status];
 
-  if (status === "failed" || status === "needs-human-help") {
-    return "failed";
-  }
-
-  if (status === "completed") {
-    return "completed";
+  if (mapped) {
+    return mapped;
   }
 
   // Un-advanced task: no post-handler set a terminal status, so the CR phase decides — a Failed CR must not close its row as completed.
@@ -126,12 +129,11 @@ export interface AgentTerminalReport {
   failureReason: string | undefined;
 }
 
-// Read a `kubernetes.agent.*` event's params, or null when they do not describe a terminal run this Floor should settle.
-export function agentTerminalReport(
+/** The event's taskId + terminal phase, or null when either is missing/non-terminal. */
+function parseTerminalPhase(
   params: Record<string, unknown>,
-): AgentTerminalReport | null {
-  const taskId = params.taskId;
-  const phase = params.phase;
+): { taskId: string; phase: "Succeeded" | "Failed" } | null {
+  const { taskId, phase } = params;
 
   if (typeof taskId !== "string" || taskId === "") {
     return null;
@@ -140,21 +142,35 @@ export function agentTerminalReport(
   if (phase !== "Succeeded" && phase !== "Failed") {
     return null;
   }
+
+  return { taskId, phase };
+}
+
+/** `value` if it is a string, else `fallback`. */
+function stringOr<T>(value: unknown, fallback: T): string | T {
+  return typeof value === "string" ? value : fallback;
+}
+
+// Read a `kubernetes.agent.*` event's params, or null when they do not describe a terminal run this Floor should settle.
+export function agentTerminalReport(
+  params: Record<string, unknown>,
+): AgentTerminalReport | null {
+  const parsed = parseTerminalPhase(params);
+
+  if (!parsed) {
+    return null;
+  }
   const status = (params.status ?? {}) as {
     output?: unknown;
     failureReason?: unknown;
   };
-  const agentName = params.agentName;
 
   return {
-    taskId,
-    agentName: typeof agentName === "string" ? agentName : null,
-    phase,
-    output: typeof status.output === "string" ? status.output : undefined,
-    failureReason:
-      typeof status.failureReason === "string"
-        ? status.failureReason
-        : undefined,
+    taskId: parsed.taskId,
+    agentName: stringOr(params.agentName, null),
+    phase: parsed.phase,
+    output: stringOr(status.output, undefined),
+    failureReason: stringOr(status.failureReason, undefined),
   };
 }
 
@@ -176,33 +192,21 @@ export interface DispatchFacts {
 }
 
 // Recover a run's dispatch facts from what was written down (run row, recorded AT dispatch, then the backing task) — these used to be read off `Agent.spec`, the one copy that only exists in the cluster that ran it, only until the prune.
-export function dispatchFacts(
-  run: {
-    blueprintName: string;
-    repo: string;
-    branch: string | null;
-    args: Record<string, unknown>;
-  } | null,
-  task: {
-    task_type: string;
-    target_repo: string;
-    target_branch?: string | null;
-    description: string;
-    context_bundle?: Record<string, unknown> | null;
-  } | null,
-): DispatchFacts | null {
-  if (run) {
-    return {
-      taskType: run.blueprintName,
-      targetRepo: run.repo,
-      branch: run.branch ?? "",
-      description: String(run.args.description ?? ""),
-    };
-  }
+type DispatchRun = {
+  blueprintName: string;
+  repo: string;
+  branch: string | null;
+  args: Record<string, unknown>;
+};
 
-  if (!task) {
-    return null;
-  }
+/** Not a named type: its members would otherwise restate the tasks table's columns outside libs/shared/src/models/. */
+function dispatchFactsFromTask(task: {
+  task_type: string;
+  target_repo: string;
+  target_branch?: string | null;
+  description: string;
+  context_bundle?: Record<string, unknown> | null;
+}): DispatchFacts {
   // `context_bundle.branch` first: a revision task is dispatched onto the branch it names, while `target_branch` is only written once a PR exists.
   const bundleBranch = task.context_bundle?.branch;
 
@@ -215,4 +219,24 @@ export function dispatchFacts(
         : (task.target_branch ?? ""),
     description: task.description,
   };
+}
+
+function dispatchFactsFromRun(run: DispatchRun): DispatchFacts {
+  return {
+    taskType: run.blueprintName,
+    targetRepo: run.repo,
+    branch: run.branch ?? "",
+    description: String(run.args.description ?? ""),
+  };
+}
+
+export function dispatchFacts(
+  run: DispatchRun | null,
+  task: Parameters<typeof dispatchFactsFromTask>[0] | null,
+): DispatchFacts | null {
+  if (run) {
+    return dispatchFactsFromRun(run);
+  }
+
+  return task ? dispatchFactsFromTask(task) : null;
 }

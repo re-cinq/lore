@@ -40,6 +40,45 @@ const ms = (ts: string | undefined): number =>
   ts ? new Date(ts).getTime() : 0;
 const isRunningOrQueued = (status?: string): boolean =>
   status === "running" || status === "queued";
+const orEmpty = (value: string | null | undefined): string => value ?? "";
+const orNull = <T>(value: T | null | undefined): T | null => value ?? null;
+
+function isSatisfyingDependency(
+  dep: SeedTask,
+  task: SeedTask,
+  depId: string,
+): boolean {
+  const sameRepoAndSlug =
+    dep.target_repo === task.target_repo &&
+    specSlugOf(dep) === specSlugOf(task);
+  const isDone = dep.status === "completed" || dep.status === "merged";
+
+  return sameRepoAndSlug && specTaskIdOf(dep) === depId && isDone;
+}
+
+function dependencySatisfied(
+  specTasks: SeedTask[],
+  task: SeedTask,
+  depId: string,
+): boolean {
+  return specTasks.some((dep) => isSatisfyingDependency(dep, task, depId));
+}
+
+const specTaskIdOf = (task: SeedTask): string | undefined =>
+  task.context_bundle?.spec_task_id as string | undefined;
+const specSlugOf = (task: SeedTask): string | undefined =>
+  task.context_bundle?.spec_slug as string | undefined;
+
+function isMergeableFeatureRequestOnBranch(
+  task: SeedTask,
+  repo: string,
+  branch: string,
+): boolean {
+  const isOnBranch = task.target_repo === repo && task.target_branch === branch;
+  const isMergeable = task.status === "pr-created" || task.status === "review";
+
+  return task.task_type === "feature-request" && isOnBranch && isMergeable;
+}
 
 /** In-memory {@link TaskQueueRepository}: behavioral spec of the Pg adapter over seeded rows; `now` is injectable for deterministic age-dependent sweeps in tests. */
 export class InMemoryTaskQueue implements TaskQueueRepository {
@@ -92,14 +131,6 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
 
   async findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]> {
     const specTasks = this.tasks.filter((t) => t.task_type === "spec-task");
-    const depSatisfied = (task: SeedTask, depId: string): boolean =>
-      specTasks.some(
-        (d) =>
-          d.target_repo === task.target_repo &&
-          d.context_bundle?.spec_task_id === depId &&
-          d.context_bundle?.spec_slug === task.context_bundle?.spec_slug &&
-          (d.status === "completed" || d.status === "merged"),
-      );
 
     return specTasks
       .filter((t) => {
@@ -113,7 +144,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
         const deps =
           (t.context_bundle?.depends_on as string[] | undefined) ?? [];
 
-        return deps.every((depId) => depSatisfied(t, depId));
+        return deps.every((depId) => dependencySatisfied(specTasks, t, depId));
       })
       .sort((a, b) =>
         String(a.context_bundle?.spec_task_id ?? "").localeCompare(
@@ -178,8 +209,8 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     }
     task.status = "completed";
 
-    const specTaskId = task.context_bundle?.spec_task_id as string | undefined;
-    const specSlug = task.context_bundle?.spec_slug as string | undefined;
+    const specTaskId = specTaskIdOf(task);
+    const specSlug = specSlugOf(task);
 
     if (!specTaskId || !specSlug) {
       return { completed: true, unblocked: [] };
@@ -278,15 +309,14 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
   private toReviewable(t: SeedTask): ReviewableTask {
     return {
       id: t.id,
-      description: (t.description as string) ?? "",
-      task_type: t.task_type ?? "",
-      target_repo: t.target_repo ?? "",
+      description: orEmpty(t.description as string | null | undefined),
+      task_type: orEmpty(t.task_type),
+      target_repo: orEmpty(t.target_repo),
       pr_number: t.pr_number as number,
-      pr_url: (t.pr_url as string) ?? "",
-      issue_number: t.issue_number ?? null,
-      review_iteration:
-        (t.review_iteration as number | null | undefined) ?? null,
-      target_branch: (t.target_branch as string) ?? "",
+      pr_url: orEmpty(t.pr_url as string | null | undefined),
+      issue_number: orNull(t.issue_number),
+      review_iteration: orNull(t.review_iteration as number | null | undefined),
+      target_branch: orEmpty(t.target_branch as string | null | undefined),
     };
   }
 
@@ -300,21 +330,22 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
       )
       .map((t) => ({
         id: t.id,
-        target_repo: t.target_repo ?? "",
-        target_branch: (t.target_branch as string | null) ?? null,
+        target_repo: orEmpty(t.target_repo),
+        target_branch: orNull(t.target_branch as string | null | undefined),
         pr_url: t.pr_url as string,
         pr_number: t.pr_number as number,
-        issue_number: t.issue_number ?? null,
-        task_type: t.task_type ?? "",
-        description: (t.description as string) ?? "",
-        created_at: t.created_at ?? "",
-        task_group_id: t.task_group_id ?? null,
-        context_bundle:
-          (t.context_bundle as {
+        issue_number: orNull(t.issue_number),
+        task_type: orEmpty(t.task_type),
+        description: orEmpty(t.description as string | null | undefined),
+        created_at: orEmpty(t.created_at),
+        task_group_id: orNull(t.task_group_id),
+        context_bundle: orNull(
+          t.context_bundle as {
             feature_id?: string;
             slug?: string;
             spec_slug?: string;
-          } | null) ?? null,
+          } | null,
+        ),
       }));
   }
 
@@ -395,11 +426,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     branch: string,
   ): Promise<void> {
     for (const t of this.tasks) {
-      const isOnBranch = t.target_repo === repo && t.target_branch === branch;
-      const isMergeable = t.status === "pr-created" || t.status === "review";
-      const isFeatureRequest = t.task_type === "feature-request";
-
-      if (isFeatureRequest && isOnBranch && isMergeable) {
+      if (isMergeableFeatureRequestOnBranch(t, repo, branch)) {
         t.status = "merged";
       }
     }

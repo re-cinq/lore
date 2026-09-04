@@ -10,17 +10,11 @@ export function buildVertexUrl(project: string, region: string): string {
 // Resolved at call time (env, then GKE metadata server) — resolving once at module load left it "" in agent/CronJob pods, producing a malformed URL instead of degrading to null.
 let cachedProject: string | null = null;
 
-export async function resolveVertexProject(): Promise<string> {
-  if (cachedProject !== null) {
-    return cachedProject;
-  }
-  const fromEnv =
-    process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
+function fromEnvProject(): string {
+  return process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
+}
 
-  if (fromEnv) {
-    return (cachedProject = fromEnv);
-  }
-
+async function fetchMetadataProject(): Promise<string> {
   try {
     const res = await fetch(
       "http://metadata.google.internal/computeMetadata/v1/project/project-id",
@@ -30,14 +24,27 @@ export async function resolveVertexProject(): Promise<string> {
       },
     );
 
-    if (res.ok) {
-      return (cachedProject = (await res.text()).trim());
+    if (!res.ok) {
+      return "";
     }
+
+    return (await res.text()).trim();
   } catch {
-    // fall through to empty
+    return "";
+  }
+}
+
+export async function resolveVertexProject(): Promise<string> {
+  if (cachedProject !== null) {
+    return cachedProject;
+  }
+  const fromEnv = fromEnvProject();
+
+  if (fromEnv) {
+    return (cachedProject = fromEnv);
   }
 
-  return (cachedProject = "");
+  return (cachedProject = await fetchMetadataProject());
 }
 
 /** Reset the process-cached project resolution — for tests. */
@@ -45,29 +52,61 @@ export function resetVertexProjectCache(): void {
   cachedProject = null;
 }
 
+async function resolveAccessToken(): Promise<string> {
+  try {
+    const metaRes = await fetch(
+      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+      {
+        signal: AbortSignal.timeout(30_000),
+        headers: { "Metadata-Flavor": "Google" },
+      },
+    );
+    const metaJson = (await metaRes.json()) as { access_token: string };
+
+    return metaJson.access_token;
+  } catch {
+    return process.env.GOOGLE_ACCESS_TOKEN || "";
+  }
+}
+
+async function fetchVertexEmbedding(
+  project: string,
+  token: string,
+  query: string,
+): Promise<number[] | null> {
+  const res = await fetch(buildVertexUrl(project, VERTEX_REGION), {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      instances: [{ content: query.substring(0, 8000) }],
+    }),
+  });
+
+  if (!res.ok) {
+    console.error(`[embeddings] Vertex AI embedding failed: ${res.status}`);
+
+    return null;
+  }
+
+  const json = (await res.json()) as {
+    predictions: Array<{ embeddings: { values: number[] } }>;
+  };
+
+  return json.predictions[0].embeddings.values;
+}
+
 export async function getQueryEmbedding(
   query: string,
 ): Promise<number[] | null> {
   try {
-    let token: string;
+    const token = await resolveAccessToken();
 
-    try {
-      const metaRes = await fetch(
-        "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-        {
-          signal: AbortSignal.timeout(30_000),
-          headers: { "Metadata-Flavor": "Google" },
-        },
-      );
-      const metaJson = (await metaRes.json()) as { access_token: string };
-
-      token = metaJson.access_token;
-    } catch {
-      token = process.env.GOOGLE_ACCESS_TOKEN || "";
-
-      if (!token) {
-        return null;
-      }
+    if (!token) {
+      return null;
     }
 
     const project = await resolveVertexProject();
@@ -80,29 +119,7 @@ export async function getQueryEmbedding(
       return null;
     }
 
-    const res = await fetch(buildVertexUrl(project, VERTEX_REGION), {
-      signal: AbortSignal.timeout(30_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        instances: [{ content: query.substring(0, 8000) }],
-      }),
-    });
-
-    if (!res.ok) {
-      console.error(`[embeddings] Vertex AI embedding failed: ${res.status}`);
-
-      return null;
-    }
-
-    const json = (await res.json()) as {
-      predictions: Array<{ embeddings: { values: number[] } }>;
-    };
-
-    return json.predictions[0].embeddings.values;
+    return await fetchVertexEmbedding(project, token, query);
   } catch (err) {
     console.error("[embeddings] Vertex AI embedding error:", err);
 

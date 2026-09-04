@@ -227,7 +227,7 @@ function lostArtifactRound(
     return null;
   }
 
-  if (latest.status !== "failed" && latest.status !== "running") {
+  if (!["failed", "running"].includes(latest.status)) {
     return null;
   }
 
