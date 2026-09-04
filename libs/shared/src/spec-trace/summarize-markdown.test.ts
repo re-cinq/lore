@@ -9,7 +9,8 @@ describe("summarizeMarkdown", () => {
   });
 
   it("keeps the first heading as title when a second heading precedes any prose", () => {
-    const source = "# First Title\n\n## Second Heading\n\nThe lead paragraph.\n";
+    const source =
+      "# First Title\n\n## Second Heading\n\nThe lead paragraph.\n";
 
     expect(summarizeMarkdown(source)).toEqual({
       title: "First Title",
