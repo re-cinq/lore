@@ -106,7 +106,7 @@ function RetrievalLatency({
       rows={latencyStats}
       rowKey={(r) => r.tool}
       monoColumns={[2, 3, 4]}
-      empty="No latency data yet"
+      empty="No latency data yet. Use search_memory, query_graph, or assemble_context to generate data."
       cells={(r) => [
         <span className="badge" key="tool">
           {r.tool}
