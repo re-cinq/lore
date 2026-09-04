@@ -10,6 +10,8 @@ const PERIODS = [
   },
 ] as const;
 
+// A COUNT/SUM aggregate over one rolling window, not any table's row.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface PeriodUsage {
   tasks: number;
   input_tokens: number;

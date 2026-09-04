@@ -30,3 +30,9 @@ export function wireSchema<
     [K in keyof Shape as Columns[K & keyof Columns] & string]: Shape[K];
   }>;
 }
+
+/** The plain TS shape `wireSchema` would infer, for callers that only want a snake_case-keyed type — typically `Pick<WireOf<...>, "a_column" | "b_column">` for a hand-written projection query. */
+export type WireOf<
+  Shape extends z.ZodRawShape,
+  Columns extends ColumnMap<z.infer<z.ZodObject<Shape>>>,
+> = z.infer<ReturnType<typeof wireSchema<Shape, Columns>>>;

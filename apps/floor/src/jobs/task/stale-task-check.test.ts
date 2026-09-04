@@ -9,6 +9,7 @@ const task = (over: Partial<StaleTaskRow> = {}): StaleTaskRow => ({
   id: "task-1",
   task_type: "feature-planning",
   target_repo: "re-cinq/lore",
+  created_at: "2026-01-01T00:00:00.000Z",
   issue_number: 42,
   age_hours: 9.2,
   ...over,

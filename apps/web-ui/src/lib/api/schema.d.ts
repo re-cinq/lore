@@ -2093,6 +2093,8 @@ export interface components {
               trust?: {
                 /** @enum {string} */
                 level?: "docs" | "tests" | "implementation" | "full";
+                successful_tasks?: number;
+                auto_promote_threshold?: number;
               } & {
                 [key: string]: unknown;
               };
@@ -2171,6 +2173,8 @@ export interface components {
             trust?: {
               /** @enum {string} */
               level?: "docs" | "tests" | "implementation" | "full";
+              successful_tasks?: number;
+              auto_promote_threshold?: number;
             } & {
               [key: string]: unknown;
             };

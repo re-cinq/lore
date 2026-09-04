@@ -1,6 +1,7 @@
 // Pure judge helpers shared by the spec-test linker and the spec-coverage prepare/persist endpoints, so both sides use the same candidate-selection and segmentation contract.
 import { createHash } from "node:crypto";
 import { isTestFile, normalizeTestName } from "./test-paths.js";
+import type { Chunk } from "./models/chunk.js";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -12,6 +13,8 @@ export interface Assertion {
 
 export type MatchKind = "assertion" | "directory" | "embedding";
 
+// Judge-pipeline output, not a DB row — spec_test_links was dropped in migration 0008; the source of truth is now the inline markdown link.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface SpecTestLink {
   test_file: string;
   test_name: string;
@@ -23,13 +26,13 @@ export interface SpecTestLink {
   match_score: number | null;
 }
 
-export interface TestChunk {
+/** A code chunk read as a candidate test; content pinned to the chunks model. */
+export type TestChunk = Pick<Chunk, "content"> & {
   file_path: string;
-  content: string;
   test_name: string;
   test_line: number | null;
   embedding: number[] | null;
-}
+};
 
 export type JudgeCandidate = Omit<
   SpecTestLink,
@@ -49,6 +52,8 @@ export interface CandidateSelection {
   total: number;
 }
 
+// Judge-pipeline output, not a DB row — same as SpecTestLink above.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface Judgment {
   test_file: string;
   test_name: string;

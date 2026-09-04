@@ -1,4 +1,7 @@
 import type { PgPool } from "../../memory-store.js";
+import { CATALOG_APPLY_STATUS_COLUMNS } from "../../models/catalog-apply-status.js";
+import type { CatalogApplyStatusSchema } from "../../models/catalog-apply-status.js";
+import type { WireOf } from "../../lib/wire-schema.js";
 import type {
   CatalogApplyReport,
   CatalogApplyStatus,
@@ -9,15 +12,11 @@ import type {
 
 const NIL_UUID = "'00000000-0000-0000-0000-000000000000'::uuid";
 
-interface StatusRow {
-  cluster_agent_id: string;
-  cluster_name: string;
-  name: string;
-  project_id: string | null;
-  state: CatalogApplyStatus["state"];
-  reason: string | null;
-  updated_at: Date;
-}
+/** The row's own columns (via the model), plus `cluster_name` joined in from `pipeline.cluster_agents`. */
+type StatusRow = WireOf<
+  typeof CatalogApplyStatusSchema.shape,
+  typeof CATALOG_APPLY_STATUS_COLUMNS
+> & { cluster_name: string };
 
 export class PgCatalogStatus implements CatalogStatusRepository {
   constructor(private readonly pool: PgPool) {}

@@ -54,6 +54,8 @@ export async function createPipelineTaskViaApi(
   }
 }
 
+// Lore's own /api/task/{id} wire response (mirrors pipeline.tasks columns).
+// eslint-disable-next-line lore/no-row-types-outside-models
 interface FetchedTask {
   status?: string;
   id: string;

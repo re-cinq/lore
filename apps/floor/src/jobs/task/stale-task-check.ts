@@ -2,22 +2,17 @@
 
 import { projectFor } from "../../composition/project-boot.js";
 import { pipeline, taskStore } from "../../kernel/queues.js";
+import type { StaleTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 
 const STALE_THRESHOLD_HOURS = 6;
+
+export type StaleTaskRow = StaleTask;
 
 export interface StaleTaskCheckDeps {
   findStaleRunning(hours: number): Promise<StaleTaskRow[]>;
   /** True while an assembly run is queued/running/parked on human node (open, not stuck). */
   hasOpenLine(taskId: string): Promise<boolean>;
   escalate(task: StaleTaskRow, ageHours: number): Promise<void>;
-}
-
-export interface StaleTaskRow {
-  id: string;
-  task_type: string;
-  target_repo: string;
-  issue_number: number | null;
-  age_hours: number | string;
 }
 
 export async function staleTaskCheckJob(

@@ -6,20 +6,26 @@ import { EmptyState } from "@/components/EmptyState";
 import { formatCost, truncate, displayCreatedBy } from "@/lib/task-presenter";
 import type { AgentKind } from "@/lib/agent-classify";
 import DataTable from "@/components/DataTable";
+import type { components } from "@/lib/api/schema";
 import styles from "./AgentsTable.module.css";
 
-export interface AgentRow {
-  /** Nullable — ungrouped rows carry no agent; was `string`, which linked to `/agents/null`. */
-  agent_id: string | null;
+// AgentActivity's per-agent fields, plus `kind` (derived client-side, not part of the wire response).
+type AgentActivityRow =
+  components["schemas"]["AgentActivity"]["agents"][number];
+
+export type AgentRow = Pick<
+  AgentActivityRow,
+  | "agent_id"
+  | "task_count"
+  | "memory_count"
+  | "cost_usd"
+  | "created_by"
+  | "last_active"
+> & {
   kind: AgentKind;
-  task_count: number;
-  memory_count: number;
-  cost_usd: number;
-  created_by: string | null;
-  last_active: string | null;
-  reason_type?: string | null;
-  reason?: string | null;
-}
+  reason_type?: AgentActivityRow["reason_type"];
+  reason?: AgentActivityRow["reason"];
+};
 
 export interface AgentsTableProps {
   agents: AgentRow[];

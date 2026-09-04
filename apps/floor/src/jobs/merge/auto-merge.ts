@@ -1,5 +1,9 @@
 import { trace } from "@opentelemetry/api";
-import { allPathsMatch, matchingPatterns } from "@re-cinq/lore-shared";
+import {
+  allPathsMatch,
+  matchingPatterns,
+  type ResolvedDarkFactorySettings,
+} from "@re-cinq/lore-shared";
 import { withBackoff } from "@re-cinq/lore-shared/lib/backoff.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { projectFor } from "../../composition/project-boot.js";
@@ -18,12 +22,8 @@ export type AutoMergeOutcome =
   | "deferred:review_in_flight"
   | "deferred:api_failure";
 
-export interface DarkFactoryAutoMerge {
-  paths: string[];
-  min_trust: "docs" | "tests" | "implementation" | "full";
-  require_green_ci: boolean;
-  require_bot_approval: boolean;
-}
+/** The resolved (defaults-filled) `auto_merge` block — same shape declared once in the dark-factory-settings model. */
+export type DarkFactoryAutoMerge = ResolvedDarkFactorySettings["auto_merge"];
 
 export interface AutoMergePolicyInputs {
   darkFactoryEnabled: boolean;

@@ -1,5 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 
+// The lore_create_pipeline_task MCP tool's "context" argument shape (apps/mcp-server/src/mcp/tools/pipeline-tools.ts) — a caller-supplied tool input, not a table row.
+// eslint-disable-next-line lore/no-row-types-outside-models
 interface DelegateContext {
   pipeline_task_id?: string;
   spec_file?: boolean;

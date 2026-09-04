@@ -1,4 +1,7 @@
 import type { PgPool } from "../../memory-store.js";
+import { AgentConversationSchema } from "../../models/agent-conversation.js";
+import { AGENT_CONVERSATION_COLUMNS } from "../../models/agent-conversation.js";
+import type { WireOf } from "../../lib/wire-schema.js";
 import type {
   ConversationRecord,
   ConversationThread,
@@ -6,15 +9,20 @@ import type {
   ExecutionRef,
 } from "./conversations-port.js";
 
-/** The shape `pipeline.agent_conversations` hands back. */
-interface ConversationDbRow {
-  id: string;
-  conversation_id: string;
-  object_key: string | null;
-  bytes: number | null;
-  assembly_line_id: string | null;
-  created_at: Date;
-}
+export const CONVERSATION_ROW_SHAPE = AgentConversationSchema.pick({
+  id: true,
+  conversationId: true,
+  objectKey: true,
+  bytes: true,
+  assemblyLineId: true,
+  createdAt: true,
+}).shape;
+
+/** The 6-column projection `latestFor`/`byConversationId` select, named from the model. */
+type ConversationDbRow = WireOf<
+  typeof CONVERSATION_ROW_SHAPE,
+  typeof AGENT_CONVERSATION_COLUMNS
+>;
 
 const SELECT_COLUMNS = `id, conversation_id, object_key, bytes,
          assembly_line_id, created_at`;

@@ -1,5 +1,7 @@
 /** Progressive trust ladder as repos merge Lore-authored PRs (#1354). */
 
+import type { TrustSettings } from "@re-cinq/lore-shared/models/repo-settings.js";
+
 /** Ascending order. A repo at `full` has nowhere left to climb. */
 export const TRUST_LEVELS = [
   "docs",
@@ -10,11 +12,11 @@ export const TRUST_LEVELS = [
 
 export type TrustLevel = (typeof TRUST_LEVELS)[number];
 
-export interface TrustState {
-  level?: string;
-  successful_tasks?: number;
-  auto_promote_threshold?: number;
-}
+// `level` stays a loose string (not the model's enum): a repo's stored settings may carry a stale/unrecognised value, and the ladder demotes it defensively rather than rejecting it.
+export type TrustState = Pick<
+  TrustSettings,
+  "successful_tasks" | "auto_promote_threshold"
+> & { level?: string };
 
 export interface TrustDecision {
   /** No write at all — the repo is already at `full`, or carries no level. */

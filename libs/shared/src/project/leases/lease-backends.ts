@@ -1,6 +1,11 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { trace, type Span, type Tracer } from "@opentelemetry/api";
+import {
+  TaskLeaseSchema,
+  TASK_LEASE_COLUMNS,
+} from "../../models/task-lease.js";
+import type { WireOf } from "../../lib/wire-schema.js";
 
 /** Postgres interface for DbLeaseBackend (query + rowCount). */
 export interface LeasePool {
@@ -14,14 +19,18 @@ const DEFAULT_TTL_SEC = 600;
 
 const tracer: Tracer = trace.getTracer("lore.lease");
 
-/** Swept lease row with Date|string expires_at. */
-export interface ExpiredLease {
-  branch_name: string;
-  /** Null for task-less runs (detection assembly lines). */
-  task_id: string | null;
-  holder: string;
-  expires_at: Date | string;
-}
+export const EXPIRED_LEASE_SHAPE = TaskLeaseSchema.pick({
+  branchName: true,
+  taskId: true,
+  holder: true,
+  expiresAt: true,
+}).shape;
+
+/** Swept lease row (branch/task/holder/expiry, named from the model); `expires_at` widens to `Date | string` since the File backend reads its own JSON-serialized copy back through the same type. */
+export type ExpiredLease = Omit<
+  WireOf<typeof EXPIRED_LEASE_SHAPE, typeof TASK_LEASE_COLUMNS>,
+  "expires_at"
+> & { expires_at: Date | string };
 
 export interface AcquireResult {
   acquired: boolean;
@@ -239,14 +248,15 @@ export class DbLeaseBackend implements LeaseBackend {
   }
 }
 
-interface FileLeaseRecord {
-  branch_name: string;
-  task_id: string | null;
-  holder: string;
+/** The on-disk JSON record for the File backend — same columns as the model, timestamps serialized as ISO strings instead of `Date`. */
+type FileLeaseRecord = Omit<
+  WireOf<typeof TaskLeaseSchema.shape, typeof TASK_LEASE_COLUMNS>,
+  "acquired_at" | "expires_at" | "phase"
+> & {
   acquired_at: string;
   expires_at: string;
   phase?: string;
-}
+};
 
 export class FileLeaseBackend implements LeaseBackend {
   constructor(private readonly leasesDir: string) {}

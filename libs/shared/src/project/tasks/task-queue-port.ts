@@ -1,5 +1,14 @@
 import type { PipelineTask } from "../../types.js";
 import { enforceTrue } from "../../lib/enforce.js";
+import {
+  PIPELINE_TASK_COLUMNS,
+  type PipelineTask as TaskModel,
+} from "../../models/pipeline-task.js";
+
+/** One pipeline.tasks column per named field, typed off the model — a query-row projection instead of a restated table. */
+type TaskColumn<K extends keyof TaskModel> = {
+  [F in K as (typeof PIPELINE_TASK_COLUMNS)[F]]: TaskModel[F];
+};
 
 /** Columns setColumns may write (allow-listed to keep the dynamic SQL injection-safe). */
 export const SETTABLE_TASK_COLUMNS = new Set([
@@ -34,23 +43,16 @@ export interface RecoverableTask {
 }
 
 /** A `running` task past the safety-net threshold, with its computed age. */
-export interface StaleTask {
-  id: string;
-  target_repo: string;
-  task_type: string;
+export type StaleTask = TaskColumn<"id" | "targetRepo" | "taskType"> & {
   created_at: string;
   issue_number: number | null;
   age_hours: number;
-}
+};
 
 /** A pending spec-task whose declared dependencies are all satisfied. */
-export interface ReadySpecTask {
-  id: string;
-  description: string;
-  context_bundle: Record<string, unknown> | null;
-  target_repo: string;
-  task_group_id: string | null;
-}
+export type ReadySpecTask = TaskColumn<
+  "id" | "description" | "contextBundle" | "targetRepo" | "taskGroupId"
+>;
 
 /** Running/queued spec-task count for one task group (cnt is pg's text COUNT). */
 export interface SpecGroupCount {
@@ -59,37 +61,34 @@ export interface SpecGroupCount {
 }
 
 /** A task parked in `awaiting_approval` that carries an issue (the label gate). */
-export interface AwaitingApprovalTask {
-  id: string;
-  target_repo: string;
+export type AwaitingApprovalTask = TaskColumn<"id" | "targetRepo"> & {
   issue_number: number;
-}
+};
 
 /** PR coordinates for one task, used by the auto-merge policy lookup. */
-export interface TaskPrInfo {
-  pr_number: number | null;
+export type TaskPrInfo = TaskColumn<"prNumber" | "targetBranch"> & {
   target_repo: string | null;
-  target_branch: string | null;
-}
+};
 
 /** A task with an open PR whose merge/close state the merge-check polls. */
-export interface MergeableTask {
-  id: string;
-  target_repo: string;
-  target_branch: string | null;
+export type MergeableTask = TaskColumn<
+  | "id"
+  | "targetRepo"
+  | "targetBranch"
+  | "issueNumber"
+  | "taskType"
+  | "description"
+  | "taskGroupId"
+> & {
+  created_at: string;
   pr_url: string;
   pr_number: number;
-  issue_number: number | null;
-  task_type: string;
-  description: string;
-  created_at: string;
-  task_group_id: string | null;
   context_bundle: {
     feature_id?: string;
     slug?: string;
     spec_slug?: string;
   } | null;
-}
+};
 
 /** Contributing-context refs captured on a task (PR-outcome feedback target). */
 export interface TaskContextRefs {
@@ -136,17 +135,14 @@ export function unblockedBy(
 }
 
 /** A task with an open PR still eligible for the review-react loop. */
-export interface ReviewableTask {
-  id: string;
-  description: string;
-  task_type: string;
-  target_repo: string;
+export type ReviewableTask = TaskColumn<
+  "id" | "description" | "taskType" | "targetRepo" | "issueNumber"
+> & {
   pr_number: number;
   pr_url: string;
-  issue_number: number | null;
   review_iteration: number | null;
   target_branch: string;
-}
+};
 
 /** Org-wide task-queue mechanics over pipeline.tasks (claim, crash-recovery/staleness sweeps, spec-task DAG dispatch); single-sourced from inline Floor-job SQL. Repo-scoped task record ops stay on project.tasks. */
 export interface TaskQueueRepository {

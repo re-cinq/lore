@@ -6,17 +6,12 @@ import SaveResultBanner, {
   type SaveState,
 } from "./SaveResultBanner";
 import { SubmitButton } from "@/components/SubmitButton";
+import type { components } from "@/lib/api/schema";
 import styles from "./page.module.css";
 
-export interface RepoSettingsShape {
-  task_types?: string[];
-  slack_channel_id?: string;
-  dispatch_label?: string;
-  dispatch_default_type?: string;
-  auto_review?: boolean;
-  trust?: { level?: string };
-  cross_repo_repos?: string[];
-}
+export type RepoSettingsShape = NonNullable<
+  components["schemas"]["Repo"]["settings"]
+>;
 
 export interface SettingsViewProps {
   fullName: string;

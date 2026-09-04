@@ -23,19 +23,6 @@ export function isMemoryDbAvailable(): boolean {
 
 // ── Types ────────────────────────────────────────────────────────────
 
-export interface ServerMemoryRow {
-  id: string;
-  agent_id: string;
-  key: string;
-  value: string;
-  version: number;
-  is_deleted: boolean;
-  pool_id: string | null;
-  ttl_seconds: number | null;
-  expires_at: string | null;
-  created_at: string;
-}
-
 export interface WriteResult {
   key: string;
   version: number;

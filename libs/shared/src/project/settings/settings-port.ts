@@ -1,5 +1,10 @@
 import type { ResolvedDarkFactorySettings } from "../../dark-factory-settings.js";
-import type { Repo } from "../../models/repo.js";
+import { REPO_COLUMNS, type Repo } from "../../models/repo.js";
+
+/** One lore.repos column per named field, typed off the model. */
+type RepoColumn<K extends keyof Repo> = {
+  [F in K as (typeof REPO_COLUMNS)[F]]: Repo[F];
+};
 
 /** An onboarded repo (onboarding_pr_merged = true) and its last reindex stamp. */
 export interface OnboardedRepo {
@@ -10,12 +15,10 @@ export interface OnboardedRepo {
 /** One lore.repos row; shape = Repo model, declared once beside its columns rather than restated here (where it drifted into a Date|string union). */
 export type RepoRecord = Repo;
 
-/** A repo whose onboarding PR is open and unmerged (the merge-check poll set). */
-export interface PendingOnboardingRepo {
-  id: string;
-  full_name: string;
+/** A repo whose onboarding PR is open and unmerged (the merge-check poll set); onboarding_pr_url is never null here — the query filters it IS NOT NULL. */
+export type PendingOnboardingRepo = RepoColumn<"id" | "fullName"> & {
   onboarding_pr_url: string;
-}
+};
 
 /** Repo settings port; resolve() returns fully-resolved lore.repos.settings (settings-pg reads the row then calls resolveDarkFactorySettings). Also covers repo config writes and raw lore.repos record ops (relocated from Floor inline SQL). */
 export interface SettingsPort {

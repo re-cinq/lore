@@ -1,5 +1,7 @@
 /** Org-wide memory.* lifecycle port (decay, cleanup, consolidation, feedback). */
 
+import type { MemoryEntry } from "../../models/memory-entry.js";
+
 // ── Row + input shapes ──────────────────────────────────────────────
 
 /** One over-cap agent bucket: `{agent_id, cnt}` from a count-by-agent SELECT. */
@@ -8,16 +10,13 @@ export interface AgentCount {
   cnt: number;
 }
 
-/** Decay candidate row (fields the importance scorer reads). */
-export interface DecayCandidate {
-  id: string;
-  key: string;
-  value: string;
+/** Decay candidate row (fields the importance scorer reads); id/key/value pinned to the memory.memories model. */
+export type DecayCandidate = Pick<MemoryEntry, "id" | "key" | "value"> & {
   created_at: string;
   last_retrieved_at: string | null;
   half_life_days: number | null;
   retrieval_count: number | null;
-}
+};
 
 /** One recent valid fact for consolidation: `{fact_text, repo}`. */
 export interface RecentFact {

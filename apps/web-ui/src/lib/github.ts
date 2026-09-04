@@ -139,6 +139,8 @@ export async function checkRepoAccess(repo: string): Promise<RepoAccess> {
   }
 }
 
+// GitHub's own repo-response shape (description/default_branch/html_url), not a Lore table row.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface RepoMeta {
   description: string | null;
   default_branch: string;
@@ -296,14 +298,16 @@ async function existingBlobSha(
   at: { owner: string; name: string; path: string; branch: string },
 ): Promise<{ sha?: string }> {
   try {
-    const { data } = await ok.rest.repos.getContent({
+    const { data: contents } = await ok.rest.repos.getContent({
       owner: at.owner,
       repo: at.name,
       path: at.path,
       ref: at.branch,
     });
 
-    return !Array.isArray(data) && "sha" in data ? { sha: data.sha } : {};
+    return !Array.isArray(contents) && "sha" in contents
+      ? { sha: contents.sha }
+      : {};
   } catch {
     // file not on the branch yet — create it fresh
     return {};

@@ -3,6 +3,7 @@ import type { PgPool } from "./memory-store.js";
 import { selectList } from "./lib/row.js";
 import { PIPELINE_TASK_COLUMNS } from "./models/pipeline-task.js";
 import { TASK_EVENT_COLUMNS } from "./models/task-event.js";
+import type { PipelineTask } from "./types.js";
 
 /** Pipeline-task CRUD over pipeline.tasks/pipeline.task_events; relocated from mcp-server/src/pipeline.ts so the SQL lives once, pool-based since these are cross-repo. */
 
@@ -68,6 +69,8 @@ export interface CreateTaskInput {
   contextRefs?: { fact_ids: string[]; memory_ids: string[] };
 }
 
+// The createTask API response body — task_id renames the row's id; not a column restatement.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface CreatedTask {
   task_id: string;
   task_type: string;
@@ -76,38 +79,42 @@ export interface CreatedTask {
   created_at: string;
 }
 
+// The retryTask API response body — same renamed-field shape as CreatedTask.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface RetriedTask {
   task_id: string;
   status: string;
   retry_of: string;
 }
 
-/** A pipeline.tasks row. `SELECT *` returns more columns than the named ones. */
-export interface PipelineTaskRow {
-  id: string;
-  description: string;
-  task_type: string;
-  target_repo: string | null;
-  status: string;
-  created_by: string;
-  context_bundle: Record<string, unknown> | null;
-  priority?: string;
-  created_at?: string;
-  [column: string]: unknown;
-}
+/** The pipeline.tasks columns `getTask` actually reads, plus whatever `SELECT *` elsewhere adds. */
+export type PipelineTaskRow = Pick<
+  PipelineTask,
+  | "id"
+  | "description"
+  | "task_type"
+  | "target_repo"
+  | "status"
+  | "created_by"
+  | "context_bundle"
+  | "priority"
+  | "created_at"
+> & { [column: string]: unknown };
 
-export interface TaskListRow {
-  id: string;
-  description: string;
-  task_type: string;
-  status: string;
-  target_repo: string | null;
-  agent_id: string | null;
-  pr_url: string | null;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-}
+/** The 10-column projection `listTasks` selects, named from the wire type. */
+export type TaskListRow = Pick<
+  PipelineTask,
+  | "id"
+  | "description"
+  | "task_type"
+  | "status"
+  | "target_repo"
+  | "agent_id"
+  | "pr_url"
+  | "created_by"
+  | "created_at"
+  | "updated_at"
+>;
 
 async function trustLevelForRepo(
   pool: PgPool,

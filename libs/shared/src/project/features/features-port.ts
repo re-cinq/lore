@@ -1,4 +1,10 @@
 import type { GapResult } from "../../feature-planning/gap-result.js";
+import { FeatureSchema, FEATURE_COLUMNS } from "../../models/feature.js";
+import {
+  FeatureIterationSchema,
+  FEATURE_ITERATION_COLUMNS,
+} from "../../models/feature-iteration.js";
+import type { WireOf } from "../../lib/wire-schema.js";
 
 // Feature-planning lifecycle port over lore.features + lore.feature_iterations; persistence side of the smart feature page (specs/7-feature-planning, ADR-027). SQL lives in the pg adapter.
 
@@ -19,32 +25,21 @@ export interface IterationResult {
   status: IterationStatus;
 }
 
-export interface Feature {
-  id: string;
-  repo: string;
-  title: string;
-  slug: string;
-  path: string;
-  original_prompt: string;
+/** The `lore.features` row, named + column-bound from the model; `status` narrows past `split` (never written here) and the timestamps stay the wire's ISO strings. */
+export type Feature = Omit<
+  WireOf<typeof FeatureSchema.shape, typeof FEATURE_COLUMNS>,
+  "status" | "created_at" | "updated_at"
+> & {
   status: FeatureStatus;
-  current_iteration: number;
-  draft_spec_md: string | null;
-  parent_feature_id: string | null;
-  spec_path: string | null;
-  spec_pr_url: string | null;
-  spec_pr_number: number | null;
-  issue_number: number | null;
-  issue_url: string | null;
-  created_by: string;
   created_at: string;
   updated_at: string;
-}
+};
 
-export interface FeatureIteration {
-  id: string;
-  feature_id: string;
-  iteration: number;
-  task_id: string | null;
+/** The `lore.feature_iterations` row, named + column-bound from the model; `user_answers`/`gap_result` keep their looser port-side types and the timestamps stay ISO strings. */
+export type FeatureIteration = Omit<
+  WireOf<typeof FeatureIterationSchema.shape, typeof FEATURE_ITERATION_COLUMNS>,
+  "status" | "user_answers" | "gap_result" | "created_at" | "updated_at"
+> & {
   status: IterationStatus;
   user_answers: unknown | null;
   gap_result: GapResult | null;
@@ -52,7 +47,7 @@ export interface FeatureIteration {
   parent_iteration: number | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 export interface FeatureWithIterations extends Feature {
   iterations: FeatureIteration[];
@@ -65,15 +60,18 @@ export interface CreateFeatureInput {
   createdBy?: string;
 }
 
-/** Fields a status transition may also patch in the same write. */
-export interface FeaturePatch {
-  draft_spec_md?: string;
-  spec_path?: string;
-  spec_pr_url?: string;
-  spec_pr_number?: number;
-  issue_number?: number;
-  issue_url?: string;
-}
+/** Fields a status transition may also patch in the same write, named from the model. */
+export type FeaturePatch = Partial<
+  Pick<
+    WireOf<typeof FeatureSchema.shape, typeof FEATURE_COLUMNS>,
+    | "draft_spec_md"
+    | "spec_path"
+    | "spec_pr_url"
+    | "spec_pr_number"
+    | "issue_number"
+    | "issue_url"
+  >
+>;
 
 /** Columns a {@link FeaturePatch} may set, fixed order for stable params; shared by the Pg adapter and the in-memory double. */
 export const PATCH_COLUMNS: (keyof FeaturePatch)[] = [

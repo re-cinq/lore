@@ -241,6 +241,8 @@ Use this when you want chunk-level evidence or the exact wording of a convention
   );
 }
 
+// MCP tool input args (lore_assemble_context's own snake_case schema), not a DB row.
+// eslint-disable-next-line lore/no-row-types-outside-models
 interface AssembleContextExtraArgs {
   max_tokens?: number;
   cross_repo?: boolean;
