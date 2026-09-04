@@ -65,7 +65,7 @@ export async function verifyApproval(opts: {
       "wrong_repo",
     );
   }
-  const pr = await fetchApprovalPr(octokit, owner, repo, number, prRef);
+  const pr = await fetchApprovalPr(octokit, { owner, repo, number, prRef });
 
   if (pr.state !== "open") {
     throw new TwoKeyError(
@@ -73,7 +73,12 @@ export async function verifyApproval(opts: {
       "pr_state",
     );
   }
-  const approver = await findApprover(octokit, owner, repo, number, prRef);
+  const approver = await findApprover(octokit, {
+    owner,
+    repo,
+    number,
+    prRef,
+  });
   const codeowners = await fetchCodeowners({ octokit, owner, repo });
 
   if (!isCodeowner(approver, codeowners)) {
@@ -86,11 +91,10 @@ export async function verifyApproval(opts: {
 /** The approval PR itself. A 404 is a different refusal from an API failure: one means the ceremony was never performed, the other that we cannot tell. */
 async function fetchApprovalPr(
   octokit: Octokit,
-  owner: string,
-  repo: string,
-  number: number,
-  prRef: string,
+  pr: { owner: string; repo: string; number: number; prRef: string },
 ): Promise<{ state: string; htmlUrl: string }> {
+  const { owner, repo, number, prRef } = pr;
+
   try {
     const pr = await octokit.rest.pulls.get({
       owner,
@@ -115,11 +119,10 @@ async function fetchApprovalPr(
 /** Who applied the approval label — the second key. The label alone proves nothing; the actor who applied it is the evidence. */
 async function findApprover(
   octokit: Octokit,
-  owner: string,
-  repo: string,
-  number: number,
-  prRef: string,
+  pr: { owner: string; repo: string; number: number; prRef: string },
 ): Promise<string> {
+  const { owner, repo, number, prRef } = pr;
+
   let events;
 
   try {
