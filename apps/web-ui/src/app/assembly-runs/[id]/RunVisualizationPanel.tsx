@@ -294,6 +294,8 @@ export default function RunVisualizationPanel({
   agentEditHrefs,
 }: RunVisualizationPanelProps) {
   const runIsLive = !isTerminalRunStatus(runStatus);
+  // The five values every derivation below needs; named once so each hook takes what it adds.
+  const run = { nodes, definition, runStatus, runIsLive, reason };
   const now = useNowTicker(runIsLive);
   const [state, dispatch] = useReducer(reduceRunEvent, undefined, () =>
     initialRunState(definition, nodes),
@@ -314,7 +316,255 @@ export default function RunVisualizationPanel({
     [],
   );
 
-  // A terminal run renders state AS OF the scrub cursor by folding history through the SAME reducer live mode uses, based on the all-idle state (never the visit-row seed).
+  const replay = useReplay({
+    ...run,
+    historyEvents,
+    liveState: state,
+    replayCursor,
+    setReplayCursor,
+  });
+  const { displayState, scrubberVisible, replayPosition, replayActive } =
+    replay;
+  const node = useSelectedNode({
+    ...run,
+    selectedNodeId,
+    nodeStates: displayState.nodeStates,
+  });
+  const [showOutcomes, setShowOutcomes] = useState(false);
+  const graph = useRunGraph({
+    ...run,
+    selectedNodeId,
+    showOutcomes,
+    replayActive,
+    nodeStates: displayState.nodeStates,
+    takenEdges: node.takenEdges,
+  });
+
+  return (
+    <section className={styles.panel}>
+      <RunGraphSection
+        chipState={chipState}
+        graph={graph.visibleGraph}
+        definition={definition}
+        onSelectNode={setSelectedNodeId}
+        hasRunData={graph.hasRunData}
+        showOutcomes={showOutcomes}
+        onToggleOutcomes={() => setShowOutcomes((shown) => !shown)}
+        replay={{
+          show: scrubberVisible,
+          historyEventCount: historyEvents.length,
+          cursor: replayCursor,
+          position: replayPosition,
+          onCursorChange: replay.onCursorChange,
+          onBackToLive: replay.onBackToLive,
+        }}
+      />
+      <RunDetailSection
+        {...{
+          selectedNodeId,
+          runId,
+          repo,
+          reason,
+          definition,
+          latestRows: graph.latestRows,
+          selectedRows: node.selectedRows,
+          selectedAttempts: node.selectedAttempts,
+          nodeInputs: node.nodeInputs,
+          retrySource: graph.retrySource,
+          agentEditHrefs,
+          startedAt,
+          now,
+          showAllFiles,
+          toggleShowAllFiles,
+        }}
+        selectedState={node.selected}
+        visibleNodeCount={graph.visibleGraph.nodes.length}
+        timeline={displayState.timeline}
+        fileTouches={displayState.fileTouches}
+        onSeek={resolveOnSeek(scrubberVisible, replay.onSeek)}
+      />
+    </section>
+  );
+}
+
+/** Everything below the graph: the selected node's inspector, the timeline, and the file heatmap. */
+function RunDetailSection({
+  timeline,
+  fileTouches,
+  startedAt,
+  now,
+  onSeek,
+  showAllFiles,
+  toggleShowAllFiles,
+  ...inspector
+}: Parameters<typeof SelectedNodeSection>[0] & {
+  timeline: ReturnType<typeof initialRunState>["timeline"];
+  fileTouches: ReturnType<typeof initialRunState>["fileTouches"];
+  startedAt: string | null;
+  now: string;
+  onSeek: ((id: string) => void) | undefined;
+  showAllFiles: boolean;
+  toggleShowAllFiles: () => void;
+}) {
+  return (
+    <>
+      <SelectedNodeSection {...inspector} />
+      <RunTimelineView
+        ticks={timeline}
+        runStartedAt={startedAt}
+        now={now}
+        onSeek={onSeek}
+      />
+      <FileHeatmapView
+        touches={fileTouches}
+        showAll={showAllFiles}
+        onToggleShowAll={toggleShowAllFiles}
+      />
+    </>
+  );
+}
+
+/** The run as a picture: the connection chip, the graph itself, the definition/run toggle, and the scrubber for a finished run. */
+function RunGraphSection({
+  chipState,
+  graph,
+  definition,
+  onSelectNode,
+  hasRunData,
+  showOutcomes,
+  onToggleOutcomes,
+  replay,
+}: {
+  chipState: Parameters<typeof connectionLabel>[0];
+  graph: Parameters<typeof RunGraphView>[0]["graph"];
+  definition: AssemblyLineDefinition | null;
+  onSelectNode: (nodeId: string) => void;
+  hasRunData: boolean;
+  showOutcomes: boolean;
+  onToggleOutcomes: () => void;
+  replay: {
+    show: boolean;
+    historyEventCount: number;
+    cursor: number | null;
+    position: { label: string; timestamp: string | null };
+    onCursorChange: (cursor: number) => void;
+    onBackToLive: () => void;
+  };
+}) {
+  return (
+    <>
+      <div className={styles.header}>
+        <span
+          className={`${styles.chip} ${styles[chipState]}`}
+          role="status"
+          aria-live="polite"
+        >
+          {connectionLabel(chipState)}
+        </span>
+      </div>
+      <RunGraphView
+        graph={graph}
+        definition={definition}
+        onSelectNode={onSelectNode}
+      />
+      <OutcomesToggle
+        show={hasRunData}
+        showOutcomes={showOutcomes}
+        onToggle={onToggleOutcomes}
+      />
+      <ReplayControlsSlot
+        show={replay.show}
+        historyEventCount={replay.historyEventCount}
+        replayCursor={replay.cursor}
+        position={replay.position}
+        onCursorChange={replay.onCursorChange}
+        onBackToLive={replay.onBackToLive}
+      />
+    </>
+  );
+}
+
+/** The graph the page draws: which nodes ran, what each was told, and — while scrubbing — the replayed view instead, since a verdict must not show before the cursor reaches the event that produced it. */
+function useRunGraph({
+  nodes,
+  definition,
+  runStatus,
+  runIsLive,
+  selectedNodeId,
+  showOutcomes,
+  replayActive,
+  nodeStates,
+  takenEdges,
+}: {
+  nodes: readonly AssemblyRunNode[];
+  definition: AssemblyLineDefinition | null;
+  runStatus: string;
+  runIsLive: boolean;
+  selectedNodeId: string | null;
+  showOutcomes: boolean;
+  replayActive: boolean;
+  nodeStates: Readonly<Record<string, NodeRunState>>;
+  takenEdges: RunData["taken"];
+}) {
+  const hasRunData = computeHasRunData(nodes.length, nodeStates);
+  const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
+  // Fork source for "retry this node" — null hides the button (live run, unvisited node, entry node, or an unnameable prefix; see retry-resume.ts).
+  const retrySource = useMemo(
+    () =>
+      runIsLive || selectedNodeId === null
+        ? null
+        : retryResumeSource(nodes, selectedNodeId),
+    [runIsLive, nodes, selectedNodeId],
+  );
+  const runData = useMemo<RunData>(
+    () =>
+      replayActive
+        ? replayRunData(definition, nodes, nodeStates)
+        : buildRunData({
+            nodes,
+            nodeStates,
+            latestRows,
+            takenEdges,
+            runStatus,
+          }),
+    [
+      replayActive,
+      definition,
+      nodes,
+      latestRows,
+      nodeStates,
+      takenEdges,
+      runStatus,
+    ],
+  );
+  const graphMode = computeGraphMode(hasRunData, showOutcomes);
+  const visibleGraph = useMemo(
+    () =>
+      deriveVisibleGraph(definition, hasRunData ? runData : null, graphMode),
+    [definition, hasRunData, runData, graphMode],
+  );
+
+  return { hasRunData, visibleGraph, retrySource, latestRows };
+}
+
+/** Scrubbing a finished run. A terminal run renders state AS OF the cursor by folding history through the SAME reducer live mode uses, based on the all-idle state — never the visit-row seed, which would show verdicts the cursor has not reached. */
+function useReplay({
+  runIsLive,
+  runStatus,
+  definition,
+  historyEvents,
+  liveState,
+  replayCursor,
+  setReplayCursor,
+}: {
+  runIsLive: boolean;
+  runStatus: string;
+  definition: AssemblyLineDefinition | null;
+  historyEvents: RunStreamEvent[];
+  liveState: ReturnType<typeof initialRunState>;
+  replayCursor: number | null;
+  setReplayCursor: (cursor: number | null) => void;
+}) {
   const replayState = useMemo(
     () =>
       replayTo(
@@ -324,21 +574,6 @@ export default function RunVisualizationPanel({
       ),
     [definition, historyEvents, replayCursor],
   );
-  const displayState = pickDisplayState(runIsLive, state, replayState);
-
-  const scrubberVisible = computeScrubberVisible(
-    runStatus,
-    historyEvents.length,
-  );
-  const replayPosition = scrubberPositionLabel(
-    historyEvents,
-    replayCursor ?? historyEvents.length,
-  );
-  const onCursorChange = useCallback(
-    (cursor: number) => setReplayCursor(cursor),
-    [],
-  );
-  const onBackToLive = useCallback(() => setReplayCursor(null), []);
   const onSeek = useCallback(
     (id: string) => {
       const cursor = cursorForEventId(historyEvents, id);
@@ -347,16 +582,46 @@ export default function RunVisualizationPanel({
         setReplayCursor(cursor);
       }
     },
-    [historyEvents],
+    [historyEvents, setReplayCursor],
   );
 
-  const selected = pickSelectedState(displayState.nodeStates, selectedNodeId);
-  // The selected node's walk rows in execution order — the inspector's attempt history and per-attempt pod-log panel source.
+  return {
+    displayState: pickDisplayState(runIsLive, liveState, replayState),
+    scrubberVisible: computeScrubberVisible(runStatus, historyEvents.length),
+    replayPosition: scrubberPositionLabel(
+      historyEvents,
+      replayCursor ?? historyEvents.length,
+    ),
+    replayActive: computeReplayActive(
+      runIsLive,
+      replayCursor,
+      historyEvents.length,
+    ),
+    onCursorChange: setReplayCursor,
+    onBackToLive: () => setReplayCursor(null),
+    onSeek,
+  };
+}
+
+/** Everything the inspector needs about the selected node. Its walk rows are the source for the attempt history and the per-attempt pod logs; what each visit was GIVEN is per-visit state like its outcome, and rides those rows rather than the event stream, since no pod echoes its own prompt. */
+function useSelectedNode({
+  nodes,
+  definition,
+  reason,
+  selectedNodeId,
+  nodeStates,
+}: {
+  nodes: readonly AssemblyRunNode[];
+  definition: AssemblyLineDefinition | null;
+  reason: string | null;
+  selectedNodeId: string | null;
+  nodeStates: Readonly<Record<string, NodeRunState>>;
+}) {
+  const selected = pickSelectedState(nodeStates, selectedNodeId);
   const selectedRows = useMemo(
     () => nodes.filter((node) => node.nodeId === selectedNodeId),
     [nodes, selectedNodeId],
   );
-  // What each visit was GIVEN is per-visit STATE, like its outcome — rides the walk rows, not the event stream (no pod echoes its own prompt).
   const nodeInputs = useMemo(
     () =>
       selectedRows.flatMap((node) =>
@@ -373,108 +638,13 @@ export default function RunVisualizationPanel({
     [definition, nodes],
   );
 
-  const [showOutcomes, setShowOutcomes] = useState(false);
-  const hasRunData = computeHasRunData(nodes.length, displayState.nodeStates);
-  const graphMode = computeGraphMode(hasRunData, showOutcomes);
-  const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
-  // Fork source for "retry this node" — null hides the button (live run, unvisited node, entry node, or an unnameable prefix; see retry-resume.ts).
-  const retrySource = useMemo(
-    () =>
-      runIsLive || selectedNodeId === null
-        ? null
-        : retryResumeSource(nodes, selectedNodeId),
-    [runIsLive, nodes, selectedNodeId],
-  );
-  const replayActive = computeReplayActive(
-    runIsLive,
-    replayCursor,
-    historyEvents.length,
-  );
-  const runData = useMemo<RunData>(
-    () =>
-      replayActive
-        ? // Mid-replay, walk rows are gated behind the replayed reducer state — a verdict shows only once the cursor applies that result event.
-          replayRunData(definition, nodes, displayState.nodeStates)
-        : buildRunData({
-            nodes,
-            nodeStates: displayState.nodeStates,
-            latestRows,
-            takenEdges,
-            runStatus,
-          }),
-    [
-      replayActive,
-      definition,
-      nodes,
-      latestRows,
-      displayState.nodeStates,
-      takenEdges,
-      runStatus,
-    ],
-  );
-  const visibleGraph = useMemo(
-    () =>
-      deriveVisibleGraph(definition, hasRunData ? runData : null, graphMode),
-    [definition, hasRunData, runData, graphMode],
-  );
-
-  return (
-    <section className={styles.panel}>
-      <div className={styles.header}>
-        <span
-          className={`${styles.chip} ${styles[chipState]}`}
-          role="status"
-          aria-live="polite"
-        >
-          {connectionLabel(chipState)}
-        </span>
-      </div>
-      <RunGraphView
-        graph={visibleGraph}
-        definition={definition}
-        onSelectNode={setSelectedNodeId}
-      />
-      <OutcomesToggle
-        show={hasRunData}
-        showOutcomes={showOutcomes}
-        onToggle={() => setShowOutcomes((s) => !s)}
-      />
-      <ReplayControlsSlot
-        show={scrubberVisible}
-        historyEventCount={historyEvents.length}
-        replayCursor={replayCursor}
-        position={replayPosition}
-        onCursorChange={onCursorChange}
-        onBackToLive={onBackToLive}
-      />
-      <SelectedNodeSection
-        selectedNodeId={selectedNodeId}
-        runId={runId}
-        repo={repo}
-        reason={reason}
-        definition={definition}
-        selectedState={selected}
-        latestRows={latestRows}
-        selectedRows={selectedRows}
-        selectedAttempts={selectedAttempts}
-        nodeInputs={nodeInputs}
-        retrySource={retrySource}
-        agentEditHrefs={agentEditHrefs}
-        visibleNodeCount={visibleGraph.nodes.length}
-      />
-      <RunTimelineView
-        ticks={displayState.timeline}
-        runStartedAt={startedAt}
-        now={now}
-        onSeek={resolveOnSeek(scrubberVisible, onSeek)}
-      />
-      <FileHeatmapView
-        touches={displayState.fileTouches}
-        showAll={showAllFiles}
-        onToggleShowAll={toggleShowAllFiles}
-      />
-    </section>
-  );
+  return {
+    selected,
+    selectedRows,
+    nodeInputs,
+    selectedAttempts,
+    takenEdges,
+  };
 }
 
 /** Everything the panel shows about ONE selected node: its detail card, what the visit was given, and a pod-log panel per attempt that produced a CR. */
