@@ -50,58 +50,72 @@ export default function GapsView({
         </a>
       </section>
 
-      <section className={styles.section}>
-        <h2>Gap Detection Agent Findings</h2>
-        {gapMemories.length === 0 ? (
-          <Alert variant="secondary">
-            No findings from the gap detection agent yet.
-          </Alert>
-        ) : (
-          gapMemories.map((mem, i) => (
-            <div key={i} className="spec-card">
-              <h3>{mem.key}</h3>
-              <span className="meta">
-                <TimeAgo date={mem.created_at} />
-              </span>
-              <pre className={styles.findingValue}>{mem.value}</pre>
-            </div>
-          ))
-        )}
-      </section>
-
-      <section>
-        <h2>Zero-Result Searches</h2>
-        <p className="meta">
-          Searches that returned no results indicate potential gaps in
-          organizational context.
-        </p>
-        {zeroResultSearches.length === 0 ? (
-          <Alert variant="secondary">No zero-result searches recorded.</Alert>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th className={styles.th}>Query</th>
-                <th className={styles.th}>Details</th>
-                <th className={styles.th}>Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {zeroResultSearches.map((entry, i) => (
-                <tr key={i}>
-                  <td className={styles.td}>{entry.memory_key}</td>
-                  <td className={styles.td}>
-                    <code>{JSON.stringify(entry.metadata)}</code>
-                  </td>
-                  <td className={`meta ${styles.td}`}>
-                    <TimeAgo date={entry.created_at} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <AgentFindings gapMemories={gapMemories} />
+      <ZeroResultSearches zeroResultSearches={zeroResultSearches} />
     </div>
+  );
+}
+
+function AgentFindings({ gapMemories }: Pick<GapsViewProps, "gapMemories">) {
+  return (
+    <section className={styles.section}>
+      <h2>Gap Detection Agent Findings</h2>
+      {gapMemories.length === 0 ? (
+        <Alert variant="secondary">
+          No findings from the gap detection agent yet.
+        </Alert>
+      ) : (
+        gapMemories.map((mem, i) => (
+          <div key={i} className="spec-card">
+            <h3>{mem.key}</h3>
+            <span className="meta">
+              <TimeAgo date={mem.created_at} />
+            </span>
+            <pre className={styles.findingValue}>{mem.value}</pre>
+          </div>
+        ))
+      )}
+    </section>
+  );
+}
+
+/** A search that returned nothing is the clearest signal of missing org context: someone asked, and there was no answer to give. */
+function ZeroResultSearches({
+  zeroResultSearches,
+}: Pick<GapsViewProps, "zeroResultSearches">) {
+  return (
+    <section>
+      <h2>Zero-Result Searches</h2>
+      <p className="meta">
+        Searches that returned no results indicate potential gaps in
+        organizational context.
+      </p>
+      {zeroResultSearches.length === 0 ? (
+        <Alert variant="secondary">No zero-result searches recorded.</Alert>
+      ) : (
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th className={styles.th}>Query</th>
+              <th className={styles.th}>Details</th>
+              <th className={styles.th}>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {zeroResultSearches.map((entry, i) => (
+              <tr key={i}>
+                <td className={styles.td}>{entry.memory_key}</td>
+                <td className={styles.td}>
+                  <code>{JSON.stringify(entry.metadata)}</code>
+                </td>
+                <td className={`meta ${styles.td}`}>
+                  <TimeAgo date={entry.created_at} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }

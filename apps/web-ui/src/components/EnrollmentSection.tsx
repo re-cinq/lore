@@ -129,30 +129,7 @@ export default function EnrollmentSection({
     <div className={`spec-card ${styles.section}`}>
       <div className={styles.header}>
         <h3 className={styles.heading}>Enrollment</h3>
-        <HelpPopover label="What enrollment checks mean">
-          <p>
-            These checks show whether this repo is wired into Lore and whether
-            you&apos;ve set it up locally.
-          </p>
-          <ul>
-            <li>
-              <strong>Repo integration</strong> is verified from Lore&apos;s
-              database and (where the GitHub App has access) the repo&apos;s
-              files. A missing file (e.g. the <code>lore-ingest.yml</code>{" "}
-              ingest workflow) can be fixed in place — the{" "}
-              <em>create a PR with this file</em> action queues an onboarding
-              task that opens a PR adding only what&apos;s missing.
-            </li>
-            <li>
-              <strong>Used locally via MCP</strong> turns green once a Claude
-              Code session for this repo is recorded.
-            </li>
-            <li>
-              The <strong>local setup</strong> steps run on your machine and
-              can&apos;t be auto-verified.
-            </li>
-          </ul>
-        </HelpPopover>
+        <EnrollmentHelp />
         <span className={`meta ${styles.summary}`}>
           {passed}/{total} checks passing
         </span>
@@ -170,6 +147,44 @@ export default function EnrollmentSection({
         ))}
       </div>
 
+      <LocalSetupSteps />
+    </div>
+  );
+}
+
+function EnrollmentHelp() {
+  return (
+    <HelpPopover label="What enrollment checks mean">
+      <p>
+        These checks show whether this repo is wired into Lore and whether
+        you&apos;ve set it up locally.
+      </p>
+      <ul>
+        <li>
+          <strong>Repo integration</strong> is verified from Lore&apos;s
+          database and (where the GitHub App has access) the repo&apos;s files.
+          A missing file (e.g. the <code>lore-ingest.yml</code> ingest workflow)
+          can be fixed in place — the <em>create a PR with this file</em> action
+          queues an onboarding task that opens a PR adding only what&apos;s
+          missing.
+        </li>
+        <li>
+          <strong>Used locally via MCP</strong> turns green once a Claude Code
+          session for this repo is recorded.
+        </li>
+        <li>
+          The <strong>local setup</strong> steps run on your machine and
+          can&apos;t be auto-verified.
+        </li>
+      </ul>
+    </HelpPopover>
+  );
+}
+
+/** The half nobody can verify for you: these run on your machine, and step 2 is what eventually flips the MCP check green. */
+function LocalSetupSteps() {
+  return (
+    <>
       <div className={`meta ${styles.groupLabel}`}>Your local setup</div>
       <ol className={styles.steps}>
         <Step
@@ -195,6 +210,6 @@ export default function EnrollmentSection({
         step 2 flips <strong>Used locally via MCP</strong> green once a session
         summary is recorded.
       </p>
-    </div>
+    </>
   );
 }
