@@ -312,22 +312,14 @@ export class AnthropicProvider implements LlmProvider {
     const start = Date.now();
 
     try {
-      const client = new Anthropic();
       const tools = buildCacheableTools(
         req.toolName,
         req.toolDescription,
         req.toolSchema as Anthropic.Tool.InputSchema,
         req.jobName,
       );
-      const prefixHash = computeCachePrefixHash(
-        req.systemPrompt,
-        tools.map((t) => ({
-          name: t.name,
-          description: t.description ?? "",
-          input_schema: t.input_schema,
-        })),
-      );
-      const response = await client.messages.create({
+      const prefixHash = cachePrefixHash(req.systemPrompt, tools);
+      const response = await new Anthropic().messages.create({
         model,
         max_tokens: maxTokens,
         ...systemParam(req.systemPrompt, req.jobName),
@@ -336,51 +328,33 @@ export class AnthropicProvider implements LlmProvider {
         tool_choice: { type: "tool", name: req.toolName },
       });
       const durationMs = Date.now() - start;
-      const toolUseBlock = response.content.find(
-        (block) => block.type === "tool_use",
-      );
+      const usage = extractUsage(response);
+      const costUsd = computeCost(model, usage);
 
-      enforceTrue(
-        !(!toolUseBlock || toolUseBlock.type !== "tool_use"),
-        Error,
-        `No tool_use block in response (stop_reason: ${response.stop_reason})`,
-      );
-      const parsed = toolUseBlock.input as T;
-      const {
-        inputTokens,
-        outputTokens,
-        cacheCreationTokens,
-        cacheReadTokens,
-      } = extractUsage(response);
-      const costUsd = computeCost(model, {
-        inputTokens,
-        outputTokens,
-        cacheCreationTokens,
-        cacheReadTokens,
+      logToolCall({
+        model,
+        usage,
+        costUsd,
+        durationMs,
+        breakTag: formatBreakLogTag(
+          analyzeCacheBreak(
+            req.jobName,
+            prefixHash,
+            usage.cacheCreationTokens,
+            usage.cacheReadTokens,
+          ),
+        ),
       });
-      const breakAnalysis = analyzeCacheBreak(
-        req.jobName,
-        prefixHash,
-        cacheCreationTokens,
-        cacheReadTokens,
-      );
-
       await this.logCall(req, model, {
-        inputTokens,
-        outputTokens,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
         costUsd,
         durationMs,
       });
-      console.log(
-        `[llm] tool call: ${model} ${inputTokens}+${outputTokens} tokens (cache ${formatBreakLogTag(breakAnalysis)} w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
-      );
 
       return {
-        parsed,
-        inputTokens,
-        outputTokens,
-        cacheCreationTokens,
-        cacheReadTokens,
+        parsed: toolInput<T>(response),
+        ...usage,
         costUsd,
         durationMs,
         model,
@@ -396,4 +370,46 @@ export class AnthropicProvider implements LlmProvider {
       throw err;
     }
   }
+}
+
+/** The cache prefix is system + tool schemas; hashing it is how a break is attributed to one or the other. */
+function cachePrefixHash(
+  systemPrompt: string | undefined,
+  tools: Anthropic.Tool[],
+): ReturnType<typeof computeCachePrefixHash> {
+  return computeCachePrefixHash(
+    systemPrompt,
+    tools.map((t) => ({
+      name: t.name,
+      description: t.description ?? "",
+      input_schema: t.input_schema,
+    })),
+  );
+}
+
+/** A tool call that produced no tool_use block answered something else entirely — the stop reason is the only clue, so it rides in the error. */
+function toolInput<T>(response: Anthropic.Message): T {
+  const block = response.content.find((b) => b.type === "tool_use");
+
+  enforceTrue(
+    !(!block || block.type !== "tool_use"),
+    Error,
+    `No tool_use block in response (stop_reason: ${response.stop_reason})`,
+  );
+
+  return block.input as T;
+}
+
+function logToolCall(call: {
+  model: string;
+  usage: ReturnType<typeof extractUsage>;
+  costUsd: number;
+  durationMs: number;
+  breakTag: string;
+}): void {
+  const { model, usage, costUsd, durationMs, breakTag } = call;
+
+  console.log(
+    `[llm] tool call: ${model} ${usage.inputTokens}+${usage.outputTokens} tokens (cache ${breakTag} w/r ${usage.cacheCreationTokens}/${usage.cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
+  );
 }
