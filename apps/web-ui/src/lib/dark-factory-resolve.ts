@@ -43,21 +43,58 @@ export const DEFAULT_AUTO_MERGE_PATHS = [
 export const DEFAULT_EXECUTION_IMAGE =
   "ghcr.io/re-cinq/lore-claude-runner:latest";
 
+function orDefault<T>(value: T | undefined | null, fallback: T): T {
+  return value ?? fallback;
+}
+
+function resolveEnabled(
+  partial: DarkFactorySettings | null | undefined,
+): boolean {
+  return partial?.enabled ?? false;
+}
+
+function resolveCreateIssue(
+  partial: DarkFactorySettings | null | undefined,
+  enabled: boolean,
+): CreateIssueMode {
+  return partial?.create_issue ?? (enabled ? "on_gate" : "always");
+}
+
+function resolveAutoMerge(
+  autoMerge: DarkFactorySettings["auto_merge"],
+): ResolvedDarkFactorySettings["auto_merge"] {
+  return {
+    paths: orDefault(autoMerge?.paths, DEFAULT_AUTO_MERGE_PATHS),
+    min_trust: orDefault(autoMerge?.min_trust, "docs"),
+    require_green_ci: orDefault(autoMerge?.require_green_ci, true),
+    require_bot_approval: orDefault(autoMerge?.require_bot_approval, true),
+  };
+}
+
+function resolveReview(
+  partial: DarkFactorySettings | null | undefined,
+  enabled: boolean,
+): ReviewMode {
+  return partial?.review ?? (enabled ? "trust_based" : "always");
+}
+
+function resolveNotify(
+  partial: DarkFactorySettings | null | undefined,
+  enabled: boolean,
+): NotifyChannel[] {
+  return partial?.notify ?? (enabled ? [] : ["all"]);
+}
+
 export function resolveDarkFactorySettings(
   partial: DarkFactorySettings | null | undefined,
 ): ResolvedDarkFactorySettings {
-  const enabled = partial?.enabled ?? false;
+  const enabled = resolveEnabled(partial);
 
   return {
     enabled,
-    create_issue: partial?.create_issue ?? (enabled ? "on_gate" : "always"),
-    auto_merge: {
-      paths: partial?.auto_merge?.paths ?? DEFAULT_AUTO_MERGE_PATHS,
-      min_trust: partial?.auto_merge?.min_trust ?? "docs",
-      require_green_ci: partial?.auto_merge?.require_green_ci ?? true,
-      require_bot_approval: partial?.auto_merge?.require_bot_approval ?? true,
-    },
-    review: partial?.review ?? (enabled ? "trust_based" : "always"),
-    notify: partial?.notify ?? (enabled ? [] : ["all"]),
+    create_issue: resolveCreateIssue(partial, enabled),
+    auto_merge: resolveAutoMerge(partial?.auto_merge),
+    review: resolveReview(partial, enabled),
+    notify: resolveNotify(partial, enabled),
   };
 }

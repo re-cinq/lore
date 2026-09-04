@@ -408,6 +408,193 @@ async function commitOnboardFile(
   }
 }
 
+/** Always-reinstalled workflow files; skip doesn't apply to these upserted `.github` files. */
+async function commitWorkflowFiles(
+  project: Awaited<ReturnType<typeof projectFor>>,
+  branchName: string,
+  committed: string[],
+  failures: StepFailure[],
+): Promise<void> {
+  for (const workflow of [
+    { path: LORE_INGEST_WORKFLOW_PATH, content: LORE_INGEST_WORKFLOW_CONTENT },
+    {
+      path: TRACE_IMPACT_WORKFLOW_PATH,
+      content: TRACE_IMPACT_WORKFLOW_CONTENT,
+    },
+  ]) {
+    await commitOnboardFile(project, branchName, workflow, {
+      kind: "workflow",
+      committed,
+      failures,
+    });
+  }
+}
+
+/** Static files the repo doesn't already have (by exact path or top-level dir). */
+async function commitMissingStaticFiles(
+  project: Awaited<ReturnType<typeof projectFor>>,
+  branchName: string,
+  existingFiles: Set<string>,
+  ledger: { committed: string[]; failures: StepFailure[] },
+): Promise<void> {
+  for (const sf of ONBOARD_STATIC_FILES) {
+    const alreadyThere =
+      existingFiles.has(sf.path) || existingFiles.has(sf.path.split("/")[0]);
+
+    if (alreadyThere) {
+      continue;
+    }
+
+    await commitOnboardFile(
+      project,
+      branchName,
+      { path: sf.path, content: sf.content },
+      { kind: "static", ...ledger },
+    );
+  }
+}
+
+/** Everything one generated file needs: where to commit it and what task it belongs to. */
+interface OnboardGenerationContext {
+  project: Awaited<ReturnType<typeof projectFor>>;
+  branchName: string;
+  contextStr: string;
+  task: TaskHandlerInput["task"];
+  model: TaskHandlerInput["model"];
+}
+
+/** Generate and commit one planned file. A generation failure is recorded, not thrown — the task fails only when nothing came through at all. */
+async function generateAndCommitOneFile(
+  ctx: OnboardGenerationContext,
+  file: { path: string; prompt: string },
+  ledger: { committed: string[]; failures: StepFailure[] },
+): Promise<void> {
+  try {
+    const result = await Llm.instance.complete({
+      prompt: `${file.prompt}\n\n## Repository Context\n\n${ctx.contextStr}`,
+      systemPrompt: `Generate the content for ${file.path}. Output ONLY the file content — no explanation, no markdown code fences, no preamble. Start directly with the file content.`,
+      model: ctx.model,
+      maxTokens: 8192,
+      taskId: ctx.task.id,
+    });
+
+    const text = result.text.trim();
+    const modelSkipped = text === "SKIP" || text.length < 20;
+
+    if (modelSkipped) {
+      console.log(
+        `[floor] Onboard: skipping ${file.path} (model returned SKIP)`,
+      );
+
+      return;
+    }
+
+    await ctx.project.repo.commitFile(
+      ctx.branchName,
+      file.path,
+      text,
+      `lore: add ${file.path}`,
+    );
+    ledger.committed.push(file.path);
+    console.log(
+      `[floor] Onboard: committed ${file.path} (${text.length} chars)`,
+    );
+  } catch (err) {
+    console.error(
+      `[floor] Onboard: failed to generate ${file.path}: ${errorMessage(err)}`,
+    );
+    ledger.failures.push({ step: file.path, error: errorMessage(err) });
+  }
+}
+
+/** Generate + commit every planned file, one LLM call each. */
+async function generateAndCommitFiles(
+  ctx: OnboardGenerationContext,
+  toGenerate: { path: string; prompt: string }[],
+  ledger: { committed: string[]; failures: StepFailure[] },
+): Promise<void> {
+  for (const file of toGenerate) {
+    await generateAndCommitOneFile(ctx, file, ledger);
+  }
+}
+
+/** Ingest-callback configuration is fail-soft; only the log line differs on success vs. partial failure. */
+function logIngestConfigResult(
+  targetRepo: string,
+  configFailures: string[],
+): void {
+  if (configFailures.length === 0) {
+    console.log(`[floor] Configured ingest secrets on ${targetRepo}`);
+
+    return;
+  }
+  console.error(
+    `[floor] Ingest config incomplete on ${targetRepo}: ${configFailures.join("; ")}`,
+  );
+}
+
+/** What an onboard-failure audit entry needs; grouped because `handleOnboard` already tracked every field before deciding whether to write one. */
+interface OnboardFailureAudit {
+  task: TaskHandlerInput["task"];
+  targetRepo: string;
+  failures: StepFailure[];
+  configFailures: string[];
+  workflowsPermissionDenied: boolean;
+}
+
+/** Records a failed-files audit entry only when there was something to report. */
+async function auditOnboardFailuresIfAny(
+  audit: OnboardFailureAudit,
+): Promise<void> {
+  const {
+    task,
+    targetRepo,
+    failures,
+    configFailures,
+    workflowsPermissionDenied,
+  } = audit;
+
+  if (failures.length === 0 && configFailures.length === 0) {
+    return;
+  }
+
+  await writeAuditLog({
+    event_type: "onboard_files_failed",
+    task_id: task.id,
+    repo: targetRepo,
+    payload: {
+      failed_files: failures.map((f) => ({ path: f.step, error: f.error })),
+      config_failures: configFailures,
+      workflows_permission_denied: workflowsPermissionDenied,
+    },
+  }).catch((err) =>
+    console.warn(`[floor] Onboard: audit write failed: ${errorMessage(err)}`),
+  );
+}
+
+/** Best-effort dispatch-label setup; a failure here doesn't block onboarding. */
+async function createDispatchLabels(
+  project: Awaited<ReturnType<typeof projectFor>>,
+  targetRepo: string,
+): Promise<void> {
+  try {
+    await project.issues.createLabels([
+      { name: "lore", color: "7B61FF", description: "Dispatch to Lore agent" },
+      ...DISPATCH_LABELS.map(({ name, color, description }) => ({
+        name,
+        color,
+        description,
+      })),
+      ...BACKLOG_LABEL_SEED,
+    ]);
+    console.log(`[floor] Created Lore dispatch labels on ${targetRepo}`);
+  } catch (err) {
+    console.warn(
+      `[floor] Failed to create labels on ${targetRepo}: ${(err as Error).message}`,
+    );
+  }
+}
+
 export async function handleOnboard({
   task,
   targetRepo,
@@ -455,75 +642,16 @@ export async function handleOnboard({
   const committed: string[] = [];
   const failures: StepFailure[] = [];
 
-  // Always reinstall workflows; skip doesn't apply to upserted .github files; spec-impact is fail-soft
-  for (const workflow of [
-    { path: LORE_INGEST_WORKFLOW_PATH, content: LORE_INGEST_WORKFLOW_CONTENT },
-    {
-      path: TRACE_IMPACT_WORKFLOW_PATH,
-      content: TRACE_IMPACT_WORKFLOW_CONTENT,
-    },
-  ]) {
-    await commitOnboardFile(project, branchName, workflow, {
-      kind: "workflow",
-      committed,
-      failures,
-    });
-  }
-
-  // 5. Commit static files first
-  for (const sf of ONBOARD_STATIC_FILES) {
-    const alreadyThere =
-      existingFiles.has(sf.path) || existingFiles.has(sf.path.split("/")[0]);
-
-    if (!alreadyThere) {
-      await commitOnboardFile(
-        project,
-        branchName,
-        { path: sf.path, content: sf.content },
-        { kind: "static", committed, failures },
-      );
-    }
-  }
-
-  // 6. Generate and commit LLM files
-  for (const file of toGenerate) {
-    try {
-      const result = await Llm.instance.complete({
-        prompt: `${file.prompt}\n\n## Repository Context\n\n${contextStr}`,
-        systemPrompt: `Generate the content for ${file.path}. Output ONLY the file content — no explanation, no markdown code fences, no preamble. Start directly with the file content.`,
-        model,
-        maxTokens: 8192,
-        taskId: task.id,
-      });
-
-      // Skip if model says to skip (e.g., no database detected)
-      const text = result.text.trim();
-
-      if (text === "SKIP" || text.length < 20) {
-        console.log(
-          `[floor] Onboard: skipping ${file.path} (model returned SKIP)`,
-        );
-        continue;
-      }
-
-      await project.repo.commitFile(
-        branchName,
-        file.path,
-        text,
-        `lore: add ${file.path}`,
-      );
-      committed.push(file.path);
-      console.log(
-        `[floor] Onboard: committed ${file.path} (${text.length} chars)`,
-      );
-    } catch (err) {
-      console.error(
-        `[floor] Onboard: failed to generate ${file.path}: ${errorMessage(err)}`,
-      );
-      failures.push({ step: file.path, error: errorMessage(err) });
-      // Continue with other files — don't fail the whole task
-    }
-  }
+  await commitWorkflowFiles(project, branchName, committed, failures);
+  await commitMissingStaticFiles(project, branchName, existingFiles, {
+    committed,
+    failures,
+  });
+  await generateAndCommitFiles(
+    { project, branchName, contextStr, task, model },
+    toGenerate,
+    { committed, failures },
+  );
 
   if (committed.length === 0) {
     const { summary, details } = summarizeFailures(failures);
@@ -538,34 +666,18 @@ export async function handleOnboard({
 
   // Configure ingest callback before opening PR so failures can be reported; never write empty vars
   const configFailures = await configureIngestCallback(project);
-  const ingestConfigured = configFailures.length === 0;
 
-  if (ingestConfigured) {
-    console.log(`[floor] Configured ingest secrets on ${targetRepo}`);
-  }
-
-  if (!ingestConfigured) {
-    console.error(
-      `[floor] Ingest config incomplete on ${targetRepo}: ${configFailures.join("; ")}`,
-    );
-  }
+  logIngestConfigResult(targetRepo, configFailures);
 
   const workflowsPermissionDenied = anyWorkflowsPermissionFailure(failures);
 
-  if (failures.length > 0 || configFailures.length > 0) {
-    await writeAuditLog({
-      event_type: "onboard_files_failed",
-      task_id: task.id,
-      repo: targetRepo,
-      payload: {
-        failed_files: failures.map((f) => ({ path: f.step, error: f.error })),
-        config_failures: configFailures,
-        workflows_permission_denied: workflowsPermissionDenied,
-      },
-    }).catch((err) =>
-      console.warn(`[floor] Onboard: audit write failed: ${errorMessage(err)}`),
-    );
-  }
+  await auditOnboardFailuresIfAny({
+    task,
+    targetRepo,
+    failures,
+    configFailures,
+    workflowsPermissionDenied,
+  });
 
   // 6. Create PR
   const fileList = committed.map((f) => `- \`${f}\``).join("\n");
@@ -586,24 +698,7 @@ export async function handleOnboard({
   // Update lore.repos with the PR URL
   await settings().setOnboardingPrUrl(targetRepo, pr.url);
 
-  // Create Lore dispatch labels on the repo
-  try {
-    await project.issues.createLabels([
-      { name: "lore", color: "7B61FF", description: "Dispatch to Lore agent" },
-      // Source from the same table the webhook reads to ensure reader understanding
-      ...DISPATCH_LABELS.map(({ name, color, description }) => ({
-        name,
-        color,
-        description,
-      })),
-      ...BACKLOG_LABEL_SEED,
-    ]);
-    console.log(`[floor] Created Lore dispatch labels on ${targetRepo}`);
-  } catch (err) {
-    console.warn(
-      `[floor] Failed to create labels on ${targetRepo}: ${(err as Error).message}`,
-    );
-  }
+  await createDispatchLabels(project, targetRepo);
 
   await setStatus(task.id, "pr-created", {
     pr_url: pr.url,

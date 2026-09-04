@@ -29,6 +29,73 @@ export interface SeedUsageNode {
   stationRunId?: string | null;
 }
 
+function resolveTaskId(
+  given: string | null,
+  taskIds: Set<string>,
+): string | null {
+  return given !== null && taskIds.has(given) ? given : null;
+}
+
+/** The lateral join is independent of the task join; a NULL CR matches no node. Last matching registration wins, mirroring `ORDER BY n.id DESC LIMIT 1`. */
+function findMatchingNode(
+  nodes: SeedUsageNode[],
+  agentCrName: string | null | undefined,
+): SeedUsageNode | undefined {
+  if (agentCrName == null) {
+    return undefined;
+  }
+
+  return [...nodes].reverse().find((n) => n.agentCrName === agentCrName);
+}
+
+function resolveLineFromGiven(
+  taskId: string | null,
+  given: string | null,
+  assemblyLineIds: Set<string>,
+): string | null {
+  if (taskId !== null || given === null) {
+    return null;
+  }
+
+  return assemblyLineIds.has(given) ? given : null;
+}
+
+/** Stated beats both guesses, and beats them WHOLE: a carried identity brings its own station run, never the lateral's. */
+function resolveAssemblyLineId(
+  record: LlmCallRecord,
+  node: SeedUsageNode | undefined,
+  lineFromGiven: string | null,
+): string | null {
+  return record.carried?.assemblyRunId ?? node?.assemblyLineId ?? lineFromGiven;
+}
+
+function resolveStationRunId(
+  record: LlmCallRecord,
+  node: SeedUsageNode | undefined,
+): string | null {
+  return record.carried
+    ? record.carried.stationRunId
+    : (node?.stationRunId ?? null);
+}
+
+interface NormalizedLlmCallDefaults {
+  jobName: string | null;
+  costUsd: number;
+  status: "success" | "failed";
+  error: string | null;
+}
+
+function normalizeLlmCallDefaults(
+  record: LlmCallRecord,
+): NormalizedLlmCallDefaults {
+  return {
+    jobName: record.jobName ?? null,
+    costUsd: record.costUsd ?? 0,
+    status: record.status ?? "success",
+    error: record.error ?? null,
+  };
+}
+
 /** In-memory {@link UsagePort}: the behavioral spec of the Pg adapter; uncorrelated rows are kept, not rejected (#945). */
 export class InMemoryUsage implements UsagePort {
   readonly rows: StoredLlmCall[] = [];
@@ -53,40 +120,32 @@ export class InMemoryUsage implements UsagePort {
     this.nodes.push(node);
   }
 
+  // Not modeled: Pg casts the given id with `::uuid`, erroring on a non-uuid string rather than storing uncorrelated — seed valid uuids.
   async logLlmCall(record: LlmCallRecord): Promise<LlmCallResult> {
-    // Not modeled: Pg casts the given id with `::uuid`, erroring on a non-uuid string rather than storing uncorrelated — seed valid uuids.
     const given = record.taskId ?? null;
-    const taskId = given !== null && this.taskIds.has(given) ? given : null;
-    // The lateral join is independent of the task join; a NULL CR matches no node.
-    const node =
-      record.agentCrName == null
-        ? undefined
-        : [...this.nodes]
-            .reverse()
-            .find((n) => n.agentCrName === record.agentCrName);
-    const lineFromGiven =
-      taskId === null && given !== null && this.assemblyLineIds.has(given)
-        ? given
-        : null;
-    // Stated beats both guesses, and beats them WHOLE: a carried identity brings its own station run, never the lateral's.
-    const assemblyLineId =
-      record.carried?.assemblyRunId ?? node?.assemblyLineId ?? lineFromGiven;
-    const stationRunId = record.carried
-      ? record.carried.stationRunId
-      : (node?.stationRunId ?? null);
+    const taskId = resolveTaskId(given, this.taskIds);
+    const node = findMatchingNode(this.nodes, record.agentCrName);
+    const lineFromGiven = resolveLineFromGiven(
+      taskId,
+      given,
+      this.assemblyLineIds,
+    );
+    const assemblyLineId = resolveAssemblyLineId(record, node, lineFromGiven);
+    const stationRunId = resolveStationRunId(record, node);
+    const defaults = normalizeLlmCallDefaults(record);
 
     this.rows.push({
       task_id: taskId,
       assembly_line_id: assemblyLineId,
       station_run_id: stationRunId,
-      job_name: record.jobName ?? null,
+      job_name: defaults.jobName,
       model: record.model,
       input_tokens: record.inputTokens,
       output_tokens: record.outputTokens,
-      cost_usd: record.costUsd ?? 0,
+      cost_usd: defaults.costUsd,
       duration_ms: record.durationMs,
-      status: record.status ?? "success",
-      error: record.error ?? null,
+      status: defaults.status,
+      error: defaults.error,
       created_at: this.now(),
     });
 

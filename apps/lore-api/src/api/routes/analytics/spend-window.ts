@@ -427,11 +427,20 @@ async function readLlmSpend(pool: Pool, win: SpendWindow) {
   };
 }
 
-/** What Anthropic actually billed, plus the metered days it has not billed yet. */
-async function readAnthropicSpend(pool: Pool, win: SpendWindow) {
-  const { interval, fromTs, toTs } = win;
+interface BilledAnthropicTotals {
+  totalUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  asOf: string | null;
+  billedThrough: string | null;
+  available: boolean;
+}
 
-  // Totals are FILTERed to the interval but the two stamps read the whole table — clipping billed_through/as_of to the interval would misreport them on a window predating the sync.
+// `as_of`, not a row count, distinguishes "synced and owes nothing" from "never synced" — the view hides billed sections for the latter rather than showing a confident zero.
+async function readBilledAnthropicTotals(
+  pool: Pool,
+  interval: SpendWindow["interval"],
+): Promise<BilledAnthropicTotals> {
   const billedTotalRows = await optionalTableRows<{
     billed_usd: number;
     input_tokens: number;
@@ -455,6 +464,50 @@ async function readAnthropicSpend(pool: Pool, win: SpendWindow) {
      FROM pipeline.anthropic_cost_daily`,
     [interval.from, interval.to],
   );
+  const billedTotal = billedTotalRows[0];
+
+  return {
+    totalUsd: billedTotal?.billed_usd ?? 0,
+    inputTokens: billedTotal?.input_tokens ?? 0,
+    outputTokens: billedTotal?.output_tokens ?? 0,
+    asOf: billedTotal?.as_of ?? null,
+    billedThrough: billedTotal?.billed_through ?? null,
+    available: Boolean(billedTotal?.as_of),
+  };
+}
+
+interface UnbilledAnthropicSpend {
+  costUsd: number;
+  days: number;
+}
+
+// Every interval day Anthropic has not billed yet; `billedThrough` is passed as a param (not joined in) so an absent anthropic_cost_daily can't take this sync-independent half down too.
+async function readUnbilledAnthropicSpend(
+  pool: Pool,
+  win: SpendWindow,
+  billedThrough: string | null,
+): Promise<UnbilledAnthropicSpend> {
+  const { rows } = await pool.query<{
+    cost_usd: number;
+    days: number;
+  }>(
+    `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd,
+            COUNT(DISTINCT created_at::date)::int AS days
+       FROM pipeline.llm_calls
+      WHERE created_at >= $1 AND created_at < $2
+        AND ($3::date IS NULL OR created_at::date > $3::date)
+        AND model NOT LIKE ALL($4::text[])`,
+    [win.fromTs, win.toTs, billedThrough, [...NON_ANTHROPIC_LIKE_PATTERNS]],
+  );
+  const row = rows[0];
+
+  return { costUsd: row?.cost_usd ?? 0, days: row?.days ?? 0 };
+}
+
+/** What Anthropic actually billed, plus the metered days it has not billed yet. */
+async function readAnthropicSpend(pool: Pool, win: SpendWindow) {
+  const { interval } = win;
+  const totals = await readBilledAnthropicTotals(pool, interval);
   const billedByModel = await optionalTableRows(
     pool,
     `SELECT model, SUM(cost_usd)::float8 AS cost_usd,
@@ -473,41 +526,23 @@ async function readAnthropicSpend(pool: Pool, win: SpendWindow) {
       GROUP BY bucket_date ORDER BY bucket_date DESC`,
     [interval.from, interval.to],
   );
-
-  // `as_of`, not a row count, distinguishes "synced and owes nothing" from "never synced" — the view hides billed sections for the latter rather than showing a confident zero.
-  const billedTotal = billedTotalRows[0];
-  const billedAvailable = !!billedTotal?.as_of;
-
-  // Every interval day Anthropic has not billed yet; bound passed as a param (not joined in) so an absent anthropic_cost_daily can't take this sync-independent half down too.
-  const { rows: unbilledRows } = await pool.query<{
-    cost_usd: number;
-    days: number;
-  }>(
-    `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd,
-            COUNT(DISTINCT created_at::date)::int AS days
-       FROM pipeline.llm_calls
-      WHERE created_at >= $1 AND created_at < $2
-        AND ($3::date IS NULL OR created_at::date > $3::date)
-        AND model NOT LIKE ALL($4::text[])`,
-    [
-      fromTs,
-      toTs,
-      billedTotal?.billed_through ?? null,
-      [...NON_ANTHROPIC_LIKE_PATTERNS],
-    ],
+  const unbilled = await readUnbilledAnthropicSpend(
+    pool,
+    win,
+    totals.billedThrough,
   );
 
   return {
-    available: billedAvailable,
-    total_usd: billedTotal?.billed_usd ?? 0,
-    input_tokens: billedTotal?.input_tokens ?? 0,
-    output_tokens: billedTotal?.output_tokens ?? 0,
-    as_of: billedTotal?.as_of ?? null,
-    billed_through: billedTotal?.billed_through ?? null,
+    available: totals.available,
+    total_usd: totals.totalUsd,
+    input_tokens: totals.inputTokens,
+    output_tokens: totals.outputTokens,
+    as_of: totals.asOf,
+    billed_through: totals.billedThrough,
     by_model: billedByModel,
     daily: billedDaily,
-    unbilled_usd: unbilledRows[0]?.cost_usd ?? 0,
-    unbilled_days: unbilledRows[0]?.days ?? 0,
+    unbilled_usd: unbilled.costUsd,
+    unbilled_days: unbilled.days,
   };
 }
 

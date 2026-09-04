@@ -78,6 +78,179 @@ function runResult(anyFailed: boolean, runStatus: string): RunData["result"] {
   return isTerminalRunStatus(runStatus) ? "completed" : null;
 }
 
+/** The selected node's current run state, or null when nothing is selected — mirrors the object-index lookup Object[key] would give. */
+function pickSelectedState(
+  nodeStates: Readonly<Record<string, NodeRunState>>,
+  selectedNodeId: string | null,
+): NodeRunState | null {
+  return selectedNodeId === null ? null : nodeStates[selectedNodeId];
+}
+
+/** Which of the two reducer states (live vs. scrubbed-back-in-time) the panel currently shows. */
+function pickDisplayState(
+  runIsLive: boolean,
+  state: ReturnType<typeof initialRunState>,
+  replayState: ReturnType<typeof initialRunState>,
+) {
+  return runIsLive ? state : replayState;
+}
+
+/** The scrubber only makes sense once a run is over and actually has history to scrub through. */
+function computeScrubberVisible(
+  runStatus: string,
+  historyEventCount: number,
+): boolean {
+  return isTerminalRunStatus(runStatus) && historyEventCount > 0;
+}
+
+/** True once the walk has visited something worth showing — either persisted rows or a live-but-idle stream. */
+function computeHasRunData(
+  nodeCount: number,
+  nodeStates: Readonly<Record<string, NodeRunState>>,
+): boolean {
+  return nodeCount > 0 || Object.values(nodeStates).some(participated);
+}
+
+/** "run" shows only the executed path; toggling to outcomes (or having nothing executed yet) falls back to "definition". */
+function computeGraphMode(
+  hasRunData: boolean,
+  showOutcomes: boolean,
+): "run" | "definition" {
+  return hasRunData && !showOutcomes ? "run" : "definition";
+}
+
+/** Mid-scrub only — the cursor sits strictly before the history's end, so the slider's right end stays byte-identical to Back to live. */
+function computeReplayActive(
+  runIsLive: boolean,
+  replayCursor: number | null,
+  historyEventCount: number,
+): boolean {
+  return (
+    !runIsLive && replayCursor !== null && replayCursor < historyEventCount
+  );
+}
+
+/** Only wire onSeek through once the scrubber is actually visible — an invisible scrubber has nothing to seek. */
+function resolveOnSeek(
+  scrubberVisible: boolean,
+  onSeek: (id: string) => void,
+): ((id: string) => void) | undefined {
+  return scrubberVisible ? onSeek : undefined;
+}
+
+/** "Show possible outcomes" only makes sense once there is an executed path to toggle away from. */
+function OutcomesToggle({
+  show,
+  showOutcomes,
+  onToggle,
+}: {
+  show: boolean;
+  showOutcomes: boolean;
+  onToggle: () => void;
+}) {
+  if (!show) {
+    return null;
+  }
+
+  return (
+    <button
+      type="button"
+      className={styles.outcomesToggle}
+      aria-pressed={showOutcomes}
+      onClick={onToggle}
+    >
+      {showOutcomes ? "Show executed path" : "Show possible outcomes"}
+    </button>
+  );
+}
+
+/** The replay scrubber, shown only once a finished run has history to scrub through. */
+function ReplayControlsSlot({
+  show,
+  historyEventCount,
+  replayCursor,
+  position,
+  onCursorChange,
+  onBackToLive,
+}: {
+  show: boolean;
+  historyEventCount: number;
+  replayCursor: number | null;
+  position: { label: string; timestamp: string | null };
+  onCursorChange: (cursor: number) => void;
+  onBackToLive: () => void;
+}) {
+  if (!show) {
+    return null;
+  }
+
+  return (
+    <ReplayControls
+      eventCount={historyEventCount}
+      cursor={replayCursor ?? historyEventCount}
+      position={position}
+      onCursorChange={onCursorChange}
+      onBackToLive={onBackToLive}
+    />
+  );
+}
+
+/** Everything shown about the currently selected node — or the hint to pick one when nothing is selected. */
+function SelectedNodeSection({
+  selectedNodeId,
+  runId,
+  repo,
+  reason,
+  definition,
+  selectedState,
+  latestRows,
+  selectedRows,
+  selectedAttempts,
+  nodeInputs,
+  retrySource,
+  agentEditHrefs,
+  visibleNodeCount,
+}: {
+  selectedNodeId: string | null;
+  runId: string;
+  repo: string;
+  reason: string | null;
+  definition: AssemblyLineDefinition | null;
+  selectedState: NodeRunState | null;
+  latestRows: Map<string, AssemblyRunNode>;
+  selectedRows: readonly AssemblyRunNode[];
+  selectedAttempts: Parameters<typeof RunNodeDetail>[0]["attempts"];
+  nodeInputs: Parameters<typeof NodeInputCard>[0]["inputs"];
+  retrySource: { nodeId: string; iteration: number } | null;
+  agentEditHrefs?: Record<string, string>;
+  visibleNodeCount: number;
+}) {
+  if (selectedNodeId === null) {
+    return <SelectionHint nodeCount={visibleNodeCount} />;
+  }
+
+  return (
+    <>
+      <NodeInspector
+        nodeId={selectedNodeId}
+        runId={runId}
+        repo={repo}
+        reason={reason}
+        definition={definition}
+        state={selectedState ?? undefined}
+        row={latestRows.get(selectedNodeId)}
+        rows={selectedRows}
+        attempts={selectedAttempts}
+        inputs={nodeInputs}
+        retrySource={retrySource}
+        agentEditHref={agentEditHrefs?.[selectedNodeId]}
+      />
+      {/* Keyed on the run so a run change resets the loaded transcript by construction, not by a flag someone has to remember to clear. */}
+      <FullTranscriptPanel key={runId} runId={runId} nodeId={selectedNodeId} />
+    </>
+  );
+}
+
 /** The graph's view of a live or finished run: which nodes ran, what each was told, and whether the run as a whole succeeded. */
 function buildRunData({
   nodes,
@@ -151,10 +324,12 @@ export default function RunVisualizationPanel({
       ),
     [definition, historyEvents, replayCursor],
   );
-  const displayState = runIsLive ? state : replayState;
+  const displayState = pickDisplayState(runIsLive, state, replayState);
 
-  const scrubberVisible =
-    isTerminalRunStatus(runStatus) && historyEvents.length > 0;
+  const scrubberVisible = computeScrubberVisible(
+    runStatus,
+    historyEvents.length,
+  );
   const replayPosition = scrubberPositionLabel(
     historyEvents,
     replayCursor ?? historyEvents.length,
@@ -175,8 +350,7 @@ export default function RunVisualizationPanel({
     [historyEvents],
   );
 
-  const selected =
-    selectedNodeId === null ? null : displayState.nodeStates[selectedNodeId];
+  const selected = pickSelectedState(displayState.nodeStates, selectedNodeId);
   // The selected node's walk rows in execution order — the inspector's attempt history and per-attempt pod-log panel source.
   const selectedRows = useMemo(
     () => nodes.filter((node) => node.nodeId === selectedNodeId),
@@ -200,10 +374,8 @@ export default function RunVisualizationPanel({
   );
 
   const [showOutcomes, setShowOutcomes] = useState(false);
-  const hasRunData =
-    nodes.length > 0 ||
-    Object.values(displayState.nodeStates).some(participated);
-  const graphMode = hasRunData && !showOutcomes ? "run" : "definition";
+  const hasRunData = computeHasRunData(nodes.length, displayState.nodeStates);
+  const graphMode = computeGraphMode(hasRunData, showOutcomes);
   const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
   // Fork source for "retry this node" — null hides the button (live run, unvisited node, entry node, or an unnameable prefix; see retry-resume.ts).
   const retrySource = useMemo(
@@ -213,9 +385,11 @@ export default function RunVisualizationPanel({
         : retryResumeSource(nodes, selectedNodeId),
     [runIsLive, nodes, selectedNodeId],
   );
-  // Mid-scrub only — the cursor sits strictly before the history's end, so the slider's right end stays byte-identical to Back to live.
-  const replayActive =
-    !runIsLive && replayCursor !== null && replayCursor < historyEvents.length;
+  const replayActive = computeReplayActive(
+    runIsLive,
+    replayCursor,
+    historyEvents.length,
+  );
   const runData = useMemo<RunData>(
     () =>
       replayActive
@@ -260,57 +434,39 @@ export default function RunVisualizationPanel({
         definition={definition}
         onSelectNode={setSelectedNodeId}
       />
-      {hasRunData ? (
-        <button
-          type="button"
-          className={styles.outcomesToggle}
-          aria-pressed={showOutcomes}
-          onClick={() => setShowOutcomes((s) => !s)}
-        >
-          {showOutcomes ? "Show executed path" : "Show possible outcomes"}
-        </button>
-      ) : null}
-      {scrubberVisible ? (
-        <ReplayControls
-          eventCount={historyEvents.length}
-          cursor={replayCursor ?? historyEvents.length}
-          position={replayPosition}
-          onCursorChange={onCursorChange}
-          onBackToLive={onBackToLive}
-        />
-      ) : null}
-      {selectedNodeId ? (
-        <NodeInspector
-          nodeId={selectedNodeId}
-          runId={runId}
-          repo={repo}
-          reason={reason}
-          definition={definition}
-          state={selected ?? undefined}
-          row={latestRows.get(selectedNodeId)}
-          rows={selectedRows}
-          attempts={selectedAttempts}
-          inputs={nodeInputs}
-          retrySource={retrySource}
-          agentEditHref={agentEditHrefs?.[selectedNodeId]}
-        />
-      ) : null}
-      {selectedNodeId ? null : (
-        <SelectionHint nodeCount={visibleGraph.nodes.length} />
-      )}
-      {selectedNodeId ? (
-        // Keyed on the run so a run change resets the loaded transcript by construction, not by a flag someone has to remember to clear.
-        <FullTranscriptPanel
-          key={runId}
-          runId={runId}
-          nodeId={selectedNodeId}
-        />
-      ) : null}
+      <OutcomesToggle
+        show={hasRunData}
+        showOutcomes={showOutcomes}
+        onToggle={() => setShowOutcomes((s) => !s)}
+      />
+      <ReplayControlsSlot
+        show={scrubberVisible}
+        historyEventCount={historyEvents.length}
+        replayCursor={replayCursor}
+        position={replayPosition}
+        onCursorChange={onCursorChange}
+        onBackToLive={onBackToLive}
+      />
+      <SelectedNodeSection
+        selectedNodeId={selectedNodeId}
+        runId={runId}
+        repo={repo}
+        reason={reason}
+        definition={definition}
+        selectedState={selected}
+        latestRows={latestRows}
+        selectedRows={selectedRows}
+        selectedAttempts={selectedAttempts}
+        nodeInputs={nodeInputs}
+        retrySource={retrySource}
+        agentEditHrefs={agentEditHrefs}
+        visibleNodeCount={visibleGraph.nodes.length}
+      />
       <RunTimelineView
         ticks={displayState.timeline}
         runStartedAt={startedAt}
         now={now}
-        onSeek={scrubberVisible ? onSeek : undefined}
+        onSeek={resolveOnSeek(scrubberVisible, onSeek)}
       />
       <FileHeatmapView
         touches={displayState.fileTouches}

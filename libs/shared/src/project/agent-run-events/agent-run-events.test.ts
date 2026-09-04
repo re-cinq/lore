@@ -125,6 +125,26 @@ describe("InMemoryAgentRunEvents insertBatch", () => {
     });
   });
 
+  it("leaves a row carrying a null agentCrName uncorrelated without attempting a lookup", async () => {
+    const repo = new InMemoryAgentRunEvents();
+
+    repo.registerNode({
+      agentCrName: "a1b2c3d4-implement",
+      assemblyLineId: "11111111-1111-4111-8111-111111111111",
+      nodeId: "implement",
+      iteration: 1,
+    });
+
+    const [row] = await repo.insertBatch([insert({ agentCrName: null })]);
+
+    expect(row).toMatchObject({
+      agentCrName: null,
+      assemblyLineId: null,
+      nodeId: null,
+      iteration: null,
+    });
+  });
+
   it("retains agentCrName on an uncorrelated row", async () => {
     const repo = new InMemoryAgentRunEvents();
 

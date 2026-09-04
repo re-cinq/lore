@@ -68,36 +68,60 @@ type IncidentEntry = z.infer<typeof IncidentEntrySchema>;
 const asString = (value: unknown, fallback: string): string =>
   typeof value === "string" && value.length > 0 ? value : fallback;
 
-// Normalize PagerDuty/Opsgenie/direct payload; validate date as ISO clamped to now to prevent eviction.
-export function parseIncident(
-  body: string,
-  now: number,
-): { error: string } | { repo: string; entry: IncidentEntry } {
+type ParsedIncidentPayload =
+  { ok: false; error: string } | { ok: true; root: Record<string, unknown> };
+
+// Parses the raw body into a plain object, or an error if it isn't one.
+function parseIncidentPayload(body: string): ParsedIncidentPayload {
   let payload: unknown;
 
   try {
     payload = JSON.parse(body);
   } catch {
-    return { error: "invalid JSON body" };
+    return { ok: false, error: "invalid JSON body" };
   }
 
   if (!payload || typeof payload !== "object") {
-    return { error: "invalid payload" };
+    return { ok: false, error: "invalid payload" };
   }
 
-  const root = payload as Record<string, unknown>;
+  return { ok: true, root: payload as Record<string, unknown> };
+}
+
+// PagerDuty/Opsgenie nest the real fields under `incident`; a direct payload is already flat.
+function incidentEnvelope(
+  root: Record<string, unknown>,
+): Record<string, unknown> {
   const envelope =
     root.incident && typeof root.incident === "object" ? root.incident : root;
-  const incident = envelope as Record<string, unknown>;
-  const service = incident.service as Record<string, unknown> | undefined;
 
+  return envelope as Record<string, unknown>;
+}
+
+// `repo` direct, else PagerDuty's `service.name`; must be `owner/name` shaped.
+function incidentRepo(incident: Record<string, unknown>): string | null {
+  const service = incident.service as Record<string, unknown> | undefined;
   const repo = incident.repo ?? service?.name;
 
-  if (typeof repo !== "string" || !REPO_NAME.test(repo)) {
-    return { error: "repo must be in owner/name form" };
-  }
+  return typeof repo === "string" && REPO_NAME.test(repo) ? repo : null;
+}
 
-  const candidate = {
+interface IncidentCandidate {
+  title: string;
+  severity: string;
+  date: string;
+  resolved: boolean;
+  url: string | null;
+}
+
+// Maps PagerDuty/Opsgenie/direct field names onto the canonical incident shape.
+function buildIncidentCandidate(
+  incident: Record<string, unknown>,
+  now: number,
+): IncidentCandidate {
+  const url = incident.url ?? incident.html_url;
+
+  return {
     title: asString(incident.title ?? incident.summary, "Unknown incident"),
     severity: asString(incident.severity ?? incident.urgency, "unknown"),
     date:
@@ -105,12 +129,29 @@ export function parseIncident(
         ? incident.date
         : new Date(now).toISOString(),
     resolved: Boolean(incident.resolved ?? incident.status === "resolved"),
-    url:
-      typeof (incident.url ?? incident.html_url) === "string"
-        ? (incident.url ?? incident.html_url)
-        : null,
+    url: typeof url === "string" ? url : null,
   };
+}
 
+// Normalize PagerDuty/Opsgenie/direct payload; validate date as ISO clamped to now to prevent eviction.
+export function parseIncident(
+  body: string,
+  now: number,
+): { error: string } | { repo: string; entry: IncidentEntry } {
+  const parsedPayload = parseIncidentPayload(body);
+
+  if (!parsedPayload.ok) {
+    return { error: parsedPayload.error };
+  }
+
+  const incident = incidentEnvelope(parsedPayload.root);
+  const repo = incidentRepo(incident);
+
+  if (repo === null) {
+    return { error: "repo must be in owner/name form" };
+  }
+
+  const candidate = buildIncidentCandidate(incident, now);
   const parsed = IncidentEntrySchema.safeParse(candidate);
 
   if (!parsed.success) {

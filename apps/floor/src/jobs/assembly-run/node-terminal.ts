@@ -398,39 +398,44 @@ async function resolveRepliedThread(
   await audit({ thread_id: thread.id }, true);
 }
 
-// The code-review-refine node commits its fix but can't post to GitHub itself (no `gh` in the pod); it emits a fenced REVIEW_REPLY block, posted in-thread here — absent block or a throw is audited, never fatal.
-export async function postReplyFromNode(
+/** Which PR a reply targets, or null when this node isn't a reply-shaped one at all. */
+function replyTargetPrNumber(
   row: AssemblyRunRecord,
   node: RunGraphNode,
-  output?: string,
-  ports: ReplyPorts = {},
-): Promise<ReplyPostOutcome> {
+): number | null {
   if (node.prompt_ref !== "code-review-refine") {
-    return "not_reply";
+    return null;
   }
-  const prNumber = Number(row.args.pr_number) || 0;
 
-  if (!prNumber) {
-    return "not_reply";
-  }
-  const body = parseReviewReply(output ?? "");
+  return Number(row.args.pr_number) || null;
+}
 
-  if (!body) {
-    await writeAuditLog(
-      {
-        event_type: "review_reply_unparsed",
-        repo: row.repo,
-        payload: {
-          pr_number: prNumber,
-          assembly_run_id: row.id,
-          output_length: output?.length ?? 0,
-        },
+async function auditUnparsedReply(
+  row: AssemblyRunRecord,
+  prNumber: number,
+  output: string | undefined,
+  ports: ReplyPorts,
+): Promise<void> {
+  await writeAuditLog(
+    {
+      event_type: "review_reply_unparsed",
+      repo: row.repo,
+      payload: {
+        pr_number: prNumber,
+        assembly_run_id: row.id,
+        output_length: output?.length ?? 0,
       },
-      ports.audit,
-    );
+    },
+    ports.audit,
+  );
+}
 
-    return "no_reply";
-  }
+/** The comment this reply is addressed to (if any) and its per-run dedupe marker. */
+function replyIdentity(
+  row: AssemblyRunRecord,
+  node: RunGraphNode,
+  ports: ReplyPorts,
+): { inReplyTo: number; marker: string | undefined } {
   const inReplyTo =
     Number(row.args.in_reply_to_id) || Number(row.args.comment_id) || 0;
   const marker =
@@ -438,42 +443,97 @@ export async function postReplyFromNode(
       ? undefined
       : replyRunMarker(row.id, node.id, ports.iteration);
 
-  try {
-    const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
+  return { inReplyTo, marker };
+}
 
-    if (marker && (await replyAlreadyPosted(pulls, prNumber, marker))) {
-      await auditDedupedReply(row, prNumber, marker, ports);
+interface DeliverReplyParams {
+  row: AssemblyRunRecord;
+  prNumber: number;
+  inReplyTo: number;
+  marker: string | undefined;
+  body: string;
+  ports: ReplyPorts;
+}
 
-      return "already_posted";
-    }
-    // The marker LEADS the comment because the body is agent-authored — trailing it risks an opening prefix (`PR created:` / `Agent ` / `Task `) that platform-github's listIssueComments filter drops, hiding the comment from the probe.
-    const stamped = marker ? `${marker}\n\n${body}` : body;
+/** Posts the reply (or skips it as a dedupe) and, when it landed in a thread, resolves that thread. */
+async function deliverReply(
+  params: DeliverReplyParams,
+): Promise<ReplyPostOutcome> {
+  const { row, prNumber, inReplyTo, marker, body, ports } = params;
+  const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
 
-    if (inReplyTo > 0) {
-      await pulls.replyToReviewComment(prNumber, inReplyTo, stamped);
-      await resolveRepliedThread(row, pulls, { prNumber, inReplyTo }, ports);
+  if (marker && (await replyAlreadyPosted(pulls, prNumber, marker))) {
+    await auditDedupedReply(row, prNumber, marker, ports);
 
-      return "posted";
-    }
-    await pulls.comment(prNumber, stamped);
+    return "already_posted";
+  }
+  // The marker LEADS the comment because the body is agent-authored — trailing it risks an opening prefix that platform-github's listIssueComments filter drops.
+  const stamped = marker ? `${marker}\n\n${body}` : body;
+
+  if (inReplyTo > 0) {
+    await pulls.replyToReviewComment(prNumber, inReplyTo, stamped);
+    await resolveRepliedThread(row, pulls, { prNumber, inReplyTo }, ports);
 
     return "posted";
-  } catch (err) {
-    const message = (err as Error).message;
+  }
+  await pulls.comment(prNumber, stamped);
 
-    console.error("[code-review-refine] post reply failed:", message);
-    await writeAuditLog(
-      {
-        event_type: "review_reply_post_failed",
-        repo: row.repo,
-        payload: {
-          pr_number: prNumber,
-          assembly_run_id: row.id,
-          error: message,
-        },
+  return "posted";
+}
+
+async function auditReplyPostFailed(
+  row: AssemblyRunRecord,
+  prNumber: number,
+  err: Error,
+  ports: ReplyPorts,
+): Promise<void> {
+  console.error("[code-review-refine] post reply failed:", err.message);
+  await writeAuditLog(
+    {
+      event_type: "review_reply_post_failed",
+      repo: row.repo,
+      payload: {
+        pr_number: prNumber,
+        assembly_run_id: row.id,
+        error: err.message,
       },
-      ports.audit,
-    );
+    },
+    ports.audit,
+  );
+}
+
+// The code-review-refine node commits its fix but can't post to GitHub itself (no `gh` in the pod); it emits a fenced REVIEW_REPLY block, posted in-thread here — absent block or a throw is audited, never fatal.
+export async function postReplyFromNode(
+  row: AssemblyRunRecord,
+  node: RunGraphNode,
+  output?: string,
+  ports: ReplyPorts = {},
+): Promise<ReplyPostOutcome> {
+  const prNumber = replyTargetPrNumber(row, node);
+
+  if (prNumber === null) {
+    return "not_reply";
+  }
+  const body = parseReviewReply(output ?? "");
+
+  if (!body) {
+    await auditUnparsedReply(row, prNumber, output, ports);
+
+    return "no_reply";
+  }
+  const { inReplyTo, marker } = replyIdentity(row, node, ports);
+
+  try {
+    return await deliverReply({
+      row,
+      prNumber,
+      inReplyTo,
+      marker,
+      body,
+      ports,
+    });
+  } catch (err) {
+    await auditReplyPostFailed(row, prNumber, err as Error, ports);
 
     return "post_failed";
   }

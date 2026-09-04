@@ -345,6 +345,292 @@ function bfsLevels(
   return level;
 }
 
+type Point = { x: number; y: number };
+
+/** SVG + canvas + a live 2D context, or null when the DOM isn't ready to draw into yet. */
+function resolveRenderTargets(
+  el: SVGSVGElement | null,
+  canvas: HTMLCanvasElement | null,
+): {
+  el: SVGSVGElement;
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+} | null {
+  if (!el || !canvas) {
+    return null;
+  }
+  const ctx = canvas.getContext("2d");
+
+  return ctx ? { el, canvas, ctx } : null;
+}
+
+// Ownership edges anchor tree-less leaves under their owning Statement/AC, extending the containment forest in place.
+function withOwnershipForest(
+  forest: Map<string, string>,
+  links: SpecGraph["links"],
+  ownershipKinds: Set<string>,
+): Map<string, string> {
+  for (const l of links) {
+    if (ownershipKinds.has(l.kind) && !forest.has(l.target)) {
+      forest.set(l.target, l.source);
+    }
+  }
+
+  return forest;
+}
+
+// Cross-cutting edges precompute a bundle spine through the containment forest; containment edges stay straight.
+function withBundleControlIds(
+  links: SimLink[],
+  forest: Map<string, string>,
+  containmentKinds: Set<string>,
+): SimLink[] {
+  for (const l of links) {
+    if (!containmentKinds.has(l.kind)) {
+      l.controlIds = bundleControlIds(
+        forest,
+        idOf(l.source as string | SimNode),
+        idOf(l.target as string | SimNode),
+      );
+    }
+  }
+
+  return links;
+}
+
+/** Best-effort restore of a prior session's node positions + expanded rings from localStorage. */
+function tryRestoreGraphState(
+  storageKey: string,
+  nodes: SimNode[],
+): { savedExpanded: string[]; restoredFromStorage: boolean } {
+  try {
+    const saved = parseGraphState(localStorage.getItem(storageKey));
+
+    if (saved) {
+      applyGraphState(saved, nodes);
+
+      return { savedExpanded: saved.expanded, restoredFromStorage: true };
+    }
+  } catch {
+    // unavailable/corrupt storage — start from a fresh force layout
+  }
+
+  return { savedExpanded: [], restoredFromStorage: false };
+}
+
+// Inverts the containment forest (child → parent) into children lists (parent → children) for radial-tree layout.
+function buildChildrenMap(forest: Map<string, string>): Map<string, string[]> {
+  const childrenOf = new Map<string, string[]>();
+
+  for (const [child, parent] of forest) {
+    (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(
+      child,
+    );
+  }
+
+  return childrenOf;
+}
+
+// Unreached nodes: seed as a spiral near center with a local counter to bound the radius.
+function seedStrayNodes(
+  nodes: readonly SpecGraphNode[],
+  seed: Map<string, Point>,
+  smallIds: Set<string>,
+  viewportCenter: Point,
+): void {
+  let strayIndex = 0;
+
+  for (const node of nodes) {
+    if (seed.has(node.id) || smallIds.has(node.id)) {
+      continue;
+    }
+    const r = 8 + strayIndex * 6;
+    const a = strayIndex * 2.399963229728653;
+
+    seed.set(node.id, {
+      x: viewportCenter.x + r * Math.cos(a),
+      y: viewportCenter.y + r * Math.sin(a),
+    });
+    strayIndex += 1;
+  }
+}
+
+function computeMainExtent(
+  seed: Map<string, Point>,
+  viewportCenter: Point,
+): number {
+  let mainExtent = 0;
+
+  for (const p of seed.values()) {
+    mainExtent = Math.max(
+      mainExtent,
+      Math.hypot(p.x - viewportCenter.x, p.y - viewportCenter.y),
+    );
+  }
+
+  return mainExtent;
+}
+
+function applyRimTargets(
+  seed: Map<string, Point>,
+  rim: Iterable<[string, Point]>,
+): void {
+  for (const [id, p] of rim) {
+    seed.set(id, p);
+  }
+}
+
+// Force-simulation start positions: the radial-tree/rim seed when available, else the viewport center.
+function seedInitialPositions(
+  nodes: SimNode[],
+  seed: Map<string, Point>,
+  viewportCenter: Point,
+): void {
+  for (const n of nodes) {
+    const p = seed.get(n.id) ?? viewportCenter;
+
+    n.x = p.x;
+    n.y = p.y;
+  }
+}
+
+function collectRingDiscs(
+  expanded: Map<string, ExpandData>,
+  nodeById: Map<string, SimNode>,
+): Disc[] {
+  const discs: Disc[] = [];
+
+  for (const [specId, exp] of expanded) {
+    const spec = nodeById.get(specId);
+
+    if (spec) {
+      discs.push({ x: spec.x ?? 0, y: spec.y ?? 0, r: exp.outerR1 });
+    }
+  }
+
+  return discs;
+}
+
+// Feature/Spec/ADR nodes anchor the layout — spread apart from each other, everything else just stays off rings.
+function nodeIsAnchorType(n: SimNode): boolean {
+  return n.type === "Feature" || n.type === "Spec" || n.type === "ADR";
+}
+
+function collectAnchors(nodes: SimNode[]): Anchor[] {
+  const anchors: Anchor[] = [];
+
+  for (const n of nodes) {
+    if (nodeIsAnchorType(n)) {
+      anchors.push({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 });
+    }
+  }
+
+  return anchors;
+}
+
+function nodeIsPinned(n: SimNode): boolean {
+  return n.fx != null || n.fy != null;
+}
+
+// Expanded specs, ring-pinned statements, and drag-pinned nodes sit still — the spacing pass never moves them.
+function nodeIsSpacingFixed(
+  n: SimNode,
+  expanded: Map<string, ExpandData>,
+  ringPinned: Set<string>,
+): boolean {
+  return expanded.has(n.id) || ringPinned.has(n.id) || nodeIsPinned(n);
+}
+
+function resolveSafePosition(
+  n: SimNode,
+  isAnchor: boolean,
+  anchors: Anchor[],
+  discs: Disc[],
+): Point {
+  return isAnchor
+    ? resolveSpacing(
+        { id: n.id, x: n.x ?? 0, y: n.y ?? 0 },
+        anchors,
+        discs,
+        ANCHOR_SEPARATION,
+      )
+    : resolveExclusion({ x: n.x ?? 0, y: n.y ?? 0 }, discs, RING_CLEARANCE);
+}
+
+interface SpacingContext {
+  anchors: Anchor[];
+  discs: Disc[];
+  expanded: Map<string, ExpandData>;
+  ringPinned: Set<string>;
+}
+
+// One node's spacing-pass relaxation: fixed nodes are skipped, everyone else is nudged clear of anchors/rings.
+function relaxNodeSpacing(n: SimNode, spacing: SpacingContext): void {
+  if (nodeIsSpacingFixed(n, spacing.expanded, spacing.ringPinned)) {
+    return;
+  }
+  const safe = resolveSafePosition(
+    n,
+    nodeIsAnchorType(n),
+    spacing.anchors,
+    spacing.discs,
+  );
+
+  if (safe.x === n.x && safe.y === n.y) {
+    return;
+  }
+  n.x = safe.x;
+  n.y = safe.y;
+  n.vx = 0; // kill velocity so the integration step can't pull it back in
+  n.vy = 0;
+}
+
+// Spacing pass: anchors kept clear of each other & rings (resolveSpacing); others just off rings.
+function applySpacingForce(
+  nodes: SimNode[],
+  expanded: Map<string, ExpandData>,
+  nodeById: Map<string, SimNode>,
+  ringPinned: Set<string>,
+): void {
+  const spacing: SpacingContext = {
+    discs: collectRingDiscs(expanded, nodeById),
+    anchors: collectAnchors(nodes),
+    expanded,
+    ringPinned,
+  };
+
+  for (const n of nodes) {
+    relaxNodeSpacing(n, spacing);
+  }
+}
+
+function pointOf(n: SimNode): Point {
+  return { x: n.x ?? 0, y: n.y ?? 0 };
+}
+
+function elementSize(el: SVGSVGElement): { width: number; height: number } {
+  return { width: el.clientWidth || 900, height: el.clientHeight || 600 };
+}
+
+function devicePixelRatioSafe(): number {
+  return window.devicePixelRatio || 1;
+}
+
+// Restore expanded rings from last session; each toggle re-fetches + lays out that spec's ring.
+function restoreExpandedRings(
+  savedExpanded: readonly string[],
+  nodeById: Map<string, SimNode>,
+  toggleExpand: (d: SimNode) => Promise<void>,
+): void {
+  for (const id of savedExpanded) {
+    const spec = nodeById.get(id);
+
+    if (spec) {
+      void toggleExpand(spec);
+    }
+  }
+}
+
 export default function SpecGraphD3({
   graph,
   repo,
@@ -371,19 +657,13 @@ export default function SpecGraphD3({
   const filterRef = useRef<(q: string) => void>(() => {});
 
   useEffect(() => {
-    const el = ref.current;
-    const canvas = canvasRef.current;
+    const targets = resolveRenderTargets(ref.current, canvasRef.current);
 
-    if (!el || !canvas) {
+    if (!targets) {
       return;
     }
-    const ctx = canvas.getContext("2d");
-
-    if (!ctx) {
-      return;
-    }
-    let width = el.clientWidth || 900;
-    let height = el.clientHeight || 600;
+    const { el, canvas, ctx } = targets;
+    let { width, height } = elementSize(el);
     const svg = d3.select(el);
 
     svg.selectAll("*").remove();
@@ -393,7 +673,7 @@ export default function SpecGraphD3({
     }
 
     // Canvas uses CSS pixels; backing store scaled up by DPR for crispness on HiDPI.
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = devicePixelRatioSafe();
     // Canvas needs literal colors (not var() strings); tokens resolved per render, SVG keeps var() refs.
     const tokenStyles = getComputedStyle(el);
     const lookup = (name: string) => tokenStyles.getPropertyValue(name);
@@ -436,24 +716,13 @@ export default function SpecGraphD3({
     );
 
     // Bundling forest: containment tree + tree-home for each leaf so cross-spec edges route through hierarchy.
-    const forest = buildContainmentForest(graph.links, CONTAINMENT_KINDS);
+    const forest = withOwnershipForest(
+      buildContainmentForest(graph.links, CONTAINMENT_KINDS),
+      graph.links,
+      OWNERSHIP_KINDS,
+    );
 
-    for (const l of graph.links) {
-      if (OWNERSHIP_KINDS.has(l.kind) && !forest.has(l.target)) {
-        forest.set(l.target, l.source);
-      }
-    }
-
-    // Cross-cutting edges precompute bundle spine; containment edges stay straight.
-    for (const l of links) {
-      if (!CONTAINMENT_KINDS.has(l.kind)) {
-        l.controlIds = bundleControlIds(
-          forest,
-          idOf(l.source as string | SimNode),
-          idOf(l.target as string | SimNode),
-        );
-      }
-    }
+    withBundleControlIds(links, forest, CONTAINMENT_KINDS);
 
     // Persist layout to localStorage for topology restoration; best-effort (handles storage failure).
     const STORAGE_KEY = `lore.graph:${repo}`;
@@ -467,31 +736,15 @@ export default function SpecGraphD3({
         // storage disabled or over quota — persistence is best-effort
       }
     };
-    let savedExpanded: string[] = [];
-    let restoredFromStorage = false;
-
-    try {
-      const saved = parseGraphState(localStorage.getItem(STORAGE_KEY));
-
-      if (saved) {
-        applyGraphState(saved, nodes);
-        savedExpanded = saved.expanded;
-        restoredFromStorage = true;
-      }
-    } catch {
-      // unavailable/corrupt storage — start from a fresh force layout
-    }
+    const { savedExpanded, restoredFromStorage } = tryRestoreGraphState(
+      STORAGE_KEY,
+      nodes,
+    );
 
     // Radial-tree-per-feature layout: invert forest into children lists, ring small components outside.
     const boundR = boundingRadius(graph.nodes.length, graph.links.length);
     const viewportCenter = { x: width / 2, y: height / 2 };
-    const childrenOf = new Map<string, string[]>();
-
-    for (const [child, parent] of forest) {
-      (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(
-        child,
-      );
-    }
+    const childrenOf = buildChildrenMap(forest);
 
     const featureIds = graph.nodes
       .filter((n) => n.type === "Feature")
@@ -538,49 +791,21 @@ export default function SpecGraphD3({
       (c) => c.length < SMALL_COMPONENT_MAX && !c.some((id) => seed.has(id)),
     );
     const smallIds = new Set(smallComponents.flat());
-    let strayIndex = 0;
 
-    for (const node of graph.nodes) {
-      if (seed.has(node.id) || smallIds.has(node.id)) {
-        continue;
-      }
-      const r = 8 + strayIndex * 6;
-      const a = strayIndex * 2.399963229728653;
-
-      seed.set(node.id, {
-        x: viewportCenter.x + r * Math.cos(a),
-        y: viewportCenter.y + r * Math.sin(a),
-      });
-      strayIndex += 1;
-    }
+    seedStrayNodes(graph.nodes, seed, smallIds, viewportCenter);
 
     // Add small components last on rim beyond main graph extent, so they ring the outside.
-    let mainExtent = 0;
+    const mainExtent = computeMainExtent(seed, viewportCenter);
 
-    for (const p of seed.values()) {
-      mainExtent = Math.max(
-        mainExtent,
-        Math.hypot(p.x - viewportCenter.x, p.y - viewportCenter.y),
-      );
-    }
-
-    for (const [id, p] of rimTargets(
-      smallComponents,
-      viewportCenter,
-      mainExtent + RIM_MARGIN,
-    )) {
-      seed.set(id, p);
-    }
+    applyRimTargets(
+      seed,
+      rimTargets(smallComponents, viewportCenter, mainExtent + RIM_MARGIN),
+    );
 
     const seedOf = (d: SimNode) => seed.get(d.id) ?? viewportCenter;
 
     if (!restoredFromStorage) {
-      for (const n of nodes) {
-        const p = seed.get(n.id) ?? viewportCenter;
-
-        n.x = p.x;
-        n.y = p.y;
-      }
+      seedInitialPositions(nodes, seed, viewportCenter);
     }
 
     const linkForce = d3
@@ -619,56 +844,9 @@ export default function SpecGraphD3({
           .strength(1),
       )
       // Spacing pass: anchors kept clear of each other & rings (resolveSpacing); others just off rings.
-      .force("spacing", () => {
-        const discs: Disc[] = [];
-
-        for (const [specId, exp] of expanded) {
-          const spec = nodeById.get(specId);
-
-          if (spec) {
-            discs.push({ x: spec.x ?? 0, y: spec.y ?? 0, r: exp.outerR1 });
-          }
-        }
-        const anchors: Anchor[] = [];
-
-        for (const n of nodes) {
-          if (n.type === "Feature" || n.type === "Spec" || n.type === "ADR") {
-            anchors.push({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 });
-          }
-        }
-
-        for (const n of nodes) {
-          const isPinned = n.fx != null || n.fy != null;
-          const isFixed =
-            expanded.has(n.id) || ringPinned.has(n.id) || isPinned;
-
-          if (isFixed) {
-            continue;
-          }
-          const isAnchor =
-            n.type === "Feature" || n.type === "Spec" || n.type === "ADR";
-          const safe = isAnchor
-            ? resolveSpacing(
-                { id: n.id, x: n.x ?? 0, y: n.y ?? 0 },
-                anchors,
-                discs,
-                ANCHOR_SEPARATION,
-              )
-            : resolveExclusion(
-                { x: n.x ?? 0, y: n.y ?? 0 },
-                discs,
-                RING_CLEARANCE,
-              );
-
-          if (safe.x === n.x && safe.y === n.y) {
-            continue;
-          }
-          n.x = safe.x;
-          n.y = safe.y;
-          n.vx = 0; // kill velocity so the integration step can't pull it back in
-          n.vy = 0;
-        }
-      })
+      .force("spacing", () =>
+        applySpacingForce(nodes, expanded, nodeById, ringPinned),
+      )
       // Hard separation: keep small-component nodes outside main graph, measured dynamically.
       .force("separate", () => {
         if (smallIds.size === 0) {
@@ -753,6 +931,127 @@ export default function SpecGraphD3({
       .curve(d3.curveBundle.beta(BUNDLE_BETA))
       .context(ctx);
 
+    // An edge into a ring-represented statement, or touching a collapsed leaf, never gets drawn.
+    function shouldSkipEdge(l: SimLink, collapsing: boolean): boolean {
+      const sId = idOf(l.source as string | SimNode);
+      const tId = idOf(l.target as string | SimNode);
+
+      if (l.kind === "in_spec" && ringPinned.has(tId)) {
+        return true;
+      }
+
+      return collapsing && (aggHidden.has(sId) || aggHidden.has(tId));
+    }
+
+    // Bundled cross-cutting edges follow their spine; everything else is a straight, ring-clipped segment.
+    function strokeEdge(l: SimLink, s: SimNode, t: SimNode): void {
+      const op = edgeOpacity(idOf(s), idOf(t));
+
+      if (op <= FADED) {
+        return;
+      }
+      ctx!.globalAlpha = op;
+      ctx!.strokeStyle = edgeColor;
+
+      const bundlePts = (l.controlIds ?? [])
+        .map((id) => nodeById.get(id))
+        .filter((n): n is SimNode => !!n)
+        .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
+
+      if (bundlePts.length > 2) {
+        ctx!.beginPath();
+        bundleLine(bundlePts);
+        ctx!.stroke();
+
+        return;
+      }
+      // Straight edge, clipped so it never crosses an open ring's interior.
+      const pieces = visibleSegments(pointOf(s), pointOf(t), ringDiscs);
+
+      ctx!.beginPath();
+      pieces.forEach((p) => {
+        ctx!.moveTo(p.a.x, p.a.y);
+        ctx!.lineTo(p.b.x, p.b.y);
+      });
+      ctx!.stroke();
+    }
+
+    function drawEdges(collapsing: boolean): void {
+      ctx!.lineWidth = 1.3 / transform.k;
+
+      for (const l of links) {
+        if (shouldSkipEdge(l, collapsing)) {
+          continue;
+        }
+        strokeEdge(l, l.source as SimNode, l.target as SimNode);
+      }
+    }
+
+    function shouldSkipLeaf(n: SimNode, collapsing: boolean): boolean {
+      if (!isLeafCanvas(n.type) || (collapsing && aggHidden.has(n.id))) {
+        return true;
+      }
+
+      return nodeOpacity(n.id) <= 0;
+    }
+
+    function drawLeafNode(n: SimNode): void {
+      ctx!.globalAlpha = nodeOpacity(n.id);
+      ctx!.fillStyle = canvasColorOf(n.type);
+      ctx!.beginPath();
+      ctx!.arc(n.x ?? 0, n.y ?? 0, radiusOf(n.type), 0, Math.PI * 2);
+      ctx!.fill();
+      ctx!.strokeStyle = surfaceColor;
+      ctx!.stroke();
+    }
+
+    function drawLeafNodes(collapsing: boolean): void {
+      ctx!.lineWidth = 1.5 / transform.k;
+
+      for (const n of nodes) {
+        if (!shouldSkipLeaf(n, collapsing)) {
+          drawLeafNode(n);
+        }
+      }
+    }
+
+    function drawBadge(badge: {
+      parentId: string;
+      type: SpecGraphNode["type"];
+      count: number;
+    }): void {
+      const parent = nodeById.get(badge.parentId);
+
+      if (!parent) {
+        return;
+      }
+      const screen = applyPoint(transform as ZoomTransform, {
+        x: parent.x ?? 0,
+        y: parent.y ?? 0,
+      });
+      const px = screen.x + radiusOf(parent.type) + 8;
+      const py = screen.y - radiusOf(parent.type);
+
+      ctx!.fillStyle = canvasColorOf(badge.type);
+      ctx!.beginPath();
+      ctx!.arc(px, py, 8, 0, Math.PI * 2);
+      ctx!.fill();
+      ctx!.fillStyle = badgeTextColor;
+      ctx!.fillText(String(badge.count), px, py + 0.5);
+    }
+
+    // Screen-space pass: count badges over collapsed parents (CSS pixels, zoom-readable).
+    function drawAggregationBadges(): void {
+      ctx!.save();
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx!.globalAlpha = 1;
+      ctx!.font = "600 10px sans-serif";
+      ctx!.textAlign = "center";
+      ctx!.textBaseline = "middle";
+      aggBadges.forEach(drawBadge);
+      ctx!.restore();
+    }
+
     function draw() {
       const collapsing = aggregating();
 
@@ -764,112 +1063,12 @@ export default function SpecGraphD3({
       ctx!.scale(dpr, dpr);
       ctx!.translate(transform.x, transform.y);
       ctx!.scale(transform.k, transform.k);
-
-      ctx!.lineWidth = 1.3 / transform.k;
-
-      for (const l of links) {
-        const s = l.source as SimNode;
-        const t = l.target as SimNode;
-        const sId = idOf(s);
-        const tId = idOf(t);
-
-        // Skip edges into a ring-represented statement or a collapsed leaf.
-        if (l.kind === "in_spec" && ringPinned.has(tId)) {
-          continue;
-        }
-
-        if (collapsing && (aggHidden.has(sId) || aggHidden.has(tId))) {
-          continue;
-        }
-        const op = edgeOpacity(sId, tId);
-
-        if (op <= FADED) {
-          continue;
-        }
-        ctx!.globalAlpha = op;
-        ctx!.strokeStyle = edgeColor;
-
-        const bundlePts = (l.controlIds ?? [])
-          .map((id) => nodeById.get(id))
-          .filter((n): n is SimNode => !!n)
-          .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
-
-        if (bundlePts.length > 2) {
-          ctx!.beginPath();
-          bundleLine(bundlePts);
-          ctx!.stroke();
-          continue;
-        }
-        // Straight edge, clipped so it never crosses an open ring's interior.
-        const pieces = visibleSegments(
-          { x: s.x ?? 0, y: s.y ?? 0 },
-          { x: t.x ?? 0, y: t.y ?? 0 },
-          ringDiscs,
-        );
-
-        ctx!.beginPath();
-        pieces.forEach((p) => {
-          ctx!.moveTo(p.a.x, p.a.y);
-          ctx!.lineTo(p.b.x, p.b.y);
-        });
-        ctx!.stroke();
-      }
-
-      ctx!.lineWidth = 1.5 / transform.k;
-
-      for (const n of nodes) {
-        if (!isLeafCanvas(n.type)) {
-          continue;
-        }
-
-        if (collapsing && aggHidden.has(n.id)) {
-          continue;
-        }
-        const op = nodeOpacity(n.id);
-
-        if (op <= 0) {
-          continue;
-        }
-        ctx!.globalAlpha = op;
-        ctx!.fillStyle = canvasColorOf(n.type);
-        ctx!.beginPath();
-        ctx!.arc(n.x ?? 0, n.y ?? 0, radiusOf(n.type), 0, Math.PI * 2);
-        ctx!.fill();
-        ctx!.strokeStyle = surfaceColor;
-        ctx!.stroke();
-      }
+      drawEdges(collapsing);
+      drawLeafNodes(collapsing);
       ctx!.restore();
 
-      // Screen-space pass: count badges over collapsed parents (CSS pixels, zoom-readable).
       if (collapsing) {
-        ctx!.save();
-        ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx!.globalAlpha = 1;
-        ctx!.font = "600 10px sans-serif";
-        ctx!.textAlign = "center";
-        ctx!.textBaseline = "middle";
-
-        aggBadges.forEach((badge) => {
-          const parent = nodeById.get(badge.parentId);
-
-          if (!parent) {
-            return;
-          }
-          const screen = applyPoint(transform as ZoomTransform, {
-            x: parent.x ?? 0,
-            y: parent.y ?? 0,
-          });
-          const px = screen.x + radiusOf(parent.type) + 8;
-          const py = screen.y - radiusOf(parent.type);
-
-          ctx!.fillStyle = canvasColorOf(badge.type);
-          ctx!.beginPath();
-          ctx!.arc(px, py, 8, 0, Math.PI * 2);
-          ctx!.fill();
-          ctx!.fillStyle = badgeTextColor;
-          ctx!.fillText(String(badge.count), px, py + 0.5);
-        });
-        ctx!.restore();
+        drawAggregationBadges();
       }
     }
 
@@ -1301,13 +1500,7 @@ export default function SpecGraphD3({
     update();
 
     // Restore expanded rings from last session and persist on layout cool for topology preservation.
-    for (const id of savedExpanded) {
-      const spec = nodeById.get(id);
-
-      if (spec) {
-        void toggleExpand(spec);
-      }
-    }
+    restoreExpandedRings(savedExpanded, nodeById, toggleExpand);
     sim.on("end", () => {
       saveState();
       measureCrossings();

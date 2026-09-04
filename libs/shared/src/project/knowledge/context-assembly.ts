@@ -968,14 +968,14 @@ async function fetchSectionSource(
   fetcher: SourceFetcher | undefined,
   ctx: {
     pool: PgPool;
-    dgraph: DgraphClientPort | null;
+    dgraph: DgraphClientPort | null | undefined;
     query: string;
     repo?: string;
     agentId?: string;
   },
 ): Promise<FetchResult> {
   if (source === "coupling") {
-    return fetchCouplingSource(ctx.dgraph, ctx.repo);
+    return fetchCouplingSource(ctx.dgraph ?? null, ctx.repo);
   }
 
   if (fetcher) {
@@ -983,6 +983,245 @@ async function fetchSectionSource(
   }
 
   return { sources: [], status: "error" };
+}
+
+interface FreshnessInfo {
+  state: string;
+  warning: string;
+}
+
+async function resolveFreshness(
+  pool: PgPool,
+  repo: string | undefined,
+): Promise<FreshnessInfo> {
+  if (!repo) {
+    return { state: "unknown", warning: "" };
+  }
+
+  try {
+    const { rows } = await pool.query<{
+      last_ingested_at: string | Date | null;
+    }>(`SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`, [repo]);
+
+    return freshnessForRepo(rows[0], new Date());
+  } catch {
+    return { state: "unknown", warning: "" };
+  }
+}
+
+function resolveEffectiveMax(
+  templateName: string,
+  maxTokens: number | undefined,
+): number {
+  return maxTokens ?? TEMPLATE_DEFAULT_BUDGETS[templateName] ?? 8000;
+}
+
+interface SectionFetchContext {
+  pool: PgPool;
+  dgraph: DgraphClientPort | null | undefined;
+  query: string;
+  repo?: string;
+  agentId?: string;
+}
+
+interface FetchedSection {
+  section: TemplateSection;
+  res: FetchResult;
+}
+
+/** Fetch every active section in parallel, timing each; a fetcher throwing counts as an empty error result rather than failing the whole assembly. */
+async function fetchAllSections(
+  activeSections: TemplateSection[],
+  ctx: SectionFetchContext,
+  timings: Record<string, number>,
+): Promise<FetchedSection[]> {
+  return Promise.all(
+    activeSections.map(async (section) => {
+      const t0 = Date.now();
+      const fetcher = fetchers[section.source];
+      let res: FetchResult;
+
+      try {
+        res = await fetchSectionSource(section.source, fetcher, ctx);
+      } catch {
+        res = { sources: [], status: "error" };
+      }
+      timings[section.source] = Date.now() - t0;
+
+      return { section, res };
+    }),
+  );
+}
+
+function computeNonEmptyWeight(fetched: FetchedSection[]): number {
+  return (
+    fetched
+      .filter((f) => f.res.sources.length > 0)
+      .reduce((sum, f) => sum + (6 - f.section.priority), 0) || 1
+  );
+}
+
+function buildSerializedSection(
+  section: TemplateSection,
+  fit: SectionFit,
+): SerializedSection {
+  return {
+    header: section.header,
+    source: section.source,
+    priority: section.priority,
+    documents: fit.keptItems,
+    truncated: fit.truncated,
+  };
+}
+
+interface SectionFitOutcome {
+  section: TemplateSection;
+  res: FetchResult;
+  fit: SectionFit;
+  deduped: SourceItem[];
+  rawTokens: number;
+}
+
+function buildTraceSection(outcome: SectionFitOutcome): TraceSection {
+  const { section, res, fit, deduped, rawTokens } = outcome;
+
+  return {
+    header: section.header,
+    source: section.source,
+    priority: section.priority,
+    status: res.status,
+    allocatedBudget: Number.isFinite(fit.allocatedBudget)
+      ? fit.allocatedBudget
+      : (section.max_tokens ?? 0),
+    rawTokens,
+    finalTokens: fit.finalTokens,
+    truncated: fit.truncated,
+    included: fit.included,
+    omitReason: fit.omitReason,
+    items: fit.included ? fit.keptItems : deduped,
+  };
+}
+
+interface AllocatedSections {
+  serialized: SerializedSection[];
+  traceSections: TraceSection[];
+}
+
+/** Allocate the token budget by priority (lower number = larger share), highest first, deducting as we go. A document is emitted in its highest-priority section only — no repeats across sections. */
+function allocateSections(
+  fetched: FetchedSection[],
+  minTokens: number,
+): AllocatedSections {
+  const nonEmptyWeight = computeNonEmptyWeight(fetched);
+  const ordered = [...fetched].sort(
+    (a, b) => a.section.priority - b.section.priority,
+  );
+
+  let remaining = minTokens;
+  const serialized: SerializedSection[] = [];
+  const traceSections: TraceSection[] = [];
+  const seenAcrossSections = new Set<string>();
+
+  for (const { section, res } of ordered) {
+    const deduped = dropSeen(dedupeItems(res.sources), seenAcrossSections);
+    const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
+    const fit = fitSection(deduped, res.status, section, {
+      remaining,
+      minTokens,
+      nonEmptyWeight,
+    });
+
+    if (fit.included) {
+      remaining -= fit.finalTokens;
+      serialized.push(buildSerializedSection(section, fit));
+    }
+
+    traceSections.push(
+      buildTraceSection({ section, res, fit, deduped, rawTokens }),
+    );
+  }
+
+  return { serialized, traceSections };
+}
+
+interface AssembledRefs {
+  factIds: string[];
+  memoryIds: string[];
+}
+
+const emptyAssembledRefs: AssembledRefs = { factIds: [], memoryIds: [] };
+
+/** Context refs for outcome feedback; a search failure is non-fatal — the assembly still returns without refs. */
+async function collectAssembledRefs(
+  pool: PgPool,
+  query: string,
+  agentId: string | undefined,
+): Promise<AssembledRefs> {
+  const factIds: string[] = [];
+  const memoryIds: string[] = [];
+
+  try {
+    const results = await searchMemories(pool, query, { agentId, limit: 20 });
+
+    collectContextRefIds(results, memoryIds, factIds);
+  } catch {
+    /* non-fatal */
+  }
+
+  return { factIds, memoryIds };
+}
+
+function applyContextRefs(result: AssembledResult, refs: AssembledRefs): void {
+  if (refs.factIds.length > 0 || refs.memoryIds.length > 0) {
+    result.context_refs = {
+      fact_ids: refs.factIds,
+      memory_ids: refs.memoryIds,
+    };
+  }
+}
+
+interface DebugTraceInput {
+  query: string;
+  templateName: string;
+  minTokens: number;
+  crossRepo: boolean | undefined;
+  template: Template;
+  traceSections: TraceSection[];
+  sections: { header: string; tokens: number; truncated: boolean }[];
+  freshness: FreshnessInfo;
+  startedAt: number;
+  timings: Record<string, number>;
+}
+
+function buildAssemblyTrace(input: DebugTraceInput): AssemblyTrace {
+  const used = input.sections.reduce((sum, s) => sum + s.tokens, 0);
+
+  return {
+    query: input.query,
+    template: input.templateName,
+    effectiveBudget: input.minTokens,
+    crossRepo: !!input.crossRepo,
+    templateSections: input.template.sections.map((s) => ({
+      header: s.header,
+      source: s.source,
+      priority: s.priority,
+      max_tokens: s.max_tokens,
+    })),
+    sections: input.traceSections,
+    budget: {
+      total: input.minTokens,
+      used,
+      leftover: Math.max(0, input.minTokens - used),
+    },
+    freshness: {
+      state: input.freshness.state,
+      message: input.freshness.warning.trim(),
+    },
+    timingsMs: {
+      total: Date.now() - input.startedAt,
+      perSource: input.timings,
+    },
+  };
 }
 
 export interface AssembleOptions {
@@ -1012,130 +1251,26 @@ export async function assembleContext(
 ): Promise<AssembledResult> {
   const startedAt = Date.now();
   const template = getTemplate(templateName);
-  const effectiveMax =
-    maxTokens ?? TEMPLATE_DEFAULT_BUDGETS[templateName] ?? 8000;
-  const minTokens = Math.max(effectiveMax, 2000);
-
-  // Check context freshness + first-run status
-  let freshnessWarning = "";
-  let freshnessState = "unknown";
-
-  if (repo) {
-    try {
-      const { rows } = await pool.query<{
-        last_ingested_at: string | Date | null;
-      }>(`SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`, [
-        repo,
-      ]);
-      const freshness = freshnessForRepo(rows[0], new Date());
-
-      freshnessState = freshness.state;
-      freshnessWarning = freshness.warning;
-    } catch {
-      /* non-fatal */
-    }
-  }
-
-  // Track assembled IDs for outcome feedback
-  const collectedFactIds: string[] = [];
-  const collectedMemoryIds: string[] = [];
+  const minTokens = Math.max(
+    resolveEffectiveMax(templateName, maxTokens),
+    2000,
+  );
+  const freshness = await resolveFreshness(pool, repo);
 
   // cross_repo is only consulted when explicitly requested.
   const activeSections = template.sections.filter(
     (s) => s.source !== "cross_repo" || crossRepo,
   );
-
-  // Fetch all sources in parallel, timing each.
   const timings: Record<string, number> = {};
-  const fetched = await Promise.all(
-    activeSections.map(async (section) => {
-      const t0 = Date.now();
-      const fetcher = fetchers[section.source];
-      let res: FetchResult;
-
-      try {
-        res = await fetchSectionSource(section.source, fetcher, {
-          pool,
-          dgraph: dgraph ?? null,
-          query,
-          repo,
-          agentId,
-        });
-      } catch {
-        res = { sources: [], status: "error" };
-      }
-      timings[section.source] = Date.now() - t0;
-
-      return { section, res };
-    }),
+  const fetched = await fetchAllSections(
+    activeSections,
+    { pool, dgraph, query, repo, agentId },
+    timings,
   );
-
-  // Allocate the token budget by priority (lower number = larger share), highest first, deducting as we go.
-  const nonEmptyWeight =
-    fetched
-      .filter((f) => f.res.sources.length > 0)
-      .reduce((sum, f) => sum + (6 - f.section.priority), 0) || 1;
-  const ordered = [...fetched].sort(
-    (a, b) => a.section.priority - b.section.priority,
-  );
-
-  let remaining = minTokens;
-  const serialized: SerializedSection[] = [];
-  const traceSections: TraceSection[] = [];
-  // A document is emitted in its highest-priority section only — no repeats across sections.
-  const seenAcrossSections = new Set<string>();
-
-  for (const { section, res } of ordered) {
-    const deduped = dropSeen(dedupeItems(res.sources), seenAcrossSections);
-    const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
-
-    const fit = fitSection(deduped, res.status, section, {
-      remaining,
-      minTokens,
-      nonEmptyWeight,
-    });
-
-    if (fit.included) {
-      remaining -= fit.finalTokens;
-      serialized.push({
-        header: section.header,
-        source: section.source,
-        priority: section.priority,
-        documents: fit.keptItems,
-        truncated: fit.truncated,
-      });
-    }
-
-    traceSections.push({
-      header: section.header,
-      source: section.source,
-      priority: section.priority,
-      status: res.status,
-      allocatedBudget: Number.isFinite(fit.allocatedBudget)
-        ? fit.allocatedBudget
-        : (section.max_tokens ?? 0),
-      rawTokens,
-      finalTokens: fit.finalTokens,
-      truncated: fit.truncated,
-      included: fit.included,
-      omitReason: fit.omitReason,
-      items: fit.included ? fit.keptItems : deduped,
-    });
-  }
-
-  // Collect context refs for outcome feedback
-  if (includeIds) {
-    try {
-      const results = await searchMemories(pool, query, {
-        agentId,
-        limit: 20,
-      });
-
-      collectContextRefIds(results, collectedMemoryIds, collectedFactIds);
-    } catch {
-      /* non-fatal */
-    }
-  }
+  const { serialized, traceSections } = allocateSections(fetched, minTokens);
+  const refs = includeIds
+    ? await collectAssembledRefs(pool, query, agentId)
+    : emptyAssembledRefs;
 
   // Build the final XML-tagged text.
   const body = serializeContext(
@@ -1143,50 +1278,29 @@ export async function assembleContext(
     serialized,
   );
   const text =
-    serialized.length > 0 ? freshnessWarning + body : freshnessWarning;
-
+    serialized.length > 0 ? freshness.warning + body : freshness.warning;
   const sections = serialized.map((s) => ({
     header: s.header,
     tokens: s.documents.reduce((sum, i) => sum + i.tokens, 0),
     truncated: s.truncated,
   }));
-
   const result: AssembledResult = { text, sections };
 
   if (debug) {
-    const used = sections.reduce((sum, s) => sum + s.tokens, 0);
-
-    result.trace = {
+    result.trace = buildAssemblyTrace({
       query,
-      template: templateName,
-      effectiveBudget: minTokens,
-      crossRepo: !!crossRepo,
-      templateSections: template.sections.map((s) => ({
-        header: s.header,
-        source: s.source,
-        priority: s.priority,
-        max_tokens: s.max_tokens,
-      })),
-      sections: traceSections,
-      budget: {
-        total: minTokens,
-        used,
-        leftover: Math.max(0, minTokens - used),
-      },
-      freshness: { state: freshnessState, message: freshnessWarning.trim() },
-      timingsMs: { total: Date.now() - startedAt, perSource: timings },
-    };
+      templateName,
+      minTokens,
+      crossRepo,
+      template,
+      traceSections,
+      sections,
+      freshness,
+      startedAt,
+      timings,
+    });
   }
-
-  if (
-    includeIds &&
-    (collectedFactIds.length > 0 || collectedMemoryIds.length > 0)
-  ) {
-    result.context_refs = {
-      fact_ids: collectedFactIds,
-      memory_ids: collectedMemoryIds,
-    };
-  }
+  applyContextRefs(result, refs);
 
   return result;
 }

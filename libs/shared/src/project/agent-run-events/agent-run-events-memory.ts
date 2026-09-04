@@ -1,3 +1,4 @@
+import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
 import type {
   AgentRunEventInsert,
   AgentRunEventNodeRef,
@@ -17,6 +18,72 @@ const byIdAscending = (a: AgentRunEventRow, b: AgentRunEventRow): number => {
 
   return left > right ? 1 : 0;
 };
+
+interface ResolvedNodeIdentity {
+  assemblyLineId: string | null;
+  stationRunId: string | null;
+  nodeId: string | null;
+  iteration: number | null;
+}
+
+const emptyNodeIdentity: ResolvedNodeIdentity = {
+  assemblyLineId: null,
+  stationRunId: null,
+  nodeId: null,
+  iteration: null,
+};
+
+const nodeIdentityFromCarried = (
+  carried: CarriedRunIdentity,
+): ResolvedNodeIdentity => ({
+  assemblyLineId: carried.assemblyRunId,
+  stationRunId: carried.stationRunId,
+  nodeId: carried.nodeId,
+  iteration: carried.iteration,
+});
+
+const nodeIdentityFromRef = (
+  node: AgentRunEventNodeRef | undefined,
+): ResolvedNodeIdentity => {
+  if (!node) {
+    return emptyNodeIdentity;
+  }
+
+  return {
+    assemblyLineId: node.assemblyLineId,
+    stationRunId: node.stationRunId ?? null,
+    nodeId: node.nodeId,
+    iteration: node.iteration,
+  };
+};
+
+interface NormalizedToolDefaults {
+  toolName: string | null;
+  toolUseId: string | null;
+}
+
+const normalizeToolDefaults = (
+  insert: AgentRunEventInsert,
+): NormalizedToolDefaults => ({
+  toolName: insert.toolName ?? null,
+  toolUseId: insert.toolUseId ?? null,
+});
+
+interface NormalizedEventDefaults {
+  isError: boolean;
+  filePaths: string[];
+  summary: string | null;
+  payload: Record<string, unknown>;
+}
+
+const normalizeEventDefaults = (
+  insert: AgentRunEventInsert,
+): NormalizedEventDefaults => ({
+  isError: insert.isError ?? false,
+  filePaths: [...(insert.filePaths ?? [])],
+  summary: insert.summary ?? null,
+  payload: insert.payload ?? {},
+});
 
 /** In-memory {@link AgentRunEventsRepository} with Pg-equivalent contract: write-time correlation (last node wins), ascending id capped reads, horizon pruning. Seed with registerNode; inject now for deterministic pruneOld. */
 export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
@@ -66,27 +133,19 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
     return deleted;
   }
 
+  // Stated beats inferred WHOLE — never one field from each.
   private persist(insert: AgentRunEventInsert): AgentRunEventRow {
-    // Stated beats inferred WHOLE — never one field from each.
-    const carried = insert.carried ?? undefined;
-    const inferred = carried ? undefined : this.correlate(insert.agentCrName);
-    const node = carried ?? inferred;
+    const identity = insert.carried
+      ? nodeIdentityFromCarried(insert.carried)
+      : nodeIdentityFromRef(this.correlate(insert.agentCrName));
     const row: AgentRunEventRow = {
       id: String(this.nextId++),
       taskId: insert.taskId,
       agentCrName: insert.agentCrName,
-      assemblyLineId:
-        carried?.assemblyRunId ?? inferred?.assemblyLineId ?? null,
-      stationRunId: node?.stationRunId ?? null,
-      nodeId: node?.nodeId ?? null,
-      iteration: node?.iteration ?? null,
       eventType: insert.eventType,
-      toolName: insert.toolName ?? null,
-      toolUseId: insert.toolUseId ?? null,
-      isError: insert.isError ?? false,
-      filePaths: [...(insert.filePaths ?? [])],
-      summary: insert.summary ?? null,
-      payload: insert.payload ?? {},
+      ...identity,
+      ...normalizeToolDefaults(insert),
+      ...normalizeEventDefaults(insert),
       createdAt: this.now(),
     };
 
