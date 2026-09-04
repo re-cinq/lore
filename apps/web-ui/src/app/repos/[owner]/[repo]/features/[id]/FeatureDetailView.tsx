@@ -104,7 +104,6 @@ export default function FeatureDetailView({
   del: () => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const onCreateDraft = (title: string, prompt: string) =>
     startTransition(() => split(title, prompt));
   const base = `/repos/${owner}/${repo}`;
@@ -142,68 +141,119 @@ export default function FeatureDetailView({
         </CollapsibleCard>
       )}
 
-      {/* Wizard stays mounted while lifecycle moves (including merged spec PR awaiting); only the line knows when to hand off. */}
-      {isLifecycleActive(feature.status) ? (
-        <PlanningWizard
-          owner={owner}
-          repo={repo}
-          feature={feature}
-          timeoutMinutes={timeoutMinutes}
-          refine={refine}
-          onFinalize={onCreateSpecFile}
-          onCreateDraft={onCreateDraft}
-          settledView={
-            <FinalizedView
-              owner={owner}
-              repo={repo}
-              feature={feature}
-              decomposition={decomposition}
-            />
-          }
-        />
-      ) : (
-        <FinalizedView
-          owner={owner}
-          repo={repo}
-          feature={feature}
-          decomposition={decomposition}
-        />
-      )}
+      <LifecycleBody
+        owner={owner}
+        repo={repo}
+        feature={feature}
+        timeoutMinutes={timeoutMinutes}
+        decomposition={decomposition}
+        refine={refine}
+        onCreateSpecFile={onCreateSpecFile}
+        onCreateDraft={onCreateDraft}
+      />
+      <DeleteFeature
+        title={feature.title}
+        pending={pending}
+        onDelete={() => startTransition(() => del())}
+      />
+    </div>
+  );
+}
 
-      <DangerZone description="Permanently delete this feature and all its planning rounds. This cannot be undone.">
-        {confirmingDelete ? (
-          <div className={styles.confirmRow}>
-            <span>
-              Delete &ldquo;{feature.title}&rdquo; and all its rounds?
-            </span>
-            <SubmitButton
-              type="button"
-              className="danger"
-              onClick={() => startTransition(() => del())}
-              pending={pending}
-              pendingLabel="Deleting…"
-            >
-              Confirm delete
-            </SubmitButton>
-            <SubmitButton
-              type="button"
-              onClick={() => setConfirmingDelete(false)}
-              pending={pending}
-            >
-              Cancel
-            </SubmitButton>
-          </div>
-        ) : (
+/** The wizard stays mounted while the lifecycle is still moving — including a merged spec PR awaiting decomposition — because only the line knows when to hand off to the finished view. */
+function LifecycleBody({
+  owner,
+  repo,
+  feature,
+  timeoutMinutes,
+  decomposition,
+  refine,
+  onCreateSpecFile,
+  onCreateDraft,
+}: {
+  owner: string;
+  repo: string;
+  feature: FeatureWithIterations;
+  timeoutMinutes: number;
+  decomposition: { stories: DecompStoryGroup[]; total: number };
+  refine: (
+    userAnswers: SectionAnswers,
+    fromIteration?: number,
+  ) => Promise<void>;
+  onCreateSpecFile: (userAnswers: SectionAnswers) => Promise<void>;
+  onCreateDraft: (title: string, prompt: string) => void;
+}) {
+  const finalized = (
+    <FinalizedView
+      owner={owner}
+      repo={repo}
+      feature={feature}
+      decomposition={decomposition}
+    />
+  );
+
+  if (!isLifecycleActive(feature.status)) {
+    return finalized;
+  }
+
+  return (
+    <PlanningWizard
+      owner={owner}
+      repo={repo}
+      feature={feature}
+      timeoutMinutes={timeoutMinutes}
+      refine={refine}
+      onFinalize={onCreateSpecFile}
+      onCreateDraft={onCreateDraft}
+      settledView={finalized}
+    />
+  );
+}
+
+/** Two-step by design: a feature carries every planning round it ever ran, and none of that comes back. */
+function DeleteFeature({
+  title,
+  pending,
+  onDelete,
+}: {
+  title: string;
+  pending: boolean;
+  onDelete: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  return (
+    <DangerZone description="Permanently delete this feature and all its planning rounds. This cannot be undone.">
+      {confirming ? (
+        <div className={styles.confirmRow}>
+          <span>Delete &ldquo;{title}&rdquo; and all its rounds?</span>
           <SubmitButton
             type="button"
             className="danger"
-            onClick={() => setConfirmingDelete(true)}
+            onClick={onDelete}
+            pending={pending}
+            pendingLabel="Deleting…"
+          >
+            Confirm delete
+          </SubmitButton>
+          <SubmitButton
+            type="button"
+            onClick={() => setConfirming(false)}
             pending={pending}
           >
-            Delete feature
+            Cancel
           </SubmitButton>
-        )}
-      </DangerZone>
-    </div>
+        </div>
+      ) : (
+        <SubmitButton
+          type="button"
+          className="danger"
+          onClick={() => setConfirming(true)}
+          pending={pending}
+        >
+          Delete feature
+        </SubmitButton>
+      )}
+    </DangerZone>
   );
 }
