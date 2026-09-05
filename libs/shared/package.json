@@ -110,7 +110,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run",
+    "test": "LORE_SKIP_DGRAPH_TESTS=1 vitest run",
+    "test:dgraph": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {

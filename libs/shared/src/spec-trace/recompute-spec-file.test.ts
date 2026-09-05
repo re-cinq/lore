@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { recomputeFile, sourceFromBlockRows } from "./recompute-spec-file.js";
 import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
+import { dgraphReachable } from "../lib/dgraph-test-gate.js";
 
 describe("sourceFromBlockRows (pure)", () => {
   it("returns null for zero rows (a never-projected document)", () => {
@@ -53,16 +54,6 @@ const APPLIER = join(
   "infra",
   "setup-spec-trace-schema.sh",
 );
-
-async function dgraphReachable(): Promise<boolean> {
-  try {
-    return (
-      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
-    ).ok;
-  } catch {
-    return false;
-  }
-}
 
 const reachable = await dgraphReachable();
 

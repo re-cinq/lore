@@ -7,6 +7,7 @@ import * as dgraph from "dgraph-js-http";
 import { driftCheckFile } from "./drift-check-file.js";
 import type { DriftedStatement } from "./format-drift-report.js";
 import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
+import { dgraphReachable } from "../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -18,16 +19,6 @@ const APPLIER = join(
 
 const pad768 = (head: number[]): number[] =>
   Object.assign(new Array(768).fill(0), head);
-
-async function dgraphReachable(): Promise<boolean> {
-  try {
-    return (
-      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
-    ).ok;
-  } catch {
-    return false;
-  }
-}
 
 const reachable = await dgraphReachable();
 
