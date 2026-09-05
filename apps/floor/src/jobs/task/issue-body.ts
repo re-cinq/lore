@@ -1,5 +1,6 @@
 /** Pure composition of a Lore-managed GitHub issue body; appended *after* the LLM copy pass, which compresses the body and strips trailers. */
 
+import { loreTaskRef } from "../lib/task-ref.js";
 import {
   isDriftTask,
   DRIFT_ISSUE_GUIDANCE,
@@ -28,15 +29,6 @@ interface MissingSymbolView {
   name?: string;
   kind?: string;
   description?: string;
-}
-
-/** Render the Lore-Task trailer as a link to the deployed task page, or bare. */
-export function loreTaskRef(taskId: string, uiUrl?: string): string {
-  if (!uiUrl) {
-    return taskId;
-  }
-
-  return `[${taskId}](${uiUrl.replace(/\/+$/, "")}/assembly-runs/${taskId})`;
 }
 
 function renderStatement(s: DriftStatementView): string {

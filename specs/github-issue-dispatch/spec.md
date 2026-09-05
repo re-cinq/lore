@@ -148,7 +148,7 @@ Defaults: label=`lore`, type=`general`.
 2. Task type determined from `lore:*` label variants
 3. Agent works on the task, creates PR linked to the issue
 4. Issue gets comment with task ID and PR link; `loreTaskRef` links the task uuid to its deployed
-   assembly-line page and trims a trailing slash on the UI url. ([validated by `issue-body.test.ts:11`](apps/floor/src/jobs/task/issue-body.test.ts#L11))
+   assembly-line page and trims a trailing slash on the UI url. ([validated by `task-ref.test.ts:11`](apps/floor/src/jobs/lib/task-ref.test.ts#L11))
 
 5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook.test.ts:43`](apps/lore-api/src/integration-tests/webhook.test.ts#L42))
 

@@ -271,7 +271,7 @@ and the webhook/verdict plumbing it rides on.
 
 1. `autoReviewEnabled` gates the whole loop on the per-repo `auto_review` setting: `true` only for
    the boolean `true`, `false` when the flag is absent, `false`, or the settings are null, and it
-   parses a JSON-string settings blob. ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/review/should-auto-review.test.ts#L5), [`should-auto-review.test.ts:9`](apps/floor/src/jobs/review/should-auto-review.test.ts#L9), [`should-auto-review.test.ts:15`](apps/floor/src/jobs/review/should-auto-review.test.ts#L15))
+   parses a JSON-string settings blob. ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/lib/should-auto-review.test.ts#L5), [`should-auto-review.test.ts:9`](apps/floor/src/jobs/lib/should-auto-review.test.ts#L9), [`should-auto-review.test.ts:15`](apps/floor/src/jobs/lib/should-auto-review.test.ts#L15))
 
 2. Bot loop guard: `isBotActor` is true only for `[bot]` logins; a bot-authored PR is skipped (Lore
    never double-reviews its own PRs) and the bot's own comment never starts a reply pass. ([validated by `code-review.test.ts:79`](apps/floor/src/jobs/review/code-review.test.ts#L88), [`code-review.test.ts:100`](apps/floor/src/jobs/review/code-review.test.ts#L100), [`code-review.test.ts:246`](apps/floor/src/jobs/review/code-review.test.ts#L246))

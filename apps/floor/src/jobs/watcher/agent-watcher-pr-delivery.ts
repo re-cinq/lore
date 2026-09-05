@@ -6,7 +6,7 @@ import { writeEpisodeWithCuration, errorMessage } from "@re-cinq/lore-shared";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import { prFooter, linkifyMarkdown } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
-import { shouldAutoReview } from "../review/should-auto-review.js";
+import { shouldAutoReview } from "../lib/should-auto-review.js";
 import {
   decideCiGate,
   decideFeatureLink,

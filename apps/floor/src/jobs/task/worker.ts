@@ -29,8 +29,8 @@ export { handleFeatureRequest } from "./handle-feature-request.js";
 export { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 export { handleOnboard } from "./handle-onboard.js";
 
-export { isFeatureLifecycleType } from "./task-lifecycle-type.js";
-import { isFeatureLifecycleType } from "./task-lifecycle-type.js";
+export { isFeatureLifecycleType } from "../lib/task-lifecycle-type.js";
+import { isFeatureLifecycleType } from "../lib/task-lifecycle-type.js";
 
 // ── Crash recovery ────────────────────────────────────────────────────
 

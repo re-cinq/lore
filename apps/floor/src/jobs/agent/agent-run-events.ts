@@ -6,6 +6,7 @@ import type {
   AgentRunEventInsert,
   AgentRunEventType,
 } from "@re-cinq/lore-shared";
+import { truncateForStorage } from "../lib/truncate-for-storage.js";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
 
 const SUMMARY_MAX_CHARS = 200;
@@ -23,17 +24,6 @@ const str = (value: unknown): string | null =>
 const num = (value: unknown): number => (typeof value === "number" ? value : 0);
 
 const cap = (text: string): string => text.slice(0, SUMMARY_MAX_CHARS);
-
-/** Byte-cap text with marker showing original size (not chars; prevents false completeness). */
-export function truncateForStorage(text: string, maxBytes: number): string {
-  const bytes = Buffer.from(text, "utf8");
-
-  if (bytes.byteLength <= maxBytes) {
-    return text;
-  }
-
-  return `${bytes.subarray(0, maxBytes).toString("utf8")}…[truncated, ${bytes.byteLength} bytes]`;
-}
 
 /** File paths named by a tool call's input, in key order, deduplicated. */
 export function filePathsFromToolInput(input: unknown): string[] {

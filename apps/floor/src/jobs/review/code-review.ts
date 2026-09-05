@@ -8,8 +8,8 @@ import type {
 import { REVIEW_HELP } from "@re-cinq/lore-shared/review/review-summary.js";
 import type { TriageAction } from "@re-cinq/lore-shared/review/comment-triage.js";
 import { projectFor } from "../../kernel/project-boot.js";
-import { shouldAutoReview } from "./should-auto-review.js";
-import { loreTaskRef } from "../task/issue-body.js";
+import { shouldAutoReview } from "../lib/should-auto-review.js";
+import { loreTaskRef } from "../lib/task-ref.js";
 import { reviewSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 
 import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
