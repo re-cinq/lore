@@ -22,6 +22,7 @@ import noNestedIf from "./rules/no-nested-if.mjs";
 import noNestedLoop from "./rules/no-nested-loop.mjs";
 import maxCommentLines from "./rules/max-comment-lines.mjs";
 import noVagueNames from "./rules/no-vague-names.mjs";
+import noCrossLayerImport from "./rules/no-cross-layer-import.mjs";
 import noReexportOnlyModule from "./rules/no-reexport-only-module.mjs";
 
 /**
@@ -38,6 +39,7 @@ export default {
     "no-nested-loop": noNestedLoop,
     "max-comment-lines": maxCommentLines,
     "no-vague-names": noVagueNames,
+    "no-cross-layer-import": noCrossLayerImport,
     "no-reexport-only-module": noReexportOnlyModule,
     "no-inline-styles": noInlineStyles,
     "require-fetch-timeout": requireFetchTimeout,

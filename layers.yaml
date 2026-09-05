@@ -1,0 +1,77 @@
+# The folder layering, enforced by `lore/no-cross-layer-import`.
+#
+# Each package maps a folder to the folders it may import. Four rules:
+#   1. A key matches the folder it names and everything under it; `*` is one segment.
+#   2. A folder may always import itself and its own descendants.
+#   3. It may import what its list names, and nothing else.
+#   4. The most specific matching key wins, so `jobs/lib` beats `jobs/*`.
+#
+# Sibling isolation needs no syntax: `jobs/*` lists `jobs/lib`, so `jobs/review`
+# reaches lib and itself while `jobs/merge` is simply not on the list.
+#
+# A package absent from this file is not checked, so packages join one at a
+# time. Inside a package that IS here, a folder with no entry may import
+# nothing — that is what stops the file rotting as folders are added.
+#
+# npm and `node:` specifiers are never governed; package.json owns those.
+
+layers:
+  # The Floor is three event-bus layers over a shared substrate (ADR-015):
+  # listeners write rows, the loop dispatches them, jobs handle them. `kernel`
+  # is the substrate and reaches nothing; `delivery` is the process entry tier,
+  # reachable only from index.ts because nothing else lists it.
+  apps/floor:
+    ".":
+      - delivery
+      - jobs
+      - kernel
+      - listeners
+      - main-loop
+      - "@re-cinq/lore-shared"
+    kernel:
+      - "@re-cinq/lore-shared"
+    listeners:
+      - kernel
+      - main-loop
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+    main-loop:
+      - jobs
+      - kernel
+      - listeners
+      - "@re-cinq/lore-shared"
+    composition:
+      - jobs
+      - kernel
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    delivery:
+      - composition
+      - jobs
+      - kernel
+      - listeners
+      - main-loop
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # The registry lives here, so the files directly under jobs/ wire handlers
+    # to the loop; the per-domain folders below are narrower.
+    jobs:
+      - jobs/lib
+      - kernel
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+      - "@re-cinq/lore-stations"
+    # A leaf: shared helpers for the job domains, never a domain itself.
+    jobs/lib:
+      - kernel
+      - "@re-cinq/lore-shared"
+    # One domain per folder: a domain reaches lib and the substrate, never a
+    # sibling domain, and never back up into the loop that dispatches it.
+    jobs/*:
+      - jobs/lib
+      - kernel
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+      - "@re-cinq/lore-stations"
