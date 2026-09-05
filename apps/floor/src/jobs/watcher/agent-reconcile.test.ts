@@ -5,12 +5,12 @@ const getById = vi.fn();
 const getLineById = vi.fn();
 const emitEvent = vi.fn();
 
-vi.mock("../kernel/queues.js", () => ({
+vi.mock("../../kernel/queues.js", () => ({
   clusterAgent: () => ({}),
   taskStore: () => ({ getById }),
   assemblyRuns: () => ({ getById: getLineById }),
 }));
-vi.mock("../kernel/event-store.js", () => ({
+vi.mock("../../kernel/event-store.js", () => ({
   emitEvent: (...args: unknown[]) => emitEvent(...args),
 }));
 const { forEachAgentPage, reconcileAgents } =

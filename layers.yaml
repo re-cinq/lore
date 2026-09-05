@@ -92,3 +92,104 @@ layers:
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
       - "@re-cinq/lore-stations"
+
+  # The event-router is the bus's sole writer (ADR-044). Its shape is already
+  # the one the Floor is being refactored towards: an entry, a delivery tier,
+  # and a substrate that reaches nothing above it.
+  apps/event-router:
+    ".":
+      - delivery
+      - "@re-cinq/lore-shared"
+    delivery:
+      - kernel
+      - "@re-cinq/lore-shared"
+    kernel:
+      - "@re-cinq/lore-shared"
+
+  # One cluster-agent per cluster: it watches Agent CRs and claims work. `kernel`
+  # currently reaches `delivery` and `reap`, which is the substrate importing
+  # upward — stated here as a leaf so the finding is visible rather than settled
+  # by writing the tangle down.
+  apps/cluster-agent:
+    ".":
+      - claim
+      - delivery
+      - inputs
+      - kernel
+      - listeners
+      - reap
+      - "@re-cinq/lore-shared"
+    kernel:
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+    listeners:
+      - kernel
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+    catalog:
+      - claim
+      - kernel
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+    claim:
+      - catalog
+      - kernel
+      - "@re-cinq/lore-shared"
+    inputs:
+      - kernel
+      - listeners
+      - "@re-cinq/lore-shared"
+    reap:
+      - claim
+      - kernel
+      - "@re-cinq/lore-shared"
+    delivery:
+      - kernel
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+
+  # The pooled station service. `kernel` reaches `delivery` and `stations` today,
+  # the same substrate-imports-upward shape as cluster-agent.
+  apps/stations:
+    ".":
+      - delivery
+      - drain
+      - kernel
+      - "@re-cinq/lore-shared"
+    kernel:
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    stations:
+      - kernel
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    drain:
+      - kernel
+      - stations
+      - "@re-cinq/lore-shared"
+    delivery:
+      - kernel
+      - "@re-cinq/lore-shared"
+    cli:
+      - stations
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+
+  # The light business logic both deployables import (ADR-032).
+  libs/server-core:
+    ".":
+      - platform
+    platform:
+      - "@re-cinq/lore-shared"
+    features:
+      - "."
+      - platform
+      - "@re-cinq/lore-shared"
+
+  libs/assembly-lines:
+    ".":
+      - relay
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    relay:
+      - "@re-cinq/lore-shared"

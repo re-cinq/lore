@@ -1,4 +1,5 @@
 // Turning a succeeded run with code changes into an open PR: changed-file count, PR body, cross-links, the auto-merge CI gate, and opt-in auto-review.
+import { cleanupPerTaskToken } from "../lib/per-task-token.js";
 import { startEscalationLine } from "@re-cinq/lore-shared/escalation/start-escalation-line.js";
 import { projectFor } from "../../kernel/project-boot.js";
 import { memoryLifecycle, pipeline, taskStore } from "../../kernel/queues.js";
@@ -15,7 +16,6 @@ import {
 } from "../lib/agent-watcher-logic.js";
 import {
   type AgentContext,
-  cleanupPerTaskToken,
   getIssueNumber,
   linkPrToIssue,
   notifyTaskUpdate,

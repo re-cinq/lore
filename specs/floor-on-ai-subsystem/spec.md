@@ -452,7 +452,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   pile-up size it was ~180 database round-trips and as many cluster-agent DELETEs nose-to-tail,
   long enough for a slow cluster-agent to make the tick overrun and be re-queued concurrently
   with itself. It also means one CR that cannot be reconciled no longer abandons the rest of
-  the sweep, which is the worst failure mode a safety net can have. ([validated by `agent-reconcile.test.ts:48`](apps/floor/src/listeners/agent-reconcile.test.ts#L48), [`agent-reconcile.test.ts:71`](apps/floor/src/listeners/agent-reconcile.test.ts#L71), [`agent-reconcile.test.ts:84`](apps/floor/src/listeners/agent-reconcile.test.ts#L84), [`agent-reconcile.test.ts:84`](apps/floor/src/listeners/agent-reconcile.test.ts#L84), [`agent-reconcile.test.ts:102`](apps/floor/src/listeners/agent-reconcile.test.ts#L102))
+  the sweep, which is the worst failure mode a safety net can have. ([validated by `agent-reconcile.test.ts:48`](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L48), [`agent-reconcile.test.ts:71`](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L71), [`agent-reconcile.test.ts:84`](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L84), [`agent-reconcile.test.ts:84`](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L84), [`agent-reconcile.test.ts:102`](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L102))
 - **Run-outcome mapping.** `runOutcomeFromTaskStatus` records the watcher's run outcome: `pr-created`
   and `review` → `pr_created`; `failed` and `needs-human-help` → `failed`; `completed` → `completed`;
   an un-advanced task on a `Failed` CR maps to `failed` (not completed) while a `Succeeded` CR maps to

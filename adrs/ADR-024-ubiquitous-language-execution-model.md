@@ -192,7 +192,7 @@ probe, the pod-log reads — where a caller genuinely has to ask.*
 The reconcile pass keeps paging, and its seam narrowed with the cut: it now
 depends on one page-fetch method rather than a slice of a Kubernetes client, so
 a test fakes the thing it actually needs.
-  ([validated by walks every page via the continue token and passes the page limit](apps/floor/src/listeners/agent-reconcile.test.ts#L48), [`agent-reconcile.test.ts:71`](apps/floor/src/listeners/agent-reconcile.test.ts#L71), [`agent-reconcile.test.ts:84`](apps/floor/src/listeners/agent-reconcile.test.ts#L84))
+  ([validated by walks every page via the continue token and passes the page limit](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L48), [`agent-reconcile.test.ts:71`](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L71), [`agent-reconcile.test.ts:84`](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L84))
 
 The Role this service carries also closes two gaps the Floor had been silently
 living with: it never held `delete` on `agents` or `agents/status`, yet issued
