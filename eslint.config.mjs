@@ -190,6 +190,13 @@ export default tseslint.config(
       // continues under a second filename and is still the public surface. One
       // carries an inline disable: a folder surface reached by `await import()`.
       "lore/no-reexport-only-module": "error",
+      // The layering lives in layers.yaml at the repo root, where it can be
+      // read as a statement of the architecture rather than inferred from
+      // imports. Only packages named there are checked, so this arrives one
+      // package at a time; apps/floor is first because its layering was
+      // already asserted by a hand-written domain-boundaries test, which this
+      // replaces. Starts at `warn` while that first entry settles.
+      "lore/no-cross-layer-import": "warn",
     },
   },
 

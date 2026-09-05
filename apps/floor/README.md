@@ -52,8 +52,9 @@ the work. Special citizens that can't nest under a layer: `src/index.ts` (the
 `dist/index.js` entry, may import anything); `kernel/` (substrate imported by
 all, importing nothing above it); `delivery/` (the `dist/delivery/*` deploy
 contract: job-runner, gen-catalog, the HTTP server); `composition/` (the wiring
-root). Boundaries
-enforced by [`src/domain-boundaries.test.ts`](./src/domain-boundaries.test.ts).
+root). Boundaries are declared in
+[`layers.yaml`](../../layers.yaml) and enforced by `lore/no-cross-layer-import`
+(ADR-036).
 
 ```
 src/
