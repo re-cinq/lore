@@ -266,7 +266,9 @@ created only via internal functions.
 Decision: named memory spaces — the `sharedWrite`/`sharedRead` pool functions
 exist in the implementation but are not exposed as MCP tools; the shipped
 surface is the `pool` field on `lore_write_memory` and the `pool` parameter on
-`lore_search_memory` for scoped search.
+`lore_search_memory` for scoped search. A scoped search resolves the pool by
+name first, and a name that matches no pool returns no results rather than
+falling back to an unscoped search. ([validated by `memory-search.test.ts:174`](libs/shared/src/project/knowledge/memory-search.test.ts#L174), [`memory-search.test.ts:164`](libs/shared/src/project/knowledge/memory-search.test.ts#L164))
 
 ### audit_log
 

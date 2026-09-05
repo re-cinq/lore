@@ -1,4 +1,4 @@
-import { resolveAgentId } from "../../platform/agent-id.js";
+import { resolveAgentId } from "@re-cinq/lore-shared";
 import { getMemoryPool } from "./memory.js";
 
 // Health + usage diagnostics (PostgreSQL-backed) for one agent's memory store.

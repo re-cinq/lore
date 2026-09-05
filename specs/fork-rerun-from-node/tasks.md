@@ -28,7 +28,7 @@ stated reason, then implement. One commit per task; the spec's
 ## Phase 4 — Floor integration
 
 - [x] T008 FR4 stamping — `apps/floor/src/jobs/assembly-run/start-event-handler.ts` stamps `definitionHash(definition)` when the definition resolves. Tests appended to `start-event-handler.test.ts`.
-- [x] T009 FR5 walk — `apps/floor/src/jobs/assembly-run/advance.ts` counts the inherited prefix in the branch-overlap guard, and a forked line advances to the cutoff node's successor. Tests appended to `advance.test.ts`.
+- [x] T009 FR5 walk — `apps/floor/src/jobs/assembly-run/advance-line.ts` counts the inherited prefix in the branch-overlap guard, and a forked line advances to the cutoff node's successor. Tests appended to `advance-line.test.ts`.
 
 ## Phase 5 — Close out
 

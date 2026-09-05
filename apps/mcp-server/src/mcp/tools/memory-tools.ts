@@ -1,6 +1,6 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
+import { resolveAgentId } from "@re-cinq/lore-shared";
 import {
   writeMemoryFile,
   readMemoryFile,

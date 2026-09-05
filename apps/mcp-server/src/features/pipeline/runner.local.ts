@@ -1,5 +1,6 @@
 // Local task runner: spawns headless Claude Code in isolated git worktrees using the developer's subscription (zero API cost). Implementation lives in runner-local-*.ts by job; this module re-exports the public surface unchanged.
 
+// eslint-disable-next-line lore/no-reexport-only-module -- the folder's lazy-loaded surface: ten call sites `await import()` this exact path to keep laptop-only code out of the agent build, and ten specs name it as the module.
 export {
   type LocalRunnerConfig,
   type LocalTask,

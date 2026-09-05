@@ -170,10 +170,13 @@ export default tseslint.config(
       "import-x/no-cycle": ["warn", { maxDepth: Infinity }],
       // The other half of that bargain: a size budget can be met by moving
       // every body out and leaving the exports, which satisfies the rule
-      // without deciding the module was the wrong shape. Two of the ten were
-      // made by the max-lines sweep that closed the queue above. `index.ts` and
-      // the Next App Router files are exempt — forwarding is their whole job.
-      "lore/no-reexport-only-module": "warn",
+      // without deciding the module was the wrong shape. Queue of 10 drained on
+      // 2026-09-05, so this is an error. Two were dead (nothing imported them),
+      // five were back-compat shims whose callers now name the real module, and
+      // `index-*.ts` joined the exemption — a barrel that outgrows `max-lines`
+      // continues under a second filename and is still the public surface. One
+      // carries an inline disable: a folder surface reached by `await import()`.
+      "lore/no-reexport-only-module": "error",
     },
   },
 

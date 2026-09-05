@@ -155,7 +155,7 @@ An implementation-loop run whose node has no capable cluster costs zero LLM re-r
 
 **Class**: behavior change. **Actor**: the ticket author (nothing burned, nothing blocked) and the operator (one notice). **Trigger**: `advanceLine` reaching a pod node. **Outcome**: no row minted; `assembly_runs.parked_reason` set; one notification per gate transition; on the next reaper re-drive after capacity returns, the row is minted and `parked_reason` cleared.
 
-**Path**: [advance.ts](apps/floor/src/jobs/assembly-run/advance.ts) `advanceLine` (new check right after the `llmGate` check, before `resolveNodeDispatch`) → `deps.capacity(requiredTags)` → park | fail | continue. Reaper's existing "running row, no open node → advanceLine" arm re-drives.
+**Path**: [advance-line.ts](apps/floor/src/jobs/assembly-run/advance-line.ts) `advanceLine` (new check right after the `llmGate` check, before `resolveNodeDispatch`) → `deps.capacity(requiredTags)` → park | fail | continue. Reaper's existing "running row, no open node → advanceLine" arm re-drives.
 
 **Rule** (three-way, from `capacityFor`):
 | verdict | action |

@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
-import { resolveAgentId } from "../../platform/agent-id.js";
+import { resolveAgentId } from "@re-cinq/lore-shared";
 
 // ── Paths ────────────────────────────────────────────────────────────
 

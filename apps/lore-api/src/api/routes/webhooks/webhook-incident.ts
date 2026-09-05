@@ -6,7 +6,7 @@ import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { formatZodError } from "../../../server/plugins/zod-validate.js";
-import { rawBody } from "../../../server/raw-body.js";
+import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 
 // Constant-time string compare; length-guarded since timingSafeEqual throws on unequal buffers.
 function safeEqual(a: string, b: string): boolean {

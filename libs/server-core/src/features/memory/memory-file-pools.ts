@@ -1,7 +1,7 @@
 // Shared-pool operations for the file-backed memory store (T025): cross-agent key/value pools under ~/.lore/memory/shared/<pool>/memories.json.
 
 import { join } from "node:path";
-import { resolveAgentId } from "../../platform/agent-id.js";
+import { resolveAgentId } from "@re-cinq/lore-shared";
 import {
   BASE_DIR,
   type MemoryRecord,

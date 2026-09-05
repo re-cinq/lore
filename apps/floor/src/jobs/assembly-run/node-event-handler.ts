@@ -7,7 +7,8 @@ import {
 } from "@re-cinq/lore-assembly-lines";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
-import { advanceLine, type AdvanceDeps } from "./advance.js";
+import { advanceLine } from "./advance-line.js";
+import type { AdvanceDeps } from "./advance-deps.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { isDeliveringRecipe } from "@re-cinq/lore-shared/task-types/delivering-recipes.js";
 import { agentCrVisible } from "./cr-visibility.js";
