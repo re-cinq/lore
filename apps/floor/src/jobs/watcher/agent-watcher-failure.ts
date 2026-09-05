@@ -6,7 +6,7 @@ import {
   isTransientInfraFailure,
   MAX_INFRA_RETRIES,
 } from "@re-cinq/lore-shared/k8s-pod-failure.js";
-import { taskPageUrl } from "./agent-watcher-logic.js";
+import { taskPageUrl } from "../lib/agent-watcher-logic.js";
 import {
   type AgentContext,
   commentFailureOnIssue,

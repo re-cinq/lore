@@ -1,5 +1,5 @@
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { taskPageUrl } from "../watcher/agent-watcher-logic.js";
+import { taskPageUrl } from "../lib/agent-watcher-logic.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /** Core task processing worker: polls pipeline.tasks, dispatches to the LLM, creates branches + PRs. */

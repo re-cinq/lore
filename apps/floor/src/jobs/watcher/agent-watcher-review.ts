@@ -6,7 +6,7 @@ import {
   buildReviewFixDescription,
   formatReviewFeedback,
 } from "@re-cinq/lore-shared";
-import { type ReviewResult } from "./agent-watcher-logic.js";
+import { type ReviewResult } from "../lib/agent-watcher-logic.js";
 import { type AgentContext, getIssueNumber } from "./agent-watcher-notify.js";
 
 async function completeApprovedReview(

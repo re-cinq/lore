@@ -5,7 +5,7 @@ import {
   isDriftTask,
   DRIFT_ISSUE_GUIDANCE,
   type DriftTaskLike,
-} from "../spec-trace/spec-drift/drift-issue-guidance.js";
+} from "../lib/drift-issue-guidance.js";
 
 export interface IssueComposeTask extends DriftTaskLike {
   id: string;

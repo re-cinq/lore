@@ -68,6 +68,7 @@ layers:
     # routing — the watcher and the wiring root are its only callers.
     jobs/lib:
       - kernel
+      - "@re-cinq/agent-contracts"
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
     # One domain per folder: a domain reaches lib and the substrate, never a
