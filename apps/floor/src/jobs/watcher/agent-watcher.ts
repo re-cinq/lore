@@ -10,7 +10,7 @@ import {
   dispatchFacts,
   stationOutcomeForRunOutcome,
   type AgentTerminalReport,
-} from "./agent-watcher-logic.js";
+} from "../lib/agent-watcher-logic.js";
 import {
   type AgentContext,
   cleanupPerTaskToken,

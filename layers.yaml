@@ -68,8 +68,21 @@ layers:
     # routing — the watcher and the wiring root are its only callers.
     jobs/lib:
       - kernel
+      - "@re-cinq/agent-contracts"
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
+    # The walk is a coordinator, not a peer (ADR-024): it sequences the domains
+    # and reacts to what a node finished with, so it posts a review, closes a
+    # loop run, settles a task. It may reach a sibling domain; the reverse stays
+    # forbidden by `jobs/*` below, which is what keeps this a tier rather than a
+    # free-for-all — a domain that needs the walk has the dependency backwards.
+    jobs/assembly-run:
+      - jobs
+      - kernel
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+      - "@re-cinq/lore-stations"
     # One domain per folder: a domain reaches lib and the substrate, never a
     # sibling domain, and never back up into the loop that dispatches it.
     jobs/*:

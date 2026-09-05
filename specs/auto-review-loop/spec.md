@@ -296,7 +296,7 @@ and the webhook/verdict plumbing it rides on.
 
 8. The watcher parses the agent's review verdict from stdout: `REVIEW_RESULT:APPROVED` → `approved`,
    `CHANGES_REQUESTED` (with trailing feedback) → `changes_requested`, and no marker or absent output
-   → undefined. ([validated by `agent-watcher-logic.test.ts:34`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L38), [`agent-watcher-logic.test.ts:43`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L43), [`agent-watcher-logic.test.ts:48`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L48), [`agent-watcher-logic.test.ts:208`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L208))
+   → undefined. ([validated by `agent-watcher-logic.test.ts:34`](apps/floor/src/jobs/lib/agent-watcher-logic.test.ts#L38), [`agent-watcher-logic.test.ts:43`](apps/floor/src/jobs/lib/agent-watcher-logic.test.ts#L43), [`agent-watcher-logic.test.ts:48`](apps/floor/src/jobs/lib/agent-watcher-logic.test.ts#L48), [`agent-watcher-logic.test.ts:208`](apps/floor/src/jobs/lib/agent-watcher-logic.test.ts#L208))
 
 
 

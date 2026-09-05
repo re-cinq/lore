@@ -10,7 +10,7 @@ import {
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { AgentCrStationBackend } from "./agent-cr-station-backend.js";
-import { agentTerminalReport } from "../watcher/agent-watcher-logic.js";
+import { agentTerminalReport } from "../lib/agent-watcher-logic.js";
 
 const TASK_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 

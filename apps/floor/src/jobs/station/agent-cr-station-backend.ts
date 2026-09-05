@@ -12,7 +12,7 @@ import {
 } from "@re-cinq/lore-shared/cluster/agent-backend.js";
 import { resolveRequiredTags } from "@re-cinq/lore-shared/project/cluster-agents/required-tags.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { boundedStationRunInput } from "../assembly-run/floor-assembly-run.js";
+import { boundedStationRunInput } from "./station-run-input.js";
 
 /** A task type runs on the assembly line when a builtin assembly line is defined for it. */
 export function shouldUseAssemblyLine(
