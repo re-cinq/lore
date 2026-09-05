@@ -8,7 +8,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
-import { rawBody } from "../../../server/raw-body.js";
+import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 const TaskTurnsParams = z.object({

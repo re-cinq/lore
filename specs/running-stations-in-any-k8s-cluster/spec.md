@@ -69,7 +69,7 @@ rather than smuggled through existing columns:
   default, and the backfill value for every existing row). `status` is
   meaningful only while `outcome IS NULL`; terminality stays exactly what it
   is today — a non-null `outcome` — so `nextTransition()`'s await logic
-  (`visits.some(v => v.outcome === null)`) is untouched. ([validated by `advance.test.ts:1599`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1599))
+  (`visits.some(v => v.outcome === null)`) is untouched. ([validated by `advance-line.test.ts:1005`](apps/floor/src/jobs/assembly-run/advance-line.test.ts#L1005))
 - `started_at` keeps its NOT NULL row-creation meaning (now: enqueue time).
   Execution timing moves to the new `claimed_at`: the reaper measures the
   node's `timeout_minutes` budget from `claimed_at`, never from `started_at`,
@@ -179,13 +179,13 @@ scoring.
   workloads central: ingest pods mount `LORE_INGEST_TOKEN`, which never
   ships to satellites, so satellites simply never register `node:ingest`
   (the first registered satellite legally drained the production ingest
-  queue into pods that could never start, #1576). ([validated by `required-tags.test.ts:9`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L9), [`required-tags.test.ts:15`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L15), [`required-tags.test.ts:26`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L26), [`advance.test.ts:1632`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1632))
+  queue into pods that could never start, #1576). ([validated by `required-tags.test.ts:9`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L9), [`required-tags.test.ts:15`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L15), [`required-tags.test.ts:26`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L26), [`advance-line.test.ts:1038`](apps/floor/src/jobs/assembly-run/advance-line.test.ts#L1038))
 - Assembly-line YAML nodes accept an optional `required_tags` list in the
   loader schema, added ON TOP of the type tag; an absent list inherits the
   repo-level default `settings.station_default_tags`, and an absent default
   adds nothing beyond the type tag. The default is applied at enqueue time,
   never baked into the parsed definition, so it stays out of
-  `definitionHash`. ([validated by `required-tags.test.ts:49`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L49), [`required-tags.test.ts:63`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L63), [validated by `loader.test.ts:1001`](libs/assembly-lines/src/loader.test.ts#L1023), [`loader.test.ts:1019`](libs/assembly-lines/src/loader.test.ts#L1041), [`loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1049), [`snapshot-graph.test.ts:88`](libs/assembly-lines/src/snapshot-graph.test.ts#L88), [`advance.test.ts:1657`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1657), [`required-tags.test.ts:33`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L33), [`required-tags.test.ts:41`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L41), [`required-tags.test.ts:49`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L49))
+  `definitionHash`. ([validated by `required-tags.test.ts:49`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L49), [`required-tags.test.ts:63`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L63), [validated by `loader.test.ts:1001`](libs/assembly-lines/src/loader.test.ts#L1023), [`loader.test.ts:1019`](libs/assembly-lines/src/loader.test.ts#L1041), [`loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1049), [`snapshot-graph.test.ts:88`](libs/assembly-lines/src/snapshot-graph.test.ts#L88), [`advance-line.test.ts:1063`](apps/floor/src/jobs/assembly-run/advance-line.test.ts#L1063), [`required-tags.test.ts:33`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L33), [`required-tags.test.ts:41`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L41), [`required-tags.test.ts:49`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L49))
 - Only a run whose stored `required_tags` are `{}` (rows enqueued before the
   type-tag invariant) is claimable by every registered cluster-agent. ([validated by `required-tags.test.ts:19`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L19))
 
@@ -203,7 +203,7 @@ one dispatch mechanism, not a special case plus a remote case.
   never become `queued` and are therefore never claimable. Arming is
   queued-only: a row another cluster has already claimed was handed its spec
   with the claim, so re-arming it would leave the row describing something
-  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1008), [`advance.test.ts:1599`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1599), [`advance.test.ts:1684`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1684), [`advance.test.ts:1697`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1697), [`advance.test.ts:1724`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1724))
+  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1008), [`advance-line.test.ts:1005`](apps/floor/src/jobs/assembly-run/advance-line.test.ts#L1005), [`advance-line.test.ts:1090`](apps/floor/src/jobs/assembly-run/advance-line.test.ts#L1090), [`advance-line.test.ts:1103`](apps/floor/src/jobs/assembly-run/advance-line.test.ts#L1103), [`advance-line.test.ts:1130`](apps/floor/src/jobs/assembly-run/advance-line.test.ts#L1130))
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,

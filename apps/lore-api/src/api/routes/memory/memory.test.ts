@@ -26,7 +26,7 @@ vi.mock("@re-cinq/lore-server-core/features/memory/memory-file.js", () => ({
   listMemoriesFile: vi.fn(),
   searchMemoryFile: vi.fn(),
 }));
-vi.mock("@re-cinq/lore-server-core/features/memory/memory-search.js", () => ({
+vi.mock("@re-cinq/lore-shared/project/knowledge/memory-search.js", () => ({
   searchMemories: vi.fn(),
 }));
 vi.mock("../../../features/memory/fact-extraction.js", () => ({
@@ -48,7 +48,7 @@ import {
   listMemoriesFile,
   searchMemoryFile,
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
-import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
+import { searchMemories } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
 import { extractFactsForMemory } from "../../../features/memory/fact-extraction.js";
 
 const originalEnv = { ...process.env };

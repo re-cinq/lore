@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { triggerAgentSpecTrace } from "../routes.js";
+import { triggerAgentSpecTrace } from "./helpers.js";
 
 function recordingPool() {
   const calls: Array<{ text: string; params: unknown[] }> = [];

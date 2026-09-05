@@ -18,8 +18,8 @@ import {
   listMemoriesFile,
   searchMemoryFile,
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
-import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
-import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
+import { searchMemories } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
+import { resolveAgentId } from "@re-cinq/lore-shared";
 import { extractFactsForMemory } from "../../../features/memory/fact-extraction.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";

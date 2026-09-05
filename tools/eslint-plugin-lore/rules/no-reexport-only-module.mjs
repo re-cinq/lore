@@ -22,17 +22,15 @@
  * path; forwarding the component is the only body they can have. Add more
  * escape hatches with `{ allow: ["public-api.ts"] }`, matched against the
  * file's basename or the tail of its path.
+ *
+ * The index exemption covers `index-*.ts` too. A barrel that outgrows
+ * `max-lines` has to continue somewhere, and those halves are the same public
+ * surface under a second filename — not a module hiding its body.
  */
 
-const DEFAULT_ALLOW = [
-  "index.ts",
-  "index.tsx",
-  "index.mjs",
-  "index.js",
-  "page.tsx",
-  "layout.tsx",
-  "route.ts",
-];
+const INDEX_CONTINUATION = /^index([-.].*)?\.(ts|tsx|mts|cts|js|mjs|cjs)$/;
+
+const DEFAULT_ALLOW = ["page.tsx", "layout.tsx", "route.ts"];
 
 function isReexport(statement) {
   if (statement.type === "ExportAllDeclaration") return true;
@@ -47,6 +45,8 @@ function isNeutral(statement) {
 
 function isExempt(filename, allow) {
   const normalized = filename.replace(/\\/g, "/");
+  const basename = normalized.slice(normalized.lastIndexOf("/") + 1);
+  if (INDEX_CONTINUATION.test(basename)) return true;
   return allow.some(
     (entry) => normalized === entry || normalized.endsWith(`/${entry}`),
   );

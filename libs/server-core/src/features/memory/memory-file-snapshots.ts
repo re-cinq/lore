@@ -2,7 +2,7 @@
 
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { resolveAgentId } from "../../platform/agent-id.js";
+import { resolveAgentId } from "@re-cinq/lore-shared";
 import {
   agentDir,
   memoriesPath,

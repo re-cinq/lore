@@ -7,7 +7,8 @@ import {
 import type { ClusterAgent } from "@re-cinq/lore-shared/models/cluster-agent.js";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { advanceLine, finishLine } from "./advance.js";
+import { advanceLine } from "./advance-line.js";
+import { finishLine } from "./finish-line.js";
 import type { NodeEventDeps } from "./node-event-handler.js";
 import { reapGraphlessRun } from "./graphless-run-sweep.js";
 import {

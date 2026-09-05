@@ -1,5 +1,5 @@
 import type { PgPool } from "@re-cinq/lore-shared";
-import { resolveAgentId } from "../../platform/agent-id.js";
+import { resolveAgentId } from "@re-cinq/lore-shared";
 import {
   getMemoryPool,
   runInTransaction,

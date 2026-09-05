@@ -1,6 +1,6 @@
 // Cross-key reads over the file-backed memory store: paginated listing and case-insensitive substring search.
 
-import { resolveAgentId } from "../../platform/agent-id.js";
+import { resolveAgentId } from "@re-cinq/lore-shared";
 import {
   memoriesPath,
   isExpired,

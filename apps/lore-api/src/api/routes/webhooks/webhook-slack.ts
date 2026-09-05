@@ -10,7 +10,7 @@ import type {
 } from "@hapi/hapi";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { rawBody } from "../../../server/raw-body.js";
+import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 
 /** Constant-time HMAC compare for the Slack `v0=…` signature. */
 // Slack renders this body as-is (response_type + text or blocks format).

@@ -2,7 +2,7 @@
 
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { finishLine } from "./advance.js";
+import { finishLine } from "./finish-line.js";
 import { decideNodeRecovery } from "./node-recovery-decision.js";
 import {
   runOutcomeFromTaskStatus,

@@ -10,11 +10,9 @@ import {
   loadBuiltinAssemblyLines,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
-import {
-  advanceLine,
-  finishNodeAndAdvance,
-  type AdvanceDeps,
-} from "./advance.js";
+import { advanceLine } from "./advance-line.js";
+import { finishNodeAndAdvance } from "./finish-node.js";
+import type { AdvanceDeps } from "./advance-deps.js";
 import { createStartEventHandler } from "./start-event-handler.js";
 import {
   createNodeEventHandler,

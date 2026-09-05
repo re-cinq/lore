@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { triggerAgentSpecCoverageValidate } from "../routes.js";
+import { triggerAgentSpecCoverageValidate } from "./helpers.js";
 
 function recordingPool() {
   const calls: Array<{ text: string; params: unknown[] }> = [];

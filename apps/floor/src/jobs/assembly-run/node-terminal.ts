@@ -9,7 +9,8 @@ import {
 } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { finishNodeAndAdvance, type AdvanceDeps } from "./advance.js";
+import { finishNodeAndAdvance } from "./finish-node.js";
+import type { AdvanceDeps } from "./advance-deps.js";
 import { budgetSkipBody } from "@re-cinq/lore-shared/review/review-summary.js";
 import { usage } from "../../kernel/queues.js";
 import { publishPrCheck } from "./pr-check.js";

@@ -328,9 +328,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L177))
 - publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L188))
 
-### `apps/floor/src/jobs/assembly-run/advance.test.ts`
+### `apps/floor/src/jobs/assembly-run/advance-line.test.ts`
 
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/jobs/assembly-run/advance.test.ts#L1120))
+- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/jobs/assembly-run/advance-line.test.ts#L823))
 
 ### `apps/floor/src/jobs/merge/auto-merge.test.ts`
 

@@ -15,7 +15,7 @@ import {
   stationQueueWaitMs,
 } from "./assembly-run-reaper.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
-import { advanceLine } from "./advance.js";
+import { advanceLine } from "./advance-line.js";
 
 const line: AssemblyLine = parseAssemblyLine(`
 name: code-review

@@ -33,6 +33,14 @@ ruleTester.run("no-reexport-only-module", rule, {
       filename: "app/repos/features/new/page.tsx",
     },
     {
+      code: `export * from "./spec-summary.js";`,
+      filename: "libs/shared/src/index-spec-content.ts",
+    },
+    {
+      code: `export { a } from "./a.js";`,
+      filename: "src/index-trace.mts",
+    },
+    {
       code: `export { a } from "./a.js";`,
       filename: "public-api.ts",
       options: [{ allow: ["public-api.ts"] }],

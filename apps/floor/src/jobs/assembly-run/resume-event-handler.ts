@@ -14,7 +14,7 @@ const OUTCOMES: ReadonlySet<string> = new Set<StageOutcome>([
 
 export interface ResumeEventHandlerDeps {
   assemblyRuns: Pick<AssemblyRunsPort, "mergeArgs">;
-  /** Record the node's outcome and advance — the shared path (advance.ts). */
+  /** Record the node's outcome and advance — the shared path (finish-node.ts). */
   finishNodeAndAdvance: (input: {
     assemblyLineId: string;
     nodeId: string;
@@ -124,7 +124,7 @@ export const assemblyLineResume: EventHandler = async (params) => {
   const [{ pipeline }, { finishNodeAndAdvance }, { productionNodeEventDeps }] =
     await Promise.all([
       import("../../kernel/queues.js"),
-      import("./advance.js"),
+      import("./finish-node.js"),
       import("./node-event-handler.js"),
     ]);
 
