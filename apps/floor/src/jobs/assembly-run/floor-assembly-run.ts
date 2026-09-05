@@ -5,6 +5,10 @@ import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { serializeStationInput } from "@re-cinq/lore-shared/station-input.js";
 import { builtinStationName } from "@re-cinq/lore-assembly-lines";
 import { truncateForStorage } from "../lib/truncate-for-storage.js";
+import {
+  boundedStationRunInput,
+  INPUT_PARAM_MAX_BYTES,
+} from "../station/station-run-input.js";
 import type { StationRunInput } from "@re-cinq/lore-shared/models/station-run.js";
 import {
   ASSEMBLY_RUN_ID_LABEL,
@@ -109,9 +113,6 @@ export function stationNodeParams(
 }
 
 /** Write-time caps for the recorded input, generous enough to hold a real prompt whole but bounded so one visit can't dominate the table. */
-const INPUT_DESCRIPTION_MAX_BYTES = 4_096;
-const INPUT_PROMPT_MAX_BYTES = 16_384;
-const INPUT_PARAM_MAX_BYTES = 1_024;
 
 /** What this visit was dispatched with, bounded for storage — recorded because the Agent CR is pruned after the run. `context` is deliberately absent (assembled later, far larger). */
 export function stationRunInputFor(
@@ -138,29 +139,6 @@ export function stationRunInputFor(
       ref: cloneRef(task),
     }),
     params,
-  };
-}
-
-/** The same write-time caps for a visit with no graph node (single-CR tasks like runbook/onboard/review), shared with {@link stationRunInputFor}. */
-export function boundedStationRunInput(input: {
-  description: string;
-  prompt: string | null;
-  repo: string;
-  ref: string;
-}): StationRunInput {
-  return {
-    description: truncateForStorage(
-      input.description,
-      INPUT_DESCRIPTION_MAX_BYTES,
-    ),
-    prompt:
-      input.prompt === null
-        ? null
-        : truncateForStorage(input.prompt, INPUT_PROMPT_MAX_BYTES),
-    // An agent visit runs a prompt, not a command.
-    params: null,
-    repo: input.repo,
-    ref: input.ref,
   };
 }
 

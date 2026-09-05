@@ -19,6 +19,7 @@ export default defineConfig({
         "src/jobs/assembly-run/assembly-run-station-backend.ts",
         "src/jobs/assembly-run/spec-pr.ts",
         "src/jobs/station/agent-cr-station-backend.ts",
+        "src/jobs/station/station-run-input.ts",
         "src/jobs/lib/agent-watcher-logic.ts",
       ],
       thresholds: {
