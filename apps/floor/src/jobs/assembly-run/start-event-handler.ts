@@ -206,7 +206,7 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
     const [{ pipeline }, { projectFor }, { publishPrCheck }] =
       await Promise.all([
         import("../../kernel/queues.js"),
-        import("../../composition/project-boot.js"),
+        import("../../kernel/project-boot.js"),
         import("./pr-check.js"),
       ]);
     const row = await pipeline().assemblyRuns.getById(assemblyLineId);

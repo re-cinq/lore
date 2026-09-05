@@ -1,6 +1,6 @@
 // A review Agent's terminal verdict driving the iteration-capped auto-fix loop on the parent implementation task.
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { pipeline, taskStore } from "../../kernel/queues.js";
 import {
   buildReviewFixDescription,

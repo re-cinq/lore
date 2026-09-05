@@ -2,7 +2,7 @@
 import type { ReadySpecTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 
 import { anthropicCreditsExhausted } from "@re-cinq/lore-shared/llm/credit-probe.js";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
 import { pipeline } from "../../kernel/queues.js";
 import { setStatus, insertEvent } from "./task-helpers.js";

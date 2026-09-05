@@ -14,7 +14,7 @@ import type { AdvanceDeps } from "./advance-deps.js";
 import { budgetSkipBody } from "@re-cinq/lore-shared/review/review-summary.js";
 import { usage } from "../../kernel/queues.js";
 import { publishPrCheck } from "./pr-check.js";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { writeAuditLog } from "../lib/audit.js";
 import {
   prNumberFromRow,

@@ -3,7 +3,7 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
-import { projectFor } from "../../../composition/project-boot.js";
+import { projectFor } from "../../../kernel/project-boot.js";
 import { startReview } from "../../../jobs/review/code-review.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 

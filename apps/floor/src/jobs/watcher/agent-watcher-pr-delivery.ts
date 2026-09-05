@@ -1,6 +1,6 @@
 // Turning a succeeded run with code changes into an open PR: changed-file count, PR body, cross-links, the auto-merge CI gate, and opt-in auto-review.
 import { startEscalationLine } from "@re-cinq/lore-shared/escalation/start-escalation-line.js";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { memoryLifecycle, pipeline, taskStore } from "../../kernel/queues.js";
 import { writeEpisodeWithCuration, errorMessage } from "@re-cinq/lore-shared";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";

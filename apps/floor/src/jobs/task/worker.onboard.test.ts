@@ -35,7 +35,7 @@ const query = vi.fn();
 const writeEpisode = vi.fn();
 const writeAuditLog = vi.fn();
 
-vi.mock("../../composition/project-boot.js", () => ({
+vi.mock("../../kernel/project-boot.js", () => ({
   projectFor: async () => fakeProject,
 }));
 vi.mock("../lib/audit.js", () => ({

@@ -2,7 +2,7 @@
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-requests.js";
 import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { pipeline, settings } from "../../kernel/queues.js";
 
 /** PR coordinates for one task id (the auto-merge policy lookup). */

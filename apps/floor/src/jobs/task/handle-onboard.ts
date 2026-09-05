@@ -2,7 +2,7 @@
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { writeEpisode } from "@re-cinq/lore-shared";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { memoryLifecycle, settings } from "../../kernel/queues.js";
 import { fetchRepoContext } from "./repo-context.js";
 import {

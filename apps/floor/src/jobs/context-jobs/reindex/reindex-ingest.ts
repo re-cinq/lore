@@ -1,7 +1,7 @@
 // Per-file ingest primitives: resolve a repo's team schema, read its tree/changed files, and chunk+embed+store one file.
 
 import { errorMessage } from "@re-cinq/lore-shared";
-import { projectFor } from "../../../composition/project-boot.js";
+import { projectFor } from "../../../kernel/project-boot.js";
 import { chunks, settings } from "../../../kernel/queues.js";
 import {
   chunkFile,

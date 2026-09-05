@@ -1,6 +1,7 @@
 /** Generic batch-job entrypoint for K8s CronJob pods (ADR-019): `node dist/job-runner.js <jobName>` runs one job, captures stdout/stderr to GCS, records the run in pipeline.job_runs, exits 0/non-zero on outcome. */
 
 import { initPool } from "../kernel/db.js";
+import { wireProject } from "../composition/project-boot.js";
 import { usage } from "../kernel/queues.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { contextCoreBuilderJob } from "../jobs/context-jobs/context-core-builder/index.js";
@@ -96,6 +97,7 @@ export async function runJobByName(jobName: string): Promise<number> {
   }
 
   initPool();
+  wireProject();
   Llm.configure({ usage: usage() });
   // Jobs reach GitHub/repo via the project facade, which builds its adapter from env on demand — no startup wiring needed.
 

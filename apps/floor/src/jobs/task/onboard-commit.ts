@@ -8,7 +8,7 @@ import {
   TRACE_IMPACT_WORKFLOW_PATH,
   TRACE_IMPACT_WORKFLOW_CONTENT,
 } from "@re-cinq/lore-shared";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import type { TaskHandlerInput } from "./task-handler-input.js";
 import { ONBOARD_STATIC_FILES } from "./onboard-content.js";
 import { summarizeFailures, TaskFailure } from "@re-cinq/lore-shared";

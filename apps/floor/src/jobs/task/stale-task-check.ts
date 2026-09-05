@@ -1,6 +1,6 @@
 /** Stale-task safety net (6h threshold): moves stuck-running tasks to needs-human-help, consulting open lines first. */
 
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { pipeline, taskStore } from "../../kernel/queues.js";
 import type { StaleTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 

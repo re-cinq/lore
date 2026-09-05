@@ -1,12 +1,12 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { buildServer } from "../server.js";
 import { startReview } from "../../../jobs/review/code-review.js";
-import { projectFor } from "../../../composition/project-boot.js";
+import { projectFor } from "../../../kernel/project-boot.js";
 
 vi.mock("../../../jobs/review/code-review.js", () => ({
   startReview: vi.fn(),
 }));
-vi.mock("../../../composition/project-boot.js", () => ({
+vi.mock("../../../kernel/project-boot.js", () => ({
   projectFor: vi.fn(async () => ({})),
 }));
 

@@ -3,7 +3,7 @@
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { reviewRunMarker, type ReviewPoster } from "../review/post-review.js";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 
 // Prompt refs whose nodes emit the REVIEW_FINDINGS + REVIEW_RESULT contract: the deep review on PR open and the fast re-check on every push, both posted through the same path.
 export const REVIEW_PROMPT_REFS = new Set([
