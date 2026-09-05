@@ -14,6 +14,7 @@ import {
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
 import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
+import { dgraphReachable } from "../lib/dgraph-test-gate.js";
 
 describe("selectPruneCandidates", () => {
   const inScope = (path: string) => path.startsWith("specs/");
@@ -64,16 +65,6 @@ const APPLIER = join(
   "infra",
   "setup-spec-trace-schema.sh",
 );
-
-async function dgraphReachable(): Promise<boolean> {
-  try {
-    return (
-      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
-    ).ok;
-  } catch {
-    return false;
-  }
-}
 
 const reachable = await dgraphReachable();
 

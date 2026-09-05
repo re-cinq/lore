@@ -93,6 +93,26 @@ jobs:
         run: npx vitest run --root libs/shared src/project/assembly-runs/assembly-runs.contract.test.ts
 
 
+      # The live-Dgraph suites moved here from the pr-checks `shared` matrix
+      # entry: ~two dozen of them share ONE graph, and a leftover chunk in the
+      # shared vector index changes another suite's ANN top-k. Isolating them
+      # keeps that race off the unit matrix without going back to green-by-skip.
+      - name: Start Dgraph
+        run: docker run -d --name lore-dgraph -p 8081:8080 dgraph/standalone:v24.0.0
+
+      - name: Apply Dgraph schema
+        run: |
+          for _ in $(seq 1 60); do
+            curl -sf http://localhost:8081/health >/dev/null && break
+            sleep 2
+          done
+          curl -sf http://localhost:8081/health >/dev/null \
+            || { echo "::error::Dgraph never became healthy on :8081"; docker logs lore-dgraph; exit 1; }
+          npm run dgraph:schema
+
+      - name: Run live-Dgraph suites
+        run: npm run test:dgraph -w @re-cinq/lore-shared
+
       - name: Run integration tests
         working-directory: apps/lore-api
         env:

@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import * as dgraph from "dgraph-js-http";
 import { backfillMemoryToDgraph } from "./backfill-memory.js";
 import { parseEmbedding, cosineSimilarity } from "./spec-judge.js";
+import { dgraphReachable } from "./lib/dgraph-test-gate.js";
 
 const PG_CONFIG = {
   host: "localhost",
@@ -23,16 +24,6 @@ async function pgReachable(): Promise<boolean> {
     await probe.end();
 
     return true;
-  } catch {
-    return false;
-  }
-}
-
-async function dgraphReachable(): Promise<boolean> {
-  try {
-    return (
-      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
-    ).ok;
   } catch {
     return false;
   }

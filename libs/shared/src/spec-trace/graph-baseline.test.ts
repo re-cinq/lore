@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { readGraphBaseline, stampGraphBaseline } from "./graph-baseline.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
+import { dgraphReachable } from "../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -14,16 +15,6 @@ const APPLIER = join(
   "infra",
   "setup-spec-trace-schema.sh",
 );
-
-async function dgraphReachable(): Promise<boolean> {
-  try {
-    return (
-      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
-    ).ok;
-  } catch {
-    return false;
-  }
-}
 
 const reachable = await dgraphReachable();
 

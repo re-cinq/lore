@@ -8,6 +8,7 @@ import { projectSpecFile } from "./project-spec-file.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 import { driftCheckFile } from "./drift-check-file.js";
 import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
+import { dgraphReachable } from "../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -16,16 +17,6 @@ const APPLIER = join(
   "infra",
   "setup-spec-trace-schema.sh",
 );
-
-async function dgraphReachable(): Promise<boolean> {
-  try {
-    return (
-      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
-    ).ok;
-  } catch {
-    return false;
-  }
-}
 
 const reachable = await dgraphReachable();
 

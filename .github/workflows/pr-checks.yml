@@ -85,10 +85,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # 17 files / 130 tests self-skip unless a Dgraph answers on :8081, so the
-          # whole spec-traceability graph walk was green-by-skip in CI until now.
+          # Unit only: `npm test` sets LORE_SKIP_DGRAPH_TESTS=1, so the 19 live
+          # suites sit out. They are NOT skipped away — they run in
+          # test-integration.yml against its own Dgraph, where ~two dozen suites
+          # sharing one graph cannot flake this matrix.
           - name: shared
-            dgraph: true
             test: npm test -w @re-cinq/lore-shared
           # The assembly-lines kernel imports compiled @re-cinq/lore-shared (via subpaths),
           # so shared must be built before its suite runs.

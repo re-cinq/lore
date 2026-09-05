@@ -2,18 +2,9 @@ import { describe, it, expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { DgraphMemoryStore } from "./dgraph-memory-store.js";
+import { dgraphReachable } from "./lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
-
-async function dgraphReachable(): Promise<boolean> {
-  try {
-    return (
-      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
-    ).ok;
-  } catch {
-    return false;
-  }
-}
 
 const reachable = await dgraphReachable();
 

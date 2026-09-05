@@ -12,6 +12,7 @@ import {
 } from "./dgraph-upsert.js";
 import { enforceTrue } from "../lib/enforce.js";
 import type { DgraphClientPort, DgraphTxn } from "../memory-store.js";
+import { dgraphReachable } from "../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -20,16 +21,6 @@ const APPLIER = join(
   "infra",
   "setup-spec-trace-schema.sh",
 );
-
-async function dgraphReachable(): Promise<boolean> {
-  try {
-    return (
-      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
-    ).ok;
-  } catch {
-    return false;
-  }
-}
 
 const reachable = await dgraphReachable();
 
