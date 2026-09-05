@@ -20,6 +20,17 @@ const FLOOR = {
 
 const opts = [FLOOR];
 
+const ALIASED = {
+  layers: {
+    "apps/web-ui": {
+      lib: ["components"],
+      components: [],
+      app: ["lib", "components"],
+    },
+  },
+  aliases: { "apps/web-ui": { "@/": "" } },
+};
+
 ruleTester.run("no-cross-layer-import", rule, {
   valid: [
     {
@@ -75,6 +86,18 @@ ruleTester.run("no-cross-layer-import", rule, {
       code: `import { x } from "./delivery/http/server.js";`,
       filename: "apps/floor/src/index.ts",
       options: opts,
+    },
+    {
+      name: "an aliased import its list names is allowed",
+      code: `import { x } from "@/components/Card";`,
+      filename: "apps/web-ui/src/lib/github.ts",
+      options: [ALIASED],
+    },
+    {
+      name: "an alias pointing inside the importer's own layer is free",
+      code: `import { x } from "@/lib/github";`,
+      filename: "apps/web-ui/src/lib/api/client.ts",
+      options: [ALIASED],
     },
     {
       name: "a nested folder inherits its parent key rather than falling through",
@@ -157,6 +180,13 @@ ruleTester.run("no-cross-layer-import", rule, {
       code: `import { x } from "../../merge/auto-merge.js";`,
       filename: "apps/floor/src/jobs/review/helpers/parse.ts",
       options: opts,
+      errors: [{ messageId: "notAllowed" }],
+    },
+    {
+      name: "an aliased import is governed like a relative one",
+      code: `import { x } from "@/lib/db";`,
+      filename: "apps/web-ui/src/components/Panel.tsx",
+      options: [ALIASED],
       errors: [{ messageId: "notAllowed" }],
     },
     {

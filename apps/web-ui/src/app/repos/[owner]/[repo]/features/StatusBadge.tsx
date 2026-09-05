@@ -1,6 +1,6 @@
 "use client";
 
-import { statusBadge } from "./feature-status";
+import { statusBadge } from "@/lib/feature-status";
 import type { FeatureStatus } from "@/lib/feature-types";
 
 export default function StatusBadge({ status }: { status: FeatureStatus }) {

@@ -211,3 +211,45 @@ layers:
       - "@re-cinq/lore-shared"
     relay:
       - "@re-cinq/lore-shared"
+
+  # The stdio MCP adapter (ADR-032): it holds no pool, so every folder above
+  # `features` is transport and the data work is a proxy call.
+  apps/mcp-server:
+    ".":
+      - server
+      - "@re-cinq/lore-server-core"
+    server:
+      - mcp
+    mcp:
+      - features
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    features:
+      - platform
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    platform:
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+
+  # The Next app. `lib` is the data and pure-logic tier, `components` the shared
+  # presentational atoms, `app` the routes that compose them. Today all three
+  # import each other; stated one-way so the cycle is a finding rather than a
+  # description.
+  apps/web-ui:
+    lib:
+      - "@re-cinq/lore-shared"
+    components:
+      - lib
+      - "@re-cinq/lore-shared"
+    app:
+      - components
+      - lib
+      - "@re-cinq/lore-shared"
+
+# A package that imports through a tsconfig path alias needs it declared, or the
+# rule sees a bare specifier and skips it — 639 of web-ui's imports look like
+# `@/lib/x`, so without this the package would be adopted and unchecked.
+aliases:
+  apps/web-ui:
+    "@/": ""

@@ -2,7 +2,7 @@
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeRunState, initialRunState } from "@/lib/run-event-reducer";
 import type { RunData } from "@/lib/graph-view-model";
-import { isTerminalRunStatus } from "./run-stream-presenter";
+import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
 
 /** Run data exists once the walk visited a node (persisted row or left-idle live stream); "Show possible outcomes" flips to definition view without disturbing it. */
 export function participated(state: NodeRunState): boolean {

@@ -11,7 +11,7 @@ import {
   resolveStreamMode,
   type ChipState,
   type ConnectionState,
-} from "./run-stream-presenter";
+} from "@/lib/run-stream-presenter";
 import { useRunEventStream } from "./useRunEventStream";
 
 interface HistoryPage {

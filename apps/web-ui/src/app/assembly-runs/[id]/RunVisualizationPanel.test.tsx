@@ -5,7 +5,7 @@ import RunVisualizationPanel from "./RunVisualizationPanel";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import { codeReviewDefinition } from "@/lib/definition-fixtures";
-import { HISTORY_PAGE_LIMIT } from "./run-stream-presenter";
+import { HISTORY_PAGE_LIMIT } from "@/lib/run-stream-presenter";
 
 const definition: AssemblyLineDefinition = {
   name: "implementation",

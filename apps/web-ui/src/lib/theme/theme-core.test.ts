@@ -6,7 +6,7 @@ import {
   parseSchemePref,
   resolveColorScheme,
 } from "./theme-core";
-import { ICONS } from "@/components/icon-map";
+import { ICONS } from "@/lib/icon-map";
 
 describe("resolveColorScheme", () => {
   it("returns light when pref light regardless of system", () => {

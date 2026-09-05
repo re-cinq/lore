@@ -13,7 +13,7 @@ import {
   toUserAnswers,
   type FeedbackState,
 } from "./GapSections";
-import { isPlanningActive } from "../feature-status";
+import { isPlanningActive } from "@/lib/feature-status";
 import { isRewind, rewindOptions } from "@/lib/round-picker";
 import { featurePhaseOf } from "@/lib/feature-phase";
 import { useFeaturePlanningPoll } from "./useFeaturePlanningPoll";

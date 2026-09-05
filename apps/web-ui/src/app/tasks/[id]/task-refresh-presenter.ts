@@ -3,7 +3,7 @@
 import {
   isTerminalRunStatus,
   type ConnectionState,
-} from "@/app/assembly-runs/[id]/run-stream-presenter";
+} from "@/lib/run-stream-presenter";
 
 /** The one coordinated cadence that replaced the panels' 5s/10s/15s intervals. */
 export const COORDINATED_POLL_MS = 10_000;

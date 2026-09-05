@@ -6,8 +6,8 @@ import {
   parseRunStreamEvent,
   type RunStreamEvent,
 } from "@/lib/run-stream-types";
-import type { ConnectionState } from "./run-stream-presenter";
-import { reconnectAction, streamUrl } from "./run-stream-presenter";
+import type { ConnectionState } from "@/lib/run-stream-presenter";
+import { reconnectAction, streamUrl } from "@/lib/run-stream-presenter";
 
 export interface RunEventStreamOptions {
   runId: string;

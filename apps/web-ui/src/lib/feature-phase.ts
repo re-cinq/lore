@@ -3,7 +3,7 @@
 import type { AssemblyRunNode } from "./assembly-runs";
 import type { FeatureStatus } from "./feature-types";
 import { humanStation } from "./human-station";
-import { isPlanningActive } from "@/app/repos/[owner]/[repo]/features/feature-status";
+import { isPlanningActive } from "@/lib/feature-status";
 
 /** Node currently working, with start time for elapsed timer. */
 interface Working {

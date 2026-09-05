@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import RunningCard from "./RunningCard";
 import SpecPrCard from "./SpecPrCard";
 import DecompositionProgressCard from "./DecompositionProgressCard";
-import { isPlanningActive } from "../feature-status";
+import { isPlanningActive } from "@/lib/feature-status";
 import { featurePhaseOf } from "@/lib/feature-phase";
 import type { FeaturePollPayload } from "@/lib/feature-poll";
 
