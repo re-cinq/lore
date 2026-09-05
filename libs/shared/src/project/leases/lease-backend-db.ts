@@ -6,7 +6,7 @@ import {
   type LeaseBackend,
   type AcquireResult,
   type ExpiredLease,
-} from "./lease-backends.js";
+} from "./lease-port.js";
 
 /** Whether a write actually touched a row — `rowCount` is `null` for statements that never report a count. */
 function hadEffect(result: { rowCount: number | null }): boolean {

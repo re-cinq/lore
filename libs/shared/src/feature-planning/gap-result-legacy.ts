@@ -11,7 +11,7 @@ import {
   parseQuestion,
   type GapMockup,
   type GapSection,
-} from "./gap-result.js";
+} from "./gap-result-primitives.js";
 
 // Legacy (pre-dynamic-sections) shapes, kept only to normalize old stored results into `sections`.
 export interface ArchitectureComponent {

@@ -189,8 +189,8 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     ...stationDataRoutes(),
     traceAdrsRoute(),
     traceSpecsRoute(),
-    openApiJsonRoute(getPool),
-    docsRoute(getPool),
+    openApiJsonRoute(getPool, routeList),
+    docsRoute(getPool, routeList),
     ...featuresRoutes(getPool),
     ...implementationLoopRoutes(getPool),
   ];

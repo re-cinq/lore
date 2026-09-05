@@ -1,9 +1,9 @@
 import type { TracePort } from "./trace-port.js";
+import type { TraceDocument } from "../../spec-trace/assemble-trace-document.js";
 import type {
-  TraceDocument,
   SpecSummary,
   AdrSummary,
-} from "../../spec-trace/assemble-trace-document.js";
+} from "../../spec-trace/trace-document-listing.js";
 import type { SpecGraph, SpecRing } from "../../spec-trace/spec-graph.js";
 
 /** Spec-traceability graph view; graph is source of truth, not Postgres chunk store. */

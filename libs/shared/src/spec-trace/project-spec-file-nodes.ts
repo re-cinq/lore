@@ -18,7 +18,7 @@ import {
   sha256,
   vectorLiteral,
   type ProjectionContext,
-} from "./project-spec-file.js";
+} from "./project-spec-file-context.js";
 
 /** Upserts the Feature node for this spec's owning folder, returning its uid for `Spec.feature` (undefined for a root-level spec with no feature folder). */
 export async function projectFeature(

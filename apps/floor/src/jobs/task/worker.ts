@@ -29,10 +29,8 @@ export { handleFeatureRequest } from "./handle-feature-request.js";
 export { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 export { handleOnboard } from "./handle-onboard.js";
 
-/** Feature lifecycle types: each runs its own assembly line regardless of dark-factory and opens no per-task Issue (decompose files its own per story). */
-export function isFeatureLifecycleType(taskType: string): boolean {
-  return taskType === "feature-planning" || taskType === "feature-decompose";
-}
+export { isFeatureLifecycleType } from "./task-lifecycle-type.js";
+import { isFeatureLifecycleType } from "./task-lifecycle-type.js";
 
 // ── Crash recovery ────────────────────────────────────────────────────
 

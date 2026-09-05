@@ -10,7 +10,7 @@ import {
   readJson,
   writeJson,
   appendAudit,
-} from "./memory-file.js";
+} from "./memory-file-core.js";
 
 function sharedPoolDir(pool: string): string {
   return join(BASE_DIR, "shared", pool);

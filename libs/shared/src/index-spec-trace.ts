@@ -27,6 +27,14 @@ export {
 export { pruneTestFiles } from "./spec-trace/prune-test-files.js";
 export {
   assembleTraceDocument,
+  type TraceDocument,
+  type TraceStatement,
+  type TraceSection,
+  type TraceLinkRef,
+  type TraceCoverage,
+  type StatementState as TraceStatementState,
+} from "./spec-trace/assemble-trace-document.js";
+export {
   fetchTraceDocument,
   listSpecDocuments,
   listAdrDocuments,
@@ -36,13 +44,7 @@ export {
   listAdrSummaries,
   type SpecSummary,
   type AdrSummary,
-  type TraceDocument,
-  type TraceStatement,
-  type TraceSection,
-  type TraceLinkRef,
-  type TraceCoverage,
-  type StatementState as TraceStatementState,
-} from "./spec-trace/assemble-trace-document.js";
+} from "./spec-trace/trace-document-listing.js";
 export {
   fetchSpecGraph,
   fetchSpecRing,

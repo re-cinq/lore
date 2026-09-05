@@ -1,8 +1,8 @@
+import type { TraceDocument } from "../../spec-trace/assemble-trace-document.js";
 import type {
-  TraceDocument,
   SpecSummary,
   AdrSummary,
-} from "../../spec-trace/assemble-trace-document.js";
+} from "../../spec-trace/trace-document-listing.js";
 import type { SpecGraph, SpecRing } from "../../spec-trace/spec-graph.js";
 
 /** Seam between Project facade and spec-traceability graph (Dgraph, source of truth). */

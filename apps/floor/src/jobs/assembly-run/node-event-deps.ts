@@ -15,11 +15,7 @@ import {
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
-import type { EventHandler } from "../../main-loop/types.js";
-import {
-  createNodeEventHandler,
-  type NodeEventDeps,
-} from "./node-event-handler.js";
+import type { NodeEventDeps } from "./node-event-handler.js";
 
 /** Reads a terminal comment-triage node's classified action and starts the routed follow-up line; best-effort, never fails the walk. */
 async function routeCommentTriage(
@@ -269,10 +265,3 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     },
   };
 }
-
-/** Composed production handler for the registry (both node-terminal events). */
-export const agentNodeTerminal: EventHandler = async (params) => {
-  const handler = createNodeEventHandler(await productionNodeEventDeps());
-
-  return handler(params);
-};

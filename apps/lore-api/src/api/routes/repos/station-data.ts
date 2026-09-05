@@ -11,12 +11,14 @@ import {
   openLikeTasksRoute,
   createRepoTaskRoute,
 } from "./station-task-routes.js";
+import { repoOf, fail } from "./station-helpers.js";
 
 export {
   driftTasksRoute,
   openLikeTasksRoute,
   createRepoTaskRoute,
 } from "./station-task-routes.js";
+export { repoOf, fail } from "./station-helpers.js";
 
 const IssueBody = z.object({
   title: z.string(),
@@ -69,13 +71,6 @@ const OkSchema = z.object({ ok: z.literal(true) });
 const CiConclusionSchema = z.object({
   conclusion: z.enum(["success", "failure", "pending", "none"]),
 });
-
-export const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
-
-export const fail = (h: import("@hapi/hapi").ResponseToolkit, err: unknown) =>
-  h
-    .response({ error: err instanceof Error ? err.message : String(err) })
-    .code(500);
 
 export function stationDataRoutes(): ServerRoute[] {
   return [

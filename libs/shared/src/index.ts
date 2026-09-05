@@ -6,27 +6,23 @@ export {
   listTasks as listPipelineTasks,
   recordEvent as recordTaskEvent,
   setTaskStatus,
-  updateTaskStatus,
   cancelTask as cancelPipelineTask,
   escalateTask as escalatePipelineTask,
   reviseTask as revisePipelineTask,
   markTaskMerged,
-  type CreateTaskInput,
-  type CreatedTask,
-  type RetriedTask,
-  type PipelineTaskRow,
   type TaskListRow,
 } from "./pipeline-tasks.js";
-// "./pipeline-task-actions.js"'s retryTask/cancelTask/escalateTask/reviseTask/markTaskMerged and "./pipeline-task-status.js"'s setTaskStatus/setTaskStatusIf/ALLOWED_TASK_COLUMNS are already re-exported above via pipeline-tasks.js.
+// "./pipeline-task-actions.js" and "./pipeline-task-status.js" ride through pipeline-tasks.js/pipeline-task-core.js re-exports above.
+export * from "./pipeline-task-core.js";
 export { enforceRepoTrustForTaskType } from "./pipeline-task-trust.js";
 export {
   chunkFile,
   buildIngestedChunkMetadata,
   CHUNKER_VERSION,
-  type Chunk,
 } from "./chunker.js";
 export * from "./chunker-symbols.js";
 export * from "./chunker-ast.js";
+export * from "./chunk-primitives.js";
 export { redactSecrets } from "./redact.js";
 export {
   tokenSecretKey,
@@ -166,6 +162,9 @@ export {
   memoryStore,
   setMemoryStore,
   selectMemoryStore,
+} from "./memory-store.js";
+// MemoryRecord is deliberately not re-exported here: project/index.js already exports an unrelated MemoryRecord (memory-port.ts).
+export {
   hasConnect,
   type MemoryStore,
   type MemoryTxClient,
@@ -173,7 +172,7 @@ export {
   type PgPool,
   type DgraphClientPort,
   type DgraphTxn,
-} from "./memory-store.js";
+} from "./memory-store-types.js";
 export { PostgresMemoryStore } from "./postgres-memory-store.js";
 export { ShadowMemoryStore } from "./shadow-memory-store.js";
 export { DgraphMemoryStore, type GraphHop } from "./dgraph-memory-store.js";

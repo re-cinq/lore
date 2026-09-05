@@ -12,7 +12,7 @@ import {
   type IngestGraphSummary,
   type IngestKind,
   type IngestKindDef,
-} from "./ingest-graph-task.js";
+} from "./ingest-graph-registry.js";
 
 /** Per-repo override of which files become specs/adrs; sibling of `.lore/test-commands.yml`. */
 const INGEST_MANIFEST_PATH = ".lore/ingest.yml";

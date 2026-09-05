@@ -1,6 +1,5 @@
 /** Phase 1 projection unit: projects one spec file into the Dgraph traceability graph (Repo/Spec/Section/Statement/TestChunk/CodeChunk/AcceptanceCriterion/Block), gated by a `Spec.content_hash` freshness check. */
 
-import { createHash } from "node:crypto";
 import type { SourceDocument } from "./project-blocks.js";
 import {
   segmentStatements,
@@ -17,28 +16,18 @@ import {
   projectBlocks,
   projectStatements,
 } from "./project-spec-file-nodes.js";
+import {
+  sha256,
+  type EmbedFn,
+  type ProjectionContext,
+} from "./project-spec-file-context.js";
 
-/** Embeds a statement/criterion's text into its node's float32vector; injected as a seam so projection stays deterministic + offline in tests. */
-export type EmbedFn = (text: string) => Promise<number[] | null>;
-
-/** Dgraph float32vector literal: the array serialized as a `"[a,b,c]"` string. */
-export function vectorLiteral(vector: number[]): string {
-  return `[${vector.join(",")}]`;
-}
-
-/** Fixed addressing context for one spec-file projection, threaded into each per-facet projector instead of a four-arg prefix. */
-export interface ProjectionContext {
-  dgraph: DgraphClientPort;
-  repo: string;
-  filePath: string;
-  specUid: string;
-  embed: EmbedFn;
-}
-
-/** Hex sha256 — the content-hash idiom shared by Spec, Statement, and AcceptanceCriterion nodes. */
-export function sha256(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
-}
+export {
+  type EmbedFn,
+  vectorLiteral,
+  type ProjectionContext,
+  sha256,
+} from "./project-spec-file-context.js";
 
 /** The spec's first H1 heading text (the title a sentence-link's `<spec>` segment matches), or null. */
 function extractTitle(content: string): string | null {

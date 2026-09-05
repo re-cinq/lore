@@ -107,19 +107,6 @@ export interface TraceDocumentResult {
   q?: SpecRow[];
 }
 
-export {
-  listSpecDocuments,
-  listAdrDocuments,
-  listAdrSummaries,
-  listAllSpecDocuments,
-  listAllAdrDocuments,
-  fetchTraceDocument,
-  listSpecSummaries,
-  type AdrSummary,
-  type GlobalDocEntry,
-  type SpecSummary,
-} from "./trace-document-listing.js";
-
 export function basename(path: string): string {
   return path.split("/").pop() ?? path;
 }

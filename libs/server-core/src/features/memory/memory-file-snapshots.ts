@@ -11,7 +11,7 @@ import {
   readJson,
   writeJson,
   appendAudit,
-} from "./memory-file.js";
+} from "./memory-file-core.js";
 
 // The on-disk snapshot file shape; snake_case mirrors memory.snapshots' raw pg-row output (models/snapshot.ts).
 // eslint-disable-next-line lore/no-row-types-outside-models

@@ -7,14 +7,16 @@ import { parse } from "yaml";
 import {
   parseTestDescriptors,
   parseRunResult,
-  substituteSelector,
-  resolveTestCommandManifest,
-  groupRunsByFile,
-  mapWithLimit,
   type TestDescriptor,
   type RunResult,
+} from "../../test-report.js";
+import {
+  substituteSelector,
+  resolveTestCommandManifest,
   type TestCommandManifest,
-} from "../../index.js";
+} from "../../test-command-manifest.js";
+import { groupRunsByFile } from "../../spec-trace/trace-descriptors.js";
+import { mapWithLimit } from "../../concurrency/map-with-limit.js";
 import type { TestRunnerPort, TestRunReport } from "./test-runner-port.js";
 
 const execShell = promisify(exec);

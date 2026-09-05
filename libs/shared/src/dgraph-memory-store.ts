@@ -5,7 +5,7 @@ import type {
   MemoryRecord,
   MemoryStore,
   WriteResult,
-} from "./memory-store.js";
+} from "./memory-store-types.js";
 import type { MemorySearchResult } from "./memory-ranking.js";
 import type { GraphHop } from "./dgraph-graph-hops.js";
 import * as memoryCrud from "./dgraph-memory-crud.js";

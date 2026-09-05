@@ -1,39 +1,29 @@
-import { hasConnect } from "@re-cinq/lore-shared";
 import type { PgPool } from "@re-cinq/lore-shared";
 // PostgreSQL-backed memory CRUD: write/read/delete/list against memory.memories, memory.memory_versions, and memory.audit_log, using the same pool-injection pattern as db.ts.
 
 import { resolveAgentId } from "@re-cinq/lore-shared";
+import {
+  getMemoryPool,
+  toEmbeddingParam,
+  runInTransaction,
+  auditLog,
+  type WriteResult,
+  type MemoryWriteInput,
+} from "./memory-core.js";
 
-// ── Pool management ──────────────────────────────────────────────────
-
-let pool: PgPool | null = null;
-
-export function getMemoryPool(): PgPool | null {
-  return pool;
-}
-
-export function setMemoryPool(p: PgPool | null): void {
-  pool = p;
-}
-
-export function isMemoryDbAvailable(): boolean {
-  return pool !== null;
-}
-
-// ── Types ────────────────────────────────────────────────────────────
-
-export interface WriteResult {
-  key: string;
-  version: number;
-  agent_id: string;
-  created_at: string;
-}
+// Pool management + shared write/tx primitives live in memory-core.ts, re-exported for import-path back-compat.
+export {
+  getMemoryPool,
+  setMemoryPool,
+  isMemoryDbAvailable,
+  toEmbeddingParam,
+  runInTransaction,
+  auditLog,
+  type WriteResult,
+  type MemoryWriteInput,
+} from "./memory-core.js";
 
 // ── Write ────────────────────────────────────────────────────────────
-
-export function toEmbeddingParam(embedding?: number[]): string | null {
-  return embedding ? `[${embedding.join(",")}]` : null;
-}
 
 interface MemoryLookup {
   field: string;
@@ -124,43 +114,6 @@ async function insertVersionRecord(
   );
 }
 
-export interface MemoryWriteInput {
-  key: string;
-  value: string;
-  agentId?: string;
-  ttl?: number;
-  embedding?: number[];
-  repo?: string;
-}
-
-// The memories row and its version row must land together — prod ran for months with sequential writes leaving version-less memories behind (#1154); hasConnect feature-detects connect(), a pool without it keeps the plain sequential path.
-export async function runInTransaction<T>(
-  db: PgPool,
-  work: (tx: Pick<PgPool, "query">) => Promise<T>,
-): Promise<T> {
-  if (!hasConnect(db)) {
-    return work(db);
-  }
-
-  const client = await db.connect();
-
-  try {
-    await client.query("BEGIN");
-
-    const result = await work(client);
-
-    await client.query("COMMIT");
-
-    return result;
-  } catch (err) {
-    // Best-effort: the connection may already be dead, and that failure must not mask the original error.
-    await client.query("ROLLBACK").catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
 export async function writeMemory({
   key,
   value,
@@ -170,7 +123,7 @@ export async function writeMemory({
   repo,
 }: MemoryWriteInput): Promise<WriteResult> {
   const agent = resolveAgentId(agentId);
-  const db = pool!;
+  const db = getMemoryPool()!;
 
   const { memoryId, version } = await runInTransaction(db, (tx) =>
     upsertMemoryWithVersion(tx, { key, value, agent, ttl, embedding, repo }),
@@ -178,7 +131,7 @@ export async function writeMemory({
 
   await auditLog(agent, "write", key);
 
-  const row = await pool!.query(
+  const row = await getMemoryPool()!.query(
     `SELECT created_at FROM memory.memories WHERE id = $1`,
     [memoryId],
   );
@@ -201,7 +154,7 @@ function isVersionNumberLike(version: string | number | undefined): boolean {
 }
 
 async function readAllVersions(agent: string, key: string) {
-  const { rows } = await pool!.query(
+  const { rows } = await getMemoryPool()!.query(
     `SELECT mv.version, mv.value, mv.created_at
      FROM memory.memory_versions mv
      JOIN memory.memories m ON m.id = mv.memory_id
@@ -215,7 +168,7 @@ async function readAllVersions(agent: string, key: string) {
 
 // `m.key` is selected so one-version read answers the same shape as a latest read — the endpoint declares one contract for `action: "read"`.
 async function readVersionAt(agent: string, key: string, version: number) {
-  const { rows } = await pool!.query(
+  const { rows } = await getMemoryPool()!.query(
     `SELECT m.key, mv.version, mv.value, mv.created_at
      FROM memory.memory_versions mv
      JOIN memory.memories m ON m.id = mv.memory_id
@@ -227,7 +180,7 @@ async function readVersionAt(agent: string, key: string, version: number) {
 }
 
 async function readLatestVersion(agent: string, key: string) {
-  const { rows } = await pool!.query(
+  const { rows } = await getMemoryPool()!.query(
     `SELECT key, value, version, created_at
      FROM memory.memories
      WHERE agent_id = $1 AND key = $2 AND is_deleted = FALSE
@@ -277,7 +230,7 @@ export async function deleteMemory(
 ): Promise<{ key: string; deleted: boolean }> {
   const agent = resolveAgentId(agentId);
 
-  await pool!.query(
+  await getMemoryPool()!.query(
     `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND key = $2`,
     [agent, key],
   );
@@ -332,7 +285,7 @@ export async function listMemories(
   // Scope by repo (preferred) or agent_id
   const { filter, params } = listScope(repo, agentId, limit, offset);
 
-  const { rows } = await pool!.query(
+  const { rows } = await getMemoryPool()!.query(
     `SELECT key, agent_id, repo, version, created_at, ttl_seconds,
             EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
      FROM memory.memories m
@@ -344,7 +297,7 @@ export async function listMemories(
   );
 
   const countParams = countScopeParams(repo, agentId);
-  const countResult = await pool!.query(
+  const countResult = await getMemoryPool()!.query(
     `SELECT count(*)::int as total FROM memory.memories
      WHERE ${filter} is_deleted = FALSE
        AND (expires_at IS NULL OR expires_at > now())`,
@@ -362,22 +315,3 @@ export { createSnapshot, restoreSnapshot } from "./memory-snapshots.js";
 
 // Health/usage diagnostics live in memory-stats.ts, re-exported for import-path back-compat.
 export { agentHealth, agentStats } from "./memory-stats.js";
-
-// ── Audit helper ─────────────────────────────────────────────────────
-
-export async function auditLog(
-  agentId: string,
-  operation: string,
-  key: string | null,
-  meta?: Record<string, unknown>,
-): Promise<void> {
-  try {
-    await pool!.query(
-      `INSERT INTO memory.audit_log (agent_id, operation, memory_key, metadata)
-       VALUES ($1, $2, $3, $4)`,
-      [agentId, operation, key, meta ? JSON.stringify(meta) : null],
-    );
-  } catch {
-    // Audit failures must never block operations
-  }
-}

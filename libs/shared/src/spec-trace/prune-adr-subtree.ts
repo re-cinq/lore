@@ -3,7 +3,7 @@
 import type { DgraphClientPort, DgraphTxn, UidRef } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 import { pruneOrphanBlocksByFile } from "./project-blocks.js";
-import { firstOf, uids } from "./prune-removed-docs.js";
+import { firstOf, uids } from "./uid-refs.js";
 
 /** Deletes an ADR's subtree (node, Repo.adrs edge, incoming decided_by/supersedes refs, targeting TraceLinks, Blocks); missing ADR is a no-op; same anchor-deleted-last order as {@link deleteSpecSubtree}. */
 export async function deleteAdrSubtree(

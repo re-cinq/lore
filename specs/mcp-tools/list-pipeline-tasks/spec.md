@@ -50,7 +50,7 @@ Lists pipeline tasks newest-first as JSON, optionally filtered by status. Genera
      an invalid value returns `"invalid status: {status}. Valid values: {list}"`.
      Then call `listTasks(status, min(limit, 100))`
      ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L45)).
-2. **Shared CRUD** ([`listTasks`](../../../libs/shared/src/pipeline-tasks.ts#L117)) — `SELECT id,
+2. **Shared CRUD** ([`listTasks`](../../../libs/shared/src/pipeline-tasks.ts#L40)) — `SELECT id,
    description, task_type, status, target_repo, agent_id, pr_url, created_by,
    created_at, updated_at FROM pipeline.tasks [WHERE status = $1] ORDER BY
    created_at DESC LIMIT $N`, plus `SELECT count(*)::int AS total FROM

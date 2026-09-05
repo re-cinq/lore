@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { resolveAgentId } from "@re-cinq/lore-shared";
-import { getMemoryPool, auditLog } from "./memory.js";
+import { getMemoryPool, auditLog } from "./memory-core.js";
 
 // Snapshots (PostgreSQL-backed): point-in-time capture and restore of an agent's memories.
 
