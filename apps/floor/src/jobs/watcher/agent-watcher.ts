@@ -11,9 +11,7 @@ import {
   stationOutcomeForRunOutcome,
   type AgentTerminalReport,
 } from "../lib/agent-watcher-logic.js";
-import {
-  type AgentContext,
-} from "./agent-watcher-notify.js";
+import { type AgentContext } from "./agent-watcher-notify.js";
 import { handleSucceededChanges } from "./agent-watcher-pr-delivery.js";
 import { handleFailure } from "./agent-watcher-failure.js";
 import { handleReviewVerdict } from "./agent-watcher-review.js";
