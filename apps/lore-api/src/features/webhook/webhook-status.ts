@@ -51,8 +51,8 @@ function findLoreHook(
   canonicalUrl: string,
 ): RepoHook | undefined {
   return (
-    hooks.find((h) => h.config?.url === canonicalUrl) ??
-    hooks.find((h) => (h.config?.url ?? "").endsWith("/api/webhook/github"))
+    hooks.find((h) => h.config.url === canonicalUrl) ??
+    hooks.find((h) => (h.config.url ?? "").endsWith("/api/webhook/github"))
   );
 }
 
@@ -63,7 +63,7 @@ function baseStatus(
   return {
     canonicalUrl,
     hookId: lore.id,
-    url: lore.config?.url ?? null,
+    url: lore.config.url ?? null,
     events: lore.events,
     active: lore.active,
     lastCode: lore.last_response?.code ?? null,

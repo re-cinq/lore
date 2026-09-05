@@ -120,7 +120,7 @@ async function archivedOrNoPod(
 function isNotFound(err: unknown): boolean {
   const e = err as { code?: number; response?: { statusCode?: number } };
 
-  return e?.code === 404 || e?.response?.statusCode === 404;
+  return e.code === 404 || e.response?.statusCode === 404;
 }
 
 function unavailable(

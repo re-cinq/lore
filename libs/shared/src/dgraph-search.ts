@@ -40,7 +40,7 @@ function extractRows(
   res: DgraphQueryResult,
   key: string,
 ): Record<string, unknown>[] {
-  return res.data?.[key] ?? [];
+  return res.data[key] ?? [];
 }
 
 function mergedSearchLists(

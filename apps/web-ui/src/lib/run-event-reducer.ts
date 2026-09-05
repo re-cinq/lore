@@ -66,7 +66,7 @@ function idleNodeStates(
 
 /** Sets `row`'s node to its seeded state, unless a newer-iteration row already won. */
 function applyVisitRow(
-  nodeStates: Record<string, NodeRunState>,
+  nodeStates: Record<string, NodeRunState | undefined>,
   row: AssemblyRunNode,
 ): void {
   const seen = nodeStates[row.nodeId];

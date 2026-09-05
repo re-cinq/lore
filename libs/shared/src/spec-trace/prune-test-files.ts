@@ -65,7 +65,7 @@ function collectChunkEdges(chunks: DoomedChunkRow[]): {
 }
 
 function parseFileSubtreeResponse(res: {
-  data: Record<string, Record<string, unknown>[]>;
+  data: Record<string, Record<string, unknown>[] | undefined>;
 }): { chunks: DoomedChunkRow[]; suites: UidRef[]; rootUid: string | null } {
   const chunks = (res.data.chunks ?? []) as unknown as DoomedChunkRow[];
   const suites = (res.data.suites ?? []) as unknown as UidRef[];

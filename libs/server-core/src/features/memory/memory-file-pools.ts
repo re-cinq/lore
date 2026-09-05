@@ -42,6 +42,7 @@ export function sharedWriteFile(
 
   const existing = memories[key];
   const nextVersion =
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- memories is Record<string, MemoryRecord> read from disk JSON; this key may genuinely be absent
     existing && !existing.is_deleted ? existing.version + 1 : 1;
 
   memories[key] = {

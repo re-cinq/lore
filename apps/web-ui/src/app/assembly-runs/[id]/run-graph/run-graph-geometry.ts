@@ -64,7 +64,7 @@ function resolveEntry(
   definition: AssemblyLineDefinition | null,
   graph: VisibleGraph,
 ): string {
-  return definition?.entry ?? graph.nodes[0]?.id ?? "";
+  return definition?.entry ?? graph.nodes.at(0)?.id ?? "";
 }
 
 // A layout-shaped definition from the visible graph; connectors carry no condition (structure only).

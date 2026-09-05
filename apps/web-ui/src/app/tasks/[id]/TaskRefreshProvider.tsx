@@ -322,8 +322,8 @@ async function fetchLiveRun(taskId: string): Promise<string | null> {
 
       return (
         typeof r?.id === "string" &&
-        typeof r?.status === "string" &&
-        typeof r?.created_at === "string"
+        typeof r.status === "string" &&
+        typeof r.created_at === "string"
       );
     },
   );

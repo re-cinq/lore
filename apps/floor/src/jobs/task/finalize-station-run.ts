@@ -29,7 +29,7 @@ export function stationLogTail(
   maxLines = 40,
   maxChars = 3000,
 ): string {
-  const trimmed = (output ?? "").trim();
+  const trimmed = output.trim();
 
   if (!trimmed) {
     return "";
@@ -218,7 +218,7 @@ async function markFailedPlanningIteration(
   if (
     task.task_type !== "feature-planning" ||
     !task.context_bundle?.feature_id ||
-    task.context_bundle?.iteration == null
+    task.context_bundle.iteration == null
   ) {
     return;
   }

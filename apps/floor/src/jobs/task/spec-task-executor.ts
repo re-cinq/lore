@@ -58,7 +58,7 @@ function agentDispatchDefaults(): AgentDispatchDefaults {
   const implConfig = getTaskTypeConfig("implementation");
 
   return {
-    model: (implConfig as { model?: string })?.model || "claude-sonnet-4-6",
+    model: implConfig?.model || "claude-sonnet-4-6",
     timeoutMinutes: implConfig?.timeout_minutes || 90,
   };
 }

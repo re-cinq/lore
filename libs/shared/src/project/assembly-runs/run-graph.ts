@@ -81,5 +81,6 @@ export function resolveRoute(
     },
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- TS doesn't narrow across the replace() callback's mutation of `missing`
   return missing ? null : resolved;
 }

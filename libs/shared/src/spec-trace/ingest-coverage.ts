@@ -53,7 +53,7 @@ async function readCoversUids(
       `query q($uid: string) { cov(func: uid($uid)) { Coverage.covers { uid } } }`,
       { $uid: coverageUid },
     );
-    const covers = (res.data?.cov?.[0]?.["Coverage.covers"] ?? []) as {
+    const covers = (res.data.cov?.[0]?.["Coverage.covers"] ?? []) as {
       uid: string;
     }[];
 
@@ -74,7 +74,7 @@ async function linkTestChunkCoverage(
       { $file: record.testFile, $name: record.testName, $repo: repo },
     );
 
-    return res.data?.tc?.[0]?.uid as string | undefined;
+    return res.data.tc?.[0]?.uid as string | undefined;
   });
 
   if (!testChunkUid) {

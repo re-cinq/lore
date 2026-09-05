@@ -17,7 +17,7 @@ async function upsertEntity(
       `query e($dk: string) { found(func: eq(Entity.dedup_key, $dk), first: 1) { uid } }`,
       { $dk: dedupKey },
     );
-    const found = res.data?.found?.[0];
+    const found = res.data.found?.[0];
 
     if (found) {
       return found.uid as string;
@@ -62,7 +62,7 @@ async function findContradictedRels(
       }`,
       { $src: sourceUid, $rel: relationType },
     );
-    const rels = (res.data?.contradictions?.[0]?.["Entity.out_rels"] ??
+    const rels = (res.data.contradictions?.[0]?.["Entity.out_rels"] ??
       []) as Record<string, unknown>[];
 
     return rels
@@ -153,7 +153,7 @@ export async function queryGraph(
       }`,
       { $name: entityName },
     );
-    const root = (res.data?.result ?? [])[0] as
+    const root = (res.data.result ?? [])[0] as
       Record<string, unknown> | undefined;
 
     if (!root) {

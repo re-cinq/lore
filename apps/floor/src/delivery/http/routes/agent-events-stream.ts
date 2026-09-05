@@ -151,6 +151,7 @@ export function streamRunEvents(
         pageSize,
       );
 
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- teardown() can flip `closed` during the await above (stream error, overflow); TS's linear CFA can't see that.
       if (closed) {
         return;
       }
@@ -161,6 +162,7 @@ export function streamRunEvents(
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- same async-flip hazard as above: closed can turn true while the loop was awaiting.
     if (closed) {
       return;
     }

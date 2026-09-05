@@ -197,7 +197,7 @@ export class InMemoryChunks implements ChunksPort {
         filePath: row.filePath,
         startLine: (row.metadata.start_line as number | undefined) ?? null,
         endLine: (row.metadata.end_line as number | undefined) ?? null,
-        ingestedAt: row.ingestedAt ?? null,
+        ingestedAt: row.ingestedAt,
       }));
   }
 

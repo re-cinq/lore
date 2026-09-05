@@ -129,7 +129,7 @@ export class PodLogInput implements EventInput {
       labelSelector: podSelectorForJob(agent.jobName),
     });
     // The CONTAINER is resolved here too, not defaulted — an empty container name 400s the log request.
-    const chosen = pickPodToFollow(pods.items ?? []);
+    const chosen = pickPodToFollow(pods.items);
 
     // Re-checked against the LIVE map, not the filtered page — a pod list was awaited since then, and stop() may have run too.
     if (!chosen || !this.running || this.followers.has(agent.agentCrName)) {

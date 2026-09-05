@@ -15,6 +15,8 @@ function architectureSection(gap: GapResult): GapSection | null {
   const a = gap.architecture;
   const lines = [
     a.summary,
+    // openapi marks `components` required, but this is LLM-authored JSON that can omit the array.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     ...(a.components ?? []).map((c) => `- **${c.name}**: ${c.responsibility}`),
   ];
   const m = mockupsFor(gap, "architecture");

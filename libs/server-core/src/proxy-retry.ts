@@ -49,10 +49,12 @@ function errorBodyDetail(
 
 // A thrown fetch error (network failure, abort timeout) reduced to a retry detail string.
 function describeFetchError(err: unknown): string {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- err is unknown; `as` trusts the shape unconditionally, but a thrown value can genuinely be null/undefined
   if ((err as { name?: string })?.name === "TimeoutError") {
     return "request timed out (15s)";
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- err is unknown; `as` trusts the shape unconditionally, but a thrown value can genuinely be null/undefined
   return (err as { message?: string })?.message || String(err);
 }
 

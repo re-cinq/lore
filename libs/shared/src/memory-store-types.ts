@@ -26,7 +26,9 @@ export interface DgraphTxn {
   queryWithVars(
     query: string,
     vars: Record<string, string>,
-  ): Promise<{ data: Record<string, Record<string, unknown>[]> }>;
+  ): Promise<{
+    data: Record<string, Record<string, unknown>[] | undefined>;
+  }>;
   mutate(req: {
     setJson?: unknown;
     setNquads?: string;

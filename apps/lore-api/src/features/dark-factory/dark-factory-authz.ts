@@ -122,6 +122,7 @@ function assertLabelPresent(
   prRef: string,
 ): asserts labelEvent is LabelEvent & { actor: { login: string } } {
   enforceTrue(
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- octokit types `actor` as required, but GitHub returns null for a deleted/anonymized account.
     !(!labelEvent || !labelEvent.actor?.login),
     (message) => new TwoKeyError(message, "label_missing"),
     `Approval label "${APPROVAL_LABEL}" missing on PR ${prRef}`,

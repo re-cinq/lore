@@ -7,8 +7,11 @@ import SettingsView, { type SettingsApprovalConfig } from "./SettingsView";
 async function saveSettings(formData: FormData) {
   "use server";
   const entries = [
-    { key: "api_url", value: formData.get("api_url") as string },
-    { key: "ingest_token", value: formData.get("ingest_token") as string },
+    { key: "api_url", value: formData.get("api_url") as string | null },
+    {
+      key: "ingest_token",
+      value: formData.get("ingest_token") as string | null,
+    },
   ];
 
   await putOrgSettings(
@@ -18,7 +21,9 @@ async function saveSettings(formData: FormData) {
 }
 
 function trimmedApprovalLabel(formData: FormData): string {
-  return (formData.get("approval_label") as string)?.trim() || "approved";
+  return (
+    (formData.get("approval_label") as string | null)?.trim() || "approved"
+  );
 }
 
 function parseAutoApprove(formData: FormData): string[] {

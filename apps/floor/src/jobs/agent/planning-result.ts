@@ -107,7 +107,7 @@ export async function deliverPlanningResult(
     return { outcome: "skipped", error: "planning round has no feature id" };
   }
   const { featureId, iteration } = ids;
-  const { features } = await deps.featuresFor(task.target_repo ?? "");
+  const { features } = await deps.featuresFor(task.target_repo);
   const parsed = resolvePlanningOutcome(fileEvent);
 
   if (parsed.outcome === "failed") {

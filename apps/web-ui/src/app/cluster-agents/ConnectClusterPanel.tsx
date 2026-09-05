@@ -78,6 +78,8 @@ export default function ConnectClusterPanel({
       <button
         type="button"
         onClick={() => {
+          // lib.dom types navigator.clipboard as always present; insecure contexts/older browsers leave it undefined at runtime.
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           void navigator.clipboard?.writeText(command);
           setCopied(true);
         }}

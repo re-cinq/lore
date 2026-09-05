@@ -85,15 +85,15 @@ function PlatformStats({
     <div className={styles.statsRow}>
       <div className={`spec-card ${styles.statCard}`}>
         <div className="meta">Onboarded Repos</div>
-        <div className={styles.statValue}>{repoCount ?? 0}</div>
+        <div className={styles.statValue}>{repoCount}</div>
       </div>
       <div className={`spec-card ${styles.statCard}`}>
         <div className="meta">Total Tasks</div>
-        <div className={styles.statValue}>{totalTasks ?? 0}</div>
+        <div className={styles.statValue}>{totalTasks}</div>
       </div>
       <div className={`spec-card ${styles.statCard}`}>
         <div className="meta">Tasks Today</div>
-        <div className={styles.statValue}>{tasksToday ?? 0}</div>
+        <div className={styles.statValue}>{tasksToday}</div>
       </div>
     </div>
   );

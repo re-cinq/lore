@@ -172,6 +172,7 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
       try {
         const project = await projectFor(repo);
 
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
         const body = request.payload ?? {};
         let create: ReturnType<typeof parseAgentInput>;
 
@@ -236,6 +237,7 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
       try {
         const project = await projectFor(repo);
 
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
         const body = request.payload ?? {};
         let patch: ReturnType<typeof parseAgentPatch>;
 

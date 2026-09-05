@@ -50,7 +50,7 @@ export function incomingFailureOf(
   }>,
 ): IncomingFailure | null {
   const recorded = visits.filter((v) => v.outcome !== null);
-  const last = recorded[recorded.length - 1];
+  const last = recorded.at(-1);
 
   if (!last || !isFailure(last.outcome) || !last.failureDetail) {
     return null;

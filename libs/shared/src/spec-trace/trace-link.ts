@@ -39,8 +39,7 @@ export async function upsertTraceLink(
       { $x: xid },
     );
 
-    return res.data?.tl?.[0]?.["TraceLink.evidence"] as
-      EvidenceTier | undefined;
+    return res.data.tl?.[0]?.["TraceLink.evidence"] as EvidenceTier | undefined;
   });
   const evidence = existing
     ? (highestTier([existing, args.evidence]) ?? args.evidence)
@@ -81,7 +80,7 @@ export async function projectTraceLinks(
       { $sx: statementXid },
     );
 
-    return res.data?.stmt?.[0] as
+    return res.data.stmt?.[0] as
       | {
           uid: string;
           validated?: Array<{ uid: string; "TestChunk.xid": string }>;

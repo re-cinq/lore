@@ -28,6 +28,7 @@ export interface Coverage {
 
 /** hapi route options are always object-form in this codebase. */
 export const optionsOf = (route: ServerRoute): RouteOptions =>
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi's type excludes null, but a route built dynamically can still carry one.
   (typeof route.options === "object" && route.options
     ? route.options
     : {}) as RouteOptions;
@@ -212,6 +213,7 @@ export function registerResponse(
   const existing = schemas[meta.name];
 
   enforceTrue(
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Record<string,_> hides that an unregistered name reads back undefined.
     existing === undefined ||
       JSON.stringify(existing) === JSON.stringify(converted),
     Error,

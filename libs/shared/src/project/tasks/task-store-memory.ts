@@ -48,7 +48,10 @@ export interface StoredTaskEvent {
 }
 
 /** Per-repo `lore.repos.settings` seed for the create trust gate. */
-export type SeedRepoSettings = Record<string, { trust?: { level?: string } }>;
+export type SeedRepoSettings = Record<
+  string,
+  { trust?: { level?: string } } | undefined
+>;
 
 /** In-memory TaskStorePort — behavioral spec of the Pg adapter (four inline queries + delegated pipeline-tasks.ts CRUD) over seeded rows; JSONB stored parsed (matching node-pg). now is injectable for deterministic ordering. */
 export class InMemoryTaskStore implements TaskStorePort {

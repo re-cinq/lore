@@ -176,7 +176,7 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   ]);
   const resume = decideBranchResume({
     branchExists,
-    issueLabels: picked.labels ?? [],
+    issueLabels: picked.labels,
     openPr,
   });
 

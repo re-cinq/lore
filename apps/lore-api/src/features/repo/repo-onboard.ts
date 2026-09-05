@@ -39,7 +39,7 @@ export async function getInstallationRepos(): Promise<InstallationRepo[]> {
   let page = 1;
   const perPage = 100;
 
-  while (true) {
+  for (;;) {
     const { data: installed } =
       await octokit.rest.apps.listReposAccessibleToInstallation({
         per_page: perPage,
@@ -49,7 +49,7 @@ export async function getInstallationRepos(): Promise<InstallationRepo[]> {
     repos.push(
       ...installed.repositories.map((repo) => ({
         full_name: repo.full_name,
-        owner: repo.owner?.login || repo.full_name.split("/")[0],
+        owner: repo.owner.login || repo.full_name.split("/")[0],
         name: repo.name,
       })),
     );

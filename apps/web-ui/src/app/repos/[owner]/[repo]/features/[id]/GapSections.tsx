@@ -259,6 +259,8 @@ export default function GapSections({
       {gap.split_suggestion && (
         <SplitSuggestion
           rationale={gap.split_suggestion.rationale}
+          // openapi marks proposed_features required, but it's an LLM-authored payload that can omit the array.
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           proposedFeatures={gap.split_suggestion.proposed_features ?? []}
           onCreateDraft={onCreateDraft}
         />

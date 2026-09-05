@@ -98,7 +98,7 @@ async function readUnbilledAnthropicSpend(
         AND model NOT LIKE ALL($4::text[])`,
     [win.fromTs, win.toTs, billedThrough, [...NON_ANTHROPIC_LIKE_PATTERNS]],
   );
-  const row = rows[0];
+  const row = rows.at(0);
 
   return { costUsd: row?.cost_usd ?? 0, days: row?.days ?? 0 };
 }

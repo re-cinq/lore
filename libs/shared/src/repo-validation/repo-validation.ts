@@ -147,7 +147,7 @@ export async function runValidation(
 
 // ── File scoping helpers ────────────────────────────────────────────
 
-const FILE_EXTENSIONS: Record<string, string[]> = {
+const FILE_EXTENSIONS: Record<string, string[] | undefined> = {
   lint: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
   eslint: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
   tsc: [".ts", ".tsx"],

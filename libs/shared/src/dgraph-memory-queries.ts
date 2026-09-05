@@ -65,7 +65,7 @@ export async function findLatestLive(
     $key: key,
     $now: new Date().toISOString(),
   });
-  const row = res.data?.latest?.[0];
+  const row = res.data.latest?.[0];
 
   return row ? toMemoryRow(row) : null;
 }
@@ -98,15 +98,15 @@ export function toMemorySummary(row: Record<string, unknown>): {
 }
 
 export type DgraphQueryResult = {
-  data: Record<string, Record<string, unknown>[]>;
+  data: Record<string, Record<string, unknown>[] | undefined>;
 };
 
 export function extractMemoryRows(
   res: DgraphQueryResult,
 ): Record<string, unknown>[] {
-  return res.data?.memories ?? [];
+  return res.data.memories ?? [];
 }
 
 export function extractTotalCount(res: DgraphQueryResult): number {
-  return (res.data?.total?.[0]?.count as number) ?? 0;
+  return (res.data.total?.[0]?.count as number | undefined) ?? 0;
 }

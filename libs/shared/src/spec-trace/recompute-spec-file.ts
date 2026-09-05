@@ -48,7 +48,7 @@ export async function recomputeFile(
       { $fp: filePath, $repo: repo },
     );
 
-    return (res.data?.blocks ?? []) as BlockRow[];
+    return (res.data.blocks ?? []) as BlockRow[];
   });
 
   return sourceFromBlockRows(rows);

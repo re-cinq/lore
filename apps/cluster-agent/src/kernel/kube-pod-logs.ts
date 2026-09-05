@@ -16,8 +16,8 @@ import { isNotFound } from "./k8s-errors.js";
 // The AGENT container's requests are the cost driver — init containers finish before the bill starts and this stack runs no sidecars.
 function agentContainer(pod: V1Pod) {
   return (
-    pod.spec?.containers?.find((container) => container.name === "agent") ??
-    pod.spec?.containers?.[0]
+    pod.spec?.containers.find((container) => container.name === "agent") ??
+    pod.spec?.containers[0]
   );
 }
 
@@ -113,7 +113,7 @@ export class KubePodLogs implements PodLogSource {
       labelSelector: podSelectorForJob(jobName),
     });
 
-    return (res.items ?? []).map((pod) => ({
+    return res.items.map((pod) => ({
       name: pod.metadata?.name ?? "",
       creationTimestamp: pod.metadata?.creationTimestamp
         ? new Date(pod.metadata.creationTimestamp).toISOString()
@@ -125,7 +125,7 @@ export class KubePodLogs implements PodLogSource {
     const api = coreApi();
     const res = await api.listNamespacedPod({ namespace: this.namespace() });
 
-    return (res.items ?? []).filter(isLiveRunningPod).map(toRunningPodInfo);
+    return res.items.filter(isLiveRunningPod).map(toRunningPodInfo);
   }
 
   async podLog(podName: string, tailLines?: number): Promise<string> {

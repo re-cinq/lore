@@ -65,7 +65,7 @@ export function webhookStatusRoute(): ServerRoute {
       } catch (err) {
         // 403 = App lacks Webhooks permission; surface as unknown for graceful UI fallback.
         const reason =
-          (err as { status?: number })?.status === 403
+          (err as { status?: number }).status === 403
             ? "app_no_webhook_permission"
             : "read_failed";
 

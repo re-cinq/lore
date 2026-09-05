@@ -27,7 +27,7 @@ export const GITHUB_EVENT_NAMES: string[] = [
 function labelNames(labels: unknown): string[] {
   return Array.isArray(labels)
     ? (labels
-        .map((l: { name?: string }) => l?.name)
+        .map((l: { name?: string } | null | undefined) => l?.name)
         .filter(Boolean) as string[])
     : [];
 }
@@ -36,9 +36,9 @@ function commentAuthor(user?: { login?: string }): string {
   return user?.login ?? "";
 }
 
-/** Comment identity the code-review reply handler needs — author drives the bot-loop guard. */
-function commentParams(comment: {
-  id: number;
+/** Comment identity the code-review reply handler needs — author drives the bot-loop guard; the payload is an untyped webhook body, so a malformed delivery falls back rather than throwing. */
+function commentParams(comment?: {
+  id?: number;
   user?: { login?: string };
   body?: string;
 }): {
@@ -46,10 +46,12 @@ function commentParams(comment: {
   comment_author: string;
   comment_body: string;
 } {
+  const c = comment ?? {};
+
   return {
-    comment_id: comment?.id,
-    comment_author: commentAuthor(comment?.user),
-    comment_body: comment?.body ?? "",
+    comment_id: c.id ?? 0,
+    comment_author: commentAuthor(c.user),
+    comment_body: c.body ?? "",
   };
 }
 
@@ -62,7 +64,7 @@ type EventMapper = (
   key: string,
 ) => EventInput[];
 
-const EVENT_MAPPERS: Record<string, EventMapper> = {
+const EVENT_MAPPERS: Record<string, EventMapper | undefined> = {
   pull_request: mapPullRequest,
   pull_request_review: mapPullRequestReview,
   check_run: (payload, repo, key) =>
@@ -156,7 +158,7 @@ function mapPullRequest(
   return [];
 }
 
-function reviewFields(review: {
+function reviewFields(review?: {
   id?: number;
   state?: string;
   user?: { login?: string };
@@ -214,13 +216,13 @@ function mapCheckCompleted(
   if (payload.action !== "completed") {
     return [];
   }
-  const prList: Array<{ number: number }> =
+  const prList: Array<{ number?: number } | null | undefined> =
     payload.check_run?.pull_requests ??
     payload.check_suite?.pull_requests ??
     [];
 
   return prList
-    .filter((pr) => typeof pr?.number === "number")
+    .filter((pr): pr is { number: number } => typeof pr?.number === "number")
     .map((pr) => ({
       eventName: `github.${eventType}.completed`,
       source: "github" as const,

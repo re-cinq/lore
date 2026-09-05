@@ -71,7 +71,7 @@ export class PgChunks implements ChunksPort {
       ],
     );
 
-    return (rows[0]?.id as string) ?? null;
+    return (rows.at(0)?.id as string | undefined) ?? null;
   }
 
   async setEmbedding(

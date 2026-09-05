@@ -90,6 +90,7 @@ export function writeMemoryFile(
   };
 
   // Append version history
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- versions is Record<string, VersionRecord[]> read from disk JSON; this key may genuinely be absent
   if (!versions[key]) {
     versions[key] = [];
   }
@@ -128,6 +129,7 @@ function versionHistoryDescending(
   );
   const history = versions[key];
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- versions is Record<string, VersionRecord[]> read from disk JSON; this key may genuinely be absent
   if (!history || history.length === 0) {
     return null;
   }
@@ -172,6 +174,7 @@ export function readMemoryFile(
   );
   const history = versions[key];
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- versions is Record<string, VersionRecord[]> read from disk JSON; this key may genuinely be absent
   if (!history) {
     return null;
   }
@@ -203,6 +206,7 @@ export function deleteMemoryFile(
 
   const record = memories[key];
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- memories is Record<string, MemoryRecord> read from disk JSON; this key may genuinely be absent
   if (!record || record.is_deleted) {
     return { key, deleted: false };
   }

@@ -46,7 +46,7 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
     (visit, index) =>
       visitFailed(visit.outcome) && !recoveredLater(visits, visit, index),
   );
-  const failed = unrecovered[unrecovered.length - 1];
+  const failed = unrecovered.at(-1);
 
   // Degrades to the old `node "<id>" failed` wording for rows written before migration 0042 (no classification).
   return failed

@@ -142,7 +142,7 @@ async function fetchCheckRuns(
       `/repos/${repo}/commits/${headSha}/check-runs`,
     );
 
-    return (resp.check_runs as RawCheckRun[]) || [];
+    return (resp.check_runs as RawCheckRun[] | undefined) || [];
   } catch {
     return [];
   }

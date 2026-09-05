@@ -64,8 +64,8 @@ function resolveInherited(
 }
 
 function resolvePodResources(agent: AgentDefinition | null): PodResources {
-  return ((agent?.config as { pod_resources?: PodResources })?.pod_resources ??
-    {}) as PodResources;
+  return ((agent?.config as { pod_resources?: PodResources } | null)
+    ?.pod_resources ?? {}) as PodResources;
 }
 
 /** Every field's starting value, resolved once. A blank field means "inherit the layer below", so the stored value becomes the PLACEHOLDER and the input itself stays empty — prefilling would silently promote an inherited value into an override on the next save. */

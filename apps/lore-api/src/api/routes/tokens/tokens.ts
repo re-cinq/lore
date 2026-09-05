@@ -209,6 +209,7 @@ async function writeToken(
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
   try {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
     const body = (request.payload ?? {}) as TokensPostBody;
 
     if (isRevoke(body)) {

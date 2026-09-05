@@ -31,7 +31,7 @@ interface ReaperTally {
 
 /** The assembly run, not the CR listing, is the liveness authority — a transient empty k8s list killed a live round on 2026-08-18 (#1297); direct probe survives only for legacy rounds with no run row. */
 async function loadRoundContext(feature: FeatureWithIterations) {
-  const latest = feature.iterations[feature.iterations.length - 1];
+  const latest = feature.iterations.at(-1);
   const latestRun = latest?.task_id
     ? (await pipeline().assemblyRuns.listForTask(latest.task_id))[0]
     : undefined;

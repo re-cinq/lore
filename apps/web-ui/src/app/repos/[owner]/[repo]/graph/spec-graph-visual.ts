@@ -72,10 +72,8 @@ export const RADIUS: Record<SpecGraphNode["type"], number> = {
 };
 
 // Feature node color by lifecycle status (ADR-027): single-source palette from feature-status.ts.
-export const radiusOf = (type: SpecGraphNode["type"]): number =>
-  RADIUS[type] ?? 11;
-export const colorOf = (type: SpecGraphNode["type"]): string =>
-  COLORS[type] ?? "var(--chart-neutral)";
+export const radiusOf = (type: SpecGraphNode["type"]): number => RADIUS[type];
+export const colorOf = (type: SpecGraphNode["type"]): string => COLORS[type];
 // Node fill: status-colored when a Feature carries a persistent lifecycle status.
 export const nodeColor = (node: SpecGraphNode): string =>
   node.type === "Feature" && node.status

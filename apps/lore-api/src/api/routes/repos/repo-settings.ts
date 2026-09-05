@@ -124,8 +124,9 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
       enforceTrue(rows.length !== 0, apiError(404), "Repo not found");
       const existing = rows[0];
 
-      const darkFactory = (body.settings as { dark_factory?: unknown })
-        ?.dark_factory;
+      const darkFactory = (
+        body.settings as { dark_factory?: unknown } | undefined
+      )?.dark_factory;
 
       enforceDarkFactoryAllowed(darkFactory, repo);
 

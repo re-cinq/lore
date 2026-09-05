@@ -40,7 +40,7 @@ const releaseAfter = (ms: number): Promise<"deadline"> =>
   new Promise((resolve) => {
     const timer = setTimeout(() => resolve("deadline"), ms);
 
-    timer.unref?.();
+    timer.unref();
   });
 
 /** Families whose handlers contend on shared external state, excluded at CLAIM time; EMPTY since specs/ingest-station FR6 (isolation now comes from one-pod-per-event). */

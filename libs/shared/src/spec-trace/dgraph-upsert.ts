@@ -203,7 +203,7 @@ export async function upsertByXid(
       `query find($xid: string) { found(func: eq(${nodeType}.xid, $xid), first: 1) { uid } }`,
       { $xid: xid },
     );
-    const existing = res.data?.found?.[0]?.uid as string | undefined;
+    const existing = res.data.found?.[0]?.uid as string | undefined;
 
     if (existing) {
       await txn.mutate({

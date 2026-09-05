@@ -46,7 +46,7 @@ export function selectEdge(
     (e) => e.from === from && (e.on === outcome || e.on === "always"),
   );
 
-  return candidates.find((e) => e.on === outcome) ?? candidates[0] ?? null;
+  return candidates.find((e) => e.on === outcome) ?? candidates.at(0) ?? null;
 }
 
 interface WalkState {

@@ -169,6 +169,7 @@ async function handlePut(
   repo: string,
 ): Promise<ResponseObject> {
   // hapi already rejected malformed (400) and oversized (413) bodies (ADR-034); empty body is a no-op patch.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
   const parsed = parseSettingsBody(request.payload ?? {});
 
   if ("error" in parsed) {

@@ -34,7 +34,7 @@ async function listDocPaths(
   const rows = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(dql, { $repo: repo });
 
-    return (res.data?.q ?? []) as Array<Record<string, string | undefined>>;
+    return (res.data.q ?? []) as Array<Record<string, string | undefined>>;
   });
 
   return rows
@@ -106,7 +106,7 @@ async function listAllDocPaths(
   const rows = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(dql, {});
 
-    return (res.data?.q ?? []) as Array<Record<string, string | undefined>>;
+    return (res.data.q ?? []) as Array<Record<string, string | undefined>>;
   });
 
   return rows
@@ -209,7 +209,7 @@ export async function fetchTraceDocument(
       $xid: `${repo}|${filePath}`,
     });
 
-    return (res.data ?? {}) as TraceDocumentResult;
+    return res.data as TraceDocumentResult;
   });
 
   return assembleTraceDocument(graph);

@@ -146,9 +146,10 @@ export const issuesLabeled: EventHandler = async (params) => {
 /** pull_request closed+merged: wake the line waiting for that PR. Previously unreachable — a feature-planning task's null `pr_number` (the push node stamps only the LINE's args) meant a merged spec PR decomposed on no deployment; this reads the merge directly, needing no task row, and still targets a NODE so a line sharing the PR but not waiting on it is passed over. */
 export const specPrResumeLine: EventHandler = async (params) => {
   const pr = decideResumeFromClosedPr(params);
-  const pool = getPool();
 
-  if (!pr || !pool) {
+  getPool();
+
+  if (!pr) {
     return;
   }
 

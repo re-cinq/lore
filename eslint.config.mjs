@@ -157,11 +157,18 @@ export default tseslint.config(
       // is promoted at zero, like the queues above. Sizes at introduction:
       // no-unnecessary-condition 307, no-cycle 54, no-reexport-only-module 10.
       //
-      // A condition the types say can never fire is either padding or a bug —
-      // "value is always falsy" and "the types have no overlap" are both dead
-      // code, and the second is usually a comparison someone got wrong. Needs
-      // type info, so it is off wherever projectService is (tests, scripts).
-      "@typescript-eslint/no-unnecessary-condition": "warn",
+      // A condition the types say can never fire. Needs type info, so it is off
+      // wherever projectService is (tests, scripts). Queue of 307 drained on
+      // 2026-09-05, so this is an error — but read the site before deleting a
+      // guard, because the third possibility is that the TYPE is wrong. Roughly
+      // half the queue was that: a cast dropping `| null` off a nullable
+      // column, an interface claiming fields its own Zod schema marks optional,
+      // octokit typing a user non-null that GitHub nulls for deleted accounts,
+      // and — because `noUncheckedIndexedAccess` is off repo-wide — every
+      // `arr[i]` guard. Those were fixed at the declaration, or kept under a
+      // disable naming why. A guard around a `let` a callback mutates is also
+      // real: TS narrows it back to its initial value and cannot see the write.
+      "@typescript-eslint/no-unnecessary-condition": "error",
       // Splitting a file is how an import cycle gets made, and `max-lines`
       // above now forces splitting, so this guards a risk the repo just took
       // on. Cycles resolve at runtime often enough to pass tests and fail in

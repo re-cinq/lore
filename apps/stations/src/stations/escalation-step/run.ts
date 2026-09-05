@@ -10,15 +10,17 @@ import { projectFor } from "../../kernel/project-boot.js";
 function escalationInputFrom(
   input: StationInput,
 ): (taskId: string) => Promise<EscalateInput> {
+  // input.params is z.record(z.string()) — zod guarantees string VALUES, not that these specific keys were present in the wire JSON.
+  const params = input.params as Record<string, string | undefined>;
+
   return async (taskId) => {
     return {
       taskId,
       repo: input.repo,
-      branchName: input.params.branch_name ?? input.branch,
+      branchName: params.branch_name ?? input.branch,
       // The reason rides in on args and is one of a closed set; an unrecognised one still renders, since a diagnostic with an odd heading beats no diagnostic.
-      reason: (input.params.reason ??
-        "supervisor_panic") as EscalateInput["reason"],
-      diagnostic: input.params.diagnostic ?? "",
+      reason: (params.reason ?? "supervisor_panic") as EscalateInput["reason"],
+      diagnostic: params.diagnostic ?? "",
       contributingRefs: [],
     };
   };
@@ -27,7 +29,8 @@ function escalationInputFrom(
 export async function runEscalationStepNode(
   input: StationInput,
 ): Promise<NodeResult> {
-  const step = input.params.job_ref ?? "";
+  const step =
+    (input.params as Record<string, string | undefined>).job_ref ?? "";
   const taskId = input.task_id;
 
   if (!taskId) {

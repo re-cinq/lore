@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 interface CreateTaskFields {
-  description: string;
+  description: string | null;
   taskType: string;
   targetRepo: string;
   priority: string;
@@ -14,7 +14,7 @@ interface CreateTaskFields {
 
 function readCreateTaskFields(formData: FormData): CreateTaskFields {
   return {
-    description: formData.get("description") as string,
+    description: formData.get("description") as string | null,
     taskType: (formData.get("task_type") as string) || "general",
     targetRepo: (formData.get("target_repo") as string) || "re-cinq/lore",
     priority: formData.get("priority") === "immediate" ? "immediate" : "normal",

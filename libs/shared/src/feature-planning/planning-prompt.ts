@@ -8,9 +8,9 @@ import {
 
 /** Author feedback for planning round: per-section comment+direction, question answers, free-form note (mirrors UI FeedbackState). */
 export interface SectionAnswers {
-  sections: Record<string, { comment?: string; direction?: SectionDirection }>;
-  questions: Record<string, string>;
-  free_form: string;
+  sections?: Record<string, { comment?: string; direction?: SectionDirection }>;
+  questions?: Record<string, string>;
+  free_form?: string;
 }
 
 export interface PlanningPromptInput {

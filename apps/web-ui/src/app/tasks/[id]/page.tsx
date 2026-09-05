@@ -12,8 +12,8 @@ type Task = TaskDetailTask;
 
 async function submitFeedback(formData: FormData) {
   "use server";
-  const taskId = formData.get("task_id") as string;
-  const feedback = formData.get("feedback") as string;
+  const taskId = formData.get("task_id") as string | null;
+  const feedback = formData.get("feedback") as string | null;
 
   if (!taskId || !feedback?.trim()) {
     return;

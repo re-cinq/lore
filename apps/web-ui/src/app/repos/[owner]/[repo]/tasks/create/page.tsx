@@ -6,7 +6,7 @@ import RepoTaskCreateView from "./RepoTaskCreateView";
 
 function taskFormFields(formData: FormData) {
   return {
-    description: formData.get("description") as string,
+    description: formData.get("description") as string | null,
     taskType: (formData.get("task_type") as string) || "general",
     targetRepo: formData.get("target_repo") as string,
     priority:

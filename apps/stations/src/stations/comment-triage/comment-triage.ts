@@ -12,6 +12,7 @@ export async function runCommentTriageStation(
 
   try {
     decision = await classifyComment({
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- params is z.record(z.string()); zod does not guarantee this specific key was present in the wire JSON
       body: p.comment_body ?? "",
       isReply: Boolean(p.in_reply_to_id),
       prNumber: Number(p.pr_number) || 0,

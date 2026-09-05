@@ -212,7 +212,7 @@ export async function fetchGraphContext(
   const specs = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(GRAPH_CONTEXT_DQL, { $repo: repo });
 
-    return (res.data?.q ?? []) as SpecRow[];
+    return (res.data.q ?? []) as SpecRow[];
   });
 
   return assembleGraphContext({ q: flattenSpecRows(specs) }, opts);

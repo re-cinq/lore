@@ -15,7 +15,7 @@ interface ToolUseBlock {
 
 /** The assistant message's tool-use blocks, or null when this envelope isn't an assistant turn with block content. */
 function assistantContentBlocks(envelope: unknown): ToolUseBlock[] | null {
-  const event = (envelope as TurnEnvelope)?.event;
+  const event = (envelope as TurnEnvelope | null | undefined)?.event;
 
   if (event?.type !== "assistant") {
     return null;

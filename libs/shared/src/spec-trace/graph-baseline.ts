@@ -32,7 +32,7 @@ export async function readGraphBaseline(
   const repos = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(BASELINE_QUERY, { $xid: repo });
 
-    return (res.data?.repos ?? []) as GraphRepoBaseline[];
+    return (res.data.repos ?? []) as GraphRepoBaseline[];
   });
   const commit = repos[0]?.["Repo.trace_commit"];
 

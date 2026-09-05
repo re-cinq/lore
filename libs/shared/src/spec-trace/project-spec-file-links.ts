@@ -138,7 +138,7 @@ async function readLinkTargets(
       }`,
       { $uid: ownerUid },
     );
-    const node = (res.data?.node?.[0] ?? {}) as {
+    const node = (res.data.node?.[0] ?? {}) as {
       validated?: { uid: string }[];
       implemented?: { uid: string }[];
     };
@@ -184,7 +184,7 @@ export async function pruneOrphans(
       }`,
       { $xid: `${repo}|${filePath}` },
     );
-    const children = (res.data?.spec?.[0]?.children ?? []) as Array<
+    const children = (res.data.spec?.[0]?.children ?? []) as Array<
       { uid: string } & Record<string, string>
     >;
     const orphanUids = children

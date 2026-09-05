@@ -42,14 +42,14 @@ export type StatusTone =
 
 type StatusVisual = { label: string; tone: StatusTone };
 
-const STATUS_VISUALS: Record<string, StatusVisual> = {
+const STATUS_VISUALS: Partial<Record<string, StatusVisual>> = {
   queued: { label: "Queued", tone: "muted" },
   running: { label: "Running", tone: "running" },
   failed: { label: "Failed", tone: "danger" },
 };
 
 // status === "finished" carries the real verdict in outcome — the pg adapter maps only outcome `error` to status `failed`.
-const OUTCOME_VISUALS: Record<string, StatusVisual> = {
+const OUTCOME_VISUALS: Partial<Record<string, StatusVisual>> = {
   pr_created: { label: "PR created", tone: "success" },
   completed: { label: "Completed", tone: "success" },
   failed: { label: "Failed", tone: "danger" },
@@ -65,8 +65,10 @@ export function runStatusVisual(
   status: string,
   outcome: string | null,
 ): StatusVisual {
-  if (STATUS_VISUALS[status]) {
-    return STATUS_VISUALS[status];
+  const known = STATUS_VISUALS[status];
+
+  if (known) {
+    return known;
   }
 
   // Unknown/future outcome must never masquerade as success — stay neutral.

@@ -74,6 +74,7 @@ function applySuccessfulCostRow(
 ): void {
   summary.recorded++;
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- UsagePort.logLlmCall's contract says it always resolves a result, but a test double (and any future adapter) can resolve undefined.
   if (entry.result?.correlated === false) {
     summary.uncorrelated++;
     summary.firstIssue ??= `uncorrelated id ${entry.row.taskId}`;

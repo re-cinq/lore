@@ -12,7 +12,7 @@ export interface PipelineTask {
   target_branch?: string;
   agent_id?: string;
   pr_url?: string;
-  pr_number?: number;
+  pr_number?: number | null;
   review_iteration: number;
   context_bundle?: Record<string, unknown>;
   failure_reason?: string;

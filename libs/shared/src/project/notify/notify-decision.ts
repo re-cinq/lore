@@ -14,7 +14,7 @@ export function decideNotify(
   level: NotifyLevel,
   settings: NotifySettings,
 ): NotifyResult {
-  const channels = settings.channels ?? [];
+  const { channels } = settings;
 
   if (channels.includes("all")) {
     return { fire: true, matchedChannels: ["all"] };
