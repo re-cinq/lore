@@ -10,7 +10,7 @@ vi.mock("../kernel/queues.js", () => ({
   taskStore: () => ({ getById }),
   assemblyRuns: () => ({ getById: getLineById }),
 }));
-vi.mock("../main-loop/store.js", () => ({
+vi.mock("../kernel/event-store.js", () => ({
   emitEvent: (...args: unknown[]) => emitEvent(...args),
 }));
 const { forEachAgentPage, reconcileAgents } =

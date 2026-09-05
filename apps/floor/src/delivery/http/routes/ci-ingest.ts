@@ -7,7 +7,7 @@ import {
   mapCiIngest,
   type CiIngestBody,
 } from "../../../listeners/ci-ingest-map.js";
-import { insertEventList } from "../../../main-loop/store.js";
+import { insertEventList } from "../../../kernel/event-store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 
 export const ciIngestRoute: ServerRoute = {

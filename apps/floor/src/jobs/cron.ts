@@ -3,11 +3,11 @@
 import { specTaskExecutorJob } from "./task/spec-task-executor.js";
 import { staleTaskCheckJob } from "./task/stale-task-check.js";
 import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
-import { leaseReaperJob } from "../main-loop/lease/lease-reaper.js";
-import { pruneHandled, orphanedEvents } from "../main-loop/store.js";
+import { leaseReaperJob } from "./lease/lease-reaper.js";
+import { pruneHandled, orphanedEvents } from "../kernel/event-store.js";
 import { pipeline, stationClient } from "../kernel/queues.js";
 import { reconcileAgents } from "../listeners/agent-reconcile.js";
-import type { EventHandler } from "../main-loop/types.js";
+import type { EventHandler } from "../kernel/event-types.js";
 
 /** Agent run events are per-tool-call telemetry: high volume, low half-life. */
 const AGENT_RUN_EVENT_RETENTION_DAYS = 14;

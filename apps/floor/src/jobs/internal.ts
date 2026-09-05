@@ -7,11 +7,11 @@ import {
 } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { dispatchSpecTrace } from "./spec-trace/spec-trace-dispatch.js";
 import { projectFor } from "../kernel/project-boot.js";
-import { insertEvent } from "../main-loop/store.js";
+import { insertEvent } from "../kernel/event-store.js";
 import { getPool } from "../kernel/db.js";
 import { pipeline, chunks, settings } from "../kernel/queues.js";
 import { writeAuditLog } from "./lib/audit.js";
-import type { EventHandler } from "../main-loop/types.js";
+import type { EventHandler } from "../kernel/event-types.js";
 
 /** `internal.repo.team_changed` — relocates legacy `org_shared.chunks` rows now (rather than waiting for the nightly reindex safety net) since a team re-point makes them invisible to resolved-schema reads; errors propagate so the event loop's retry/dead-letter can handle them. org_shared → team direction only. */
 export const repoTeamChanged: EventHandler = async (params) => {

@@ -10,7 +10,7 @@ import {
   snapshotGraph,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
-import type { EventHandler } from "../../main-loop/types.js";
+import type { EventHandler } from "../../kernel/event-types.js";
 
 export interface StartEventHandlerDeps {
   assemblyRuns: AssemblyRunsPort;

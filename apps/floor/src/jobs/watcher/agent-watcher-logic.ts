@@ -2,7 +2,7 @@
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { parseReviewVerdict } from "@re-cinq/lore-assembly-lines";
-import { isFeatureLifecycleType } from "../task/task-lifecycle-type.js";
+import { isFeatureLifecycleType } from "../lib/task-lifecycle-type.js";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";

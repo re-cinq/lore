@@ -1,6 +1,6 @@
 /** The event registry (layer 2 → layer 3): maps a fully-qualified event_name to exactly one handler; a producer emitting an unregistered name dead-letters with "no handler". */
 
-import type { EventHandler } from "./types.js";
+import type { EventHandler } from "../kernel/event-types.js";
 import * as github from "../jobs/github.js";
 import * as internal from "../jobs/internal.js";
 import * as cron from "../jobs/cron.js";

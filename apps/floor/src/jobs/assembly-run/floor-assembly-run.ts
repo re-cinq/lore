@@ -4,7 +4,7 @@ import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/ru
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { serializeStationInput } from "@re-cinq/lore-shared/station-input.js";
 import { builtinStationName } from "@re-cinq/lore-assembly-lines";
-import { truncateForStorage } from "../agent/agent-run-events.js";
+import { truncateForStorage } from "../lib/truncate-for-storage.js";
 import type { StationRunInput } from "@re-cinq/lore-shared/models/station-run.js";
 import {
   ASSEMBLY_RUN_ID_LABEL,

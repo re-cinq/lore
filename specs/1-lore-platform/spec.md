@@ -529,7 +529,7 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
 
 - FR-13.1: After an implementation PR is created, an auto-review is started on
   the ai-agent-subsystem when `auto_review` is enabled on the repo (ADR-031
-  retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/review/should-auto-review.test.ts#L5), [`code-review.test.ts:100`](apps/floor/src/jobs/review/code-review.test.ts#L100))
+  retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/lib/should-auto-review.test.ts#L5), [`code-review.test.ts:100`](apps/floor/src/jobs/review/code-review.test.ts#L100))
 - FR-13.2: The review agent reads spec + conventions and posts ONE formal PR
   review — inline comments per finding plus a summary, carrying the verdict as its
   GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/jobs/review/post-review.test.ts#L77), [`post-review.test.ts:180`](apps/floor/src/jobs/review/post-review.test.ts#L180))

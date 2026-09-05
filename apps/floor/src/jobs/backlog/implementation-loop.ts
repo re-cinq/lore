@@ -6,7 +6,7 @@ import {
 } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { decideBranchResume } from "./resume-branch.js";
 import { implementationTicketDescription } from "./ticket-description.js";
-import type { EventHandler } from "../../main-loop/types.js";
+import type { EventHandler } from "../../kernel/event-types.js";
 import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
 
 /** Narrow data slice so the tick is testable without the kernel (specs/implementation-loop FR2). */

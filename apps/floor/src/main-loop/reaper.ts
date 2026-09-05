@@ -1,6 +1,6 @@
 /** Crash-recovery for the bus: a 60s tick re-runs deliveries stuck in `processing`; per-delivery budgets replaced the global ceiling that could re-queue a handler while it was still running (ADR-044). */
 
-import { reapStuck } from "./store.js";
+import { reapStuck } from "../kernel/event-store.js";
 
 export function startEventReaper(intervalMs = 60_000): NodeJS.Timeout {
   console.log("[events] reaper started");

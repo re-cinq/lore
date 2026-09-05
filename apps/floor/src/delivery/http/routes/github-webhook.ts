@@ -5,7 +5,7 @@ import { apiError } from "../api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { mapGitHubEvent } from "@re-cinq/lore-shared/project/events/github-map.js";
 import { verifyGitHubSignature } from "@re-cinq/lore-shared/http/github-signature.js";
-import { insertEventList } from "../../../main-loop/store.js";
+import { insertEventList } from "../../../kernel/event-store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 
 export const githubWebhookRoute: ServerRoute = {

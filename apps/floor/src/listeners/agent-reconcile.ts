@@ -6,7 +6,7 @@ import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js"
 import { forEachPage } from "@re-cinq/lore-shared/lib/paginate.js";
 import { clusterAgent, pipeline, taskStore } from "../kernel/queues.js";
 import { errorMessage } from "@re-cinq/lore-shared";
-import { emitEvent } from "../main-loop/store.js";
+import { emitEvent } from "../kernel/event-store.js";
 
 const PRUNE_AFTER_MS = 60 * 60 * 1000;
 const LIST_PAGE_LIMIT = 50;

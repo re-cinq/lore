@@ -4,7 +4,7 @@ import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-run
 import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { detectSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
-import type { EventHandler } from "../../main-loop/types.js";
+import type { EventHandler } from "../../kernel/event-types.js";
 import { query } from "../../kernel/db.js";
 import { pipeline, settings } from "../../kernel/queues.js";
 

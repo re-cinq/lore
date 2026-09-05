@@ -6,7 +6,7 @@ import {
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
-import type { EventHandler } from "../../main-loop/types.js";
+import type { EventHandler } from "../../kernel/event-types.js";
 import { advanceLine } from "./advance-line.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";

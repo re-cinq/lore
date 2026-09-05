@@ -4,7 +4,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NodeResult, StageOutcome } from "@re-cinq/lore-assembly-lines";
 import { NodeResultSchema } from "@re-cinq/lore-assembly-lines";
-import type { EventHandler } from "../../main-loop/types.js";
+import type { EventHandler } from "../../kernel/event-types.js";
 
 const OUTCOMES: ReadonlySet<string> = new Set<StageOutcome>([
   "success",

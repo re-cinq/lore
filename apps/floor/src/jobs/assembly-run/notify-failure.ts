@@ -5,7 +5,7 @@ import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-por
 import { projectFor } from "../../kernel/project-boot.js";
 import { writeAuditLog, type AuditLogEntry } from "../lib/audit.js";
 import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js";
-import { loreTaskRef } from "../task/issue-body.js";
+import { loreTaskRef } from "../lib/task-ref.js";
 import {
   isReviewDefinition,
   REVIEW_RERUN_HINT,

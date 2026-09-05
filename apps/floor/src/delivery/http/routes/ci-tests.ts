@@ -7,7 +7,7 @@ import {
   mapCiTests,
   type CiTestsBody,
 } from "../../../listeners/ci-tests-map.js";
-import { insertEventList } from "../../../main-loop/store.js";
+import { insertEventList } from "../../../kernel/event-store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 
 export const ciTestsRoute: ServerRoute = {
