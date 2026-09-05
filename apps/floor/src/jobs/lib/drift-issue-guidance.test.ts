@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  isDriftTask,
-  DRIFT_ISSUE_GUIDANCE,
-} from "./drift-issue-guidance.js";
+import { isDriftTask, DRIFT_ISSUE_GUIDANCE } from "./drift-issue-guidance.js";
 
 describe("isDriftTask", () => {
   it("returns true for a gap-fill task carrying a spec_path", () => {
