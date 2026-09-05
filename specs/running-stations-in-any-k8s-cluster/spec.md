@@ -409,7 +409,7 @@ pull, so recovery splits by who holds the claim:
   live adapter is exercised against the real sweep instead. An object the
   apiserver reports without a creation stamp reads as brand new, since
   defaulting the other way would delete whatever the parse failed to
-  understand. ([validated by [deletes through the live adapter without losing `this`](apps/cluster-agent/src/kernel/kube-pruner.test.ts#L39), [reads an object the apiserver reports without a creation stamp as brand new](apps/cluster-agent/src/kernel/kube-pruner.test.ts#L61))
+  understand. ([validated by [deletes through the live adapter without losing `this`](apps/cluster-agent/src/integration-tests/kube-pruner.test.ts#L39), [reads an object the apiserver reports without a creation stamp as brand new](apps/cluster-agent/src/integration-tests/kube-pruner.test.ts#L61))
 
 ## FR5 — Reporting credentials for satellites
 

@@ -147,6 +147,13 @@ layers:
       - kernel
       - "@re-cinq/agent-contracts"
       - "@re-cinq/lore-shared"
+    # A suite whose subject IS the collaboration between two layers has to see
+    # both; the repo already treats `integration-tests` as that place.
+    integration-tests:
+      - kernel
+      - reap
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
 
   # The pooled station service. `kernel` reaches `delivery` and `stations` today,
   # the same substrate-imports-upward shape as cluster-agent.
@@ -163,12 +170,23 @@ layers:
       - kernel
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
+    # Dispatch: it picks a station and runs it, so it reaches the implementations
+    # the way the Floor's loop reaches its handlers. Splitting it out of kernel is
+    # what lets kernel stay a leaf.
+    runner:
+      - kernel
+      - stations
+      - delivery
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
     drain:
       - kernel
+      - runner
       - stations
       - "@re-cinq/lore-shared"
     delivery:
       - kernel
+      - runner
       - "@re-cinq/lore-shared"
     cli:
       - stations

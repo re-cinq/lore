@@ -1,17 +1,8 @@
 // The cluster's Kubernetes surface, as HTTP — every route is a DOMAIN operation (never raw get/replace, no resourceVersion crosses the wire); list is ONE apiserver page per call since 180 CRs blew Node's heap on 2026-07-24.
 
 import type { ServerRoute } from "@hapi/hapi";
+import type { ClusterDeps } from "../../kernel/cluster-deps.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type {
-  Agent as AgentCr,
-  AgentDefinition,
-  Station,
-} from "@re-cinq/agent-contracts";
-import type {
-  AgentPodInfo,
-  PodSummary,
-  RunningPodInfo,
-} from "@re-cinq/lore-shared";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
@@ -20,34 +11,7 @@ const MAX_PAGE = 100;
 /** Log tail ceiling, clamped HERE — the Floor's clamp no longer protects this process's heap. */
 const MAX_TAIL = 10_000;
 
-export interface ClusterDeps {
-  agents: {
-    get(name: string): Promise<AgentCr | null>;
-    list(opts: {
-      labelSelector?: string;
-      limit: number;
-      continue?: string;
-    }): Promise<{ items: AgentCr[]; continueToken?: string }>;
-    remove(name: string): Promise<void>;
-  };
-  pods: {
-    agentInfo(name: string): Promise<AgentPodInfo | null>;
-    podsForJob(jobName: string): Promise<PodSummary[]>;
-    podLog(podName: string, tailLines?: number): Promise<string>;
-    /** Every non-terminal run pod with the agent container's resource requests — the live half of the spend page's compute-cost estimate. */
-    listRunning(): Promise<RunningPodInfo[]>;
-  };
-  tokens: {
-    cleanup(taskId: string): Promise<void>;
-  };
-  catalog: {
-    applyPair(pair: {
-      agentDefinition: AgentDefinition;
-      station: Station;
-    }): Promise<void>;
-    deletePair(name: string): Promise<void>;
-  };
-}
+export type { ClusterDeps };
 
 export interface ClusterRoutesDeps {
   /** A thunk: the Kubernetes clients are built lazily, after boot. */

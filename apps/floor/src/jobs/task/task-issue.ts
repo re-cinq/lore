@@ -103,6 +103,7 @@ export async function ensureIssue(
     return existing;
   }
 
+  // eslint-disable-next-line lore/no-cross-layer-import -- asking dark-factory's issue policy; extracting it would split that policy across two folders to satisfy a rule
   const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
   const gate = await shouldCreateIssue(task);
 

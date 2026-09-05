@@ -192,11 +192,13 @@ export default tseslint.config(
       "lore/no-reexport-only-module": "error",
       // The layering lives in layers.yaml at the repo root, where it can be
       // read as a statement of the architecture rather than inferred from
-      // imports. Only packages named there are checked, so this arrives one
-      // package at a time; apps/floor is first because its layering was
-      // already asserted by a hand-written domain-boundaries test, which this
-      // replaces. Starts at `warn` while that first entry settles.
-      "lore/no-cross-layer-import": "warn",
+      // imports. Only packages named there are checked, so it arrives one
+      // package at a time; six are described as of 2026-09-05 and the queue
+      // each opened is drained, so this is an error. Adding a package is
+      // therefore a real piece of work, not a config line: state the layering
+      // the package is MEANT to have, then move the code that disagrees.
+      // Two sites carry an inline disable naming why they stand.
+      "lore/no-cross-layer-import": "error",
     },
   },
 

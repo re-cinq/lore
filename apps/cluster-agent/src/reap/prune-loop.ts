@@ -1,13 +1,13 @@
+import type { PruneCluster } from "../kernel/prunable.js";
+
+export type { PruneCluster };
+
 // The retention half of FR4: a cluster forgets what it finished with — 176 Agent CRs OOMKilled the controller on 2026-08-30. Runs HERE (not Floor-side, #1651); CONNECTION only, decisions live in `decidePrune`.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { runPollLoop } from "@re-cinq/lore-shared/lib/poll-loop.js";
 import { secondsEnvMs } from "../claim/intervals.js";
-import {
-  decidePrune,
-  type PrunableAgent,
-  type PrunableRecipe,
-} from "./decide-prune.js";
+import { decidePrune } from "./decide-prune.js";
 
 /** Hourly — the backlog it bounds grows over days, so a tighter poll would only list the same objects more often. */
 const DEFAULT_INTERVAL_S = 3600;
@@ -33,15 +33,6 @@ export function pruneTtlMs(env: NodeJS.ProcessEnv): number {
 }
 
 /** The cluster reads and writes one sweep needs. */
-export interface PruneCluster {
-  listAgents(): Promise<PrunableAgent[]>;
-  listStations(): Promise<PrunableRecipe[]>;
-  listDefinitions(): Promise<PrunableRecipe[]>;
-  deleteAgent(name: string): Promise<void>;
-  deleteStation(name: string): Promise<void>;
-  deleteDefinition(name: string): Promise<void>;
-}
-
 export interface PruneDeps {
   cluster: PruneCluster;
   ttlMs: number;

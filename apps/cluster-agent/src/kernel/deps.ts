@@ -10,7 +10,7 @@ import {
   KubeSecretKeyWriter,
   KubeCatalogApi,
 } from "./kube-token-provisioner.js";
-import type { ClusterDeps } from "../delivery/routes/cluster.js";
+import type { ClusterDeps } from "./cluster-deps.js";
 import { isNotFound, describeK8sError } from "./k8s-errors.js";
 import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "./crd.js";
 import { customObjectsApi } from "./kube-clients.js";
