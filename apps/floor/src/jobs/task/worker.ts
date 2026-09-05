@@ -4,7 +4,7 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /** Core task processing worker: polls pipeline.tasks, dispatches to the LLM, creates branches + PRs. */
 
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import {
   classifyError,
   TaskFailure,

@@ -1,6 +1,6 @@
 // Closing out a succeeded run that produced no code changes — the completion routes through the task's GitHub Issue instead of a PR.
 import { writeEpisode, errorMessage } from "@re-cinq/lore-shared";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { memoryLifecycle, pipeline, taskStore } from "../../kernel/queues.js";
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { taskPageUrl } from "./agent-watcher-logic.js";

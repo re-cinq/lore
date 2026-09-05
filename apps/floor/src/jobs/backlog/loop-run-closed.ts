@@ -148,7 +148,7 @@ export async function loopRunClosed(
   const [{ pipeline, taskStore, eventProxy }, { projectFor }] =
     await Promise.all([
       import("../../kernel/queues.js"),
-      import("../../composition/project-boot.js"),
+      import("../../kernel/project-boot.js"),
     ]);
 
   await handleLoopRunClosed(run, outcome, reason, {

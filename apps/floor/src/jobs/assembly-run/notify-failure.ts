@@ -2,7 +2,7 @@
 
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { writeAuditLog, type AuditLogEntry } from "../lib/audit.js";
 import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 import { loreTaskRef } from "../task/issue-body.js";

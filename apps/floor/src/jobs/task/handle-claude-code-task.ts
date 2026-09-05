@@ -1,6 +1,6 @@
 import type { PipelineTask } from "@re-cinq/lore-shared";
 
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
 import { agentPrompt } from "../../kernel/agent-invocation.js";
 import { ensureTaskBranch } from "./ensure-task-branch.js";

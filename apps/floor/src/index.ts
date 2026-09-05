@@ -5,6 +5,7 @@ import { getPool, initPool } from "./kernel/db.js";
 import { awaitSoleFloor } from "./kernel/single-instance.js";
 import { eventProxy, usage } from "./kernel/queues.js";
 import { loadTaskTypes } from "./kernel/config.js";
+import { wireProject } from "./composition/project-boot.js";
 import { recoverStaleTasks, startWorker } from "./jobs/task/worker.js";
 import {
   startScheduler,
@@ -62,6 +63,7 @@ async function main(): Promise<void> {
   await initOtel();
 
   initPool();
+  wireProject();
   Llm.configure({ usage: usage() });
   console.log("[floor] Platform: github (via project facade)");
 

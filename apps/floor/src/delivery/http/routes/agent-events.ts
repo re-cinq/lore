@@ -6,7 +6,7 @@ import { enforceRegistryOrSharedToken } from "@re-cinq/lore-shared/http/registry
 import type { RegistryOrSharedTokenDeps } from "@re-cinq/lore-shared/http/registry-or-shared-token.js";
 import { metrics } from "@opentelemetry/api";
 import { pipeline, usage, taskStore } from "../../../kernel/queues.js";
-import { projectFor } from "../../../composition/project-boot.js";
+import { projectFor } from "../../../kernel/project-boot.js";
 import { deliverPlanningResults } from "../../../jobs/agent/planning-result.js";
 import { deliverArtifact } from "../../../jobs/agent/artifact-args.js";
 import {

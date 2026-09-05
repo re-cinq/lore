@@ -438,7 +438,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   for a Project around fifty times across its handlers, several times for the SAME repo inside one
   event, all serialized on the drain loop against a rate-limited endpoint. A rejected build is
   forgotten rather than cached, so one transient failure cannot outlive itself.
-  ([validated by builds re-cinq/lore once across three calls and hands back the same value](apps/floor/src/composition/memoize-per-key.test.ts#L5), [`memoize-per-key.test.ts:20`](apps/floor/src/composition/memoize-per-key.test.ts#L20), [`memoize-per-key.test.ts:33`](apps/floor/src/composition/memoize-per-key.test.ts#L33), [`memoize-per-key.test.ts:48`](apps/floor/src/composition/memoize-per-key.test.ts#L48))
+  ([validated by builds re-cinq/lore once across three calls and hands back the same value](apps/floor/src/kernel/memoize-per-key.test.ts#L5), [`memoize-per-key.test.ts:20`](apps/floor/src/kernel/memoize-per-key.test.ts#L20), [`memoize-per-key.test.ts:33`](apps/floor/src/kernel/memoize-per-key.test.ts#L33), [`memoize-per-key.test.ts:48`](apps/floor/src/kernel/memoize-per-key.test.ts#L48))
 
 - **Paginated CR listing.** The reconcile safety net and the watch catch-up walk the Agent CRs
   one bounded page at a time (threading the API's `continue` token and returning the list

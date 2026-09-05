@@ -5,7 +5,7 @@ import type { Project } from "@re-cinq/lore-shared";
 import { getTaskTypeConfig } from "../../kernel/config.js";
 import { settings } from "../../kernel/queues.js";
 import { slugify } from "./task-helpers.js";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 
 interface RepoSettings {
   task_overrides?: Record<

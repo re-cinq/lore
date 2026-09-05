@@ -22,6 +22,7 @@ layers:
   # reachable only from index.ts because nothing else lists it.
   apps/floor:
     ".":
+      - composition
       - delivery
       - jobs
       - kernel
@@ -62,9 +63,12 @@ layers:
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
       - "@re-cinq/lore-stations"
-    # A leaf: shared helpers for the job domains, never a domain itself.
+    # A leaf: shared helpers for the job domains, never a domain itself. It reads
+    # the assembly-line definitions because the set of line names decides job
+    # routing — the watcher and the wiring root are its only callers.
     jobs/lib:
       - kernel
+      - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
     # One domain per folder: a domain reaches lib and the substrate, never a
     # sibling domain, and never back up into the loop that dispatches it.

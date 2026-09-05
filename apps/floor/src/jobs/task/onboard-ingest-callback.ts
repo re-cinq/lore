@@ -1,7 +1,7 @@
 /** Points the repo's workflows back at this Floor, before the onboarding PR opens. */
 
 import { errorMessage } from "@re-cinq/lore-shared";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 
 async function setIngestVariable(
   project: Awaited<ReturnType<typeof projectFor>>,

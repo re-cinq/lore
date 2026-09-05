@@ -1,6 +1,6 @@
 // Cross-cutting helpers every agent-watcher module needs: the shared AgentContext, Slack/issue notification, and per-task token cleanup.
 import { HttpTokenCleanup } from "@re-cinq/lore-shared";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { taskStore, clusterAgent } from "../../kernel/queues.js";
 import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";
 

@@ -8,7 +8,7 @@ import {
   specSlugFromBranch,
 } from "@re-cinq/lore-shared";
 import { getPool } from "../kernel/db.js";
-import { projectFor } from "../composition/project-boot.js";
+import { projectFor } from "../kernel/project-boot.js";
 import {
   eventReporter,
   pipeline,

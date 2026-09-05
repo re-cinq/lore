@@ -2,7 +2,8 @@
 
 import { query } from "../../kernel/db.js";
 import { pipeline } from "../../kernel/queues.js";
-import { projectFor, stationBackend } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
+import { stationBackendNow } from "../../kernel/project-boot.js";
 import {
   decidePlanningRecovery,
   latestReadyGap,
@@ -214,7 +215,7 @@ async function roundStillActive(
     return runOpen;
   }
 
-  return stationBackend().isActive(latest.task_id);
+  return (await stationBackendNow()).isActive(latest.task_id);
 }
 
 /** The round + run pair eligible for artifact recovery (#1298): a recent round with no result whose task ran on an assembly run, while the feature is still mid-planning; null otherwise. */

@@ -1,6 +1,6 @@
 // Shared helpers for the task-processing worker + its handlers, extracted from worker.ts to avoid a worker↔handler import cycle.
 
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { taskStore } from "../../kernel/queues.js";
 import { prFooter } from "@re-cinq/lore-shared";
 import { slugifyTitle } from "@re-cinq/lore-shared/project/features/features-port.js";

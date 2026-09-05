@@ -1,7 +1,7 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import type { TaskHandlerInput } from "./task-handler-input.js";
 import { writeEpisode } from "@re-cinq/lore-shared";

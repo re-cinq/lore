@@ -7,7 +7,7 @@ import {
 } from "@re-cinq/lore-shared";
 import { DISPATCH_LABELS } from "@re-cinq/lore-shared/task-types/dispatch-labels.js";
 import { writeAuditLog } from "../lib/audit.js";
-import { projectFor } from "../../composition/project-boot.js";
+import { projectFor } from "../../kernel/project-boot.js";
 import type { TaskHandlerInput } from "./task-handler-input.js";
 
 /** What an onboard-failure audit entry needs; grouped because `handleOnboard` already tracked every field before deciding whether to write one. */

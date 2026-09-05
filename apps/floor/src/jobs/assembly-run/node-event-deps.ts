@@ -127,7 +127,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
-    import("../../composition/project-boot.js"),
+    import("../../kernel/project-boot.js"),
     import("../../kernel/config.js"),
     import("../watcher/agent-watcher.js"),
     import("./settle-task.js"),
