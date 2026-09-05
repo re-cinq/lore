@@ -14,7 +14,7 @@ import { reviewSubject } from "@re-cinq/lore-shared/project/assembly-runs/subjec
 
 import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
 import type { ClosedRunRef } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { cleanupPerTaskToken } from "../watcher/agent-watcher.js";
+import { cleanupPerTaskToken } from "../lib/per-task-token.js";
 import {
   decideReviewOnOpen,
   decideReviewOnReply,
