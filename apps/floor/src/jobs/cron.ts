@@ -6,7 +6,7 @@ import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
 import { leaseReaperJob } from "./lease/lease-reaper.js";
 import { pruneHandled, orphanedEvents } from "../kernel/event-store.js";
 import { pipeline, stationClient } from "../kernel/queues.js";
-import { reconcileAgents } from "../listeners/agent-reconcile.js";
+import { reconcileAgents } from "./watcher/agent-reconcile.js";
 import type { EventHandler } from "../kernel/event-types.js";
 
 /** Agent run events are per-tool-call telemetry: high volume, low half-life. */

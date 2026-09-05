@@ -1,7 +1,6 @@
 // Cross-cutting helpers every agent-watcher module needs: the shared AgentContext, Slack/issue notification, and per-task token cleanup.
-import { HttpTokenCleanup } from "@re-cinq/lore-shared";
 import { projectFor } from "../../kernel/project-boot.js";
-import { taskStore, clusterAgent } from "../../kernel/queues.js";
+import { taskStore } from "../../kernel/queues.js";
 import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";
 
 /** Context threaded through the per-outcome handlers, recovered entirely from the run/task rows + event — never read back from the cluster. */
@@ -21,16 +20,7 @@ export function tailOutput(output: string, limit = 60000): string {
     : output;
 }
 
-/** Best-effort per-task token + AgentDefinition/Station cleanup (#697); exported so a station line reclaims its shared token only once the whole line is done. */
-export function cleanupPerTaskToken(taskId: string): Promise<void> {
-  return new HttpTokenCleanup(clusterAgent()).cleanup(taskId).catch((err) =>
-    // Swallowed so a task still settles on reclaim failure, but logged (used to hide a 403).
-    console.warn(
-      `[agent-watcher] token cleanup for ${taskId} failed:`,
-      (err as Error).message,
-    ),
-  );
-}
+
 
 // ── Telling the repo about one task update ──────────
 

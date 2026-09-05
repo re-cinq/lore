@@ -13,13 +13,14 @@ import {
 } from "../lib/agent-watcher-logic.js";
 import {
   type AgentContext,
-  cleanupPerTaskToken,
 } from "./agent-watcher-notify.js";
 import { handleSucceededChanges } from "./agent-watcher-pr-delivery.js";
 import { handleFailure } from "./agent-watcher-failure.js";
 import { handleReviewVerdict } from "./agent-watcher-review.js";
 
-export { cleanupPerTaskToken } from "./agent-watcher-notify.js";
+import { cleanupPerTaskToken } from "../lib/per-task-token.js";
+
+export { cleanupPerTaskToken } from "../lib/per-task-token.js";
 
 /** Closes a single-CR task's open run rows from the task's post-handler status; `phase` disambiguates a Failed-but-still-`running` task so it closes `failed`, not `completed`. */
 async function finishSingleCrRunRows(
