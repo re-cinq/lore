@@ -159,5 +159,12 @@ ruleTester.run("no-cross-layer-import", rule, {
       options: opts,
       errors: [{ messageId: "notAllowed" }],
     },
+    {
+      name: "resolves the target against the config root, not the working directory",
+      code: `import { x } from "../merge/auto-merge.js";`,
+      filename: "/elsewhere/repo/apps/floor/src/jobs/review/code-review.ts",
+      options: [{ ...FLOOR, root: "/elsewhere/repo" }],
+      errors: [{ messageId: "notAllowed" }],
+    },
   ],
 });

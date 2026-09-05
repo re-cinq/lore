@@ -127,7 +127,7 @@ export default {
     schema: [
       {
         type: "object",
-        properties: { layers: { type: "object" } },
+        properties: { layers: { type: "object" }, root: { type: "string" } },
         additionalProperties: false,
       },
     ],
@@ -143,7 +143,7 @@ export default {
     const filename = context.filename ?? context.getFilename();
     const inline = context.options[0]?.layers;
     const config = inline
-      ? { root: process.cwd(), layers: inline }
+      ? { root: context.options[0]?.root ?? process.cwd(), layers: inline }
       : loadConfig(path.dirname(path.resolve(filename)));
     if (!config) return {};
 
@@ -164,11 +164,12 @@ export default {
     const allowed = key === undefined ? null : (entries[key] ?? []);
     const layer = key === undefined ? null : layerRoot(key, folder);
 
+    // `join`, never `resolve`: resolve() with a relative base silently prepends
+    // process.cwd(), so linting from a subdirectory resolved every target
+    // outside the package and reported nothing at all.
     function targetFolder(spec) {
-      const abs = path.posix.resolve(path.posix.dirname(relFile), spec);
-      const rel = path.posix.relative(
-        config.root,
-        path.posix.resolve("/", abs),
+      const rel = path.posix.normalize(
+        path.posix.join(path.posix.dirname(relFile), spec),
       );
 
       return folderIn(pkg, rel.replace(/\.(js|ts|tsx)$/, ".ts"));
