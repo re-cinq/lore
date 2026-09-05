@@ -55,7 +55,7 @@ export class PgTaskStore implements TaskStorePort {
       [id],
     );
 
-    return (rows[0] as PipelineTask) ?? null;
+    return (rows.at(0) as PipelineTask | undefined) ?? null;
   }
 
   // ── ops delegating to the single-source pipeline-tasks functions ──

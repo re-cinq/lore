@@ -82,6 +82,7 @@ export function orgAgentDefinitionUpdateRoute(
         let patch: ReturnType<typeof parseAgentPatch>;
 
         try {
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
           patch = parseAgentPatch(request.payload ?? {});
         } catch (err) {
           return h

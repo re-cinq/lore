@@ -54,7 +54,7 @@ async function remainingBudgetFrom(
   { billedUsd, billedThrough }: BilledSlice,
 ) {
   // Computed spend strictly after billed_through, only Anthropic-charged calls (Gemini calls since 2026-09-02 excluded).
-  const [computed] = await optionalTableRows<{ cost_usd: number }>(
+  const computedRows = await optionalTableRows<{ cost_usd: number }>(
     pool,
     `SELECT COALESCE(SUM(lc.cost_usd), 0)::float8 AS cost_usd
        FROM pipeline.llm_calls lc
@@ -66,6 +66,7 @@ async function remainingBudgetFrom(
         AND lc.model NOT LIKE ALL($3::text[])`,
     [anchoredAt, billedThrough, [...NON_ANTHROPIC_LIKE_PATTERNS]],
   );
+  const computed = computedRows.at(0);
   const spentSinceUsd = billedUsd + (computed ? computed.cost_usd : 0);
 
   return {
@@ -79,7 +80,7 @@ async function remainingBudgetFrom(
 /** The recorded balance, which is NOT interval-scoped: a ledger is a running total, and clipping it to a window would report a balance the account never had. */
 export async function readBudget(pool: Pool) {
   // Read last, so no other read's statement ordering shifts; an empty ledger yields anchored_at null (no anchor, no arithmetic, no budget).
-  const [ledger] = await optionalTableRows<{
+  const ledgerRows = await optionalTableRows<{
     ledger_total_usd: number;
     anchored_at: string | null;
   }>(
@@ -95,6 +96,7 @@ export async function readBudget(pool: Pool) {
        ) AS anchored_at
      FROM pipeline.credit_ledger`,
   );
+  const ledger = ledgerRows.at(0);
   const budget = ledger?.anchored_at
     ? await remainingBudget(pool, ledger.anchored_at, ledger.ledger_total_usd)
     : null;

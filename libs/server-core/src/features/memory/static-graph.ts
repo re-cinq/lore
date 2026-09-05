@@ -251,6 +251,7 @@ function loadGraph(): Graph | string {
     return "Error: failed to parse graph.json.";
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- graph.json is arbitrary JSON off disk; the Graph type is a claim, not a guarantee, about what a hand-edited or stale file actually contains
   return graph.entities && graph.relationships
     ? graph
     : 'Error: graph.json is missing required "entities" or "relationships" fields.';

@@ -54,7 +54,7 @@ export async function pruneOrphanBlocksByFile(
       }`,
       { $fp: filePath, $repo: repo },
     );
-    const blocks = (res.data?.blocks ?? []) as Array<{
+    const blocks = (res.data.blocks ?? []) as Array<{
       uid: string;
       "Block.xid": string;
     }>;

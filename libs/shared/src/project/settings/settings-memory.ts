@@ -238,7 +238,7 @@ export class InMemorySettings implements SettingsPort {
     if (!row) {
       return;
     }
-    const stats = row.outcome_stats ?? {};
+    const stats: Record<string, number | undefined> = row.outcome_stats ?? {};
 
     row.outcome_stats = {
       ...stats,

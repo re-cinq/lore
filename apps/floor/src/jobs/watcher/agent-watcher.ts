@@ -69,7 +69,7 @@ async function findCurrentRun(taskId: string) {
 
   return (
     runs.find((row) => ["queued", "running"].includes(row.status)) ??
-    runs[runs.length - 1]
+    runs.at(-1)
   );
 }
 
@@ -125,7 +125,8 @@ async function applyTerminalPhaseEffects(
     return;
   }
 
-  if (phase === "Failed" && report.failureReason) {
+  // Only "Succeeded" and "Failed" ever reach here (validated at the event boundary); the "Succeeded" branch above already returned.
+  if (report.failureReason) {
     await handleFailure(ctx, report.failureReason);
   }
 }

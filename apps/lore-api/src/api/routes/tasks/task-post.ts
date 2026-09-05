@@ -227,7 +227,8 @@ function createTaskArgs(parsed: TaskBody, description: string) {
     taskType: resolvedTaskType(parsed.task_type),
     targetRepo: parsed.target_repo,
     createdBy: parsed.created_by || "remote-mcp",
-    contextBundle: (parsed.context as Record<string, unknown>) || undefined,
+    contextBundle:
+      (parsed.context as Record<string, unknown> | undefined) || undefined,
     priority: parsed.priority || "normal",
     taskGroupId: parsed.group_id || undefined,
   };

@@ -6,7 +6,7 @@ import type { ZodError, ZodType } from "zod";
 
 /** A single `{ error }` message naming the first offending field where zod has one. */
 export function formatZodError(error: ZodError): string {
-  const [issue] = error.issues;
+  const issue = error.issues.at(0);
 
   if (!issue) {
     return "invalid request";

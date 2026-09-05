@@ -15,7 +15,7 @@ export function wireSchema<
   const renamed: z.ZodRawShape = {};
 
   for (const [field, value] of Object.entries(schema.shape)) {
-    const column = (columns as Record<string, string>)[field];
+    const column = (columns as Record<string, string | undefined>)[field];
 
     // No silent fallback to the field name: a miss means schema and column map disagree, and defaulting would publish a wrong contract.
     enforceTrue(

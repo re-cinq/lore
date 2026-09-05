@@ -109,8 +109,8 @@ function* findContainers(node: unknown): Generator<Rec> {
 
 function containerArgv(container: Rec): string[] {
   return [
-    ...((container.command as unknown[]) ?? []),
-    ...((container.args as unknown[]) ?? []),
+    ...((container.command as unknown[] | undefined) ?? []),
+    ...((container.args as unknown[] | undefined) ?? []),
   ].map(String);
 }
 

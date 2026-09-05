@@ -36,10 +36,10 @@ function resolveTemplateDir(dir?: string): string {
 function loadTemplateFile(templateDir: string, file: string): void {
   try {
     const raw = readFileSync(join(templateDir, file), "utf-8");
-    const template = parseYaml(raw) as Template;
+    const template = parseYaml(raw) as Partial<Template>;
 
     if (template.name && template.sections) {
-      templates.set(template.name, template);
+      templates.set(template.name, template as Template);
     }
   } catch (err) {
     console.warn(`[context-assembly] Failed to load template ${file}:`, err);

@@ -59,8 +59,8 @@ export async function classifyComment(
   });
 
   return {
-    action: isAction(parsed?.action) ? parsed.action : "ignore",
-    reason: parsed?.reason ?? "",
+    action: isAction(parsed.action) ? parsed.action : "ignore",
+    reason: parsed.reason ?? "",
     usage,
   };
 }

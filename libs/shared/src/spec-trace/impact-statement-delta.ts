@@ -115,7 +115,7 @@ export async function readSpecStatements(
       $fp: specPath,
     });
 
-    return (res.data?.specs ?? []) as GraphSpecStatements[];
+    return (res.data.specs ?? []) as GraphSpecStatements[];
   });
 
   return specs.flatMap((spec) =>

@@ -16,7 +16,7 @@ export async function upsertCheckRun(
     ref: input.headSha,
     check_name: input.name,
   });
-  const existing = checks.check_runs[0];
+  const existing = checks.check_runs.at(0);
   const output = { title: input.title, summary: input.summary };
   const fields = {
     status: input.status,

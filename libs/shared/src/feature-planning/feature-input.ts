@@ -72,8 +72,10 @@ function normalizeSectionEntry(section: Record<string, unknown>): {
   return entry;
 }
 
-function normalizeSections(raw: unknown): SectionAnswers["sections"] {
-  const sections: SectionAnswers["sections"] = {};
+type SectionAnswerEntries = NonNullable<SectionAnswers["sections"]>;
+
+function normalizeSections(raw: unknown): SectionAnswerEntries {
+  const sections: SectionAnswerEntries = {};
   const rawSections = isPlainObject(raw) ? raw : {};
 
   for (const [key, section] of Object.entries(rawSections)) {
@@ -99,7 +101,7 @@ function normalizeQuestions(raw: unknown): Record<string, string> {
 }
 
 function isEmptyAnswers(
-  sections: SectionAnswers["sections"],
+  sections: SectionAnswerEntries,
   questions: Record<string, string>,
   free_form: string,
 ): boolean {

@@ -25,7 +25,7 @@ function kindFor(
 function parseAmount(
   formData: FormData,
 ): { raw: string; amount: number } | null {
-  const raw = (formData.get("amount_usd") as string)?.trim();
+  const raw = (formData.get("amount_usd") as string | null)?.trim();
 
   if (!raw) {
     return null;
@@ -36,7 +36,7 @@ function parseAmount(
 }
 
 function trimmedFormValue(formData: FormData, key: string): string {
-  return ((formData.get(key) as string) ?? "").trim();
+  return ((formData.get(key) as string | null) ?? "").trim();
 }
 
 function creditEntryFields(formData: FormData, amount: number) {

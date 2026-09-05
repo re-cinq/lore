@@ -85,7 +85,7 @@ function renderedText(node: ElementContent | RootContent): string {
     return node.value;
   }
 
-  if (node.type === "element" && node.children) {
+  if (node.type === "element") {
     return node.children.map(renderedText).join("");
   }
 
@@ -139,7 +139,7 @@ function isMatchableBlock(node: Element): boolean {
 }
 
 function hasNoChildren(node: Element): boolean {
-  return !node.children || node.children.length === 0;
+  return node.children.length === 0;
 }
 
 function isBlockMatchCandidate(
@@ -226,7 +226,7 @@ function processTextNode(
 }
 
 function walkElement(state: HighlightState, node: Element) {
-  if (!node.children || node.children.length === 0) {
+  if (node.children.length === 0) {
     return;
   }
   const next: ElementContent[] = [];
@@ -253,11 +253,14 @@ function walkElement(state: HighlightState, node: Element) {
     next.push(child);
   });
 
+  // TS narrows `changed` to its initial `false` here — it doesn't track the forEach callback's reassignment across the closure boundary.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (changed) {
     node.children = next;
   }
 
   // Fallback: whole-element wrap when contiguous-text-node match finds nothing (e.g. fragmented by inline code).
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!changed) {
     tryBlockMatch(state, node);
   }
@@ -312,6 +315,8 @@ export function buildHighlighter(
         rootChildren.push(child);
       });
 
+      // Same closure-narrowing blind spot as walkElement's `changed`: rootChanged is set inside the forEach callback above.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (rootChanged) {
         tree.children = rootChildren;
       }

@@ -33,7 +33,7 @@ export async function resolveSentenceLink(
       { $repo: repo },
     );
 
-    return (res.data?.specs ?? []) as SpecRow[];
+    return (res.data.specs ?? []) as SpecRow[];
   });
 
   const matched: SentenceMatch[] = [];

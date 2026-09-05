@@ -61,7 +61,10 @@ export function replayRunData(
   const verdicts: Record<string, string | null> = {};
 
   for (const [nodeId, row] of latestRowByNode(completed)) {
-    const status = nodeStates[nodeId]?.status;
+    // A walk row's nodeId can be absent from nodeStates (stale/renamed node) — the Record's value type doesn't admit that.
+    const status = (
+      nodeStates as Readonly<Record<string, NodeRunState | undefined>>
+    )[nodeId]?.status;
 
     if (status === "succeeded" || status === "failed") {
       verdicts[nodeId] = row.outcome;

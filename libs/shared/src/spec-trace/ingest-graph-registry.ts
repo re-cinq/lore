@@ -115,6 +115,7 @@ export function chunkGlobsForKind(
 ): string[] {
   const def = registry[kind];
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- kind is a caller-controlled string; registry[kind] is undefined for an unknown kind
   if (!def) {
     return [];
   }
@@ -152,6 +153,7 @@ export function selectIngestFiles(
   }
   const def = registry[kind];
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- kind is a caller-controlled string; registry[kind] is undefined for an unknown kind
   if (!def) {
     return [];
   }

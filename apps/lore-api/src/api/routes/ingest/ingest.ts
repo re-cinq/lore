@@ -49,7 +49,7 @@ export function ingestRoute(getPool: () => Pool | null): ServerRoute {
         const { files, repo, commit } = request.payload as IngestBody;
         const result = await ingestFiles(pool, files, repo, commit || "HEAD");
         // Fire-and-forget test re-link (gate: content-hash, landed files only).
-        const landed = Array.isArray(result?.results)
+        const landed = Array.isArray(result.results)
           ? result.results.some(
               (r: { status?: string }) =>
                 r.status === "ingested" || r.status === "deleted",

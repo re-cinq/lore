@@ -6,7 +6,8 @@ export interface ChunkRow {
   schema: string;
   content: string;
   contentType: string;
-  team: string;
+  /** Nullable for legacy rows ingested before team tracking existed; org_shared reads filter these out. */
+  team: string | null;
   repo: string;
   filePath: string;
   metadata: Record<string, unknown>;

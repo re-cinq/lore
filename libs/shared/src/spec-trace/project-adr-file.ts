@@ -26,7 +26,7 @@ async function readAdrContentHash(
       { $xid: xid },
     );
 
-    return res.data?.found?.[0]?.["ADR.content_hash"] as string | undefined;
+    return res.data.found?.[0]?.["ADR.content_hash"] as string | undefined;
   });
 }
 

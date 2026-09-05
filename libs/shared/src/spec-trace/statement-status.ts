@@ -15,7 +15,7 @@ export async function deriveStatementStatus(
       `query q($sx: string){ stmt(func: eq(Statement.xid, $sx)){ Statement.trace_links { TraceLink.evidence } } }`,
       { $sx: statementXid },
     );
-    const links = (res.data?.stmt?.[0]?.["Statement.trace_links"] ??
+    const links = (res.data.stmt?.[0]?.["Statement.trace_links"] ??
       []) as Array<{
       "TraceLink.evidence"?: EvidenceTier;
     }>;

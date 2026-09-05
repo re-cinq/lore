@@ -16,7 +16,7 @@ export type EnsureFloorWebhookResult =
   | { ok: false; reason: WebhookSkipReason; detail?: string };
 
 function classifyEnsureFailure(err: unknown): EnsureFloorWebhookResult {
-  if ((err as { status?: number })?.status === 403) {
+  if ((err as { status?: number }).status === 403) {
     return { ok: false, reason: "app_no_webhook_permission" };
   }
 

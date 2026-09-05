@@ -203,6 +203,7 @@ function specsByPath(
 function latestIngest(chunks: SpecChunkWithIngest[]): string | Date | null {
   const stamps = chunks
     .map((c) => c.ingestedAt)
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- ingestedAt is cast unchecked from the DB row in chunks-pg.ts and can be null at runtime
     .filter((t): t is string | Date => t != null);
 
   if (stamps.length === 0) {

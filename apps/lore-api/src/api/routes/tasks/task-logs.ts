@@ -99,7 +99,7 @@ async function readFromTurnStore(
     status: string;
     target_repo: string | null;
   }>(`SELECT status, target_repo FROM pipeline.tasks WHERE id = $1`, [taskId]);
-  const task = rows[0];
+  const task = rows.at(0);
   const finished = task === undefined || !ACTIVE_STATUSES.has(task.status);
   const turnSlice = await readTurnSlice(
     new PgAgentRunTurns(pool),

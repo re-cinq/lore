@@ -147,7 +147,7 @@ async function resolveAdrUids(
     );
     const byNumber = new Map<number, string>();
 
-    for (const adr of (res.data?.adrs ?? []) as Array<{
+    for (const adr of (res.data.adrs ?? []) as Array<{
       uid: string;
       "ADR.number"?: number;
     }>) {

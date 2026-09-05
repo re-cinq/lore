@@ -103,7 +103,7 @@ export function conversationEntries(
     );
 
     entries.forEach((entry) => {
-      const last = timed[timed.length - 1];
+      const last = timed.at(-1);
       const merged = mergedDelta(last?.entry, entry);
 
       // A gemini delta chunk keeps the FIRST chunk's clock — the merged entry is one utterance, started when its first fragment did.

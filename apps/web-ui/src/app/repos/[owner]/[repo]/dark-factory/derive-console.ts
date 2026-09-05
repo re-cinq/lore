@@ -83,14 +83,17 @@ function summarizeSpecTraceIngest(payload: AuditPayload): string {
   return `Graph ingest: ${payload.validated_by ?? 0} validated_by, ${payload.violated ?? 0} violated`;
 }
 
-const SUMMARIZERS: Record<string, (payload: AuditPayload) => string> = {
-  auto_merge_decision: summarizeAutoMerge,
-  escalation_issued: summarizeEscalation,
-  lease_expired: summarizeLeaseExpired,
-  spec_trace_ingest: summarizeSpecTraceIngest,
-};
+const SUMMARIZERS: Partial<Record<string, (payload: AuditPayload) => string>> =
+  {
+    auto_merge_decision: summarizeAutoMerge,
+    escalation_issued: summarizeEscalation,
+    lease_expired: summarizeLeaseExpired,
+    spec_trace_ingest: summarizeSpecTraceIngest,
+  };
 
 function summarize(event: ConsoleAuditEvent): string {
+  // openapi.json marks `payload` required, but it describes server intent, not the wire: a malformed audit row can omit it.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const payload = event.payload ?? {};
   const summarizer = SUMMARIZERS[event.event_type];
 

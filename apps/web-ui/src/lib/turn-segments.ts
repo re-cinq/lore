@@ -13,7 +13,7 @@ export function segmentTurns(turns: readonly AgentRunTurn[]): TurnSegment[] {
   const segments: TurnSegment[] = [];
 
   for (const turn of turns) {
-    const last = segments[segments.length - 1];
+    const last = segments.at(-1);
 
     if (
       last !== undefined &&

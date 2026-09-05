@@ -2,7 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 
 function loginOf(profile: unknown): string {
-  return (profile as { login?: string })?.login ?? "unknown";
+  return (profile as { login?: string } | null | undefined)?.login ?? "unknown";
 }
 
 /** null means the request itself failed (network error or non-ok status) — distinct from an empty org list. */

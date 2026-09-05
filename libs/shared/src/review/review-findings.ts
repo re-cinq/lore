@@ -115,7 +115,7 @@ function safeParseJson(text: string): unknown {
 }
 
 // Escapes literal newlines/quotes INSIDE a JSON string, leaving true closing quotes untouched; can't be a single regex since whether `"` closes the string depends on what follows it.
-const WHITESPACE_ESCAPES: Record<string, string> = {
+const WHITESPACE_ESCAPES: Record<string, string | undefined> = {
   "\n": "\\n",
   "\r": "\\r",
   "\t": "\\t",

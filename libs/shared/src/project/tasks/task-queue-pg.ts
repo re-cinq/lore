@@ -36,7 +36,7 @@ function optionalTaskColumns(input: InsertTaskInput): [string, unknown][] {
 }
 
 const insertedId = (rows: { id?: unknown }[]): string | null =>
-  (rows[0]?.id as string) ?? null;
+  (rows.at(0)?.id as string | undefined) ?? null;
 
 /** Postgres TaskQueueRepository; org-wide claim/sweep SQL from Floor jobs. */
 export class PgTaskQueue implements TaskQueueRepository {
@@ -60,7 +60,7 @@ export class PgTaskQueue implements TaskQueueRepository {
         LIMIT 1`,
     );
 
-    return (rows[0] as PipelineTask) ?? null;
+    return (rows.at(0) as PipelineTask | undefined) ?? null;
   }
 
   async findRecoverable(maxAgeMinutes = 30): Promise<RecoverableTask[]> {
@@ -138,7 +138,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       [taskId],
     );
 
-    return (rows[0] as TaskPrInfo) ?? null;
+    return (rows.at(0) as TaskPrInfo | undefined) ?? null;
   }
 
   async reviewable(): Promise<ReviewableTask[]> {
@@ -170,7 +170,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       [repo, prNumber],
     );
 
-    return (rows[0] as ReviewableTask) ?? null;
+    return (rows.at(0) as ReviewableTask | undefined) ?? null;
   }
 
   async incrementReviewIteration(taskId: string): Promise<number> {
@@ -182,7 +182,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       [taskId],
     );
 
-    return (rows[0]?.review_iteration as number) ?? 1;
+    return (rows.at(0)?.review_iteration as number | undefined) ?? 1;
   }
 
   async mergeableTasks(): Promise<MergeableTask[]> {
@@ -208,7 +208,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       [taskId],
     );
 
-    return (rows[0]?.context_refs as TaskContextRefs) ?? null;
+    return (rows.at(0)?.context_refs as TaskContextRefs | undefined) ?? null;
   }
 
   async insertTask(input: InsertTaskInput): Promise<string | null> {
@@ -268,7 +268,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       [repo, prNumber],
     );
 
-    return (rows[0] as { id: string }) ?? null;
+    return (rows.at(0) as { id: string } | undefined) ?? null;
   }
 
   async activeTaskByIssue(
@@ -280,7 +280,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       [issueNumber, repo],
     );
 
-    return (rows[0] as { id: string }) ?? null;
+    return (rows.at(0) as { id: string } | undefined) ?? null;
   }
 
   async markFeatureRequestMergedOnBranch(

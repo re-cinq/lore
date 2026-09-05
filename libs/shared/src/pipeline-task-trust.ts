@@ -8,7 +8,7 @@ import type { PgPool } from "./memory-store.js";
 const FEATURE_PLANNING = ["feature-planning"];
 
 // Onboarding is allowed at every tier (docs-only PR, deduped by onboard-guard.ts) — restricting to `full` 500s reonboard on auto-demoted repos.
-export const TRUST_LEVELS: Record<string, string[]> = {
+export const TRUST_LEVELS: Record<string, string[] | undefined> = {
   docs: ["gap-fill", "runbook", "onboard", ...FEATURE_PLANNING],
   tests: ["gap-fill", "runbook", "onboard", "review", ...FEATURE_PLANNING],
   implementation: [
@@ -41,10 +41,11 @@ export function enforceTrustAllowsTaskType(
   taskType: string,
   repo: string,
 ): void {
-  if (!trustLevel || !TRUST_LEVELS[trustLevel]) {
+  const allowed = trustLevel ? TRUST_LEVELS[trustLevel] : undefined;
+
+  if (!allowed) {
     return;
   }
-  const allowed = TRUST_LEVELS[trustLevel];
 
   enforceTrue(
     allowed.includes(taskType),
@@ -67,7 +68,7 @@ async function trustLevelForRepo(
   }
   const settings = (repoRows[0].settings as {
     trust?: { level?: string };
-  }) || { trust: undefined };
+  } | null) || { trust: undefined };
 
   return settings.trust?.level;
 }

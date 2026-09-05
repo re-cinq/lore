@@ -86,7 +86,7 @@ export async function ensureWebhook(
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
 
-    return { error: body?.error || `webhook setup failed (${res.status})` };
+    return { error: body.error || `webhook setup failed (${res.status})` };
   }
 
   return (await res.json()) as WebhookStatus;

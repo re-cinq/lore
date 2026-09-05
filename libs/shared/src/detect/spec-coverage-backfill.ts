@@ -200,7 +200,7 @@ interface SpecBackfillSummary {
 function firstChunkEmbedding(
   chunks: SpecChunkWithEmbedding[],
 ): SpecChunkWithEmbedding["embedding"] | undefined {
-  const first = chunks[0];
+  const first = chunks.at(0);
 
   return first ? first.embedding : undefined;
 }

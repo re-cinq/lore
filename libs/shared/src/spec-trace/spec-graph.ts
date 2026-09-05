@@ -139,7 +139,7 @@ export async function fetchSpecGraph(
   const graph = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(GRAPH_DQL, { $repo: repo });
 
-    return (res.data ?? {}) as GraphResult;
+    return res.data as GraphResult;
   });
 
   return flattenSpecGraph(graph);
@@ -278,7 +278,7 @@ export async function fetchSpecRing(
       $xid: `${repo}|${specPath}`,
     });
 
-    return (res.data ?? {}) as RingResult;
+    return res.data as RingResult;
   });
 
   return flattenSpecRing(graph);

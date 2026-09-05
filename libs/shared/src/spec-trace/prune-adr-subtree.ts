@@ -19,7 +19,7 @@ export async function deleteAdrSubtree(
       { $xid: `${repo}|${filePath}` },
     );
 
-    return (res.data?.adr ?? []).length > 0;
+    return (res.data.adr ?? []).length > 0;
   });
 
   if (!exists) {
@@ -55,13 +55,13 @@ async function deleteAdrTxn(
     $xid: `${repo}|${filePath}`,
     $repo: repo,
   });
-  const adr = firstOf(res.data?.adr as QueriedAdr[] | undefined);
+  const adr = firstOf(res.data.adr as QueriedAdr[] | undefined);
 
   if (!adr) {
     return;
   }
   const rootUid = firstOf(
-    res.data?.root as Array<Record<string, string>> | undefined,
+    res.data.root as Array<Record<string, string>> | undefined,
   )?.uid;
   const deletes = buildAdrDeletes(adr, rootUid);
 

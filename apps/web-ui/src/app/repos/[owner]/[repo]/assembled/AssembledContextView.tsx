@@ -189,7 +189,7 @@ function assemblyEmptyState(
   /* Fallback when the trace is unavailable: plain assembled text. */
   return (
     <div className={styles.fallback}>
-      <Markdown markdown={result.text ?? ""} />
+      <Markdown markdown={result.text} />
     </div>
   );
 }

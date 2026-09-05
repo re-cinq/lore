@@ -45,7 +45,7 @@ export function registerRequestTracing(server: Server): void {
     if (!span) {
       return h.continue;
     }
-    const route = request.route?.path ?? request.path;
+    const route = request.route.path;
 
     span.updateName(`${request.method.toUpperCase()} ${route}`);
     span.setAttribute("http.route", route);

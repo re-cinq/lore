@@ -51,7 +51,7 @@ export async function implementedByImpact(
   const chunks = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(IMPL_QUERY, { $repo: repo, $fp: file });
 
-    return (res.data?.chunks ?? []) as GraphImplChunk[];
+    return (res.data.chunks ?? []) as GraphImplChunk[];
   });
 
   return chunks
@@ -120,7 +120,7 @@ export async function validatedByImpact(
       $fp: file,
     });
 
-    return (res.data?.covs ?? []) as GraphCoverage[];
+    return (res.data.covs ?? []) as GraphCoverage[];
   });
 
   const overlapping = covs.filter((cov) => {
@@ -238,7 +238,7 @@ export async function orphanImpact(
       $fp: file,
     });
 
-    return (res.data?.covs ?? []) as GraphOrphanCoverage[];
+    return (res.data.covs ?? []) as GraphOrphanCoverage[];
   });
   const byXid = new Map<string, OrphanStatement>();
 

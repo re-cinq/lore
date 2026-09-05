@@ -19,7 +19,7 @@ export type PositionedNode = {
 /** Restorable graph snapshot: version, positions, expanded specs. */
 export type GraphState = {
   version: number;
-  positions: Record<string, NodePosition>;
+  positions: Record<string, NodePosition | undefined>;
   expanded: string[];
 };
 

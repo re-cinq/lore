@@ -62,7 +62,7 @@ export interface AssembledResult {
 }
 
 // Per-template default token budgets; research keeps the old 16K ceiling since it's memory/episode-heavy.
-const TEMPLATE_DEFAULT_BUDGETS: Record<string, number> = {
+const TEMPLATE_DEFAULT_BUDGETS: Record<string, number | undefined> = {
   default: 8000,
   implementation: 8000,
   review: 8000,

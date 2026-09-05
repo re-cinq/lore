@@ -144,7 +144,7 @@ async function buildTailResponse(
 ): Promise<{ code: 200; body: z.infer<typeof CatalogEventsResponse> }> {
   const events = await deps.events.listSince(cursor, TAIL_BATCH);
   const entries = await dedupedEntries(deps, events);
-  const last = events[events.length - 1];
+  const last = events.at(-1);
 
   return {
     code: 200,

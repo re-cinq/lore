@@ -23,7 +23,7 @@ async function invalidateContradictions(
       { $vec: toVectorLiteral(embedding), $agent: agentId },
     );
 
-    return (res.data?.cand ?? []) as Record<string, unknown>[];
+    return (res.data.cand ?? []) as Record<string, unknown>[];
   });
 
   const nodes: Record<string, unknown>[] = [];
@@ -106,7 +106,7 @@ export async function writeEpisode(
       }`,
       { $h: contentHash },
     );
-    const found = res.data?.found?.[0];
+    const found = res.data.found?.[0];
 
     if (found) {
       return { id: found["Episode.xid"] as string };

@@ -6,7 +6,7 @@ export interface ApprovalConfig {
   required: boolean;
   label: string;
   auto_approve: string[];
-  repos: Record<string, { required: boolean }>;
+  repos: Record<string, { required: boolean } | undefined>;
 }
 
 let config: ApprovalConfig = {

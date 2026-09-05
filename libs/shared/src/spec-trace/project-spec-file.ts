@@ -65,7 +65,7 @@ async function readSpecContentHash(
       { $xid: specXid },
     );
 
-    return res.data?.found?.[0]?.["Spec.content_hash"] as string | undefined;
+    return res.data.found?.[0]?.["Spec.content_hash"] as string | undefined;
   });
 }
 

@@ -56,12 +56,15 @@ function useMermaidSvg(mockup: GapMockup, index: number): string | null {
           mockup.markup.trim(),
         );
 
+        // `live` flips to false from the cleanup below, across an async boundary the type checker can't see.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (live) {
           // Tripwire for script tags: fail render rather than frame a potentially escaped script.
           setSvg(/<script/i.test(rendered.svg) ? "" : rendered.svg);
         }
       } catch {
         // Parse failure does not fail the round; author still has all sections.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (live) {
           setSvg("");
         }

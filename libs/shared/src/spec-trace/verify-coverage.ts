@@ -28,7 +28,7 @@ export async function verifyCoverageLink(
       { $sx: statementXid },
     );
 
-    return (res.data?.stmt?.[0] ?? {}) as StatementVerification;
+    return (res.data.stmt?.[0] ?? {}) as StatementVerification;
   });
 
   const validatingTests = statement.validated_by ?? [];

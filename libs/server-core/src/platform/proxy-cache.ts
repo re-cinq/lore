@@ -117,6 +117,7 @@ export function isCacheEnabled(): boolean {
 
 function canonical(value: unknown): string {
   if (value === null || typeof value !== "object") {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- lib.d.ts types JSON.stringify as always `string`, but it returns undefined for a bare function/symbol/undefined value
     return JSON.stringify(value) ?? "null";
   }
 

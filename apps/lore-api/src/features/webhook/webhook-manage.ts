@@ -37,7 +37,7 @@ export async function ensureRepoWebhook(
     per_page: 100,
   });
   const existing = hooks.find((h) =>
-    (h.config?.url ?? "").endsWith("/api/webhook/github"),
+    (h.config.url ?? "").endsWith("/api/webhook/github"),
   );
 
   if (existing) {

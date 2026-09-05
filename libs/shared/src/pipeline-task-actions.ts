@@ -26,7 +26,7 @@ export async function retryTask(
   const result: CreatedTask = await createTask(pool, {
     description: task.description,
     taskType: task.task_type,
-    targetRepo: task.target_repo ?? undefined,
+    targetRepo: task.target_repo,
     createdBy: `retry:${task.created_by}`,
     contextBundle: { ...(task.context_bundle || {}), retry_of: taskId },
   });

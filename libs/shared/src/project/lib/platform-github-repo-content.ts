@@ -72,7 +72,7 @@ export async function listTree(
     `Recursive tree fetch for ${repo} was truncated by GitHub — refusing to return a partial file list`,
   );
 
-  return (tree.tree ?? [])
+  return tree.tree
     .filter((e) => e.type === "blob" && typeof e.path === "string")
     .map((e) => e.path as string);
 }

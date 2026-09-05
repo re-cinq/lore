@@ -25,7 +25,7 @@ export class InMemoryCatalogEvents implements CatalogEventsRepository {
   }
 
   async snapshot(): Promise<{ entries: CatalogEntry[]; cursor: string }> {
-    const last = this.events[this.events.length - 1];
+    const last = this.events.at(-1);
 
     return { entries: [...this.entries], cursor: last?.id ?? "0" };
   }

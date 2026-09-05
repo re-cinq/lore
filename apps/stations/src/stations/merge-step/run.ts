@@ -45,11 +45,11 @@ export function toMergeStepTask(
 ): MergeStepTask {
   return {
     id: row.id,
-    target_repo: row.target_repo ?? "",
+    target_repo: row.target_repo,
     pr_number: row.pr_number,
     issue_number: row.issue_number ?? null,
     task_type: row.task_type,
-    description: row.description ?? "",
+    description: row.description,
   };
 }
 
@@ -66,6 +66,7 @@ export function toFlipSpecStatusTask(
     pr_url: merged.pr_url ?? null,
     task_group_id: merged.task_group_id ?? null,
     context_bundle: merged.context_bundle ?? null,
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- row is an unchecked `as PipelineTask` cast over a raw pg row; a short SELECT can still leave created_at undefined
     created_at: merged.created_at ?? now,
   } as MergeableTask;
 }
@@ -159,7 +160,8 @@ function productionDeps(): MergeStepDeps {
 export async function runMergeStepNode(
   input: StationInput,
 ): Promise<NodeResult> {
-  const step = input.params.job_ref ?? "";
+  const step =
+    (input.params as Record<string, string | undefined>).job_ref ?? "";
   const taskId = input.task_id;
 
   if (!taskId) {

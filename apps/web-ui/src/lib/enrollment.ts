@@ -200,8 +200,8 @@ function applyManualSetupFields(check: Check, w: WebhookCheck): void {
 }
 
 function webhookCheckRow(w: WebhookCheck): Check {
-  const stateInfo = WEBHOOK_STATE[w.state] ?? WEBHOOK_STATE.unknown;
-  const detail = (WEBHOOK_DETAIL[w.state] ?? WEBHOOK_DETAIL.unknown)(w);
+  const stateInfo = WEBHOOK_STATE[w.state];
+  const detail = WEBHOOK_DETAIL[w.state](w);
   const check: Check = {
     id: "webhook",
     label: "GitHub webhook → Floor",

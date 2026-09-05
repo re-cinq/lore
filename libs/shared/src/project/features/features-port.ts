@@ -217,7 +217,7 @@ export function decidePlanningRecovery(args: {
     nowMs,
     windowMs = PLANNING_RECOVERY_STALE_MS,
   } = args;
-  const latest = iterations[iterations.length - 1];
+  const latest = iterations.at(-1);
 
   if (!latest) {
     return { kind: "none" };

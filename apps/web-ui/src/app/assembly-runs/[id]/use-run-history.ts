@@ -40,7 +40,7 @@ async function fetchPage(
 function identifiedRows(rows: unknown[]): { id: string }[] {
   return rows.filter(
     (row): row is { id: string } =>
-      typeof (row as { id?: unknown })?.id === "string",
+      typeof (row as { id?: unknown } | null)?.id === "string",
   );
 }
 

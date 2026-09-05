@@ -79,7 +79,7 @@ export async function testFileImpact(
       $fp: file,
     });
 
-    return (res.data?.chunks ?? []) as GraphTestChunk[];
+    return (res.data.chunks ?? []) as GraphTestChunk[];
   });
 
   return chunks

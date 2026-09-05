@@ -89,7 +89,7 @@ async function settlePlanningRound(
     return false;
   }
   const { featureId, iteration } = context;
-  const { features } = await deps.featuresFor(task.target_repo ?? "");
+  const { features } = await deps.featuresFor(task.target_repo);
   const feature = await features.get(featureId);
 
   if (roundAlreadyReady(feature, iteration)) {

@@ -54,6 +54,11 @@ function resolveTarget(
   return null;
 }
 
+/** The 1-based line, or undefined when out of range — `.at()` would wrap on #L0. */
+function lineAt(lines: string[], line: number): string | undefined {
+  return line >= 1 ? lines.at(line - 1) : undefined;
+}
+
 /** Classifies one `#Lnn` match, or null if it resolves cleanly. */
 function anchorAt(
   specPath: string,
@@ -74,7 +79,7 @@ function anchorAt(
       reason: "missing file",
     };
   }
-  const targetLine = resolved.lines[line - 1];
+  const targetLine = lineAt(resolved.lines, line);
 
   if (targetLine === undefined) {
     return {

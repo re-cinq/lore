@@ -30,7 +30,7 @@ function groupRefsByLine(refs: AgentUsageRef[]): string {
 /** Where definition is dispatched from; three shapes: blueprint refs, single-agent, dormant-station. */
 function usageLine(
   def: AgentDefinition,
-  refs: Record<string, AgentUsageRef[]> | null,
+  refs: Record<string, AgentUsageRef[] | undefined> | null,
 ): { text: string; dormant: boolean } {
   // Unknown ≠ unreferenced: null usage means endpoint unreachable or old lore-api.
   if (refs === null) {
@@ -54,7 +54,7 @@ function dispatchLines(refs: AgentUsageRef[]): string {
 
 function ownRefs(
   def: AgentDefinition,
-  refs: Record<string, AgentUsageRef[]> | null,
+  refs: Record<string, AgentUsageRef[] | undefined> | null,
 ): AgentUsageRef[] | null {
   return refs ? (refs[def.name] ?? null) : null;
 }
@@ -62,7 +62,7 @@ function ownRefs(
 /** Mode cell: LLM recipes show dispatch lines (deduped), station/zero-LLM keep tags, single-agent fallback. */
 function modeLabel(
   def: AgentDefinition,
-  refs: Record<string, AgentUsageRef[]> | null,
+  refs: Record<string, AgentUsageRef[] | undefined> | null,
 ): string {
   if (def.execution_mode === "station") {
     return "station";

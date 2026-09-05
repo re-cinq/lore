@@ -17,7 +17,7 @@ function statementAnnotation(
 ): ImpactAnnotation {
   const file = changed.find((c) => c.path === stmt.changedFile);
   const [start, end] = file?.ranges[0] ?? [1, 1];
-  const test = stmt.tests[0];
+  const test = stmt.tests.at(0);
   const coverage = test ? ` Covered by test ${test.file}:${test.line}.` : "";
 
   return {
@@ -31,8 +31,10 @@ function statementAnnotation(
 }
 
 function orphanAnnotation(orphan: OrphanStatement): ImpactAnnotation {
-  const [path, range] = orphan.wasCoveredBy.split(":");
-  const [start, end] = parseRanges(range ?? "")[0] ?? [1, 1];
+  const coveredByParts = orphan.wasCoveredBy.split(":");
+  const path = coveredByParts.at(0) ?? "";
+  const range = coveredByParts.at(1);
+  const [start, end] = parseRanges(range ?? "").at(0) ?? [1, 1];
 
   return {
     path,

@@ -6,12 +6,13 @@ export interface LineInterval {
 }
 
 function parseInterval(segment: string): LineInterval | undefined {
-  const [rawStart, rawEnd] = segment.split("-");
-  const startLine = Number(rawStart?.trim());
+  const parts = segment.split("-");
+  const startLine = Number(parts[0].trim());
 
   if (!Number.isFinite(startLine)) {
     return undefined;
   }
+  const rawEnd = parts.at(1);
   const endLine = rawEnd === undefined ? startLine : Number(rawEnd.trim());
 
   return { startLine, endLine: Number.isFinite(endLine) ? endLine : startLine };

@@ -26,7 +26,7 @@ export async function listReviews(
   return reviews.map((r) => ({
     id: r.id,
     state: r.state,
-    body: r.body ?? "",
+    body: r.body,
     user: r.user?.login ?? "unknown",
     submitted_at: r.submitted_at ?? "",
   }));
@@ -49,6 +49,7 @@ export async function listComments(
     path: c.path,
     line: c.line ?? c.original_line ?? null,
     body: c.body,
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- octokit types `user` as required, but GitHub returns null for comments from deleted accounts
     user: c.user?.login ?? "unknown",
     created_at: c.created_at,
     review_id: c.pull_request_review_id ?? null,

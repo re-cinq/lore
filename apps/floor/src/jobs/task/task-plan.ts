@@ -19,7 +19,9 @@ interface RepoSettings {
 /** Unreadable settings are not a reason to fail the task; the plan falls back to the defaults. */
 async function readRepoSettings(targetRepo: string): Promise<RepoSettings> {
   try {
-    return ((await settings().rawSettings(targetRepo)) as RepoSettings) ?? {};
+    return (
+      ((await settings().rawSettings(targetRepo)) as RepoSettings | null) ?? {}
+    );
   } catch {
     return {};
   }
@@ -87,6 +89,6 @@ export async function resolveTaskPlan(
     agentDef,
     branchName: resolveBranchName(task, contextBundle),
     model: resolveModel(agentDef, repoOverrides, task.task_type),
-    darkFactoryEnabled: repoSettings?.dark_factory?.enabled === true,
+    darkFactoryEnabled: repoSettings.dark_factory?.enabled === true,
   };
 }

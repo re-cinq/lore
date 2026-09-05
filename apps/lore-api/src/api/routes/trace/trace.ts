@@ -55,9 +55,8 @@ async function graphWithFeatures(trace: Trace, project: ProjectResult) {
 }
 
 // Kinds answerable without a ?path=; each handler shapes its own response body.
-const NO_PATH_KINDS: Record<
-  string,
-  (trace: Trace, project: ProjectResult) => Promise<object>
+const NO_PATH_KINDS: Partial<
+  Record<string, (trace: Trace, project: ProjectResult) => Promise<object>>
 > = {
   specs: async (trace) => ({ specs: await trace.specs() }),
   "spec-summaries": async (trace) => ({

@@ -92,6 +92,8 @@ export function ComputeBreakdowns({
               <tr key={pod.name}>
                 <td>{pod.name}</td>
                 <td>
+                  {/* requests is a `{[key: string]: string}` index signature — cpu/memory keys aren't guaranteed present. */}
+                  {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
                   {pod.requests.cpu ?? "—"} cpu · {pod.requests.memory ?? "—"}
                 </td>
                 <td>{usd(pod.usd_per_hour)}</td>

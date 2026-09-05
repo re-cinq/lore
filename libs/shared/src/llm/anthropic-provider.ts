@@ -295,7 +295,7 @@ function toolInput<T>(response: Anthropic.Message): T {
   const block = response.content.find((b) => b.type === "tool_use");
 
   enforceTrue(
-    !(!block || block.type !== "tool_use"),
+    block !== undefined,
     Error,
     `No tool_use block in response (stop_reason: ${response.stop_reason})`,
   );

@@ -90,7 +90,7 @@ async function classifyLLM(
 
   try {
     const llm = await Llm.instance.completeWithTool<{
-      classifications: LLMClassification[];
+      classifications?: LLMClassification[];
     }>({
       prompt: `Classify each enumerated statement as either a NORMATIVE TESTABLE REQUIREMENT (something that could be validated by an automated test) or NARRATIVE (intro / vision / background / clarification / open-question / limitation / rationale).
 

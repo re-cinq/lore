@@ -53,7 +53,7 @@ export async function gcOrphanChunks(
         { $uid: uid },
       );
       // A `[uid]` edge is array; single-cardinality `uid` edge is bare object; either means owned.
-      const node = (res.data?.node?.[0] ?? {}) as Record<string, unknown>;
+      const node = (res.data.node?.[0] ?? {}) as Record<string, unknown>;
       const isCountedOwner = (value: unknown): boolean => {
         if (value == null) {
           return false;

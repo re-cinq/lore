@@ -16,12 +16,12 @@ const BADGES: Record<FeatureStatus, StatusBadge> = {
 };
 
 export function statusBadge(status: FeatureStatus): StatusBadge {
-  return BADGES[status] ?? { label: status, color: "var(--chart-neutral)" };
+  return BADGES[status];
 }
 
 // Single source for lifecycle palette; D3 colors Feature nodes so fills and pills don't drift.
 export function featureStatusColor(status: string): string | undefined {
-  return (BADGES as Record<string, StatusBadge>)[status]?.color;
+  return (BADGES as Record<string, StatusBadge | undefined>)[status]?.color;
 }
 
 // Feature is mid-planning (wizard polls) until ready to finalize or shipped.

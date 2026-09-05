@@ -147,7 +147,7 @@ export async function handleReviewResult(
   await createTask({
     description: `Address review feedback on PR: ${comments.substring(0, 200)}`,
     taskType: task.task_type as string,
-    targetRepo: task.target_repo ?? undefined,
+    targetRepo: task.target_repo,
     createdBy: "review-agent",
     contextBundle: { branch: task.target_branch, review_comments: comments },
     priority: "immediate",

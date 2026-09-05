@@ -28,7 +28,7 @@ function categoryLabel(category: string): string {
   return CATEGORY_LABELS[category] ?? category;
 }
 
-function hasFailureContent(metadata: FailureMetadata): boolean {
+function hasFailureContent(metadata: FailureMetadata | undefined): boolean {
   return Boolean(metadata?.error) || Boolean(metadata?.details?.length);
 }
 
@@ -80,29 +80,30 @@ export default function FailurePanel({
   metadata,
   repo,
 }: {
-  metadata: FailureMetadata;
+  metadata: FailureMetadata | undefined;
   repo: string;
 }) {
   if (!hasFailureContent(metadata)) {
     return null;
   }
 
-  const details = metadata.details ?? [];
+  const safe = metadata ?? {};
+  const details = safe.details ?? [];
 
   return (
     <div className={`spec-card ${styles.card}`}>
       <h3 className={styles.heading}>
         <span className={styles.headingLabel}>Failure</span>
-        <FailureCategoryBadge category={metadata.category} />
+        <FailureCategoryBadge category={safe.category} />
       </h3>
 
-      {metadata.error && (
+      {safe.error && (
         <p className={styles.error}>
-          <Linkified text={metadata.error} repo={repo} />
+          <Linkified text={safe.error} repo={repo} />
         </p>
       )}
 
-      <FailureHint hint={metadata.hint} repo={repo} />
+      <FailureHint hint={safe.hint} repo={repo} />
 
       {details.length > 0 && (
         <div className={`memory-list ${styles.details}`}>

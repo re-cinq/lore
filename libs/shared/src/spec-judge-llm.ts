@@ -52,7 +52,7 @@ export async function extractAssertions(
   ctx: LlmJobContext,
 ): Promise<Assertion[]> {
   const result = await Llm.instance.completeWithTool<{
-    assertions: Assertion[];
+    assertions?: Assertion[];
   }>({
     prompt: `Analyze this specification and extract testable assertions — concrete names of functions, classes, interfaces, types, or API endpoints that SHOULD exist in the codebase based on this spec.
 

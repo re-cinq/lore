@@ -51,6 +51,7 @@ export function loadTaskTypes(): void {
 }
 
 export function getTaskTypeConfig(type: string): TaskTypeRecipe | null {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- config is a Record keyed by whatever task-types.yaml declared; an unknown `type` genuinely has no entry
   return config[type] || null;
 }
 
@@ -59,10 +60,12 @@ export function getTaskTypes(): string[] {
 }
 
 export function getDefaultRepo(type: string): string {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- config is a Record keyed by whatever task-types.yaml declared; an unknown `type` genuinely has no entry
   return config[type]?.target_repo || "re-cinq/lore";
 }
 
 export function buildPrompt(type: string, description: string): string {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- config is a Record keyed by whatever task-types.yaml declared; an unknown `type` genuinely has no entry
   const tmpl = config[type]?.prompt_template || DEFAULT_PROMPT;
 
   return tmpl.replace("{description}", description);
@@ -93,6 +96,7 @@ export function getTaskTypeConfigForRepo(
     | null
     | undefined,
 ): TaskTypeRecipe & { system_prompt_suffix?: string } {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- config is a Record keyed by whatever task-types.yaml declared; an unknown `type` genuinely has no entry
   const base = config[type] || DEFAULT_BASE_RECIPE;
   const overrides = repoSettings?.task_overrides?.[type] || {};
 

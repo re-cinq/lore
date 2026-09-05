@@ -42,6 +42,7 @@ export async function runIngestGraph(
 
   const def = registry[params.kind];
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- params.kind is a caller-controlled string; registry[kind] is undefined for an unknown kind
   if (!def) {
     return skippedSummary(params.kind, `unknown ingest kind "${params.kind}"`);
   }

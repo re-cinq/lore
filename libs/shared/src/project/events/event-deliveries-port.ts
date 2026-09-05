@@ -7,7 +7,8 @@ export interface EventDeliveryRow {
   subscriber: string;
   event_name: string;
   source: string;
-  params: Record<string, unknown>;
+  /** Null when the joined `pipeline.events` row is gone (pruned, or a dangling event_id) — the correlated subquery then returns no row. */
+  params: Record<string, unknown> | null;
   repo: string | null;
   status: string;
   attempts: number;

@@ -491,6 +491,29 @@ describe("InMemoryChunks double", () => {
     expect(await chunks.countChunksByTeam("growth")).toBe(1);
   });
 
+  it("excludes legacy null-team rows from distinct teams", async () => {
+    const chunks = new InMemoryChunks();
+
+    await chunks.insertChunk("org_shared", {
+      ...sampleChunk,
+      team: "platform",
+    });
+    chunks.rows.push({
+      id: "legacy",
+      schema: "org_shared",
+      content: "legacy content",
+      contentType: "spec",
+      team: null,
+      repo: sampleChunk.repo,
+      filePath: "legacy.md",
+      metadata: {},
+      embedding: null,
+      ingestedAt: new Date().toISOString(),
+    });
+
+    expect(await chunks.distinctTeams()).toEqual(["platform"]);
+  });
+
   it("rejects a schema name carrying an injection payload", async () => {
     const chunks = new InMemoryChunks();
 

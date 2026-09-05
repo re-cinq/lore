@@ -85,7 +85,7 @@ async function openOrFindPr(
       head: `${pr.owner}:${pr.branch}`,
       state: "open",
     });
-    const found = existing[0];
+    const found = existing.at(0);
 
     return found ? { url: found.html_url, number: found.number } : null;
   }

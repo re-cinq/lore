@@ -86,7 +86,7 @@ export async function runStation(
 }
 
 async function main() {
-  const [type, inputJson] = process.argv.slice(2);
+  const [type, inputJson] = process.argv.slice(2) as [string?, string?];
 
   console.log(eventLine(`lore-station ${type ?? "<missing type>"} starting`));
 

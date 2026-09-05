@@ -60,7 +60,7 @@ export async function listGraphDocPaths(
       }`,
       { $repo: repo },
     );
-    const docs = (res.data?.docs ?? []) as Array<Record<string, string>>;
+    const docs = (res.data.docs ?? []) as Array<Record<string, string>>;
 
     return docs
       .map((doc) => doc[`${docType}.file_path`])
@@ -151,13 +151,13 @@ async function querySpecSubtree(
     $xid: `${repo}|${filePath}`,
     $repo: repo,
   });
-  const spec = firstOf(res.data?.spec as QueriedSpec[] | undefined);
+  const spec = firstOf(res.data.spec as QueriedSpec[] | undefined);
 
   if (!spec) {
     return null;
   }
   const rootUid = firstOf(
-    res.data?.root as Array<Record<string, string>> | undefined,
+    res.data.root as Array<Record<string, string>> | undefined,
   )?.uid;
 
   return buildDoomedSpecSubtree(spec, rootUid);
@@ -231,7 +231,7 @@ async function gcFeatureIfOrphan(
       }`,
       { $uid: featureUid },
     );
-    const owners = (res.data?.node?.[0]?.owners ?? []) as UidRef[];
+    const owners = (res.data.node?.[0]?.owners ?? []) as UidRef[];
     const remaining = owners.filter((owner) => owner.uid !== excludedSpecUid);
 
     if (remaining.length === 0) {

@@ -57,6 +57,8 @@ export function AssembledPrompt({
         <button
           type="button"
           className="btn btn-ghost"
+          // lib.dom types navigator.clipboard as always present; insecure contexts/older browsers leave it undefined at runtime.
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           onClick={() => void navigator.clipboard?.writeText(text)}
         >
           Copy
