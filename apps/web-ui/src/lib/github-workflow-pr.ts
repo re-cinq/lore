@@ -1,6 +1,6 @@
 /** Installing (or repairing) a GitHub Actions workflow file via an idempotent PR. */
 
-import { isGitHubConfigured, octokit, split } from "./github";
+import { isGitHubConfigured, octokit, split } from "./github-client";
 
 const isAlreadyExists = (e: unknown): boolean =>
   (e as { status?: number }).status === 422;

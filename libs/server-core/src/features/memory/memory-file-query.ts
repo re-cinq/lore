@@ -9,7 +9,7 @@ import {
   type MemoryRecord,
   type MemoryListEntry,
   type SearchResult,
-} from "./memory-file.js";
+} from "./memory-file-core.js";
 
 export function listMemoriesFile(
   agentId?: string,

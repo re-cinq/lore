@@ -5,12 +5,14 @@ import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { buildOpenApiDocument } from "../../../openapi/build-document.js";
-import { routeList } from "../../../server/build-server.js";
 
 const REDOC_CDN =
   "https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js";
 
-const generate = (getPool: () => Pool | null) =>
+/** The full route table, incl. these two docs routes themselves — supplied by the caller (build-server.ts owns `routeList`) rather than imported, so generating the doc never needs the module that assembles it. */
+type RouteListFn = (getPool: () => Pool | null) => ServerRoute[];
+
+const generate = (getPool: () => Pool | null, routeList: RouteListFn) =>
   buildOpenApiDocument(routeList(getPool), {
     serverUrl: process.env.LORE_API_URL,
   });
@@ -37,14 +39,17 @@ function docsHtml(spec: object): string {
 </html>`;
 }
 
-export function openApiJsonRoute(getPool: () => Pool | null): ServerRoute {
+export function openApiJsonRoute(
+  getPool: () => Pool | null,
+  routeList: RouteListFn,
+): ServerRoute {
   return {
     method: "GET",
     path: "/api/openapi.json",
     options: bearerScope("read"),
     handler: (_request, h) => {
       try {
-        return h.response(generate(getPool));
+        return h.response(generate(getPool, routeList));
       } catch (err) {
         console.error("[openapi] generation failed:", errorMessage(err));
 
@@ -56,14 +61,19 @@ export function openApiJsonRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
-export function docsRoute(getPool: () => Pool | null): ServerRoute {
+export function docsRoute(
+  getPool: () => Pool | null,
+  routeList: RouteListFn,
+): ServerRoute {
   return {
     method: "GET",
     path: "/api/docs",
     options: bearerScope("read"),
     handler: (_request, h) => {
       try {
-        return h.response(docsHtml(generate(getPool))).type("text/html");
+        return h
+          .response(docsHtml(generate(getPool, routeList)))
+          .type("text/html");
       } catch (err) {
         console.error("[openapi] docs render failed:", errorMessage(err));
 

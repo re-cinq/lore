@@ -14,7 +14,7 @@ import {
 import { repoRelativeLinkTarget } from "./link-target-path.js";
 import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
-import type { ProjectionContext } from "./project-spec-file.js";
+import type { ProjectionContext } from "./project-spec-file-context.js";
 
 /** Parses `[label](path#Lline)` parentheticals from a statement's text. */
 type LinkParser = (statement: string) => SpecLinkRef[];

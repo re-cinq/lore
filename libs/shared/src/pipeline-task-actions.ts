@@ -9,7 +9,7 @@ import {
   updateTaskStatus,
   type CreatedTask,
   type RetriedTask,
-} from "./pipeline-tasks.js";
+} from "./pipeline-task-core.js";
 
 export async function retryTask(
   pool: PgPool,

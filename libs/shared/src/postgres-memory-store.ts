@@ -1,13 +1,13 @@
 /** Postgres implementation of the MemoryStore seam, wrapping an injected pg pool; the only backend today — Dgraph arrives as a sibling implementation without touching callers. */
 
-import { hasConnect } from "./memory-store.js";
+import { hasConnect } from "./memory-store-types.js";
 import type {
   MemoryRecord,
   MemoryStore,
   MemoryTxClient,
   PgPool,
   WriteResult,
-} from "./memory-store.js";
+} from "./memory-store-types.js";
 
 interface UpsertInput {
   key: string;

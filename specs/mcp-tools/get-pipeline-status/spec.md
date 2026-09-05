@@ -48,7 +48,7 @@ Returns one pipeline task's full record (status + ordered event timeline) as JSO
      on success return the pretty-printed (`JSON.stringify(…, null, 2)`) response body.
    - **DB mode (`LORE_DB_HOST` set)** — call `getTask(task_id)`
      ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L41)).
-2. **Shared CRUD** ([`getTask`](../../../libs/shared/src/pipeline-tasks.ts#L107)) — `SELECT * FROM
+2. **Shared CRUD** ([`getTask`](../../../libs/shared/src/pipeline-task-core.ts#L174)) — `SELECT * FROM
    pipeline.tasks WHERE id = $1`; if no row, return `null`; otherwise `SELECT *
    FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at` and return
    the task row spread with an `events` array.

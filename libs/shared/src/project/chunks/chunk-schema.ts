@@ -1,10 +1,20 @@
 import type { PgPool } from "../../memory-store.js";
+import { enforceTrue } from "../../lib/enforce.js";
 
 // Chunk-schema resolution, single-sourced for every repo-scoped reader — must mirror reindex's write target (team schema or org_shared) or team-schema repos read empty/stale (#967, #975). Only regex-gated names ever leave this module (string-interpolated into table names).
 
 export const ORG_SHARED_SCHEMA = "org_shared";
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
+
+/** Guards every `${schema}`-interpolated chunks query, Pg and its reindex helpers alike, against a non-regex-safe schema name. */
+export function enforceChunkSchema(schema: string): void {
+  enforceTrue(
+    SCHEMA_RE.test(schema),
+    Error,
+    `Invalid schema name: ${JSON.stringify(schema)}`,
+  );
+}
 const CACHE_TTL_MS = 60_000;
 
 interface CacheEntry {

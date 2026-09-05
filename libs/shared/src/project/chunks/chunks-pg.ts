@@ -1,6 +1,8 @@
-import { enforceTrue } from "../../lib/enforce.js";
 import type { PgPool } from "../../memory-store.js";
-import { resolveChunkSchemaForRepo } from "./chunk-schema.js";
+import {
+  enforceChunkSchema as enforceSchema,
+  resolveChunkSchemaForRepo,
+} from "./chunk-schema.js";
 import * as reindex from "./chunks-pg-reindex.js";
 import type {
   ChunksPort,
@@ -13,16 +15,7 @@ import type {
   CodeChunkFull,
 } from "./chunks-port.js";
 
-/** Schema names are string-interpolated into the table name: only `[a-z][a-z0-9_]+` names allowed to prevent injection. */
-const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
-
-export function enforceSchema(schema: string): void {
-  enforceTrue(
-    SCHEMA_RE.test(schema),
-    Error,
-    `Invalid schema name: ${JSON.stringify(schema)}`,
-  );
-}
+export { enforceChunkSchema as enforceSchema } from "./chunk-schema.js";
 
 /** Postgres-backed {@link ChunksPort}: every `${schema}` query validates the schema name first. */
 export class PgChunks implements ChunksPort {

@@ -13,7 +13,7 @@ import {
   type LeaseBackend,
   type AcquireResult,
   type ExpiredLease,
-} from "./lease-backends.js";
+} from "./lease-port.js";
 
 /** The on-disk JSON record for the File backend — same columns as the model, timestamps serialized as ISO strings instead of `Date`. */
 type FileLeaseRecord = Omit<

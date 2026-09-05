@@ -18,10 +18,9 @@ import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/ru
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
 
-export {
-  productionNodeEventDeps,
-  agentNodeTerminal,
-} from "./node-event-deps.js";
+import { productionNodeEventDeps } from "./node-event-deps.js";
+
+export { productionNodeEventDeps };
 
 export interface NodeEventDeps extends AdvanceDeps {
   /** Null means pruned OR unreachable-cluster — two different facts wearing the same null; {@link agentCrVisible} tells them apart. */
@@ -295,3 +294,10 @@ function tripGateOnAccountOutage(
 
 /** Re-exported for the start handler / reaper compositions. */
 export { advanceLine };
+
+/** Composed production handler for the registry (both node-terminal events). */
+export const agentNodeTerminal: EventHandler = async (params) => {
+  const handler = createNodeEventHandler(await productionNodeEventDeps());
+
+  return handler(params);
+};

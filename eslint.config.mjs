@@ -166,8 +166,14 @@ export default tseslint.config(
       // above now forces splitting, so this guards a risk the repo just took
       // on. Cycles resolve at runtime often enough to pass tests and fail in
       // one import order. The `import-x/parsers` setting above is load-bearing:
-      // without it this rule reports zero on a repo that has 54.
-      "import-x/no-cycle": ["warn", { maxDepth: Infinity }],
+      // without it this rule reports zero on a repo that had 54. Queue drained
+      // on 2026-09-05, so this is an error; 51 of the 54 were the split shape
+      // (parent re-exports the extracted sibling, sibling imports its constants
+      // back) and were fixed by lifting what both need into a third module.
+      // Type-only edges are not counted, which is right — `import type` erases,
+      // so it makes no runtime edge, and tsc stops anyone laundering a real
+      // value import through it.
+      "import-x/no-cycle": ["error", { maxDepth: Infinity }],
       // The other half of that bargain: a size budget can be met by moving
       // every body out and leaving the exports, which satisfies the rule
       // without deciding the module was the wrong shape. Queue of 10 drained on

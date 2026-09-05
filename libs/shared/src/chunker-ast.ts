@@ -6,7 +6,7 @@ import {
   DECLARATION_TYPES,
   wholeFileChunk,
   lineCount,
-} from "./chunker.js";
+} from "./chunk-primitives.js";
 import { symbolInfo } from "./chunker-symbols.js";
 
 /** Prefixes marking a comment or docstring line, across the slash-comment and Python-docstring styles this chunker sees. */

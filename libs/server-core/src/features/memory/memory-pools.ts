@@ -7,7 +7,7 @@ import {
   auditLog,
   type MemoryWriteInput,
   type WriteResult,
-} from "./memory.js";
+} from "./memory-core.js";
 
 // Shared pools (PostgreSQL-backed): cross-agent key/value memories grouped under a named pool.
 

@@ -1,8 +1,8 @@
 /** GitHub API client for web-ui (GitHub App auth, PR state visibility). */
 
-import { Octokit } from "octokit";
-import { withoutBlindRetryOnCreates } from "./octokit-retry-policy";
-import { createAppAuth } from "@octokit/auth-app";
+import { split, octokit, isGitHubConfigured } from "./github-client";
+
+export { split, octokit, isGitHubConfigured } from "./github-client";
 
 export type PRStatus =
   | "draft"
@@ -24,53 +24,6 @@ export interface PRDetails {
   checks: Array<{ name: string; status: string; conclusion: string | null }>;
   reviews: Array<{ user: string; state: string; submitted_at: string }>;
   computed_status: PRStatus;
-}
-
-export function split(repo: string): [string, string] {
-  const [owner, name] = repo.split("/");
-
-  return [owner, name];
-}
-
-function readGithubAppEnv() {
-  return {
-    appId: process.env.GITHUB_APP_ID ?? "",
-    privateKey: process.env.GITHUB_APP_PRIVATE_KEY ?? "",
-    installationId: process.env.GITHUB_APP_INSTALLATION_ID ?? "",
-  };
-}
-
-function hasGithubAppCredentials(
-  creds: ReturnType<typeof readGithubAppEnv>,
-): boolean {
-  return (
-    Boolean(creds.appId) &&
-    Boolean(creds.privateKey) &&
-    Boolean(creds.installationId)
-  );
-}
-
-export async function octokit(): Promise<Octokit> {
-  const creds = readGithubAppEnv();
-
-  if (!hasGithubAppCredentials(creds)) {
-    throw new Error("GitHub App credentials not configured");
-  }
-
-  return withoutBlindRetryOnCreates(
-    new Octokit({
-      authStrategy: createAppAuth,
-      auth: creds,
-    }),
-  );
-}
-
-export function isGitHubConfigured(): boolean {
-  return !!(
-    process.env.GITHUB_APP_ID &&
-    process.env.GITHUB_APP_PRIVATE_KEY &&
-    process.env.GITHUB_APP_INSTALLATION_ID
-  );
 }
 
 function hasFailingChecks(checks: Array<{ conclusion: string | null }>) {

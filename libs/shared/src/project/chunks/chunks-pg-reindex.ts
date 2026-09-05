@@ -1,6 +1,6 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import type { PgPool } from "../../memory-store.js";
-import { enforceSchema } from "./chunks-pg.js";
+import { enforceChunkSchema as enforceSchema } from "./chunk-schema.js";
 
 /** The reindex-job maintenance queries of {@link PgChunks} — which files a repo's reindex-job chunks own, aging them out, pruning them, and migrating legacy org_shared rows onto a team schema. */
 export async function reindexOwnedFilePaths(

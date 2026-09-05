@@ -4,6 +4,9 @@ import type { DgraphClientPort, DgraphTxn, UidRef } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 import { pruneOrphanBlocksByFile } from "./project-blocks.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
+import { uids, firstOf } from "./uid-refs.js";
+
+export { uids, firstOf } from "./uid-refs.js";
 
 /** Document node types with a whole-file subtree to prune. */
 export type PrunableDocType = "Spec" | "ADR";
@@ -71,9 +74,6 @@ interface LinkedChild extends UidRef {
   links?: UidRef[];
 }
 
-export const uids = (refs: UidRef[] | undefined): string[] =>
-  (refs ?? []).map((ref) => ref.uid);
-
 interface DoomedSpecSubtree {
   specUid: string;
   rootUid?: string;
@@ -139,10 +139,6 @@ function buildDoomedSpecSubtree(
       ...new Set(children.flatMap((child) => uids(child.implemented))),
     ],
   };
-}
-
-export function firstOf<T>(rows: T[] | undefined): T | undefined {
-  return (rows ?? [])[0];
 }
 
 /** Reads the Spec subtree slated for deletion (Spec/children/Repo-root/Feature/link-target uids); called both read-only (GC inputs) and inside the final mutating txn (fresh-uid staleness guard). Null if no such Spec. */

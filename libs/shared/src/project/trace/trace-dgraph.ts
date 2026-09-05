@@ -1,14 +1,14 @@
 import type { DgraphClientPort } from "../../memory-store.js";
+import { type TraceDocument } from "../../spec-trace/assemble-trace-document.js";
 import {
   fetchTraceDocument,
   listSpecDocuments,
   listAdrDocuments,
   listSpecSummaries,
   listAdrSummaries,
-  type TraceDocument,
   type SpecSummary,
   type AdrSummary,
-} from "../../spec-trace/assemble-trace-document.js";
+} from "../../spec-trace/trace-document-listing.js";
 import { recomputeFile } from "../../spec-trace/recompute-spec-file.js";
 import {
   fetchSpecGraph,

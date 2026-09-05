@@ -8,7 +8,7 @@ import {
   PARAMETERISED_NODE_TYPES,
   type AssemblyLine,
   type AssemblyLineEdge,
-} from "./loader.js";
+} from "./assembly-line-schema.js";
 
 type LoadErrorFactory = (message: string) => AssemblyLineLoadError;
 

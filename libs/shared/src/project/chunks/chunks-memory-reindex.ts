@@ -1,5 +1,5 @@
 import { enforceTrue } from "../../lib/enforce.js";
-import { enforceSchema, type ChunkRow } from "./chunks-memory.js";
+import { enforceSchema, type ChunkRow } from "./chunk-row-memory.js";
 
 /** The reindex-job maintenance surface of InMemoryChunks — which files a repo's reindex-job chunks own, aging them out, pruning them, and migrating legacy org_shared rows onto a team schema. Reads/writes the SAME `rows` array `InMemoryChunks` owns (via `host`, since several of these reassign the array wholesale rather than mutate in place). */
 export class ReindexChunkStore {
