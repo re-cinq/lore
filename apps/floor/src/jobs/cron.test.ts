@@ -9,7 +9,7 @@ const orphanedEvents =
     (minutes: number) => Promise<{ event_name: string; count: number }[]>
   >();
 
-vi.mock("../main-loop/store.js", () => ({
+vi.mock("../kernel/event-store.js", () => ({
   pruneHandled: (days: number) => pruneHandled(days),
   orphanedEvents: (minutes: number) => orphanedEvents(minutes),
 }));

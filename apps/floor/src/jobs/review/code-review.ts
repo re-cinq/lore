@@ -1,6 +1,6 @@
 /** Code-review choreography (ADR-012): PR-lifecycle webhooks start assembly lines; bot actors skipped. */
 
-import type { EventHandler } from "../../main-loop/types.js";
+import type { EventHandler } from "../../kernel/event-types.js";
 import type {
   PullRef,
   ReviewComment,

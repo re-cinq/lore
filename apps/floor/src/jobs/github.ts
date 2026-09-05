@@ -21,7 +21,7 @@ import {
   eventReport,
   resumeDecomposition,
 } from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
-import type { EventHandler } from "../main-loop/types.js";
+import type { EventHandler } from "../kernel/event-types.js";
 import { dispatchTypeFromLabels } from "@re-cinq/lore-shared/task-types/dispatch-labels.js";
 
 /** Resolve the backing pipeline task for a PR and re-evaluate auto-merge (no-op if none). */

@@ -22,9 +22,9 @@ import {
   markDead,
   markDone,
   markFailed,
-} from "./main-loop/store.js";
+} from "./kernel/event-store.js";
 import { startEventReaper } from "./main-loop/reaper.js";
-import { subscribe, reconcileDeliveries } from "./main-loop/store.js";
+import { subscribe, reconcileDeliveries } from "./kernel/event-store.js";
 import { RECONCILE_WINDOW_MINUTES } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
 import { CRON_EMITTERS } from "./listeners/cron-emitters.js";

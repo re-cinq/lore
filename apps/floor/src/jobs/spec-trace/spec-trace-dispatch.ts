@@ -2,7 +2,7 @@
 
 import { chunkGlobsForKind } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { EventInput } from "../../main-loop/types.js";
+import type { EventInput } from "../../kernel/event-types.js";
 import type { AssemblyRunStartInput } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { graphIngestAuditEntry } from "./spec-trace-audit.js";
 import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";

@@ -2,7 +2,7 @@
 
 import { agentTerminalReport } from "./watcher/agent-watcher-logic.js";
 import { processAgentTerminal } from "./watcher/agent-watcher.js";
-import type { EventHandler } from "../main-loop/types.js";
+import type { EventHandler } from "../kernel/event-types.js";
 
 const handleAgent: EventHandler = async (params) => {
   const report = agentTerminalReport(params);

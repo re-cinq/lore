@@ -1,6 +1,6 @@
 /** Pure CI-ingest → event mapping (layer 1); no dedupe key since projection is content-hash idempotent and a `force` re-ingest must not be collapsed away. */
 
-import type { EventInput } from "../main-loop/types.js";
+import type { EventInput } from "../kernel/event-types.js";
 
 const DOC_KINDS = ["specs", "adrs"] as const;
 const DOC_KIND_SET = new Set<string>(DOC_KINDS);

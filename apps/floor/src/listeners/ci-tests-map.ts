@@ -1,6 +1,6 @@
 // Pure CI-tests → event mapping (layer 1): maps the lore-code-trace binary's posted test report to one `internal.ingest.spec_trace` event of kind `test-report` (same event the old mcp /test-report route emitted); no dedupe key since re-posting a commit must re-ingest (content-hash idempotent).
 
-import type { EventInput } from "../main-loop/types.js";
+import type { EventInput } from "../kernel/event-types.js";
 
 export interface CiTestsBody {
   repo?: string;

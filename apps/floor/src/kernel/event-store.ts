@@ -2,7 +2,7 @@
 
 import { deliveries, eventProxy, eventReporter } from "../kernel/queues.js";
 import type { EventSubscription } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
-import type { EventInput, EventRow } from "./types.js";
+import type { EventInput, EventRow } from "../kernel/event-types.js";
 
 /** Counterpart to {@link insertEvent} for producers with nobody to return a status to — hands off to the proxy, which retries and reports failure itself. */
 export function emitEvent(input: EventInput): Promise<void> {

@@ -1,4 +1,4 @@
-/** Shared types for the Floor event bus: `EventInput` (listener insert), `EventRow` (loop claim), `EventHandler` (layer-3 task/job keyed by event_name). */
+/** The Floor event bus contract — substrate, so a job can implement a handler without importing the loop that dispatches it. Shared types: `EventInput` (listener insert), `EventRow` (loop claim), `EventHandler` (layer-3 task/job keyed by event_name). */
 
 // Single-sourced from shared `EventInsert` to prevent two wire-shape declarations from drifting once the event-router made an external producer real.
 export type { EventInsert as EventInput } from "@re-cinq/lore-shared";
