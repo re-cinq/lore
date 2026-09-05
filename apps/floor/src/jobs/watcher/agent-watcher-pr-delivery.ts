@@ -4,6 +4,7 @@ import { startEscalationLine } from "@re-cinq/lore-shared/escalation/start-escal
 import { projectFor } from "../../kernel/project-boot.js";
 import { memoryLifecycle, pipeline, taskStore } from "../../kernel/queues.js";
 import { writeEpisodeWithCuration, errorMessage } from "@re-cinq/lore-shared";
+// eslint-disable-next-line lore/no-cross-layer-import -- delivery triggers a merge attempt; inverting this onto the event bus is a runtime change, not a move
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import { prFooter, linkifyMarkdown } from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../lib/artifact-copy.js";

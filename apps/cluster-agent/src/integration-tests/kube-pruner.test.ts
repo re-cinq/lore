@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { KubePruner } from "./kube-pruner.js";
+import { KubePruner } from "../kernel/kube-pruner.js";
 import { pruneOnce } from "../reap/prune-loop.js";
 
 const HOUR = 3_600_000;

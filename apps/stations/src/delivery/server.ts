@@ -3,8 +3,8 @@
 import Hapi from "@hapi/hapi";
 import { stationsRoute } from "./routes/stations.js";
 import { healthRoute } from "./routes/health.js";
-import { serviceStations } from "../kernel/service-stations.js";
-import { stationHost } from "../kernel/station-host.js";
+import { serviceStations } from "../runner/service-stations.js";
+import { stationHost } from "../runner/station-host.js";
 
 export function buildServer(opts: { port?: number } = {}): Hapi.Server {
   const server = Hapi.server({ port: opts.port ?? 0, host: "0.0.0.0" });

@@ -1,21 +1,11 @@
+import type { PrunableAgent, PrunableRecipe } from "../kernel/prunable.js";
+
+export type { PrunableAgent, PrunableRecipe };
+
 // What a cluster may forget (FR4, specs/running-stations-in-any-k8s-cluster) — a run leaves an Agent CR + per-task pt-* clones that nothing deleted (176 CRs OOMKilled the controller on 2026-08-30). Pure: the caller lists and deletes, this decides.
 
 /** The `pt-` prefix marks a clone minted for ONE task; `def-*` and named builtin recipes are catalog, never candidates. */
 const PER_TASK_PREFIX = "pt-";
-
-export interface PrunableAgent {
-  name: string;
-  /** `Succeeded` / `Failed` once terminal; absent while the controller has not stamped it (what a crashlooping controller leaves). */
-  phase?: string;
-  createdAt: Date;
-  /** The Station the run named, which is the clone it would orphan. */
-  stationRef?: string;
-}
-
-export interface PrunableRecipe {
-  name: string;
-  createdAt: Date;
-}
 
 export interface PruneInput {
   agents: PrunableAgent[];

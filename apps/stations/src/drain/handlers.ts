@@ -2,14 +2,14 @@
 
 import { SERVICE_NODE_EVENT } from "@re-cinq/lore-shared/project/events/service-node-event.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
-import { runPublishedNode, parsePublishedNode } from "../kernel/run-node.js";
+import { runPublishedNode, parsePublishedNode } from "../runner/run-node.js";
 import { STATIONS } from "../stations/registry.js";
 import {
   eventTriggerNames,
   isSweepModule,
   type SweepStationModule,
 } from "../stations/lib/station.js";
-import { stationHost } from "../kernel/station-host.js";
+import { stationHost } from "../runner/station-host.js";
 
 /** Published by the walk when a node's station runs here rather than in a pod. */
 

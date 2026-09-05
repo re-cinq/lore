@@ -9,8 +9,11 @@ import {
   VERSION,
 } from "./crd.js";
 import { customObjectsApi } from "./kube-clients.js";
-import type { PrunableAgent, PrunableRecipe } from "../reap/decide-prune.js";
-import type { PruneCluster } from "../reap/prune-loop.js";
+import type {
+  PrunableAgent,
+  PrunableRecipe,
+  PruneCluster,
+} from "./prunable.js";
 
 interface CustomObjectItem {
   metadata?: { name?: string; creationTimestamp?: string };
