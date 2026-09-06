@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseReferences as mirror } from "./references";
-import { parseReferences as canonical } from "../../../../libs/shared/src/references";
+import { parseReferences as canonical } from "../../../../libs/shared/src/domain/references";
 
 const ctx = { repo: "re-cinq/lore", branch: "dev" };
 const uuid = "fb964a3c-2c4c-4de6-b76c-cebe715b51a9";

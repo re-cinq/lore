@@ -1,4 +1,4 @@
-// Display formatting only — NOT a mirror of libs/shared/src/agent-id.ts (identity resolution); same filename is coincidence.
+// Display formatting only — NOT a mirror of libs/shared/src/outbound/agent-id.ts (identity resolution); same filename is coincidence.
 import { shortAgentId } from "./task-presenter";
 
 export function displayAgentId(id: string): string {

@@ -76,7 +76,7 @@ available to agents — the authoritative interface.
   If `extract_facts=true`, fact extraction runs asynchronously and
   does not block the response. An upsert overwrites the value on a
   `(agent, key, version=1)` collision; an append bumps the version and
-  concatenates on an `(agent, key)` collision. ([validated by `memory.test.ts:33`](libs/shared/src/project/memory/memory.test.ts#L33), [`memory-store-bridge.test.ts:40`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L40), [`memory-lifecycle.test.ts:124`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L124), [`memory-lifecycle.test.ts:375`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L375), [`memory-lifecycle.test.ts:139`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L139), [`memory-lifecycle.test.ts:385`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L385), [`memory.test.ts:110`](libs/server-core/src/features/memory/memory.test.ts#L110))
+  concatenates on an `(agent, key)` collision. ([validated by `memory.test.ts:33`](libs/shared/src/outbound/project/memory/memory.test.ts#L33), [`memory-store-bridge.test.ts:40`](libs/shared/src/outbound/project/memory/memory-store-bridge.test.ts#L40), [`memory-lifecycle.test.ts:124`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L124), [`memory-lifecycle.test.ts:375`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L375), [`memory-lifecycle.test.ts:139`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L139), [`memory-lifecycle.test.ts:385`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L385), [`memory.test.ts:110`](libs/server-core/src/features/memory/memory.test.ts#L110))
 
 - `writeMemory` (the `lore_write_memory` path) writes the memories row and its
   version row atomically: when the pool provides a client (`connect()`), the
@@ -93,11 +93,11 @@ available to agents — the authoritative interface.
 - `PostgresMemoryStore.writeMemory` (the `MemoryStore` seam's Postgres backend)
   applies the same transaction around its memories write and version insert,
   for both the fresh-insert and version-bump branches, falling back to
-  sequential writes on a query-only pool (#1158). ([validated by `postgres-memory-store.test.ts:278`](libs/shared/src/postgres-memory-store.test.ts#L278), [`postgres-memory-store.test.ts:306`](libs/shared/src/postgres-memory-store.test.ts#L306), [`postgres-memory-store.test.ts:330`](libs/shared/src/postgres-memory-store.test.ts#L330), [`postgres-memory-store.test.ts:356`](libs/shared/src/postgres-memory-store.test.ts#L356))
+  sequential writes on a query-only pool (#1158). ([validated by `postgres-memory-store.test.ts:278`](libs/shared/src/outbound/postgres-memory-store.test.ts#L278), [`postgres-memory-store.test.ts:306`](libs/shared/src/outbound/postgres-memory-store.test.ts#L306), [`postgres-memory-store.test.ts:330`](libs/shared/src/outbound/postgres-memory-store.test.ts#L330), [`postgres-memory-store.test.ts:356`](libs/shared/src/outbound/postgres-memory-store.test.ts#L356))
 
 - Memory writers bind `ttl` as a `make_interval(secs => $n)` query parameter
   instead of interpolating it into the SQL text, binding NULL when no ttl is
-  given (#1158). ([validated by `memory.test.ts:705`](libs/server-core/src/features/memory/memory.test.ts#L705), [`memory.test.ts:744`](libs/server-core/src/features/memory/memory.test.ts#L744), [`memory.test.ts:781`](libs/server-core/src/features/memory/memory.test.ts#L781), [`postgres-memory-store.test.ts:390`](libs/shared/src/postgres-memory-store.test.ts#L390), [`postgres-memory-store.test.ts:428`](libs/shared/src/postgres-memory-store.test.ts#L428), [`postgres-memory-store.test.ts:464`](libs/shared/src/postgres-memory-store.test.ts#L464))
+  given (#1158). ([validated by `memory.test.ts:705`](libs/server-core/src/features/memory/memory.test.ts#L705), [`memory.test.ts:744`](libs/server-core/src/features/memory/memory.test.ts#L744), [`memory.test.ts:781`](libs/server-core/src/features/memory/memory.test.ts#L781), [`postgres-memory-store.test.ts:390`](libs/shared/src/outbound/postgres-memory-store.test.ts#L390), [`postgres-memory-store.test.ts:428`](libs/shared/src/outbound/postgres-memory-store.test.ts#L428), [`postgres-memory-store.test.ts:464`](libs/shared/src/outbound/postgres-memory-store.test.ts#L464))
 
 - **`lore_read_memory(key, agent_id?, version?)`** — returns the latest
   version by default. Pass `version="all"` for full version history, or a
@@ -114,15 +114,15 @@ available to agents — the authoritative interface.
 - **`lore_search_memory(query, agent_id?, limit?, pool?, include_invalidated?,
   graph_augment?)`** — hybrid semantic + keyword search over memories
   and extracted facts using Reciprocal Rank Fusion. Results include
-  confidence annotations and similarity scores. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/memory-ranking.test.ts#L11))
+  confidence annotations and similarity scores. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/work/memory-ranking.test.ts#L11))
   - `include_invalidated=true` enables historical queries (facts
-    superseded by later contradictions are included). ([validated by `memory-search.test.ts:41`](libs/shared/src/project/knowledge/memory-search.test.ts#L32), [`memory-search.test.ts:43`](libs/shared/src/project/knowledge/memory-search.test.ts#L43))
-  - `graph_augment=true` enriches results with related graph entities. ([validated by `memory-search.test.ts:63`](libs/shared/src/project/knowledge/memory-search.test.ts#L54), [`memory-search.test.ts:96`](libs/shared/src/project/knowledge/memory-search.test.ts#L96))
+    superseded by later contradictions are included). ([validated by `memory-search.test.ts:41`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L32), [`memory-search.test.ts:43`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L43))
+  - `graph_augment=true` enriches results with related graph entities. ([validated by `memory-search.test.ts:63`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L54), [`memory-search.test.ts:96`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L96))
   - Results are capped at 3 per (agent_id + source) combo to prevent
-    verbose sessions from dominating (session diversification); sources already under the cap are returned intact. ([validated by `memory-ranking.test.ts:53`](libs/shared/src/memory-ranking.test.ts#L53), [validated by `keeps all items when each source is under the cap`](libs/shared/src/memory-ranking.test.ts#L99))
+    verbose sessions from dominating (session diversification); sources already under the cap are returned intact. ([validated by `memory-ranking.test.ts:53`](libs/shared/src/work/memory-ranking.test.ts#L53), [validated by `keeps all items when each source is under the cap`](libs/shared/src/work/memory-ranking.test.ts#L99))
   - Every search call asynchronously increments `retrieval_count`,
     updates `last_retrieved_at`, and extends `half_life_days` (+2,
-    cap 365) on returned facts and memories. ([validated by `memory-search.test.ts:128`](libs/shared/src/project/knowledge/memory-search.test.ts#L119))
+    cap 365) on returned facts and memories. ([validated by `memory-search.test.ts:128`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L119))
 
 ### Episode Ingestion
 
@@ -150,19 +150,19 @@ available to agents — the authoritative interface.
 
 ## Agent ID Resolution
 
-Agent ID is resolved in this priority order: ([validated by `agent-id.test.ts:44`](libs/shared/src/agent-id.test.ts#L44))
+Agent ID is resolved in this priority order: ([validated by `agent-id.test.ts:44`](libs/shared/src/outbound/agent-id.test.ts#L44))
 
-1. Explicit `agent_id` parameter on any tool call. ([validated by `agent-id.test.ts:44`](libs/shared/src/agent-id.test.ts#L44))
+1. Explicit `agent_id` parameter on any tool call. ([validated by `agent-id.test.ts:44`](libs/shared/src/outbound/agent-id.test.ts#L44))
 
-2. `LORE_AGENT_ID` environment variable. ([validated by `agent-id.test.ts:53`](libs/shared/src/agent-id.test.ts#L53))
+2. `LORE_AGENT_ID` environment variable. ([validated by `agent-id.test.ts:53`](libs/shared/src/outbound/agent-id.test.ts#L53))
 
-3. `~/.lore/agent-id` file (stable per machine across sessions). ([validated by `agent-id.test.ts:62`](libs/shared/src/agent-id.test.ts#L62))
+3. `~/.lore/agent-id` file (stable per machine across sessions). ([validated by `agent-id.test.ts:62`](libs/shared/src/outbound/agent-id.test.ts#L62))
 
-4. Auto-generated UUID (written to `~/.lore/agent-id` for future use). ([validated by `agent-id.test.ts:70`](libs/shared/src/agent-id.test.ts#L70))
+4. Auto-generated UUID (written to `~/.lore/agent-id` for future use). ([validated by `agent-id.test.ts:70`](libs/shared/src/outbound/agent-id.test.ts#L70))
 
 Lore Agent pods use their pod name (passed as `LORE_AGENT_ID`), so memories
 written by cluster agents stay attributable to a specific pod even after
-restart. ([validated by `agent-id.test.ts:53`](libs/shared/src/agent-id.test.ts#L53))
+restart. ([validated by `agent-id.test.ts:53`](libs/shared/src/outbound/agent-id.test.ts#L53))
 
 ## Data Model
 
@@ -229,7 +229,7 @@ Mirrors each write to `memories`, preserving full history queryable via
   episode it was extracted from — the same join the per-agent count already
   groups by. Naming a bare `agent_id` on the facts table reads correctly and
   raises `42703` against the real schema, which a fake pool that answers every
-  statement will not catch. ([validated by `memory-lifecycle.test.ts:550`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L550), [`memory-lifecycle.test.ts:561`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L561), [`memory-lifecycle.test.ts:572`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L572), [`memory-lifecycle.test.ts:591`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L591))
+  statement will not catch. ([validated by `memory-lifecycle.test.ts:550`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L550), [`memory-lifecycle.test.ts:561`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L561), [`memory-lifecycle.test.ts:572`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L572), [`memory-lifecycle.test.ts:591`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L591))
 
 #### Confidence lifecycle
 
@@ -237,7 +237,7 @@ Mirrors each write to `memories`, preserving full history queryable via
 - `inferred` — for memory-sourced extractions. ([validated by `facts-extraction.test.ts:111`](libs/server-core/src/features/memory/facts-extraction.test.ts#L111))
 - Decision: `verified` is the human-confirmed tier, set manually (no automated code path).
 - `stale` — automatically applied after 30 days of zero retrieval.
-  Stale facts revive to `observed` on next retrieval. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L188), [`memory-search.test.ts:119`](libs/shared/src/project/knowledge/memory-search.test.ts#L119))
+  Stale facts revive to `observed` on next retrieval. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L188), [`memory-search.test.ts:119`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L119))
 
 ### episodes
 
@@ -246,7 +246,7 @@ passive knowledge capture; fact and graph extraction runs asynchronously
 after write. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84))
 
 Episode inserts are idempotent — deduplicated on `(agent_id, content_hash)`,
-returning the new id or null when a duplicate already exists. ([validated by `memory-lifecycle.test.ts:271`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L271), [`memory-lifecycle.test.ts:289`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L289), [`memory-lifecycle.test.ts:518`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L518))
+returning the new id or null when a duplicate already exists. ([validated by `memory-lifecycle.test.ts:271`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L271), [`memory-lifecycle.test.ts:289`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L289), [`memory-lifecycle.test.ts:518`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L518))
 
 ### entities + edges
 
@@ -268,7 +268,7 @@ exist in the implementation but are not exposed as MCP tools; the shipped
 surface is the `pool` field on `lore_write_memory` and the `pool` parameter on
 `lore_search_memory` for scoped search. A scoped search resolves the pool by
 name first, and a name that matches no pool returns no results rather than
-falling back to an unscoped search. ([validated by `memory-search.test.ts:174`](libs/shared/src/project/knowledge/memory-search.test.ts#L174), [`memory-search.test.ts:164`](libs/shared/src/project/knowledge/memory-search.test.ts#L164))
+falling back to an unscoped search. ([validated by `memory-search.test.ts:174`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L174), [`memory-search.test.ts:164`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L164))
 
 ### audit_log
 
@@ -286,11 +286,11 @@ and a failed extraction (after its internal retries) is dropped rather than
 blocking or being re-queued. ([validated by `facts-extraction.test.ts:90`](libs/server-core/src/features/memory/facts-extraction.test.ts#L90))
 
 The extraction LLM is configurable via `LORE_FACT_LLM` — `claude` (Anthropic,
-the default), `openai`, or `ollama` (local). ([validated by `select-provider.test.ts:29`](libs/shared/src/llm/select-provider.test.ts#L29), [`select-provider.test.ts:17`](libs/shared/src/llm/select-provider.test.ts#L17), [`select-provider.test.ts:23`](libs/shared/src/llm/select-provider.test.ts#L23))
+the default), `openai`, or `ollama` (local). ([validated by `select-provider.test.ts:29`](libs/shared/src/outbound/llm/select-provider.test.ts#L29), [`select-provider.test.ts:17`](libs/shared/src/outbound/llm/select-provider.test.ts#L17), [`select-provider.test.ts:23`](libs/shared/src/outbound/llm/select-provider.test.ts#L23))
 
 Haiku is the default extraction model (minimizing cost on high-frequency
 writes), falling back to the Claude CLI when no `ANTHROPIC_API_KEY` is present;
-each extracted fact gets an independent embedding for fine-grained search. ([validated by `select-provider.test.ts:13`](libs/shared/src/llm/select-provider.test.ts#L13), [`select-provider.test.ts:29`](libs/shared/src/llm/select-provider.test.ts#L29))
+each extracted fact gets an independent embedding for fine-grained search. ([validated by `select-provider.test.ts:13`](libs/shared/src/outbound/llm/select-provider.test.ts#L13), [`select-provider.test.ts:29`](libs/shared/src/outbound/llm/select-provider.test.ts#L29))
 
 The LLM's raw output is parsed into individual facts: a JSON array
 (unwrapping ```` ```json ```` code fences), falling back to newline /
@@ -309,7 +309,7 @@ Two daily jobs run in the Lore Agent service to manage memory health:
 
 ### Importance Decay (5:00 AM UTC)
 
-Scores all memories 0–10 using: ([validated by `memory-ranking.test.ts:113`](libs/shared/src/memory-ranking.test.ts#L113))
+Scores all memories 0–10 using: ([validated by `memory-ranking.test.ts:113`](libs/shared/src/work/memory-ranking.test.ts#L113))
 
 ```
 effective_age_days = now() - (last_retrieved_at ?? created_at)
@@ -317,36 +317,36 @@ strength = 0.5 ^ (effective_age_days / half_life_days)
 ```
 
 Age is measured from `last_retrieved_at` when available, falling back to
-`created_at`, so retrieval resets the decay clock. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/memory-ranking.test.ts#L168))
+`created_at`, so retrieval resets the decay clock. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/work/memory-ranking.test.ts#L168))
 
-Additional factors: ([validated by `memory-ranking.test.ts:113`](libs/shared/src/memory-ranking.test.ts#L113))
-- Retrieval count and `last_retrieved_at` boost scores. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/memory-ranking.test.ts#L168), [`memory-ranking.test.ts:113`](libs/shared/src/memory-ranking.test.ts#L113))
-- Confidence tier affects baseline: `stale` facts get -1 penalty. ([validated by `memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
+Additional factors: ([validated by `memory-ranking.test.ts:113`](libs/shared/src/work/memory-ranking.test.ts#L113))
+- Retrieval count and `last_retrieved_at` boost scores. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/work/memory-ranking.test.ts#L168), [`memory-ranking.test.ts:113`](libs/shared/src/work/memory-ranking.test.ts#L113))
+- Confidence tier affects baseline: `stale` facts get -1 penalty. ([validated by `memory-ranking.test.ts:162`](libs/shared/src/work/memory-ranking.test.ts#L162))
 - Content signals: decisions/conventions/gotchas/patterns +2,
   auto-curation/sessions -1, and content richness (short `<50` chars
-  -2, long `>500` chars +1). ([validated by `memory-ranking.test.ts:156`](libs/shared/src/memory-ranking.test.ts#L156), [`memory-ranking.test.ts:147`](libs/shared/src/memory-ranking.test.ts#L147), [validated by `adds 2 for a key containing gotcha`](libs/shared/src/memory-ranking.test.ts#L156), [validated by `subtracts 2 for a value shorter than 50 chars`](libs/shared/src/memory-ranking.test.ts#L147))
-- The final score is clamped to the `[0, 10]` range. ([validated by `memory-ranking.test.ts:180`](libs/shared/src/memory-ranking.test.ts#L180), [`memory-ranking.test.ts:222`](libs/shared/src/memory-ranking.test.ts#L222), [validated by `clamps to 0 when decay and penalties push below zero`](libs/shared/src/memory-ranking.test.ts#L180))
+  -2, long `>500` chars +1). ([validated by `memory-ranking.test.ts:156`](libs/shared/src/work/memory-ranking.test.ts#L156), [`memory-ranking.test.ts:147`](libs/shared/src/work/memory-ranking.test.ts#L147), [validated by `adds 2 for a key containing gotcha`](libs/shared/src/work/memory-ranking.test.ts#L156), [validated by `subtracts 2 for a value shorter than 50 chars`](libs/shared/src/work/memory-ranking.test.ts#L147))
+- The final score is clamped to the `[0, 10]` range. ([validated by `memory-ranking.test.ts:180`](libs/shared/src/work/memory-ranking.test.ts#L180), [`memory-ranking.test.ts:222`](libs/shared/src/work/memory-ranking.test.ts#L222), [validated by `clamps to 0 when decay and penalties push below zero`](libs/shared/src/work/memory-ranking.test.ts#L180))
 
 When an agent exceeds 500 memories, memories are scored, sorted
 least-important-first, and the lowest-scoring are soft-deleted
-(eviction). ([validated by `memory-ranking.test.ts:233`](libs/shared/src/memory-ranking.test.ts#L233), [`memory-lifecycle.test.ts:63`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L63), [`memory-lifecycle.test.ts:305`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L305), [`memory-lifecycle.test.ts:77`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L77), [`memory-lifecycle.test.ts:320`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L320), [`memory-lifecycle.test.ts:87`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L87), [`memory-lifecycle.test.ts:334`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L334))
+(eviction). ([validated by `memory-ranking.test.ts:233`](libs/shared/src/work/memory-ranking.test.ts#L233), [`memory-lifecycle.test.ts:63`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L63), [`memory-lifecycle.test.ts:305`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L305), [`memory-lifecycle.test.ts:77`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L77), [`memory-lifecycle.test.ts:320`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L320), [`memory-lifecycle.test.ts:87`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L87), [`memory-lifecycle.test.ts:334`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L334))
 
 Invalidated facts beyond a cap of 2000 are hard-deleted
-if older than 30 days. ([validated by `memory-lifecycle.test.ts:161`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L161), [`memory-lifecycle.test.ts:397`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L397), [`memory-lifecycle.test.ts:174`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L174), [`memory-lifecycle.test.ts:412`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L412))
+if older than 30 days. ([validated by `memory-lifecycle.test.ts:161`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L161), [`memory-lifecycle.test.ts:397`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L397), [`memory-lifecycle.test.ts:174`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L174), [`memory-lifecycle.test.ts:412`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L412))
 
-Facts unretrieved for 30+ days are transitioned to `stale` confidence. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L188))
+Facts unretrieved for 30+ days are transitioned to `stale` confidence. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L188))
 
 ### Automatic Consolidation (5:30 AM UTC)
 
-Groups recent valid facts (7-day lookback, newest-first) by repo. ([validated by `memory-lifecycle.test.ts:198`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L198), [`memory-lifecycle.test.ts:451`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L451))
+Groups recent valid facts (7-day lookback, newest-first) by repo. ([validated by `memory-lifecycle.test.ts:198`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L198), [`memory-lifecycle.test.ts:451`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L451))
 
 Haiku extracts 1–3 higher-level patterns per repo (a minimum of 5 facts is
 required to trigger), stored as `consolidated/{repo}/{timestamp}` memories —
-turning noisy raw facts into actionable insights. ([validated by `memory-lifecycle.test.ts:17`](apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.test.ts#L5), [`memory-lifecycle.test.ts:99`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L99))
+turning noisy raw facts into actionable insights. ([validated by `memory-lifecycle.test.ts:17`](apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.test.ts#L5), [`memory-lifecycle.test.ts:99`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L99))
 
 Only `PATTERN:`-prefixed lines from the LLM response are kept (short
 patterns filtered out; a `NONE` response yields no patterns), and each
-consolidated memory is inserted once, deduped on its key. ([validated by `memory-lifecycle.test.ts:17`](apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.test.ts#L5), [`memory-lifecycle.test.ts:19`](apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.test.ts#L19), [`memory-lifecycle.test.ts:23`](apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.test.ts#L23), [`memory-lifecycle.test.ts:99`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L99), [`memory-lifecycle.test.ts:345`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L345))
+consolidated memory is inserted once, deduped on its key. ([validated by `memory-lifecycle.test.ts:17`](apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.test.ts#L5), [`memory-lifecycle.test.ts:19`](apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.test.ts#L19), [`memory-lifecycle.test.ts:23`](apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.test.ts#L23), [`memory-lifecycle.test.ts:99`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L99), [`memory-lifecycle.test.ts:345`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L345))
 
 ## Passive Memory Capture (Session Layer)
 
@@ -357,7 +357,7 @@ extraction, with no agent cooperation needed. ([validated by `session-dump.test.
 
 After every task completion (PR created, no-changes, failure), an episode is
 automatically written via `episode-writer.ts`, and for high-signal events Haiku
-extracts a "lesson learned" stored as an `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:89`](libs/shared/src/episode-writer.test.ts#L89))
+extracts a "lesson learned" stored as an `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:89`](libs/shared/src/work/episode-writer.test.ts#L89))
 
 ## TTL and Expiration
 
@@ -365,7 +365,7 @@ Any memory can be written with a TTL (seconds); `expires_at` is computed on
 write, expired memories are excluded from reads and search via
 `expires_at > now()`, and a background cleanup job soft-deletes only memories
 whose `expires_at` has passed (reporting how many) while permanent memories
-(no TTL) are never auto-deleted. ([validated by `memory-lifecycle.test.ts:114`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L114), [`memory-lifecycle.test.ts:358`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L358))
+(no TTL) are never auto-deleted. ([validated by `memory-lifecycle.test.ts:114`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L114), [`memory-lifecycle.test.ts:358`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L358))
 
 ## File-Backed Fallback
 
@@ -387,7 +387,7 @@ Facts retrieved for cross-repo context are filtered by a portability
 score. Portable keywords (`error`, `pattern`, `gotcha`, `convention`)
 boost the score; local keywords (`config`, `deploy`, `url`, `auth`,
 `secret`) reduce it. Each portable keyword adds 0.15 above the 0.5 base and each local keyword subtracts 0.15, with the result clamped to `[0, 1]`. Only facts scoring >= 0.5 pass through to
-prevent repo-specific configuration from polluting other repos. ([validated by `transfer-score.test.ts:66`](apps/mcp-server/src/work/context/transfer-score.test.ts#L27), [`memory-ranking.test.ts:33`](libs/shared/src/memory-ranking.test.ts#L33), [`memory-ranking.test.ts:37`](libs/shared/src/memory-ranking.test.ts#L37), [`memory-ranking.test.ts:41`](libs/shared/src/memory-ranking.test.ts#L41), [`memory-ranking.test.ts:47`](libs/shared/src/memory-ranking.test.ts#L47))
+prevent repo-specific configuration from polluting other repos. ([validated by `transfer-score.test.ts:66`](apps/mcp-server/src/work/context/transfer-score.test.ts#L27), [`memory-ranking.test.ts:33`](libs/shared/src/work/memory-ranking.test.ts#L33), [`memory-ranking.test.ts:37`](libs/shared/src/work/memory-ranking.test.ts#L37), [`memory-ranking.test.ts:41`](libs/shared/src/work/memory-ranking.test.ts#L41), [`memory-ranking.test.ts:47`](libs/shared/src/work/memory-ranking.test.ts#L47))
 
 ## Divergences from Original Design
 
@@ -427,13 +427,13 @@ Decision: the following capabilities were added beyond the original spec:
   (`~/.lore/memory/`) keeps reads and writes available with degraded search
   quality (no vector similarity), recovering to full search quality
   automatically when the database reconnects. ([validated by `memory.test.ts:38`](libs/server-core/src/features/memory/memory.test.ts#L38), [`memory.test.ts:43`](libs/server-core/src/features/memory/memory.test.ts#L43))
-- Agent-level eviction (500-memory cap) prevents unbounded growth. ([validated by `memory-lifecycle.test.ts:63`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L63), [`memory-lifecycle.test.ts:87`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L87))
+- Agent-level eviction (500-memory cap) prevents unbounded growth. ([validated by `memory-lifecycle.test.ts:63`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L63), [`memory-lifecycle.test.ts:87`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L87))
 - Agent/repo isolation by default: agent A cannot read agent B's private
   memories without explicit pool sharing, and a read bound to one repo never
-  returns another repo's memory (listings filtered to the bound scope). ([validated by `memory.test.ts:51`](libs/shared/src/project/memory/memory.test.ts#L51), [`memory-store-bridge.test.ts:49`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L49))
+  returns another repo's memory (listings filtered to the bound scope). ([validated by `memory.test.ts:51`](libs/shared/src/outbound/project/memory/memory.test.ts#L51), [`memory-store-bridge.test.ts:49`](libs/shared/src/outbound/project/memory/memory-store-bridge.test.ts#L49))
 - All memory writes pass through `sanitizeContent()` / `redactSecrets()`
   to strip API keys, JWTs, private keys, connection strings, and
-  bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
+  bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/work/episode-writer.test.ts#L13))
 - Audit trail is immutable. ([validated by `memory.test.ts:258`](libs/server-core/src/features/memory/memory.test.ts#L258))
 
 ## Operational Targets (Background)

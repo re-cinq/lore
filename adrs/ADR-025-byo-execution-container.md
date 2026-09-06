@@ -66,7 +66,7 @@ plus a CODEOWNERS-approved PR — exactly like `dark_factory.enabled`
 **Mechanism (delivered incrementally; see Consequences):**
 
 - **Reuse the existing `agents` port** (`AgentRunner`,
-  `libs/shared/src/project/agents/`) rather than add a parallel
+  `libs/shared/src/outbound/project/agents/`) rather than add a parallel
   `ExecutionBackend` port. `AgentRunner.run(mode)` already abstracts the three
   execution backends the earlier design imagined — `local` (claude CLI),
   `cluster` (LoreTask CR), `direct` (LLM API) — so a new port would only

@@ -312,7 +312,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   server-side by the canonical kind-aware `docStatusPill` parser (the
   `| Status |` header row for the spec kind, the frontmatter `status:`
   value for the adr kind), and entries whose status is missing or
-  unparseable get no pill. ([validated by `spec-status:363`](libs/shared/src/spec-status.test.ts#L361), [`spec-status:322`](libs/shared/src/spec-status.test.ts#L320), [`spec-status:353`](libs/shared/src/spec-status.test.ts#L351), [`spec-status:359`](libs/shared/src/spec-status.test.ts#L357))
+  unparseable get no pill. ([validated by `spec-status:363`](libs/shared/src/domain/spec-status.test.ts#L361), [`spec-status:322`](libs/shared/src/domain/spec-status.test.ts#L320), [`spec-status:353`](libs/shared/src/domain/spec-status.test.ts#L351), [`spec-status:359`](libs/shared/src/domain/spec-status.test.ts#L357))
 - FR-3.18: The ADR detail page strips the leading YAML frontmatter from
   the rendered source (a minimal YAML-lite parser: scalars, quoted
   scalars, flow and block lists; a later `---` is a horizontal rule; the
@@ -344,11 +344,11 @@ The onboarding PR scaffolds a target repo with deterministic files committed ver
 
 - FR-5.1: The context-ingest and advisory spec-impact workflows are committed
   verbatim — `.github/workflows/lore-ingest.yml` and
-  `.github/workflows/lore-trace-impact.yml`. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/ingest-workflow.test.ts#L22), [`ingest-workflow.test.ts:34`](libs/shared/src/ingest-workflow.test.ts#L34), [`trace-impact-workflow.test.ts:11`](libs/shared/src/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/trace-impact-workflow.test.ts#L25))
+  `.github/workflows/lore-trace-impact.yml`. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22), [`ingest-workflow.test.ts:34`](libs/shared/src/work/ingest-workflow.test.ts#L34), [`trace-impact-workflow.test.ts:11`](libs/shared/src/work/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/work/trace-impact-workflow.test.ts#L25))
 - FR-5.2: `.github/PULL_REQUEST_TEMPLATE.md` carries the canonical PR sections —
   Why, What Changed, Alternatives Considered, ADRs & Architecture, Testing. ([validated by `pr-template.test.ts:11`](libs/shared/src/pr-template.test.ts#L11), [`pr-template.test.ts:15`](libs/shared/src/pr-template.test.ts#L15), [`pr-template.test.ts:19`](libs/shared/src/pr-template.test.ts#L19), [`pr-template.test.ts:23`](libs/shared/src/pr-template.test.ts#L23), [`pr-template.test.ts:27`](libs/shared/src/pr-template.test.ts#L27), [`pr-template.test.ts:31`](libs/shared/src/pr-template.test.ts#L31))
 - FR-5.3: `.github/workflows/pr-description-check.yml` enforces those PR sections
-  in CI, treating a comment-only or blank section as empty. ([validated by `pr-section-check.test.ts:26`](libs/shared/src/pr-section-check.test.ts#L26), [`pr-section-check.test.ts:44`](libs/shared/src/pr-section-check.test.ts#L44), [`pr-section-check.test.ts:67`](libs/shared/src/pr-section-check.test.ts#L67), [`pr-section-check.test.ts:78`](libs/shared/src/pr-section-check.test.ts#L78))
+  in CI, treating a comment-only or blank section as empty. ([validated by `pr-section-check.test.ts:26`](libs/shared/src/work/pr-section-check.test.ts#L26), [`pr-section-check.test.ts:44`](libs/shared/src/work/pr-section-check.test.ts#L44), [`pr-section-check.test.ts:67`](libs/shared/src/work/pr-section-check.test.ts#L67), [`pr-section-check.test.ts:78`](libs/shared/src/work/pr-section-check.test.ts#L78))
 
 - FR-5.4: The onboarding PR commits static scaffolding verbatim —
   `.claude/settings.json` carrying the Lore MCP system-prompt suffix, and the

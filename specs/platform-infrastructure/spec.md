@@ -75,13 +75,13 @@ The context-core store tracks the latest production eval score per namespace:
 production history, ignoring other namespaces and non-production rows), and
 `insert` writes a history row in `version, namespace, score, status` order. The
 `InMemoryContextCore` double mirrors this resolution and retains every inserted
-record for assertion. ([validated by `context-core.test.ts:23`](libs/shared/src/project/context-core/context-core.test.ts#L23), [`context-core.test.ts:34`](libs/shared/src/project/context-core/context-core.test.ts#L34), [`context-core.test.ts:40`](libs/shared/src/project/context-core/context-core.test.ts#L40), [`context-core.test.ts:63`](libs/shared/src/project/context-core/context-core.test.ts#L63), [`context-core.test.ts:88`](libs/shared/src/project/context-core/context-core.test.ts#L88), [`context-core.test.ts:107`](libs/shared/src/project/context-core/context-core.test.ts#L107))
+record for assertion. ([validated by `context-core.test.ts:23`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L23), [`context-core.test.ts:34`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L34), [`context-core.test.ts:40`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L40), [`context-core.test.ts:63`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L63), [`context-core.test.ts:88`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L88), [`context-core.test.ts:107`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L107))
 
 ### Research store
 
 `PgResearch.recordAttempt` inserts into `pipeline.research_attempts` in
 `cluster_id, namespace, approach, content, eval_score, delta` parameter order,
-and the `InMemoryResearch` double retains every recorded attempt for assertion. ([validated by `research.test.ts:33`](libs/shared/src/project/research/research.test.ts#L33), [`research.test.ts:51`](libs/shared/src/project/research/research.test.ts#L51))
+and the `InMemoryResearch` double retains every recorded attempt for assertion. ([validated by `research.test.ts:33`](libs/shared/src/outbound/project/research/research.test.ts#L33), [`research.test.ts:51`](libs/shared/src/outbound/project/research/research.test.ts#L51))
 
 ### Route plumbing
 

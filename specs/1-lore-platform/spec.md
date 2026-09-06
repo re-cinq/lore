@@ -332,7 +332,7 @@ The system MUST provide a single-command install experience. ([validated by `ins
 ### FR-4: Task Tracking Integration
 
 The system MUST provide agent-native task tracking via PostgreSQL
-pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/shared/src/project/tasks/task-queue.test.ts#L20))
+pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20))
 
 - Decision: the generated `AGENTS.md` instructs Claude Code on task-tracking
   commands and proactive guidance behaviour.
@@ -340,15 +340,15 @@ pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/s
 - Decision: a Stop (session-end) hook reminds about open claimed tasks.
 - FR-4.4: `lore_sync_tasks` MCP tool converts tasks.md task output into
   pipeline tasks with dependency relationships parsed from
-  `[DEPENDS ON: ...]` annotations. ([validated by `tasks.test.ts:60`](libs/shared/src/tasks.test.ts#L60))
+  `[DEPENDS ON: ...]` annotations. ([validated by `tasks.test.ts:60`](libs/shared/src/domain/tasks.test.ts#L60))
 - FR-4.5: Concurrent task claiming uses `SELECT ... FOR UPDATE SKIP
   LOCKED` — atomically prevents duplicate work without versioning
   overhead. A claim attempt on a taken task returns an immediate
   error; the developer or agent reads the ready list and picks
-  another task. ([validated by `task-queue.test.ts:7`](libs/shared/src/project/tasks/task-queue.test.ts#L7))
+  another task. ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
 - FR-4.6: Every pipeline task automatically creates a GitHub Issue
   on the target repo (labelled `lore-managed`). The issue receives
-  status comments and is closed when the PR is created. ([validated by `issues.test.ts:102`](libs/shared/src/project/issues/issues.test.ts#L98), [`issues.test.ts:111`](libs/shared/src/project/issues/issues.test.ts#L111))
+  status comments and is closed when the PR is created. ([validated by `issues.test.ts:102`](libs/shared/src/outbound/project/issues/issues.test.ts#L98), [`issues.test.ts:111`](libs/shared/src/outbound/project/issues/issues.test.ts#L111))
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
   Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L120))
@@ -357,40 +357,40 @@ pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/s
   stripped description from a `[P]` marker, a `dependsOn` list from a `[DEPENDS ON: ...]`
   marker, a plain-or-backtick file path from the trailing ` | ` suffix, and the phase
   number carried from the preceding `## Phase N` header — defaulting phase to 0 and
-  ignoring lines that are neither tasks nor phase headers. ([validated by `tasks.test.ts:25`](libs/shared/src/tasks.test.ts#L25), [`tasks.test.ts:39`](libs/shared/src/tasks.test.ts#L39), [`tasks.test.ts:46`](libs/shared/src/tasks.test.ts#L46), [`tasks.test.ts:53`](libs/shared/src/tasks.test.ts#L53), [`tasks.test.ts:69`](libs/shared/src/tasks.test.ts#L69), [`tasks.test.ts:85`](libs/shared/src/tasks.test.ts#L85), [`tasks.test.ts:101`](libs/shared/src/tasks.test.ts#L101), [`tasks.test.ts:23`](libs/server-core/src/features/pipeline/tasks.test.ts#L23), [`tasks.test.ts:31`](libs/server-core/src/features/pipeline/tasks.test.ts#L31), [`tasks.test.ts:39`](libs/server-core/src/features/pipeline/tasks.test.ts#L39), [`tasks.test.ts:47`](libs/server-core/src/features/pipeline/tasks.test.ts#L47), [`tasks.test.ts:54`](libs/server-core/src/features/pipeline/tasks.test.ts#L54), [`tasks.test.ts:73`](libs/server-core/src/features/pipeline/tasks.test.ts#L73), [`tasks.test.ts:92`](libs/server-core/src/features/pipeline/tasks.test.ts#L92))
+  ignoring lines that are neither tasks nor phase headers. ([validated by `tasks.test.ts:25`](libs/shared/src/domain/tasks.test.ts#L25), [`tasks.test.ts:39`](libs/shared/src/domain/tasks.test.ts#L39), [`tasks.test.ts:46`](libs/shared/src/domain/tasks.test.ts#L46), [`tasks.test.ts:53`](libs/shared/src/domain/tasks.test.ts#L53), [`tasks.test.ts:69`](libs/shared/src/domain/tasks.test.ts#L69), [`tasks.test.ts:85`](libs/shared/src/domain/tasks.test.ts#L85), [`tasks.test.ts:101`](libs/shared/src/domain/tasks.test.ts#L101), [`tasks.test.ts:23`](libs/server-core/src/features/pipeline/tasks.test.ts#L23), [`tasks.test.ts:31`](libs/server-core/src/features/pipeline/tasks.test.ts#L31), [`tasks.test.ts:39`](libs/server-core/src/features/pipeline/tasks.test.ts#L39), [`tasks.test.ts:47`](libs/server-core/src/features/pipeline/tasks.test.ts#L47), [`tasks.test.ts:54`](libs/server-core/src/features/pipeline/tasks.test.ts#L54), [`tasks.test.ts:73`](libs/server-core/src/features/pipeline/tasks.test.ts#L73), [`tasks.test.ts:92`](libs/server-core/src/features/pipeline/tasks.test.ts#L92))
 - FR-4.9: `inferPhaseDependencies` derives dependency edges deterministically: a task
   depends on every task of the previous phase, sequential (non-`[P]`) tasks chain within a
   phase, `[P]` tasks stay free of intra-phase deps, explicit `[DEPENDS ON: ...]` deps are
   preserved rather than overwritten, and task lists with no phases (or empty input) are
-  returned unchanged. ([validated by `tasks.test.ts:110`](libs/shared/src/tasks.test.ts#L110), [`tasks.test.ts:114`](libs/shared/src/tasks.test.ts#L114), [`tasks.test.ts:120`](libs/shared/src/tasks.test.ts#L120), [`tasks.test.ts:138`](libs/shared/src/tasks.test.ts#L138), [`tasks.test.ts:150`](libs/shared/src/tasks.test.ts#L150), [`tasks.test.ts:160`](libs/shared/src/tasks.test.ts#L160), [`tasks.test.ts:106`](libs/server-core/src/features/pipeline/tasks.test.ts#L106), [`tasks.test.ts:116`](libs/server-core/src/features/pipeline/tasks.test.ts#L116), [`tasks.test.ts:133`](libs/server-core/src/features/pipeline/tasks.test.ts#L133), [`tasks.test.ts:149`](libs/server-core/src/features/pipeline/tasks.test.ts#L149), [`tasks.test.ts:165`](libs/server-core/src/features/pipeline/tasks.test.ts#L165), [`tasks.test.ts:179`](libs/server-core/src/features/pipeline/tasks.test.ts#L179), [`tasks.test.ts:206`](libs/server-core/src/features/pipeline/tasks.test.ts#L206))
+  returned unchanged. ([validated by `tasks.test.ts:110`](libs/shared/src/domain/tasks.test.ts#L110), [`tasks.test.ts:114`](libs/shared/src/domain/tasks.test.ts#L114), [`tasks.test.ts:120`](libs/shared/src/domain/tasks.test.ts#L120), [`tasks.test.ts:138`](libs/shared/src/domain/tasks.test.ts#L138), [`tasks.test.ts:150`](libs/shared/src/domain/tasks.test.ts#L150), [`tasks.test.ts:160`](libs/shared/src/domain/tasks.test.ts#L160), [`tasks.test.ts:106`](libs/server-core/src/features/pipeline/tasks.test.ts#L106), [`tasks.test.ts:116`](libs/server-core/src/features/pipeline/tasks.test.ts#L116), [`tasks.test.ts:133`](libs/server-core/src/features/pipeline/tasks.test.ts#L133), [`tasks.test.ts:149`](libs/server-core/src/features/pipeline/tasks.test.ts#L149), [`tasks.test.ts:165`](libs/server-core/src/features/pipeline/tasks.test.ts#L165), [`tasks.test.ts:179`](libs/server-core/src/features/pipeline/tasks.test.ts#L179), [`tasks.test.ts:206`](libs/server-core/src/features/pipeline/tasks.test.ts#L206))
 - FR-4.10: `specSlugFromBranch` extracts the spec slug from a
   `lore/feature-request/<slug>-<8hex>` branch by dropping the 8-hex task suffix, and returns
-  null for a non-feature-request branch or one that has the prefix but no slug. ([validated by `tasks.test.ts:9`](libs/shared/src/tasks.test.ts#L9), [`tasks.test.ts:15`](libs/shared/src/tasks.test.ts#L15), [`tasks.test.ts:19`](libs/shared/src/tasks.test.ts#L19))
+  null for a non-feature-request branch or one that has the prefix but no slug. ([validated by `tasks.test.ts:9`](libs/shared/src/domain/tasks.test.ts#L9), [`tasks.test.ts:15`](libs/shared/src/domain/tasks.test.ts#L15), [`tasks.test.ts:19`](libs/shared/src/domain/tasks.test.ts#L19))
 
 ### FR-5: Spec-Driven Feature Workflow
 
 The system MUST provide an end-to-end feature workflow via platform
-skills. ([validated by `planning-prompt.test.ts:47`](libs/shared/src/feature-planning/planning-prompt.test.ts#L47))
+skills. ([validated by `planning-prompt.test.ts:47`](libs/shared/src/work/feature-planning/planning-prompt.test.ts#L47))
 
 - FR-5.1: `/lore-feature` skill guides the full loop: constitution
-  generation → specification → task breakdown → pipeline task wiring. ([validated by `planning-prompt.test.ts:153`](libs/shared/src/feature-planning/planning-prompt.test.ts#L153), [`planning-prompt.test.ts:47`](libs/shared/src/feature-planning/planning-prompt.test.ts#L47))
+  generation → specification → task breakdown → pipeline task wiring. ([validated by `planning-prompt.test.ts:153`](libs/shared/src/work/feature-planning/planning-prompt.test.ts#L153), [`planning-prompt.test.ts:47`](libs/shared/src/work/feature-planning/planning-prompt.test.ts#L47))
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
-  context, and changed files. ([validated by `pr-body.test.ts:5`](libs/shared/src/pr-body.test.ts#L5), [`pr-body.test.ts:11`](libs/shared/src/pr-body.test.ts#L11))
+  context, and changed files. ([validated by `pr-body.test.ts:5`](libs/shared/src/domain/pr-body.test.ts#L5), [`pr-body.test.ts:11`](libs/shared/src/domain/pr-body.test.ts#L11))
 - Decision: constitution generation (the `lore-gen-constitution` glue script)
   calls `lore_assemble_context` to populate `.specify/constitution.md` with
   real ADRs and team conventions.
 - FR-5.4: Claude Code does mechanical work; developer confirms only
   at decision points (constitution review, spec review, task
-  breakdown review). ([validated by `planning-prompt.test.ts:85`](libs/shared/src/feature-planning/planning-prompt.test.ts#L85), [`planning-prompt.test.ts:97`](libs/shared/src/feature-planning/planning-prompt.test.ts#L97))
+  breakdown review). ([validated by `planning-prompt.test.ts:85`](libs/shared/src/work/feature-planning/planning-prompt.test.ts#L85), [`planning-prompt.test.ts:97`](libs/shared/src/work/feature-planning/planning-prompt.test.ts#L97))
 
 ### FR-6: PR Quality Enforcement
 
-The system MUST enforce PR description quality from day one. ([validated by `pr-section-check.test.ts:26`](libs/shared/src/pr-section-check.test.ts#L26), [`pr-section-check.test.ts:30`](libs/shared/src/pr-section-check.test.ts#L30))
+The system MUST enforce PR description quality from day one. ([validated by `pr-section-check.test.ts:26`](libs/shared/src/work/pr-section-check.test.ts#L26), [`pr-section-check.test.ts:30`](libs/shared/src/work/pr-section-check.test.ts#L30))
 
 - FR-6.1: PR template with required sections: Why, What Changed,
   Alternatives Considered, ADRs & Architecture, and Testing. ([validated by `pr-template.test.ts:11`](libs/shared/src/pr-template.test.ts#L11), [`pr-template.test.ts:15`](libs/shared/src/pr-template.test.ts#L15), [`pr-template.test.ts:19`](libs/shared/src/pr-template.test.ts#L19), [`pr-template.test.ts:23`](libs/shared/src/pr-template.test.ts#L23), [`pr-template.test.ts:27`](libs/shared/src/pr-template.test.ts#L27), [`pr-template.test.ts:31`](libs/shared/src/pr-template.test.ts#L31))
 - FR-6.2: CI check fails PRs with an empty Why or Alternatives Considered
-  section. ([validated by `pr-section-check.test.ts:34`](libs/shared/src/pr-section-check.test.ts#L34), [`pr-section-check.test.ts:44`](libs/shared/src/pr-section-check.test.ts#L44), [`pr-section-check.test.ts:55`](libs/shared/src/pr-section-check.test.ts#L55), [`pr-section-check.test.ts:67`](libs/shared/src/pr-section-check.test.ts#L67), [`pr-section-check.test.ts:78`](libs/shared/src/pr-section-check.test.ts#L78), [`pr-section-check.test.ts:92`](libs/shared/src/pr-section-check.test.ts#L92), [`pr-section-check.test.ts:101`](libs/shared/src/pr-section-check.test.ts#L101), [`pr-section-check.test.ts:107`](libs/shared/src/pr-section-check.test.ts#L107), [`pr-section-check.test.ts:111`](libs/shared/src/pr-section-check.test.ts#L111))
+  section. ([validated by `pr-section-check.test.ts:34`](libs/shared/src/work/pr-section-check.test.ts#L34), [`pr-section-check.test.ts:44`](libs/shared/src/work/pr-section-check.test.ts#L44), [`pr-section-check.test.ts:55`](libs/shared/src/work/pr-section-check.test.ts#L55), [`pr-section-check.test.ts:67`](libs/shared/src/work/pr-section-check.test.ts#L67), [`pr-section-check.test.ts:78`](libs/shared/src/work/pr-section-check.test.ts#L78), [`pr-section-check.test.ts:92`](libs/shared/src/work/pr-section-check.test.ts#L92), [`pr-section-check.test.ts:101`](libs/shared/src/work/pr-section-check.test.ts#L101), [`pr-section-check.test.ts:107`](libs/shared/src/work/pr-section-check.test.ts#L107), [`pr-section-check.test.ts:111`](libs/shared/src/work/pr-section-check.test.ts#L111))
 - Decision: PR-quality enforcement starts in warning-only mode; the platform
   team flips it to hard-fail via a configuration flag in the CI workflow —
   there is no automatic date-based cutoff.
@@ -398,23 +398,23 @@ The system MUST enforce PR description quality from day one. ([validated by `pr-
 ### FR-7: Ingestion Pipeline (Phase 1)
 
 The system MUST ingest content from multiple sources into the vector
-store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/content-classify.test.ts#L5))
+store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/domain/content-classify.test.ts#L5))
 
 - FR-7.1: Fast path: on-push to main triggers incremental ingestion
-  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:79`](apps/floor/src/transport/http/routes/ci-ingest.test.ts#L79))
+  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:79`](apps/floor/src/transport/http/routes/ci-ingest.test.ts#L79))
 - FR-7.2: Full path: nightly job triggers complete re-index via
   pipeline task. ([validated by `reindex-backfill.test.ts:24`](apps/floor/src/work/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-seed.test.ts:5`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L5))
 - FR-7.3: Content types: code (AST-split), pull requests (diff +
   description + comments), ADRs, docs (section-chunked), specs,
-  runbooks. ([validated by `chunker.test.ts:6`](libs/shared/src/chunker.test.ts#L6), [`chunker.test.ts:172`](libs/shared/src/chunker.test.ts#L172), [`content-classify.test.ts:11`](libs/shared/src/content-classify.test.ts#L11))
+  runbooks. ([validated by `chunker.test.ts:6`](libs/shared/src/work/chunker.test.ts#L6), [`chunker.test.ts:172`](libs/shared/src/work/chunker.test.ts#L172), [`content-classify.test.ts:11`](libs/shared/src/domain/content-classify.test.ts#L11))
 - FR-7.4: Secret and credential redaction runs at ingest time via
   `redactSecrets()`; matched secrets are stripped before content is
-  embedded and made searchable. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`redact.test.ts:30`](libs/shared/src/redact.test.ts#L30))
+  embedded and made searchable. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:30`](libs/shared/src/lib/redact.test.ts#L30))
 - FR-7.5: Beyond chunking and embedding, the Lore Agent drafts missing
-  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
+  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L123))
 - FR-7.6: Nightly re-index MUST hard-delete chunks whose source
   file, PR, or ADR no longer exists or has been superseded. No
-  stale content is retained. ([validated by `verify.test.ts:69`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L69), [`chunks.test.ts:391`](libs/shared/src/project/chunks/chunks.test.ts#L398))
+  stale content is retained. ([validated by `verify.test.ts:69`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L69), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L398))
 
 ### FR-8: Observability (Phase 1)
 
@@ -429,7 +429,7 @@ The system MUST provide observability into context retrieval quality. ([validate
   (Langfuse trace queries → candidate generation → PromptFoo eval → PR)
   drives automated context improvement.
 - FR-8.4: `lore_my_usage` tool exposes per-developer token consumption
-  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44), [`usage-pg.test.ts:144`](libs/shared/src/project/usage/usage-pg.test.ts#L153))
+  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L153))
 
 ### FR-9: Context Evaluation (Phase 1)
 
@@ -444,32 +444,32 @@ The system MUST validate context quality via CI.
 
 ### FR-10: Gap Detection (Phase 2)
 
-The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/detect/gap-detect.test.ts#L105))
+The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L105))
 
 - See ADR-010: a weekly job analyzes low-confidence retrievals from the
   previous week (the autoresearch gap loop).
 - Decision: candidate gaps are clustered by embedding similarity.
 - FR-10.3: For a repo missing a documentation kind (CLAUDE.md, ADRs, or
   specs), the `gap-detect` job drafts the missing content as a `gap-fill`
-  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
+  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L123))
 - Decision: the agent opens PRs to the context repo with the drafted content,
   assigned to the relevant team.
 - Decision: human review is required before any auto-drafted content is merged.
 - FR-10.6: The per-repo `gap-detect` job skips repos that are not
-  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/detect/gap-detect.test.ts#L105))
+  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L105))
 - FR-10.7: It checks the repo's resolved-schema chunks for a CLAUDE.md
   doc chunk, ADR chunks, and spec chunks — filing a `gap-fill` task per
   missing kind, and none when all are present.
-  ([validated by `gap-detect.test.ts:114`](libs/shared/src/detect/gap-detect.test.ts#L114), [`gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
+  ([validated by `gap-detect.test.ts:114`](libs/shared/src/work/detect/gap-detect.test.ts#L114), [`gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L123))
 - FR-10.8: It files a stale-content `gap-fill` task only when more than
   10 reindex-owned chunks have gone unverified for over 90 days;
   api-ingested chunks never count toward the stale floor (semantics per
   the ADR-019 2026-07 verification-sweep amendment: a non-zero count
   means reindex has stopped covering the repo, not that files are
   unchanged).
-  ([validated by `gap-detect.test.ts:135`](libs/shared/src/detect/gap-detect.test.ts#L135), [`gap-detect.test.ts:152`](libs/shared/src/detect/gap-detect.test.ts#L152), [`gap-detect.test.ts:163`](libs/shared/src/detect/gap-detect.test.ts#L163))
+  ([validated by `gap-detect.test.ts:135`](libs/shared/src/work/detect/gap-detect.test.ts#L135), [`gap-detect.test.ts:152`](libs/shared/src/work/detect/gap-detect.test.ts#L152), [`gap-detect.test.ts:163`](libs/shared/src/work/detect/gap-detect.test.ts#L163))
 - FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
-  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/detect/gap-detect.test.ts#L175))
+  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/work/detect/gap-detect.test.ts#L175))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
@@ -487,7 +487,7 @@ live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/fe
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
-  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L71), [`memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
+  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L71), [`memory-ranking.test.ts:162`](libs/shared/src/work/memory-ranking.test.ts#L162))
 - FR-11.5: Contradiction detection: when a new fact has cosine
   similarity ≥ 0.92 to an existing one, the old fact is invalidated
   and a conflict record written to `memory.fact_conflicts`. Context
@@ -506,20 +506,20 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 - FR-12.2: Daily job at 5 AM scores memories 0-10 using half-life
   decay (`strength = 0.5^(age / half_life_days)`). Evicts
   lowest-scoring memories when agent exceeds 500 entries. Cleans
-  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/memory-ranking.test.ts#L143))
+  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/work/memory-ranking.test.ts#L143))
 - FR-12.3: Daily job at 5:30 AM groups recent facts (7-day lookback)
   by repo and calls Haiku to extract 1-3 higher-level patterns per
   repo. Stored as `consolidated/{repo}/{timestamp}` memories.
-  Minimum 5 facts required to trigger consolidation. ([validated by `memory-lifecycle.test.ts:99`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L99), [`memory-lifecycle.test.ts:198`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L198))
+  Minimum 5 facts required to trigger consolidation. ([validated by `memory-lifecycle.test.ts:99`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L99), [`memory-lifecycle.test.ts:198`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L198))
 - FR-12.4: Every `lore_search_memory` call asynchronously increments
   `retrieval_count`, updates `last_retrieved_at`, and extends
   `half_life_days` (+2, cap 365) on returned facts. Stale facts
   revive to `observed` on retrieval. Fire-and-forget — adds zero
-  latency to search. ([validated by `memory-lifecycle.test.ts:214`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L214), [`memory-lifecycle.test.ts:188`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L188))
+  latency to search. ([validated by `memory-lifecycle.test.ts:214`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L214), [`memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L188))
 - FR-12.5: After every pipeline task completion (PR, no-changes,
   failure), an episode is automatically written. For high-signal
   events (PRs, failures), Haiku extracts a lesson and stores it
-  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:89`](libs/shared/src/episode-writer.test.ts#L89))
+  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:89`](libs/shared/src/work/episode-writer.test.ts#L89))
 
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
@@ -548,31 +548,31 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00
   Mon-Fri via `LORE_BUSINESS_HOURS_{TZ,START,END,DAYS}` env vars).
-  Webhook-triggered runs are never gated by business hours. ([validated by `business-hours.test.ts:37`](libs/shared/src/business-hours.test.ts#L37))
+  Webhook-triggered runs are never gated by business hours. ([validated by `business-hours.test.ts:37`](libs/shared/src/lib/business-hours.test.ts#L37))
 - Decision: the webhook trigger degrades gracefully when its ingress env is
   absent — a warning is logged and the safety-net cron (FR-13.7) covers the gap.
 
 ### FR-14: Spec Drift Detection (Phase 2)
 
-The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:190`](libs/shared/src/project/chunks/chunks.test.ts#L194), [`chunks.test.ts:209`](libs/shared/src/project/chunks/chunks.test.ts#L216))
+The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:190`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L194), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L216))
 
 - FR-14.1: Weekly job reads spec assertions and checks against
   current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/work/detect/fan-out.test.ts#L42))
 - Decision: divergence above 20% of a spec's assertions triggers a `gap-fill`
   pipeline task for the owning team.
-- FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:914`](libs/shared/src/project/chunks/chunks.test.ts#L914), [`chunks.test.ts:947`](libs/shared/src/project/chunks/chunks.test.ts#L947))
+- FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L914), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L947))
 - FR-14.4: Spec-drift reads a repo's spec chunks and code symbols from
   the repo's resolved schema (team schema when provisioned, `org_shared`
   otherwise) — the same schema the reindex job wrote them to. The
   `codeSymbols` read excludes `symbol_type = 'call'` chunks, so a test
   file's `describe` title can never satisfy the drift heuristic's
   known-symbol check for a deleted declaration.
-  ([validated by `chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L157), [`chunks.test.ts:168`](libs/shared/src/project/chunks/chunks.test.ts#L175), [`chunks.test.ts:187`](libs/shared/src/project/chunks/chunks.test.ts#L194), [`chunks.test.ts:209`](libs/shared/src/project/chunks/chunks.test.ts#L216), [`chunks.test.ts:914`](libs/shared/src/project/chunks/chunks.test.ts#L914), [`chunks.test.ts:947`](libs/shared/src/project/chunks/chunks.test.ts#L947))
+  ([validated by `chunks.test.ts:153`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L157), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L175), [`chunks.test.ts:187`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L194), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L216), [`chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L914), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L947))
 
 ### FR-15: Progressive Trust (Phase 1)
 
 The system MUST gate task types per-repo based on demonstrated
-reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/pipeline-tasks.trust.test.ts#L33))
+reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33))
 
 - FR-15.1: `settings.trust.level` controls which task types are
   allowed: `docs` (gap-fill/runbook/onboard + feature-planning
@@ -580,7 +580,7 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/p
   `implementation` (+implementation/feature-request/general),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
-  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/pipeline-tasks.trust.test.ts#L33), [`still refuses an implementation task at trust level docs`](libs/shared/src/pipeline-tasks.trust.test.ts#L48))
+  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [`still refuses an implementation task at trust level docs`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
 - FR-15.2: Trust auto-promotes after 3 successful merges at the current level
   (overridable per repo via `auto_promote_threshold`), climbing
   `docs → tests → implementation → full` and resetting the merge counter on
@@ -593,28 +593,28 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/p
 ### FR-16: Prompt Caching on Agent LLM Calls (Phase 1)
 
 The system MUST cache repeated LLM prefixes on all agent-side Anthropic
-API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prompt-cache.test.ts:87`](libs/shared/src/llm/prompt-cache.test.ts#L87))
+API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prompt-cache.test.ts:87`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L87))
 
-- FR-16.1: `libs/shared/src/llm/anthropic-provider.ts` places two cache
+- FR-16.1: `libs/shared/src/outbound/llm/anthropic-provider.ts` places two cache
   breakpoints per request — one on the system prompt block
   (`buildCacheableSystem`), one on the tool schema block
   (`buildCacheableTools`) — so a tool-schema edit cannot bust the system
-  cache and vice versa. ([validated by `anthropic-provider.test.ts:9`](libs/shared/src/llm/anthropic-provider.test.ts#L9), [`anthropic-provider.test.ts:32`](libs/shared/src/llm/anthropic-provider.test.ts#L32), [`anthropic-provider.test.ts:48`](libs/shared/src/llm/anthropic-provider.test.ts#L48))
+  cache and vice versa. ([validated by `anthropic-provider.test.ts:9`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L9), [`anthropic-provider.test.ts:32`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L32), [`anthropic-provider.test.ts:48`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L48))
 - FR-16.2: `getCacheControl(jobName)` from `agent/src/lib/prompt-cache.ts`
   returns `{type: "ephemeral", ttl: "1h"}` for jobs in the
   `LORE_CACHE_1H_JOBS` allowlist and `{type: "ephemeral"}` (5-min)
   otherwise. Default allowlist: `auto-curation`, `review_reactor`,
   `fact-extraction`, `graph-extraction`. Special values: `none`
-  disables 1h everywhere; `*` enables it for every job. ([validated by `prompt-cache.test.ts:87`](libs/shared/src/llm/prompt-cache.test.ts#L87), [`anthropic-provider.test.ts:21`](libs/shared/src/llm/anthropic-provider.test.ts#L21))
+  disables 1h everywhere; `*` enables it for every job. ([validated by `prompt-cache.test.ts:87`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L87), [`anthropic-provider.test.ts:21`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L21))
 - Decision: cache eligibility is latched at module load to prevent
   mid-process toggles from busting the server-side cache.
 - FR-16.4: Each call computes a djb2 hash of the system + tools prefix
   and compares to the last call for the same `jobName`. Log line
   emits: `cache hit | first-call | break:system | break:tools |
-  break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:117`](libs/shared/src/llm/prompt-cache.test.ts#L117), [`prompt-cache.test.ts:123`](libs/shared/src/llm/prompt-cache.test.ts#L123))
+  break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:117`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L117), [`prompt-cache.test.ts:123`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L123))
 - FR-16.5: `response.usage.cache_creation_input_tokens` and
   `cache_read_input_tokens` feed cost accounting (1.25× writes,
-  0.1× reads). ([validated by `anthropic-provider.test.ts:74`](libs/shared/src/llm/anthropic-provider.test.ts#L74), [`anthropic-provider.test.ts:101`](libs/shared/src/llm/anthropic-provider.test.ts#L101), [`anthropic-provider.test.ts:128`](libs/shared/src/llm/anthropic-provider.test.ts#L128))
+  0.1× reads). ([validated by `anthropic-provider.test.ts:74`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L74), [`anthropic-provider.test.ts:101`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L101), [`anthropic-provider.test.ts:128`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L128))
 - Decision: MCP-server raw fetch call sites (fact extraction, graph
   extraction) have static prefixes below Haiku's 2048-token cache
   minimum — caching is not applied there.
@@ -623,7 +623,7 @@ API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prom
   call is not silently billed at Haiku's price; an unrecognized model
   falls back to the Haiku-tier rate rather than throwing. Every model
   offered in the agent-definitions `KNOWN_MODELS` picker has its own
-  `MODEL_PRICING` entry, so none of them silently falls back. ([validated by `anthropic-provider.test.ts:139`](libs/shared/src/llm/anthropic-provider.test.ts#L139), [`anthropic-provider.test.ts:158`](libs/shared/src/llm/anthropic-provider.test.ts#L158), [`anthropic-provider.test.ts:177`](libs/shared/src/llm/anthropic-provider.test.ts#L177))
+  `MODEL_PRICING` entry, so none of them silently falls back. ([validated by `anthropic-provider.test.ts:139`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L139), [`anthropic-provider.test.ts:158`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L158), [`anthropic-provider.test.ts:177`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L177))
 
 ### FR-17: Per-Template Context Budgets (Phase 1)
 
@@ -642,19 +642,19 @@ Added 2026-04-17 per ADR-015.
 ### FR-18: Stuck-Task Terminal-State Recovery (Phase 1)
 
 The system MUST detect and surface pipeline tasks that are stuck in
-non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:342`](libs/shared/src/project/tasks/task-queue.test.ts#L342))
+non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L342))
 
 - FR-18.1: A `stale_task_check` job runs hourly at `:17` and flags
   tasks in `running` or `pending` state for longer than their
-  configured timeout plus a grace period. ([validated by `task-queue.test.ts:342`](libs/shared/src/project/tasks/task-queue.test.ts#L342))
+  configured timeout plus a grace period. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L342))
 - FR-18.2: Stuck tasks are transitioned to a terminal state
   (`failed` with reason `timeout_exceeded`) so the pipeline does not
-  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:342`](libs/shared/src/project/tasks/task-queue.test.ts#L342))
+  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:342`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L342))
 - FR-18.3: The transition is idempotent — if a task completes between
-  detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:68`](libs/shared/src/project/tasks/task-store-pg.test.ts#L68))
+  detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:68`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L68))
 - FR-18.4: A failure episode is written for each stuck task so the
   auto-curation pipeline can surface patterns (e.g. a task type that
-  consistently times out). ([validated by `episode-writer.test.ts:89`](libs/shared/src/episode-writer.test.ts#L89), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
+  consistently times out). ([validated by `episode-writer.test.ts:89`](libs/shared/src/work/episode-writer.test.ts#L89), [`episode-writer.test.ts:13`](libs/shared/src/work/episode-writer.test.ts#L13))
 
 ### FR-19: Task Detail UI (Phase 1)
 
@@ -783,7 +783,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   and records the transition carrying the priority it replaced.
   `cancelTask` treats `completed`, `merged`, `failed` and `cancelled` as
   terminal — `completed` was missing, so the web UI's own guard refused
-  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L20), [`pipeline-tasks.escalate.test.ts:34`](libs/shared/src/pipeline-tasks.escalate.test.ts#L34), [`pipeline-tasks.escalate.test.ts:51`](libs/shared/src/pipeline-tasks.escalate.test.ts#L51), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/pipeline-tasks.escalate.test.ts#L59), [`pipeline-tasks.escalate.test.ts:69`](libs/shared/src/pipeline-tasks.escalate.test.ts#L69), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/pipeline-tasks.escalate.test.ts#L80))
+  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L20), [`pipeline-tasks.escalate.test.ts:34`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L34), [`pipeline-tasks.escalate.test.ts:51`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L51), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L59), [`pipeline-tasks.escalate.test.ts:69`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L69), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L80))
 
 - FR-19.17: lore-api serves one `lore.repos` row at
   `GET /api/repos/{owner}/{repo}` under the `read` scope, reading it
@@ -796,7 +796,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
 - FR-19.18: `SettingsPort.record(repo)` is that read — the whole row or
   null — implemented by the Pg adapter against `lore.repos` and by the
   in-memory double over its seeded rows, so a caller that needs more
-  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row as the camelCase model](libs/shared/src/project/settings/settings-record.test.ts#L44), [`settings-record.test.ts:55`](libs/shared/src/project/settings/settings-record.test.ts#L55), [`settings-record.test.ts:63`](libs/shared/src/project/settings/settings-record.test.ts#L63), [`settings-record.test.ts:81`](libs/shared/src/project/settings/settings-record.test.ts#L81), [`settings-record.test.ts:93`](libs/shared/src/project/settings/settings-record.test.ts#L93))
+  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row as the camelCase model](libs/shared/src/outbound/project/settings/settings-record.test.ts#L44), [`settings-record.test.ts:55`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L55), [`settings-record.test.ts:63`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L63), [`settings-record.test.ts:81`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L81), [`settings-record.test.ts:93`](libs/shared/src/outbound/project/settings/settings-record.test.ts#L93))
 
 - FR-19.19: lore-api serves the run views' four reads under the `read`
   scope — `GET /api/assembly-lines` (filterable by status, repo, or a
@@ -882,7 +882,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   UI reaches it through `POST /api/task` with `action: "revise"`; the
   three writes were previously three separate statements in a server
   action, where a dropped event left a parent pointing at a revision the
-  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:116`](libs/shared/src/pipeline-tasks.escalate.test.ts#L116), [`pipeline-tasks.escalate.test.ts:125`](libs/shared/src/pipeline-tasks.escalate.test.ts#L125), [`pipeline-tasks.escalate.test.ts:145`](libs/shared/src/pipeline-tasks.escalate.test.ts#L145), [`pipeline-tasks.escalate.test.ts:160`](libs/shared/src/pipeline-tasks.escalate.test.ts#L160), [`pipeline-tasks.escalate.test.ts:172`](libs/shared/src/pipeline-tasks.escalate.test.ts#L172), [`pipeline-tasks.escalate.test.ts:192`](libs/shared/src/pipeline-tasks.escalate.test.ts#L192), [`pipeline-tasks.escalate.test.ts:204`](libs/shared/src/pipeline-tasks.escalate.test.ts#L204), [`pipeline-tasks.escalate.test.ts:212`](libs/shared/src/pipeline-tasks.escalate.test.ts#L212))
+  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:116`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L116), [`pipeline-tasks.escalate.test.ts:125`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L125), [`pipeline-tasks.escalate.test.ts:145`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L145), [`pipeline-tasks.escalate.test.ts:160`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L160), [`pipeline-tasks.escalate.test.ts:172`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L172), [`pipeline-tasks.escalate.test.ts:192`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L192), [`pipeline-tasks.escalate.test.ts:204`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L204), [`pipeline-tasks.escalate.test.ts:212`](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L212))
 
 - FR-19.25: lore-api serves the org-wide `lore.settings` under the
   `admin` scope — `GET /api/settings` (the entries plus the repo count
@@ -1037,7 +1037,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   by-assembly-line table also carries cost PER RUN, the figure that says whether
   a model or prompt change paid off — a total hides it behind however many runs
   the interval happened to contain.
-  ([validated by [`spend-window.test.ts:446`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L446), [`vendor-split.test.ts:5`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L5), [`vendor-split.test.ts:19`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L19), [`vendor-split.test.ts:25`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L25), [`model-vendor.test.ts:5`](libs/shared/src/llm/model-vendor.test.ts#L5), [`model-vendor.test.ts:17`](libs/shared/src/llm/model-vendor.test.ts#L17), [`model-vendor.test.ts:21`](libs/shared/src/llm/model-vendor.test.ts#L21), [`model-vendor.test.ts:11`](libs/shared/src/llm/model-vendor.test.ts#L11), [`model-vendor.test.ts:25`](libs/shared/src/llm/model-vendor.test.ts#L25), [`model-vendor.test.ts:31`](libs/shared/src/llm/model-vendor.test.ts#L31), [`SpendView.test.tsx:721`](apps/web-ui/src/app/spend/SpendView.test.tsx#L721), [`SpendView.test.tsx:728`](apps/web-ui/src/app/spend/SpendView.test.tsx#L728), [`SpendView.test.tsx:741`](apps/web-ui/src/app/spend/SpendView.test.tsx#L741))
+  ([validated by [`spend-window.test.ts:446`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L446), [`vendor-split.test.ts:5`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L5), [`vendor-split.test.ts:19`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L19), [`vendor-split.test.ts:25`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L25), [`model-vendor.test.ts:5`](libs/shared/src/outbound/llm/model-vendor.test.ts#L5), [`model-vendor.test.ts:17`](libs/shared/src/outbound/llm/model-vendor.test.ts#L17), [`model-vendor.test.ts:21`](libs/shared/src/outbound/llm/model-vendor.test.ts#L21), [`model-vendor.test.ts:11`](libs/shared/src/outbound/llm/model-vendor.test.ts#L11), [`model-vendor.test.ts:25`](libs/shared/src/outbound/llm/model-vendor.test.ts#L25), [`model-vendor.test.ts:31`](libs/shared/src/outbound/llm/model-vendor.test.ts#L31), [`SpendView.test.tsx:721`](apps/web-ui/src/app/spend/SpendView.test.tsx#L721), [`SpendView.test.tsx:728`](apps/web-ui/src/app/spend/SpendView.test.tsx#L728), [`SpendView.test.tsx:741`](apps/web-ui/src/app/spend/SpendView.test.tsx#L741))
 
 ### FR-20: Project Facade Ports (Phase 1)
 
@@ -1045,7 +1045,7 @@ The `Project` facade (ADR-024) exposes every data capability — tasks,
 events, chunks, features, agents, workspace, PRs, issues, cost/usage
 accounting — through repo-bound ports with a Postgres/GCS/HTTP adapter
 and an in-memory double per port, so Floor, mcp-server, and lore-api
-share one persistence surface instead of inline SQL. ([validated by `task-queue.test.ts:20`](libs/shared/src/project/tasks/task-queue.test.ts#L20))
+share one persistence surface instead of inline SQL. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20))
 
 - FR-20.1: The `TaskQueue` port drives org-wide claim/sweep: it claims
   one runnable pending task (immediate-first, past the minute interval,
@@ -1055,14 +1055,14 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   a repo when given, flips a running task to completed (reporting
   same-spec dependents it unblocks, false for unknown/non-running), and
   exposes `awaitingApproval`, `distinctTargetRepos`, `prInfo`, and
-  `findRecoverable`. ([validated by `task-queue.test.ts:20`](libs/shared/src/project/tasks/task-queue.test.ts#L20), [`task-queue.test.ts:27`](libs/shared/src/project/tasks/task-queue.test.ts#L27), [`task-queue.test.ts:35`](libs/shared/src/project/tasks/task-queue.test.ts#L35), [`task-queue.test.ts:49`](libs/shared/src/project/tasks/task-queue.test.ts#L49), [`task-queue.test.ts:58`](libs/shared/src/project/tasks/task-queue.test.ts#L58), [`task-queue.test.ts:67`](libs/shared/src/project/tasks/task-queue.test.ts#L67), [`task-queue.test.ts:75`](libs/shared/src/project/tasks/task-queue.test.ts#L75), [`task-queue.test.ts:83`](libs/shared/src/project/tasks/task-queue.test.ts#L83), [`task-queue.test.ts:93`](libs/shared/src/project/tasks/task-queue.test.ts#L93), [`task-queue.test.ts:102`](libs/shared/src/project/tasks/task-queue.test.ts#L102), [`task-queue.test.ts:113`](libs/shared/src/project/tasks/task-queue.test.ts#L113), [`task-queue.test.ts:127`](libs/shared/src/project/tasks/task-queue.test.ts#L127), [`task-queue.test.ts:180`](libs/shared/src/project/tasks/task-queue.test.ts#L180), [`task-queue.test.ts:191`](libs/shared/src/project/tasks/task-queue.test.ts#L191), [`task-queue.test.ts:204`](libs/shared/src/project/tasks/task-queue.test.ts#L204), [`task-queue.test.ts:218`](libs/shared/src/project/tasks/task-queue.test.ts#L218), [`task-queue.test.ts:272`](libs/shared/src/project/tasks/task-queue.test.ts#L272), [`task-queue.test.ts:282`](libs/shared/src/project/tasks/task-queue.test.ts#L282), [`task-queue.test.ts:311`](libs/shared/src/project/tasks/task-queue.test.ts#L311))
+  `findRecoverable`. ([validated by `task-queue.test.ts:20`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L20), [`task-queue.test.ts:27`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L27), [`task-queue.test.ts:35`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L35), [`task-queue.test.ts:49`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L49), [`task-queue.test.ts:58`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L58), [`task-queue.test.ts:67`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L67), [`task-queue.test.ts:75`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L75), [`task-queue.test.ts:83`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L83), [`task-queue.test.ts:93`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L93), [`task-queue.test.ts:102`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L102), [`task-queue.test.ts:113`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L113), [`task-queue.test.ts:127`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L127), [`task-queue.test.ts:180`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L180), [`task-queue.test.ts:191`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L191), [`task-queue.test.ts:204`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L204), [`task-queue.test.ts:218`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L218), [`task-queue.test.ts:272`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L272), [`task-queue.test.ts:282`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L282), [`task-queue.test.ts:311`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L311))
 - FR-20.1b: `setColumns` writes only the given allow-listed task columns
   WITHOUT touching status or updated_at, issues no SQL for an empty column
   set, and throws on any key outside `SETTABLE_TASK_COLUMNS` — identically
   in the Pg adapter and the in-memory double, so a typo'd column fails
   loudly in tests instead of silently no-oping in production; the double
   additionally assigns the columns onto the seeded row and stays a no-op
-  for an unknown task id. ([validated by `task-queue.test.ts:608`](libs/shared/src/project/tasks/task-queue.test.ts#L608), [`task-queue.test.ts:627`](libs/shared/src/project/tasks/task-queue.test.ts#L627), [`task-queue.test.ts:640`](libs/shared/src/project/tasks/task-queue.test.ts#L640), [`task-queue.test.ts:647`](libs/shared/src/project/tasks/task-queue.test.ts#L647), [`task-queue.test.ts:659`](libs/shared/src/project/tasks/task-queue.test.ts#L659), [`task-queue.test.ts:671`](libs/shared/src/project/tasks/task-queue.test.ts#L671))
+  for an unknown task id. ([validated by `task-queue.test.ts:608`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L608), [`task-queue.test.ts:627`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L627), [`task-queue.test.ts:640`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L640), [`task-queue.test.ts:647`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L647), [`task-queue.test.ts:659`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L659), [`task-queue.test.ts:671`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L671))
 - FR-20.1a: The `pipeline.tasks` queue, exercised end-to-end against Postgres,
   backs those port behaviors: a created task defaults to `pending` status and
   `normal` priority (accepting an explicit `immediate`); a claim is atomic (a
@@ -1080,13 +1080,13 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   `awaitingApproval`/`distinctTargetRepos`/`prInfo`, and returns ready
   spec-tasks whose deps are completed/merged in the same spec — scoping
   the returned set to one repo while still resolving deps org-wide.
-  ([validated by `task-queue.test.ts:366`](libs/shared/src/project/tasks/task-queue.test.ts#L366), [`task-queue.test.ts:375`](libs/shared/src/project/tasks/task-queue.test.ts#L375), [`task-queue.test.ts:390`](libs/shared/src/project/tasks/task-queue.test.ts#L390), [`task-queue.test.ts:405`](libs/shared/src/project/tasks/task-queue.test.ts#L405), [`task-queue.test.ts:447`](libs/shared/src/project/tasks/task-queue.test.ts#L447), [`task-queue.test.ts:469`](libs/shared/src/project/tasks/task-queue.test.ts#L469), [`task-queue.test.ts:479`](libs/shared/src/project/tasks/task-queue.test.ts#L479), [`task-queue.test.ts:494`](libs/shared/src/project/tasks/task-queue.test.ts#L494), [`task-queue.test.ts:530`](libs/shared/src/project/tasks/task-queue.test.ts#L530))
+  ([validated by `task-queue.test.ts:366`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L366), [`task-queue.test.ts:375`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L375), [`task-queue.test.ts:390`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L390), [`task-queue.test.ts:405`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L405), [`task-queue.test.ts:447`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L447), [`task-queue.test.ts:469`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L469), [`task-queue.test.ts:479`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L479), [`task-queue.test.ts:494`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L494), [`task-queue.test.ts:530`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L530))
 - FR-20.3: The repo-scoped `TaskStore` port queries pending statuses,
   transitions a cancel to `cancelled`, writes `setStatus` (status +
   updated_at + only allowlisted extra columns), reads-old-then-writes-new
   status recording the transition event on `updateStatus`, and filters
   `findOpenLike` by repo, type, description prefix, and given statuses —
-  each bound to the facade's repo. ([validated by `task-store-pg.test.ts:23`](libs/shared/src/project/tasks/task-store-pg.test.ts#L23), [`task-store-pg.test.ts:38`](libs/shared/src/project/tasks/task-store-pg.test.ts#L38), [`task-store-pg.test.ts:51`](libs/shared/src/project/tasks/task-store-pg.test.ts#L51), [`task-store-pg.test.ts:68`](libs/shared/src/project/tasks/task-store-pg.test.ts#L68), [`task-store-pg.test.ts:82`](libs/shared/src/project/tasks/task-store-pg.test.ts#L82))
+  each bound to the facade's repo. ([validated by `task-store-pg.test.ts:23`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L23), [`task-store-pg.test.ts:38`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L38), [`task-store-pg.test.ts:51`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L51), [`task-store-pg.test.ts:68`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L68), [`task-store-pg.test.ts:82`](libs/shared/src/outbound/project/tasks/task-store-pg.test.ts#L82))
 - FR-20.3b: The in-memory `TaskStore` double is the behavioral spec of the
   Pg adapter across the whole port surface: the pending/running/executed
   views group the shared status unions newest-first per repo; `create`
@@ -1100,17 +1100,17 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   state guards; `transition` keeps `claimed_by` via COALESCE; and the
   dedup reads (`findOpenLike` with LIKE-wildcard semantics,
   `driftTasksForSpec` keyed on the bundle's spec_path), `list` paging, and
-  `getWithEvents` mirror the SQL. ([validated by `task-store-memory.test.ts:38`](libs/shared/src/project/tasks/task-store-memory.test.ts#L38), [`task-store-memory.test.ts:48`](libs/shared/src/project/tasks/task-store-memory.test.ts#L48), [`task-store-memory.test.ts:69`](libs/shared/src/project/tasks/task-store-memory.test.ts#L69), [`task-store-memory.test.ts:90`](libs/shared/src/project/tasks/task-store-memory.test.ts#L90), [`task-store-memory.test.ts:100`](libs/shared/src/project/tasks/task-store-memory.test.ts#L100), [`task-store-memory.test.ts:125`](libs/shared/src/project/tasks/task-store-memory.test.ts#L125), [`task-store-memory.test.ts:137`](libs/shared/src/project/tasks/task-store-memory.test.ts#L137), [`task-store-memory.test.ts:149`](libs/shared/src/project/tasks/task-store-memory.test.ts#L149), [`task-store-memory.test.ts:157`](libs/shared/src/project/tasks/task-store-memory.test.ts#L157), [`task-store-memory.test.ts:171`](libs/shared/src/project/tasks/task-store-memory.test.ts#L171), [`task-store-memory.test.ts:194`](libs/shared/src/project/tasks/task-store-memory.test.ts#L194), [`task-store-memory.test.ts:226`](libs/shared/src/project/tasks/task-store-memory.test.ts#L226), [`task-store-memory.test.ts:274`](libs/shared/src/project/tasks/task-store-memory.test.ts#L274), [`task-store-memory.test.ts:362`](libs/shared/src/project/tasks/task-store-memory.test.ts#L362), [`task-store-memory.test.ts:376`](libs/shared/src/project/tasks/task-store-memory.test.ts#L376), [`task-store-memory.test.ts:392`](libs/shared/src/project/tasks/task-store-memory.test.ts#L392))
+  `getWithEvents` mirror the SQL. ([validated by `task-store-memory.test.ts:38`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L38), [`task-store-memory.test.ts:48`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L48), [`task-store-memory.test.ts:69`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L69), [`task-store-memory.test.ts:90`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L90), [`task-store-memory.test.ts:100`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L100), [`task-store-memory.test.ts:125`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L125), [`task-store-memory.test.ts:137`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L137), [`task-store-memory.test.ts:149`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L149), [`task-store-memory.test.ts:157`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L157), [`task-store-memory.test.ts:171`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L171), [`task-store-memory.test.ts:194`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L194), [`task-store-memory.test.ts:226`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L226), [`task-store-memory.test.ts:274`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L274), [`task-store-memory.test.ts:362`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L362), [`task-store-memory.test.ts:376`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L376), [`task-store-memory.test.ts:392`](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L392))
 - FR-20.4: The task-list surface returns the repo's pending tasks as
   typed `Task` wrappers and reflects the new status after `cancel()`.
-  ([validated by `task-list.test.ts:114`](libs/shared/src/project/tasks/task-list.test.ts#L109), [`task-list.test.ts:126`](libs/shared/src/project/tasks/task-list.test.ts#L126))
+  ([validated by `task-list.test.ts:114`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L109), [`task-list.test.ts:126`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L126))
 - FR-20.5: The `EventQueue` port claims runnable rows with `FOR UPDATE
   SKIP LOCKED` incrementing attempts (oldest-first, flipping to
   processing), collapses a redelivery sharing a dedupe key, truncates the
   error and applies the backoff on `markFailed` (a failed row becomes
   claimable only after the backoff elapses), resets timed-out processing
   rows to failed on `reapStuck`, and prunes handled/terminal rows past
-  the window — returning affected-row counts. ([validated by `event-queue.test.ts:8`](libs/shared/src/project/events/event-queue.test.ts#L8), [`event-queue.test.ts:33`](libs/shared/src/project/events/event-queue.test.ts#L33), [`event-queue.test.ts:42`](libs/shared/src/project/events/event-queue.test.ts#L42), [`event-queue.test.ts:49`](libs/shared/src/project/events/event-queue.test.ts#L49), [`event-queue.test.ts:61`](libs/shared/src/project/events/event-queue.test.ts#L61), [`event-queue.test.ts:80`](libs/shared/src/project/events/event-queue.test.ts#L80), [`event-queue.test.ts:118`](libs/shared/src/project/events/event-queue.test.ts#L118), [`event-queue.test.ts:133`](libs/shared/src/project/events/event-queue.test.ts#L133), [`event-queue.test.ts:155`](libs/shared/src/project/events/event-queue.test.ts#L155))
+  the window — returning affected-row counts. ([validated by `event-queue.test.ts:8`](libs/shared/src/outbound/project/events/event-queue.test.ts#L8), [`event-queue.test.ts:33`](libs/shared/src/outbound/project/events/event-queue.test.ts#L33), [`event-queue.test.ts:42`](libs/shared/src/outbound/project/events/event-queue.test.ts#L42), [`event-queue.test.ts:49`](libs/shared/src/outbound/project/events/event-queue.test.ts#L49), [`event-queue.test.ts:61`](libs/shared/src/outbound/project/events/event-queue.test.ts#L61), [`event-queue.test.ts:80`](libs/shared/src/outbound/project/events/event-queue.test.ts#L80), [`event-queue.test.ts:118`](libs/shared/src/outbound/project/events/event-queue.test.ts#L118), [`event-queue.test.ts:133`](libs/shared/src/outbound/project/events/event-queue.test.ts#L133), [`event-queue.test.ts:155`](libs/shared/src/outbound/project/events/event-queue.test.ts#L155))
 - FR-20.6: The `Chunks` knowledge-store port checks schema existence via
   `information_schema`, counts/inserts/deletes chunks within an
   interpolated (injection-rejecting) schema, sets the caller-formatted
@@ -1128,11 +1128,11 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   that pass, and returns distinct teams with per-team `org_shared`
   counts (defaulting a missing count to zero). Rows predating team
   tracking carry a null team and are left out of that list.
-  ([validated by `chunks.test.ts:42`](libs/shared/src/project/chunks/chunks.test.ts#L46), [`chunks.test.ts:47`](libs/shared/src/project/chunks/chunks.test.ts#L54), [`chunks.test.ts:53`](libs/shared/src/project/chunks/chunks.test.ts#L60), [`chunks.test.ts:63`](libs/shared/src/project/chunks/chunks.test.ts#L70), [`chunks.test.ts:78`](libs/shared/src/project/chunks/chunks.test.ts#L85), [`chunks.test.ts:95`](libs/shared/src/project/chunks/chunks.test.ts#L102), [`chunks.test.ts:103`](libs/shared/src/project/chunks/chunks.test.ts#L110), [`chunks.test.ts:114`](libs/shared/src/project/chunks/chunks.test.ts#L121), [`chunks.test.ts:128`](libs/shared/src/project/chunks/chunks.test.ts#L135), [`chunks.test.ts:136`](libs/shared/src/project/chunks/chunks.test.ts#L143), [`chunks.test.ts:142`](libs/shared/src/project/chunks/chunks.test.ts#L149), [`chunks.test.ts:150`](libs/shared/src/project/chunks/chunks.test.ts#L157), [`chunks.test.ts:168`](libs/shared/src/project/chunks/chunks.test.ts#L175), [`chunks.test.ts:187`](libs/shared/src/project/chunks/chunks.test.ts#L194), [`chunks.test.ts:209`](libs/shared/src/project/chunks/chunks.test.ts#L216), [`chunks.test.ts:232`](libs/shared/src/project/chunks/chunks.test.ts#L239), [`chunks.test.ts:246`](libs/shared/src/project/chunks/chunks.test.ts#L253), [`chunks.test.ts:254`](libs/shared/src/project/chunks/chunks.test.ts#L261), [`chunks.test.ts:268`](libs/shared/src/project/chunks/chunks.test.ts#L275), [`chunks.test.ts:275`](libs/shared/src/project/chunks/chunks.test.ts#L282), [`chunks.test.ts:292`](libs/shared/src/project/chunks/chunks.test.ts#L299), [`chunks.test.ts:315`](libs/shared/src/project/chunks/chunks.test.ts#L322), [`chunks.test.ts:359`](libs/shared/src/project/chunks/chunks.test.ts#L366), [`chunks.test.ts:391`](libs/shared/src/project/chunks/chunks.test.ts#L398), [`chunks.test.ts:408`](libs/shared/src/project/chunks/chunks.test.ts#L415), [`chunks.test.ts:423`](libs/shared/src/project/chunks/chunks.test.ts#L430), [`chunks.test.ts:434`](libs/shared/src/project/chunks/chunks.test.ts#L441), [`chunks.test.ts:449`](libs/shared/src/project/chunks/chunks.test.ts#L456), [`chunks.test.ts:458`](libs/shared/src/project/chunks/chunks.test.ts#L465), [`chunks.test.ts:465`](libs/shared/src/project/chunks/chunks.test.ts#L472), [`chunks.test.ts:517`](libs/shared/src/project/chunks/chunks.test.ts#L517), [`chunks.test.ts:525`](libs/shared/src/project/chunks/chunks.test.ts#L525), [`chunks.test.ts:554`](libs/shared/src/project/chunks/chunks.test.ts#L554), [`chunks.test.ts:568`](libs/shared/src/project/chunks/chunks.test.ts#L568), [`chunks.test.ts:604`](libs/shared/src/project/chunks/chunks.test.ts#L604), [`chunks.test.ts:623`](libs/shared/src/project/chunks/chunks.test.ts#L623), [`chunks.test.ts:494`](libs/shared/src/project/chunks/chunks.test.ts#L494))
+  ([validated by `chunks.test.ts:42`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L46), [`chunks.test.ts:47`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L54), [`chunks.test.ts:53`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L60), [`chunks.test.ts:63`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L70), [`chunks.test.ts:78`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L85), [`chunks.test.ts:95`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L102), [`chunks.test.ts:103`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L110), [`chunks.test.ts:114`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L121), [`chunks.test.ts:128`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L135), [`chunks.test.ts:136`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L143), [`chunks.test.ts:142`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L149), [`chunks.test.ts:150`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L157), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L175), [`chunks.test.ts:187`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L194), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L216), [`chunks.test.ts:232`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L239), [`chunks.test.ts:246`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L253), [`chunks.test.ts:254`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L261), [`chunks.test.ts:268`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L275), [`chunks.test.ts:275`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L282), [`chunks.test.ts:292`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L299), [`chunks.test.ts:315`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L322), [`chunks.test.ts:359`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L366), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L398), [`chunks.test.ts:408`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L415), [`chunks.test.ts:423`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L430), [`chunks.test.ts:434`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L441), [`chunks.test.ts:449`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L456), [`chunks.test.ts:458`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L465), [`chunks.test.ts:465`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L472), [`chunks.test.ts:517`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L517), [`chunks.test.ts:525`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L525), [`chunks.test.ts:554`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L554), [`chunks.test.ts:568`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L568), [`chunks.test.ts:604`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L604), [`chunks.test.ts:623`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L623), [`chunks.test.ts:494`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L494))
 - FR-20.7: The HTTP `Chunks` adapter reads spec chunks (and backfill
   chunks with embeddings) from the repo-scoped API with a bearer token,
   maps `hasChunk`/`staleChunkCount` to their query endpoints, and throws
-  on a non-ok response and on the Floor-only write surface. ([validated by `chunks-http.test.ts:28`](libs/shared/src/project/chunks/chunks-http.test.ts#L28), [`chunks-http.test.ts:43`](libs/shared/src/project/chunks/chunks-http.test.ts#L43), [`chunks-http.test.ts:60`](libs/shared/src/project/chunks/chunks-http.test.ts#L60), [`chunks-http.test.ts:94`](libs/shared/src/project/chunks/chunks-http.test.ts#L94))
+  on a non-ok response and on the Floor-only write surface. ([validated by `chunks-http.test.ts:28`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L28), [`chunks-http.test.ts:43`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L43), [`chunks-http.test.ts:60`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L60), [`chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L94))
 - FR-20.8: The `Features` store persists feature planning bound to its
   repo: it lists by repo ordered by `updated_at` (with an optional status
   filter), attaches a `task_id` to an iteration, updates an iteration's
@@ -1140,23 +1140,23 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   deletes a feature scoped to its repo (returning whether a row was
   removed); the facade stamps the bound repo on every call, and the pure
   helpers gate finalizing to a settled planning state and return the gap
-  of the highest-numbered ready iteration (null when none). ([validated by `features-pg.test.ts:47`](libs/shared/src/project/features/features-pg.test.ts#L47), [`features-pg.test.ts:57`](libs/shared/src/project/features/features-pg.test.ts#L57), [`features-pg.test.ts:93`](libs/shared/src/project/features/features-pg.test.ts#L93), [`features-pg.test.ts:110`](libs/shared/src/project/features/features-pg.test.ts#L110), [`features-pg.test.ts:134`](libs/shared/src/project/features/features-pg.test.ts#L134), [`features-pg.test.ts:143`](libs/shared/src/project/features/features-pg.test.ts#L143), [`features-pg.test.ts:163`](libs/shared/src/project/features/features-pg.test.ts#L163), [`features-pg.test.ts:173`](libs/shared/src/project/features/features-pg.test.ts#L173), [`features.test.ts:45`](libs/shared/src/project/features/features.test.ts#L45), [`features.test.ts:52`](libs/shared/src/project/features/features.test.ts#L52), [`features.test.ts:62`](libs/shared/src/project/features/features.test.ts#L62), [`features.test.ts:72`](libs/shared/src/project/features/features.test.ts#L72), [`features-port.test.ts:35`](libs/shared/src/project/features/features-port.test.ts#L35), [`features-port.test.ts:41`](libs/shared/src/project/features/features-port.test.ts#L41), [`features-port.test.ts:54`](libs/shared/src/project/features/features-port.test.ts#L54), [`features-port.test.ts:64`](libs/shared/src/project/features/features-port.test.ts#L64), [`features-port.test.ts:74`](libs/shared/src/project/features/features-port.test.ts#L74))
+  of the highest-numbered ready iteration (null when none). ([validated by `features-pg.test.ts:47`](libs/shared/src/outbound/project/features/features-pg.test.ts#L47), [`features-pg.test.ts:57`](libs/shared/src/outbound/project/features/features-pg.test.ts#L57), [`features-pg.test.ts:93`](libs/shared/src/outbound/project/features/features-pg.test.ts#L93), [`features-pg.test.ts:110`](libs/shared/src/outbound/project/features/features-pg.test.ts#L110), [`features-pg.test.ts:134`](libs/shared/src/outbound/project/features/features-pg.test.ts#L134), [`features-pg.test.ts:143`](libs/shared/src/outbound/project/features/features-pg.test.ts#L143), [`features-pg.test.ts:163`](libs/shared/src/outbound/project/features/features-pg.test.ts#L163), [`features-pg.test.ts:173`](libs/shared/src/outbound/project/features/features-pg.test.ts#L173), [`features.test.ts:45`](libs/shared/src/outbound/project/features/features.test.ts#L45), [`features.test.ts:52`](libs/shared/src/outbound/project/features/features.test.ts#L52), [`features.test.ts:62`](libs/shared/src/outbound/project/features/features.test.ts#L62), [`features.test.ts:72`](libs/shared/src/outbound/project/features/features.test.ts#L72), [`features-port.test.ts:35`](libs/shared/src/outbound/project/features/features-port.test.ts#L35), [`features-port.test.ts:41`](libs/shared/src/outbound/project/features/features-port.test.ts#L41), [`features-port.test.ts:54`](libs/shared/src/outbound/project/features/features-port.test.ts#L54), [`features-port.test.ts:64`](libs/shared/src/outbound/project/features/features-port.test.ts#L64), [`features-port.test.ts:74`](libs/shared/src/outbound/project/features/features-port.test.ts#L74))
 - FR-20.9: Feature planning recovery orphans a running round older than
   the window (even while the runtime reports active), leaves a recent
   active round alone, no-ops when a ready round already moved the feature
   out of `planning` or there are no iterations, and keys on the latest
   iteration so a newer ready round supersedes an older running one; the
   round-in-flight helper returns a recent running iteration and null when
-  the only running one is orphaned or none is running. ([validated by `planning-recovery.test.ts:49`](libs/shared/src/project/features/planning-recovery.test.ts#L50), [`planning-recovery.test.ts:69`](libs/shared/src/project/features/planning-recovery.test.ts#L69), [`planning-recovery.test.ts:99`](libs/shared/src/project/features/planning-recovery.test.ts#L99), [`planning-recovery.test.ts:112`](libs/shared/src/project/features/planning-recovery.test.ts#L112), [`planning-recovery.test.ts:132`](libs/shared/src/project/features/planning-recovery.test.ts#L132), [`round-in-flight.test.ts:27`](libs/shared/src/project/features/round-in-flight.test.ts#L27), [`round-in-flight.test.ts:39`](libs/shared/src/project/features/round-in-flight.test.ts#L39), [`round-in-flight.test.ts:49`](libs/shared/src/project/features/round-in-flight.test.ts#L49))
+  the only running one is orphaned or none is running. ([validated by `planning-recovery.test.ts:49`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L50), [`planning-recovery.test.ts:69`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L69), [`planning-recovery.test.ts:99`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L99), [`planning-recovery.test.ts:112`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L112), [`planning-recovery.test.ts:132`](libs/shared/src/outbound/project/features/planning-recovery.test.ts#L132), [`round-in-flight.test.ts:27`](libs/shared/src/outbound/project/features/round-in-flight.test.ts#L27), [`round-in-flight.test.ts:39`](libs/shared/src/outbound/project/features/round-in-flight.test.ts#L39), [`round-in-flight.test.ts:49`](libs/shared/src/outbound/project/features/round-in-flight.test.ts#L49))
 - FR-20.10: The `AgentRunner` port launches a Station via the injected
   `StationBackend` in cluster mode (passing the execution image, throwing
   when no provider is supplied) and calls the injected `LlmPort` in
   direct mode; agent execution refuses LOCAL mode on the shared server
-  (`LORE_DB_HOST` set) yet allows cluster mode there. ([validated by `agent-runner.test.ts:33`](libs/shared/src/project/agents/agent-runner.test.ts#L27), [`agent-runner.test.ts:135`](libs/shared/src/project/agents/agent-runner.test.ts#L135), [`agent-runner.test.ts:15`](libs/shared/src/project/agents/agent-runner.test.ts#L15), [`agent-runner.test.ts:90`](libs/shared/src/project/agents/agent-runner.test.ts#L90), [`agent-runner.test.ts:110`](libs/shared/src/project/agents/agent-runner.test.ts#L110), [`agent-runner.test.ts:150`](libs/shared/src/project/agents/agent-runner.test.ts#L150), [`agents.test.ts:16`](libs/shared/src/project/agents/agents.test.ts#L16), [`agents.test.ts:28`](libs/shared/src/project/agents/agents.test.ts#L28))
+  (`LORE_DB_HOST` set) yet allows cluster mode there. ([validated by `agent-runner.test.ts:33`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L27), [`agent-runner.test.ts:135`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L135), [`agent-runner.test.ts:15`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L15), [`agent-runner.test.ts:90`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L90), [`agent-runner.test.ts:110`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L110), [`agent-runner.test.ts:150`](libs/shared/src/outbound/project/agents/agent-runner.test.ts#L150), [`agents.test.ts:16`](libs/shared/src/outbound/project/agents/agents.test.ts#L16), [`agents.test.ts:28`](libs/shared/src/outbound/project/agents/agents.test.ts#L28))
 - FR-20.11: The station-mode selector honours explicit `k8s`/`docker`
   overrides and the `inprocess` escape hatch, defaults to `k8s`
   in-cluster and `docker` off-cluster, and ignores an unrecognized value
-  falling back to context. ([validated by `station-port.test.ts:5`](libs/shared/src/project/agents/station-port.test.ts#L5), [`station-port.test.ts:9`](libs/shared/src/project/agents/station-port.test.ts#L9), [`station-port.test.ts:18`](libs/shared/src/project/agents/station-port.test.ts#L18), [`station-port.test.ts:24`](libs/shared/src/project/agents/station-port.test.ts#L24), [`station-port.test.ts:30`](libs/shared/src/project/agents/station-port.test.ts#L30), [`station-port.test.ts:34`](libs/shared/src/project/agents/station-port.test.ts#L34))
+  falling back to context. ([validated by `station-port.test.ts:5`](libs/shared/src/outbound/project/agents/station-port.test.ts#L5), [`station-port.test.ts:9`](libs/shared/src/outbound/project/agents/station-port.test.ts#L9), [`station-port.test.ts:18`](libs/shared/src/outbound/project/agents/station-port.test.ts#L18), [`station-port.test.ts:24`](libs/shared/src/outbound/project/agents/station-port.test.ts#L24), [`station-port.test.ts:30`](libs/shared/src/outbound/project/agents/station-port.test.ts#L30), [`station-port.test.ts:34`](libs/shared/src/outbound/project/agents/station-port.test.ts#L34))
 - FR-20.12: The `AgentDefs` port resolves an agent definition through
   three layers (yaml base → org row → project row), inheriting nullable
   fields upward and letting each higher layer override, returning null
@@ -1168,7 +1168,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   `feature-decompose`, and returns null for an unknown name; the facade
   lists and delegates create/delete with the bound repo; and the HTTP
   adapter resolves/lists via the bearer-authed API (null on 404).
-  ([validated by `agent-defs-port.test.ts:17`](libs/shared/src/project/agents/agent-defs-port.test.ts#L17), [`agent-defs-port.test.ts:21`](libs/shared/src/project/agents/agent-defs-port.test.ts#L21), [`agent-defs-port.test.ts:25`](libs/shared/src/project/agents/agent-defs-port.test.ts#L25), [`agent-defs-port.test.ts:62`](libs/shared/src/project/agents/agent-defs-port.test.ts#L62), [`agent-defs-pg.test.ts:80`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L80), [`agent-defs-pg.test.ts:99`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L99), [`agent-defs-pg.test.ts:108`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L108), [`agent-defs-pg.test.ts:120`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L120), [`agent-defs-pg.test.ts:134`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L134), [`agent-defs-yaml.test.ts:37`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L37), [`agent-defs-yaml.test.ts:53`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L53), [`agent-defs-yaml.test.ts:63`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L63), [`agent-defs-yaml.test.ts:72`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L72), [`agent-defs-yaml.test.ts:106`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L106), [`agent-defs.test.ts:55`](libs/shared/src/project/agents/agent-defs.test.ts#L55), [`agent-defs.test.ts:63`](libs/shared/src/project/agents/agent-defs.test.ts#L63), [`agent-defs-http.test.ts:56`](libs/shared/src/project/agents/agent-defs-http.test.ts#L56), [`agent-defs-http.test.ts:65`](libs/shared/src/project/agents/agent-defs-http.test.ts#L65), [`agent-defs-http.test.ts:71`](libs/shared/src/project/agents/agent-defs-http.test.ts#L71))
+  ([validated by `agent-defs-port.test.ts:17`](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L17), [`agent-defs-port.test.ts:21`](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L21), [`agent-defs-port.test.ts:25`](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L25), [`agent-defs-port.test.ts:62`](libs/shared/src/outbound/project/agents/agent-defs-port.test.ts#L62), [`agent-defs-pg.test.ts:80`](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L80), [`agent-defs-pg.test.ts:99`](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L99), [`agent-defs-pg.test.ts:108`](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L108), [`agent-defs-pg.test.ts:120`](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L120), [`agent-defs-pg.test.ts:134`](libs/shared/src/outbound/project/agents/agent-defs-pg.test.ts#L134), [`agent-defs-yaml.test.ts:37`](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L37), [`agent-defs-yaml.test.ts:53`](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L53), [`agent-defs-yaml.test.ts:63`](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L63), [`agent-defs-yaml.test.ts:72`](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L72), [`agent-defs-yaml.test.ts:106`](libs/shared/src/outbound/project/agents/agent-defs-yaml.test.ts#L106), [`agent-defs.test.ts:55`](libs/shared/src/outbound/project/agents/agent-defs.test.ts#L55), [`agent-defs.test.ts:63`](libs/shared/src/outbound/project/agents/agent-defs.test.ts#L63), [`agent-defs-http.test.ts:56`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L56), [`agent-defs-http.test.ts:65`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L65), [`agent-defs-http.test.ts:71`](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L71))
 - FR-20.13: The `Workspace`/`Git` ports carry the installation token as a
   base64 `x-access-token` `http.extraheader` override (honouring a
   non-default host, never embedding the raw token in the args or
@@ -1178,21 +1178,21 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   `ensureClone`/`ensureCheckout` cache-reuse via fetch, pin the branch,
   and refuse to switch a dirty tree; the workspace facade writes-then-
   reads a file committing through the GitPort and pushes then opens the
-  PR via the pulls port. ([validated by `git-auth.test.ts:5`](libs/shared/src/project/workspace/git-auth.test.ts#L5), [`git-auth.test.ts:14`](libs/shared/src/project/workspace/git-auth.test.ts#L14), [`git-auth.test.ts:20`](libs/shared/src/project/workspace/git-auth.test.ts#L20), [`git-auth.test.ts:26`](libs/shared/src/project/workspace/git-auth.test.ts#L26), [`git-cli-auth.test.ts:20`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L20), [`git-cli-auth.test.ts:33`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L33), [`git-cli-auth.test.ts:44`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L44), [`git-cli.test.ts:47`](libs/shared/src/project/workspace/git-cli.test.ts#L47), [`git-cli.test.ts:57`](libs/shared/src/project/workspace/git-cli.test.ts#L57), [`git-cli.test.ts:75`](libs/shared/src/project/workspace/git-cli.test.ts#L75), [`git-cli.test.ts:94`](libs/shared/src/project/workspace/git-cli.test.ts#L94), [`git-cli.test.ts:105`](libs/shared/src/project/workspace/git-cli.test.ts#L105), [`git-cli.test.ts:123`](libs/shared/src/project/workspace/git-cli.test.ts#L123), [`workspace.test.ts:33`](libs/shared/src/project/workspace/workspace.test.ts#L33), [`workspace.test.ts:46`](libs/shared/src/project/workspace/workspace.test.ts#L46))
+  PR via the pulls port. ([validated by `git-auth.test.ts:5`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L5), [`git-auth.test.ts:14`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L14), [`git-auth.test.ts:20`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L20), [`git-auth.test.ts:26`](libs/shared/src/outbound/project/workspace/git-auth.test.ts#L26), [`git-cli-auth.test.ts:20`](libs/shared/src/outbound/project/workspace/git-cli-auth.test.ts#L20), [`git-cli-auth.test.ts:33`](libs/shared/src/outbound/project/workspace/git-cli-auth.test.ts#L33), [`git-cli-auth.test.ts:44`](libs/shared/src/outbound/project/workspace/git-cli-auth.test.ts#L44), [`git-cli.test.ts:47`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L47), [`git-cli.test.ts:57`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L57), [`git-cli.test.ts:75`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L75), [`git-cli.test.ts:94`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L94), [`git-cli.test.ts:105`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L105), [`git-cli.test.ts:123`](libs/shared/src/outbound/project/workspace/git-cli.test.ts#L123), [`workspace.test.ts:33`](libs/shared/src/outbound/project/workspace/workspace.test.ts#L33), [`workspace.test.ts:46`](libs/shared/src/outbound/project/workspace/workspace.test.ts#L46))
 - FR-20.14: The `Repo` files port reads a file at a given ref (null when
   absent) and creates a branch committing a file via the API, repo bound.
-  ([validated by `repo-files.test.ts:54`](libs/shared/src/project/repo/repo-files.test.ts#L50), [`repo-files.test.ts:56`](libs/shared/src/project/repo/repo-files.test.ts#L56), [`repo-files.test.ts:62`](libs/shared/src/project/repo/repo-files.test.ts#L62))
+  ([validated by `repo-files.test.ts:54`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L50), [`repo-files.test.ts:56`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L56), [`repo-files.test.ts:62`](libs/shared/src/outbound/project/repo/repo-files.test.ts#L62))
 - FR-20.15: The `PullRequests` port lists only the repo's PRs, merges by
   number with the requested method, and exposes PR reads bound to the
-  repo and number. ([validated by `pull-requests.test.ts:99`](libs/shared/src/project/pulls/pull-requests.test.ts#L93), [`pull-requests.test.ts:129`](libs/shared/src/project/pulls/pull-requests.test.ts#L129), [`pull-requests.test.ts:138`](libs/shared/src/project/pulls/pull-requests.test.ts#L138))
+  repo and number. ([validated by `pull-requests.test.ts:99`](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L93), [`pull-requests.test.ts:129`](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L129), [`pull-requests.test.ts:138`](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L138))
 - FR-20.16: The `Issues` port returns the GitHubPort issues for the
   project's repo, creates an issue bound to the repo, and comments,
-  closes, and labels by number bound to the repo. ([validated by `issues.test.ts:58`](libs/shared/src/project/issues/issues.test.ts#L54), [`issues.test.ts:98`](libs/shared/src/project/issues/issues.test.ts#L98), [`issues.test.ts:111`](libs/shared/src/project/issues/issues.test.ts#L111))
+  closes, and labels by number bound to the repo. ([validated by `issues.test.ts:58`](libs/shared/src/outbound/project/issues/issues.test.ts#L54), [`issues.test.ts:98`](libs/shared/src/outbound/project/issues/issues.test.ts#L98), [`issues.test.ts:111`](libs/shared/src/outbound/project/issues/issues.test.ts#L111))
 - FR-20.17: The `TestRunner` port lists tests in a trusted sandbox (no
   `LORE_DB_HOST`); its exec adapter lists the descriptors from the
   manifest `list` command, runs a single test aggregating the report, and
   runs `run` once per file (selector = file) fanning the result to each
-  descriptor. ([validated by `test-suite.test.ts:37`](libs/shared/src/project/test-runner/test-suite.test.ts#L37), [`test-runner-exec.test.ts:36`](libs/shared/src/project/test-runner/test-runner-exec.test.ts#L36), [`test-runner-exec.test.ts:44`](libs/shared/src/project/test-runner/test-runner-exec.test.ts#L44), [`test-runner-exec.test.ts:58`](libs/shared/src/project/test-runner/test-runner-exec.test.ts#L58))
+  descriptor. ([validated by `test-suite.test.ts:37`](libs/shared/src/outbound/project/test-runner/test-suite.test.ts#L37), [`test-runner-exec.test.ts:36`](libs/shared/src/outbound/project/test-runner/test-runner-exec.test.ts#L36), [`test-runner-exec.test.ts:44`](libs/shared/src/outbound/project/test-runner/test-runner-exec.test.ts#L44), [`test-runner-exec.test.ts:58`](libs/shared/src/outbound/project/test-runner/test-runner-exec.test.ts#L58))
 - FR-20.18: The accounting ports persist their own tables: `usage`
   inserts an `llm_calls` row (defaulting cost and null task) and returns
   today/total counts (missing rows default to zero); `cost` upserts
@@ -1206,7 +1206,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   check; and `baseline` inserts a JSON-serialized counter snapshot and
   reads windowed PR/median-time-to-merge counters from `pipeline.tasks`
   (defaulting an empty window to zero/null, excluding other repos and
-  out-of-window rows). ([validated by `usage-pg.test.ts:22`](libs/shared/src/project/usage/usage-pg.test.ts#L31), [`usage-pg.test.ts:50`](libs/shared/src/project/usage/usage-pg.test.ts#L59), [`usage-pg.test.ts:114`](libs/shared/src/project/usage/usage-pg.test.ts#L123), [`usage-pg.test.ts:129`](libs/shared/src/project/usage/usage-pg.test.ts#L138), [`usage-pg.test.ts:144`](libs/shared/src/project/usage/usage-pg.test.ts#L153), [`usage-pg.test.ts:160`](libs/shared/src/project/usage/usage-pg.test.ts#L169), [`usage-pg.test.ts:173`](libs/shared/src/project/usage/usage-pg.test.ts#L182), [`usage-pg.test.ts:190`](libs/shared/src/project/usage/usage-pg.test.ts#L199), [`usage-pg.test.ts:206`](libs/shared/src/project/usage/usage-pg.test.ts#L215), [`cost.test.ts:36`](libs/shared/src/project/cost/cost.test.ts#L36), [`cost.test.ts:60`](libs/shared/src/project/cost/cost.test.ts#L60), [`cost.test.ts:68`](libs/shared/src/project/cost/cost.test.ts#L68), [`cost.test.ts:80`](libs/shared/src/project/cost/cost.test.ts#L80), [`job-runs.test.ts:23`](libs/shared/src/project/job-runs/job-runs.test.ts#L23), [`job-runs.test.ts:36`](libs/shared/src/project/job-runs/job-runs.test.ts#L36), [`job-runs.test.ts:54`](libs/shared/src/project/job-runs/job-runs.test.ts#L54), [`job-runs.test.ts:62`](libs/shared/src/project/job-runs/job-runs.test.ts#L62), [`job-runs.test.ts:72`](libs/shared/src/project/job-runs/job-runs.test.ts#L72), [`job-runs.test.ts:86`](libs/shared/src/project/job-runs/job-runs.test.ts#L86), [`job-runs.test.ts:94`](libs/shared/src/project/job-runs/job-runs.test.ts#L94), [`job-runs.test.ts:104`](libs/shared/src/project/job-runs/job-runs.test.ts#L104), [`job-runs.test.ts:118`](libs/shared/src/project/job-runs/job-runs.test.ts#L118), [`job-runs.test.ts:131`](libs/shared/src/project/job-runs/job-runs.test.ts#L131), [`job-runs.test.ts:172`](libs/shared/src/project/job-runs/job-runs.test.ts#L172), [`evals.test.ts:23`](libs/shared/src/project/evals/evals.test.ts#L23), [`evals.test.ts:38`](libs/shared/src/project/evals/evals.test.ts#L38), [`evals.test.ts:48`](libs/shared/src/project/evals/evals.test.ts#L48), [`evals.test.ts:59`](libs/shared/src/project/evals/evals.test.ts#L59), [`evals.test.ts:81`](libs/shared/src/project/evals/evals.test.ts#L81), [`evals.test.ts:102`](libs/shared/src/project/evals/evals.test.ts#L102), [`evals.test.ts:123`](libs/shared/src/project/evals/evals.test.ts#L123), [`baseline.test.ts:23`](libs/shared/src/project/baseline/baseline.test.ts#L23), [`baseline.test.ts:46`](libs/shared/src/project/baseline/baseline.test.ts#L46), [`baseline.test.ts:64`](libs/shared/src/project/baseline/baseline.test.ts#L64), [`baseline.test.ts:78`](libs/shared/src/project/baseline/baseline.test.ts#L78), [`baseline.test.ts:92`](libs/shared/src/project/baseline/baseline.test.ts#L92), [`baseline.test.ts:125`](libs/shared/src/project/baseline/baseline.test.ts#L125))
+  out-of-window rows). ([validated by `usage-pg.test.ts:22`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L31), [`usage-pg.test.ts:50`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L59), [`usage-pg.test.ts:114`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L123), [`usage-pg.test.ts:129`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L138), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L153), [`usage-pg.test.ts:160`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L169), [`usage-pg.test.ts:173`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L182), [`usage-pg.test.ts:190`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L199), [`usage-pg.test.ts:206`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L215), [`cost.test.ts:36`](libs/shared/src/outbound/project/cost/cost.test.ts#L36), [`cost.test.ts:60`](libs/shared/src/outbound/project/cost/cost.test.ts#L60), [`cost.test.ts:68`](libs/shared/src/outbound/project/cost/cost.test.ts#L68), [`cost.test.ts:80`](libs/shared/src/outbound/project/cost/cost.test.ts#L80), [`job-runs.test.ts:23`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L23), [`job-runs.test.ts:36`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L36), [`job-runs.test.ts:54`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L54), [`job-runs.test.ts:62`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L62), [`job-runs.test.ts:72`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L72), [`job-runs.test.ts:86`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L86), [`job-runs.test.ts:94`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L94), [`job-runs.test.ts:104`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L104), [`job-runs.test.ts:118`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L118), [`job-runs.test.ts:131`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L131), [`job-runs.test.ts:172`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L172), [`evals.test.ts:23`](libs/shared/src/outbound/project/evals/evals.test.ts#L23), [`evals.test.ts:38`](libs/shared/src/outbound/project/evals/evals.test.ts#L38), [`evals.test.ts:48`](libs/shared/src/outbound/project/evals/evals.test.ts#L48), [`evals.test.ts:59`](libs/shared/src/outbound/project/evals/evals.test.ts#L59), [`evals.test.ts:81`](libs/shared/src/outbound/project/evals/evals.test.ts#L81), [`evals.test.ts:102`](libs/shared/src/outbound/project/evals/evals.test.ts#L102), [`evals.test.ts:123`](libs/shared/src/outbound/project/evals/evals.test.ts#L123), [`baseline.test.ts:23`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L23), [`baseline.test.ts:46`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L46), [`baseline.test.ts:64`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L64), [`baseline.test.ts:78`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L78), [`baseline.test.ts:92`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L92), [`baseline.test.ts:125`](libs/shared/src/outbound/project/baseline/baseline.test.ts#L125))
 - FR-20.18a: The in-memory `Usage` double mirrors the Pg write-time
   correlation as its behavioral spec: a seeded task id lands on `task_id`;
   a non-task id that matches a seeded assembly line falls back to
@@ -1217,11 +1217,11 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   Pg's `::uuid` cast; the write defaults (cost 0, status success, null
   error) apply; and
   `processedCounts` splits today (past local midnight) from total.
-  ([validated by `usage-memory.test.ts:12`](libs/shared/src/project/usage/usage-memory.test.ts#L12), [`usage-memory.test.ts:25`](libs/shared/src/project/usage/usage-memory.test.ts#L25), [`usage-memory.test.ts:38`](libs/shared/src/project/usage/usage-memory.test.ts#L38), [`usage-memory.test.ts:87`](libs/shared/src/project/usage/usage-memory.test.ts#L87), [`usage-memory.test.ts:103`](libs/shared/src/project/usage/usage-memory.test.ts#L103), [`usage-memory.test.ts:117`](libs/shared/src/project/usage/usage-memory.test.ts#L117))
+  ([validated by `usage-memory.test.ts:12`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L12), [`usage-memory.test.ts:25`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L25), [`usage-memory.test.ts:38`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L38), [`usage-memory.test.ts:87`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L87), [`usage-memory.test.ts:103`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L103), [`usage-memory.test.ts:117`](libs/shared/src/outbound/project/usage/usage-memory.test.ts#L117))
 - FR-20.19: The `Archive` GCS port saves to `<bucket>/<key>`
   non-resumable with the given content type (passing `cacheControl`
   through as file metadata) and returns the object content as utf-8, null
-  when the object is absent or the storage call throws. ([validated by `archive-gcs.test.ts:38`](libs/shared/src/project/archive/archive-gcs.test.ts#L37), [`archive-gcs.test.ts:54`](libs/shared/src/project/archive/archive-gcs.test.ts#L54), [`archive-gcs.test.ts:72`](libs/shared/src/project/archive/archive-gcs.test.ts#L72), [`archive-gcs.test.ts:82`](libs/shared/src/project/archive/archive-gcs.test.ts#L82), [`archive-gcs.test.ts:91`](libs/shared/src/project/archive/archive-gcs.test.ts#L91))
+  when the object is absent or the storage call throws. ([validated by `archive-gcs.test.ts:38`](libs/shared/src/outbound/project/archive/archive-gcs.test.ts#L37), [`archive-gcs.test.ts:54`](libs/shared/src/outbound/project/archive/archive-gcs.test.ts#L54), [`archive-gcs.test.ts:72`](libs/shared/src/outbound/project/archive/archive-gcs.test.ts#L72), [`archive-gcs.test.ts:82`](libs/shared/src/outbound/project/archive/archive-gcs.test.ts#L82), [`archive-gcs.test.ts:91`](libs/shared/src/outbound/project/archive/archive-gcs.test.ts#L91))
 - FR-20.20: Chunk-schema resolution is single-sourced in the shared
   `chunk-schema` module: a candidate schema name is kept only when it is
   regex-safe and provisioned (an invalid, injection-shaped, or absent
@@ -1233,22 +1233,22 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   lookup, pools stay isolated, and a failed lookup is never cached; and
   the schema enumeration lists every provisioned `chunks` schema,
   dropping regex-unsafe names and always including `org_shared` exactly
-  once. ([validated by `chunk-schema.test.ts:29`](libs/shared/src/project/chunks/chunk-schema.test.ts#L27), [`chunk-schema.test.ts:35`](libs/shared/src/project/chunks/chunk-schema.test.ts#L35), [`chunk-schema.test.ts:41`](libs/shared/src/project/chunks/chunk-schema.test.ts#L41), [`chunk-schema.test.ts:48`](libs/shared/src/project/chunks/chunk-schema.test.ts#L48), [`chunk-schema.test.ts:57`](libs/shared/src/project/chunks/chunk-schema.test.ts#L57), [`chunk-schema.test.ts:66`](libs/shared/src/project/chunks/chunk-schema.test.ts#L66), [`chunk-schema.test.ts:78`](libs/shared/src/project/chunks/chunk-schema.test.ts#L78), [`chunk-schema.test.ts:87`](libs/shared/src/project/chunks/chunk-schema.test.ts#L87), [`chunk-schema.test.ts:95`](libs/shared/src/project/chunks/chunk-schema.test.ts#L95), [`chunk-schema.test.ts:110`](libs/shared/src/project/chunks/chunk-schema.test.ts#L110), [`chunk-schema.test.ts:123`](libs/shared/src/project/chunks/chunk-schema.test.ts#L123), [`chunk-schema.test.ts:150`](libs/shared/src/project/chunks/chunk-schema.test.ts#L150), [`chunk-schema.test.ts:163`](libs/shared/src/project/chunks/chunk-schema.test.ts#L163))
+  once. ([validated by `chunk-schema.test.ts:29`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L27), [`chunk-schema.test.ts:35`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L35), [`chunk-schema.test.ts:41`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L41), [`chunk-schema.test.ts:48`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L48), [`chunk-schema.test.ts:57`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L57), [`chunk-schema.test.ts:66`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L66), [`chunk-schema.test.ts:78`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L78), [`chunk-schema.test.ts:87`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L87), [`chunk-schema.test.ts:95`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L95), [`chunk-schema.test.ts:110`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L110), [`chunk-schema.test.ts:123`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L123), [`chunk-schema.test.ts:150`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L150), [`chunk-schema.test.ts:163`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L163))
 - FR-20.21: Legacy chunk relocation is self-healing: the nightly reindex,
   before counting a team-resolved repo's chunks, MOVEs any rows the repo
   still holds in `org_shared.chunks` into its resolved schema — per-file
   dedupe keeps a file already fresh in the target and drops its stale
   org_shared duplicates, files absent from the target relocate wholesale
   preserving id, embedding, and `ingested_at`, rewriting `team`, stamping
-  `metadata.migrated_from` ([validated by `chunks.test.ts:699`](libs/shared/src/project/chunks/chunks.test.ts#L699), [`chunks.test.ts:716`](libs/shared/src/project/chunks/chunks.test.ts#L716), [`chunks.test.ts:749`](libs/shared/src/project/chunks/chunks.test.ts#L749))
+  `metadata.migrated_from` ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L699), [`chunks.test.ts:716`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L716), [`chunks.test.ts:749`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L749))
   - Provenance-less rows with a classifyFile content type are adopted via
-    `ingested_by = 'reindex-job'`; other content types relocate unowned ([validated by `chunks.test.ts:699`](libs/shared/src/project/chunks/chunks.test.ts#L699), [`chunks.test.ts:739`](libs/shared/src/project/chunks/chunks.test.ts#L739))
+    `ingested_by = 'reindex-job'`; other content types relocate unowned ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L699), [`chunks.test.ts:739`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L739))
   - The Pg adapter issues copy and delete as one statement (shared
     snapshot, insert before delete, repo and team as bind parameters),
     a clean repo is a zero no-op, and `org_shared` is rejected as a
     relocation target in every adapter — self-relocation would dedupe
-    rows against themselves and delete them ([validated by `chunks.test.ts:762`](libs/shared/src/project/chunks/chunks.test.ts#L762), [`chunks.test.ts:773`](libs/shared/src/project/chunks/chunks.test.ts#L773), [`chunks.test.ts:785`](libs/shared/src/project/chunks/chunks.test.ts#L785))
-  - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/project/chunks/chunks-http.test.ts#L94))
+    rows against themselves and delete them ([validated by `chunks.test.ts:762`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L762), [`chunks.test.ts:773`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L773), [`chunks.test.ts:785`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L785))
+  - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L94))
   - `PUT /api/repos/:o/:r/settings` on lore-api emits one
     `internal.repo.team_changed` event only when the write actually changes
     the team value (settings-only patches and same-value writes emit
@@ -1271,28 +1271,28 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
 
 ### NFR-1: Security
 
-- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:107`](libs/shared/src/infra-contract/security-posture.test.ts#L107), [`security-posture.test.ts:128`](libs/shared/src/infra-contract/security-posture.test.ts#L128))
-- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:99`](libs/shared/src/infra-contract/security-posture.test.ts#L99))
-- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:124`](libs/shared/src/infra-contract/security-posture.test.ts#L124), [`security-posture.test.ts:128`](libs/shared/src/infra-contract/security-posture.test.ts#L128))
-- Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L157), [`chunks.test.ts:168`](libs/shared/src/project/chunks/chunks.test.ts#L175))
+- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:107`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L107), [`security-posture.test.ts:128`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L128))
+- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:99`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L99))
+- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:124`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L124), [`security-posture.test.ts:128`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L128))
+- Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:153`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L157), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L175))
 - Secret and PII redaction runs at ingest time and on every memory write:
   `sanitizeContent()` / `redactSecrets()` strip API keys, JWTs, private keys,
   connection strings, and bearer tokens before storage in the org-wide
-  database. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`redact.test.ts:78`](libs/shared/src/redact.test.ts#L78))
+  database. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:78`](libs/shared/src/lib/redact.test.ts#L78))
 - Centralized auth in `routes.ts`: every `/api/*` route enforces bearer
   token validation. Supports legacy single token (`LORE_INGEST_TOKEN`)
   and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:56`](apps/lore-api/src/transport/http/auth.test.ts#L56), [`bearer-scope.test.ts:41`](apps/lore-api/src/transport/http/bearer-scope.test.ts#L41))
 - Job pods run as non-root (uid 1000), drop all Linux capabilities,
   disallow privilege escalation. NetworkPolicy restricts egress to
-  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:71`](libs/shared/src/infra-contract/security-posture.test.ts#L71), [`security-posture.test.ts:76`](libs/shared/src/infra-contract/security-posture.test.ts#L76), [`security-posture.test.ts:84`](libs/shared/src/infra-contract/security-posture.test.ts#L84), [`security-posture.test.ts:90`](libs/shared/src/infra-contract/security-posture.test.ts#L90))
+  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:71`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L71), [`security-posture.test.ts:76`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L76), [`security-posture.test.ts:84`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L84), [`security-posture.test.ts:90`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L90))
 - Rate limiting: 30/min webhooks, 60/min task ops, 200/min other
   (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/transport/http/rate-limit.test.ts#L50), [`rate-limit.test.ts:39`](apps/lore-api/src/transport/http/rate-limit.test.ts#L39), [`auth.test.ts:17`](apps/lore-api/src/transport/http/auth.test.ts#L17), [`webhook-incident.test.ts:144`](apps/lore-api/src/transport/routes/webhooks/webhook-incident.test.ts#L144))
-- Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:10`](libs/shared/src/project/notify/notify-slack.test.ts#L10), [`notify-decision.test.ts:30`](libs/shared/src/project/notify/notify-decision.test.ts#L30))
+- Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:10`](libs/shared/src/outbound/project/notify/notify-slack.test.ts#L10), [`notify-decision.test.ts:30`](libs/shared/src/outbound/project/notify/notify-decision.test.ts#L30))
 
 ### NFR-2: Reliability & Freshness
 
 - `lore_assemble_context` warns when repo context is stale (>7 days since
-  last ingest) or missing (first-run welcome with suggested actions). ([validated by `context-freshness.test.ts:9`](libs/shared/src/project/knowledge/context-freshness.test.ts#L9), [`context-freshness.test.ts:15`](libs/shared/src/project/knowledge/context-freshness.test.ts#L15), [`context-freshness.test.ts:21`](libs/shared/src/project/knowledge/context-freshness.test.ts#L21), [`context-freshness.test.ts:25`](libs/shared/src/project/knowledge/context-freshness.test.ts#L25), [`context-freshness.test.ts:31`](libs/shared/src/project/knowledge/context-freshness.test.ts#L31))
+  last ingest) or missing (first-run welcome with suggested actions). ([validated by `context-freshness.test.ts:9`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L9), [`context-freshness.test.ts:15`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L15), [`context-freshness.test.ts:21`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L21), [`context-freshness.test.ts:25`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L25), [`context-freshness.test.ts:31`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L31))
 - When the MCP server is unreachable, Claude Code MUST fall back to
   the last-synced local copy of CLAUDE.md files and ADRs in
   `~/.re-cinq/lore` and display a one-time warning to the developer

@@ -122,7 +122,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   caller: `listByLabel` follows `continue` to the end and returns the whole
   match. A truncated list is worse than a failed one — it answers, and the
   caller acts on a subset it believes is complete.
-  ([validated by returns every page's items, not just the first](libs/shared/src/cluster/cluster-agent-client.test.ts#L26), [`cluster-agent-client.test.ts:38`](libs/shared/src/cluster/cluster-agent-client.test.ts#L38), [`cluster-agent-client.test.ts:52`](libs/shared/src/cluster/cluster-agent-client.test.ts#L52), [`cluster-agent-client.test.ts:60`](libs/shared/src/cluster/cluster-agent-client.test.ts#L60))
+  ([validated by returns every page's items, not just the first](libs/shared/src/outbound/cluster/cluster-agent-client.test.ts#L26), [`cluster-agent-client.test.ts:38`](libs/shared/src/outbound/cluster/cluster-agent-client.test.ts#L38), [`cluster-agent-client.test.ts:52`](libs/shared/src/outbound/cluster/cluster-agent-client.test.ts#L52), [`cluster-agent-client.test.ts:60`](libs/shared/src/outbound/cluster/cluster-agent-client.test.ts#L60))
 - *(Removed 2026-08-30: the status subresource route and `patchAgentStatus` are
   gone — the watcher went cluster-blind and nothing calls it any more. The
   read-modify-write conflict ladder this statement described no longer has
@@ -169,7 +169,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 - Every route requires the same bearer token every other service-to-service
   call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/transport/routes/cluster.test.ts#L143), [validated by refuses to restart without a bearer token](apps/cluster-agent/src/transport/routes/cluster.test.ts#L266))
 - A CR the controller has not stamped yet reads as Pending rather than absent —
-  the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](libs/shared/src/cluster/agent-node-status.test.ts#L6), [`agent-node-status.test.ts:12`](libs/shared/src/cluster/agent-node-status.test.ts#L12))
+  the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](libs/shared/src/outbound/cluster/agent-node-status.test.ts#L6), [`agent-node-status.test.ts:12`](libs/shared/src/outbound/cluster/agent-node-status.test.ts#L12))
 - An empty minted token is refused where the cause is legible, rather than
   written as a present-but-useless Secret key that fails later inside a pod's
   init container. ([validated by throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L19), [`kube-token-provisioner.test.ts:11`](apps/cluster-agent/src/outbound/kube-token-provisioner.test.ts#L11))
@@ -375,15 +375,15 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
   adapter to the pool.
 - **The `pipeline` schema's own tables travel as ONE bundle**, not as one
   accessor each: `PipelineRepositories`
-  (`libs/shared/src/project/pipeline/`) carries `taskQueue`, `eventQueue`,
+  (`libs/shared/src/outbound/project/pipeline/`) carries `taskQueue`, `eventQueue`,
   `assemblyRuns`, `jobRuns`, `audit`, `leases`, `agentRunEvents` and
   `agentRunTurns` behind a single object, built once per process from one pool
   by `createPipelineRepositories(pool)` and reached as `pipeline()` in Floor or
   `project.pipeline` in lore-api.
 - The in-memory composition supplies a working double behind every field
-  ([validated by carries a working double behind every field](libs/shared/src/project/pipeline/pipeline-repositories.test.ts#L7)).
+  ([validated by carries a working double behind every field](libs/shared/src/outbound/project/pipeline/pipeline-repositories.test.ts#L7)).
 - Its `overrides` bag swaps one field and leaves the other seven doubles standing
-  ([validated by replaces only the overridden field](libs/shared/src/project/pipeline/pipeline-repositories.test.ts#L30)).
+  ([validated by replaces only the overridden field](libs/shared/src/outbound/project/pipeline/pipeline-repositories.test.ts#L30)).
 - *(Amended 2026-08: these eight were originally eight independent `queues.ts`
   accessors. That shape only ever described Floor — lore-api, which reaches
   ports through `Project`, had no route to `eventQueue`, `jobRuns`,
@@ -392,7 +392,7 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
   ONE construction serve both deployables; `taskQueue`/`eventQueue` keep the
   `Queue` suffix so neither can be misread as the repo-scoped `project.tasks`.)*
 - **One home per table.** Each port ships a MODEL
-  (`libs/shared/src/models/<entity>.ts` — a schema, the type inferred from it, and
+  (`libs/shared/src/domain/models/<entity>.ts` — a schema, the type inferred from it, and
   a map binding each field to the column that stores it) + a port interface + a Pg
   adapter that builds its SELECT list and maps its rows FROM that column map + an
   InMemory behavioral double + a colocated test. The Floor-local

@@ -9,7 +9,7 @@ import {
   resolveDarkFactorySettings as canonical,
   DEFAULT_AUTO_MERGE_PATHS as canonicalPaths,
   DEFAULT_EXECUTION_IMAGE as canonicalImage,
-} from "../../../../libs/shared/src/dark-factory-settings";
+} from "../../../../libs/shared/src/domain/dark-factory-settings";
 
 const PARTIALS: Array<DarkFactorySettings | null | undefined> = [
   null,

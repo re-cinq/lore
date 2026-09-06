@@ -90,7 +90,7 @@ jobs:
           PGPASSWORD: test
           PGDATABASE: lore
           LORE_REQUIRE_PG_CONTRACT: "1"
-        run: npx vitest run --root libs/shared src/project/assembly-runs/assembly-runs.contract.test.ts
+        run: npx vitest run --root libs/shared src/outbound/project/assembly-runs/assembly-runs.contract.test.ts
 
 
       # The live-Dgraph suites moved here from the pr-checks `shared` matrix

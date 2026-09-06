@@ -64,7 +64,7 @@ table models, LLM abstraction, pure helpers) used by *every* service — Floor,
 stations, lore-api, mcp-server. `server-core` is narrower: **server-runtime
 glue shared by exactly the two ADR-032 deployables** — the proxy path, wire and
 proxy schemas, template loading, session tracking. The line (ADR-032, 2026-08
-amendment): a persisted table shape lives in `libs/shared/src/models/`; a wire
+amendment): a persisted table shape lives in `libs/shared/src/domain/models/`; a wire
 or proxy schema stays here, where the proxy path lives.
 
 ## Develop

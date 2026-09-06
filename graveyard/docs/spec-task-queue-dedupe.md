@@ -7,7 +7,7 @@
 
 `libs/server-core/src/features/pipeline/tasks.ts` runs raw `pool.query` SQL that
 re-implements spec-task DAG queue mechanics **already single-sourced** in
-`libs/shared/src/project/tasks/` (`TaskQueueRepository` / `PgTaskQueue` /
+`libs/shared/src/outbound/project/tasks/` (`TaskQueueRepository` / `PgTaskQueue` /
 `InMemoryTaskQueue`). The shared port's own docstring calls itself *"the org-wide
 task-queue mechanics ... single-sourced here so the queue semantics have one
 home."* server-core is a second home.
@@ -60,7 +60,7 @@ Move the SQL to the single home; make server-core delegate.
 ## Verification
 
 - `libs/shared` build + typecheck.
-- `libs/shared/src/project/tasks/task-queue.test.ts` — added cases for the repo
+- `libs/shared/src/outbound/project/tasks/task-queue.test.ts` — added cases for the repo
   scope, the parameterized claimer, and `completeSpecTask` (Pg + InMemory).
 - `apps/mcp-server/src/features/pipeline/tasks-db.test.ts` — rewritten to assert
   delegation instead of the inlined SQL.

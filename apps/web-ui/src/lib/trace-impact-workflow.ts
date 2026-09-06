@@ -1,4 +1,4 @@
-// Mirror of libs/shared/src/trace-impact-workflow.ts (edit source first; byte-compared by parity test).
+// Mirror of libs/shared/src/work/trace-impact-workflow.ts (edit source first; byte-compared by parity test).
 /** `lore-trace-impact.yml` workflow (sends PR diff + spec text to /impact endpoint; fails soft). */
 
 export const TRACE_IMPACT_WORKFLOW_PATH =

@@ -64,7 +64,7 @@ export interface UsageRow {
   cacheCreationTokens: number;
 }
 
-// The merged bucket IS the stored row's upsert shape (one declaration in `libs/shared/src/models/anthropic-cost-daily.ts`) — it used to be restated here with the key spelled `date` vs the writer's `bucketDate`, a hand-written rename seam.
+// The merged bucket IS the stored row's upsert shape (one declaration in `libs/shared/src/domain/models/anthropic-cost-daily.ts`) — it used to be restated here with the key spelled `date` vs the writer's `bucketDate`, a hand-written rename seam.
 export type AnthropicCostDailyRow = SharedCostDailyRow;
 
 export function mergeCostAndUsage(

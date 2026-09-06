@@ -4,8 +4,8 @@ Spec-drift detection flags specs that have diverged from the code they describe
 and files a gap-fill task to reconcile them.
 
 **The detection job itself no longer lives in this folder.** It moved to
-`libs/shared/src/detect/spec-drift.ts` (with its pure decision helpers in
-`libs/shared/src/detect/spec-drift-rules.ts`) so the Floor and the `lore-station`
+`libs/shared/src/work/detect/spec-drift.ts` (with its pure decision helpers in
+`libs/shared/src/work/detect/spec-drift-rules.ts`) so the Floor and the `lore-station`
 detect pod can share one implementation. It runs as the `detect` node of the
 `spec-drift` assembly line (`libs/assembly-lines/src/assembly-lines/spec-drift.yaml`),
 fanned out weekly (Mondays, 10:00 UTC) per active repo by the `cron.spec_drift.tick`

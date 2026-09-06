@@ -1,7 +1,7 @@
 # Spec Drift Detection
 
 > **Reference doc, not a runtime prompt.** The live detector is the deterministic
-> `specDriftJob` (`libs/shared/src/detect/spec-drift.ts`),
+> `specDriftJob` (`libs/shared/src/work/detect/spec-drift.ts`),
 > run per repo as the `detect` node of the `spec-drift` assembly line, fanned
 > out weekly by the `cron.spec_drift.tick` handler
 > (`apps/floor/src/work/detect/fan-out.ts`; ADR-019 amendment). This

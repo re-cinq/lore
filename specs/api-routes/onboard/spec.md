@@ -73,13 +73,13 @@ JSON body:
 submissions serialize and the later one sees the earlier one's task. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L98))
 
 Inside the lock the shared `decideOnboard`
-([guard](../../../libs/shared/src/onboard-guard.ts)) refuses a submission whose
+([guard](../../../libs/shared/src/work/onboard-guard.ts)) refuses a submission whose
 repo already has an onboard task in flight, has merged its onboarding PR, or has
 one still open. ([validated by `blocks an already-onboarded repo without creating a task`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L165), [`blocks a repo with an onboard task in flight and names that task`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L176))
 
 The `pr-open` block is self-healing: `lore.repos.onboarding_pr_url` is set when the
 onboarding PR opens and cleared by the Floor's merge-check when that PR is closed
-without merging, so a rejected onboarding does not refuse the repo forever. ([validated by `nulls the onboarding PR url by row id when that PR closed unmerged`](libs/shared/src/project/settings/settings-pg.test.ts#L89))
+without merging, so a rejected onboarding does not refuse the repo forever. ([validated by `nulls the onboarding PR url by row id when that PR closed unmerged`](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L89))
 
 The web-ui onboard form and the repo-page re-onboard button take the same lock
 through their own mirror of the guard, which decides identically. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/web-ui/src/lib/onboard.test.ts#L50), [`shares the advisory-lock key so both apps serialize on it`](apps/web-ui/src/lib/onboard-guard.parity.test.ts#L47))

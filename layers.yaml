@@ -181,6 +181,17 @@ layers:
       - "@re-cinq/lore-shared"
 
   # The light business logic both deployables import (ADR-032).
+  # libs/shared has the tier FOLDERS (transport / outbound / work / domain / lib)
+  # but deliberately no entry yet. Thirteen modules still cross the wrong way —
+  # `outbound/project/trace/trace-port.ts` needs `TraceDocument`, which lives in
+  # `work/spec-trace/`, and twelve more of that shape. They are contracts two
+  # tiers share, so they belong in `domain`; moving them is a refactor, not a
+  # rename, and it is the follow-up that earns this package its entry.
+  #
+  # Adding the entry first would mean listing `work` under `outbound` to make
+  # the errors go away, which is writing the tangle down rather than untangling
+  # it. Until then shared stays the one surface the rule does not check.
+
   libs/server-core:
     ".":
       - platform

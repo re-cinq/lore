@@ -207,7 +207,7 @@ Add a step at the end of each build workflow (after deploy):
 2. CI blocks deploy if integration tests fail
 3. Smoke tests run after every deploy
 4. Smoke test failure creates a GitHub Issue
-5. Redaction patterns have 100% coverage ([validated by `redact.test.ts`](libs/shared/src/redact.test.ts))
+5. Redaction patterns have 100% coverage ([validated by `redact.test.ts`](libs/shared/src/lib/redact.test.ts))
 
 6. Task routing logic has tests for every task type — onboard→`handleOnboard`,
    feature-request→`handleFeatureRequest`, and implementation/review/general/runbook/gap-fill/unknown
@@ -236,4 +236,4 @@ Add a step at the end of each build workflow (after deploy):
    `response.statusCode`; `body.reason` = AlreadyExists; `body.code` = 409; the client's
    `HTTP-Code: 409` message dump; an `already exists` message; or a `reason=AlreadyExists`
    message) and false for anything else (a 500, a different-reason body, an object with no
-   recognizable fields, null, or a string). ([validated by `k8s-errors.test.ts:5`](libs/shared/src/k8s-errors.test.ts#L5), [`k8s-errors.test.ts:9`](libs/shared/src/k8s-errors.test.ts#L9), [`k8s-errors.test.ts:13`](libs/shared/src/k8s-errors.test.ts#L13), [`k8s-errors.test.ts:17`](libs/shared/src/k8s-errors.test.ts#L17), [`k8s-errors.test.ts:23`](libs/shared/src/k8s-errors.test.ts#L23), [`k8s-errors.test.ts:27`](libs/shared/src/k8s-errors.test.ts#L27), [`k8s-errors.test.ts:36`](libs/shared/src/k8s-errors.test.ts#L36), [`k8s-errors.test.ts:42`](libs/shared/src/k8s-errors.test.ts#L42), [`k8s-errors.test.ts:48`](libs/shared/src/k8s-errors.test.ts#L48), [`k8s-errors.test.ts:54`](libs/shared/src/k8s-errors.test.ts#L54), [`k8s-errors.test.ts:63`](libs/shared/src/k8s-errors.test.ts#L63), [`k8s-errors.test.ts:67`](libs/shared/src/k8s-errors.test.ts#L67), [`k8s-errors.test.ts:71`](libs/shared/src/k8s-errors.test.ts#L71))
+   recognizable fields, null, or a string). ([validated by `k8s-errors.test.ts:5`](libs/shared/src/outbound/k8s-errors.test.ts#L5), [`k8s-errors.test.ts:9`](libs/shared/src/outbound/k8s-errors.test.ts#L9), [`k8s-errors.test.ts:13`](libs/shared/src/outbound/k8s-errors.test.ts#L13), [`k8s-errors.test.ts:17`](libs/shared/src/outbound/k8s-errors.test.ts#L17), [`k8s-errors.test.ts:23`](libs/shared/src/outbound/k8s-errors.test.ts#L23), [`k8s-errors.test.ts:27`](libs/shared/src/outbound/k8s-errors.test.ts#L27), [`k8s-errors.test.ts:36`](libs/shared/src/outbound/k8s-errors.test.ts#L36), [`k8s-errors.test.ts:42`](libs/shared/src/outbound/k8s-errors.test.ts#L42), [`k8s-errors.test.ts:48`](libs/shared/src/outbound/k8s-errors.test.ts#L48), [`k8s-errors.test.ts:54`](libs/shared/src/outbound/k8s-errors.test.ts#L54), [`k8s-errors.test.ts:63`](libs/shared/src/outbound/k8s-errors.test.ts#L63), [`k8s-errors.test.ts:67`](libs/shared/src/outbound/k8s-errors.test.ts#L67), [`k8s-errors.test.ts:71`](libs/shared/src/outbound/k8s-errors.test.ts#L71))

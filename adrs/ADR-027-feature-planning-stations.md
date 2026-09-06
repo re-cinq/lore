@@ -53,8 +53,8 @@ least interactive. `feature-request`
 runs one LLM pass and opens a PR — no human in the loop, no place for a draft,
 and no way to steer the architecture before the PR exists. Features themselves
 are not first-class: they are `specs/<n>-<name>/` folders *computed* into the
-spec-trace graph by [featureDirOf](../libs/shared/src/spec-trace/feature-dir.ts)
-in [flattenSpecGraph](../libs/shared/src/spec-trace/spec-graph.ts), with no
+spec-trace graph by [featureDirOf](../libs/shared/src/work/spec-trace/feature-dir.ts)
+in [flattenSpecGraph](../libs/shared/src/work/spec-trace/spec-graph.ts), with no
 persistent row, no lifecycle, and nowhere for a half-formed idea to live.
 
 `specs/7-feature-planning/` specifies an interactive alternative: a Features tab,
@@ -92,8 +92,8 @@ of truth in the graph.**
   `specs/<slug>/spec.md` and the existing watcher opens the PR + conditional Issue.
 - **Feature lifecycle is a Project port.** `lore.features` / `lore.feature_iterations`
   (the `lore` schema, owned by the migration runner) are reached only through a
-  `features` port on the Project facade ([libs/shared/src/project/features/](../libs/shared/src/project/features/)),
-  mirroring [task-store-pg.ts](../libs/shared/src/project/tasks/task-store-pg.ts).
+  `features` port on the Project facade ([libs/shared/src/outbound/project/features/](../libs/shared/src/outbound/project/features/)),
+  mirroring [task-store-pg.ts](../libs/shared/src/outbound/project/tasks/task-store-pg.ts).
   The draft spec stays uncommitted in `draft_spec_md` until the author finalizes;
   even then it ships as a PR, never a direct `main` commit.
 - **The persistent Feature node replaces the computed one in the graph.** The

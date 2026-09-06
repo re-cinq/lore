@@ -62,7 +62,7 @@ One row per planning round, 1:1 with the planning task/pod.
 }
 ```
 
-## `GapResult` contract (`libs/shared/src/feature-planning/gap-result.ts`)
+## `GapResult` contract (`libs/shared/src/work/feature-planning/gap-result.ts`)
 
 Wire shape (snake_case), validated by `gapResultSchema` (Zod), parsed by
 `parseGapResult`. `sanitizeSvg` runs over each mockup before persistence;
@@ -80,7 +80,7 @@ or `spec-ready`.
 }
 ```
 
-## Project port types (`libs/shared/src/project/features/`)
+## Project port types (`libs/shared/src/outbound/project/features/`)
 
 `FeaturesPort` (interface) + `Feature` / `Iteration` value types, backed by
 `PgFeatures` (Postgres adapter over the tables above) and exposed through the

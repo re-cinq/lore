@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { sectionsOf as mirrorSectionsOf } from "./gap-sections";
 import type { GapResult } from "./feature-types";
-import { sectionsOf as canonicalSectionsOf } from "../../../../libs/shared/src/feature-planning/gap-result";
+import { sectionsOf as canonicalSectionsOf } from "../../../../libs/shared/src/work/feature-planning/gap-result";
 
 const canonical = canonicalSectionsOf as (
   gap: unknown,

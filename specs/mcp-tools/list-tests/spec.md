@@ -50,7 +50,7 @@ root and manifest are resolved at call time, not passed by the caller.
 3. Delegate to `listTestsTool(process.env, manifest, root)`
    ([handler](../../../apps/mcp-server/src/work/spec-trace/spec-trace-tools.ts#L79)):
    1. **Trust-boundary gate** — `executionRefusal(env)`
-      ([gate](../../../libs/shared/src/project/lib/trust.ts#L12)) returns a non-null
+      ([gate](../../../libs/shared/src/outbound/project/lib/trust.ts#L12)) returns a non-null
       string when `LORE_DB_HOST` is set (i.e. the shared cluster server). When
       non-null, return it immediately **without running the list command**.
    2. **Manifest precondition** — when `manifest` is `null`, return the literal

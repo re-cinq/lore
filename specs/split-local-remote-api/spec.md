@@ -163,7 +163,7 @@ or naming-honesty goal).
   onboarding. The import is indirected through a variable
   (`const spec = "libsodium-wrappers"`) to avoid demanding a declaration file
   for an untyped package, which makes it invisible to every static dependency
-  checker — so the declaration is pinned by a test rather than by tooling. ([validated by `runtime-deps.test.ts:23`](libs/shared/src/project/lib/runtime-deps.test.ts#L12), [`runtime-deps.test.ts:16`](libs/shared/src/project/lib/runtime-deps.test.ts#L16), [`runtime-deps.test.ts:20`](libs/shared/src/project/lib/runtime-deps.test.ts#L20))
+  checker — so the declaration is pinned by a test rather than by tooling. ([validated by `runtime-deps.test.ts:23`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L12), [`runtime-deps.test.ts:16`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L16), [`runtime-deps.test.ts:20`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L20))
 
 ## Success Criteria
 

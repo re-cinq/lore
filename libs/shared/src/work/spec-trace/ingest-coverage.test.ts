@@ -1,0 +1,298 @@
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { findRepoRoot } from "../../lib/repo-root.js";
+import { randomUUID } from "node:crypto";
+import * as dgraph from "dgraph-js-http";
+import { ingestCoverageReport } from "./ingest-coverage.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
+import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
+
+const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
+const APPLIER = join(
+  findRepoRoot(),
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
+
+const reachable = await dgraphReachable();
+
+describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
+
+  beforeAll(() => {
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
+  });
+
+  async function readGraph(
+    query: string,
+    vars: Record<string, string>,
+  ): Promise<Record<string, unknown>> {
+    const txn = dgraphClient.newTxn();
+
+    try {
+      const res = await txn.queryWithVars(query, vars);
+
+      return (res.data ?? {}) as Record<string, unknown>;
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+  }
+
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "coverage", type: "Coverage" },
+    { alias: "codechunks", type: "CodeChunk" },
+    { alias: "testchunks", type: "TestChunk" },
+    { alias: "files", type: "File" },
+    { alias: "root", type: "Repo", field: "xid" },
+  ]);
+
+  let createdRepo = "";
+
+  afterEach(async () => {
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
+  });
+
+  it("attaches the Coverage node and covered Files to the Repo root via Repo.coverage and Repo.files", async () => {
+    const repo = `test-cov/${randomUUID()}`;
+
+    createdRepo = repo;
+
+    await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "v8", commit: "abc" },
+      [
+        {
+          testFile: "a.test.ts",
+          testName: "t",
+          covered: [{ file: "src/a.ts", startLine: 1, endLine: 5 }],
+        },
+      ],
+    );
+
+    const graph = (await readGraph(
+      `query q($repo: string){
+        root(func: eq(Repo.xid, $repo)){
+          cov: Repo.coverage { Coverage.repo }
+          files: Repo.files { File.path }
+        }
+      }`,
+      { $repo: repo },
+    )) as {
+      root?: Array<{
+        cov?: unknown[];
+        files?: Array<{ "File.path"?: string }>;
+      }>;
+    };
+
+    expect(graph.root?.[0]?.cov).toHaveLength(1);
+    expect((graph.root?.[0]?.files ?? []).map((f) => f["File.path"])).toEqual([
+      "src/a.ts",
+    ]);
+  });
+
+  it("writes one Coverage node keyed by repo|testFile|testName with repo/tool/commit for a record with no covered ranges", async () => {
+    const repo = `test-cov/${randomUUID()}`;
+
+    createdRepo = repo;
+    const expectedXid = `${repo}|test/widget.test.ts|renders`;
+
+    await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "lcov", commit: "abc123" },
+      [{ testFile: "test/widget.test.ts", testName: "renders", covered: [] }],
+    );
+
+    const graph = (await readGraph(
+      `query q($xid: string) {
+        cov(func: eq(Coverage.xid, $xid)) {
+          Coverage.xid Coverage.repo Coverage.tool Coverage.commit
+        }
+      }`,
+      { $xid: expectedXid },
+    )) as { cov?: Record<string, unknown>[] };
+
+    expect(graph.cov?.[0]).toMatchObject({
+      "Coverage.xid": expectedXid,
+      "Coverage.repo": repo,
+      "Coverage.tool": "lcov",
+      "Coverage.commit": "abc123",
+    });
+  });
+
+  it("upserts one File per covered file with a ranges facet (merging that file's intervals) and links it via COVERS", async () => {
+    const repo = `test-cov/${randomUUID()}`;
+
+    createdRepo = repo;
+
+    const result = await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "lcov", commit: "abc123" },
+      [
+        {
+          testFile: "t.test.ts",
+          testName: "renders",
+          covered: [
+            { file: "src/widget.ts", startLine: 5, endLine: 10 },
+            { file: "src/widget.ts", startLine: 20, endLine: 25 },
+          ],
+        },
+      ],
+    );
+
+    expect(result).toMatchObject({ coversEdges: 1, unmatched: 0 });
+
+    const graph = (await readGraph(
+      `query q($xid: string) {
+        cov(func: eq(Coverage.xid, $xid)) {
+          Coverage.covers @facets(ranges) { File.xid File.path }
+        }
+      }`,
+      { $xid: `${repo}|t.test.ts|renders` },
+    )) as { cov?: { "Coverage.covers"?: Record<string, unknown>[] }[] };
+
+    expect(graph.cov?.[0]?.["Coverage.covers"]).toEqual([
+      {
+        "File.xid": `${repo}|src/widget.ts`,
+        "File.path": "src/widget.ts",
+        "Coverage.covers|ranges": "5-10,20-25",
+      },
+    ]);
+  });
+
+  function coveredFileXids(result: {
+    cov?: { "Coverage.covers"?: { "File.xid": string }[] }[];
+  }): string[] {
+    return (result.cov?.[0]?.["Coverage.covers"] ?? []).map(
+      (c) => c["File.xid"],
+    );
+  }
+
+  it("deletes the orphaned File when re-ingest drops its covered file", async () => {
+    const repo = `test-cov/${randomUUID()}`;
+
+    createdRepo = repo;
+
+    await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "lcov", commit: "c1" },
+      [
+        {
+          testFile: "t.test.ts",
+          testName: "renders",
+          covered: [{ file: "a.ts", startLine: 1, endLine: 10 }],
+        },
+      ],
+    );
+    await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "lcov", commit: "c2" },
+      [
+        {
+          testFile: "t.test.ts",
+          testName: "renders",
+          covered: [{ file: "b.ts", startLine: 1, endLine: 10 }],
+        },
+      ],
+    );
+
+    const cov = (await readGraph(
+      `query q($xid: string) { cov(func: eq(Coverage.xid, $xid)) { Coverage.commit Coverage.covers { File.xid } } }`,
+      { $xid: `${repo}|t.test.ts|renders` },
+    )) as {
+      cov?: {
+        "Coverage.commit"?: string;
+        "Coverage.covers"?: { "File.xid": string }[];
+      }[];
+    };
+
+    expect(cov.cov?.[0]?.["Coverage.commit"]).toEqual("c2");
+    expect(coveredFileXids(cov)).toEqual([`${repo}|b.ts`]);
+
+    const orphan = (await readGraph(
+      `query q($xid: string) { f(func: eq(File.xid, $xid)) { uid } }`,
+      { $xid: `${repo}|a.ts` },
+    )) as { f?: { uid: string }[] };
+
+    expect(orphan.f ?? []).toEqual([]);
+  });
+
+  it("keeps a File that another Coverage still covers after a.test.ts re-ingests with no coverage", async () => {
+    const repo = `test-cov/${randomUUID()}`;
+
+    createdRepo = repo;
+    const shared = { file: "shared.ts", startLine: 1, endLine: 10 };
+
+    await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "lcov", commit: "c1" },
+      [
+        { testFile: "a.test.ts", testName: "a", covered: [shared] },
+        { testFile: "b.test.ts", testName: "b", covered: [shared] },
+      ],
+    );
+    await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "lcov", commit: "c2" },
+      [{ testFile: "a.test.ts", testName: "a", covered: [] }],
+    );
+
+    const graph = (await readGraph(
+      `query q($xid: string) { f(func: eq(File.xid, $xid)) { File.xid } }`,
+      { $xid: `${repo}|shared.ts` },
+    )) as { f?: Record<string, unknown>[] };
+
+    expect(graph.f).toEqual([{ "File.xid": `${repo}|shared.ts` }]);
+  });
+
+  it("links the matching TestChunk to the Coverage node via HAS_COVERAGE", async () => {
+    const repo = `test-cov/${randomUUID()}`;
+
+    createdRepo = repo;
+
+    const txn = dgraphClient.newTxn();
+
+    try {
+      await txn.mutate({
+        setJson: {
+          uid: "_:tc",
+          "dgraph.type": "TestChunk",
+          "TestChunk.xid": `${repo}|tc1`,
+          "TestChunk.repo": repo,
+          "TestChunk.file_path": "t.test.ts",
+          "TestChunk.test_name": "renders",
+        },
+        commitNow: true,
+      });
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+
+    await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "lcov", commit: "abc123" },
+      [{ testFile: "t.test.ts", testName: "renders", covered: [] }],
+    );
+
+    const graph = (await readGraph(
+      `query q($xid: string) {
+        tc(func: eq(TestChunk.xid, $xid)) {
+          TestChunk.coverage { Coverage.xid }
+        }
+      }`,
+      { $xid: `${repo}|tc1` },
+    )) as { tc?: { "TestChunk.coverage"?: { "Coverage.xid": string } }[] };
+
+    expect(graph.tc?.[0]?.["TestChunk.coverage"]).toEqual({
+      "Coverage.xid": `${repo}|t.test.ts|renders`,
+    });
+  });
+});

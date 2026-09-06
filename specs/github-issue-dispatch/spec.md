@@ -47,9 +47,9 @@ Issue gets comment: "Working on this → PR #N"
 
 New HTTP handler: `POST /api/webhook/github`
 - Validates GitHub webhook signature (HMAC SHA-256)
-- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/project/events/github-map.test.ts#L298))
+- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L298))
 - The event mapper is a guard at the door: it returns nothing when the `repository` is missing or the
-  event type is unhandled. ([validated by `github-map.test.ts:334`](libs/shared/src/project/events/github-map.test.ts#L334), [`github-map.test.ts:344`](libs/shared/src/project/events/github-map.test.ts#L344))
+  event type is unhandled. ([validated by `github-map.test.ts:334`](libs/shared/src/outbound/project/events/github-map.test.ts#L334), [`github-map.test.ts:344`](libs/shared/src/outbound/project/events/github-map.test.ts#L344))
 - If label name is `lore` (configurable):
   - Extract: issue title, body, repo full_name, issue number
   - Determine task type from issue labels, from the SAME table onboarding seeds the
@@ -61,7 +61,7 @@ New HTTP handler: `POST /api/webhook/github`
     - `lore:review` → review
     - `lore:runbook` → runbook
     - `lore` (alone) → the repo's `dispatch_default_type` (general by default)
-    ([validated by reads implementation off a lore:implementation label](libs/shared/src/task-types/dispatch-labels.test.ts#L5), [`dispatch-labels.test.ts:11`](libs/shared/src/task-types/dispatch-labels.test.ts#L11), [`dispatch-labels.test.ts:16`](libs/shared/src/task-types/dispatch-labels.test.ts#L16), [`dispatch-labels.test.ts:22`](libs/shared/src/task-types/dispatch-labels.test.ts#L22))
+    ([validated by reads implementation off a lore:implementation label](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L5), [`dispatch-labels.test.ts:11`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L11), [`dispatch-labels.test.ts:16`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L16), [`dispatch-labels.test.ts:22`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L22))
   - Create pipeline task with issue context
   - Comment on issue: "Lore agent is working on this. Task: `{id}`"
   - Add `lore-managed` label to the issue
