@@ -72,7 +72,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
 ## Acceptance Criteria
 
 1. **AC1** The cache is active only in local stdio mode (memory DB
-   unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/mcp/tools/context-tools.ts#L109), [`withReadCache`](apps/mcp-server/src/mcp/tools/deps.ts#L17))
+   unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/transport/tools/context-tools.ts#L109), [`withReadCache`](apps/mcp-server/src/transport/tools/deps.ts#L17))
 
 2. **AC2** `LORE_CACHE_ENABLED=false` disables all cache reads and writes;
    `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false`](libs/server-core/src/platform/proxy-cache.test.ts#L148), [`isCacheEnabled`](libs/server-core/src/platform/proxy-cache.ts#L117))
@@ -91,7 +91,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
    entry is served with a `lore-cache: STALE` marker rather than erroring. ([validated by `does not return an expired entry as fresh but readAny still serves it`](libs/server-core/src/platform/proxy-cache.test.ts#L83), [`proxy-cache.test.ts:158`](libs/server-core/src/platform/proxy-cache.test.ts#L158))
 
 7. **AC7** On an authoritative access denial (HTTP 401/403), no cached copy
-   is served — fresh or stale — and the denial is surfaced to the caller. ([validated by `context-tools.test.ts:165`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L165))
+   is served — fresh or stale — and the denial is surfaced to the caller. ([validated by `context-tools.test.ts:165`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L165))
 
 8. **AC8** Per-tool TTLs apply; `ttl_overrides[tool]` in `config.json`
    overrides the policy TTL, including an override of `0`. ([implemented by `effectiveTtl`](libs/server-core/src/platform/proxy-cache.ts#L165))
@@ -104,10 +104,10 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
     `search_memory` + `query_graph` + `assemble_context`; create task → task
     lists; ingest files → `assemble_context` for the repo; invalidation scopes
     removal to the given repo; invalidation is a no-op with no entries directory
-    yet, and non-`.json` files in it are left untouched. ([implemented by `MEMORY_DERIVED_READS`](apps/mcp-server/src/mcp/tools/memory-tools.ts#L42), [`EPISODE_DERIVED_READS`](apps/mcp-server/src/mcp/tools/memory-tools.ts#L43), [`invalidateCache`](apps/mcp-server/src/mcp/tools/pipeline-tools-lifecycle.ts#L75), [`invalidateCache`](apps/mcp-server/src/mcp/tools/repo-tools.ts#L97), [validated by `scopes removal to a repo when given`](libs/server-core/src/platform/proxy-cache.test.ts#L104), [validated by `removes entries for the named tool only`](libs/server-core/src/platform/proxy-cache.test.ts#L96), [validated by `is a no-op when the entries directory does not exist yet`](libs/server-core/src/platform/proxy-cache.test.ts#L112), [validated by `leaves non-.json files in the entries directory untouched`](libs/server-core/src/platform/proxy-cache.test.ts#L116))
+    yet, and non-`.json` files in it are left untouched. ([implemented by `MEMORY_DERIVED_READS`](apps/mcp-server/src/transport/tools/memory-tools.ts#L42), [`EPISODE_DERIVED_READS`](apps/mcp-server/src/transport/tools/memory-tools.ts#L43), [`invalidateCache`](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L75), [`invalidateCache`](apps/mcp-server/src/transport/tools/repo-tools.ts#L97), [validated by `scopes removal to a repo when given`](libs/server-core/src/platform/proxy-cache.test.ts#L104), [validated by `removes entries for the named tool only`](libs/server-core/src/platform/proxy-cache.test.ts#L96), [validated by `is a no-op when the entries directory does not exist yet`](libs/server-core/src/platform/proxy-cache.test.ts#L112), [validated by `leaves non-.json files in the entries directory untouched`](libs/server-core/src/platform/proxy-cache.test.ts#L116))
 
 11. **AC11** Finished-job log reads (`lore_get_task_logs`, `lore_get_job_logs`)
-    are cached only when the response reports `complete: true`, with a 24h TTL. ([implemented by `completeOnly`](apps/mcp-server/src/mcp/tools/pipeline-tools-shared.ts#L34), [`ttlSeconds: 86400`](apps/mcp-server/src/mcp/tools/pipeline-tools-logs.ts#L97), [`ttlSeconds: 86400`](apps/mcp-server/src/mcp/tools/pipeline-tools-logs.ts#L133))
+    are cached only when the response reports `complete: true`, with a 24h TTL. ([implemented by `completeOnly`](apps/mcp-server/src/transport/tools/pipeline-tools-shared.ts#L34), [`ttlSeconds: 86400`](apps/mcp-server/src/transport/tools/pipeline-tools-logs.ts#L97), [`ttlSeconds: 86400`](apps/mcp-server/src/transport/tools/pipeline-tools-logs.ts#L133))
 
 11a. **AC11a** A non-retriable 4xx carries its status and raw body back to the
     caller, so an authoritative refusal (a 409 conflict) can be told apart from an

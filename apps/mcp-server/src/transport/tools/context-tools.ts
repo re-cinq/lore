@@ -19,7 +19,7 @@ import {
   textResult,
   type ProxyResult,
 } from "./deps.js";
-import { updateBanner } from "../../features/update/mcp-update.js";
+import { updateBanner } from "../../work/update/mcp-update.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 

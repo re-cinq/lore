@@ -81,7 +81,7 @@ Not in the local tool path; they carry the heavy value deps:
 
 The remote app serves REST only — it never builds an `McpServer` (today, http
 mode builds the server but never connects a transport; the split deletes that
-dead branch). So `mcp/tools/**` + `server/build-mcp-server.ts` live in
+dead branch). So `transport/tools/**` + `transport/build-mcp-server.ts` live in
 `apps/mcp-server` alone. Their direct-DB branches (`getPool().query(...)`) are
 guarded by a non-null pool and become dead-but-harmless in local (pool always
 null); they pull no `pg` value dep (pool is injected), so they can stay as-is or

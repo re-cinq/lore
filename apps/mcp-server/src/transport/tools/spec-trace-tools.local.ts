@@ -12,9 +12,9 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
     async () => {
       try {
         const { listTestsTool, loadTestCommandManifest } =
-          await import("../../features/spec-trace/spec-trace-tools.js");
+          await import("../../work/spec-trace/spec-trace-tools.js");
         const { getRepoRoot } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
         const root = getRepoRoot() || process.cwd();
         const text = await listTestsTool(
           process.env,
@@ -43,9 +43,9 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
     async ({ selector }) => {
       try {
         const { runTestTool, loadTestCommandManifest } =
-          await import("../../features/spec-trace/spec-trace-tools.js");
+          await import("../../work/spec-trace/spec-trace-tools.js");
         const { getRepoRoot } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
         const root = getRepoRoot() || process.cwd();
         const text = await runTestTool(
           process.env,

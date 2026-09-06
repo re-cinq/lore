@@ -217,19 +217,16 @@ layers:
   # `features` is transport and the data work is a proxy call.
   apps/mcp-server:
     ".":
-      - server
+      - transport
       - "@re-cinq/lore-server-core"
-    server:
-      - mcp
-    mcp:
-      - features
-      - "@re-cinq/lore-server-core"
-      - "@re-cinq/lore-shared"
-    features:
-      - platform
+    # The MCP protocol surface: 27 tool registrations, the server factory both
+    # entry points call, the HTTP gateway and the skills registry it serves.
+    # A way in, like http or cli elsewhere.
+    transport:
+      - work
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
-    platform:
+    work:
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
 

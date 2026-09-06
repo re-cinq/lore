@@ -60,7 +60,7 @@ JSON body:
 4. Destructure `{ repo }`. If `repo` is falsy **or** `!repo.includes("/")` → 400
    with the verbatim required-fields error; return.
 5. `await onboardRepo(pool, repo, { reonboard })`
-   ([feature](../../../apps/mcp-server/src/features/repo/repo-onboard.js)); a result
+   ([feature](../../../apps/mcp-server/src/work/repo/repo-onboard.js)); a result
    carrying `blocked` is a conflict with existing state rather than a failure, so
    write 409 with it — otherwise write 200 with the result.
 6. **Catch** — log `[onboard] API error: <message>` and write 500

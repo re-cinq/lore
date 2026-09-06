@@ -24,7 +24,7 @@ file.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L40)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L40)).
 
 - **name**: `lore_write_memory`
 - **description** (verbatim):
@@ -93,7 +93,7 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 
 - `detectCurrentRepo()`, `getQueryEmbedding()` (Vertex), `isMemoryDbAvailable()`.
 - Handler `writeMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L53)); `extractFacts` (async).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L15)); `writeMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `writeMemoryFile` (offline).
 - Tables: `memory.memories` (insert/update), `memory.memory_versions` (insert), `memory.audit_log` (insert), `memory.facts` (async via `extract_facts`).
 - Env: `LORE_DB_HOST` (DB availability), `LORE_API_URL` + `LORE_INGEST_TOKEN` (proxy).
 
@@ -114,9 +114,9 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
    proxied body on success; a 401 is reported as a denied error on the first
    attempt, without the retriable-status backoff loop. ([validated by `returns
    the proxied body on a successful
-   write`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L96), [`reports a
+   write`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L96), [`reports a
    denied error on a 401 without
-   retrying`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L110))
+   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L110))
 
 ## Out of Scope
 

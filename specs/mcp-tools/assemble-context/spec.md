@@ -24,7 +24,7 @@ LLM consumes directly.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/context-tools.ts#L94)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/context-tools.ts#L94)).
 
 - **name**: `lore_assemble_context`
 - **description** (verbatim):
@@ -111,20 +111,20 @@ sources. ([validated by `debug trace reports per-section status and omit reason 
 
 On the proxy path, a reachable backend response is authoritative over any cached
 copy: an empty-but-reachable context is returned as-is (never a stale cache), and
-a reachable non-empty response returns the live text. ([validated by `returns an empty-but-reachable context as-is instead of a stale cached copy`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L150), [validated by `returns the live result on a reachable hit`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L186))
+a reachable non-empty response returns the live text. ([validated by `returns an empty-but-reachable context as-is instead of a stale cached copy`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L150), [validated by `returns the live result on a reachable hit`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L186))
 
 The local task runner pre-fetched none of this: `withLoreWorkflowPreamble` opens
 every locally-run task with `lore_assemble_context` as step 1 and ends with the
 task itself, and there is no second, pre-loaded shape of the preamble to diverge
 from it (the pre-run fetch was removed 2026-08-28).
-([validated by `opens every local run with lore_assemble_context as step 1`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L706), [`ends with the task, so the instructions read as preamble to it`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L712), [`has one shape — nothing is pre-fetched, so there is no pre-loaded branch`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L716); implemented by [`runner-local-spawn.ts:28`](apps/mcp-server/src/features/pipeline/runner-local-spawn.ts#L28))
+([validated by `opens every local run with lore_assemble_context as step 1`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L706), [`ends with the task, so the instructions read as preamble to it`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L712), [`has one shape — nothing is pre-fetched, so there is no pre-loaded branch`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L716); implemented by [`runner-local-spawn.ts:28`](apps/mcp-server/src/work/pipeline/runner-local-spawn.ts#L28))
 
 The `/api/context` endpoint runs full assembly when a `query` param is present and
 a raw chunk fetch when it is absent.
 
 The `max_tokens` input schema enforces the documented floor of 2000 — a lower
 value is rejected and the floor itself is accepted.
-([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L188), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L196))
+([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L188), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L196))
 
 The handler's GKE-proxy success/empty/error envelope framing on the DB-backed path
 is exercised only against live Postgres. *(untested: the success branch needs a

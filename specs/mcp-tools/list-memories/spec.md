@@ -21,7 +21,7 @@ accumulates many memories. Expired and soft-deleted memories must not appear.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L136)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L136)).
 
 - **name**: `lore_list_memories`
 - **description** (verbatim):
@@ -78,7 +78,7 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
 
 - `detectCurrentRepo()`, `isMemoryDbAvailable()`, `resolveAgentId()`.
 - Handler `listMemories` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L216)).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L15)); `listMemoriesFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `listMemoriesFile` (offline).
 - Tables: `memory.memories` (read), `memory.facts` (EXISTS subquery), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
@@ -99,9 +99,9 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
    proxied body on success; a 401 is reported as a denied error on the first
    attempt, without the retriable-status backoff loop. ([validated by `returns
    the proxied body on a successful
-   list`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L178), [`reports a
+   list`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L178), [`reports a
    denied error on a 401 without
-   retrying`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L192))
+   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L192))
 
 ## Out of Scope
 

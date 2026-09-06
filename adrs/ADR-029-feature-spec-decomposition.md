@@ -82,8 +82,8 @@ A task pipeline already exists: `spec-task` rows in `pipeline.tasks` (with
 `depends_on` / `phase` / `parallelizable` / `file_path` metadata) are picked up by
 the implementation pipeline under the per-repo trust gate. Today those rows are
 created only from a hand-authored `specs/<slug>/tasks.md` parsed on merge
-([syncTasksToDb](../apps/mcp-server/src/features/pipeline/tasks.ts),
-[merge-check.ts](../apps/floor/src/application/jobs/scheduled/merge-check.ts)),
+([syncTasksToDb](../libs/shared/src/tasks.ts),
+[merge-check.ts](../apps/stations/src/stations/merge-check/merge-check.ts)),
 and only for the legacy one-shot `feature-request` task type. The interactive
 planning flow produces no `tasks.md`, so it feeds nothing.
 
