@@ -94,8 +94,8 @@ layers:
       - "@re-cinq/lore-stations"
 
   # The event-router is the bus's sole writer (ADR-044). Its shape is already
-  # the one the Floor is being refactored towards: an entry, a delivery tier,
-  # and a substrate that reaches nothing above it.
+  # the one the Floor is being refactored towards: an entry, a transport tier,
+  # and an outbound tier that reaches nothing above it.
   apps/event-router:
     ".":
       - transport
