@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { serviceStations, resetServiceStations } from "./service-stations.js";
-import { STATIONS } from "../stations/index.js";
-import type { StationHost } from "../stations/index.js";
+import { STATIONS } from "../../work/index.js";
+import type { StationHost } from "../../work/index.js";
 
 const host = {
   awaitingApproval: async () => [],

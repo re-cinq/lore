@@ -1,7 +1,7 @@
 import { openSpecStatusFlipPr } from "@re-cinq/lore-shared";
 import type { Project, StatusFlipResult } from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
-import { pipeline } from "../../kernel/queues.js";
+import { pipeline } from "../../outbound/queues.js";
 
 // spec-status-upkeep FR1: flip a spec's `| Status |` row to `shipped` once every task in its group is merged (ADR-016).
 

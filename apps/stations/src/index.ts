@@ -3,9 +3,9 @@
 import { loadApprovalConfig } from "@re-cinq/lore-shared";
 import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
-import { startServer } from "./delivery/server.js";
-import { startStationDrain } from "./drain/loop-boot.js";
-import { deliveries, eventProxy, usage } from "./kernel/queues.js";
+import { startServer } from "./transport/server.js";
+import { startStationDrain } from "./events/loop-boot.js";
+import { deliveries, eventProxy, usage } from "./outbound/queues.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 

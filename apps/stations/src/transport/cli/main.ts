@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /// <reference types="node" />
-// lore-station <type> '<station_input json>' — one assembly-line node per pod; a thin shim over ../stations (shared with the pooled service) that resolves by type through the registry (not a hand-kept Record) so an unmapped type can't reach runtime undetected.
+// lore-station <type> '<station_input json>' — one assembly-line node per pod; a thin shim over ../../work (shared with the pooled service) that resolves by type through the registry (not a hand-kept Record) so an unmapped type can't reach runtime undetected.
 
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { parseStationInput } from "@re-cinq/lore-shared/station-input.js";
-import { UsageTrackingLlm } from "../stations/lib/llm-usage-tracker.js";
+import { UsageTrackingLlm } from "../../work/lib/llm-usage-tracker.js";
 import {
   resultLine,
   eventLine,
@@ -14,7 +14,7 @@ import {
   nodeStationFor,
   type NodeStationRun,
   type StationEnv,
-} from "../stations/index.js";
+} from "../../work/index.js";
 
 /** Resolve by node type; the registry owns the type-to-station mapping. */
 const runnerFor = (type: string): NodeStationRun | undefined =>

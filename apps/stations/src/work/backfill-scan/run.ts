@@ -2,8 +2,8 @@
 
 import type { SweepContext } from "../lib/station.js";
 import { scanForBackfill } from "./backfill-scan.js";
-import { pipeline, settings } from "../../kernel/queues.js";
-import { projectFor } from "../../kernel/project-boot.js";
+import { pipeline, settings } from "../../outbound/queues.js";
+import { projectFor } from "../../outbound/project-boot.js";
 
 const BLUEPRINT = "spec-coverage-backfill";
 

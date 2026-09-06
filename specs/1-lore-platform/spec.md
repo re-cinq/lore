@@ -538,7 +538,7 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
 - FR-13.4: When changes are requested, a follow-up round is started on the same
   branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/jobs/review/code-review.test.ts#L122))
 - FR-13.5: After further iterations the loop escalates to human review via a
-  `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/stations/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:37`](libs/assembly-lines/src/escalation-line.test.ts#L37))
+  `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/work/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:37`](libs/assembly-lines/src/escalation-line.test.ts#L37))
 - FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the Floor webhook
   ingress maps qualifying `pull_request`, `pull_request_review`, and PR
   `issue_comment` events to the code-review choreography, which starts or
@@ -588,7 +588,7 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:33`](libs/shared/src/p
   left untouched rather than banking a counter with nothing to spend it on.
   The default level is `implementation` for backward compatibility. An
   unrecognised level demotes to the lowest rung rather than throwing or
-  inventing an out-of-range index. ([validated by `trust-ladder.test.ts:5`](apps/stations/src/stations/lib/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/stations/src/stations/lib/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/stations/src/stations/lib/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/stations/src/stations/lib/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/stations/src/stations/lib/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:65`](apps/stations/src/stations/lib/trust-ladder.test.ts#L65), [`demotes to the lowest rung rather than inventing an index for an unrecognised level`](apps/stations/src/stations/lib/trust-ladder.test.ts#L56))
+  inventing an out-of-range index. ([validated by `trust-ladder.test.ts:5`](apps/stations/src/work/lib/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/stations/src/work/lib/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/stations/src/work/lib/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/stations/src/work/lib/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/stations/src/work/lib/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:65`](apps/stations/src/work/lib/trust-ladder.test.ts#L65), [`demotes to the lowest rung rather than inventing an index for an unrecognised level`](apps/stations/src/work/lib/trust-ladder.test.ts#L56))
 
 ### FR-16: Prompt Caching on Agent LLM Calls (Phase 1)
 

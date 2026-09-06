@@ -4,7 +4,7 @@ import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import type { EscalateInput } from "@re-cinq/lore-shared/escalation/escalation-body.js";
 import { runEscalationStep } from "./escalation-step.js";
-import { projectFor } from "../../kernel/project-boot.js";
+import { projectFor } from "../../outbound/project-boot.js";
 
 // Everything the diagnostic is rendered from, read once per step. The branch and reason ride in on the line's args — whoever decided to escalate knew them, and re-deriving them here would be a second opinion about why the task failed.
 function escalationInputFrom(

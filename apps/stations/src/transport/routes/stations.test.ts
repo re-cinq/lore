@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Hapi from "@hapi/hapi";
-import { stationsRoute, type StationRegistry } from "./stations.js";
+import { stationsRoute } from "./stations.js";
+import type { StationRegistry } from "../../domain/station.js";
 
 const TOKEN = "tok-1";
 const auth = { authorization: `Bearer ${TOKEN}` };

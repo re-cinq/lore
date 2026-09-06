@@ -163,10 +163,10 @@ export async function prReadyCheckSweep(
 
 /** Production entry — the manifest's run. Deps bound to the stations kernel. */
 export async function prReadyCheckJob(): Promise<string> {
-  const { pipeline, eventProxy } = await import("../../kernel/queues.js");
+  const { pipeline, eventProxy } = await import("../../outbound/queues.js");
   const { queuedReporter } =
     await import("@re-cinq/lore-shared/project/events/event-proxy.js");
-  const { projectFor } = await import("../../kernel/project-boot.js");
+  const { projectFor } = await import("../../outbound/project-boot.js");
   const { reportToParkedNode } =
     await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
   const OPEN = ["queued", "running"] as const;

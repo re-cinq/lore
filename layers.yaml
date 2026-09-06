@@ -159,37 +159,33 @@ layers:
   # the same substrate-imports-upward shape as cluster-agent.
   apps/stations:
     ".":
-      - delivery
-      - drain
-      - kernel
+      - transport
+      - events
+      - outbound
       - "@re-cinq/lore-shared"
-    kernel:
+    transport:
+      - events
+      - work
+      - domain
+      - outbound
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
-    stations:
-      - kernel
+    # Holds `runner/` as well as the drain loop. The runner picks a station and
+    # invokes it, which is dispatch, not work — `work/` is one folder per station
+    # and `registry.test.ts` enforces exactly that by enumerating the folder.
+    events:
+      - work
+      - domain
+      - outbound
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
-    # Dispatch: it picks a station and runs it, so it reaches the implementations
-    # the way the Floor's loop reaches its handlers. Splitting it out of kernel is
-    # what lets kernel stay a leaf.
-    runner:
-      - kernel
-      - stations
-      - delivery
+    work:
+      - domain
+      - outbound
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
-    drain:
-      - kernel
-      - runner
-      - stations
-      - "@re-cinq/lore-shared"
-    delivery:
-      - kernel
-      - runner
-      - "@re-cinq/lore-shared"
-    cli:
-      - stations
+    domain: []
+    outbound:
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
 

@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Hapi from "@hapi/hapi";
 import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
-import { stationsRoute, type StationRegistry } from "./stations.js";
+import { stationsRoute } from "./stations.js";
+import type { StationRegistry } from "../../domain/station.js";
 
 const TOKEN = "tok-1";
 

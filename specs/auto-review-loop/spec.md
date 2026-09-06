@@ -417,11 +417,11 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - returns nothing when the repository is missing. ([validated by](libs/shared/src/project/events/github-map.test.ts#L334))
 - returns nothing for an unhandled event type. ([validated by](libs/shared/src/project/events/github-map.test.ts#L344))
 
-### `apps/stations/src/stations/comment-triage/comment-triage.test.ts`
+### `apps/stations/src/work/comment-triage/comment-triage.test.ts`
 
-- emits the classified action in LORE_NODE_RESULT extras. ([validated by](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L22))
-- defaults to ignore when classification fails. ([validated by](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L41))
-- reports the classification call's usage on the node result, so the cost sink records the triage spend. ([validated by](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L51))
+- emits the classified action in LORE_NODE_RESULT extras. ([validated by](apps/stations/src/work/comment-triage/comment-triage.test.ts#L22))
+- defaults to ignore when classification fails. ([validated by](apps/stations/src/work/comment-triage/comment-triage.test.ts#L41))
+- reports the classification call's usage on the node result, so the cost sink records the triage spend. ([validated by](apps/stations/src/work/comment-triage/comment-triage.test.ts#L51))
 
 ### `apps/web-ui/src/app/assembly-runs/[id]/TriggerReviewButton.test.tsx`
 

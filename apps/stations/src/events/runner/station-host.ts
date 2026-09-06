@@ -1,9 +1,14 @@
 // This process's implementation of the ports a sweep reaches data through — the composition root: the registry is shared with a pod that has no pool, so a station is GIVEN its database here rather than resolving one itself.
 
 import { getApprovalLabel } from "@re-cinq/lore-shared";
-import type { StationHost, StationRepo } from "../stations/index.js";
-import { cost, gcpCost, memoryLifecycle, pipeline } from "../kernel/queues.js";
-import { projectFor } from "../kernel/project-boot.js";
+import type { StationHost, StationRepo } from "../../work/index.js";
+import {
+  cost,
+  gcpCost,
+  memoryLifecycle,
+  pipeline,
+} from "../../outbound/queues.js";
+import { projectFor } from "../../outbound/project-boot.js";
 
 const AWAITING_APPROVAL = "awaiting_approval";
 const PENDING = "pending";

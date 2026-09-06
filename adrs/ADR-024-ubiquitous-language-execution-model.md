@@ -69,21 +69,21 @@ entry is the whole declaration.
 
 - The named station runs and reports one summary line — the same
   `(): Promise<string>` these jobs always had, which the Floor's scheduler
-  writes into the `pipeline.job_runs` row it already opens. ([validated by runs the named station and returns the summary it reported](apps/stations/src/delivery/routes/stations.test.ts#L28))
+  writes into the `pipeline.job_runs` row it already opens. ([validated by runs the named station and returns the summary it reported](apps/stations/src/transport/routes/stations.test.ts#L29))
 - A name nothing answers to is refused with the registry's contents, rather than
-  failing somewhere inside an undefined call. ([validated by refuses a name no station answers to, rather than 500-ing on undefined](apps/stations/src/delivery/routes/stations.test.ts#L35))
+  failing somewhere inside an undefined call. ([validated by refuses a name no station answers to, rather than 500-ing on undefined](apps/stations/src/transport/routes/stations.test.ts#L36))
 - Running a station requires the same token every other service-to-service call
-  presents. ([validated by refuses a caller with no bearer token](apps/stations/src/delivery/routes/stations.test.ts#L42))
+  presents. ([validated by refuses a caller with no bearer token](apps/stations/src/transport/routes/stations.test.ts#L43))
 - A station already running refuses the second caller rather than sweeping
   twice. The Floor is a single replica today, so this is what makes a second one
-  — or a retried tick — safe rather than a double sweep. ([validated by refuses a second concurrent run of the same station](apps/stations/src/delivery/routes/stations.test.ts#L51))
+  — or a retried tick — safe rather than a double sweep. ([validated by refuses a second concurrent run of the same station](apps/stations/src/transport/routes/stations.test.ts#L52))
 - The guard releases after the run, including after a FAILED one: a station that
   threw must not stay latched, or one bad run wedges it until the process
-  restarts. ([validated by frees the latch after a run so the next tick is not locked out forever](apps/stations/src/delivery/routes/stations.test.ts#L76), [`stations.test.ts:82`](apps/stations/src/delivery/routes/stations.test.ts#L82))
+  restarts. ([validated by frees the latch after a run so the next tick is not locked out forever](apps/stations/src/transport/routes/stations.test.ts#L77), [`stations.test.ts:83`](apps/stations/src/transport/routes/stations.test.ts#L83))
 - The caller and the route are two halves of one contract, so they are exercised
   against each other: the summary comes back for the `job_runs` row, and every
   refusal throws rather than resolving to an empty success that would log a
-  sweep which never ran. ([validated by returns the summary the station reported, for the job_runs row](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L35), [`station-client-roundtrip.test.ts:41`](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L41), [`station-client-roundtrip.test.ts:47`](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L47), [`station-client-roundtrip.test.ts:57`](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L57))
+  sweep which never ran. ([validated by returns the summary the station reported, for the job_runs row](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L36), [`station-client-roundtrip.test.ts:42`](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L42), [`station-client-roundtrip.test.ts:48`](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L48), [`station-client-roundtrip.test.ts:58`](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L58))
 
 The Floor keeps the schedule, the `job_runs` row and the overlap guard — it
 still owns *when* a station runs; it stops owning *what* the station does.
