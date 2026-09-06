@@ -11,7 +11,14 @@
     "baseUrl": ".",
     "paths": {
       "@re-cinq/lore-shared": ["../../libs/shared/src/index.ts"],
-      "@re-cinq/lore-shared/*": ["../../libs/shared/src/*"],
+      "@re-cinq/lore-shared/*": [
+        "../../libs/shared/src/*",
+        "../../libs/shared/src/outbound/*",
+        "../../libs/shared/src/work/*",
+        "../../libs/shared/src/domain/*",
+        "../../libs/shared/src/transport/*",
+        "../../libs/shared/src/lib/*"
+      ],
       "@re-cinq/lore-assembly-lines": [
         "../../libs/assembly-lines/src/index.ts"
       ],
