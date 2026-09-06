@@ -37,6 +37,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "yaml";
+import { validateLayersConfig } from "./layers-config.mjs";
 
 const CONFIG_FILE = "layers.yaml";
 const cache = new Map();
@@ -58,10 +59,13 @@ function loadConfig(from) {
   if (!dir) return null;
   const cached = cache.get(dir);
   if (cached) return cached;
-  const parsed = parse(fs.readFileSync(path.join(dir, CONFIG_FILE), "utf8"));
+  const parsed = validateLayersConfig(
+    parse(fs.readFileSync(path.join(dir, CONFIG_FILE), "utf8")),
+    CONFIG_FILE,
+  );
   const loaded = {
     root: dir,
-    layers: parsed?.layers ?? parsed ?? {},
+    layers: parsed?.layers ?? {},
     aliases: parsed?.aliases ?? {},
   };
   cache.set(dir, loaded);
@@ -179,7 +183,7 @@ export default {
     const entries = config.layers[pkg];
     const key = keyFor(entries, folder);
     const entry = key === undefined ? undefined : entries[key];
-    const isTest = /\.test\.tsx?$/.test(relFile);
+    const isTest = /\.test\.(?:tsx?|mjs)$/.test(relFile);
     const allowed =
       entry === undefined
         ? null

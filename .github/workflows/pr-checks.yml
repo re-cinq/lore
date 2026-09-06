@@ -128,6 +128,14 @@ jobs:
           - name: agent
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
             test: npm run test:coverage -w @re-cinq/lore-floor
+          # An import rule reports nothing when the code is clean AND when it has
+          # stopped looking, and three times the second was mistaken for the
+          # first (#1797, #1801, #1811). This lints deliberately-wrong fixtures
+          # and fails if the findings disappear — including a run from a
+          # subdirectory, which is the only way the cwd bug showed.
+          - name: eslint-canaries
+            build: npm run build -w @re-cinq/lore-shared
+            test: bash scripts/check-eslint-canaries.sh
           # Catalog drift guard. The seeded ai-agents-helm catalog.yaml is generated
           # from scripts/task-types.yaml by floor's gen:catalog; this fails the moment
           # a recipe edit lands without regenerating the catalog. The script builds
