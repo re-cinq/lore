@@ -9,7 +9,7 @@ import { buildOpenApiDocument } from "../../../openapi/build-document.js";
 const REDOC_CDN =
   "https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js";
 
-/** The full route table, incl. these two docs routes themselves — supplied by the caller (build-server.ts owns `routeList`) rather than imported, so generating the doc never needs the module that assembles it. */
+/** The full route table, incl. these two docs routes themselves — supplied by the caller (route-list.ts owns `routeList`) rather than imported, so generating the doc never needs the module that assembles it. */
 type RouteListFn = (getPool: () => Pool | null) => ServerRoute[];
 
 const generate = (getPool: () => Pool | null, routeList: RouteListFn) =>

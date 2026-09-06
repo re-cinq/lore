@@ -1,9 +1,7 @@
-import type { Pool } from "pg";
-import { routeList } from "../api/route-list.js";
-
-export { routeList };
 /** Lore-api HTTP server construction (hapi, ADR-033); shared by production and tests via buildServer. */
 
+import type { Pool } from "pg";
+import { routeList } from "../api/route-list.js";
 import Hapi from "@hapi/hapi";
 import type { ServerRoute } from "@hapi/hapi";
 import { registerRequestTracing } from "./plugins/tracing.js";
