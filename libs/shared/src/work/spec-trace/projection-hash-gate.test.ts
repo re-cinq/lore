@@ -3,7 +3,10 @@ import { describe, it, expect } from "vitest";
 import { createHash } from "node:crypto";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
-import type { DgraphClientPort, DgraphTxn } from "../../outbound/memory-store.js";
+import type {
+  DgraphClientPort,
+  DgraphTxn,
+} from "../../outbound/memory-store.js";
 
 const SPEC_CONTENT = `# Feature Specification: Hash Gate
 

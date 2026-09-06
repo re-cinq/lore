@@ -1,5 +1,9 @@
 // Backfill exporter (memory-dgraph-migration AC6): migrates Postgres memory.* into Dgraph, preserving each Postgres UUID as the node xid; both passes are idempotent (an existing xid is skipped).
-import type { PgPool, DgraphClientPort, DgraphTxn } from "../outbound/memory-store.js";
+import type {
+  PgPool,
+  DgraphClientPort,
+  DgraphTxn,
+} from "../outbound/memory-store.js";
 
 export interface BackfillReport {
   memories: number;

@@ -30,7 +30,9 @@ export interface Template {
 const templates = new Map<string, Template>();
 
 function resolveTemplateDir(dir?: string): string {
-  return dir || join(import.meta.dirname || process.cwd(), "../..", "templates");
+  return (
+    dir || join(import.meta.dirname || process.cwd(), "../..", "templates")
+  );
 }
 
 function loadTemplateFile(templateDir: string, file: string): void {

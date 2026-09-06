@@ -10,8 +10,15 @@ export {
   parseCodeLinksInStatement,
   type SpecLinkRef,
 } from "../../domain/spec-link-parser.js";
-export { segmentBlocks, reassembleBlocks, type Block } from "../../domain/spec-blocks.js";
-export type { DgraphClientPort, DgraphTxn } from "../../outbound/memory-store.js";
+export {
+  segmentBlocks,
+  reassembleBlocks,
+  type Block,
+} from "../../domain/spec-blocks.js";
+export type {
+  DgraphClientPort,
+  DgraphTxn,
+} from "../../outbound/memory-store.js";
 export { cosineSimilarity, parseEmbedding } from "../spec-judge.js";
 export { getQueryEmbedding } from "../../outbound/embeddings/embedding-service.js";
 export type { ProvenanceRef } from "../../domain/commit-trailers.js";

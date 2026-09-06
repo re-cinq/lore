@@ -4,7 +4,10 @@ import {
   type MemoryEntry,
 } from "../../../domain/models/memory-entry.js";
 import { FACT_COLUMNS, type Fact } from "../../../domain/models/fact.js";
-import { EPISODE_COLUMNS, type Episode } from "../../../domain/models/episode.js";
+import {
+  EPISODE_COLUMNS,
+  type Episode,
+} from "../../../domain/models/episode.js";
 
 // ── In-memory row shapes (modelling the memory.* tables) ─────────────
 

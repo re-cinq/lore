@@ -3,7 +3,10 @@ import type {
   AssemblyRun,
   AssemblyRunStatus,
 } from "../../../domain/models/assembly-run.js";
-import type { StationRun, StationRunInput } from "../../../domain/models/station-run.js";
+import type {
+  StationRun,
+  StationRunInput,
+} from "../../../domain/models/station-run.js";
 
 export type { AssemblyRunStatus };
 

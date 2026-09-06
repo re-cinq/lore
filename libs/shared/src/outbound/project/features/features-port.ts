@@ -1,5 +1,8 @@
 import type { GapResult } from "../../../work/feature-planning/gap-result.js";
-import { FeatureSchema, FEATURE_COLUMNS } from "../../../domain/models/feature.js";
+import {
+  FeatureSchema,
+  FEATURE_COLUMNS,
+} from "../../../domain/models/feature.js";
 import {
   FeatureIterationSchema,
   FEATURE_ITERATION_COLUMNS,

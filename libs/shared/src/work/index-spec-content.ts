@@ -50,7 +50,11 @@ export {
   type StatusFlipOptions,
   type StatusFlipResult,
 } from "./spec-status-flip.js";
-export { isTestFile, isDocFile, normalizeTestName } from "../domain/test-paths.js";
+export {
+  isTestFile,
+  isDocFile,
+  normalizeTestName,
+} from "../domain/test-paths.js";
 export {
   parseTestCommandManifest,
   resolveTestCommandManifest,

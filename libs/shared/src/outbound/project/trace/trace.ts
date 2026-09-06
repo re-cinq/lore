@@ -4,7 +4,10 @@ import type {
   SpecSummary,
   AdrSummary,
 } from "../../../work/spec-trace/trace-document-listing.js";
-import type { SpecGraph, SpecRing } from "../../../work/spec-trace/spec-graph.js";
+import type {
+  SpecGraph,
+  SpecRing,
+} from "../../../work/spec-trace/spec-graph.js";
 
 /** Spec-traceability graph view; graph is source of truth, not Postgres chunk store. */
 export class TraceView {

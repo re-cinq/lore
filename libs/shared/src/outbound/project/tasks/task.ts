@@ -1,4 +1,8 @@
-import type { PipelineTask, TaskStatus, TaskType } from "../../../domain/types.js";
+import type {
+  PipelineTask,
+  TaskStatus,
+  TaskType,
+} from "../../../domain/types.js";
 import type { TaskStorePort } from "./task-store-port.js";
 
 /** Pipeline task wrapper; re-reads row on each transition for fresh status. */
