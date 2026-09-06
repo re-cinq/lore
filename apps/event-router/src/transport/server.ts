@@ -5,7 +5,7 @@ import { eventsRoute } from "./routes/events.js";
 import { eventQueueRoutes } from "./routes/event-queue.js";
 import { eventDeliveryRoutes } from "./routes/event-deliveries.js";
 import { healthRoute } from "./routes/health.js";
-import { pipeline, deliveries, clusterAgents } from "../kernel/queues.js";
+import { pipeline, deliveries, clusterAgents } from "../outbound/queues.js";
 
 // GitHub allows 25 MB; hapi default 1 MB would reject large push deliveries.
 const MAX_BODY_BYTES = 25 * 1024 * 1024;

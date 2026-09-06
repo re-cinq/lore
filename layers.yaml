@@ -98,12 +98,12 @@ layers:
   # and a substrate that reaches nothing above it.
   apps/event-router:
     ".":
-      - delivery
+      - transport
       - "@re-cinq/lore-shared"
-    delivery:
-      - kernel
+    transport:
+      - outbound
       - "@re-cinq/lore-shared"
-    kernel:
+    outbound:
       - "@re-cinq/lore-shared"
 
   # One cluster-agent per cluster: it watches Agent CRs and claims work. `kernel`
