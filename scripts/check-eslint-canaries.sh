@@ -5,20 +5,36 @@
 #
 # Runs twice, from the repo root and from inside the canary directory, because
 # a cwd-resolution bug only shows from a subdirectory.
-set -euo pipefail
+#
+# ESLint failing outright must NOT be reported as "the rule went quiet": that is
+# the same conflation this script exists to catch, so the two are separated and
+# eslint's own stderr is printed when it happens.
+set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="tools/eslint-canaries"
 EXPECTED=("lore/no-cross-layer-import" "import-x/no-cycle")
 
-run_from() {
-  local where="$1" path="$2"
-  cd "$where"
-  npx eslint --no-ignore -f json "$path" 2>/dev/null || true
-}
+ERR_FILE="$(mktemp)"
+trap 'rm -f "$ERR_FILE"' EXIT
 
-assert_reported() {
-  local label="$1" report="$2" missing=0
+check() {
+  local label="$1" where="$2" path="$3" report status missing=0
+
+  cd "$where" || exit 1
+  report="$(npx eslint --no-ignore -f json "$path" 2>"$ERR_FILE")"
+  status=$?
+
+  # eslint exits 1 when it reports findings, which is the expected case here.
+  # A higher code, or output that is not a JSON array, means it never ran.
+  if [ "$status" -gt 1 ] || ! grep -q '^\[' <<<"$report"; then
+    echo "::error::eslint did not run ($label, exit $status) — a broken check, not a quiet rule"
+    echo "--- eslint stderr:"
+    sed 's/^/    /' "$ERR_FILE" | head -25
+    echo "--- eslint stdout:"
+    sed 's/^/    /' <<<"$report" | head -5
+    exit 1
+  fi
 
   for rule in "${EXPECTED[@]}"; do
     if grep -q "\"$rule\"" <<<"$report"; then
@@ -36,9 +52,9 @@ assert_reported() {
 }
 
 echo "[canary] from the repo root"
-assert_reported "repo root" "$(run_from "$ROOT" "$TARGET")"
+check "repo root" "$ROOT" "$TARGET"
 
 echo "[canary] from inside $TARGET"
-assert_reported "subdirectory" "$(run_from "$ROOT/$TARGET" ".")"
+check "subdirectory" "$ROOT/$TARGET" "."
 
 echo "[canary] all expected findings present"

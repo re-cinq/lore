@@ -134,6 +134,7 @@ jobs:
           # and fails if the findings disappear — including a run from a
           # subdirectory, which is the only way the cwd bug showed.
           - name: eslint-canaries
+            build: npm run build -w @re-cinq/lore-shared
             test: bash scripts/check-eslint-canaries.sh
           # Catalog drift guard. The seeded ai-agents-helm catalog.yaml is generated
           # from scripts/task-types.yaml by floor's gen:catalog; this fails the moment
