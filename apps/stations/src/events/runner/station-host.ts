@@ -2,7 +2,12 @@
 
 import { getApprovalLabel } from "@re-cinq/lore-shared";
 import type { StationHost, StationRepo } from "../../work/index.js";
-import { cost, gcpCost, memoryLifecycle, pipeline } from "../../outbound/queues.js";
+import {
+  cost,
+  gcpCost,
+  memoryLifecycle,
+  pipeline,
+} from "../../outbound/queues.js";
 import { projectFor } from "../../outbound/project-boot.js";
 
 const AWAITING_APPROVAL = "awaiting_approval";
