@@ -1,9 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { textResult } from "./deps.js";
-import {
-  runUpdate,
-  getUpdateStatus,
-} from "../../features/update/mcp-update.js";
+import { runUpdate, getUpdateStatus } from "../../work/update/mcp-update.js";
 
 // lore_update rebuilds the local MCP adapter via scripts/lore-update.sh; on the shared server there's no checkout, so it no-ops and reports that.
 export function registerUpdateTools(server: McpServer) {

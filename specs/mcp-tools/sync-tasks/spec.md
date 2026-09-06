@@ -24,7 +24,7 @@ updates in place instead of duplicating.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-spec-tasks.ts#L18)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-spec-tasks.ts#L18)).
 
 - **name**: `lore_sync_tasks`
 - **description** (verbatim):
@@ -80,26 +80,26 @@ guard messages, or the error message. Never throws.
 
 ## Acceptance Criteria
 
-A task with no matching existing row is inserted and counted as created. ([validated by `inserts a new task and counts it as created`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L25))
+A task with no matching existing row is inserted and counted as created. ([validated by `inserts a new task and counts it as created`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L25))
 
-A task that already exists is updated in place and not counted as created. ([validated by `tasks-db.test.ts:45`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L45))
+A task that already exists is updated in place and not counted as created. ([validated by `tasks-db.test.ts:45`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L45))
 
-A ticked checkbox is persisted with status `completed`. ([validated by `tasks-db.test.ts:63`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L63))
+A ticked checkbox is persisted with status `completed`. ([validated by `tasks-db.test.ts:63`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L63))
 
-A supplied task-group id is threaded into the grouped insert statement. ([validated by `tasks-db.test.ts:77`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L77))
+A supplied task-group id is threaded into the grouped insert statement. ([validated by `tasks-db.test.ts:77`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L77))
 
-Across a mixed batch only the previously-unseen tasks count toward `created`. ([validated by `tasks-db.test.ts:96`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L96))
+Across a mixed batch only the previously-unseen tasks count toward `created`. ([validated by `tasks-db.test.ts:96`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L96))
 
 The markdown is parsed into structured tasks with id, description, completion, parallel and dependency markers. ([validated by `tasks.test.ts:5`](libs/server-core/src/features/pipeline/tasks.test.ts#L5))
 
 The raw markdown, repo, and slug are posted to `/api/spec-tasks/sync` and the
-counts are rendered as the synced/created summary. ([validated by `lore_sync_tasks posts the raw markdown and summarizes the counts`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L462))
+counts are rendered as the synced/created summary. ([validated by `lore_sync_tasks posts the raw markdown and summarizes the counts`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L462))
 
 Markdown that parses to no tasks renders the no-tasks message instead of a
-zero-count summary. ([validated by `lore_sync_tasks reports markdown with no tasks`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L484))
+zero-count summary. ([validated by `lore_sync_tasks reports markdown with no tasks`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L484))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L575))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L575))
 
 ## Out of Scope
 

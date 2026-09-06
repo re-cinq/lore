@@ -23,7 +23,7 @@ asynchronously, without leaking secrets into the org-wide store.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L193)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L193)).
 
 - **name**: `lore_write_episode`
 - **description** (verbatim):
@@ -92,7 +92,7 @@ ingested."}`; the proxied body; the `unreachableError` message; the
 - `getPool()`, `isMemoryDbAvailable()`, `resolveAgentId()`, `sanitizeContent`
   (`redactSecrets`), `getQueryEmbedding()`, `createGraphLlmCall`.
 - Async: `extractFactsFromEpisode` ([facts.ts](../../../libs/server-core/src/features/memory/facts.ts#L260)), `extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/features/memory/graph.ts#L134)).
-- `proxyToApi` / `unreachableError` ([deps.ts](apps/mcp-server/src/mcp/tools/deps.ts#L62)).
+- `proxyToApi` / `unreachableError` ([deps.ts](apps/mcp-server/src/transport/tools/deps.ts#L62)).
 - Tables: `memory.episodes` (insert, idempotent on `(agent_id, content_hash)`), `memory.facts` + `memory.fact_conflicts` (async), `memory.entities` + `memory.edges` (async), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`, `LORE_FACT_SIMILARITY_THRESHOLD`, LLM provider env (`LORE_LLM_PROVIDER` / `LORE_FACT_LLM`).
 

@@ -23,7 +23,7 @@ function registerListPendingTasksTool(server: McpServer) {
         }
         // Fallback to local pending file
         const { listPendingTasks } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
         const allTasks = listPendingTasks();
         const tasks = filterRepo
           ? allTasks.filter((t) => t.target_repo === filterRepo)
@@ -59,7 +59,7 @@ function registerSkipTaskTool(server: McpServer) {
     async (args) => {
       try {
         const { skipTask } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
 
         skipTask(args.task_id);
 
@@ -79,7 +79,7 @@ function registerEnableTaskNotificationsTool(server: McpServer) {
     async (args) => {
       try {
         const { startNotifier, detectRepo, isNotifierRunning } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
 
         if (isNotifierRunning()) {
           return textResult("Task notifications already active.");
@@ -121,7 +121,7 @@ function registerDisableTaskNotificationsTool(server: McpServer) {
     async () => {
       try {
         const { stopNotifier } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
 
         stopNotifier();
 

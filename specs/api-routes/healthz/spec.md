@@ -45,7 +45,7 @@ Registered as the first entry in the route table, matched on path only
 ## Behavior
 
 1. Call `getHealthStatus()` → `{ connected, … }`
-   ([db.getHealthStatus](../../../apps/mcp-server/src/platform/db.js)).
+   ([db.getHealthStatus](../../../apps/mcp-server/src/integration-tests/db.js)).
 2. Compute `status`: `"ok"` when `health.connected` is true **or**
    `process.env.LORE_DB_HOST` is unset; otherwise `"error"`. (Rationale: in a
    no-DB deployment the server is still a healthy liveness target.)

@@ -26,7 +26,7 @@ the task will be picked up.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-lifecycle.ts#L125)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L125)).
 
 - **name**: `lore_create_pipeline_task`
 - **description** (verbatim):
@@ -102,11 +102,11 @@ message, or the `"Error creating pipeline task: …"` message. **Never throws.**
 A valid create inserts a `pipeline.tasks` row, records the `pending` transition
 event, and returns the new id with `pending` status — exercised end-to-end via the
 retry path, which calls the same shared `createTask`.
-([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L105))
+([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L105))
 
 An empty or whitespace-only description is rejected by the input schema before
 any insert; a normal description is accepted.
-([validated by `rejects an empty task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L164), [validated by `rejects a whitespace-only task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L172), [validated by `accepts an in-range task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L180))
+([validated by `rejects an empty task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L164), [validated by `rejects a whitespace-only task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L172), [validated by `accepts an in-range task description`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L180))
 
 The target repo defaults to the git remote when `target_repo` is omitted; an
 explicit value wins.
@@ -117,21 +117,21 @@ A task type outside the known catalogue falls back to `general`.
 
 A description over 10000 chars is rejected by the input schema (and, on the DB
 path, by the shared CRUD).
-([validated by `rejects a task description over 10000 chars`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L156))
+([validated by `rejects a task description over 10000 chars`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L156))
 
 `task_type: "onboard"` is refused before the local/remote split and the caller is
 pointed at `lore_onboard_repo`, whose transaction holds the duplicate-onboard
-guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L263))
+guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L263))
 
 With no `LORE_API_URL`/`LORE_INGEST_TOKEN` configured, the tool returns a
 not-configured message; on success the response names the immediate-priority
 pickup hint; a 401 is reported as a denied error. ([validated by `returns the
 not-configured message when the env is
-unset`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L283), [`reports
+unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L283), [`reports
 the immediate pickup hint on
-success`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L298), [`reports
+success`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L298), [`reports
 a denied error on a
-401`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L318))
+401`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L318))
 
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so

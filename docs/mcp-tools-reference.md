@@ -1,6 +1,6 @@
 # Lore MCP Tool Reference
 
-This is the authoritative, per-tool reference for every tool exposed by the Lore MCP server: exact parameters, return shapes, where each tool runs, and how to disambiguate the confusable ones. It is generated from the tool registrations under `apps/mcp-server/src/mcp/tools/` and is precise rather than friendly.
+This is the authoritative, per-tool reference for every tool exposed by the Lore MCP server: exact parameters, return shapes, where each tool runs, and how to disambiguate the confusable ones. It is generated from the tool registrations under `apps/mcp-server/src/transport/tools/` and is precise rather than friendly.
 
 For a non-engineer, plain-language overview of what these tools are for, read the companion guide: [`docs/mcp-tools.md`](./mcp-tools.md). This document is the precise reference; that one is the gentle introduction.
 
@@ -20,7 +20,7 @@ server.tool(name, description, zodShape, handler)
 
 The `description` is the long, self-disambiguating text an LLM reads to choose the tool; the `zodShape` is the parameter schema (each field carries a `.describe()` used verbatim below); the `handler` returns the result.
 
-**ToolDeps / lazy `getPool`.** Every register function receives a `ToolDeps` object whose only member is `getPool()` — a lazy accessor for the pg pool. The pool is created in `main()` *after* tool registration, so handlers must call `getPool()` at invocation time rather than capturing a snapshot (`apps/mcp-server/src/mcp/tools/deps.ts`).
+**ToolDeps / lazy `getPool`.** Every register function receives a `ToolDeps` object whose only member is `getPool()` — a lazy accessor for the pg pool. The pool is created in `main()` *after* tool registration, so handlers must call `getPool()` at invocation time rather than capturing a snapshot (`apps/mcp-server/src/transport/tools/deps.ts`).
 
 **Never-throw text-envelope contract.** No tool throws. Every handler wraps its body and returns `{ content: [{ type: "text", text }] }` — success payloads (usually JSON) and errors alike come back as text. Callers parse the text; they never catch exceptions.
 

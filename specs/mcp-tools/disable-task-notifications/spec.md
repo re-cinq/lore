@@ -20,7 +20,7 @@ tears down the interval and removes the pending cache file.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-notifications.ts#L116)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-notifications.ts#L116)).
 
 - **name**: `lore_disable_task_notifications`
 - **description** (verbatim):
@@ -36,7 +36,7 @@ This tool takes no parameters.
 ## Behavior
 
 1. Dynamically import `stopNotifier` from `runner.local` and call it
-   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1282)). It:
+   ([handler](../../../apps/mcp-server/src/work/pipeline/runner.local.ts#L1282)). It:
    1. If the module-level interval handle is set, `clearInterval` it and null the handle.
    2. Best-effort `fs.unlinkSync(~/.lore/pending-tasks.json)`; a missing file is swallowed.
 2. Return `"Task notifications stopped."`.

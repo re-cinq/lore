@@ -9,7 +9,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       // Scope the gate to new pure logic, file by file, as each is added (IO route shells + k8s adapters stay out, like the floor's).
-      include: ["src/features/agents/agent-crd.ts"],
+      include: ["src/work/agents/agent-crd.ts"],
       thresholds: {
         lines: 100,
         branches: 100,

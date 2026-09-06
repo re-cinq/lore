@@ -22,7 +22,7 @@ search while keeping its history intact.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L112)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L112)).
 
 - **name**: `lore_delete_memory`
 - **description** (verbatim):
@@ -69,7 +69,7 @@ path), the proxied body, the `unreachableError` message, or
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
 - Handler `deleteMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L199)).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L15)); `deleteMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `deleteMemoryFile` (offline).
 - Tables: `memory.memories` (update `is_deleted`), `memory.audit_log` (insert). `memory.memory_versions` untouched.
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 

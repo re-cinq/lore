@@ -22,7 +22,7 @@ only currently-valid facts by default while still allowing historical lookups.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L162)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L162)).
 
 - **name**: `lore_search_memory`
 - **description** (verbatim):
@@ -95,7 +95,7 @@ A single MCP text content block. Pretty-printed JSON array of
 
 - `isMemoryDbAvailable()`, `getPool()`.
 - Engine `searchMemories` ([memory-search.ts](../../../libs/server-core/src/features/memory/memory-search.ts#L4)); ranking core `rrfMerge` / `diversify` in `@re-cinq/lore-shared`.
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L15)); `searchMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `searchMemoryFile` (offline).
 - Tables: `memory.memories`, `memory.facts`, `memory.shared_pools`, `memory.entities`, `memory.edges` (reads); `memory.facts` / `memory.memories` (retrieval-strengthening updates); `memory.audit_log` (insert, `operation='search'`).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
@@ -114,7 +114,7 @@ A single MCP text content block. Pretty-printed JSON array of
 5. Cross-repo candidates are ranked by a case-insensitive transfer score that
    starts at 0.5, adds 0.15 per portable keyword and subtracts 0.15 per local
    keyword, clamped to `[0, 1]` — so portable-rich text scores above the 0.5
-   passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:74`](apps/mcp-server/src/features/context/transfer-score.test.ts#L35), [validated by `transfer-score.test.ts:96`](apps/mcp-server/src/features/context/transfer-score.test.ts#L57), [validated by `transfer-score.test.ts:104`](apps/mcp-server/src/features/context/transfer-score.test.ts#L65))
+   passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:74`](apps/mcp-server/src/work/context/transfer-score.test.ts#L35), [validated by `transfer-score.test.ts:96`](apps/mcp-server/src/work/context/transfer-score.test.ts#L57), [validated by `transfer-score.test.ts:104`](apps/mcp-server/src/work/context/transfer-score.test.ts#L65))
 
 ## Out of Scope
 

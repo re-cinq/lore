@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { redactSecrets } from "@re-cinq/lore-shared";
+import { redactSecrets } from "./redact.js";
 
 describe("redactSecrets", () => {
   it("redacts GitHub personal access tokens (ghp_)", () => {

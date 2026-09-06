@@ -22,7 +22,7 @@ error.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools-lifecycle.ts#L163)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L163)).
 
 - **name**: `lore_get_pipeline_status`
 - **description** (verbatim):
@@ -74,14 +74,14 @@ pretty-printed task JSON (`{...row, events: [...]}`), or
 
 A task id with no matching row resolves to `null` (the handler surfaces this as
 `task not found`).
-([validated by `returns null when no task row matches the id`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L13))
+([validated by `returns null when no task row matches the id`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L13))
 
 A matching id returns the task row merged with its ordered `events` array.
-([validated by `returns the task with its ordered events when the id matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L20))
+([validated by `returns the task with its ordered events when the id matches`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L20))
 
 The stdio-proxy branch selects the not-configured, denied, and unreachable errors
 by cause (missing env, 401/403, network failure).
-([validated by `returns the not-configured message when the env is unset`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L215), [validated by `returns the denied message on a 401`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L229), [validated by `returns the unreachable message when fetch throws`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L247))
+([validated by `returns the not-configured message when the env is unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L215), [validated by `returns the denied message on a 401`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L229), [validated by `returns the unreachable message when fetch throws`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L247))
 
 The not-found and success envelope framing on the stdio path are exercised only
 against a live API. *(untested: the transport switch is inline in the handler

@@ -382,7 +382,7 @@ tolerance without reinstating continuous polling. See ADR-015.
 | Memory lifecycle | `apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.ts` — importance decay (Ebbinghaus model) + Haiku-driven consolidation |
 | Privacy filtering | `@re-cinq/lore-shared` `redactSecrets()` — strips keys, JWTs, connection strings before memory writes |
 | Prompt caching | `libs/shared/src/llm/prompt-cache.ts` — `getCacheControl(jobName)` returns ephemeral (5m) or 1h breakpoints; `analyzeCacheBreak` classifies hit / first-call / break |
-| Local task runner | `apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts` — worktree-based execution with `validateRepoMatch`; task state in `~/.lore/local-tasks.json` |
+| Local task runner | `apps/mcp-server/src/transport/tools/local-runner-tools.local.ts` — worktree-based execution with `validateRepoMatch`; task state in `~/.lore/local-tasks.json` |
 | Session tracker | `libs/server-core/src/platform/session-tracker.ts` — passive tool-call ring buffer (500 entries); exit dump + Stop hook POST |
 | Local read cache | AgentDB optional local read cache when MCP runs in stdio mode (proxies writes to GKE backend) |
 | API token scopes | `pipeline.api_tokens` — SHA-256 hashed per-client tokens; scopes: read / write / task / webhook / admin |

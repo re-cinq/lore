@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import {
-  getHealthStatus,
-  setPool,
-} from "@re-cinq/lore-server-core/platform/db.js";
+import { getHealthStatus, setPool } from "./db.js";
 
 describe("getHealthStatus", () => {
   afterEach(() => {

@@ -389,7 +389,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     one-entry list and a four-entry list survive by the identical path. A recipe MUST NOT name a skill the
     gateway's bundle does not carry: the init fetches it as a 404 and the run
     proceeds without the contract the recipe asked for, which is FR26's failure
-    one level down and just as silent. ([validated by `agent-catalog.test.ts:104`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L104), [`agent-catalog.test.ts:113`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L113), [`skills-registry.test.ts:118`](apps/mcp-server/src/server/skills-registry.test.ts#L118); implemented by [`agent-catalog.ts:141`](apps/floor/src/jobs/agent/agent-catalog.ts#L141))
+    one level down and just as silent. ([validated by `agent-catalog.test.ts:104`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L104), [`agent-catalog.test.ts:113`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L113), [`skills-registry.test.ts:118`](apps/mcp-server/src/transport/skills-registry.test.ts#L118); implemented by [`agent-catalog.ts:141`](apps/floor/src/jobs/agent/agent-catalog.ts#L141))
 
 35. *(added 2026-09-04)* `GET /api/repos/{owner}/{repo}/chunks/{kind}` is the pod-side chunk read
     named by D7: one route dispatching by `{kind}` (`spec`, `code-symbols`, `spec-ingest`,

@@ -1,5 +1,5 @@
-import { buildMcpServer } from "./server/build-mcp-server.js";
-import { startHttpGateway } from "./server/http-transport.js";
+import { buildMcpServer } from "./transport/build-mcp-server.js";
+import { startHttpGateway } from "./transport/http-transport.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { dumpSessionLog } from "@re-cinq/lore-server-core/platform/session-tracker.js";
 import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";

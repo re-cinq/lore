@@ -1,4 +1,4 @@
-import type { PendingTask } from "../../features/pipeline/runner.local.js";
+import type { PendingTask } from "../../work/pipeline/runner.local.js";
 
 // Talks to the Lore API on behalf of the local runner tools — task registration, lookup, and best-effort claim.
 

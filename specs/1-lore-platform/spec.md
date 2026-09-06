@@ -228,7 +228,7 @@ system is performing.
 - The gateway reads each request body defensively: it JSON-parses the body
   (an empty body carries no payload), caps it at 1 MB (`413` over the cap) so an
   authenticated-but-rogue pod cannot exhaust gateway memory, and returns `400`
-  for a malformed body rather than a `500`. ([validated by `http-transport.test.ts:11`](apps/mcp-server/src/server/http-transport.test.ts#L11), [`http-transport.test.ts:15`](apps/mcp-server/src/server/http-transport.test.ts#L15), [`http-transport.test.ts:19`](apps/mcp-server/src/server/http-transport.test.ts#L19), [`http-transport.test.ts:25`](apps/mcp-server/src/server/http-transport.test.ts#L25))
+  for a malformed body rather than a `500`. ([validated by `http-transport.test.ts:11`](apps/mcp-server/src/transport/http-transport.test.ts#L11), [`http-transport.test.ts:15`](apps/mcp-server/src/transport/http-transport.test.ts#L15), [`http-transport.test.ts:19`](apps/mcp-server/src/transport/http-transport.test.ts#L19), [`http-transport.test.ts:25`](apps/mcp-server/src/transport/http-transport.test.ts#L25))
 - When no gateway URL is configured (the default, and every cluster before the
   gateway is deployed), the seeded agent recipes omit the `mcp_servers` block
   entirely — no empty-`url` MCP entry lands in any recipe CRD. ([validated by `catalog-mcp-guard.test.ts:10`](apps/floor/src/jobs/agent/catalog-mcp-guard.test.ts#L10))
@@ -239,13 +239,13 @@ system is performing.
   ai-agent-subsystem init fetches these into a run's `$HOME/.claude` (recipe
   `resources.skills` + `skills_source`, ADR-030). A path only counts as owned on
   `GET /skills/*`; a bare `/skills/<name>` with no `.tar.gz` suffix (and not
-  `settings.json`) 404s the same as an unsafe name. ([validated by `skills-registry.test.ts:46`](apps/mcp-server/src/server/skills-registry.test.ts#L46), [`skills-registry.test.ts:54`](apps/mcp-server/src/server/skills-registry.test.ts#L54), [`skills-registry.test.ts:67`](apps/mcp-server/src/server/skills-registry.test.ts#L67), [`skills-registry.test.ts:101`](apps/mcp-server/src/server/skills-registry.test.ts#L101), [`404s a /skills/ path with no recognized suffix`](apps/mcp-server/src/server/skills-registry.test.ts#L78), [`returns false for a non-GET method even on a /skills/ path`](apps/mcp-server/src/server/skills-registry.test.ts#L89))
+  `settings.json`) 404s the same as an unsafe name. ([validated by `skills-registry.test.ts:46`](apps/mcp-server/src/transport/skills-registry.test.ts#L46), [`skills-registry.test.ts:54`](apps/mcp-server/src/transport/skills-registry.test.ts#L54), [`skills-registry.test.ts:67`](apps/mcp-server/src/transport/skills-registry.test.ts#L67), [`skills-registry.test.ts:101`](apps/mcp-server/src/transport/skills-registry.test.ts#L101), [`404s a /skills/ path with no recognized suffix`](apps/mcp-server/src/transport/skills-registry.test.ts#L78), [`returns false for a non-GET method even on a /skills/ path`](apps/mcp-server/src/transport/skills-registry.test.ts#L89))
 - The gateway's top-level router tries `/healthz`, then `/skills/*`, before
   falling through to `/mcp`: a non-`/mcp` path 404s, an `/mcp` request missing
   the configured bearer token 401s, and on `/mcp` itself POST mints or resumes
   a session (400 without a valid session on a non-initialize body) while
   GET/DELETE require an already-minted session id (400 otherwise) and any
-  other method 405s. ([validated by `answers /healthz without touching /mcp or /skills routing`](apps/mcp-server/src/server/http-transport.test.ts#L51), [`falls through to the skills registry for a /skills path`](apps/mcp-server/src/server/http-transport.test.ts#L61), [`404s a path that is neither /healthz, /skills, nor /mcp`](apps/mcp-server/src/server/http-transport.test.ts#L71), [`401s an /mcp request missing the configured bearer token`](apps/mcp-server/src/server/http-transport.test.ts#L80), [`400s a POST /mcp with no session and a non-initialize body`](apps/mcp-server/src/server/http-transport.test.ts#L90), [`400s a GET /mcp with an unknown session id`](apps/mcp-server/src/server/http-transport.test.ts#L118), [`405s an unsupported method on /mcp`](apps/mcp-server/src/server/http-transport.test.ts#L115))
+  other method 405s. ([validated by `answers /healthz without touching /mcp or /skills routing`](apps/mcp-server/src/transport/http-transport.test.ts#L51), [`falls through to the skills registry for a /skills path`](apps/mcp-server/src/transport/http-transport.test.ts#L61), [`404s a path that is neither /healthz, /skills, nor /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L71), [`401s an /mcp request missing the configured bearer token`](apps/mcp-server/src/transport/http-transport.test.ts#L80), [`400s a POST /mcp with no session and a non-initialize body`](apps/mcp-server/src/transport/http-transport.test.ts#L90), [`400s a GET /mcp with an unknown session id`](apps/mcp-server/src/transport/http-transport.test.ts#L118), [`405s an unsupported method on /mcp`](apps/mcp-server/src/transport/http-transport.test.ts#L115))
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
@@ -418,7 +418,7 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
 
 ### FR-8: Observability (Phase 1)
 
-The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`usage-tools.test.ts:44`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L44))
+The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44))
 
 - Decision: all MCP retrieval calls are traced via OpenTelemetry spans
   exported to Cloud Monitoring (SDK-level instrumentation).
@@ -429,7 +429,7 @@ The system MUST provide observability into context retrieval quality. ([validate
   (Langfuse trace queries → candidate generation → PromptFoo eval → PR)
   drives automated context improvement.
 - FR-8.4: `lore_my_usage` tool exposes per-developer token consumption
-  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:44`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L44), [`usage-pg.test.ts:144`](libs/shared/src/project/usage/usage-pg.test.ts#L153))
+  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44), [`usage-pg.test.ts:144`](libs/shared/src/project/usage/usage-pg.test.ts#L153))
 
 ### FR-9: Context Evaluation (Phase 1)
 
@@ -483,7 +483,7 @@ live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/fe
   Concept, Runbook. Typed relationships: OWNS, CALLS, IMPLEMENTS,
   SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L5), [`graph.test.ts:73`](libs/server-core/src/features/memory/graph.test.ts#L73))
 - FR-11.3: `lore_query_graph(query)` MCP tool traverses the live graph
-  for multi-hop relationship results. ([validated by `memory-tools.test.ts:50`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L50))
+  for multi-hop relationship results. ([validated by `memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50))
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
@@ -1297,7 +1297,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   the last-synced local copy of CLAUDE.md files and ADRs in
   `~/.re-cinq/lore` and display a one-time warning to the developer
   that search quality may be degraded. Semantic search is unavailable
-  in this mode; convention and ADR lookups continue from local files. ([validated by `context-tools.test.ts:56`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L56), [`context-tools.test.ts:102`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L102))
+  in this mode; convention and ADR lookups continue from local files. ([validated by `context-tools.test.ts:56`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L56), [`context-tools.test.ts:102`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L102))
 
 ## Operational Targets & Constraints (Background)
 

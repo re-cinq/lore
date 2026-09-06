@@ -2,7 +2,7 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { textResult } from "./deps.js";
-import type { LocalRunnerConfig } from "../../features/pipeline/runner.local.js";
+import type { LocalRunnerConfig } from "../../work/pipeline/runner.local.js";
 import {
   createPipelineTaskViaApi,
   resolvePendingTask,
@@ -103,7 +103,7 @@ function registerRunTaskLocallyTool(server: McpServer) {
     async (args) => {
       try {
         const { spawnLocalTask, detectRepo, getRepoRoot } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
         const repo = detectRepo();
 
         if (!repo) {
@@ -152,7 +152,7 @@ function registerListLocalTasksTool(server: McpServer) {
     async () => {
       try {
         const { listLocalTasks } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
         const tasks = listLocalTasks();
 
         if (tasks.length === 0) {
@@ -181,7 +181,7 @@ function registerCancelLocalTaskTool(server: McpServer) {
     async (args) => {
       try {
         const { cancelLocalTask } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
         const result = cancelLocalTask(args.task_id);
 
         return textResult(
@@ -204,7 +204,7 @@ function registerClaimAndRunLocallyTool(server: McpServer) {
     async (args) => {
       try {
         const { spawnLocalTask, getRepoRoot, skipTask, listPendingTasks } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
         const task = await resolvePendingTask(args.task_id, listPendingTasks());
 
         if (!task) {
@@ -279,7 +279,7 @@ function registerConfigureLocalRunnerTool(server: McpServer) {
     async (args) => {
       try {
         const { readConfig, writeConfig } =
-          await import("../../features/pipeline/runner.local.js");
+          await import("../../work/pipeline/runner.local.js");
         const config = readConfig();
 
         if (hasNoConfigureArgs(args)) {

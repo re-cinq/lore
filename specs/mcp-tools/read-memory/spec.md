@@ -21,7 +21,7 @@ specific past version of a memory that has since changed.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L84)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L84)).
 
 - **name**: `lore_read_memory`
 - **description** (verbatim):
@@ -76,7 +76,7 @@ proxied body, the `unreachableError` message, or
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
 - Handler `readMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L256)).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L15)); `readMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `readMemoryFile` (offline).
 - Tables: `memory.memories` (read), `memory.memory_versions` (read), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
@@ -96,9 +96,9 @@ proxied body, the `unreachableError` message, or
    proxied body on success; a 401 is reported as a denied error on the first
    attempt, without the retriable-status backoff loop. ([validated by `returns
    the proxied body on a successful
-   read`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L137), [`reports a
+   read`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L137), [`reports a
    denied error on a 401 without
-   retrying`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L151))
+   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L151))
 
 ## Out of Scope
 
