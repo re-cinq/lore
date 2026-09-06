@@ -1,12 +1,15 @@
 /** Phase 3 coverage ingest; writes Coverage nodes keyed by repo|testFile|testName; aggregates to File nodes with ranges facets. */
 
-import type { CoveredChunk, DgraphClientPort } from "./deps.js";
+import type {
+  CoveredChunk,
+  DgraphClientPort,
+} from "../../outbound/spec-trace/deps.js";
 import {
   upsertByXid,
   withTxn,
   replaceEdgeWithFacets,
   type FacetedTarget,
-} from "./dgraph-upsert.js";
+} from "../../outbound/spec-trace/dgraph-upsert.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 import { stampGraphBaseline } from "./graph-baseline.js";
 

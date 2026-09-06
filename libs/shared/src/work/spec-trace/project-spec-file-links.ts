@@ -1,16 +1,19 @@
 /** Linked-chunk projection + orphan pruning shared by Statement/AcceptanceCriterion projection: parses inline test/code links into TestChunk/CodeChunk edges, and sweeps stale children whose xid no longer matches the current segmentation. */
 
-import type { DgraphClientPort, SpecLinkRef } from "./deps.js";
+import type {
+  DgraphClientPort,
+  SpecLinkRef,
+} from "../../outbound/spec-trace/deps.js";
 import {
   parseTestLinksInStatement,
   parseCodeLinksInStatement,
-} from "./deps.js";
+} from "../../outbound/spec-trace/deps.js";
 import {
   withTxn,
   upsertByXid,
   replaceEdge,
   type SpecTraceNodeType,
-} from "./dgraph-upsert.js";
+} from "../../outbound/spec-trace/dgraph-upsert.js";
 import { repoRelativeLinkTarget } from "./link-target-path.js";
 import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";

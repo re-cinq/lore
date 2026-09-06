@@ -5,7 +5,7 @@ import {
   sanitizeGapResult,
   decideFeatureStatus,
   isPlanningPhase,
-} from "./gap-result.js";
+} from "../../domain/feature-planning/gap-result.js";
 
 /** The slice of `project.features` this needs — narrow so a caller can be tested against the in-memory double without a whole Project. */
 export interface GapResultFeatures {

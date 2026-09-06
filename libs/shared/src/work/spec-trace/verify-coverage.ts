@@ -1,7 +1,7 @@
 /** spec-traceability-graph Phase 3 — read-only coverage-first verdict for a statement: "untested" (no VALIDATED_BY), "execution-verified" (a validating test covers a File the statement IMPLEMENTS), else "link-unproven"; never mutates the graph. */
 
-import type { DgraphClientPort } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 
 type StatementVerification = {
   validated_by?: Array<{

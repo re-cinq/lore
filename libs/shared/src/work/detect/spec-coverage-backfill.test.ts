@@ -4,7 +4,7 @@ import {
   pickStatementsForBackfill,
   type Suggestion,
 } from "./spec-coverage-backfill.js";
-import type { Statement, Classification } from "../../index.js";
+import type { Statement, Classification } from "../../domain/spec-segment.js";
 
 const heuristic = (
   testability: "testable" | "untestable",

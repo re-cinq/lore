@@ -54,7 +54,7 @@ runs one LLM pass and opens a PR — no human in the loop, no place for a draft,
 and no way to steer the architecture before the PR exists. Features themselves
 are not first-class: they are `specs/<n>-<name>/` folders *computed* into the
 spec-trace graph by [featureDirOf](../libs/shared/src/work/spec-trace/feature-dir.ts)
-in [flattenSpecGraph](../libs/shared/src/work/spec-trace/spec-graph.ts), with no
+in [flattenSpecGraph](../libs/shared/src/outbound/spec-trace/spec-graph.ts), with no
 persistent row, no lifecycle, and nowhere for a half-formed idea to live.
 
 `specs/7-feature-planning/` specifies an interactive alternative: a Features tab,

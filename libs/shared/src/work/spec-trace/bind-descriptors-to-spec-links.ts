@@ -5,7 +5,7 @@ import {
   normalizePath,
   resolveLinkPath,
 } from "../../domain/spec-link-parser.js";
-import type { TestDescriptor } from "../test-report.js";
+import type { TestDescriptor } from "../../domain/test-report.js";
 
 /** One spec file's path + raw markdown — the binder's read source. */
 export interface SpecSource {

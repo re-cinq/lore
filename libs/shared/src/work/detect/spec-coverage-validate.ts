@@ -1,15 +1,15 @@
 /** Validates spec-test-coverage v3 inline links (`Statement. ([label](test.ts#L42))`) against `{schema}.chunks`; runs post-ingest + daily, files a deduped `spec-link-rot` issue. */
 
+import { dropIngestExcluded } from "../../domain/content-classify.js";
 import {
-  dropIngestExcluded,
   linksForStatements,
   findMisplacedCoverageLinks,
-  reassembleSpec,
   resolveLinkPath,
   type TestLinkRef,
-  type Project,
-  type SpecChunkWithIngest,
-} from "../../index.js";
+} from "../../domain/spec-link-parser.js";
+import { type SpecChunkWithIngest } from "../../outbound/project/chunks/chunks-port.js";
+import { type Project } from "../../outbound/project/lib/project.js";
+import { reassembleSpec } from "../spec-summary.js";
 import { formatBrokenLinksReport } from "./spec-coverage-validate-report.js";
 
 // A `chunks` projection: file_path/ingested_at are model columns, start_line/end_line come from the chunker's metadata JSONB.

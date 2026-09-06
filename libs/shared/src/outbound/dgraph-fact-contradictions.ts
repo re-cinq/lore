@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { cosineSimilarity, parseEmbedding } from "../work/spec-judge.js";
+import { cosineSimilarity, parseEmbedding } from "../domain/spec-judge.js";
 
 /** Cosine at/above which a new fact is treated as contradicting an older one. */
 export const FACT_SIMILARITY_THRESHOLD = 0.92;

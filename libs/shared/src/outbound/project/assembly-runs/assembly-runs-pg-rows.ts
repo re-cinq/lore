@@ -2,7 +2,7 @@ import {
   StationRunInputSchema,
   StationRunStatusSchema,
 } from "../../../domain/models/station-run.js";
-import type { RunGraph } from "./run-graph.js";
+import type { RunGraph } from "../../../domain/run-graph.js";
 import type {
   AssemblyRunRecord,
   StationRunRecord,

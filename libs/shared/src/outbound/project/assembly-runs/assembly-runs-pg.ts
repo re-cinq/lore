@@ -1,4 +1,4 @@
-import type { RunGraph } from "./run-graph.js";
+import type { RunGraph } from "../../../domain/run-graph.js";
 import type { AssemblyRunQuery } from "./assembly-runs-port.js";
 import type { PgPool } from "../../memory-store.js";
 import type {

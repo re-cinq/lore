@@ -1,6 +1,6 @@
 // Pure transforms from a DecompositionResult into spec-task rows + Issue bodies (ADR-029); no I/O.
 
-import type { UserStory } from "./decomposition-result.js";
+import type { UserStory } from "../../domain/feature-planning/decomposition-result.js";
 
 export interface SpecTaskRow {
   /** "T001: <description>" — matches the tasks.md-sync convention. */

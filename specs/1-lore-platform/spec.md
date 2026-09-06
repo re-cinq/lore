@@ -370,10 +370,10 @@ pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/s
 ### FR-5: Spec-Driven Feature Workflow
 
 The system MUST provide an end-to-end feature workflow via platform
-skills. ([validated by `planning-prompt.test.ts:47`](libs/shared/src/work/feature-planning/planning-prompt.test.ts#L47))
+skills. ([validated by `planning-prompt.test.ts:47`](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L47))
 
 - FR-5.1: `/lore-feature` skill guides the full loop: constitution
-  generation → specification → task breakdown → pipeline task wiring. ([validated by `planning-prompt.test.ts:153`](libs/shared/src/work/feature-planning/planning-prompt.test.ts#L153), [`planning-prompt.test.ts:47`](libs/shared/src/work/feature-planning/planning-prompt.test.ts#L47))
+  generation → specification → task breakdown → pipeline task wiring. ([validated by `planning-prompt.test.ts:153`](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L153), [`planning-prompt.test.ts:47`](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L47))
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
   context, and changed files. ([validated by `pr-body.test.ts:5`](libs/shared/src/domain/pr-body.test.ts#L5), [`pr-body.test.ts:11`](libs/shared/src/domain/pr-body.test.ts#L11))
 - Decision: constitution generation (the `lore-gen-constitution` glue script)
@@ -381,7 +381,7 @@ skills. ([validated by `planning-prompt.test.ts:47`](libs/shared/src/work/featur
   real ADRs and team conventions.
 - FR-5.4: Claude Code does mechanical work; developer confirms only
   at decision points (constitution review, spec review, task
-  breakdown review). ([validated by `planning-prompt.test.ts:85`](libs/shared/src/work/feature-planning/planning-prompt.test.ts#L85), [`planning-prompt.test.ts:97`](libs/shared/src/work/feature-planning/planning-prompt.test.ts#L97))
+  breakdown review). ([validated by `planning-prompt.test.ts:85`](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L85), [`planning-prompt.test.ts:97`](libs/shared/src/domain/feature-planning/planning-prompt.test.ts#L97))
 
 ### FR-6: PR Quality Enforcement
 
@@ -487,7 +487,7 @@ live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/fe
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
-  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L71), [`memory-ranking.test.ts:162`](libs/shared/src/work/memory-ranking.test.ts#L162))
+  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L71), [`memory-ranking.test.ts:162`](libs/shared/src/domain/memory-ranking.test.ts#L162))
 - FR-11.5: Contradiction detection: when a new fact has cosine
   similarity ≥ 0.92 to an existing one, the old fact is invalidated
   and a conflict record written to `memory.fact_conflicts`. Context
@@ -506,7 +506,7 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 - FR-12.2: Daily job at 5 AM scores memories 0-10 using half-life
   decay (`strength = 0.5^(age / half_life_days)`). Evicts
   lowest-scoring memories when agent exceeds 500 entries. Cleans
-  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/work/memory-ranking.test.ts#L143))
+  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/domain/memory-ranking.test.ts#L143))
 - FR-12.3: Daily job at 5:30 AM groups recent facts (7-day lookback)
   by repo and calls Haiku to extract 1-3 higher-level patterns per
   repo. Stored as `consolidated/{repo}/{timestamp}` memories.

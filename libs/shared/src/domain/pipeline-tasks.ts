@@ -1,4 +1,4 @@
-import type { PgPool } from "../outbound/memory-store.js";
+import type { PgPool } from "./memory-store-types.js";
 import type { PipelineTask } from "./types.js";
 
 /** Pipeline-task CRUD over pipeline.tasks/pipeline.task_events; relocated from mcp-server/src/pipeline.ts so the SQL lives once, pool-based since these are cross-repo. */

@@ -9,7 +9,7 @@ import {
   type AgentDefinitionInput,
   type AgentDefsPort,
 } from "./agent-defs-port.js";
-import { DECOMPOSITION_INSTRUCTIONS } from "../../../work/feature-planning/decomposition-instructions.js";
+import { DECOMPOSITION_INSTRUCTIONS } from "../../../domain/feature-planning/decomposition-instructions.js";
 
 // Read-only AgentDefsPort over task-types.yaml (offline/bootstrap fallback); writes throw.
 

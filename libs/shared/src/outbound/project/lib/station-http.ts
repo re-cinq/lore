@@ -6,7 +6,7 @@ import { ChunksHttp } from "../chunks/chunks-http.js";
 import type { IssueRef, IssueFilter } from "./github-port.js";
 import type { PullRef } from "../pulls/pull-requests-port.js";
 import type { CiConclusion } from "../pulls/pull-requests-port.js";
-import type { TraceDocument } from "../../../work/spec-trace/assemble-trace-document.js";
+import type { TraceDocument } from "../../../domain/spec-trace/assemble-trace-document.js";
 import type { PipelineTask } from "../../../domain/types.js";
 import { acceptEitherSpelling, type DbRow } from "../../../lib/row.js";
 import { PIPELINE_TASK_COLUMNS } from "../../../domain/models/pipeline-task.js";

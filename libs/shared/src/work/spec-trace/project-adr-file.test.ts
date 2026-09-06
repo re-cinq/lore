@@ -5,8 +5,8 @@ import { findRepoRoot } from "../../lib/repo-root.js";
 import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { projectAdrFile } from "./project-adr-file.js";
-import { recomputeFile } from "./recompute-spec-file.js";
-import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
+import { recomputeFile } from "../../outbound/spec-trace/recompute-spec-file.js";
+import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";

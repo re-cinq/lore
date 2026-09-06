@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { bindDescriptorsToSpecLinks } from "./bind-descriptors-to-spec-links.js";
 import { linksForStatements } from "../../domain/spec-link-parser.js";
-import type { TestDescriptor } from "../test-report.js";
+import type { TestDescriptor } from "../../domain/test-report.js";
 
 const SPEC_PATH = "specs/x/spec.md";
 const SPEC = `# X

@@ -1,5 +1,5 @@
 /** spec-traceability-graph Phase 2: pure generation-time provenance capture — lifts inline `lore:validates` annotations out of a generated file; sibling to commit-trailer parsing (`resolveProvenance` merges both, `detectProvenanceConflicts` finds disagreements). */
-import { type ProvenanceRef } from "./deps.js";
+import { type ProvenanceRef } from "../../outbound/spec-trace/deps.js";
 
 /** Matches `<//|#> lore:validates <specPath>#<ordinal>`, both C-style and shell/Python-style comment markers. */
 const VALIDATES_ANNOTATION_RE = /(?:\/\/|#)\s*lore:validates\s+(\S+?)#(\d+)/;

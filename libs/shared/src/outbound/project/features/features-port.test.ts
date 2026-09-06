@@ -7,7 +7,7 @@ import {
   slugifyFeatureTitle,
 } from "./features-port.js";
 import type { FeatureIteration, FeatureStatus } from "./features-port.js";
-import type { GapResult } from "../../../work/feature-planning/gap-result.js";
+import type { GapResult } from "../../../domain/feature-planning/gap-result.js";
 
 const gap = (tag: string): GapResult => ({
   sections: [{ title: "Overview", content: tag }],

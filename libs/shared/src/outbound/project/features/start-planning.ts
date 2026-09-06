@@ -1,6 +1,6 @@
 // Starts a feature's first planning round (sibling of refinement-round.ts, which covers later rounds) — this lifecycle's defects (#1462/1466/1468/1469/1470) were all values crossing the assemble/read process gap unchecked. Load-bearing order: round row appended before task creation (task carries the iteration id), task attached last (needs a task id).
 
-import type { SectionAnswers } from "../../../work/feature-planning/planning-prompt.js";
+import type { SectionAnswers } from "../../../domain/feature-planning/planning-prompt.js";
 
 /** What a planning task carries about its round — the one place this shape is written; a contract between creator and dispatcher (a renamed key typechecks on both sides but reaches the pod absent). */
 export interface PlanningArgsInput {

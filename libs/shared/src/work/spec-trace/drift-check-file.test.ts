@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { driftCheckFile } from "./drift-check-file.js";
 import type { DriftedStatement } from "./format-drift-report.js";
-import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
+import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";

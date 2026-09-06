@@ -1,6 +1,9 @@
 /** End-to-end spec-traceability-graph wiring; routes payload to ingest function by kind. */
 
-import type { CoveredChunk, DgraphClientPort } from "./deps.js";
+import type {
+  CoveredChunk,
+  DgraphClientPort,
+} from "../../outbound/spec-trace/deps.js";
 import { ingestTestReport, type TestReport } from "./ingest-test-report.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 

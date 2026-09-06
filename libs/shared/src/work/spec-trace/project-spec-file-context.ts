@@ -1,7 +1,7 @@
 /** Projection addressing context + small hashing helpers shared by project-spec-file.ts and project-spec-file-nodes.ts. */
 
 import { createHash } from "node:crypto";
-import type { DgraphClientPort } from "./deps.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 
 /** Embeds a statement/criterion's text into its node's float32vector; injected as a seam so projection stays deterministic + offline in tests. */
 export type EmbedFn = (text: string) => Promise<number[] | null>;

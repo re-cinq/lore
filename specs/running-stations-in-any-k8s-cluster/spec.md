@@ -149,7 +149,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   `Authorization` header is parsed by the shared `extractBearer` — anchored
   to the start, scheme case-insensitive per RFC 7235, first value of a
   multi-value header — and secrets (registration token, token hashes) are
-  compared constant-time via the shared `secretEquals`. ([validated by `bearer.test.ts:5`](libs/shared/src/transport/http/bearer.test.ts#L5), [`bearer.test.ts:9`](libs/shared/src/transport/http/bearer.test.ts#L9), [`bearer.test.ts:14`](libs/shared/src/transport/http/bearer.test.ts#L14), [`bearer.test.ts:18`](libs/shared/src/transport/http/bearer.test.ts#L18), [`bearer.test.ts:28`](libs/shared/src/transport/http/bearer.test.ts#L28))
+  compared constant-time via the shared `secretEquals`. ([validated by `bearer.test.ts:5`](libs/shared/src/transport/http/bearer.test.ts#L5), [`bearer.test.ts:9`](libs/shared/src/transport/http/bearer.test.ts#L9), [`bearer.test.ts:14`](libs/shared/src/transport/http/bearer.test.ts#L14), [`bearer.test.ts:18`](libs/shared/src/transport/http/bearer.test.ts#L18), [`secret-equals.test.ts:5`](libs/shared/src/lib/secret-equals.test.ts#L5))
 - The satellite persists its identity (`{id, token}`) in the Kubernetes
   Secret `lore-cluster-agent-identity`, written through the Kubernetes API
   (the chart's container is `readOnlyRootFilesystem` and the Secret mount is

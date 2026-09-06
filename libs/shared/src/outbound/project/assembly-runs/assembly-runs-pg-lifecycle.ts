@@ -1,7 +1,7 @@
 import { resolveResumePrefix } from "./resume.js";
 import { fanOutClause } from "../events/fan-out.js";
 import { RUN_START_EVENT } from "./run-events.js";
-import type { RunGraph } from "./run-graph.js";
+import type { RunGraph } from "../../../domain/run-graph.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
   AssemblyRunResumeFrom,

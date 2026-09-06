@@ -1,5 +1,6 @@
 // PR opening for spec-coverage-backfill: branch naming, PR body rendering, and the createBranch/commitFile/open call sequence.
-import type { Judgment, Project } from "../../index.js";
+import type { Judgment } from "../../domain/spec-judge.js";
+import type { Project } from "../../outbound/project/lib/project.js";
 
 const PR_BRANCH_PREFIX = "lore/spec-coverage-backfill";
 

@@ -1,5 +1,5 @@
 import { enforceTrue } from "../lib/enforce.js";
-import type { PgPool } from "../outbound/memory-store.js";
+import type { PgPool } from "../domain/memory-store-types.js";
 
 /** One recorded query() invocation. */
 export interface FakePgPoolCall {

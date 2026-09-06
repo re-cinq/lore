@@ -1,5 +1,6 @@
 // LLM judge (statement-level) for spec-coverage-backfill, inlined from the v2 linker: decides whether one test validates one enumerated spec statement.
-import { Llm, type JudgeCandidate, type Judgment } from "../../index.js";
+import { type JudgeCandidate, type Judgment } from "../../domain/spec-judge.js";
+import { Llm } from "../../outbound/llm/llm.js";
 
 const JUDGE_TOOL_SCHEMA = {
   type: "object",

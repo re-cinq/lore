@@ -64,7 +64,7 @@ Semantic (vector + keyword) search across org-wide memories and extracted facts;
       — Reciprocal Rank Fusion; each list is contiguous rank order so index
       rank == row rank. Carries `confidence` onto fused rows.
    7. `diversify(merged, limit)` — caps per `agent_id::source` (max 3 each),
-      then slices to `limit`. ([validated by `memory-ranking.test.ts:67`](libs/shared/src/work/memory-ranking.test.ts#L67))
+      then slices to `limit`. ([validated by `memory-ranking.test.ts:67`](libs/shared/src/domain/memory-ranking.test.ts#L67))
    8. **Graph augment** (when `graph_augment` and results non-empty):
       `refreshEntityCache` (5-min TTL of `memory.entities` names) →
       `detectEntities` (≥3 chars, max 5) → `graphAugment` (1-hop over
@@ -106,10 +106,10 @@ A single MCP text content block. Pretty-printed JSON array of
 2. When the named pool does not exist, search short-circuits to an empty
    result. ([validated by `memory-search.test.ts:19`](libs/server-core/src/features/memory/memory-search.test.ts#L19))
 
-3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/work/memory-ranking.test.ts#L11))
+3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/domain/memory-ranking.test.ts#L11))
 
 4. Diversification slices the total output to the requested limit across all
-   sources. ([validated by `memory-ranking.test.ts:86`](libs/shared/src/work/memory-ranking.test.ts#L86))
+   sources. ([validated by `memory-ranking.test.ts:86`](libs/shared/src/domain/memory-ranking.test.ts#L86))
 
 5. Cross-repo candidates are ranked by a case-insensitive transfer score that
    starts at 0.5, adds 0.15 per portable keyword and subtracts 0.15 per local

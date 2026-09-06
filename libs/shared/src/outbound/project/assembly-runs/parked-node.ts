@@ -2,7 +2,7 @@
 
 import type { EventReporter } from "../events/event-queue-port.js";
 import { RUN_RESUME_EVENT } from "./run-events.js";
-import type { RunGraph } from "./run-graph.js";
+import type { RunGraph } from "../../../domain/run-graph.js";
 
 /** The parked-node facts a caller needs — an `assembly_line_nodes` row. */
 export interface ParkedNode {

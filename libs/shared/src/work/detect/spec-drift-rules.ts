@@ -1,5 +1,5 @@
 // Rules that decide what spec-drift acts on; kept pure and separate from the job so they're unit-testable.
-import type { TraceDocument } from "../../index.js";
+import type { TraceDocument } from "../../domain/spec-trace/assemble-trace-document.js";
 import { OPEN_TASK_STATES } from "../../outbound/project/tasks/task-store-port.js";
 
 /** Speckit prose artifacts — scanning them for missing code symbols yields permanent 100% false drift. */

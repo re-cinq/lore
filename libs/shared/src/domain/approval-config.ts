@@ -1,6 +1,6 @@
 // The org-wide approval gate's config (lore.settings key `approval_config`), shared by the Floor worker and stations' approval-check so neither holds a disagreeing copy.
 
-import type { PgPool } from "../outbound/memory-store.js";
+import type { PgPool } from "./memory-store-types.js";
 
 export interface ApprovalConfig {
   required: boolean;

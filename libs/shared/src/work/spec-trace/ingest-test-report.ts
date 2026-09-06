@@ -5,8 +5,8 @@ import type {
   DgraphClientPort,
   TestDescriptor,
   TaggedRunResult,
-} from "./deps.js";
-import { upsertByXid } from "./dgraph-upsert.js";
+} from "../../outbound/spec-trace/deps.js";
+import { upsertByXid } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
 import {

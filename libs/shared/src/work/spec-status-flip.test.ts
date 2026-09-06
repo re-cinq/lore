@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { openSpecStatusFlipPr } from "./spec-status-flip.js";
 import { parseDocStatus } from "../domain/spec-status.js";
-import type { Project } from "../index.js";
+import type { Project } from "../outbound/project/lib/project.js";
 
 interface FakeState {
   branches: string[];

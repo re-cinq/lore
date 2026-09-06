@@ -1,7 +1,7 @@
 /** Couples changed TEST file to spec statements it validates; roots on TestChunk.file_path edge. */
 
-import type { DgraphClientPort } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import {
   toImpactStatement,
   STATEMENT_PROJECTION,

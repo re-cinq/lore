@@ -4,9 +4,13 @@ import {
   segmentStatements,
   classifyByHeuristic,
   type Classification,
-} from "./deps.js";
-import type { DgraphClientPort } from "./deps.js";
-import { upsertByXid, replaceEdge, withTxn } from "./dgraph-upsert.js";
+} from "../../outbound/spec-trace/deps.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import {
+  upsertByXid,
+  replaceEdge,
+  withTxn,
+} from "../../outbound/spec-trace/dgraph-upsert.js";
 import { parseAdrRefs } from "./adr-refs.js";
 import {
   projectDocumentBlocks,

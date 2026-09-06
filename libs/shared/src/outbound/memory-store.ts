@@ -11,12 +11,12 @@ export {
   type WriteResult,
   type MemoryRecord,
   type MemoryStore,
-} from "./memory-store-types.js";
+} from "../domain/memory-store-types.js";
 import type {
   DgraphClientPort,
   PgPool,
   MemoryStore,
-} from "./memory-store-types.js";
+} from "../domain/memory-store-types.js";
 
 // ── Selection ────────────────────────────────────────────────────────
 

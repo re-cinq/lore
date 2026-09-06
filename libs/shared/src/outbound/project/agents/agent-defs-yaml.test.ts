@@ -3,7 +3,7 @@ import { writeFileSync, rmSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AgentDefsYaml } from "./agent-defs-yaml.js";
-import { DECOMPOSITION_INSTRUCTIONS } from "../../../work/feature-planning/decomposition-instructions.js";
+import { DECOMPOSITION_INSTRUCTIONS } from "../../../domain/feature-planning/decomposition-instructions.js";
 
 let dir: string;
 let path: string;

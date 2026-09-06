@@ -1,6 +1,6 @@
 /** Per-it line resolver (ADR-023); scans test source for it/test declarations and stamps [startLine, endLine] on matching descriptors. */
 
-import type { TestDescriptor } from "../test-report.js";
+import type { TestDescriptor } from "../../domain/test-report.js";
 
 /** `it("…")` / `test('…')` / `it.skip(`…`)` at the start of a line; group 2 is the test string. */
 const DECLARATION =

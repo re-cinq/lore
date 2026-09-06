@@ -1,6 +1,7 @@
 /** Two-credential check for central+satellite (specs/running-stations-in-any-k8s-cluster); shared token or registered per-agent token. */
 
-import { enforceBearer, extractBearer, secretEquals } from "./bearer.js";
+import { enforceBearer, extractBearer } from "./bearer.js";
+import { secretEquals } from "../../lib/secret-equals.js";
 import { hashAgentToken } from "../../outbound/project/cluster-agents/cluster-agent-token.js";
 import type { ClusterAgentsRepository } from "../../outbound/project/cluster-agents/cluster-agents-port.js";
 

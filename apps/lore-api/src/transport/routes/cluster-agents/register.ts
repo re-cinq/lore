@@ -1,8 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import {
-  extractBearer,
-  secretEquals,
-} from "@re-cinq/lore-shared/http/bearer.js";
+import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
+import { secretEquals } from "@re-cinq/lore-shared/lib/secret-equals.js";
 import { apiError } from "../../http/api-error.js";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";

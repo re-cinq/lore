@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryFeatures } from "./features-memory.js";
-import type { GapResult } from "../../../work/feature-planning/gap-result.js";
+import type { GapResult } from "../../../domain/feature-planning/gap-result.js";
 
 const tick = (start: number) => {
   let t = start;

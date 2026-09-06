@@ -1,7 +1,7 @@
 /** Trust-level task-type gating for pipeline-tasks.ts's createTask: which task types a repo's `settings.trust.level` allows. */
 
 import { enforceTrue } from "../lib/enforce.js";
-import type { PgPool } from "../outbound/memory-store.js";
+import type { PgPool } from "./memory-store-types.js";
 
 /** Trust level → allowed task types (createTask gate reads lore.repos.settings.trust.level). */
 // Feature planning is allowed from the docs tier up (ADR-027 / specs/7-feature-planning) — analysis + a spec-doc PR only, no code.

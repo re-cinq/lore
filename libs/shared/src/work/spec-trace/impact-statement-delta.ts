@@ -3,8 +3,8 @@
 import { createHash } from "node:crypto";
 import { segmentStatements } from "../../domain/spec-segment.js";
 import { isAcceptanceCriteriaHeading } from "./project-spec-file.js";
-import type { DgraphClientPort } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import type { ImpactStatement } from "./impact-statement.js";
 import { pairRewrites } from "./statement-pairing.js";
 

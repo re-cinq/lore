@@ -1,6 +1,6 @@
 /** Spec-task parsing with phase-aware dependency inference (shared MCP/agent); DB ops in mcp-server. */
 
-import type { PgPool } from "../outbound/memory-store.js";
+import type { PgPool } from "./memory-store-types.js";
 
 // ── Types ───────────────────────────────────────────────────────────
 

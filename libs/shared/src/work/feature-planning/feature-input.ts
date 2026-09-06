@@ -1,8 +1,8 @@
 import { enforceTrue } from "../../lib/enforce.js";
 // Untrusted-input guards for the feature-planning HTTP routes; a {@link ValidationError} is a client fault the route maps to 400, distinct from the 500 catch-all.
 
-import type { SectionAnswers } from "./planning-prompt.js";
-import type { SectionDirection } from "./gap-result.js";
+import type { SectionAnswers } from "../../domain/feature-planning/planning-prompt.js";
+import type { SectionDirection } from "../../domain/feature-planning/gap-result.js";
 
 const TITLE_MAX = 256;
 const PROMPT_MAX = 8000;

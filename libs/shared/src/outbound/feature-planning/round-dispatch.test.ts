@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { decideRoundDispatch, type ParkedNode } from "./round-dispatch.js";
-import type { RunGraph } from "../../outbound/project/assembly-runs/run-graph.js";
+import type { RunGraph } from "../../domain/run-graph.js";
 
 const node = (over: Partial<ParkedNode> = {}): ParkedNode => ({
   nodeId: "author",

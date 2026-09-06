@@ -4,9 +4,9 @@ import { enforceTrue, type ErrorType } from "../../../lib/enforce.js";
 import {
   composePlanningPrompt,
   composeRoundFeedback,
-} from "../../../work/feature-planning/planning-prompt.js";
+} from "../../../domain/feature-planning/planning-prompt.js";
 import { resolveRoundBasis, type RoundBasis } from "./features-port.js";
-import type { SectionAnswers } from "../../../work/feature-planning/planning-prompt.js";
+import type { SectionAnswers } from "../../../domain/feature-planning/planning-prompt.js";
 import type { ParkedAuthorNode } from "./planning-run.js";
 
 export interface RefinementFeature {

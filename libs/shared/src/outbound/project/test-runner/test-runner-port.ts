@@ -1,4 +1,4 @@
-import type { TestDescriptor, RunResult } from "../../../work/test-report.js";
+import type { TestDescriptor, RunResult } from "../../../domain/test-report.js";
 
 /** Test discovery/execution port; execution trust-gated by facade. */
 

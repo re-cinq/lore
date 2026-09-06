@@ -109,7 +109,7 @@ implementation pipeline.**
   ordered list of user stories, each with a summary, acceptance criteria, and its
   implementable tasks (id, description, `depends_on`, `phase`, `parallelizable`,
   `file_path`). The contract lives in
-  [decomposition-result.ts](../libs/shared/src/work/feature-planning/decomposition-result.ts),
+  [decomposition-result.ts](../libs/shared/src/domain/feature-planning/decomposition-result.ts),
   parsed leniently (same drift tolerance as `GapResult`); an invalid result fails
   the task.
 - **Stories → Issues, tasks → `spec-task` rows.** Each story becomes a GitHub
