@@ -2,20 +2,23 @@
 
 import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
-import { startServer } from "./delivery/server.js";
-import type { AgentEventsDeps } from "./delivery/routes/agent-events.js";
+import { startServer } from "./transport/server.js";
+import type { AgentEventsDeps } from "./transport/routes/agent-events.js";
 import type { ProxyMessage } from "@re-cinq/lore-shared/project/events/event-input-port.js";
-import { AgentWatchInput } from "./listeners/k8s-watch.js";
-import { PodLogInput, podLogStreamingEnabled } from "./inputs/pod-log-input.js";
-import { TelemetrySink } from "./kernel/telemetry-sink.js";
+import { AgentWatchInput } from "./events/listeners/k8s-watch.js";
+import {
+  PodLogInput,
+  podLogStreamingEnabled,
+} from "./work/inputs/pod-log-input.js";
+import { TelemetrySink } from "./outbound/telemetry-sink.js";
 import {
   startClaimLoop,
   type ClaimLoopHandle,
-} from "./claim/start-claim-loop.js";
+} from "./events/claim/start-claim-loop.js";
 import {
   startPruneLoop,
   type PruneLoopHandle,
-} from "./reap/start-prune-loop.js";
+} from "./work/reap/start-prune-loop.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 

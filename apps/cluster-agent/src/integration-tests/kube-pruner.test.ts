@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { KubePruner } from "../kernel/kube-pruner.js";
-import { pruneOnce } from "../reap/prune-loop.js";
+import { KubePruner } from "../outbound/kube-pruner.js";
+import { pruneOnce } from "../work/reap/prune-loop.js";
 
 const HOUR = 3_600_000;
 const NOW = new Date("2026-08-30T12:00:00Z");

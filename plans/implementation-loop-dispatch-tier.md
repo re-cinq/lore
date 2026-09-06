@@ -115,7 +115,7 @@ An implementation-loop run whose node has no capable cluster costs zero LLM re-r
 
 **Class**: behavior change. **Actor**: the satellite/central operator reading pod logs. **Trigger**: claim poll while `paused`. **Outcome**: one log line on transition into paused, one on leaving; idle backoff unchanged.
 
-**Path**: [claim.ts](apps/lore-api/src/api/routes/cluster-agents/claim.ts) `handleClaim` → `claimOnce` → `runClaimLoop` in [claim-loop.ts](apps/cluster-agent/src/claim/claim-loop.ts).
+**Path**: [claim.ts](apps/lore-api/src/api/routes/cluster-agents/claim.ts) `handleClaim` → `claimOnce` → `runClaimLoop` in [claim-loop.ts](apps/cluster-agent/src/events/claim/claim-loop.ts).
 
 **Changes**
 1. `handleClaim` paused branch returns `{ code: 204, paused: true }`; the route sets header `x-lore-claim: paused` on that 204. Body stays empty → no OpenAPI change.

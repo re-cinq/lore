@@ -112,10 +112,10 @@ A report is now a network call rather than a write on the reporting process's ow
 pool, so it retries before giving up. Every event `mapAgentToEvent` produces
 carries a `dedupeKey`, which is what makes repeating one safe.
 
-- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L28))
+- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/cluster-agent/src/events/listeners/agent-reporting.test.ts#L8))
 - A CR that has not reached a terminal phase reports nothing, so the repeated
   MODIFIED notifications a running pod generates cost one map and no row.
-  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L61))
+  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/cluster-agent/src/events/listeners/agent-reporting.test.ts#L41))
 - A report retries before it is given up on, because it now crosses a network
   rather than writing to this process's own pool — and a dropped terminal event
   leaves its node open until the reaper, which is the failure the bus exists to
@@ -132,10 +132,10 @@ carries a `dedupeKey`, which is what makes repeating one safe.
 - The watch hands each observed CR to that proxy rather than delivering it
   itself, and a failed hand-off is swallowed here, unlike everywhere else this
   repo reports events: the caller is a watch callback with nobody to return a
-  status to, so throwing would end the stream over one CR. ([validated by swallows a failed emit so one bad CR cannot end the watch](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L79))
+  status to, so throwing would end the stream over one CR. ([validated by swallows a failed emit so one bad CR cannot end the watch](apps/cluster-agent/src/events/listeners/agent-reporting.test.ts#L59))
 - The catch-up pass walks the namespace one page at a time. 180 accumulated CRs
   in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
-  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L99), [reads the raw `continue` token too, which is what the API actually sends](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L119), [reports no resourceVersion when a page carries none](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L144))
+  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/outbound/agent-pages.test.ts#L21), [reads the raw `continue` token too, which is what the API actually sends](apps/cluster-agent/src/outbound/agent-pages.test.ts#L41), [reports no resourceVersion when a page carries none](apps/cluster-agent/src/outbound/agent-pages.test.ts#L66))
 
 ### The router serves the drain loop
 

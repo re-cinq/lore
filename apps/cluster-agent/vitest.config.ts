@@ -9,12 +9,12 @@ export default defineConfig({
       provider: "v8",
       // 100% on the DECISIONS (status mapping, page ceiling, conflict ladder, catalog write order); Kubernetes adapters and the composition root are excluded since they need a cluster.
       include: [
-        "src/delivery/routes/agent-events.ts",
-        "src/delivery/routes/cluster.ts",
-        "src/inputs/pod-log-batching.ts",
-        "src/kernel/telemetry-sink.ts",
-        "src/kernel/paired-writes.ts",
-        "src/kernel/k8s-errors.ts",
+        "src/transport/routes/agent-events.ts",
+        "src/transport/routes/cluster.ts",
+        "src/work/inputs/pod-log-batching.ts",
+        "src/outbound/telemetry-sink.ts",
+        "src/outbound/paired-writes.ts",
+        "src/lib/k8s-errors.ts",
       ],
       thresholds: {
         lines: 100,
