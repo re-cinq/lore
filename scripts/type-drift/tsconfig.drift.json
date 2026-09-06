@@ -11,6 +11,12 @@
     "baseUrl": ".",
     "paths": {
       "@re-cinq/lore-shared": ["../../libs/shared/src/index.ts"],
+      "@re-cinq/lore-shared/project/assembly-runs/run-graph.js": [
+        "../../libs/shared/src/domain/run-graph.ts"
+      ],
+      "@re-cinq/lore-shared/http/internal-token.js": [
+        "../../libs/shared/src/lib/internal-token.ts"
+      ],
       "@re-cinq/lore-shared/*": [
         "../../libs/shared/src/*",
         "../../libs/shared/src/outbound/*",
