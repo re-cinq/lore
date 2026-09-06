@@ -5,7 +5,7 @@ import SecretReveal from "./SecretReveal";
 import ReonboardButton from "./ReonboardButton";
 import SetupWebhookButton from "./SetupWebhookButton";
 import Icon from "./Icon";
-import type { IconName } from "./icon-map";
+import type { IconName } from "@/lib/icon-map";
 import styles from "./EnrollmentSection.module.css";
 
 const STATUS: Record<CheckStatus, { icon: IconName; color: string }> = {

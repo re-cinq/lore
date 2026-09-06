@@ -11,7 +11,7 @@ vi.mock("@/lib/theme/ThemeProvider", () => ({
 }));
 
 import Icon from "./Icon";
-import { ICONS, type IconName } from "./icon-map";
+import { ICONS, type IconName } from "@/lib/icon-map";
 
 const ALL_NAMES = Object.keys(ICONS.elegant) as IconName[];
 

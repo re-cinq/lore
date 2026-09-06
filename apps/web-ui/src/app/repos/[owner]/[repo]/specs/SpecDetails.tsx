@@ -6,7 +6,9 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import { markdownSanitizeSchema } from "@/lib/markdown-sanitize";
-import { type TestLinkRef } from "@/lib/trace-types";
+import { type StatementInfo, type StatementState } from "@/lib/trace-types";
+
+export type { StatementInfo, StatementState };
 import { resolveHref } from "@/lib/github-links";
 import { buildHighlighter } from "./statement-highlight";
 import readme from "../ReadmeBox.module.css";
@@ -14,21 +16,6 @@ import styles from "./SpecDetails.module.css";
 
 // Re-exported for backward compatibility (helper moved to github-links module).
 export { resolveHref };
-
-export type StatementState = "tested" | "untested" | "narrative";
-
-export interface StatementInfo {
-  ordinal: number;
-  text: string;
-  kind: string;
-  state: StatementState;
-  /** Untestable category (intro / vision / limitation / etc.); null for testable. */
-  category: string | null;
-  /** Parsed test links from the trailing parenthetical; empty for non-tested states. */
-  testLinks: TestLinkRef[];
-  /** Graph-sourced — the statement's graph node is violated/drifted. */
-  drifted?: boolean;
-}
 
 /** Tooltip inner content: drift notice + state block (narrative/untested/tested); needs repo/branch for links. */
 function StatementPopover({

@@ -7,7 +7,7 @@ import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import { reduceRunEvent, initialRunState } from "@/lib/run-event-reducer";
 import type { RunStreamEvent } from "@/lib/run-stream-types";
 import styles from "./RunVisualizationPanel.module.css";
-import { isTerminalRunStatus } from "./run-stream-presenter";
+import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
 import { useRunStream } from "./use-run-history";
 import {
   useNowTicker,

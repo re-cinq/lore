@@ -1,6 +1,6 @@
 import * as d3 from "d3";
 import type { SpecGraphNode } from "@/lib/spec-graph";
-import { featureStatusColor } from "../features/feature-status";
+import { featureStatusColor } from "@/lib/feature-status";
 
 /** Static visual config for the graph: node colors/radii/labels, focus-opacity levels, force-tuning constants. */
 

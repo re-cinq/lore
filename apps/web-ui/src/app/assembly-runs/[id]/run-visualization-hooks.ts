@@ -16,7 +16,7 @@ import { retryResumeSource } from "./retry-resume";
 import {
   cursorForEventId,
   scrubberPositionLabel,
-} from "./run-stream-presenter";
+} from "@/lib/run-stream-presenter";
 import {
   buildRunData,
   computeGraphMode,

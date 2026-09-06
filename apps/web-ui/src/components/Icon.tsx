@@ -6,7 +6,7 @@ import pixelIcons from "@iconify-json/pixelarticons/icons.json";
 import type { IconifyJSON } from "@iconify/types";
 import { useTheme } from "@/lib/theme/ThemeProvider";
 import styles from "./Icon.module.scss";
-import { ICONS, type IconName } from "./icon-map";
+import { ICONS, type IconName } from "@/lib/icon-map";
 
 // Registered once at module load so icons render inline with no network fetch (required under Next's `output: standalone`).
 addCollection(lucideIcons as IconifyJSON);

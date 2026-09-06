@@ -3,9 +3,9 @@
 // The graph half of RunVisualizationPanel: connection chip, the graph itself, the definition/run toggle, and the replay scrubber. Prop-driven, no state or IO of its own (DDAU).
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import ReplayScrubberView from "./ReplayScrubberView";
-import RunGraphView from "./RunGraphView";
+import RunGraphView from "@/components/RunGraphView";
 import styles from "./RunVisualizationPanel.module.css";
-import { connectionLabel } from "./run-stream-presenter";
+import { connectionLabel } from "@/lib/run-stream-presenter";
 
 /** "Show possible outcomes" only makes sense once there is an executed path to toggle away from. */
 export function OutcomesToggle({

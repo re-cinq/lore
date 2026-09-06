@@ -14,7 +14,7 @@ import { featurePhaseOf } from "@/lib/feature-phase";
 import { SubmitButton } from "@/components/SubmitButton";
 import { useState, useTransition } from "react";
 import StatusBadge from "../StatusBadge";
-import { isLifecycleActive } from "../feature-status";
+import { isLifecycleActive } from "@/lib/feature-status";
 import PlanningWizard from "./PlanningWizard";
 import DecompositionView from "./DecompositionView";
 import Markdown from "@/components/Markdown";

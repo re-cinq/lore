@@ -54,7 +54,11 @@ function loadConfig(from) {
   const cached = cache.get(dir);
   if (cached) return cached;
   const parsed = parse(fs.readFileSync(path.join(dir, CONFIG_FILE), "utf8"));
-  const loaded = { root: dir, layers: parsed?.layers ?? parsed ?? {} };
+  const loaded = {
+    root: dir,
+    layers: parsed?.layers ?? parsed ?? {},
+    aliases: parsed?.aliases ?? {},
+  };
   cache.set(dir, loaded);
 
   return loaded;
@@ -127,7 +131,11 @@ export default {
     schema: [
       {
         type: "object",
-        properties: { layers: { type: "object" }, root: { type: "string" } },
+        properties: {
+          layers: { type: "object" },
+          aliases: { type: "object" },
+          root: { type: "string" },
+        },
         additionalProperties: false,
       },
     ],
@@ -143,7 +151,11 @@ export default {
     const filename = context.filename ?? context.getFilename();
     const inline = context.options[0]?.layers;
     const config = inline
-      ? { root: context.options[0]?.root ?? process.cwd(), layers: inline }
+      ? {
+          root: context.options[0]?.root ?? process.cwd(),
+          layers: inline,
+          aliases: context.options[0]?.aliases ?? {},
+        }
       : loadConfig(path.dirname(path.resolve(filename)));
     if (!config) return {};
 
@@ -175,21 +187,46 @@ export default {
       return folderIn(pkg, rel.replace(/\.(js|ts|tsx)$/, ".ts"));
     }
 
-    function check(node, spec) {
-      if (!spec.startsWith(".") && !spec.startsWith("@re-cinq/")) return;
+    // A package can import through a tsconfig alias (web-ui's `@/`), and an
+    // alias the rule cannot see leaves a whole package silently unchecked.
+    const aliases = config.aliases?.[pkg] ?? {};
 
+    function underAlias(spec) {
+      for (const [prefix, target] of Object.entries(aliases)) {
+        if (!spec.startsWith(prefix)) continue;
+        const rest = spec.slice(prefix.length);
+        const joined = target ? `${target}/${rest}` : rest;
+
+        return folderIn(pkg, `${pkg}/src/${joined}.ts`);
+      }
+
+      return undefined;
+    }
+
+    function check(node, spec) {
+      const aliased = underAlias(spec);
+      if (aliased !== undefined) {
+        reportUnless(node, aliased, spec);
+
+        return;
+      }
+      if (!spec.startsWith(".") && !spec.startsWith("@re-cinq/")) return;
+      const target = spec.startsWith("@re-cinq/")
+        ? spec.split("/").slice(0, 2).join("/")
+        : targetFolder(spec);
+      reportUnless(node, target, spec);
+    }
+
+    function reportUnless(node, target, spec) {
       if (allowed === null) {
         context.report({ node, messageId: "unlistedFolder", data: { folder } });
 
         return;
       }
-      const target = spec.startsWith("@re-cinq/")
-        ? spec.split("/").slice(0, 2).join("/")
-        : targetFolder(spec);
-      if (target === null) return;
+      if (target === null || target === undefined) return;
+      const external = spec.startsWith("@re-cinq/");
       const inLayer =
-        !spec.startsWith("@re-cinq/") &&
-        (layer === "." ? target === "." : isWithin(target, layer));
+        !external && (layer === "." ? target === "." : isWithin(target, layer));
       if (inLayer) return;
       if (allowed.some((entry) => isWithin(target, entry))) return;
 

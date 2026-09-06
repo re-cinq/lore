@@ -1,4 +1,4 @@
-import type { StatementInfo } from "@/app/repos/[owner]/[repo]/specs/SpecDetails";
+import type { StatementInfo } from "./trace-types";
 import type { TraceLinkRef, TraceStatementState } from "@/lib/trace-types";
 
 /** Graph statement with TraceLinkRef/state + parser-supplied kind/testability. */

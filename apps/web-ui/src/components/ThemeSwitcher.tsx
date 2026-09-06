@@ -3,7 +3,7 @@
 import { useTheme } from "@/lib/theme/ThemeProvider";
 import type { ColorSchemePref, ThemeFamily } from "@/lib/theme/types";
 import Icon from "./Icon";
-import type { IconName } from "./icon-map";
+import type { IconName } from "@/lib/icon-map";
 import styles from "./ThemeSwitcher.module.css";
 
 const FAMILIES: { value: ThemeFamily; label: string }[] = [

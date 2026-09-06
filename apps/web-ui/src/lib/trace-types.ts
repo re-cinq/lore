@@ -50,3 +50,18 @@ export interface TraceDocument {
   statements: TraceStatement[];
   coverage: TraceCoverage;
 }
+
+export type StatementState = "tested" | "untested" | "narrative";
+
+export interface StatementInfo {
+  ordinal: number;
+  text: string;
+  kind: string;
+  state: StatementState;
+  /** Untestable category (intro / vision / limitation / etc.); null for testable. */
+  category: string | null;
+  /** Parsed test links from the trailing parenthetical; empty for non-tested states. */
+  testLinks: TestLinkRef[];
+  /** Graph-sourced — the statement's graph node is violated/drifted. */
+  drifted?: boolean;
+}

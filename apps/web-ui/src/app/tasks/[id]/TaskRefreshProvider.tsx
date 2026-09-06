@@ -13,7 +13,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import type { ConnectionState } from "@/app/assembly-runs/[id]/run-stream-presenter";
+import type { ConnectionState } from "@/lib/run-stream-presenter";
 import { useRunEventStream } from "@/app/assembly-runs/[id]/useRunEventStream";
 import type { RunStreamEvent } from "@/lib/run-stream-types";
 import {
