@@ -96,14 +96,18 @@ layers:
   # The event-router is the bus's sole writer (ADR-044). Its shape is already
   # the one the Floor is being refactored towards: an entry, a delivery tier,
   # and a substrate that reaches nothing above it.
+  # First package on the ADR-036 tiers (amended 2026-09-06): app on top,
+  # storage on the bottom, each tier reaching only downward. event-router was
+  # already this shape under the old names, so it moved by rename alone.
   apps/event-router:
     ".":
-      - delivery
+      - http
+      - storage
       - "@re-cinq/lore-shared"
-    delivery:
-      - kernel
+    http:
+      - storage
       - "@re-cinq/lore-shared"
-    kernel:
+    storage:
       - "@re-cinq/lore-shared"
 
   # One cluster-agent per cluster: it watches Agent CRs and claims work. `kernel`

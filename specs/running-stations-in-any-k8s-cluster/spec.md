@@ -418,14 +418,14 @@ A satellite must report outcomes without holding the bus-wide credential.
 - The event-router's `POST /api/events` accepts, in addition to
   `LORE_INGEST_TOKEN`, per-agent bearer tokens verified against
   `pipeline.cluster_agents.token_hash` (the router already holds the pool;
-  this is a lookup, not a new dependency). ([validated by [`reporter-auth.test.ts:57`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L57), [`reporter-auth.test.ts:93`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L93), [`reporter-auth.test.ts:103`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L103))
+  this is a lookup, not a new dependency). ([validated by [`reporter-auth.test.ts:57`](apps/event-router/src/http/routes/reporter-auth.test.ts#L57), [`reporter-auth.test.ts:93`](apps/event-router/src/http/routes/reporter-auth.test.ts#L93), [`reporter-auth.test.ts:103`](apps/event-router/src/http/routes/reporter-auth.test.ts#L103))
 - Satellites report with their per-agent token; `LORE_INGEST_TOKEN` never
   leaves the central cluster — and a per-agent token authorises the
   reporting front door only, never the router's other surfaces. The
   satellite's reporter RESOLVES that token per call rather than capturing it:
   a re-registration rotates it, and a captured value would 401 every report
   from then on — which is what the watch did silently until the credential
-  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:40`](apps/event-router/src/delivery/server-auth.test.ts#L40), [`event-reporter-http.test.ts:65`](libs/shared/src/project/events/event-reporter-http.test.ts#L65), [`event-reporter-http.test.ts:93`](libs/shared/src/project/events/event-reporter-http.test.ts#L93))
+  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:40`](apps/event-router/src/http/server-auth.test.ts#L40), [`event-reporter-http.test.ts:65`](libs/shared/src/project/events/event-reporter-http.test.ts#L65), [`event-reporter-http.test.ts:93`](libs/shared/src/project/events/event-reporter-http.test.ts#L93))
 - A report the router REFUSES (401/403) re-registers before it retries, via
   the same single-flight re-registration the claim and heartbeat loops share
   *(2026-08-28)*: the token rotates whenever another instance of this
@@ -440,7 +440,7 @@ A satellite must report outcomes without holding the bus-wide credential.
   its reporting credential — one revocation surface for both claiming and
   reporting. An agent already marked offline still delivers a late terminal
   report — dedupe keys make a duplicate safe, and losing the report would
-  lose the work. ([validated by [`reporter-auth.test.ts:68`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L68), [`reporter-auth.test.ts:81`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L81))
+  lose the work. ([validated by [`reporter-auth.test.ts:68`](apps/event-router/src/http/routes/reporter-auth.test.ts#L68), [`reporter-auth.test.ts:81`](apps/event-router/src/http/routes/reporter-auth.test.ts#L81))
 
 ## FR6 — Standalone satellite chart
 

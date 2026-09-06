@@ -88,6 +88,51 @@ reachable only from the root entry, `jobs/lib/` a leaf — are now entries in
 `layers.yaml`. Each was a bespoke tree walk over the same file list; all four
 are now consequences of the four rules above.
 
+## Amended 2026-09-06: horizontal tiers, reinstated deliberately
+
+The original decision recorded here dissolved the horizontal layers
+(`adapters`/`application`/`data`/`ports`) in favour of vertical domains, and the
+rule enforced that by listing none of them. That is reversed: the source is
+organised top-down as **`app` → `http` → `jobs` → `storage`**, and `storage` is
+the bottom tier every other tier may reach and which reaches nothing above it.
+
+`storage`, `http` and `jobs` are the dissolved `data`, `adapters` and
+`application` under clearer names. Recording that plainly matters more than the
+names: this reinstates a shape the repo removed once, so the reasoning has to be
+written down rather than rediscovered.
+
+**What the vertical arrangement was giving up.** Nothing — that was the
+problem. Measured across `apps/floor/src/jobs`, thirteen of fifteen domains had
+zero or one edge to a sibling. The vertical split was not holding coupling
+apart, because there was almost none to hold: the domains were already
+independent, and the arrangement mostly meant that finding the code for one job
+required knowing which of fifteen folders someone had filed it under. The two
+genuine cross-domain edges that remained (`task → dark-factory`,
+`watcher → merge`) were a policy lookup and a lifecycle trigger, not domain
+coupling.
+
+**What it is costing.** A feature spans three folders again — an ingress, a job,
+and a query — which is the trade the original dissolution refused. The
+mitigation is the tier's own rule: `jobs/` holds **one folder per job**, so a
+job stays a single unit inside its tier and only its ingress and its persistence
+live elsewhere.
+
+**What does not change.** Boundaries stay declared in `layers.yaml` and checked
+by `lore/no-cross-layer-import`; the mechanism this ADR exists for is unaffected
+by which shape it describes. The direction rule is unchanged too — a tier may
+reach the tier below it and never the one above, so `storage` importing `jobs`
+is exactly the substrate-imports-upward defect fixed in #1803 and #1807, under
+new names.
+
+## Tiers
+
+| tier | holds | may import |
+|---|---|---|
+| `app` | the entry point, the composition root, the run loop | `http`, `jobs`, `storage` |
+| `http` | ingress and egress: webhook routes, SSE, health, producers | `jobs`, `storage` |
+| `jobs` | one folder per job — 29 of them in the Floor | `storage` |
+| `storage` | pool, queues, ports, the event store | nothing above it |
+
 ## Validation
 
 <!--
@@ -97,7 +142,7 @@ are now consequences of the four rules above.
 
 A folder with no entry in a governed package may import nothing, so a folder added without a declaration is reported rather than silently unconstrained. ([validated by `no-cross-layer-import.test.mjs:128`](tools/eslint-plugin-lore/rules/no-cross-layer-import.test.mjs#L128))
 
-A dissolved horizontal layer (`adapters`/`application`/`data`/`ports`) can never resolve as an import target again, because nothing lists it and an unlisted target is denied. ([validated by `no-cross-layer-import.test.mjs:100`](tools/eslint-plugin-lore/rules/no-cross-layer-import.test.mjs#L100))
+A folder no entry lists can never resolve as an import target, whatever it is called — which is what keeps a retired tier retired, and equally what keeps a new one honest. ([validated by `no-cross-layer-import.test.mjs:100`](tools/eslint-plugin-lore/rules/no-cross-layer-import.test.mjs#L100))
 
 `kernel/` — the shared substrate — imports nothing outside itself, keeping it the bottom tier that everything imports and that imports nothing above it. ([validated by `no-cross-layer-import.test.mjs:107`](tools/eslint-plugin-lore/rules/no-cross-layer-import.test.mjs#L107))
 

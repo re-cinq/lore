@@ -1,7 +1,7 @@
 /** Event-router process: pool + front door (ADR-044); Kubernetes watch moved to cluster-agent. */
 
 import { initPool, getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
-import { startServer } from "./delivery/server.js";
+import { startServer } from "./http/server.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 
