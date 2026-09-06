@@ -60,7 +60,7 @@ Move the SQL to the single home; make server-core delegate.
 ## Verification
 
 - `libs/shared` build + typecheck.
-- `libs/shared/src/project/tasks/task-queue.test.ts` — added cases for the repo
+- `libs/shared/src/outbound/project/tasks/task-queue.test.ts` — added cases for the repo
   scope, the parameterized claimer, and `completeSpecTask` (Pg + InMemory).
 - `apps/mcp-server/src/features/pipeline/tasks-db.test.ts` — rewritten to assert
   delegation instead of the inlined SQL.

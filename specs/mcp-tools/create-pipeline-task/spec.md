@@ -67,14 +67,14 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
      `resolvedType = validTypes.includes(task_type) ? task_type : "general"`.
      Call `createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority, group_id)`
      ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L71)).
-4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/pipeline-task-core.ts#L114)) — rejects descriptions
+4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L114)) — rejects descriptions
    over 10000 chars; when a repo is set, `SELECT settings FROM lore.repos WHERE full_name = $1`
    and enforce the trust gate (`settings.trust.level` → allowed task types; a
    disallowed type throws `Task type "{t}" not allowed at trust level "{level}" for {repo}. Allowed: …`,
    non-trust query errors are swallowed). Then `INSERT INTO pipeline.tasks
    (description, task_type, target_repo, created_by, context_bundle, priority[, task_group_id])
    … RETURNING id, status, priority, created_at`, optional `UPDATE … SET context_refs`,
-   then `recordEvent(pool, id, null, "pending", {created_by, priority})`. ([validated by `inserts task_group_id grp-1 as the seventh insert parameter`](../../../libs/shared/src/pipeline-tasks.trust.test.ts#L88), [validated by `inserts six parameters and no task_group_id column without a group id`](../../../libs/shared/src/pipeline-tasks.trust.test.ts#L106))
+   then `recordEvent(pool, id, null, "pending", {created_by, priority})`. ([validated by `inserts task_group_id grp-1 as the seventh insert parameter`](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L88), [validated by `inserts six parameters and no task_group_id column without a group id`](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L106))
 5. **Success message** — both transports return:
    `"Task created: {task_id}\nType: {type}\nPriority: {priority}\nRepo: {repo|'default'}\n\n{pickupMsg}"`
    where `pickupMsg` is *"The GKE agent will pick this up within 30 seconds."*
@@ -136,7 +136,7 @@ a denied error on a
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so
 restricting it to `full` would only break the reonboard repair path on
-auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/pipeline-tasks.trust.test.ts#L33), [`still refuses an implementation task at trust level docs`](libs/shared/src/pipeline-tasks.trust.test.ts#L48))
+auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [`still refuses an implementation task at trust level docs`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
 
 `buildContextBundle` (`apps/lore-api/src/work/pipeline/context-bundle.ts`) assembles this same `context` shape (`pipeline_task_id`, `spec_file`, `seed_query`, `branch`) into the markdown sections handed to an agent: an absent or empty `context` renders an empty string. ([validated by `returns an empty string for no context`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L14), [`returns an empty string for an empty context object`](apps/lore-api/src/work/pipeline/context-bundle.test.ts#L18))
 

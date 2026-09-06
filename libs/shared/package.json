@@ -11,100 +11,100 @@
       "default": "./dist/index.js"
     },
     "./project/*.js": {
-      "types": "./dist/project/*.d.ts",
-      "default": "./dist/project/*.js"
+      "types": "./dist/outbound/project/*.d.ts",
+      "default": "./dist/outbound/project/*.js"
     },
     "./http/*.js": {
-      "types": "./dist/http/*.d.ts",
-      "default": "./dist/http/*.js"
+      "types": "./dist/transport/http/*.d.ts",
+      "default": "./dist/transport/http/*.js"
     },
     "./cluster/*.js": {
-      "types": "./dist/cluster/*.d.ts",
-      "default": "./dist/cluster/*.js"
+      "types": "./dist/outbound/cluster/*.d.ts",
+      "default": "./dist/outbound/cluster/*.js"
     },
     "./db/*.js": {
-      "types": "./dist/db/*.d.ts",
-      "default": "./dist/db/*.js"
+      "types": "./dist/outbound/db/*.d.ts",
+      "default": "./dist/outbound/db/*.js"
     },
     "./detect/*.js": {
-      "types": "./dist/detect/*.d.ts",
-      "default": "./dist/detect/*.js"
+      "types": "./dist/work/detect/*.d.ts",
+      "default": "./dist/work/detect/*.js"
     },
     "./project/leases/lease-backends.js": {
-      "types": "./dist/project/leases/lease-backends.d.ts",
-      "default": "./dist/project/leases/lease-backends.js"
+      "types": "./dist/outbound/project/leases/lease-backends.d.ts",
+      "default": "./dist/outbound/project/leases/lease-backends.js"
     },
     "./station-input.js": {
-      "types": "./dist/station-input.d.ts",
-      "default": "./dist/station-input.js"
+      "types": "./dist/domain/station-input.d.ts",
+      "default": "./dist/domain/station-input.js"
     },
     "./commit-trailers.js": {
-      "types": "./dist/commit-trailers.d.ts",
-      "default": "./dist/commit-trailers.js"
+      "types": "./dist/domain/commit-trailers.d.ts",
+      "default": "./dist/domain/commit-trailers.js"
     },
     "./error-classify.js": {
-      "types": "./dist/error-classify.d.ts",
-      "default": "./dist/error-classify.js"
+      "types": "./dist/lib/error-classify.d.ts",
+      "default": "./dist/lib/error-classify.js"
     },
     "./k8s-pod-failure.js": {
-      "types": "./dist/k8s-pod-failure.d.ts",
-      "default": "./dist/k8s-pod-failure.js"
+      "types": "./dist/outbound/k8s-pod-failure.d.ts",
+      "default": "./dist/outbound/k8s-pod-failure.js"
     },
     "./escalation/*.js": {
-      "types": "./dist/escalation/*.d.ts",
-      "default": "./dist/escalation/*.js"
+      "types": "./dist/work/escalation/*.d.ts",
+      "default": "./dist/work/escalation/*.js"
     },
     "./feature-planning/*.js": {
-      "types": "./dist/feature-planning/*.d.ts",
-      "default": "./dist/feature-planning/*.js"
+      "types": "./dist/work/feature-planning/*.d.ts",
+      "default": "./dist/work/feature-planning/*.js"
     },
     "./llm/*.js": {
-      "types": "./dist/llm/*.d.ts",
-      "default": "./dist/llm/*.js"
+      "types": "./dist/outbound/llm/*.d.ts",
+      "default": "./dist/outbound/llm/*.js"
     },
     "./review/*.js": {
-      "types": "./dist/review/*.d.ts",
-      "default": "./dist/review/*.js"
+      "types": "./dist/work/review/*.d.ts",
+      "default": "./dist/work/review/*.js"
     },
     "./lib/*.js": {
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"
     },
     "./models/*.js": {
-      "types": "./dist/models/*.d.ts",
-      "default": "./dist/models/*.js"
+      "types": "./dist/domain/models/*.d.ts",
+      "default": "./dist/domain/models/*.js"
     },
     "./task-types/*.js": {
-      "types": "./dist/task-types/*.d.ts",
-      "default": "./dist/task-types/*.js"
+      "types": "./dist/domain/task-types/*.d.ts",
+      "default": "./dist/domain/task-types/*.js"
     },
     "./spec-link-parser.js": {
-      "types": "./dist/spec-link-parser.d.ts",
-      "default": "./dist/spec-link-parser.js"
+      "types": "./dist/domain/spec-link-parser.d.ts",
+      "default": "./dist/domain/spec-link-parser.js"
     },
     "./spec-segment.js": {
-      "types": "./dist/spec-segment.d.ts",
-      "default": "./dist/spec-segment.js"
+      "types": "./dist/domain/spec-segment.d.ts",
+      "default": "./dist/domain/spec-segment.js"
     },
     "./spec-status.js": {
-      "types": "./dist/spec-status.d.ts",
-      "default": "./dist/spec-status.js"
+      "types": "./dist/domain/spec-status.d.ts",
+      "default": "./dist/domain/spec-status.js"
     },
     "./spec-status-coverage.js": {
-      "types": "./dist/spec-status-coverage.d.ts",
-      "default": "./dist/spec-status-coverage.js"
+      "types": "./dist/work/spec-status-coverage.d.ts",
+      "default": "./dist/work/spec-status-coverage.js"
     },
     "./spec-judge-llm.js": {
-      "types": "./dist/spec-judge-llm.d.ts",
-      "default": "./dist/spec-judge-llm.js"
+      "types": "./dist/work/spec-judge-llm.d.ts",
+      "default": "./dist/work/spec-judge-llm.js"
     },
     "./test-paths.js": {
-      "types": "./dist/test-paths.d.ts",
-      "default": "./dist/test-paths.js"
+      "types": "./dist/domain/test-paths.d.ts",
+      "default": "./dist/domain/test-paths.js"
     },
     "./repo-validation/repo-validation.js": {
-      "types": "./dist/repo-validation/repo-validation.d.ts",
-      "default": "./dist/repo-validation/repo-validation.js"
+      "types": "./dist/work/repo-validation/repo-validation.d.ts",
+      "default": "./dist/work/repo-validation/repo-validation.js"
     }
   },
   "scripts": {

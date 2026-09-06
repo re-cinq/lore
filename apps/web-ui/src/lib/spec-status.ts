@@ -1,4 +1,4 @@
-// Mirrors libs/shared/src/spec-status.ts parsers (parity guarded by spec-status.parity.test.ts + type-drift #1419).
+// Mirrors libs/shared/src/domain/spec-status.ts parsers (parity guarded by spec-status.parity.test.ts + type-drift #1419).
 
 export type DocKind = "spec" | "adr";
 

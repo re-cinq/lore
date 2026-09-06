@@ -256,7 +256,7 @@ review:
 1. Implementation PR → review LoreTask CR created automatically (when auto_review enabled)
 2. Review Job pod clones repo, reads spec + diff, posts PR comments
 3. Approved: parent task marked as `review/approved` ([validated by `pipeline.test.ts:69`](libs/server-core/src/features/pipeline/pipeline.test.ts#L64), [`pipeline.test.ts:53`](libs/server-core/src/features/pipeline/pipeline.test.ts#L53))
-4. Changes requested (iteration < 2): new implementation LoreTask with feedback, same branch ([validated by `review-feedback.test.ts`](libs/shared/src/review-feedback.test.ts), [`pipeline.test.ts:113`](libs/server-core/src/features/pipeline/pipeline.test.ts#L113))
+4. Changes requested (iteration < 2): new implementation LoreTask with feedback, same branch ([validated by `review-feedback.test.ts`](libs/shared/src/work/review-feedback.test.ts), [`pipeline.test.ts:113`](libs/server-core/src/features/pipeline/pipeline.test.ts#L113))
 
 5. Changes requested (iteration >= 2): escalate with `needs-human-review` label ([validated by `pipeline.test.ts:90`](libs/server-core/src/features/pipeline/pipeline.test.ts#L85))
 6. Review completes in <5 min
@@ -288,11 +288,11 @@ and the webhook/verdict plumbing it rides on.
 
 6. The GitHub webhook maps `pull_request.closed` to `github.pull_request.closed` carrying
    `merged`/`branch`/`merge_commit_sha`/`labels` — for both a merged and a closed-without-merge PR —
-   so code-review can finish its line. ([validated by `github-map.test.ts:24`](libs/shared/src/project/events/github-map.test.ts#L24), [`github-map.test.ts:54`](libs/shared/src/project/events/github-map.test.ts#L54))
+   so code-review can finish its line. ([validated by `github-map.test.ts:24`](libs/shared/src/outbound/project/events/github-map.test.ts#L24), [`github-map.test.ts:54`](libs/shared/src/outbound/project/events/github-map.test.ts#L54))
 
 7. A human reply arrives as a created `pull_request_review_comment` mapped to
    `github.pull_request_review_comment.created` with author/id/body; a non-created review comment is
-   ignored. ([validated by `github-map.test.ts:187`](libs/shared/src/project/events/github-map.test.ts#L187), [`github-map.test.ts:214`](libs/shared/src/project/events/github-map.test.ts#L214), [`github-map.test.ts:246`](libs/shared/src/project/events/github-map.test.ts#L246))
+   ignored. ([validated by `github-map.test.ts:187`](libs/shared/src/outbound/project/events/github-map.test.ts#L187), [`github-map.test.ts:214`](libs/shared/src/outbound/project/events/github-map.test.ts#L214), [`github-map.test.ts:246`](libs/shared/src/outbound/project/events/github-map.test.ts#L246))
 
 8. The watcher parses the agent's review verdict from stdout: `REVIEW_RESULT:APPROVED` → `approved`,
    `CHANGES_REQUESTED` (with trailing feedback) → `changes_requested`, and no marker or absent output
@@ -385,15 +385,15 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - Submits a formal `APPROVE` review carrying the inline findings when the verdict is approved. ([validated by](apps/floor/src/work/review/post-review.test.ts#L443))
 - Submits a formal `REQUEST_CHANGES` review carrying the inline findings when the verdict requests changes. ([validated by](apps/floor/src/work/review/post-review.test.ts#L460))
 
-### `libs/shared/src/review/diff-hunks.test.ts`
+### `libs/shared/src/work/review/diff-hunks.test.ts`
 
-- Added and context lines are commentable on the right (new) side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L25))
-- Removed and context lines are commentable on the left (old) side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L36))
-- A line inside a hunk is commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L49))
-- A line outside any hunk is not commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L53))
-- A file not in the diff is not commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L57))
-- A LEFT-side comment is checked against the left side, not the right. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L61))
-- A file deleted in the diff (`+++ /dev/null`) is uncommentable on either side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L78))
+- Added and context lines are commentable on the right (new) side. ([validated by](libs/shared/src/work/review/diff-hunks.test.ts#L25))
+- Removed and context lines are commentable on the left (old) side. ([validated by](libs/shared/src/work/review/diff-hunks.test.ts#L36))
+- A line inside a hunk is commentable. ([validated by](libs/shared/src/work/review/diff-hunks.test.ts#L49))
+- A line outside any hunk is not commentable. ([validated by](libs/shared/src/work/review/diff-hunks.test.ts#L53))
+- A file not in the diff is not commentable. ([validated by](libs/shared/src/work/review/diff-hunks.test.ts#L57))
+- A LEFT-side comment is checked against the left side, not the right. ([validated by](libs/shared/src/work/review/diff-hunks.test.ts#L61))
+- A file deleted in the diff (`+++ /dev/null`) is uncommentable on either side. ([validated by](libs/shared/src/work/review/diff-hunks.test.ts#L78))
 
 ### `apps/floor/src/work/assembly-run/node-terminal.test.ts`
 
@@ -411,11 +411,11 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - A `code-review-recheck` node's changes-requested verdict is posted as a formal `REQUEST_CHANGES` review. ([validated by](apps/floor/src/work/assembly-run/node-terminal.test.ts#L891))
 - A `code-review-recheck` node's approving verdict is posted as a formal `APPROVE` review. ([validated by](apps/floor/src/work/assembly-run/node-terminal.test.ts#L905))
 
-### `libs/shared/src/project/events/github-map.test.ts`
+### `libs/shared/src/outbound/project/events/github-map.test.ts`
 
-- returns nothing for a check with no backing PRs. ([validated by](libs/shared/src/project/events/github-map.test.ts#L286))
-- returns nothing when the repository is missing. ([validated by](libs/shared/src/project/events/github-map.test.ts#L334))
-- returns nothing for an unhandled event type. ([validated by](libs/shared/src/project/events/github-map.test.ts#L344))
+- returns nothing for a check with no backing PRs. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L286))
+- returns nothing when the repository is missing. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L334))
+- returns nothing for an unhandled event type. ([validated by](libs/shared/src/outbound/project/events/github-map.test.ts#L344))
 
 ### `apps/stations/src/work/comment-triage/comment-triage.test.ts`
 
@@ -434,71 +434,71 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L738))
 - code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L938))
 
-### `libs/shared/src/project/assembly-runs/assembly-runs.test.ts`
+### `libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts`
 
-- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L525))
-- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L635))
-- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L649))
-- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L823))
-- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L999))
-- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1011))
-- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1067))
-- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1078))
-- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1093))
+- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L525))
+- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L635))
+- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L649))
+- listForTask and getById pass through to the port. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L823))
+- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L999))
+- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1011))
+- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1067))
+- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1078))
+- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1093))
 
-### `libs/shared/src/project/issues/issues.test.ts`
+### `libs/shared/src/outbound/project/issues/issues.test.ts`
 
-- returns the GitHubPort issues for the project's repo. ([validated by](libs/shared/src/project/issues/issues.test.ts#L54))
-- creates an issue bound to the repo. ([validated by](libs/shared/src/project/issues/issues.test.ts#L98))
-- comments, closes, and labels by number bound to the repo. ([validated by](libs/shared/src/project/issues/issues.test.ts#L111))
+- returns the GitHubPort issues for the project's repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L54))
+- creates an issue bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L98))
+- comments, closes, and labels by number bound to the repo. ([validated by](libs/shared/src/outbound/project/issues/issues.test.ts#L111))
 
-### `libs/shared/src/project/lib/platform-github.test.ts`
+### `libs/shared/src/outbound/project/lib/platform-github.test.ts`
 
-- exposes the github port name. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L94))
-- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L215))
-- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L222))
-- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L229))
-- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L252))
-- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L303))
-- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L353))
+- exposes the github port name. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L94))
+- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L215))
+- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L222))
+- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L229))
+- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L252))
+- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L303))
+- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L353))
 
-### `libs/shared/src/project/pulls/pull-requests.test.ts`
+### `libs/shared/src/outbound/project/pulls/pull-requests.test.ts`
 
-- lists only the repo's pull requests. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L93))
-- merges by number with the requested method bound to the repo. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L129))
-- exposes PR reads bound to the repo and number. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L138))
-- delegates listReviewThreads repo-bound and resolveReviewThread by node id. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L157))
+- lists only the repo's pull requests. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L93))
+- merges by number with the requested method bound to the repo. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L129))
+- exposes PR reads bound to the repo and number. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L138))
+- delegates listReviewThreads repo-bound and resolveReviewThread by node id. ([validated by](libs/shared/src/outbound/project/pulls/pull-requests.test.ts#L157))
 
-### `libs/shared/src/review/review-reply.test.ts`
+### `libs/shared/src/work/review/review-reply.test.ts`
 
-- A fenced `REVIEW_REPLY` block yields its trimmed markdown body. ([validated by](libs/shared/src/review/review-reply.test.ts#L8))
-- Multi-line markdown inside the block is preserved. ([validated by](libs/shared/src/review/review-reply.test.ts#L14))
-- An absent reply block yields null, so a formatting slip posts nothing rather than crashing the node. ([validated by](libs/shared/src/review/review-reply.test.ts#L20))
-- An empty reply block also yields null. ([validated by](libs/shared/src/review/review-reply.test.ts#L24))
+- A fenced `REVIEW_REPLY` block yields its trimmed markdown body. ([validated by](libs/shared/src/work/review/review-reply.test.ts#L8))
+- Multi-line markdown inside the block is preserved. ([validated by](libs/shared/src/work/review/review-reply.test.ts#L14))
+- An absent reply block yields null, so a formatting slip posts nothing rather than crashing the node. ([validated by](libs/shared/src/work/review/review-reply.test.ts#L20))
+- An empty reply block also yields null. ([validated by](libs/shared/src/work/review/review-reply.test.ts#L24))
 
-### `libs/shared/src/project/repo/repo-files.test.ts`
+### `libs/shared/src/outbound/project/repo/repo-files.test.ts`
 
-- reads a file from the repo at the given ref. ([validated by](libs/shared/src/project/repo/repo-files.test.ts#L50))
-- returns null for a file the repo does not have. ([validated by](libs/shared/src/project/repo/repo-files.test.ts#L56))
-- creates a branch and commits a file via the API, repo bound. ([validated by](libs/shared/src/project/repo/repo-files.test.ts#L62))
+- reads a file from the repo at the given ref. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L50))
+- returns null for a file the repo does not have. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L56))
+- creates a branch and commits a file via the API, repo bound. ([validated by](libs/shared/src/outbound/project/repo/repo-files.test.ts#L62))
 
-### `libs/shared/src/review/comment-triage.test.ts`
+### `libs/shared/src/work/review/comment-triage.test.ts`
 
-- returns the action the model chose. ([validated by](libs/shared/src/review/comment-triage.test.ts#L9))
-- defaults to ignore when the model returns an unknown action. ([validated by](libs/shared/src/review/comment-triage.test.ts#L24))
-- passes the replied-to comment into the prompt for a reply. ([validated by](libs/shared/src/review/comment-triage.test.ts#L32))
-- returns the classification call's usage for the station cost report. ([validated by](libs/shared/src/review/comment-triage.test.ts#L49))
-- returns no usage when the model call throws. ([validated by](libs/shared/src/review/comment-triage.test.ts#L71))
+- returns the action the model chose. ([validated by](libs/shared/src/work/review/comment-triage.test.ts#L9))
+- defaults to ignore when the model returns an unknown action. ([validated by](libs/shared/src/work/review/comment-triage.test.ts#L24))
+- passes the replied-to comment into the prompt for a reply. ([validated by](libs/shared/src/work/review/comment-triage.test.ts#L32))
+- returns the classification call's usage for the station cost report. ([validated by](libs/shared/src/work/review/comment-triage.test.ts#L49))
+- returns no usage when the model call throws. ([validated by](libs/shared/src/work/review/comment-triage.test.ts#L71))
 
-### `libs/shared/src/review/conventional-comment.test.ts`
+### `libs/shared/src/work/review/conventional-comment.test.ts`
 
-- renders label and subject as a bold header. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L5))
-- renders the decoration in parentheses after the label. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L14))
-- appends a suggestion block after the header. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L26))
-- renders discussion between the header and the suggestion. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L38))
-- renders an empty suggestion block for a whole-line deletion. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L51))
+- renders label and subject as a bold header. ([validated by](libs/shared/src/work/review/conventional-comment.test.ts#L5))
+- renders the decoration in parentheses after the label. ([validated by](libs/shared/src/work/review/conventional-comment.test.ts#L14))
+- appends a suggestion block after the header. ([validated by](libs/shared/src/work/review/conventional-comment.test.ts#L26))
+- renders discussion between the header and the suggestion. ([validated by](libs/shared/src/work/review/conventional-comment.test.ts#L38))
+- renders an empty suggestion block for a whole-line deletion. ([validated by](libs/shared/src/work/review/conventional-comment.test.ts#L51))
 
-### `libs/shared/src/review/review-findings.test.ts`
+### `libs/shared/src/work/review/review-findings.test.ts`
 
 - accepts the OTHER findings schema this repo defines — the `/code-review`
   skill's and `ReportFindings`' `file`/`category`/`short_summary`/`summary`/
@@ -512,11 +512,11 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   way is untouched, a PRESENT-but-unknown label is still rejected (that
   strictness is the point), and a finding carrying neither spelling of a
   required field still yields null.
-  ([validated by](libs/shared/src/review/review-findings.test.ts#L162), [validated by](libs/shared/src/review/review-findings.test.ts#L176), [validated by](libs/shared/src/review/review-findings.test.ts#L184), [validated by](libs/shared/src/review/review-findings.test.ts#L193), [validated by](libs/shared/src/review/review-findings.test.ts#L211))
-- parses a valid findings block into a ReviewOutput. ([validated by](libs/shared/src/review/review-findings.test.ts#L8))
-- returns null when no findings block is present. ([validated by](libs/shared/src/review/review-findings.test.ts#L42))
+  ([validated by](libs/shared/src/work/review/review-findings.test.ts#L162), [validated by](libs/shared/src/work/review/review-findings.test.ts#L176), [validated by](libs/shared/src/work/review/review-findings.test.ts#L184), [validated by](libs/shared/src/work/review/review-findings.test.ts#L193), [validated by](libs/shared/src/work/review/review-findings.test.ts#L211))
+- parses a valid findings block into a ReviewOutput. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L8))
+- returns null when no findings block is present. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L42))
 - returns null when the block is not valid JSON that a quote/newline repair
-  pass can recover either. ([validated by](libs/shared/src/review/review-findings.test.ts#L46))
+  pass can recover either. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L46))
 - recovers a finding whose narrative field carries a quote the model forgot to
   escape — #1401 reproduced verbatim: a well-formed block with one broken
   string killed `JSON.parse` outright and discarded every finding, including
@@ -524,29 +524,29 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   non-whitespace character is one JSON allows there (`,` `}` `]` `:` or end of
   input); anything else is escaped instead, which a single regex cannot do
   because whether a `"` closes the string depends on what comes after it.
-  ([validated by](libs/shared/src/review/review-findings.test.ts#L50))
+  ([validated by](libs/shared/src/work/review/review-findings.test.ts#L50))
 - recovers a finding whose narrative field carries a literal newline, escaping
-  it the same way. ([validated by](libs/shared/src/review/review-findings.test.ts#L59))
+  it the same way. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L59))
 - recovers a finding whose suggestion carries a literal tab the same way — a
   tabbed-indented code snippet is a raw control character JSON forbids
-  unescaped in a string, exactly like a raw newline. ([validated by](libs/shared/src/review/review-findings.test.ts#L68))
+  unescaped in a string, exactly like a raw newline. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L68))
 - recovers every finding when several each carry an unescaped quote, not just
-  the first. ([validated by](libs/shared/src/review/review-findings.test.ts#L77))
+  the first. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L77))
 - does not let the repair pass turn genuinely broken JSON into a false
-  positive — missing quotes around a key or value stay unparseable. ([validated by](libs/shared/src/review/review-findings.test.ts#L90))
-- returns null when a finding has an unknown label. ([validated by](libs/shared/src/review/review-findings.test.ts#L96))
-- returns null when the verdict is missing. ([validated by](libs/shared/src/review/review-findings.test.ts#L107))
+  positive — missing quotes around a key or value stay unparseable. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L90))
+- returns null when a finding has an unknown label. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L96))
+- returns null when the verdict is missing. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L107))
 - treats an optional field written as `null` as absent, because that is what a
   model means by it — read as a value, ONE null failed its type check and the
   ENTIRE block was discarded, so a review that found ten things posted none and
-  its node failed with the findings lost. ([validated by](libs/shared/src/review/review-findings.test.ts#L124))
-- keeps every other finding when one carries a null optional. ([validated by](libs/shared/src/review/review-findings.test.ts#L130))
+  its node failed with the findings lost. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L124))
+- keeps every other finding when one carries a null optional. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L130))
 - still rejects a wrong TYPE in an optional field: this widens what counts as
-  absent, not what counts as valid. ([validated by](libs/shared/src/review/review-findings.test.ts#L138))
+  absent, not what counts as valid. ([validated by](libs/shared/src/work/review/review-findings.test.ts#L138))
 
-### `libs/shared/src/review/review-summary.test.ts`
+### `libs/shared/src/work/review/review-summary.test.ts`
 
-- renders the Approved header and a zero tally for no findings. ([validated by](libs/shared/src/review/review-summary.test.ts#L10))
-- counts blocking issues as must-fix, nits, and the rest as consider. ([validated by](libs/shared/src/review/review-summary.test.ts#L18))
-- includes the agent summary line under the header when present. ([validated by](libs/shared/src/review/review-summary.test.ts#L41))
+- renders the Approved header and a zero tally for no findings. ([validated by](libs/shared/src/work/review/review-summary.test.ts#L10))
+- counts blocking issues as must-fix, nits, and the rest as consider. ([validated by](libs/shared/src/work/review/review-summary.test.ts#L18))
+- includes the agent summary line under the header when present. ([validated by](libs/shared/src/work/review/review-summary.test.ts#L41))
 

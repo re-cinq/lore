@@ -69,7 +69,7 @@ fi
 #     local run into production. Flattening the single context into its own file (rather
 #     than threading --context through each call) also hands the Floor something it can
 #     be pointed at: LORE_KUBECONFIG is a file path, the only override kubeConfigSource()
-#     honours — see libs/shared/src/kube-config.ts.
+#     honours — see libs/shared/src/outbound/kube-config.ts.
 KUBECONFIG_FILE="$ROOT/.lore-kubeconfig-minikube"
 
 # Read the developer's own kubeconfig, never the file we are about to write. A prior

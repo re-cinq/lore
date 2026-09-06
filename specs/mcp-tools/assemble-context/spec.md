@@ -67,7 +67,7 @@ records latency + success into `memory.audit_log` and an OTEL span.
    non-fatal (stays disabled).
 4. Delegate to the engine
    `assembleContext(pool, query, template, max_tokens, repo, agent_id, enableCrossRepo)`
-   ([engine](../../../libs/shared/src/project/knowledge/context-assembly.ts#L225), re-exported
+   ([engine](../../../libs/shared/src/outbound/project/knowledge/context-assembly.ts#L225), re-exported
    [here](../../../libs/server-core/src/features/context/context-assembly.ts#L10)). The engine
    returns `{ text, sections: { tokens, … }[] }` — its retrieval/ranking/XML-emission
    contract is owned by [`context-assembly`](../../context-assembly/spec.md).

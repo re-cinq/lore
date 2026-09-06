@@ -163,7 +163,7 @@ same export the sync reads.
   person's terraform apply or console visit can change. ([validated by [`gcp-cost-sync.test.ts:6`](apps/stations/src/work/gcp-cost-sync/gcp-cost-sync.test.ts#L6), [`gcp-cost-sync.test.ts:12`](apps/stations/src/work/gcp-cost-sync/gcp-cost-sync.test.ts#L12))
 - Rows land in `pipeline.gcp_cost_daily` (migration 0060) through
   `PgGcpCost`, upsert-keyed on `(bucket_date, service)` — a re-synced bucket
-  replaces the stored totals, mirrored by the `InMemoryGcpCost` double. ([validated by [`cost.test.ts:104`](libs/shared/src/project/cost/cost.test.ts#L104), [`cost.test.ts:123`](libs/shared/src/project/cost/cost.test.ts#L123), [`cost.test.ts:131`](libs/shared/src/project/cost/cost.test.ts#L131), [`cost.test.ts:141`](libs/shared/src/project/cost/cost.test.ts#L141))
+  replaces the stored totals, mirrored by the `InMemoryGcpCost` double. ([validated by [`cost.test.ts:104`](libs/shared/src/outbound/project/cost/cost.test.ts#L104), [`cost.test.ts:123`](libs/shared/src/outbound/project/cost/cost.test.ts#L123), [`cost.test.ts:131`](libs/shared/src/outbound/project/cost/cost.test.ts#L131), [`cost.test.ts:141`](libs/shared/src/outbound/project/cost/cost.test.ts#L141))
 - `/api/analytics/spend-window` grew a `gcp` block under the same rules as
   the Anthropic `billed` block: interval-scoped net-of-credits totals,
   whole-table `as_of`/`billed_through` stamps, `available` decided by the

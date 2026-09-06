@@ -75,7 +75,7 @@ The context-core store tracks the latest production eval score per namespace:
 production history, ignoring other namespaces and non-production rows), and
 `insert` writes a history row in `version, namespace, score, status` order. The
 `InMemoryContextCore` double mirrors this resolution and retains every inserted
-record for assertion. ([validated by `context-core.test.ts:23`](libs/shared/src/project/context-core/context-core.test.ts#L23), [`context-core.test.ts:34`](libs/shared/src/project/context-core/context-core.test.ts#L34), [`context-core.test.ts:40`](libs/shared/src/project/context-core/context-core.test.ts#L40), [`context-core.test.ts:63`](libs/shared/src/project/context-core/context-core.test.ts#L63), [`context-core.test.ts:88`](libs/shared/src/project/context-core/context-core.test.ts#L88), [`context-core.test.ts:107`](libs/shared/src/project/context-core/context-core.test.ts#L107))
+record for assertion. ([validated by `context-core.test.ts:23`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L23), [`context-core.test.ts:34`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L34), [`context-core.test.ts:40`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L40), [`context-core.test.ts:63`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L63), [`context-core.test.ts:88`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L88), [`context-core.test.ts:107`](libs/shared/src/outbound/project/context-core/context-core.test.ts#L107))
 
 ### Research store
 

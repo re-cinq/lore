@@ -28,7 +28,7 @@ Returns `202` fast; every insert is idempotent on `dedupeKey`, so a redelivery
 collapses to one row. The body cap is 25 MB — GitHub's own webhook ceiling.
 
 Producers select their reporter via `selectEventReporter`
-(`libs/shared/src/project/events/select-event-reporter.ts`): with
+(`libs/shared/src/outbound/project/events/select-event-reporter.ts`): with
 `EVENT_ROUTER_URL` set they report over HTTP with the service-to-service token
 (`LORE_AGENT_INTERNAL_TOKEN`, falling back to `LORE_INGEST_TOKEN`); without it
 — local `npm start`, no router — they fall back to the pool they already hold.

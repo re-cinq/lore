@@ -37,18 +37,18 @@ signal (`Statement.violated` / `Statement.drifted`) that the detector ignored.
 heuristic only as a de-noised fallback.**
 
 - **Graph-primary.** When a spec is projected, drift = statements flagged
-  `violated` or `drifted` ([decideGraphDrift](../libs/shared/src/detect/spec-drift-rules.ts)).
+  `violated` or `drifted` ([decideGraphDrift](../libs/shared/src/work/detect/spec-drift-rules.ts)).
   Authoritative; a spec whose statements all resolve is not drifted. Pure markdown
   link-rot stays owned by the link-rot validate pass — not re-filed here.
 - **Heuristic fallback.** No graph → score only `function`/`class`/`interface`/
   `type` kinds, and require both a divergence ratio over threshold **and** an
-  absolute floor of missing symbols ([decideHeuristicDrift](../libs/shared/src/detect/spec-drift-rules.ts)).
+  absolute floor of missing symbols ([decideHeuristicDrift](../libs/shared/src/work/detect/spec-drift-rules.ts)).
 - **Dedup on a stable key.** `context_bundle.spec_path` (+ repo + task type), not
   the LLM-reworded title; `failed` ages out on a short cooldown instead of
   suppressing forever; a per-run cap bounds the batch.
 - **Self-heal transient infra.** Classify `BackoffLimitExceeded` /
   `CreateContainerConfigError` / image-pull errors as transient
-  ([k8s-pod-failure.ts](../libs/shared/src/k8s-pod-failure.ts)) and
+  ([k8s-pod-failure.ts](../libs/shared/src/outbound/k8s-pod-failure.ts)) and
   re-queue a bounded number of times from the watcher
   ([agent-watcher.ts](../apps/floor/src/work/watcher/agent-watcher.ts) — at the
   time of this decision, the since-retired `loretask-watcher`)

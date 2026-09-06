@@ -5,7 +5,7 @@ API**. The Floor holds no Kubernetes client anymore
 ([ADR-024](../../adrs/ADR-024-ubiquitous-language-execution-model.md),
 amendment 2026-08-24): it and lore-api reach pod logs, the recipe catalog, and
 per-task token provisioning over HTTP through the shared `ClusterAgentClient`
-(`libs/shared/src/cluster/cluster-agent-client.ts`, `CLUSTER_AGENT_URL`). The
+(`libs/shared/src/outbound/cluster/cluster-agent-client.ts`, `CLUSTER_AGENT_URL`). The
 agent holds **no database** — callers bring their own state and ask it for
 cluster operations only. It runs as the `lore-cluster-agent` Deployment in the
 `lore-cluster-agent` namespace, part of the `lore-platform` umbrella Helm chart,

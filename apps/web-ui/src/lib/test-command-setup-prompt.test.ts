@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 const SHARED = resolve(
   process.cwd(),
-  "../../libs/shared/src/test-command-setup-prompt.ts",
+  "../../libs/shared/src/lib/test-command-setup-prompt.ts",
 );
 const MIRROR = resolve(process.cwd(), "src/lib/test-command-setup-prompt.ts");
 

@@ -36,7 +36,7 @@ pod. Prod must keep working unchanged on its K8s cluster.
 
 **One `StationBackend` port, two adapters, chosen by an explicit env var.**
 
-- **Port** ([station-port.ts](../libs/shared/src/project/agents/station-port.ts)):
+- **Port** ([station-port.ts](../libs/shared/src/outbound/project/agents/station-port.ts)):
   `StationBackend.launch(spec) → StationLaunchResult`. Key asymmetry —
   **synchronous** backends (Docker) wait on the run and return a `completion`;
   **asynchronous** backends (K8s) omit it and the loretask-watcher resolves
