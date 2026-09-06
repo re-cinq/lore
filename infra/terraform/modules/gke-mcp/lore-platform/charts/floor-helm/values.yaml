@@ -130,7 +130,7 @@ webhookSecret:
 gcpProject: ""
 
 # K8s CronJob batch jobs (one pod per run, isolated from the Deployment).
-# Each entry produces a CronJob that calls `node dist/delivery/job-runner.js {{ .job }}`
+# Each entry produces a CronJob that calls `node dist/transport/job-runner.js {{ .job }}`
 # inside the agent image, reusing the same env block as the Deployment
 # (see templates/_env.tpl). Schedules match the in-process pre-split
 # cadence one-for-one. Resources/deadlines override `cronJobDefaults`

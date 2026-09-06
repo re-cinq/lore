@@ -167,7 +167,7 @@ The system MUST maintain a registry of onboarded repos. ([validated by `repos.te
 
 ### FR-2: Repo Onboarding via PR
 
-The system MUST onboard new repos by creating a PR. ([validated by `worker.onboard.test.ts:130`](apps/floor/src/jobs/task/worker.onboard.test.ts#L130))
+The system MUST onboard new repos by creating a PR. ([validated by `worker.onboard.test.ts:130`](apps/floor/src/work/task/worker.onboard.test.ts#L130))
 
 - FR-2.1: "Add Repo" button in the UI shows repos from the GitHub
   App installation that aren't onboarded yet. The onboard page renders
@@ -176,10 +176,10 @@ The system MUST onboard new repos by creating a PR. ([validated by `worker.onboa
   the typed repo name while surfacing an action error on a failed
   submit. ([validated by `OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9), [`OnboardView.test.tsx:21`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L21), [`OnboardView.test.tsx:36`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L36), [`OnboardView.test.tsx:44`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L44), [`OnboardView.test.tsx:60`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L60), [`OnboardView.test.tsx:81`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L81))
 - FR-2.2: Lore creates a per-task branch (`lore/onboard/<slug>-<id8>`) on the
-  target repo before committing. ([validated by `worker.onboard.test.ts:130`](apps/floor/src/jobs/task/worker.onboard.test.ts#L130))
+  target repo before committing. ([validated by `worker.onboard.test.ts:130`](apps/floor/src/work/task/worker.onboard.test.ts#L130))
 - FR-2.3: Commits the onboarding files onto that branch — the ingest and
   spec-impact workflows, static scaffolding, and the LLM-drafted AGENTS.md,
-  PR template, pr-description-check workflow, and `.specify/spec.md`. ([validated by `worker.onboard.test.ts:113`](apps/floor/src/jobs/task/worker.onboard.test.ts#L113))
+  PR template, pr-description-check workflow, and `.specify/spec.md`. ([validated by `worker.onboard.test.ts:113`](apps/floor/src/work/task/worker.onboard.test.ts#L113))
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
   content, counting only the repos where a PR was actually opened,
   reporting each repo where no PR was opened with its reason (a thrown
@@ -203,12 +203,12 @@ The system MUST onboard new repos by creating a PR. ([validated by `worker.onboa
   failed file with its error; a commit rejected for the missing Workflows App permission (classified
   by the shared failure detector across both GitHub phrasings, never by
   bare status keying) is named for what it is, and the failure set is recorded in the audit log as
-  `onboard_files_failed`. ([validated by `worker.onboard.test.ts:172`](apps/floor/src/jobs/task/worker.onboard.test.ts#L172), [`worker.onboard.test.ts:191`](apps/floor/src/jobs/task/worker.onboard.test.ts#L191), [`worker.onboard.test.ts:207`](apps/floor/src/jobs/task/worker.onboard.test.ts#L207), [`worker.onboard.test.ts:299`](apps/floor/src/jobs/task/worker.onboard.test.ts#L299))
+  `onboard_files_failed`. ([validated by `worker.onboard.test.ts:172`](apps/floor/src/work/task/worker.onboard.test.ts#L172), [`worker.onboard.test.ts:191`](apps/floor/src/work/task/worker.onboard.test.ts#L191), [`worker.onboard.test.ts:207`](apps/floor/src/work/task/worker.onboard.test.ts#L207), [`worker.onboard.test.ts:299`](apps/floor/src/work/task/worker.onboard.test.ts#L299))
 - FR-2.8: The ingest callback config (repo variable `LORE_INGEST_URL`,
   secret `LORE_INGEST_TOKEN`) is written before the PR opens so its
   failures land in the PR body; an unset Floor-side value is reported
   instead of being written as an empty variable, and a rejected
-  secret write is reported with its error. ([validated by `worker.onboard.test.ts:233`](apps/floor/src/jobs/task/worker.onboard.test.ts#L233), [`worker.onboard.test.ts:258`](apps/floor/src/jobs/task/worker.onboard.test.ts#L258), [`worker.onboard.test.ts:278`](apps/floor/src/jobs/task/worker.onboard.test.ts#L278))
+  secret write is reported with its error. ([validated by `worker.onboard.test.ts:233`](apps/floor/src/work/task/worker.onboard.test.ts#L233), [`worker.onboard.test.ts:258`](apps/floor/src/work/task/worker.onboard.test.ts#L258), [`worker.onboard.test.ts:278`](apps/floor/src/work/task/worker.onboard.test.ts#L278))
 
 ### FR-3: Repo-Centric UI Layout
 
@@ -340,7 +340,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 
 ### FR-5: Onboarding PR Content
 
-The onboarding PR scaffolds a target repo with deterministic files committed verbatim plus LLM-drafted files generated from a fixed prompt against the repo's context and reviewed by the owner in the PR. ([validated by `worker.onboard.test.ts:113`](apps/floor/src/jobs/task/worker.onboard.test.ts#L113), [`worker.onboard.test.ts:130`](apps/floor/src/jobs/task/worker.onboard.test.ts#L130))
+The onboarding PR scaffolds a target repo with deterministic files committed verbatim plus LLM-drafted files generated from a fixed prompt against the repo's context and reviewed by the owner in the PR. ([validated by `worker.onboard.test.ts:113`](apps/floor/src/work/task/worker.onboard.test.ts#L113), [`worker.onboard.test.ts:130`](apps/floor/src/work/task/worker.onboard.test.ts#L130))
 
 - FR-5.1: The context-ingest and advisory spec-impact workflows are committed
   verbatim — `.github/workflows/lore-ingest.yml` and
@@ -352,14 +352,14 @@ The onboarding PR scaffolds a target repo with deterministic files committed ver
 
 - FR-5.4: The onboarding PR commits static scaffolding verbatim —
   `.claude/settings.json` carrying the Lore MCP system-prompt suffix, and the
-  four `.github/ISSUE_TEMPLATE/*.yml` task templates. ([validated by `onboard-files.test.ts:10`](apps/floor/src/jobs/task/onboard-files.test.ts#L10), [`onboard-files.test.ts:20`](apps/floor/src/jobs/task/onboard-files.test.ts#L20))
+  four `.github/ISSUE_TEMPLATE/*.yml` task templates. ([validated by `onboard-files.test.ts:10`](apps/floor/src/work/task/onboard-files.test.ts#L10), [`onboard-files.test.ts:20`](apps/floor/src/work/task/onboard-files.test.ts#L20))
 - FR-5.5: It LLM-drafts `AGENTS.md`, the PR template, the pr-description-check
   workflow, and `.specify/spec.md` from fixed prompts against the repo's context
   — the AGENTS.md prompt targets the repo's own stack and the PR-template prompt
-  names the five canonical sections. ([validated by `onboard-files.test.ts:33`](apps/floor/src/jobs/task/onboard-files.test.ts#L33), [`onboard-files.test.ts:40`](apps/floor/src/jobs/task/onboard-files.test.ts#L40), [`onboard-files.test.ts:56`](apps/floor/src/jobs/task/onboard-files.test.ts#L56))
+  names the five canonical sections. ([validated by `onboard-files.test.ts:33`](apps/floor/src/work/task/onboard-files.test.ts#L33), [`onboard-files.test.ts:40`](apps/floor/src/work/task/onboard-files.test.ts#L40), [`onboard-files.test.ts:56`](apps/floor/src/work/task/onboard-files.test.ts#L56))
 - FR-5.6: The onboarding PR scaffolds no `CLAUDE.md` (requested in the onboarding
   issue for the owner to author) and no `spec-agent.yml` — spec and ingest
-  triggering ride the ingest and spec-impact workflows above. ([validated by `onboard-files.test.ts:67`](apps/floor/src/jobs/task/onboard-files.test.ts#L67), [`onboard-files.test.ts:71`](apps/floor/src/jobs/task/onboard-files.test.ts#L71))
+  triggering ride the ingest and spec-impact workflows above. ([validated by `onboard-files.test.ts:67`](apps/floor/src/work/task/onboard-files.test.ts#L67), [`onboard-files.test.ts:71`](apps/floor/src/work/task/onboard-files.test.ts#L71))
 
 ### FR-6: Top-Level Observability Pages
 

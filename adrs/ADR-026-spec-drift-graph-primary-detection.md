@@ -50,14 +50,14 @@ heuristic only as a de-noised fallback.**
   `CreateContainerConfigError` / image-pull errors as transient
   ([k8s-pod-failure.ts](../libs/shared/src/k8s-pod-failure.ts)) and
   re-queue a bounded number of times from the watcher
-  ([agent-watcher.ts](../apps/floor/src/jobs/watcher/agent-watcher.ts) — at the
+  ([agent-watcher.ts](../apps/floor/src/work/watcher/agent-watcher.ts) — at the
   time of this decision, the since-retired `loretask-watcher`)
   rather than filing a terminal `lore-failed`.
 - **Actionable issues.** Every drift issue lists the graph-detected drifted
   statements verbatim, carries a static remediation guidance block
-  ([drift-issue-guidance.ts](../apps/floor/src/jobs/spec-trace/spec-drift/drift-issue-guidance.ts)),
+  ([drift-issue-guidance.ts](../apps/floor/src/work/spec-trace/spec-drift/drift-issue-guidance.ts)),
   attributes the creator as `spec-drift`, and links the `Lore-Task` trailer to the
-  deployed task page ([issue-body.ts](../apps/floor/src/jobs/task/issue-body.ts)).
+  deployed task page ([issue-body.ts](../apps/floor/src/work/task/issue-body.ts)).
 
 The deterministic `spec_drift` cron is the single detector of record; the
 `scripts/agent-prompts/spec-drift.md` reference doc is aligned to it.

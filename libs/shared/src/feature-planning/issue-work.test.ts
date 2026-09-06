@@ -26,7 +26,7 @@ const decomposition = (
           depends_on: [],
           parallelizable: true,
           phase: 1,
-          file_path: "apps/floor/src/delivery/http/routes/agent-events.ts",
+          file_path: "apps/floor/src/transport/http/routes/agent-events.ts",
           labels: ["area:floor"],
         },
       ],

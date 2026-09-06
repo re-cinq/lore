@@ -187,12 +187,12 @@ scoped settling a run to the one cluster this Floor can reach; it now settles
 from the event's own report, which carries the full status. The distinction
 above still governs the READ surface — the reconcile pass, the reaper's status
 probe, the pod-log reads — where a caller genuinely has to ask.*
-  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/transport/routes/cluster.test.ts#L73), [`k8s-errors.test.ts:28`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L28), [`k8s-errors.test.ts:44`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L44), [`k8s-errors.test.ts:56`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L56), [`kubernetes.test.ts:21`](apps/floor/src/jobs/kubernetes.test.ts#L21), [`kubernetes.test.ts:49`](apps/floor/src/jobs/kubernetes.test.ts#L49), [`kubernetes.test.ts:55`](apps/floor/src/jobs/kubernetes.test.ts#L55))
+  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/transport/routes/cluster.test.ts#L73), [`k8s-errors.test.ts:28`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L28), [`k8s-errors.test.ts:44`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L44), [`k8s-errors.test.ts:56`](apps/cluster-agent/src/lib/k8s-errors.test.ts#L56), [`kubernetes.test.ts:21`](apps/floor/src/events/handlers/kubernetes.test.ts#L21), [`kubernetes.test.ts:49`](apps/floor/src/events/handlers/kubernetes.test.ts#L49), [`kubernetes.test.ts:55`](apps/floor/src/events/handlers/kubernetes.test.ts#L55))
 
 The reconcile pass keeps paging, and its seam narrowed with the cut: it now
 depends on one page-fetch method rather than a slice of a Kubernetes client, so
 a test fakes the thing it actually needs.
-  ([validated by walks every page via the continue token and passes the page limit](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L48), [`agent-reconcile.test.ts:71`](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L71), [`agent-reconcile.test.ts:84`](apps/floor/src/jobs/watcher/agent-reconcile.test.ts#L84))
+  ([validated by walks every page via the continue token and passes the page limit](apps/floor/src/work/watcher/agent-reconcile.test.ts#L48), [`agent-reconcile.test.ts:71`](apps/floor/src/work/watcher/agent-reconcile.test.ts#L71), [`agent-reconcile.test.ts:84`](apps/floor/src/work/watcher/agent-reconcile.test.ts#L84))
 
 The Role this service carries also closes two gaps the Floor had been silently
 living with: it never held `delete` on `agents` or `agents/status`, yet issued
@@ -360,7 +360,7 @@ only through the Project facade port **`project.agentDefs`** (the config side;
 ## Floor data access — all SQL behind the Project ports
 
 The Floor (the coordinator) had ~130 hand-rolled SQL statements smeared across
-~30 job files via a raw `query()` escape hatch (`apps/floor/src/kernel/db.ts`).
+~30 job files via a raw `query()` escape hatch (`apps/floor/src/outbound/db.ts`).
 PR #749 single-sourced only the org-wide *queue mechanics* (`pipeline.tasks`
 claim/sweep, `pipeline.events`, leases, audit) and deferred the rest. This ADR
 records the completion of that extraction: **Floor reaches Postgres through the
@@ -369,7 +369,7 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
 - **Two access paths.** A job that holds a repo uses the per-repo facade
   (`projectFor(repo)` → `project.tasks` / `.settings` / `.usage` / `.issues` …).
   A cross-repo / no-repo job (most crons, the agent-events sink) uses a lazy
-  port singleton in `apps/floor/src/kernel/queues.ts` (`taskStore()`,
+  port singleton in `apps/floor/src/outbound/queues.ts` (`taskStore()`,
   `settings()`, `evalRuns()`, `cost()`, `contextCore()`, `research()`,
   `baseline()`, `chunks()`, `memoryLifecycle()`) that binds the shared `Pg…`
   adapter to the pool.

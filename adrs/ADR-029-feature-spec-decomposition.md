@@ -17,7 +17,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > a story/task tree, Issues per story, `spec-task` rows — are unchanged.
 >
 > **What went wrong.** The trigger was a task-type predicate:
-> [decompose-kick.ts](../apps/floor/src/jobs/task/decompose-kick.ts) fires only when a
+> [decompose-kick.ts](../apps/floor/src/work/task/decompose-kick.ts) fires only when a
 > merged PR belongs to a `feature-finalize` task. Once finalize became a *resume* of the
 > feature-planning line ([features.ts](../apps/lore-api/src/transport/routes/features/features.ts))
 > the owning task is `feature-planning`, the predicate stops matching, and **decomposition
@@ -48,7 +48,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > [merge-check.ts](../apps/stations/src/work/merge-check/merge-check.ts) resolves the line via
 > `findOpenByPr` ([assembly-lines-port.ts](../libs/shared/src/project/assembly-runs/assembly-runs-port.ts))
 > and reports to the parked node with an `assembly_run.resume` event, handled by the
-> existing [resume-event-handler.ts](../apps/floor/src/jobs/assembly-run/resume-event-handler.ts).
+> existing [resume-event-handler.ts](../apps/floor/src/work/assembly-run/resume-event-handler.ts).
 > That is the same mechanism finalize already uses, so no new event type is introduced and
 > `decompose-kick.ts` is deleted rather than corrected. This depends on the `push` node
 > stamping `pr_number` on the line — `findOpenByPr` cannot resolve a line whose PR was

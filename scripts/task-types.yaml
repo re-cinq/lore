@@ -1133,7 +1133,7 @@ task_types:
           },
           {
             "title": "Integration",
-            "content": "Hooks into the existing merge handler in `apps/floor/src/jobs/merge/merge-check.ts` and reuses the task pipeline; no new deployable."
+            "content": "Hooks into the existing merge handler in `apps/floor/src/work/merge/merge-check.ts` and reuses the task pipeline; no new deployable."
           }
         ],
         "mockup_stylesheet": ":root { --surface: #ffffff; --border: #e2e5e9; --radius: 6px; --font-ui: system-ui, sans-serif; --text-muted: #6b7280; --accent: #2563eb; --on-accent: #ffffff; }\n.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; font-family: var(--font-ui); }\n.muted { color: var(--text-muted); }\n.btn-primary { background: var(--accent); color: var(--on-accent); border: 0; border-radius: var(--radius); padding: 6px 12px; }",

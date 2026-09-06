@@ -224,14 +224,14 @@ system is performing.
   targeted memory throughout the run — the only context path, since nothing is
   fetched before the pod starts. A shared `lore-mcp`
   gateway serves those tools over MCP-over-HTTP at a public `:443` host (the
-  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:69`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L69), [`agent-catalog.test.ts:21`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L21))
+  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:69`](apps/floor/src/work/agent/agent-catalog.test.ts#L69), [`agent-catalog.test.ts:21`](apps/floor/src/work/agent/agent-catalog.test.ts#L21))
 - The gateway reads each request body defensively: it JSON-parses the body
   (an empty body carries no payload), caps it at 1 MB (`413` over the cap) so an
   authenticated-but-rogue pod cannot exhaust gateway memory, and returns `400`
   for a malformed body rather than a `500`. ([validated by `http-transport.test.ts:11`](apps/mcp-server/src/transport/http-transport.test.ts#L11), [`http-transport.test.ts:15`](apps/mcp-server/src/transport/http-transport.test.ts#L15), [`http-transport.test.ts:19`](apps/mcp-server/src/transport/http-transport.test.ts#L19), [`http-transport.test.ts:25`](apps/mcp-server/src/transport/http-transport.test.ts#L25))
 - When no gateway URL is configured (the default, and every cluster before the
   gateway is deployed), the seeded agent recipes omit the `mcp_servers` block
-  entirely — no empty-`url` MCP entry lands in any recipe CRD. ([validated by `catalog-mcp-guard.test.ts:10`](apps/floor/src/jobs/agent/catalog-mcp-guard.test.ts#L10))
+  entirely — no empty-`url` MCP entry lands in any recipe CRD. ([validated by `catalog-mcp-guard.test.ts:10`](apps/floor/src/work/agent/catalog-mcp-guard.test.ts#L10))
 - The gateway also serves an **agent-skills registry** at `/skills` (unauthenticated —
   skills are org conventions, not secrets): `GET /skills/settings.json` returns the org
   session settings/hooks, and `GET /skills/<name>.tar.gz` streams a gzip tarball of the
@@ -401,9 +401,9 @@ The system MUST ingest content from multiple sources into the vector
 store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/content-classify.test.ts#L5))
 
 - FR-7.1: Fast path: on-push to main triggers incremental ingestion
-  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:77`](apps/floor/src/delivery/http/routes/ci-ingest.test.ts#L77))
+  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:77`](apps/floor/src/transport/http/routes/ci-ingest.test.ts#L77))
 - FR-7.2: Full path: nightly job triggers complete re-index via
-  pipeline task. ([validated by `reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-seed.test.ts:5`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L5))
+  pipeline task. ([validated by `reindex-backfill.test.ts:24`](apps/floor/src/work/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-seed.test.ts:5`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L5))
 - FR-7.3: Content types: code (AST-split), pull requests (diff +
   description + comments), ADRs, docs (section-chunked), specs,
   runbooks. ([validated by `chunker.test.ts:6`](libs/shared/src/chunker.test.ts#L6), [`chunker.test.ts:172`](libs/shared/src/chunker.test.ts#L172), [`content-classify.test.ts:11`](libs/shared/src/content-classify.test.ts#L11))
@@ -414,7 +414,7 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
   content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
 - FR-7.6: Nightly re-index MUST hard-delete chunks whose source
   file, PR, or ADR no longer exists or has been superseded. No
-  stale content is retained. ([validated by `verify.test.ts:69`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L69), [`chunks.test.ts:391`](libs/shared/src/project/chunks/chunks.test.ts#L398))
+  stale content is retained. ([validated by `verify.test.ts:69`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L69), [`chunks.test.ts:391`](libs/shared/src/project/chunks/chunks.test.ts#L398))
 
 ### FR-8: Observability (Phase 1)
 
@@ -525,25 +525,25 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 
 The system MUST support an opt-in, webhook-driven autonomous review loop per
 repo with a safety-net cron (ADR-015; the review agent runs on the
-ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100))
+ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/floor/src/work/review/code-review.test.ts#L100))
 
 - FR-13.1: After an implementation PR is created, an auto-review is started on
   the ai-agent-subsystem when `auto_review` is enabled on the repo (ADR-031
-  retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/lib/should-auto-review.test.ts#L5), [`code-review.test.ts:100`](apps/floor/src/jobs/review/code-review.test.ts#L100))
+  retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/work/lib/should-auto-review.test.ts#L5), [`code-review.test.ts:100`](apps/floor/src/work/review/code-review.test.ts#L100))
 - FR-13.2: The review agent reads spec + conventions and posts ONE formal PR
   review — inline comments per finding plus a summary, carrying the verdict as its
-  GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/jobs/review/post-review.test.ts#L77), [`post-review.test.ts:180`](apps/floor/src/jobs/review/post-review.test.ts#L180))
+  GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/work/review/post-review.test.ts#L77), [`post-review.test.ts:180`](apps/floor/src/work/review/post-review.test.ts#L180))
 - FR-13.3: On a formal `APPROVE` the PR becomes eligible for (auto-)merge once the
-  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:181`](apps/floor/src/jobs/review/post-review.test.ts#L180), [`auto-merge.test.ts:32`](apps/floor/src/jobs/merge/auto-merge.test.ts#L32))
+  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:181`](apps/floor/src/work/review/post-review.test.ts#L180), [`auto-merge.test.ts:32`](apps/floor/src/work/merge/auto-merge.test.ts#L32))
 - FR-13.4: When changes are requested, a follow-up round is started on the same
-  branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/jobs/review/code-review.test.ts#L122))
+  branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/work/review/code-review.test.ts#L122))
 - FR-13.5: After further iterations the loop escalates to human review via a
   `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/work/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:37`](libs/assembly-lines/src/escalation-line.test.ts#L37))
 - FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the Floor webhook
   ingress maps qualifying `pull_request`, `pull_request_review`, and PR
   `issue_comment` events to the code-review choreography, which starts or
   replies on a code-review assembly line; bot-authored events are skipped as a
-  loop guard. ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100), [`code-review.test.ts:246`](apps/floor/src/jobs/review/code-review.test.ts#L246))
+  loop guard. ([validated by `code-review.test.ts:91`](apps/floor/src/work/review/code-review.test.ts#L100), [`code-review.test.ts:246`](apps/floor/src/work/review/code-review.test.ts#L246))
 - FR-13.7: **Safety-net cron** fires at `7 7-17 * * 1-5` (UTC,
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00
@@ -557,7 +557,7 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
 The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:190`](libs/shared/src/project/chunks/chunks.test.ts#L194), [`chunks.test.ts:209`](libs/shared/src/project/chunks/chunks.test.ts#L216))
 
 - FR-14.1: Weekly job reads spec assertions and checks against
-  current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/jobs/detect/fan-out.test.ts#L42))
+  current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/work/detect/fan-out.test.ts#L42))
 - Decision: divergence above 20% of a spec's assertions triggers a `gap-fill`
   pipeline task for the owning team.
 - FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:914`](libs/shared/src/project/chunks/chunks.test.ts#L914), [`chunks.test.ts:947`](libs/shared/src/project/chunks/chunks.test.ts#L947))
@@ -1265,7 +1265,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
     single-sourced `chunkSchemaOrOrgShared` (never the per-repo memoized
     resolver, which would serve the pre-change schema for its TTL), no-ops
     when resolution falls back to `org_shared`, and lets a relocation error
-    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:48`](apps/floor/src/jobs/repo-team-changed.test.ts#L48), [`repo-team-changed.test.ts:67`](apps/floor/src/jobs/repo-team-changed.test.ts#L67), [`repo-team-changed.test.ts:82`](apps/floor/src/jobs/repo-team-changed.test.ts#L82), [`repo-team-changed.test.ts:90`](apps/floor/src/jobs/repo-team-changed.test.ts#L90), [`repo-team-changed.test.ts:103`](apps/floor/src/jobs/repo-team-changed.test.ts#L103))
+    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:48`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L48), [`repo-team-changed.test.ts:67`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L67), [`repo-team-changed.test.ts:82`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L82), [`repo-team-changed.test.ts:90`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L90), [`repo-team-changed.test.ts:103`](apps/floor/src/events/handlers/repo-team-changed.test.ts#L103))
 
 ## Non-Functional Requirements
 

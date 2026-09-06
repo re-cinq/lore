@@ -1,33 +1,33 @@
 import { initOtel, shutdownOtel } from "./otel-init.js";
 import { createShutdown } from "./shutdown.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { getPool, initPool } from "./kernel/db.js";
-import { awaitSoleFloor } from "./kernel/single-instance.js";
-import { eventProxy, usage } from "./kernel/queues.js";
-import { loadTaskTypes } from "./kernel/config.js";
-import { wireProject } from "./composition/project-boot.js";
-import { recoverStaleTasks, startWorker } from "./jobs/task/worker.js";
+import { getPool, initPool } from "./outbound/db.js";
+import { awaitSoleFloor } from "./outbound/single-instance.js";
+import { eventProxy, usage } from "./outbound/queues.js";
+import { loadTaskTypes } from "./outbound/config.js";
+import { wireProject } from "./app/project-boot.js";
+import { recoverStaleTasks, startWorker } from "./work/task/worker.js";
 import {
   startScheduler,
   getJobStatus,
-} from "./main-loop/scheduling/scheduler.js";
-import { startHealthServer } from "./delivery/http/server.js";
+} from "./events/main-loop/scheduling/scheduler.js";
+import { startHealthServer } from "./transport/http/server.js";
 import { loadApprovalConfig } from "@re-cinq/lore-shared";
 
 // Event bus (the 3 layers): Layer 1 listeners (webhook, k8s watch, cron emitters), Layer 2 drain loop + reaper over pipeline.events, Layer 3 registry handlers. See apps/floor/README.md + ADR-015.
-import { buildRegistry, resolve } from "./main-loop/registry.js";
+import { buildRegistry, resolve } from "./events/main-loop/registry.js";
 import { startEventLoop } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import {
   claimBatch,
   markDead,
   markDone,
   markFailed,
-} from "./kernel/event-store.js";
-import { startEventReaper } from "./main-loop/reaper.js";
-import { subscribe, reconcileDeliveries } from "./kernel/event-store.js";
+} from "./outbound/event-store.js";
+import { startEventReaper } from "./events/main-loop/reaper.js";
+import { subscribe, reconcileDeliveries } from "./outbound/event-store.js";
 import { RECONCILE_WINDOW_MINUTES } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
-import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
-import { CRON_EMITTERS } from "./listeners/cron-emitters.js";
+import { registerCronEmitter } from "./events/listeners/scheduler-emitter.js";
+import { CRON_EMITTERS } from "./events/listeners/cron-emitters.js";
 
 /** How long shutdown waits for the event queue to drain — long enough to clear a backlog, short enough not to hold a rollout open past its termination grace period. */
 const EVENT_DRAIN_TIMEOUT_MS = 5_000;

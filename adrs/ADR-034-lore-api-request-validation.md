@@ -72,11 +72,11 @@ finish the job ADR-033 deferred.
    now has its own `delivery/http/api-error.ts` — a deliberate second copy,
    because `libs/shared` carries no hapi dependency by design (ADR-032).
 
-- A Floor refusal carries the status hapi renders ([validated by carries the status hapi renders](apps/floor/src/delivery/http/api-error.test.ts#L6)).
-- Its payload is the `{ error }` envelope the web UI proxies ([validated by payload is the error envelope the web UI proxies, not boom's default](apps/floor/src/delivery/http/api-error.test.ts#L13)).
-- Data rides alongside the message there too ([validated by extra data rides alongside the message](apps/floor/src/delivery/http/api-error.test.ts#L19)).
-- A shaped refusal passes back out of a Floor catch ([validated by a refusal a guard already shaped passes straight back out](apps/floor/src/delivery/http/api-error.test.ts#L28)).
-- An ordinary Floor failure stays the catch block's to shape ([validated by an ordinary failure is the catch block's to shape](apps/floor/src/delivery/http/api-error.test.ts#L34)).
+- A Floor refusal carries the status hapi renders ([validated by carries the status hapi renders](apps/floor/src/transport/http/api-error.test.ts#L6)).
+- Its payload is the `{ error }` envelope the web UI proxies ([validated by payload is the error envelope the web UI proxies, not boom's default](apps/floor/src/transport/http/api-error.test.ts#L13)).
+- Data rides alongside the message there too ([validated by extra data rides alongside the message](apps/floor/src/transport/http/api-error.test.ts#L19)).
+- A shaped refusal passes back out of a Floor catch ([validated by a refusal a guard already shaped passes straight back out](apps/floor/src/transport/http/api-error.test.ts#L28)).
+- An ordinary Floor failure stays the catch block's to shape ([validated by an ordinary failure is the catch block's to shape](apps/floor/src/transport/http/api-error.test.ts#L34)).
 
 2b. **A refusal survives an error-shaping `catch`.** A handler that wraps its
    body in `try { … } catch { return … .code(500) }` would otherwise reshape a
