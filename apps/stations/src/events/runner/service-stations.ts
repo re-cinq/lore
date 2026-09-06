@@ -5,7 +5,7 @@ import {
   hostCanRun,
   isSweepModule,
   type StationPortName,
-} from "../stations/index.js";
+} from "../../work/index.js";
 
 /** This service holds a pool AND a GitHub App, so it serves every port. */
 const SERVED: readonly StationPortName[] = [
@@ -17,8 +17,8 @@ const SERVED: readonly StationPortName[] = [
   "gcpCost",
 ];
 
-import type { StationHost } from "../stations/index.js";
-import type { Station } from "../delivery/routes/stations.js";
+import type { StationHost } from "../../work/index.js";
+import type { Station } from "../../domain/station.js";
 
 const hasHttpTrigger = (mod: {
   manifest: { triggers: readonly { kind: string }[] };

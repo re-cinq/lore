@@ -21,8 +21,8 @@ import {
   pipeline,
   settings,
   taskStore,
-} from "../../kernel/queues.js";
-import { projectFor } from "../../kernel/project-boot.js";
+} from "../../outbound/queues.js";
+import { projectFor } from "../../outbound/project-boot.js";
 
 /** Hours between two timestamps, or null when the PR was never merged. */
 const hoursBetween = (from: string, to: string | null): number | null =>

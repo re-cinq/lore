@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { runStation } from "./main.js";
-import type { NodeStationRun } from "../stations/index.js";
+import type { NodeStationRun } from "../../work/index.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { FakeLlm } from "@re-cinq/lore-shared/llm/fake-llm.js";
 

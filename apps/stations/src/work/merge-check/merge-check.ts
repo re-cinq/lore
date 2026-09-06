@@ -5,11 +5,11 @@ import {
   taskStore,
   settings,
   memoryLifecycle,
-} from "../../kernel/queues.js";
+} from "../../outbound/queues.js";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { startMergeLine } from "./start-merge-line.js";
 import {} from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
-import { projectFor } from "../../kernel/project-boot.js";
+import { projectFor } from "../../outbound/project-boot.js";
 import { writeEpisodeWithCuration } from "@re-cinq/lore-shared";
 import { nextTrust, type TrustState } from "../lib/trust-ladder.js";
 import {

@@ -4,7 +4,7 @@
 
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { parseStationInput } from "@re-cinq/lore-shared/station-input.js";
-import { UsageTrackingLlm } from "../stations/lib/llm-usage-tracker.js";
+import { UsageTrackingLlm } from "../../work/lib/llm-usage-tracker.js";
 import {
   resultLine,
   eventLine,
@@ -14,7 +14,7 @@ import {
   nodeStationFor,
   type NodeStationRun,
   type StationEnv,
-} from "../stations/index.js";
+} from "../../work/index.js";
 
 /** Resolve by node type; the registry owns the type-to-station mapping. */
 const runnerFor = (type: string): NodeStationRun | undefined =>

@@ -1,14 +1,10 @@
 // POST /api/stations/{name} — the fourth Station execution form (ADR-024): a sync HTTP handler beside the data, so the Floor's scheduler can close its job_runs row with the summary.
 
+import type { StationRegistry } from "../../domain/station.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
-
-// A station: no input, one summary line — the exact shape the jobs moving here already had.
-export type Station = () => Promise<string>;
-
-export type StationRegistry = ReadonlyMap<string, Station>;
 
 export interface StationsRouteDeps {
   /** A thunk: the registry closes over a pool that does not exist at route-build time. */
