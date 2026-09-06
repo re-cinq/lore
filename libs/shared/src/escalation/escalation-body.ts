@@ -1,4 +1,4 @@
-/** Pure escalation-body rendering (moved from apps/floor/src/jobs/platform/escalation.ts); the file/notify SEQUENCE now lives in escalation.yaml as recorded-visit edges, not a catch block. */
+/** Pure escalation-body rendering (moved from apps/floor/src/work/platform/escalation.ts); the file/notify SEQUENCE now lives in escalation.yaml as recorded-visit edges, not a catch block. */
 
 /** Why escalation fired; reaches the Issue title, so it must be the actual cause (e.g. don't label a clean no-op run "supervisor_panic"). */
 export type EscalationReason =

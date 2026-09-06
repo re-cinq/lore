@@ -44,43 +44,46 @@ single Claude-CLI/API-plus-prompt run.
 
 ## Layout
 
-The source is organized as the **3 event-bus layers** (ADR-015) plus the
-unavoidable substrate. Every trigger flows through `pipeline.events` — owned by
-the event-router (ADR-044): listeners report to the router over HTTP, the main
-loop claims this Floor's delivery rows back from it + dispatches, the jobs do
-the work. Special citizens that can't nest under a layer: `src/index.ts` (the
-`dist/index.js` entry, may import anything); `kernel/` (substrate imported by
-all, importing nothing above it); `delivery/` (the `dist/delivery/*` deploy
-contract: job-runner, gen-catalog, the HTTP server); `composition/` (the wiring
-root). Boundaries are declared in
-[`layers.yaml`](../../layers.yaml) and enforced by `lore/no-cross-layer-import`
-(ADR-036).
+The source is organized top-down as technical tiers: a tier may import the
+tiers below it and never the one above. The 3 event-bus layers (ADR-015) still
+describe the runtime — every trigger flows through `pipeline.events`, owned by
+the event-router (ADR-044) — but they now live inside `events/`, which is one
+tier rather than the organizing principle of the whole package.
+
+`events/` receives and routes; `work/` holds one folder per job. They are
+separate tiers because who dispatches a job is not the job. `src/index.ts` is
+the process entry and may import anything, which is what a composition root
+does. Boundaries are declared in [`layers.yaml`](../../layers.yaml) and enforced
+by `lore/no-cross-layer-import` (ADR-036).
 
 ```
 src/
-  index.ts        the application entry — boots the loop + worker + health
-  kernel/         shared substrate: db pool, config, agent-invocation, queues
-                  (the lazy port singletons, incl. the cluster-agent + stations
-                  + event-router HTTP clients)
-  composition/    project-boot.ts — the wiring root (the one place impls are wired)
-  delivery/       entry points (job-runner, gen-catalog) + http/ (webhook/CI
-                  ingress, run-viz SSE, health — the deploy contract)
-
-  listeners/      LAYER 1 — producers: report occurrences → the event-router
-                  (cron-emitters, scheduler-emitter, ci-ingest/ci-tests maps,
-                  agent-reconcile — the streaming k8s watch lives in
-                  apps/event-router)
-  main-loop/      LAYER 2 — the drain side: store (the HTTP claim/ack seam),
-                  reaper, registry, event-names, types
-                  + scheduling/ (the cron timer) + lease/ (branch coordination)
-  jobs/           LAYER 3 — the tasks/jobs the events trigger:
-                  github · kubernetes · cron · internal      (the event handlers)
+  index.ts        the process entry — boots the loop + worker + health
+  app/            project-boot.ts — the wiring root (the one place impls are wired)
+  transport/      ways in: http/ (webhook/CI ingress, run-viz SSE, health) and
+                  two CLI entrypoints, job-runner + gen-catalog. The compiled
+                  `dist/transport/job-runner.js` is a DEPLOY CONTRACT — the Helm
+                  CronJob template invokes that exact path.
+  events/         receive and route (the 3 event-bus layers, ADR-015):
+                  listeners/  produce: report occurrences → the event-router
+                  main-loop/  drain: claim/ack seam, reaper, registry,
+                              scheduling/ (cron timer), lease/ (coordination)
+                  handlers/   map each event name to the job that answers it —
+                              github · kubernetes · cron · internal
+  work/           one folder per job, fifteen of them:
                   task/ station/ assembly-run/ agent/ watcher/ merge/ review/
                   detect/ spec-trace/ memory/ context-jobs/ dark-factory/
+                  backlog/ lease/ lib/
+  outbound/       every way out: db pool, queues (the lazy port singletons, incl.
+                  the cluster-agent + stations + event-router HTTP clients),
+                  config, archives, project-boot, single-instance
+  domain/         event-types.ts — the bus contract, so a job can implement a
+                  handler without importing the loop. A leaf with no I/O.
+  lib/            pure helpers
 ```
 
-Heavy batch jobs (under `jobs/context-jobs/`, `jobs/memory/`, …) still run as K8s
-CronJob pods via `delivery/job-runner.ts` (carve-out, ADR-019); the light
+Heavy batch jobs (under `work/context-jobs/`, `work/memory/`, …) still run as K8s
+CronJob pods via `transport/job-runner.ts` (carve-out, ADR-019); the light
 operational crons emit `cron.<job>.tick` events that the loop runs.
 
 ## Develop

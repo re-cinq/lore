@@ -112,7 +112,7 @@ The detection family (`gap_detection`, `spec_drift`, `spec_coverage_validate`,
 assembly-line definition with a deterministic `detect` node
 (`libs/assembly-lines/src/assembly-lines/*.yaml`); an in-process cron emitter
 inserts `cron.<job>.tick` at the same cadence, and the tick handler
-(`apps/floor/src/jobs/detect/fan-out.ts`) starts one per-repo assembly line via
+(`apps/floor/src/work/detect/fan-out.ts`) starts one per-repo assembly line via
 `assemblyLines().start()`. Runs are repo-less (no clone; the branch name is a
 lease key) and each writes a `pipeline.job_runs` row named `<job>:<repo>`.
 Rationale and controls mapping: ADR-019 amendment.
@@ -281,7 +281,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   that pulled the image, requested bumped resources, and exited on
   `Unknown job: autoresearch` — while a dispatch entry with no CronJob would
   simply never run and never say so. A scheduled failure and a silent no-op are
-  both worse than a build error. ([validated by `job-runner.test.ts:72`](apps/floor/src/delivery/job-runner.test.ts#L72), [`job-runner.test.ts:83`](apps/floor/src/delivery/job-runner.test.ts#L83))
+  both worse than a build error. ([validated by `job-runner.test.ts:72`](apps/floor/src/transport/job-runner.test.ts#L72), [`job-runner.test.ts:83`](apps/floor/src/transport/job-runner.test.ts#L83))
 
 ## Acceptance Criteria
 
@@ -289,20 +289,20 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
    an unknown name exits non-zero. `resolveJob` returns the dispatch handler for a known name and
    null for an unknown or empty name; `runJobByName` invokes the resolved handler and exits 0.
-   ([`job-runner.test.ts:39`](apps/floor/src/delivery/job-runner.test.ts#L39), [`job-runner.test.ts:43`](apps/floor/src/delivery/job-runner.test.ts#L43), [`job-runner.test.ts:50`](apps/floor/src/delivery/job-runner.test.ts#L50), [validated by `resolves %s to a handler function`](apps/floor/src/delivery/job-runner.test.ts#L27))
+   ([`job-runner.test.ts:39`](apps/floor/src/transport/job-runner.test.ts#L39), [`job-runner.test.ts:43`](apps/floor/src/transport/job-runner.test.ts#L43), [`job-runner.test.ts:50`](apps/floor/src/transport/job-runner.test.ts#L50), [validated by `resolves %s to a handler function`](apps/floor/src/transport/job-runner.test.ts#L27))
 
 1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
    then `completed` (with `result_summary`) or `failed` (with `error`) — so a
    CronJob run appears in the web-ui `/analytics` view identically to an
    in-process run. `startJobRun` opens a `running` row and returns the run id, `completeJobRun`
    stamps `completed` with the `result_summary`, and `failJobRun` stamps `failed` with the error.
-   ([`job-run.test.ts:6`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L6), [`job-run.test.ts:18`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L18), [`job-run.test.ts:51`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L51))
+   ([`job-run.test.ts:6`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L6), [`job-run.test.ts:18`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L18), [`job-run.test.ts:51`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L51))
 
 1b. A completed or failed CronJob run's full output is retained in GCS (redacted,
    CMEK-encrypted) and retrievable via the UI / MCP, referenced by
    `pipeline.job_runs.log_path` — not lost to ephemeral pod stdout. `jobRunLogKey` builds the
    `__job_runs__/<job>/<runId>/output.log` key, and both `completeJobRun` and `failJobRun` persist
-   the `log_path` when provided. ([validated by `log-storage.test.ts:42`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L42), [`job-run.test.ts:31`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L31), [`log-storage.test.ts:10`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L10), [`job-run.test.ts:64`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L64))
+   the `log_path` when provided. ([validated by `log-storage.test.ts:42`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L42), [`job-run.test.ts:31`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L31), [`log-storage.test.ts:10`](apps/floor/src/events/main-loop/scheduling/log-storage.test.ts#L10), [`job-run.test.ts:64`](apps/floor/src/events/main-loop/scheduling/job-run.test.ts#L64))
 
 1c. The in-process scheduler clears a job's in-flight marker on every failure
    path: a rejected `startJobRun` (`pipeline.job_runs` insert failure) is logged
@@ -312,7 +312,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    successful run passes the handler result to `completeJobRun`; and
    `getJobStatus` reports `idle` plus the in-memory last-attempt timestamp
    (`null` before the first attempt in this process).
-   ([validated by `scheduler.test.ts:45`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L45), [`scheduler.test.ts:69`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L69), [`scheduler.test.ts:82`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L82), [`scheduler.test.ts:98`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L98), [`scheduler.test.ts:114`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L114), [`scheduler.test.ts:129`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L129))
+   ([validated by `scheduler.test.ts:45`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L45), [`scheduler.test.ts:69`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L69), [`scheduler.test.ts:82`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L82), [`scheduler.test.ts:98`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L98), [`scheduler.test.ts:114`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L114), [`scheduler.test.ts:129`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L129))
 
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.
@@ -329,7 +329,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    `README.md` naming its runtime/container; `agent` typecheck and `vitest run`
    pass after the move.
 7. `kubectl create job --from=cronjob/<name>` runs a batch job on demand.
-8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:33`](apps/floor/src/delivery/job-runner.test.ts#L33))
+8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:33`](apps/floor/src/transport/job-runner.test.ts#L33))
 
 9. Each migrated batch job is an independently-runnable unit the runner dispatches and whose one-line
    result the run row records: `memory_ttl` soft-deletes expired memories and reports the count,
@@ -337,7 +337,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    parses the Admin cost/usage report — cents-string amount → dollars, 1h + 5m ephemeral
    cache-creation buckets summed, cost joined to tokens per date+model), and `context_reindex`
    selects only the doc seed roots (`CLAUDE.md`/`AGENTS.md`/`adrs/`/`specs/<feature>`/`.specify`),
-   excluding source code, root docs, and binary/unsupported files. ([validated by `ttl-cleanup.test.ts:25`](apps/floor/src/jobs/memory/ttl-cleanup/ttl-cleanup.test.ts#L25), [`ttl-cleanup.test.ts:34`](apps/floor/src/jobs/memory/ttl-cleanup/ttl-cleanup.test.ts#L34), [`anthropic-cost-sync.test.ts:10`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts:9`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts:37`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts:73`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L73), [`anthropic-cost.test.ts:92`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L92), [`reindex-seed.test.ts:5`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L5), [`reindex-seed.test.ts:30`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L30), [`reindex-seed.test.ts:36`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L36))
+   excluding source code, root docs, and binary/unsupported files. ([validated by `ttl-cleanup.test.ts:25`](apps/floor/src/work/memory/ttl-cleanup/ttl-cleanup.test.ts#L25), [`ttl-cleanup.test.ts:34`](apps/floor/src/work/memory/ttl-cleanup/ttl-cleanup.test.ts#L34), [`anthropic-cost-sync.test.ts:10`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts:9`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts:37`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts:73`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L73), [`anthropic-cost.test.ts:92`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L92), [`reindex-seed.test.ts:5`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L5), [`reindex-seed.test.ts:30`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L30), [`reindex-seed.test.ts:36`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L36))
 
 10. The detection-family cron tick fans out one per-repo assembly line (2026-07 amendment):
    `detectBranchName` keys each run `detect/<definition>/<repo>` (the old lease key, now the
@@ -349,7 +349,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    (team schemas ∪ org_shared), not a fixed org_shared: the schema list intersects
    `information_schema` with `lore.repos.team` behind a schema-name injection gate, one grouped
    UNION ALL query spans all schemas, and the active variant gates each repo on a code chunk
-   ingested inside the 7-day activity window. ([validated by `fan-out.test.ts:33`](apps/floor/src/jobs/detect/fan-out.test.ts#L34), [`fan-out.test.ts:42`](apps/floor/src/jobs/detect/fan-out.test.ts#L42), [`fan-out.test.ts:87`](apps/floor/src/jobs/detect/fan-out.test.ts#L87), [`fan-out.test.ts:110`](apps/floor/src/jobs/detect/fan-out.test.ts#L110), [`fan-out.test.ts:180`](apps/floor/src/jobs/detect/fan-out.test.ts#L180), [`fan-out.test.ts:215`](apps/floor/src/jobs/detect/fan-out.test.ts#L215), [`fan-out.test.ts:226`](apps/floor/src/jobs/detect/fan-out.test.ts#L226), [`fan-out.test.ts:240`](apps/floor/src/jobs/detect/fan-out.test.ts#L240), [`fan-out.test.ts:248`](apps/floor/src/jobs/detect/fan-out.test.ts#L248), [`fan-out.test.ts:258`](apps/floor/src/jobs/detect/fan-out.test.ts#L258), [`fan-out.test.ts:268`](apps/floor/src/jobs/detect/fan-out.test.ts#L268), [`fan-out.test.ts:282`](apps/floor/src/jobs/detect/fan-out.test.ts#L282))
+   ingested inside the 7-day activity window. ([validated by `fan-out.test.ts:33`](apps/floor/src/work/detect/fan-out.test.ts#L34), [`fan-out.test.ts:42`](apps/floor/src/work/detect/fan-out.test.ts#L42), [`fan-out.test.ts:87`](apps/floor/src/work/detect/fan-out.test.ts#L87), [`fan-out.test.ts:110`](apps/floor/src/work/detect/fan-out.test.ts#L110), [`fan-out.test.ts:180`](apps/floor/src/work/detect/fan-out.test.ts#L180), [`fan-out.test.ts:215`](apps/floor/src/work/detect/fan-out.test.ts#L215), [`fan-out.test.ts:226`](apps/floor/src/work/detect/fan-out.test.ts#L226), [`fan-out.test.ts:240`](apps/floor/src/work/detect/fan-out.test.ts#L240), [`fan-out.test.ts:248`](apps/floor/src/work/detect/fan-out.test.ts#L248), [`fan-out.test.ts:258`](apps/floor/src/work/detect/fan-out.test.ts#L258), [`fan-out.test.ts:268`](apps/floor/src/work/detect/fan-out.test.ts#L268), [`fan-out.test.ts:282`](apps/floor/src/work/detect/fan-out.test.ts#L282))
 
 11. `context_reindex` ends every per-repo pass with a verification sweep (ADR-019 amendment
    2026-07, issue #967 — `ingested_at` on reindex-owned rows now means "last verified against the
@@ -357,7 +357,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    tree get `ingested_at` re-stamped so the stale count clears, chunks of files missing from the
    tree are pruned, api-ingested chunks are never touched or pruned, an empty tree skips the
    sweep entirely, and re-stamping skips files verified within the last 30 days to keep
-   steady-state nights from rewriting every row. ([validated by `verify.test.ts:55`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L55), [`verify.test.ts:69`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L69), [`verify.test.ts:87`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L87), [`verify.test.ts:99`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L99), [`verify.test.ts:109`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L109))
+   steady-state nights from rewriting every row. ([validated by `verify.test.ts:55`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L55), [`verify.test.ts:69`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L69), [`verify.test.ts:87`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L87), [`verify.test.ts:99`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L99), [`verify.test.ts:109`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L109))
    - Each team-resolved per-repo pass also begins with legacy relocation (issue #979, FR-20.21
      in `specs/1-lore-platform/spec.md`): before counting the repo's chunks — so a newly
      team-resolved repo adopts its history instead of reading as empty and re-seeding — any rows
@@ -366,7 +366,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    - Pruning leaves an audit trail: the verification pass returns the distinct pruned file
      paths (a hard DELETE has no other record of what vanished), and the reindex job writes a
      `reindex_prune` row to `pipeline.audit_log` per repo with the row count and the path list
-     capped at 500 entries plus a truncation flag ([validated by `verify.test.ts:69`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L69), [`verify.test.ts:99`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L99))
+     capped at 500 entries plus a truncation flag ([validated by `verify.test.ts:69`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L69), [`verify.test.ts:99`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L99))
    - Each pass also runs a chunker-upgrade heal sweep (issue #995): `staleChunkerFiles` returns
      the repo's distinct code file paths whose chunks carry a `metadata.chunker_version` older
      than the current `CHUNKER_VERSION` (absent counts as 0), sorted and capped, and the sweep
@@ -375,7 +375,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
      (classifyFile no longer supports its path) so the capped query converges instead of
      re-selecting the same wedged files nightly — so chunking fixes reach files that never
      change, with the per-run cap spreading the one-time re-embed across nights
-     ([validated by `chunks.test.ts:808`](libs/shared/src/project/chunks/chunks.test.ts#L808), [`chunks.test.ts:847`](libs/shared/src/project/chunks/chunks.test.ts#L847), [`reindex-heal.test.ts:27`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L27), [`reindex-heal.test.ts:52`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L52), [`reindex-heal.test.ts:73`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L73), [`reindex-heal.test.ts:94`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L94))
+     ([validated by `chunks.test.ts:808`](libs/shared/src/project/chunks/chunks.test.ts#L808), [`chunks.test.ts:847`](libs/shared/src/project/chunks/chunks.test.ts#L847), [`reindex-heal.test.ts:27`](apps/floor/src/work/context-jobs/reindex/reindex-heal.test.ts#L27), [`reindex-heal.test.ts:52`](apps/floor/src/work/context-jobs/reindex/reindex-heal.test.ts#L52), [`reindex-heal.test.ts:73`](apps/floor/src/work/context-jobs/reindex/reindex-heal.test.ts#L73), [`reindex-heal.test.ts:94`](apps/floor/src/work/context-jobs/reindex/reindex-heal.test.ts#L94))
    - Each pass ends with a never-ingested backfill sweep (issue #999): the repo tree is diffed
      against `chunkedFilePaths` — the distinct file paths holding ANY chunk regardless of owner or
      content type, so api/ui-ingested files are never re-ingested and re-owned — and the
@@ -384,11 +384,11 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
      post-onboarding commits leaves pre-existing code files permanently unindexed) drains
      deterministically across nights, skipping files the changed-file loop already processed this
      run, logging past per-file ingest failures, and counting only files the ingest accepted
-     ([validated by `chunks.test.ts:873`](libs/shared/src/project/chunks/chunks.test.ts#L873), [`chunks.test.ts:895`](libs/shared/src/project/chunks/chunks.test.ts#L895), [`reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-backfill.test.ts:58`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L58), [`reindex-backfill.test.ts:80`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L80), [`reindex-backfill.test.ts:106`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L106), [`reindex-backfill.test.ts:125`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L125))
+     ([validated by `chunks.test.ts:873`](libs/shared/src/project/chunks/chunks.test.ts#L873), [`chunks.test.ts:895`](libs/shared/src/project/chunks/chunks.test.ts#L895), [`reindex-backfill.test.ts:24`](apps/floor/src/work/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-backfill.test.ts:58`](apps/floor/src/work/context-jobs/reindex/reindex-backfill.test.ts#L58), [`reindex-backfill.test.ts:80`](apps/floor/src/work/context-jobs/reindex/reindex-backfill.test.ts#L80), [`reindex-backfill.test.ts:106`](apps/floor/src/work/context-jobs/reindex/reindex-backfill.test.ts#L106), [`reindex-backfill.test.ts:125`](apps/floor/src/work/context-jobs/reindex/reindex-backfill.test.ts#L125))
    - Each optional sweep is isolated: a pass that throws is logged under its own name and
      contributes zero, and the passes after it still run, so a repo keeps everything the
      earlier passes ingested rather than losing the night to one failing sweep
-     ([validated by `reindex-sweep.test.ts:11`](apps/floor/src/jobs/context-jobs/reindex/reindex-sweep.test.ts#L11), [`reindex-sweep.test.ts:15`](apps/floor/src/jobs/context-jobs/reindex/reindex-sweep.test.ts#L15), [`reindex-sweep.test.ts:21`](apps/floor/src/jobs/context-jobs/reindex/reindex-sweep.test.ts#L21), [`reindex-sweep.test.ts:34`](apps/floor/src/jobs/context-jobs/reindex/reindex-sweep.test.ts#L34))
+     ([validated by `reindex-sweep.test.ts:11`](apps/floor/src/work/context-jobs/reindex/reindex-sweep.test.ts#L11), [`reindex-sweep.test.ts:15`](apps/floor/src/work/context-jobs/reindex/reindex-sweep.test.ts#L15), [`reindex-sweep.test.ts:21`](apps/floor/src/work/context-jobs/reindex/reindex-sweep.test.ts#L21), [`reindex-sweep.test.ts:34`](apps/floor/src/work/context-jobs/reindex/reindex-sweep.test.ts#L34))
 
 ## File Changes
 

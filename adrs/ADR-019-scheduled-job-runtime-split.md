@@ -139,7 +139,7 @@ as an assembly line** (`libs/assembly-lines/src/assembly-lines/{gap-detect,
 spec-drift,spec-coverage-validate,spec-coverage-backfill}.yaml`, a two-node
 `detect → done` graph) and **started by an event**: an in-process cron emitter
 inserts `cron.<job>.tick` at the historic cadence, the tick handler
-(`apps/floor/src/jobs/detect/fan-out.ts`) enumerates target repos, pre-creates
+(`apps/floor/src/work/detect/fan-out.ts`) enumerates target repos, pre-creates
 the `<job_ref>:<repo>` `pipeline.job_runs` row, and calls
 `assemblyLines().start(<definition>, {repo, branch, args:{job_run_id}})` per
 repo. *(Amended 2026-07: the dedicated repo-less runner was retired — detection
@@ -190,7 +190,7 @@ days" was the permanent steady state of every stable doc, and gap-detect
 re-filed the same un-completable `gap-fill` task weekly, forever.
 
 **Decision.** Every per-repo `context_reindex` pass now ends with a
-verification sweep (`apps/floor/src/jobs/context-jobs/reindex/verify.ts`):
+verification sweep (`apps/floor/src/work/context-jobs/reindex/verify.ts`):
 chunks the reindex job owns whose files still exist in the repo tree get
 `ingested_at` re-stamped; owned chunks of deleted files are pruned. This
 redefines the semantics rather than restoring any prior intent:
@@ -266,7 +266,7 @@ with coordinating a factory floor.
 
 Being a nightly batch is not one of the Floor's three exclusive powers
 ([ADR-024](./ADR-024-ubiquitous-language-execution-model.md), amendment 2026-08).
-A CronJob pod running `dist/delivery/job-runner.js` is already a separate process
+A CronJob pod running `dist/transport/job-runner.js` is already a separate process
 from the Floor — the only thing it still shares is the Floor's codebase and
 dependency tree. The detection family made this move first (amendment 2026-07,
 above): each became an assembly-line definition with a deterministic `detect`

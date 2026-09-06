@@ -25,16 +25,16 @@ HTTP response only reports what was dispatched or skipped.
 
 ## Interface
 
-Registered in the route table ([registration](../../../apps/floor/src/delivery/http/routes/github-webhook.ts#L30)).
+Registered in the route table ([registration](../../../apps/floor/src/transport/http/routes/github-webhook.ts#L30)).
 
 - **Method + path**: `POST /api/webhook/github`
 - **Auth**: HMAC SHA-256. Handler reads `LORE_WEBHOOK_SECRET` and the
   `X-Hub-Signature-256` header; `verifyGitHubSignature(secret, sig, rawBody)`
   recomputes `sha256=hex(hmac(secret, rawBody))` and constant-time compares.
   The router does **not** apply bearer-scope auth to `/api/webhook/*`
-  ([auth exemption](../../../apps/floor/src/delivery/http/routes/github-webhook.ts#L33)). The
+  ([auth exemption](../../../apps/floor/src/transport/http/routes/github-webhook.ts#L33)). The
   Floor ingress applies no rate-limit bucket; it bounds deliveries at GitHub's
-  25 MB payload cap instead ([body cap](../../../apps/floor/src/delivery/http/server.ts#L30)).
+  25 MB payload cap instead ([body cap](../../../apps/floor/src/transport/http/server.ts#L30)).
 - **Request body** (raw, signed): a GitHub webhook JSON payload. Dispatched by
   `X-GitHub-Event`:
   - `pull_request` — `{action, repository.full_name, pull_request:{number, merged, merge_commit_sha, head.ref, labels[]}}`.
@@ -151,9 +151,9 @@ warning and is skipped, the webhook still returns success).
 A valid `sha256=` signature over the raw body verifies; a tampered body or a
 length-mismatched signature is rejected without throwing. ([validated by accepts a signature computed with the same secret and body](libs/shared/src/http/github-signature.test.ts#L13), [`github-signature.test.ts:17`](libs/shared/src/http/github-signature.test.ts#L17), [`github-signature.test.ts:23`](libs/shared/src/http/github-signature.test.ts#L23), [`github-signature.test.ts:29`](libs/shared/src/http/github-signature.test.ts#L29))
 
-An unset secret returns 500 — 503 would tell GitHub to redeliver, and no number of redeliveries supplies a missing env var; a missing signature header returns 401; an invalid signature returns 401. Each refusal names what to go and change — the secret to set, the header GitHub must send, or the two secrets that disagree — because these are read in a delivery log, not with the source open. A delivery carrying no `x-github-event` header is a 400. ([validated by returns 400 when the delivery carries no x-github-event header](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L61), [`github-webhook.test.ts:77`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L77), [`github-webhook.test.ts:92`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L92))
+An unset secret returns 500 — 503 would tell GitHub to redeliver, and no number of redeliveries supplies a missing env var; a missing signature header returns 401; an invalid signature returns 401. Each refusal names what to go and change — the secret to set, the header GitHub must send, or the two secrets that disagree — because these are read in a delivery log, not with the source open. A delivery carrying no `x-github-event` header is a 400. ([validated by returns 400 when the delivery carries no x-github-event header](apps/floor/src/transport/http/routes/github-webhook.test.ts#L61), [`github-webhook.test.ts:77`](apps/floor/src/transport/http/routes/github-webhook.test.ts#L77), [`github-webhook.test.ts:92`](apps/floor/src/transport/http/routes/github-webhook.test.ts#L92))
 
-A validly-signed delivery answers 202 and QUEUES the mapped events, each carrying the delivery id as its dedupe key — GitHub redelivers on any non-2xx, and without that key a retried delivery would run the whole reaction a second time. ([validated by returns 202 and queues a github.pull_request.opened event for a signed delivery](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L28), [`github-webhook.test.ts:108`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L108))
+A validly-signed delivery answers 202 and QUEUES the mapped events, each carrying the delivery id as its dedupe key — GitHub redelivers on any non-2xx, and without that key a retried delivery would run the whole reaction a second time. ([validated by returns 202 and queues a github.pull_request.opened event for a signed delivery](apps/floor/src/transport/http/routes/github-webhook.test.ts#L28), [`github-webhook.test.ts:108`](apps/floor/src/transport/http/routes/github-webhook.test.ts#L108))
 
 A merged spec PR parses tasks.md and syncs spec-tasks; a non-spec branch, an already-synced spec, and a missing tasks.md each skip with the matching reason; a null pool returns 503.
 

@@ -20,90 +20,76 @@ layers:
   # listeners write rows, the loop dispatches them, jobs handle them. `kernel`
   # is the substrate and reaches nothing; `delivery` is the process entry tier,
   # reachable only from index.ts because nothing else lists it.
+  # The Floor is the package this arrangement was designed around: `events`
+  # receives and routes, `work` holds one folder per job, and the two are
+  # separate tiers because who dispatches a job is not the job.
   apps/floor:
+    # The process entry starts the worker, the scheduler and the health server,
+    # so it reaches every tier — that is what a composition root does.
     ".":
-      - composition
-      - delivery
-      - jobs
-      - kernel
-      - listeners
-      - main-loop
-      - "@re-cinq/lore-shared"
-    kernel:
-      - "@re-cinq/lore-shared"
-    listeners:
-      - kernel
-      - main-loop
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-shared"
-    main-loop:
-      - jobs
-      - kernel
-      - listeners
-      - "@re-cinq/lore-shared"
-    composition:
-      - jobs
-      - kernel
-      - "@re-cinq/lore-assembly-lines"
-      - "@re-cinq/lore-shared"
-    delivery:
-      - composition
-      - jobs
-      - kernel
-      - listeners
-      - main-loop
-      - "@re-cinq/lore-assembly-lines"
-      - "@re-cinq/lore-shared"
-    # The registry lives here, so the files directly under jobs/ wire handlers
-    # to the loop; the per-domain folders below are narrower.
-    jobs:
-      - jobs/lib
-      - kernel
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-assembly-lines"
-      - "@re-cinq/lore-shared"
-      - "@re-cinq/lore-stations"
-    # A leaf: shared helpers for the job domains, never a domain itself. It reads
-    # the assembly-line definitions because the set of line names decides job
-    # routing — the watcher and the wiring root are its only callers.
-    jobs/lib:
-      - kernel
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-assembly-lines"
-      - "@re-cinq/lore-shared"
-    # The walk is a coordinator, not a peer (ADR-024): it sequences the domains
-    # and reacts to what a node finished with, so it posts a review, closes a
-    # loop run, settles a task. It may reach a sibling domain; the reverse stays
-    # forbidden by `jobs/*` below, which is what keeps this a tier rather than a
-    # free-for-all — a domain that needs the walk has the dependency backwards.
-    jobs/assembly-run:
-      - jobs
-      - kernel
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-assembly-lines"
-      - "@re-cinq/lore-shared"
-      - "@re-cinq/lore-stations"
-    # One domain per folder: a domain reaches lib and the substrate, never a
-    # sibling domain, and never back up into the loop that dispatches it.
-    jobs/*:
-      - jobs/lib
-      - kernel
-      - "@re-cinq/agent-contracts"
-      - "@re-cinq/lore-assembly-lines"
-      - "@re-cinq/lore-shared"
-      - "@re-cinq/lore-stations"
-
-  # The event-router is the bus's sole writer (ADR-044). Its shape is already
-  # the one the Floor is being refactored towards: an entry, a transport tier,
-  # and an outbound tier that reaches nothing above it.
-  apps/event-router:
-    ".":
+      - app
       - transport
-      - "@re-cinq/lore-shared"
-    transport:
+      - events
+      - work
       - outbound
+      - domain
+      - lib
       - "@re-cinq/lore-shared"
+    # The wiring root: it builds the station backend out of the job domains and
+    # hands it to `outbound`, which owns `projectFor` but must not import work
+    # to get one.
+    app:
+      - work
+      - outbound
+      - domain
+      - lib
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # Ways in: the webhook/SSE server, plus two CLI entrypoints — the CronJob
+    # batch runner and the catalog generator.
+    transport:
+      - app
+      - events
+      - work
+      - outbound
+      - domain
+      - lib
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # `listeners/` write rows, `main-loop/` claims and dispatches them, and
+    # `handlers/` maps each event name to the job that answers it. That last one
+    # used to sit loose inside jobs/, which is what made the folder mean two things.
+    events:
+      - work
+      - outbound
+      - domain
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # Fifteen folders, one job each.
+    work:
+      - outbound
+      - domain
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+      - "@re-cinq/lore-stations"
+    # Adapters reach domain, never the reverse: an adapter needs the shapes it
+    # persists. `agent-invocation` started in domain and was moved here because
+    # it wraps the YAML config loader — the import that proved it was not pure.
     outbound:
+      - domain
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-shared"
+    # The bus contract, so a job can implement a handler without importing the
+    # loop that dispatches it. A leaf with no I/O.
+    domain:
+      - "@re-cinq/lore-shared"
+    lib:
       - "@re-cinq/lore-shared"
 
   # One cluster-agent per cluster: it watches Agent CRs and claims work. `kernel`

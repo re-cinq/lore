@@ -20,7 +20,7 @@ cluster gate. What exists instead:
 - The walk is **event-driven on the Floor**: state lives in
   `pipeline.assembly_runs` + `pipeline.station_runs`; terminal
   CR phases emit `kubernetes.agent_node.*` events, handled by
-  `apps/floor/src/jobs/assembly-run/node-event-handler.ts` and driven
+  `apps/floor/src/work/assembly-run/node-event-handler.ts` and driven
   through `advance.ts`; a
   per-minute reaper (`cron.assembly_line_reaper.tick`) resolves
   dropped events, relaunches missing CRs, and times out stuck nodes.
@@ -125,7 +125,7 @@ yet stays open for a human.
 **How to verify the flip took.** Look for the *absence* of new
 `auto_merge_decision` rows for the repo, not for a `deferred:` row.
 `tryAutoMergeForCompletedTask`
-(`apps/floor/src/jobs/merge/auto-merge-trigger.ts`) returns early on
+(`apps/floor/src/work/merge/auto-merge-trigger.ts`) returns early on
 `settings.enabled === false`, deliberately *before* `evaluateAndMerge`,
 so a disabled repo writes no audit row at all — the
 `deferred:dark_mode_off` outcome exists in the enum but is unreachable
@@ -364,7 +364,7 @@ Watch:
 Promote the pilot repo's `auto_merge.min_trust` one tier at a time
 (`docs` → `tests` → `implementation` → `full`), waiting at least
 3 successful merges at each tier (the auto-promotion logic lives in
-`apps/floor/src/jobs/merge/merge-check.ts`; threshold via
+`apps/floor/src/work/merge/merge-check.ts`; threshold via
 `lore.repos.settings.trust.auto_promote_threshold`, default 3).
 
 Note: `auto_merge.paths` changes and downgrading `require_green_ci` /

@@ -27,7 +27,7 @@ The readiness probe reports database connectivity: `getHealthStatus()` returns
 `connected:false` with a reason when the query throws; the `/healthz` handler
 returns 200/`ok` when the DB is connected or no DB is configured, and 503/`error`
 only when a configured DB is unreachable — the Floor's own `/healthz` returning
-the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by `healthz.test.ts:12`](libs/server-core/src/platform/healthz.test.ts#L12), [`healthz.test.ts:20`](libs/server-core/src/platform/healthz.test.ts#L20), [`healthz.test.ts:38`](libs/server-core/src/platform/healthz.test.ts#L38), [`healthz.test.ts:57`](libs/server-core/src/platform/healthz.test.ts#L57), [`healthz.test.ts:70`](libs/server-core/src/platform/healthz.test.ts#L70), [`healthz.test.ts:93`](libs/server-core/src/platform/healthz.test.ts#L93), [`health.test.ts:5`](apps/floor/src/delivery/http/routes/health.test.ts#L5))
+the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by `healthz.test.ts:12`](libs/server-core/src/platform/healthz.test.ts#L12), [`healthz.test.ts:20`](libs/server-core/src/platform/healthz.test.ts#L20), [`healthz.test.ts:38`](libs/server-core/src/platform/healthz.test.ts#L38), [`healthz.test.ts:57`](libs/server-core/src/platform/healthz.test.ts#L57), [`healthz.test.ts:70`](libs/server-core/src/platform/healthz.test.ts#L70), [`healthz.test.ts:93`](libs/server-core/src/platform/healthz.test.ts#L93), [`health.test.ts:5`](apps/floor/src/transport/http/routes/health.test.ts#L5))
 
 ### Database pool resilience
 
@@ -37,7 +37,7 @@ pool) attaches an `error` listener at construction, so an idle-client failure
 prefix instead of surfacing as an uncaught exception that kills the process; the
 Floor pool is the test-validated exemplar, and the lore-api and web-ui pools
 attach the identical inline handler at their own construction
-sites. ([validated by `db.test.ts:13`](apps/floor/src/kernel/db.test.ts#L13))
+sites. ([validated by `db.test.ts:13`](apps/floor/src/outbound/db.test.ts#L13))
 
 ### GitHub client
 

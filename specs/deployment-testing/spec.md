@@ -211,24 +211,24 @@ Add a step at the end of each build workflow (after deploy):
 
 6. Task routing logic has tests for every task type — onboard→`handleOnboard`,
    feature-request→`handleFeatureRequest`, and implementation/review/general/runbook/gap-fill/unknown
-   →`handleClaudeCodeTask`. ([validated by `worker.test.ts:55`](apps/floor/src/jobs/task/worker.test.ts#L49), [`worker.test.ts:49`](apps/floor/src/jobs/task/worker.test.ts#L49), [`worker.test.ts:53`](apps/floor/src/jobs/task/worker.test.ts#L53), [`worker.test.ts:57`](apps/floor/src/jobs/task/worker.test.ts#L57), [`worker.test.ts:61`](apps/floor/src/jobs/task/worker.test.ts#L61), [`worker.test.ts:65`](apps/floor/src/jobs/task/worker.test.ts#L65), [`worker.test.ts:69`](apps/floor/src/jobs/task/worker.test.ts#L69), [`worker.test.ts:73`](apps/floor/src/jobs/task/worker.test.ts#L73), [`worker.test.ts:77`](apps/floor/src/jobs/task/worker.test.ts#L77))
+   →`handleClaudeCodeTask`. ([validated by `worker.test.ts:55`](apps/floor/src/work/task/worker.test.ts#L49), [`worker.test.ts:49`](apps/floor/src/work/task/worker.test.ts#L49), [`worker.test.ts:53`](apps/floor/src/work/task/worker.test.ts#L53), [`worker.test.ts:57`](apps/floor/src/work/task/worker.test.ts#L57), [`worker.test.ts:61`](apps/floor/src/work/task/worker.test.ts#L61), [`worker.test.ts:65`](apps/floor/src/work/task/worker.test.ts#L65), [`worker.test.ts:69`](apps/floor/src/work/task/worker.test.ts#L69), [`worker.test.ts:73`](apps/floor/src/work/task/worker.test.ts#L73), [`worker.test.ts:77`](apps/floor/src/work/task/worker.test.ts#L77))
 
 6a. Worker pure helpers are unit-tested: `slugify` lowercases, strips special chars, collapses runs to
    a single hyphen, trims leading/trailing hyphens, and truncates to 30 chars; `buildPrompt` fills the
    `{description}` placeholder and falls back matching-type → general → hardcoded default; `issueRef`
-   emits `Refs #N` for a number and empty for null. ([validated by `worker.test.ts:11`](apps/floor/src/jobs/task/worker.test.ts#L11), [`worker.test.ts:17`](apps/floor/src/jobs/task/worker.test.ts#L17), [`worker.test.ts:21`](apps/floor/src/jobs/task/worker.test.ts#L21), [`worker.test.ts:25`](apps/floor/src/jobs/task/worker.test.ts#L25), [`worker.test.ts:32`](apps/floor/src/jobs/task/worker.test.ts#L32), [`worker.test.ts:36`](apps/floor/src/jobs/task/worker.test.ts#L36), [`worker.test.ts:40`](apps/floor/src/jobs/task/worker.test.ts#L40), [`worker.test.ts:95`](apps/floor/src/jobs/task/worker.test.ts#L95), [`worker.test.ts:105`](apps/floor/src/jobs/task/worker.test.ts#L105), [`worker.test.ts:115`](apps/floor/src/jobs/task/worker.test.ts#L115), [`worker.test.ts:123`](apps/floor/src/jobs/task/worker.test.ts#L123), [`worker.test.ts:134`](apps/floor/src/jobs/task/worker.test.ts#L134), [`worker.test.ts:138`](apps/floor/src/jobs/task/worker.test.ts#L138), [`agent-invocation.test.ts:18`](apps/floor/src/kernel/agent-invocation.test.ts#L18), [`config.test.ts:120`](apps/floor/src/kernel/config.test.ts#L120), [`config.test.ts:126`](apps/floor/src/kernel/config.test.ts#L126))
+   emits `Refs #N` for a number and empty for null. ([validated by `worker.test.ts:11`](apps/floor/src/work/task/worker.test.ts#L11), [`worker.test.ts:17`](apps/floor/src/work/task/worker.test.ts#L17), [`worker.test.ts:21`](apps/floor/src/work/task/worker.test.ts#L21), [`worker.test.ts:25`](apps/floor/src/work/task/worker.test.ts#L25), [`worker.test.ts:32`](apps/floor/src/work/task/worker.test.ts#L32), [`worker.test.ts:36`](apps/floor/src/work/task/worker.test.ts#L36), [`worker.test.ts:40`](apps/floor/src/work/task/worker.test.ts#L40), [`worker.test.ts:95`](apps/floor/src/work/task/worker.test.ts#L95), [`worker.test.ts:105`](apps/floor/src/work/task/worker.test.ts#L105), [`worker.test.ts:115`](apps/floor/src/work/task/worker.test.ts#L115), [`worker.test.ts:123`](apps/floor/src/work/task/worker.test.ts#L123), [`worker.test.ts:134`](apps/floor/src/work/task/worker.test.ts#L134), [`worker.test.ts:138`](apps/floor/src/work/task/worker.test.ts#L138), [`agent-invocation.test.ts:18`](apps/floor/src/outbound/agent-invocation.test.ts#L18), [`config.test.ts:120`](apps/floor/src/outbound/config.test.ts#L120), [`config.test.ts:126`](apps/floor/src/outbound/config.test.ts#L126))
 
 6b. The Floor health-server startup failure path is characterized — a taken port
    logs the port-in-use message, any other start failure logs the generic error,
-   and both exit 1. ([validated by `server-start.test.ts`](apps/floor/src/delivery/http/server-start.test.ts))
+   and both exit 1. ([validated by `server-start.test.ts`](apps/floor/src/transport/http/server-start.test.ts))
 
 6c. The nightly context-core builder is characterized — a namespace whose score
    improved past the threshold is promoted, a regressed one is rejected with a
    gap-fill alert task, a flat delta records a no-change row, and a missing
-   config or crashed eval counts as unchanged with distinct logs. ([validated by `context-core-builder.test.ts`](apps/floor/src/jobs/context-jobs/context-core-builder/context-core-builder.test.ts))
+   config or crashed eval counts as unchanged with distinct logs. ([validated by `context-core-builder.test.ts`](apps/floor/src/work/context-jobs/context-core-builder/context-core-builder.test.ts))
 
 6d. The nightly eval runner is characterized — a crashed eval and a stat-less
-   eval are logged apart and skipped, and a passing team's stats are recorded. ([validated by `eval-runner.test.ts`](apps/floor/src/jobs/context-jobs/eval-runner/eval-runner.test.ts))
+   eval are logged apart and skipped, and a passing team's stats are recorded. ([validated by `eval-runner.test.ts`](apps/floor/src/work/context-jobs/eval-runner/eval-runner.test.ts))
 
 7. Watcher re-entry guard has a test
 8. 409 CR handling has a test — `isAlreadyExistsError` returns true for a Kubernetes

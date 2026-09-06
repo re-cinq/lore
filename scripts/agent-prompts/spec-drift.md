@@ -4,7 +4,7 @@
 > `specDriftJob` (`libs/shared/src/detect/spec-drift.ts`),
 > run per repo as the `detect` node of the `spec-drift` assembly line, fanned
 > out weekly by the `cron.spec_drift.tick` handler
-> (`apps/floor/src/jobs/detect/fan-out.ts`; ADR-019 amendment). This
+> (`apps/floor/src/work/detect/fan-out.ts`; ADR-019 amendment). This
 > file documents how it decides drift so the two never diverge. There is no
 > separate LLM-agent drift path.
 

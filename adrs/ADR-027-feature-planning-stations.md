@@ -42,7 +42,7 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > for a planning round; **finalize no longer commits as its own task** — the `write` and
 > `push` nodes do it on the same line; and the feature's `pr-open` transition belongs to
 > the `push` node's terminal handler, not to
-> [agent-watcher.ts](../apps/floor/src/jobs/watcher/agent-watcher.ts), which returns early
+> [agent-watcher.ts](../apps/floor/src/work/watcher/agent-watcher.ts), which returns early
 > for every assembly-line node CR.
 
 ## Context

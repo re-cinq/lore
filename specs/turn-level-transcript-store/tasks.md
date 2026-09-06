@@ -21,15 +21,15 @@ and the port is dead code without the test.
 
 ## Phase 3 — The ingest tee
 
-- [x] **T7** `apps/floor/src/jobs/agent/agent-run-turns.test.ts` + `agent-run-turns.ts`: `turnFromEnvelope` (redaction, JSON-validity guard, null task id, event kind) and `MAX_RUN_TURNS_PER_BATCH`. A `LORE_AGENT_TURNS` feature flag was built here and removed before merge — collection is unconditional; see the spec's Alternatives rejected.
-- [x] **T8** Widen `parseAgentSink` in `apps/floor/src/jobs/agent/agent-events.ts` with a third `turns` output collected in the **existing** loop, gated by a `collectTurns` argument. Tests go in a NEW `apps/floor/src/jobs/agent/agent-sink-turns.test.ts`, not appended to `agent-sink.test.ts`: that file carries `#L` anchors from `specs/assembly-line-run-viz`, and hosting these tests would have meant a mid-file import insert that shifts them.
-- [x] **T9** [P] Bind the `agentRunTurns()` lazy singleton in `apps/floor/src/kernel/queues.ts`.
-- [x] **T10** Tee the route: `apps/floor/src/delivery/http/routes/agent-events.ts` persists turns skip-not-fail behind the flag and the existing oversized gate, and counts turns dropped by redaction. Tests go in a NEW `apps/floor/src/delivery/http/routes/agent-events-turns.test.ts` — the existing route test's module mock would have had to be widened in place, shifting its anchors.
-- [x] **T11** [P] Prune turns at 30 days on the existing `eventsPrune` tick in `apps/floor/src/jobs/cron.ts`; test appended at the end of `apps/floor/src/jobs/cron.test.ts` if one exists, otherwise covered by the port's `pruneOld` suite.
+- [x] **T7** `apps/floor/src/work/agent/agent-run-turns.test.ts` + `agent-run-turns.ts`: `turnFromEnvelope` (redaction, JSON-validity guard, null task id, event kind) and `MAX_RUN_TURNS_PER_BATCH`. A `LORE_AGENT_TURNS` feature flag was built here and removed before merge — collection is unconditional; see the spec's Alternatives rejected.
+- [x] **T8** Widen `parseAgentSink` in `apps/floor/src/work/agent/agent-events.ts` with a third `turns` output collected in the **existing** loop, gated by a `collectTurns` argument. Tests go in a NEW `apps/floor/src/work/agent/agent-sink-turns.test.ts`, not appended to `agent-sink.test.ts`: that file carries `#L` anchors from `specs/assembly-line-run-viz`, and hosting these tests would have meant a mid-file import insert that shifts them.
+- [x] **T9** [P] Bind the `agentRunTurns()` lazy singleton in `apps/floor/src/outbound/queues.ts`.
+- [x] **T10** Tee the route: `apps/floor/src/transport/http/routes/agent-events.ts` persists turns skip-not-fail behind the flag and the existing oversized gate, and counts turns dropped by redaction. Tests go in a NEW `apps/floor/src/transport/http/routes/agent-events-turns.test.ts` — the existing route test's module mock would have had to be widened in place, shifting its anchors.
+- [x] **T11** [P] Prune turns at 30 days on the existing `eventsPrune` tick in `apps/floor/src/events/handlers/cron.ts`; test appended at the end of `apps/floor/src/events/handlers/cron.test.ts` if one exists, otherwise covered by the port's `pruneOld` suite.
 
 ## Phase 4 — The read API
 
-- [x] **T12** `apps/floor/src/delivery/http/routes/agent-turns-history.ts` + colocated test (new files): `GET /api/agent-turns/{assemblyLineId}`, clamped limit and cursor, registered in `apps/floor/src/delivery/http/server.ts`.
+- [x] **T12** `apps/floor/src/transport/http/routes/agent-turns-history.ts` + colocated test (new files): `GET /api/agent-turns/{assemblyLineId}`, clamped limit and cursor, registered in `apps/floor/src/transport/http/server.ts`.
 
 ## Phase 5 — Supersession
 
