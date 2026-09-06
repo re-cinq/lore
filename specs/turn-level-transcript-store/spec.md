@@ -76,7 +76,7 @@ every other migration.
 
 ## FR2 — The `AgentRunTurnsRepository` port
 
-`libs/shared/src/project/agent-run-turns/agent-run-turns-{port,pg,memory}.ts`
+`libs/shared/src/outbound/project/agent-run-turns/agent-run-turns-{port,pg,memory}.ts`
 mirrors the sibling `agent-run-events/` triple: one port interface, a
 Postgres adapter, an in-memory double that is the behavioral spec, and one
 colocated test suite exercising both.

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseSpecStatus, statusInfoFromValue } from "./spec-status";
-import { docStatusPill } from "../../../../libs/shared/src/spec-status";
+import { docStatusPill } from "../../../../libs/shared/src/domain/spec-status";
 
 const VALUES = [
   "Draft",

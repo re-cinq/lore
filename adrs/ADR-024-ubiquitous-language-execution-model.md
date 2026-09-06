@@ -375,7 +375,7 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
   adapter to the pool.
 - **The `pipeline` schema's own tables travel as ONE bundle**, not as one
   accessor each: `PipelineRepositories`
-  (`libs/shared/src/project/pipeline/`) carries `taskQueue`, `eventQueue`,
+  (`libs/shared/src/outbound/project/pipeline/`) carries `taskQueue`, `eventQueue`,
   `assemblyRuns`, `jobRuns`, `audit`, `leases`, `agentRunEvents` and
   `agentRunTurns` behind a single object, built once per process from one pool
   by `createPipelineRepositories(pool)` and reached as `pipeline()` in Floor or
@@ -392,7 +392,7 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
   ONE construction serve both deployables; `taskQueue`/`eventQueue` keep the
   `Queue` suffix so neither can be misread as the repo-scoped `project.tasks`.)*
 - **One home per table.** Each port ships a MODEL
-  (`libs/shared/src/models/<entity>.ts` — a schema, the type inferred from it, and
+  (`libs/shared/src/domain/models/<entity>.ts` — a schema, the type inferred from it, and
   a map binding each field to the column that stores it) + a port interface + a Pg
   adapter that builds its SELECT list and maps its rows FROM that column map + an
   InMemory behavioral double + a colocated test. The Floor-local

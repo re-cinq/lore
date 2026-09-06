@@ -80,7 +80,7 @@ or `spec-ready`.
 }
 ```
 
-## Project port types (`libs/shared/src/project/features/`)
+## Project port types (`libs/shared/src/outbound/project/features/`)
 
 `FeaturesPort` (interface) + `Feature` / `Iteration` value types, backed by
 `PgFeatures` (Postgres adapter over the tables above) and exposed through the

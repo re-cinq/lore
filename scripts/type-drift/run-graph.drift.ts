@@ -4,7 +4,7 @@ import type {
   RunGraphNode as CanonNode,
   RunGraphEdge as CanonEdge,
   RunGraph as CanonGraph,
-} from "../../libs/shared/src/project/assembly-runs/run-graph.js";
+} from "../../libs/shared/src/outbound/project/assembly-runs/run-graph.js";
 
 import type {
   RunGraphNode as MirrorNode,

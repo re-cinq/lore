@@ -210,7 +210,7 @@ code, and the ambiguity between them is what invites a shape being declared in
 both. The line:
 
 - **A persisted data model** — the shape of a table — lives in
-  `libs/shared/src/models/`, one file per entity, carrying a schema, the type
+  `libs/shared/src/domain/models/`, one file per entity, carrying a schema, the type
   inferred from it, and the map binding each field to its column. Adapters build
   their SELECT lists from that map; API contracts derive their stored fields from
   it. One declaration reaches from the column to the generated client.

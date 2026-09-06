@@ -3,7 +3,7 @@
 import type {
   AgentRunEventRow as CanonRow,
   AgentRunEventType as CanonEventType,
-} from "../../libs/shared/src/project/agent-run-events/agent-run-events-port.js";
+} from "../../libs/shared/src/outbound/project/agent-run-events/agent-run-events-port.js";
 
 import type {
   RunStreamEvent as MirrorRow,

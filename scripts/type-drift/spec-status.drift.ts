@@ -1,6 +1,6 @@
 // Drift guard: web-ui can't import @re-cinq/lore-shared, so StatusBucket is hand-mirrored as SpecStatus; parse behavior stays in sync via spec-status.parity.test.ts.
 
-import type { StatusBucket as CanonBucket } from "../../libs/shared/src/spec-status.js";
+import type { StatusBucket as CanonBucket } from "../../libs/shared/src/domain/spec-status.js";
 
 import type { SpecStatus as MirrorStatus } from "../../apps/web-ui/src/lib/spec-status.js";
 

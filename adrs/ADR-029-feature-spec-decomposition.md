@@ -72,7 +72,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 Smart feature planning (ADR-027) ends at a merged `specs/<slug>/spec.md` PR plus,
 optionally, a single whole-feature "user story" Issue. Nothing turns that spec
 into implementable work. The planning prompt
-([planning-instructions.ts](../libs/shared/src/feature-planning/planning-instructions.ts))
+([planning-instructions.ts](../libs/shared/src/work/feature-planning/planning-instructions.ts))
 deliberately refuses to break the feature into user stories or tasks and defers
 that to "a separate downstream agent" — but that agent did not exist. The result:
 a planned feature stalls after the spec lands; the handoff from *what we're

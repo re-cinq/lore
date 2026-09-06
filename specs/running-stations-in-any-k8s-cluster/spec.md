@@ -161,9 +161,9 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`:
   the table plus columns `status`, `cluster_agent_id`, `required_tags`,
   `claimed_at` on `pipeline.station_runs`.
-- A `ClusterAgent` Zod model in `libs/shared/src/models/` and a
+- A `ClusterAgent` Zod model in `libs/shared/src/domain/models/` and a
   port + Pg adapter + InMemory double under
-  `libs/shared/src/project/cluster-agents/` follow the house pattern. ([validated by `cluster-agents.test.ts:93`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L95), [`cluster-agents.test.ts:141`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L141), [`cluster-agents.test.ts:248`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L248), [`cluster-agents.test.ts:297`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L297), [`cluster-agents.test.ts:320`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L320))
+  `libs/shared/src/outbound/project/cluster-agents/` follow the house pattern. ([validated by `cluster-agents.test.ts:93`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L95), [`cluster-agents.test.ts:141`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L141), [`cluster-agents.test.ts:248`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L248), [`cluster-agents.test.ts:297`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L297), [`cluster-agents.test.ts:320`](libs/shared/src/outbound/project/cluster-agents/cluster-agents.test.ts#L320))
 
 ## FR2 — Capability tags
 

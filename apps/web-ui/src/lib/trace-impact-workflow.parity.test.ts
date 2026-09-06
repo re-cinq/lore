@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as mirror from "./trace-impact-workflow";
-import * as canonical from "../../../../libs/shared/src/trace-impact-workflow";
+import * as canonical from "../../../../libs/shared/src/work/trace-impact-workflow";
 
 describe("trace-impact-workflow parity (web-ui mirror vs shared canonical)", () => {
   it("shares the workflow path and canonical version", () => {

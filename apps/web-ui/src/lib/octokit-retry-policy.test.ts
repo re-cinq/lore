@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { withoutBlindRetryOnCreates as mirror } from "./octokit-retry-policy";
-import { withoutBlindRetryOnCreates as canonical } from "../../../../libs/shared/src/project/lib/octokit-retry-policy";
+import { withoutBlindRetryOnCreates as canonical } from "../../../../libs/shared/src/outbound/project/lib/octokit-retry-policy";
 
 function recordingClient() {
   const handlers: Array<

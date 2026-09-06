@@ -122,7 +122,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
 | NEW `apps/lore-station/` + Dockerfile + `build-lore-station.yml` | The `lore-station` station-pod image (validate; more node types phased in) |
 | `scripts/task-types.yaml` `stations:` + `gen-catalog` + migration `0027` | Seed `def-<type>` station recipes (D9) |
 | `apps/floor` `nodeStationSpec` + always-station handlers | Station dispatch spec; every non-agent node dispatches a station (D9) |
-| `libs/shared/src/detect/*` (relocated) + `apps/stations/src/work/*` | Detector cores moved to shared (facade-driven); one station module per node type |
+| `libs/shared/src/work/detect/*` (relocated) + `apps/stations/src/work/*` | Detector cores moved to shared (facade-driven); one station module per node type |
 | `apps/lore-api` chunks + station-data endpoints + `createStationProject` | Pod-side HTTP surface: chunk reads, issues/tasks/pulls/settings, so a station never touches Postgres/App creds (D7) |
 
 ## Acceptance Criteria

@@ -199,7 +199,7 @@ type DispatchRun = {
   args: Record<string, unknown>;
 };
 
-/** Not a named type: its members would otherwise restate the tasks table's columns outside libs/shared/src/models/. */
+/** Not a named type: its members would otherwise restate the tasks table's columns outside libs/shared/src/domain/models/. */
 function dispatchFactsFromTask(task: {
   task_type: string;
   target_repo: string;

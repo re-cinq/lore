@@ -92,7 +92,7 @@ of truth in the graph.**
   `specs/<slug>/spec.md` and the existing watcher opens the PR + conditional Issue.
 - **Feature lifecycle is a Project port.** `lore.features` / `lore.feature_iterations`
   (the `lore` schema, owned by the migration runner) are reached only through a
-  `features` port on the Project facade ([libs/shared/src/project/features/](../libs/shared/src/project/features/)),
+  `features` port on the Project facade ([libs/shared/src/outbound/project/features/](../libs/shared/src/outbound/project/features/)),
   mirroring [task-store-pg.ts](../libs/shared/src/outbound/project/tasks/task-store-pg.ts).
   The draft spec stays uncommitted in `draft_spec_md` until the author finalizes;
   even then it ships as a PR, never a direct `main` commit.

@@ -1,6 +1,6 @@
 // Drift guard: web-ui can't import @re-cinq/lore-shared, so AgentRunTurnRow is hand-mirrored; keys-only since createdAt is Date on the port but string (JSON) on the mirror.
 
-import type { AgentRunTurnRow as CanonRow } from "../../libs/shared/src/project/agent-run-turns/agent-run-turns-port.js";
+import type { AgentRunTurnRow as CanonRow } from "../../libs/shared/src/outbound/project/agent-run-turns/agent-run-turns-port.js";
 
 import type { AgentRunTurn as MirrorRow } from "../../apps/web-ui/src/lib/run-turn-types.js";
 

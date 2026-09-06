@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as mirror from "./ingest-workflow";
-import * as canonical from "../../../../libs/shared/src/ingest-workflow";
+import * as canonical from "../../../../libs/shared/src/work/ingest-workflow";
 
 describe("ingest-workflow parity (web-ui mirror vs shared canonical)", () => {
   it("shares the workflow path and canonical version", () => {
