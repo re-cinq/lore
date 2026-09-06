@@ -1,4 +1,5 @@
 {
+  "name": "lore",
   "private": true,
   "engines": {
     "node": ">=20"
