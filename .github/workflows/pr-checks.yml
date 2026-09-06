@@ -136,6 +136,14 @@ jobs:
           - name: eslint-canaries
             build: npm run build -w @re-cinq/lore-shared
             test: bash scripts/check-eslint-canaries.sh
+          # Paths declared outside TypeScript: a package's own main/types/
+          # exports/bin, and the compiled paths Helm charts, Dockerfiles and
+          # workflows spell out. Needs the FULL build — the point is to check
+          # every workspace's real dist, which is the only thing that catches a
+          # rename that left a consumer-facing declaration behind.
+          - name: declared-paths
+            build: npm run build
+            test: node scripts/check-declared-paths.mjs
           # Catalog drift guard. The seeded ai-agents-helm catalog.yaml is generated
           # from scripts/task-types.yaml by floor's gen:catalog; this fails the moment
           # a recipe edit lands without regenerating the catalog. The script builds
