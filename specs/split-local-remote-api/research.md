@@ -13,8 +13,8 @@ materially de-risk the split: the codebase already separates *logic* from the
 |---|---|---|---|
 | `pg` | `index.ts` only (`import pg` to build the pool) | No — boot wiring | Local `index.ts` builds no pool → **pg gone from local** |
 | `octokit` / `@octokit/auth-app` | `platform/github-client.ts`, `features/dark-factory/dark-factory-authz.ts` | No | Move to `apps/lore-api` |
-| `@google-cloud/storage` | `mcp/tools/pipeline-tools.ts` (dynamic, log reads); `api/routes/logs.ts`; `features/repo/repo-validation-cli.ts` | **Yes — pipeline-tools** | Proxy log reads → GCS gone from local |
-| `tree-sitter*` / `web-tree-sitter` | `features/repo/repo-validation-cli.ts` (+ via `@re-cinq/lore-shared`) | No | Move to `apps/lore-api` |
+| `@google-cloud/storage` | `mcp/tools/pipeline-tools.ts` (dynamic, log reads); `transport/routes/logs.ts`; `work/repo/repo-validation-cli.ts` | **Yes — pipeline-tools** | Proxy log reads → GCS gone from local |
+| `tree-sitter*` / `web-tree-sitter` | `work/repo/repo-validation-cli.ts` (+ via `@re-cinq/lore-shared`) | No | Move to `apps/lore-api` |
 | `@opentelemetry/sdk-node` + exporters | `platform/otel.ts` (`initOtel`) | **Yes — via otel.ts** | Split otel: light helpers → server-core; SDK init → lore-api |
 
 Everywhere else `pg` appears it is `import type { Pool }` — erased at compile,
@@ -44,7 +44,7 @@ Phase 1 work is:
    `@opentelemetry/api`.
 3. **Proxy the GCS log-reads.** `pipeline-tools.ts` dynamically imports
    `@google-cloud/storage` to read task/job logs. REST endpoints already exist —
-   `GET /api/task-logs`, `GET /api/job-run-logs` (`api/routes/logs.ts`) — so the
+   `GET /api/task-logs`, `GET /api/job-run-logs` (`transport/routes/logs.ts`) — so the
    local tool proxies to `LORE_API_URL` instead of hitting GCS directly. Removes
    `@google-cloud/storage` from the local tree.
 4. **Proxy the onboard tool.** `repo-tools.ts` imports `onboardRepo` /
@@ -74,7 +74,7 @@ Phase 1 work is:
 Not in the local tool path; they carry the heavy value deps:
 `platform/github-client.ts`, `platform/db.ts` pool construction,
 `features/dark-factory/dark-factory-authz.ts`, `features/spec-trace/ingest.ts`
-(tree-sitter), `features/repo/repo-validation-cli.ts`, `api/routes/logs.ts`
+(tree-sitter), `work/repo/repo-validation-cli.ts`, `transport/routes/logs.ts`
 (GCS), and the entire `api/routes/**` + `server/http-server.ts`.
 
 ## The MCP tools are local-only

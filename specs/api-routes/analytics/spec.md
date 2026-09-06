@@ -64,21 +64,21 @@ credentials; this route runs them and the tool renders the result.
 ## Dependencies & side effects
 
 - Read-only: `pipeline.llm_calls`, `pipeline.tasks`. No writes, no fan-out.
-- `pipelineAnalytics` ([queries](../../../apps/lore-api/src/features/analytics/analytics-queries.ts#L27)).
+- `pipelineAnalytics` ([queries](../../../apps/lore-api/src/work/analytics/analytics-queries.ts#L27)).
 
 ## Acceptance Criteria
 
-Usage, task counts, and the per-type breakdown come back for the default month period. ([validated by `returns usage, task counts and the per-type breakdown for the default month period`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L45))
+Usage, task counts, and the per-type breakdown come back for the default month period. ([validated by `returns usage, task counts and the per-type breakdown for the default month period`](apps/lore-api/src/transport/routes/analytics/analytics.test.ts#L45))
 
-The requested period selects its own time filter for every query. ([validated by `filters on the requested period`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L56))
+The requested period selects its own time filter for every query. ([validated by `filters on the requested period`](apps/lore-api/src/transport/routes/analytics/analytics.test.ts#L56))
 
-`period=all` applies no time filter. ([validated by `period=all applies no time filter`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L68))
+`period=all` applies no time filter. ([validated by `period=all applies no time filter`](apps/lore-api/src/transport/routes/analytics/analytics.test.ts#L68))
 
-An unknown period is rejected with 400 rather than silently defaulting. ([validated by `returns 400 for an unknown period`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L76))
+An unknown period is rejected with 400 rather than silently defaulting. ([validated by `returns 400 for an unknown period`](apps/lore-api/src/transport/routes/analytics/analytics.test.ts#L76))
 
-A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L82))
+A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/transport/routes/analytics/analytics.test.ts#L82))
 
-The route is registered as `GET /api/analytics`. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L130), [implemented by](../../../apps/lore-api/src/api/routes/analytics/analytics.ts#L19))
+The route is registered as `GET /api/analytics`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L130), [implemented by](../../../apps/lore-api/src/transport/routes/analytics/analytics.ts#L19))
 
 ## Out of Scope
 

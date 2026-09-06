@@ -1,0 +1,541 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+vi.mock("../../../outbound/project-boot.js", () => ({ projectFor: vi.fn() }));
+
+import { buildServer } from "../../../app/build-server.js";
+import { projectFor } from "../../../outbound/project-boot.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+
+const originalEnv = { ...process.env };
+
+const openIssue = (number: number, labels: string[], created: string) => ({
+  repo: "re-cinq/lore",
+  number,
+  title: `Ticket ${number}`,
+  state: "open",
+  labels,
+  url: `https://gh/i/${number}`,
+  createdAt: created,
+});
+
+describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.clearAllMocks();
+  });
+
+  function get(pool: unknown = makePool()) {
+    return buildServer(() => pool as never).inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/implementation-loop",
+      headers: AUTH,
+    });
+  }
+
+  function put(payload: unknown, pool: unknown = makePool()) {
+    return buildServer(() => pool as never).inject({
+      method: "PUT",
+      url: "/api/repos/re-cinq/lore/implementation-loop",
+      headers: AUTH,
+      payload: JSON.stringify(payload),
+    });
+  }
+
+  it("returns 503 when the pool is null", async () => {
+    expect((await get(null)).statusCode).toBe(503);
+    expect((await put({ enabled: true }, null)).statusCode).toBe(503);
+  });
+
+  it("returns 404 for a repo with no row", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+
+    expect((await get(pool)).statusCode).toBe(404);
+  });
+
+  it("returns the toggle, current ticket, ordered queue, and recent tickets", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "task-7",
+            created_at: "2026-08-26T06:00:00.000Z",
+            status: "running",
+            description: "Ticket 7",
+            issue_number: 7,
+            issue_url: "https://gh/i/7",
+            pr_url: "https://gh/pr/70",
+          },
+          {
+            id: "task-5",
+            created_at: "2026-08-26T06:00:00.000Z",
+            status: "completed",
+            description: "Ticket 5",
+            issue_number: 5,
+            issue_url: "https://gh/i/5",
+            pr_url: "https://gh/pr/50",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "run-42" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "run-42",
+            task_id: "task-7",
+            status: "running",
+            reason: "edge validate->implement exceeded iteration_max 1",
+            graph: {
+              nodes: [
+                { id: "implement", type: "agent" },
+                { id: "validate", type: "validate" },
+                { id: "await-pr", type: "pr_review" },
+              ],
+            },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            assembly_run_id: "run-42",
+            node_id: "implement",
+            iteration: 1,
+            outcome: "success",
+          },
+          {
+            assembly_run_id: "run-42",
+            node_id: "validate",
+            iteration: 1,
+            outcome: null,
+          },
+        ],
+      });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(7, ["priority:high"], "2026-08-01T00:00:00Z"),
+          openIssue(9, ["priority:low"], "2026-08-02T00:00:00Z"),
+          openIssue(8, ["priority:medium"], "2026-08-03T00:00:00Z"),
+          openIssue(6, ["bug"], "2026-08-04T00:00:00Z"),
+        ],
+      },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({
+      enabled: true,
+      current_run_id: "run-42",
+      current: {
+        created_at: "2026-08-26T06:00:00.000Z",
+        error: "edge validate->implement exceeded iteration_max 1",
+        issue_number: 7,
+        issue_url: "https://gh/i/7",
+        title: "Ticket 7",
+        priority: "priority:high",
+        pr_url: "https://gh/pr/70",
+        state: "running",
+        run_id: "run-42",
+        pipeline: [
+          { node_id: "implement", state: "success" },
+          { node_id: "validate", state: "running" },
+          { node_id: "await-pr", state: "pending" },
+        ],
+      },
+      next: [
+        {
+          created_at: "2026-08-03T00:00:00.000Z",
+          error: null,
+          issue_number: 8,
+          issue_url: "https://gh/i/8",
+          title: "Ticket 8",
+          priority: "priority:medium",
+          pr_url: null,
+          state: "queued",
+          run_id: null,
+          pipeline: null,
+        },
+        {
+          created_at: "2026-08-02T00:00:00.000Z",
+          error: null,
+          issue_number: 9,
+          issue_url: "https://gh/i/9",
+          title: "Ticket 9",
+          priority: "priority:low",
+          pr_url: null,
+          state: "queued",
+          run_id: null,
+          pipeline: null,
+        },
+      ],
+      recent: [
+        {
+          created_at: "2026-08-26T06:00:00.000Z",
+          error: null,
+          issue_number: 5,
+          issue_url: "https://gh/i/5",
+          title: "Ticket 5",
+          priority: null,
+          pr_url: "https://gh/pr/50",
+          state: "completed",
+          run_id: null,
+          pipeline: null,
+        },
+      ],
+    });
+  });
+
+  it("still renders the queue when the loop is disabled", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(3, ["priority:low"], "2026-08-01T00:00:00Z"),
+        ],
+      },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(JSON.parse(res.payload)).toMatchObject({
+      enabled: false,
+      current: null,
+      next: [{ issue_number: 3 }],
+      recent: [],
+    });
+  });
+
+  it("excludes the current ticket's issue from the queue", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "task-7b",
+            created_at: "2026-08-26T06:00:00.000Z",
+            status: "running",
+            description: "Ticket 7",
+            issue_number: 7,
+            issue_url: "https://gh/i/7",
+            pr_url: null,
+          },
+        ],
+      });
+    pool.query.mockResolvedValue({ rows: [] } as never);
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(7, ["priority:high"], "2026-08-01T00:00:00Z"),
+        ],
+      },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(JSON.parse(res.payload)).toMatchObject({
+      current: { issue_number: 7 },
+      next: [],
+    });
+  });
+
+  it("keeps an addressed-but-unmerged ticket out of the queue", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "task-5c",
+            created_at: "2026-08-26T05:00:00.000Z",
+            status: "completed",
+            description: "Ticket 5",
+            issue_number: 5,
+            issue_url: "https://gh/i/5",
+            pr_url: "https://gh/pr/50",
+          },
+        ],
+      });
+    pool.query.mockResolvedValue({ rows: [] } as never);
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(5, ["priority:high"], "2026-08-01T00:00:00Z"),
+        ],
+      },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(JSON.parse(res.payload)).toMatchObject({
+      current: null,
+      next: [],
+      recent: [{ issue_number: 5, pr_url: "https://gh/pr/50" }],
+    });
+  });
+
+  it("PUT flips the toggle under admin scope and echoes the new state", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: { createLabels: async () => {} },
+    } as never);
+
+    const res = await put({ enabled: true }, pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({ ok: true, enabled: true });
+    const update = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("UPDATE lore.repos"),
+    );
+
+    expect(String(update?.[0])).toContain("implementation_loop");
+  });
+
+  it("enabling seeds the priority and lore:blocked labels on the repo", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
+      .mockResolvedValue({ rows: [] });
+    const seeded: Array<{ name: string }> = [];
+
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        createLabels: async (labels: Array<{ name: string }>) => {
+          seeded.push(...labels);
+        },
+      },
+    } as never);
+
+    const res = await put({ enabled: true }, pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(seeded.map((l) => l.name)).toEqual([
+      "priority:high",
+      "priority:medium",
+      "priority:low",
+      "lore:blocked",
+    ]);
+  });
+
+  it("disabling seeds nothing", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
+      .mockResolvedValue({ rows: [] });
+
+    const res = await put({ enabled: false }, pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({ ok: true, enabled: false });
+    expect(projectFor).not.toHaveBeenCalled();
+  });
+
+  it("a label-seeding failure does not fail the toggle write", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockRejectedValue(new Error("github down"));
+
+    const res = await put({ enabled: true }, pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({ ok: true, enabled: true });
+  });
+
+  it("PUT rejects a payload without a boolean enabled", async () => {
+    expect((await put({ enabled: "yes" })).statusCode).toBe(400);
+  });
+
+  it("excludes a task row with no issue number from recent", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "task-no-issue",
+            created_at: "2026-08-26T06:00:00.000Z",
+            status: "completed",
+            description: "Untracked ticket",
+            issue_number: null,
+            issue_url: null,
+            pr_url: null,
+          },
+        ],
+      });
+    pool.query.mockResolvedValue({ rows: [] } as never);
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: { list: async () => [] },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(JSON.parse(res.payload)).toMatchObject({
+      current: null,
+      recent: [],
+    });
+  });
+});
+
+describe("pipelineOf", () => {
+  const run = {
+    id: "run-1",
+    task_id: "task-1",
+    status: "running",
+    reason: null,
+    graph: {
+      nodes: [
+        { id: "implement", type: "agent" },
+        { id: "await-pr", type: "pr_review" },
+      ],
+    },
+  };
+
+  it("shows an open pr_review row as waiting and takes the latest iteration", async () => {
+    const { pipelineOf } = await import("./backlog.js");
+
+    expect(
+      pipelineOf(run, [
+        {
+          assembly_run_id: "run-1",
+          node_id: "implement",
+          iteration: 1,
+          outcome: "failed",
+        },
+        {
+          assembly_run_id: "run-1",
+          node_id: "implement",
+          iteration: 2,
+          outcome: "success",
+        },
+        {
+          assembly_run_id: "run-1",
+          node_id: "await-pr",
+          iteration: 1,
+          outcome: null,
+        },
+        {
+          assembly_run_id: "other-run",
+          node_id: "implement",
+          iteration: 9,
+          outcome: "failed",
+        },
+      ]),
+    ).toEqual([
+      { node_id: "implement", state: "success" },
+      { node_id: "await-pr", state: "waiting" },
+    ]);
+  });
+
+  it("is null when the run or its graph is missing", async () => {
+    const { pipelineOf } = await import("./backlog.js");
+
+    expect(pipelineOf(undefined, [])).toBeNull();
+    expect(pipelineOf({ ...run, graph: null }, [])).toBeNull();
+  });
+
+  it("keeps the higher iteration when a lower one arrives after it", async () => {
+    const { pipelineOf } = await import("./backlog.js");
+
+    expect(
+      pipelineOf(run, [
+        {
+          assembly_run_id: "run-1",
+          node_id: "implement",
+          iteration: 2,
+          outcome: "success",
+        },
+        {
+          assembly_run_id: "run-1",
+          node_id: "implement",
+          iteration: 1,
+          outcome: "failed",
+        },
+      ]),
+    ).toEqual([
+      { node_id: "implement", state: "success" },
+      { node_id: "await-pr", state: "pending" },
+    ]);
+  });
+});
+
+describe("GET on a repo with no loop tasks yet", () => {
+  function get(pool: unknown) {
+    return buildServer(() => pool as never).inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/implementation-loop",
+      headers: AUTH,
+    });
+  }
+
+  it("serves the queue without issuing empty ANY() queries", async () => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(3, ["priority:low"], "2026-08-01T00:00:00Z"),
+        ],
+      },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toMatchObject({
+      next: [{ issue_number: 3 }],
+      recent: [],
+    });
+    const anyCalls = pool.query.mock.calls.filter(([sql]) =>
+      String(sql).includes("ANY("),
+    );
+
+    expect(anyCalls).toHaveLength(0);
+  });
+});

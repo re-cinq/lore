@@ -57,10 +57,10 @@ finish the job ADR-033 deferred.
    refusal, and every route hands it to `enforceTrue` so an HTTP refusal reads as
    a precondition rather than an if-return (`lore/prefer-api-error` enforces it).
 
-- A refusal carries the status hapi renders ([validated by carries the status on a boom hapi renders](apps/lore-api/src/http/api-error.test.ts#L6)).
-- Its payload is the house `{ error }` envelope, not Boom's default ([validated by payload is the house error envelope, not boom's default](apps/lore-api/src/http/api-error.test.ts#L13)).
-- A refusal that carries more than prose merges that data alongside the message ([validated by extra data rides alongside the message](apps/lore-api/src/http/api-error.test.ts#L19)).
-- A stray `error` key in that data never shadows why the guard fired ([validated by a data key named error does not override the message](apps/lore-api/src/http/api-error.test.ts#L31)).
+- A refusal carries the status hapi renders ([validated by carries the status on a boom hapi renders](apps/lore-api/src/transport/http/api-error.test.ts#L6)).
+- Its payload is the house `{ error }` envelope, not Boom's default ([validated by payload is the house error envelope, not boom's default](apps/lore-api/src/transport/http/api-error.test.ts#L13)).
+- A refusal that carries more than prose merges that data alongside the message ([validated by extra data rides alongside the message](apps/lore-api/src/transport/http/api-error.test.ts#L19)).
+- A stray `error` key in that data never shadows why the guard fired ([validated by a data key named error does not override the message](apps/lore-api/src/transport/http/api-error.test.ts#L31)).
 
 2c. **The Floor speaks the same envelope** (amendment, 2026-08-22). The Floor's
    hapi server threw bare Boom almost everywhere, so it shipped
@@ -82,8 +82,8 @@ finish the job ADR-033 deferred.
    body in `try { … } catch { return … .code(500) }` would otherwise reshape a
    guard's deliberate 404 into a server fault.
 
-- An already-shaped Boom passes straight back out of such a catch ([validated by a refusal a guard already shaped passes straight back out](apps/lore-api/src/http/api-error.test.ts#L41)).
-- An ordinary failure stays the catch block's to shape ([validated by an ordinary failure is the catch block's to shape](apps/lore-api/src/http/api-error.test.ts#L47)).
+- An already-shaped Boom passes straight back out of such a catch ([validated by a refusal a guard already shaped passes straight back out](apps/lore-api/src/transport/http/api-error.test.ts#L41)).
+- An ordinary failure stays the catch block's to shape ([validated by an ordinary failure is the catch block's to shape](apps/lore-api/src/transport/http/api-error.test.ts#L47)).
 
 3. **hapi parses payloads natively** (`parse: true`, the default). Write routes
    drop `parse: false`; handlers read a typed, validated `request.payload`

@@ -25,12 +25,12 @@ write-once-extract-async endpoint.
 ## Interface
 
 Registered as `exact("/api/episode", "POST")`
-([registration](../../../apps/lore-api/src/server/build-server.ts#L98)), dispatched by
+([registration](../../../apps/lore-api/src/app/build-server.ts#L98)), dispatched by
 `handleApiRoute` after the rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/episode`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/episode"] = "write"`
-  ([scope map](../../../apps/lore-api/src/api/routes/memory/episode.ts#L27)). Bearer required;
+  ([scope map](../../../apps/lore-api/src/transport/routes/memory/episode.ts#L27)). Bearer required;
   `admin` satisfies, `read`-only does not.
 - **Rate bucket**: `default` (200/min).
 
@@ -119,28 +119,28 @@ not awaited; the route returns 200 regardless of their eventual outcome.
 ## Acceptance Criteria
 
 A request without `content` returns 400 without touching the DB. ([validated by
-`episode.test.ts:57`](apps/lore-api/src/api/routes/memory/episode.test.ts#L57))
+`episode.test.ts:57`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L57))
 
 A token whose scopes lack `write` is rejected 403 before the handler runs.
-([validated by `episode.test.ts:63`](apps/lore-api/src/api/routes/memory/episode.test.ts#L63))
+([validated by `episode.test.ts:63`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L63))
 
 An insert that conflicts (returns no rows) yields `{ status: "duplicate" }`.
-([validated by `episode.test.ts:75`](apps/lore-api/src/api/routes/memory/episode.test.ts#L75))
+([validated by `episode.test.ts:75`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L75))
 
 A new episode returns `{ status: "ok", episode_id }`, triggers fact extraction,
 and — when `ANTHROPIC_API_KEY` is set — runs the graph LLM closure. ([validated by
-`episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84))
+`episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84))
 
 With `ANTHROPIC_API_KEY` unset, graph extraction is skipped entirely. ([validated
-by `episode.test.ts:111`](apps/lore-api/src/api/routes/memory/episode.test.ts#L111))
+by `episode.test.ts:111`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L111))
 
-A thrown insert returns 500. ([validated by `episode.test.ts:121`](apps/lore-api/src/api/routes/memory/episode.test.ts#L121))
+A thrown insert returns 500. ([validated by `episode.test.ts:121`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L121))
 
 A rejecting fact extraction is swallowed and the response stays 200. ([validated
-by `episode.test.ts:130`](apps/lore-api/src/api/routes/memory/episode.test.ts#L130))
+by `episode.test.ts:130`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L130))
 
 A rejecting graph update is swallowed and the response stays 200. ([validated by
-`episode.test.ts:143`](apps/lore-api/src/api/routes/memory/episode.test.ts#L143))
+`episode.test.ts:143`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L143))
 
 The actual fact/entity/edge content produced by the extraction LLM is exercised
 only against the live model. *(untested: fact + graph extraction are live-IO LLM
@@ -155,5 +155,5 @@ contract.)*
 - Episode lifecycle (decay, consolidation, snapshots).
 - Token issuance and the scope schema.
 
-Code: handler [`handleEpisode`](../../../apps/lore-api/src/api/routes/memory/episode.ts#L22)
-(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/server/build-server.ts#L98).
+Code: handler [`handleEpisode`](../../../apps/lore-api/src/transport/routes/memory/episode.ts#L22)
+(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L98).

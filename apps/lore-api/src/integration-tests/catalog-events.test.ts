@@ -5,7 +5,7 @@ import { PgAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.j
 import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-yaml.js";
 import { agentDefToCrds } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
-import { buildServer } from "../server/build-server.js";
+import { buildServer } from "../app/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 
 const REGISTRATION_TOKEN = "test-registration-token";

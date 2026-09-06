@@ -63,19 +63,19 @@ credentials, and the tool proxies.
 
 - Read-only: `memory.memories`, `memory.facts`, `memory.snapshots`,
   `memory.audit_log`, `memory.shared_pools`, `memory.episodes`. No writes.
-- `agentStatsBundle` ([queries](../../../apps/lore-api/src/features/analytics/agent-stats-queries.ts#L20)).
+- `agentStatsBundle` ([queries](../../../apps/lore-api/src/work/analytics/agent-stats-queries.ts#L20)).
 
 ## Acceptance Criteria
 
-Health, learning counters, and the recent-episode preview merge into one object. ([validated by `merges health, stats and recent episodes into one object`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L47))
+Health, learning counters, and the recent-episode preview merge into one object. ([validated by `merges health, stats and recent episodes into one object`](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L47))
 
-Failing episode reads degrade to zero episodes instead of failing the request. ([validated by `reports zero episodes when the episode queries fail`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L64))
+Failing episode reads degrade to zero episodes instead of failing the request. ([validated by `reports zero episodes when the episode queries fail`](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L64))
 
-An unset memory pool returns 503 `database unavailable`. ([validated by `returns 503 when memory has no database`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L81))
+An unset memory pool returns 503 `database unavailable`. ([validated by `returns 503 when memory has no database`](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L81))
 
-A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agent_id is missing`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L89))
+A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agent_id is missing`](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L89))
 
-The route is registered as `GET /api/agent-stats`. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L131), [implemented by](../../../apps/lore-api/src/api/routes/analytics/agent-stats.ts#L17))
+The route is registered as `GET /api/agent-stats`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L131), [implemented by](../../../apps/lore-api/src/transport/routes/analytics/agent-stats.ts#L17))
 
 ## Out of Scope
 

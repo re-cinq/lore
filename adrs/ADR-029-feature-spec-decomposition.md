@@ -19,7 +19,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > **What went wrong.** The trigger was a task-type predicate:
 > [decompose-kick.ts](../apps/floor/src/jobs/task/decompose-kick.ts) fires only when a
 > merged PR belongs to a `feature-finalize` task. Once finalize became a *resume* of the
-> feature-planning line ([features.ts](../apps/lore-api/src/api/routes/features/features.ts))
+> feature-planning line ([features.ts](../apps/lore-api/src/transport/routes/features/features.ts))
 > the owning task is `feature-planning`, the predicate stops matching, and **decomposition
 > never starts** — silently, with nothing logged. Every feature planned on the merged line
 > is affected.

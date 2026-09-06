@@ -75,7 +75,7 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
   in the `/agents` UI wrote its row and then 401'd on the catalog apply, leaving
   the cluster running the previous recipe. Which credential a client presents is
   therefore a named, tested function rather than an env read at the call site.
-  ([validated by prefers the service-to-service token over the org ingest token](libs/shared/src/http/internal-token.test.ts#L5), [`internal-token.test.ts:14`](libs/shared/src/http/internal-token.test.ts#L14), [`internal-token.test.ts:18`](libs/shared/src/http/internal-token.test.ts#L18), [`internal-token.test.ts:22`](libs/shared/src/http/internal-token.test.ts#L22), [presents the service-to-service token the cluster-agent's guard mounts](apps/lore-api/src/features/agents/agent-crd-k8s.test.ts#L5), [`agent-crd-k8s.test.ts:18`](apps/lore-api/src/features/agents/agent-crd-k8s.test.ts#L18), [`agent-crd-k8s.test.ts:30`](apps/lore-api/src/features/agents/agent-crd-k8s.test.ts#L30))
+  ([validated by prefers the service-to-service token over the org ingest token](libs/shared/src/http/internal-token.test.ts#L5), [`internal-token.test.ts:14`](libs/shared/src/http/internal-token.test.ts#L14), [`internal-token.test.ts:18`](libs/shared/src/http/internal-token.test.ts#L18), [`internal-token.test.ts:22`](libs/shared/src/http/internal-token.test.ts#L22), [presents the service-to-service token the cluster-agent's guard mounts](apps/lore-api/src/work/agents/agent-crd-k8s.test.ts#L5), [`agent-crd-k8s.test.ts:18`](apps/lore-api/src/work/agents/agent-crd-k8s.test.ts#L18), [`agent-crd-k8s.test.ts:30`](apps/lore-api/src/work/agents/agent-crd-k8s.test.ts#L30))
 - A webhook whose signature does not verify is refused and writes nothing.
   ([validated by refuses a webhook whose signature does not match the secret](apps/event-router/src/transport/routes/events.test.ts#L60))
 - Every other producer authenticates with a bearer token and reports the
@@ -290,7 +290,7 @@ do not, and cannot:
 write `assembly_run.start` inside the same CTE as the run row it names, because a
 run row without its start event never runs and an event naming a run that does
 not exist is worse; and a settings write in
-[repo-settings.ts](../apps/lore-api/src/api/routes/repos/repo-settings.ts) rolls
+[repo-settings.ts](../apps/lore-api/src/transport/routes/repos/repo-settings.ts) rolls
 its own insert with no such excuse.
 
 Fan-out therefore cannot live in the router's handler, or the atomic writers

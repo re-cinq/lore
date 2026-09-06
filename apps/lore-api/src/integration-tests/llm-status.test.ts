@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "@hapi/hapi";
 import pg from "pg";
-import { buildServer } from "../server/build-server.js";
+import { buildServer } from "../app/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 
 const TOKEN = "test-llm-status-token";

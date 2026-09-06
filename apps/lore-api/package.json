@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "gen:openapi": "node dist/openapi/gen-openapi.js",
+    "gen:openapi": "node dist/transport/openapi/gen-openapi.js",
     "gen:api-types": "npx --yes openapi-typescript@7.13.0 openapi.json -o ../web-ui/src/lib/api/schema.d.ts && npx --no-install prettier --write ../web-ui/src/lib/api/schema.d.ts"
   },
   "dependencies": {

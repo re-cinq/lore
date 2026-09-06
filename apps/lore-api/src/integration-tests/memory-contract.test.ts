@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "@hapi/hapi";
 import pg from "pg";
-import { buildServer } from "../server/build-server.js";
+import { buildServer } from "../app/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 import { setMemoryPool } from "@re-cinq/lore-server-core/features/memory/memory.js";
-import { MemoryOperationSchema } from "../api/routes/memory/memory.js";
+import { MemoryOperationSchema } from "../transport/routes/memory/memory.js";
 
 const TOKEN = "test-memory-contract-token";
 const AGENT = "integration-test-memory";

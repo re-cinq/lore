@@ -175,7 +175,7 @@ that is where the code writing those tables happened to live. Proximity to the
 writer is not a reason to host a reader.
 
 **The rule, restated so it can be enforced:** `/api/*` reads are served by
-`lore-api`, one folder per endpoint under `apps/lore-api/src/api/routes/`. A route
+`lore-api`, one folder per endpoint under `apps/lore-api/src/transport/routes/`. A route
 may live on the Floor only if it needs one of the Floor's three exclusive powers
 ([ADR-024](./ADR-024-ubiquitous-language-execution-model.md), amendment 2026-08).
 Today exactly four qualify:

@@ -122,7 +122,7 @@ A single MCP text content block. One of: pretty-printed JSON array of
     retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L219))
 
 8. The `GET /api/graph` endpoint passes the params to `queryLiveGraph` and
-   returns its rows, 503 without a pool, 500 on error. ([validated by `graph.test.ts:31`](apps/lore-api/src/api/routes/graph/graph.test.ts#L31))
+   returns its rows, 503 without a pool, 500 on error. ([validated by `graph.test.ts:31`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L31))
 
 9. The legacy file-based static graph search (`graphSearchHandler`) reports an
    unbuilt-graph message, a parse error, or a missing-fields error before

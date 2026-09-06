@@ -80,25 +80,25 @@ Always `200` JSON. Shape depends on the branch.
 
 ## Acceptance Criteria
 
-A null pool returns `{ onboarded: false }`. ([validated by `returns onboarded:false when pool is null`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L24))
+A null pool returns `{ onboarded: false }`. ([validated by `returns onboarded:false when pool is null`](apps/lore-api/src/transport/routes/repos/repo-status.test.ts#L24))
 
-A missing `repo` param returns `{ onboarded: false }`. ([validated by `returns onboarded:false when no repo param`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L30))
+A missing `repo` param returns `{ onboarded: false }`. ([validated by `returns onboarded:false when no repo param`](apps/lore-api/src/transport/routes/repos/repo-status.test.ts#L30))
 
-A repo absent from `lore.repos` returns `{ onboarded: false, repo }`. ([validated by `returns onboarded:false with repo when repo not in DB`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L36))
+A repo absent from `lore.repos` returns `{ onboarded: false, repo }`. ([validated by `returns onboarded:false with repo when repo not in DB`](apps/lore-api/src/transport/routes/repos/repo-status.test.ts#L36))
 
-A fresh onboarded repo returns numeric counts, `auto_review`, and `stale: false`. ([validated by `returns full stats with stale=false for a fresh repo`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L45))
+A fresh onboarded repo returns numeric counts, `auto_review`, and `stale: false`. ([validated by `returns full stats with stale=false for a fresh repo`](apps/lore-api/src/transport/routes/repos/repo-status.test.ts#L45))
 
-A null `last_ingested_at` marks `stale: true`. ([validated by `marks stale=true when last_ingested_at is null`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L70))
+A null `last_ingested_at` marks `stale: true`. ([validated by `marks stale=true when last_ingested_at is null`](apps/lore-api/src/transport/routes/repos/repo-status.test.ts#L70))
 
-Null settings and missing count rows coerce to defaults (counts 0, `auto_review` false). ([validated by `handles null settings and count rows missing`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L89))
+Null settings and missing count rows coerce to defaults (counts 0, `auto_review` false). ([validated by `handles null settings and count rows missing`](apps/lore-api/src/transport/routes/repos/repo-status.test.ts#L89))
 
-A throwing query returns `{ onboarded: false, error }` with status 200. ([validated by `returns onboarded:false with error when a query throws`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L110))
+A throwing query returns `{ onboarded: false, error }` with status 200. ([validated by `returns onboarded:false with error when a query throws`](apps/lore-api/src/transport/routes/repos/repo-status.test.ts#L110))
 
-A `repo` param that is not `owner/name` is rejected with 400. ([validated by `repo-status.test.ts:119`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L119))
+A `repo` param that is not `owner/name` is rejected with 400. ([validated by `repo-status.test.ts:119`](apps/lore-api/src/transport/routes/repos/repo-status.test.ts#L119))
 
-The route counts against the `default` rate bucket, each request counted exactly once: the 200th passes and the 201st trips 429. ([validated by `rate-limit.test.ts:89`](apps/lore-api/src/http/rate-limit.test.ts#L86))
+The route counts against the `default` rate bucket, each request counted exactly once: the 200th passes and the 201st trips 429. ([validated by `rate-limit.test.ts:89`](apps/lore-api/src/transport/http/rate-limit.test.ts#L86))
 
-The route is registered as a `GET /api/repo-status` prefix match. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L84), [implemented by](../../../apps/lore-api/src/api/routes/repos/repo-status.ts#L13))
+The route is registered as a `GET /api/repo-status` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L84), [implemented by](../../../apps/lore-api/src/transport/routes/repos/repo-status.ts#L13))
 
 ## Out of Scope
 

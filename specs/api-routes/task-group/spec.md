@@ -59,15 +59,15 @@ only the rendering.
 
 ## Acceptance Criteria
 
-The group's tasks come back with a completed-over-total rollup. ([validated by `returns the group's tasks with a completed/total rollup`](apps/lore-api/src/api/routes/tasks/task-group.test.ts#L28))
+The group's tasks come back with a completed-over-total rollup. ([validated by `returns the group's tasks with a completed/total rollup`](apps/lore-api/src/transport/routes/tasks/task-group.test.ts#L28))
 
-The lookup filters `pipeline.tasks` by `task_group_id`. ([validated by `queries pipeline.tasks by task_group_id`](apps/lore-api/src/api/routes/tasks/task-group.test.ts#L47))
+The lookup filters `pipeline.tasks` by `task_group_id`. ([validated by `queries pipeline.tasks by task_group_id`](apps/lore-api/src/transport/routes/tasks/task-group.test.ts#L47))
 
-An unknown group id returns an empty group rather than a 404. ([validated by `returns an empty group rather than a 404 for an unknown id`](apps/lore-api/src/api/routes/tasks/task-group.test.ts#L58))
+An unknown group id returns an empty group rather than a 404. ([validated by `returns an empty group rather than a 404 for an unknown id`](apps/lore-api/src/transport/routes/tasks/task-group.test.ts#L58))
 
-A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/api/routes/tasks/task-group.test.ts#L72))
+A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/transport/routes/tasks/task-group.test.ts#L72))
 
-The route is registered as `GET /api/task-groups/{id}`. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L109), [implemented by](../../../apps/lore-api/src/api/routes/tasks/task-group.ts#L21))
+The route is registered as `GET /api/task-groups/{id}`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L109), [implemented by](../../../apps/lore-api/src/transport/routes/tasks/task-group.ts#L21))
 
 ## Out of Scope
 

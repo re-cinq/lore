@@ -107,7 +107,7 @@ available to agents — the authoritative interface.
   preserved in history but excluded from search). ([validated by `memory.test.ts:242`](libs/server-core/src/features/memory/memory.test.ts#L242))
 
 - **`lore_list_memories(agent_id?, limit?, offset?)`** — paginated listing
-  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:272`](libs/server-core/src/features/memory/memory.test.ts#L272), [`memory.test.ts:219`](apps/lore-api/src/api/routes/memory/memory.test.ts#L219))
+  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:272`](libs/server-core/src/features/memory/memory.test.ts#L272), [`memory.test.ts:219`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L219))
 
 ### Semantic Search
 
@@ -131,14 +131,14 @@ available to agents — the authoritative interface.
   extraction runs asynchronously. Knowledge graph entities and edges
   are extracted and upserted. Superseded facts are auto-invalidated
   (cosine similarity >= 0.92). Does not require the agent to
-  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84), [`facts.test.ts:5`](libs/server-core/src/features/memory/facts.test.ts#L5), [`graph.test.ts:5`](libs/server-core/src/features/memory/graph.test.ts#L5))
+  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84), [`facts.test.ts:5`](libs/server-core/src/features/memory/facts.test.ts#L5), [`graph.test.ts:5`](libs/server-core/src/features/memory/graph.test.ts#L5))
 
 ### Knowledge Graph
 
 - **`lore_query_graph(entity?, relation?, repo?, limit?)`** — queries the
   live knowledge graph for entities and their relationships. Entities
   carry temporal validity (`valid_from`/`valid_to`). Returns matching
-  entities with their edge relationships. ([validated by `graph.test.ts:31`](apps/lore-api/src/api/routes/graph/graph.test.ts#L31), [`graph.test.ts:55`](apps/lore-api/src/api/routes/graph/graph.test.ts#L55), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50))
+  entities with their edge relationships. ([validated by `graph.test.ts:31`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L31), [`graph.test.ts:55`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L55), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50))
 
 ### Monitoring
 
@@ -243,7 +243,7 @@ Mirrors each write to `memories`, preserving full history queryable via
 
 Raw text blobs ingested via `lore_write_episode` are the source of truth for
 passive knowledge capture; fact and graph extraction runs asynchronously
-after write. ([validated by `episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84))
+after write. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84))
 
 Episode inserts are idempotent — deduplicated on `(agent_id, content_hash)`,
 returning the new id or null when a duplicate already exists. ([validated by `memory-lifecycle.test.ts:271`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L271), [`memory-lifecycle.test.ts:289`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L289), [`memory-lifecycle.test.ts:518`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L518))
@@ -278,7 +278,7 @@ with timestamp and agent ID. ([validated by `memory.test.ts:258`](libs/server-co
 ## Fact Extraction
 
 Triggered by `extract_facts=true` on `lore_write_memory`, or automatically
-on all `lore_write_episode` calls. ([validated by `episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84))
+on all `lore_write_episode` calls. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84))
 
 Extraction is asynchronous and non-blocking: if the LLM is unreachable the
 memory write succeeds immediately and the memory stays searchable as raw text,
@@ -353,7 +353,7 @@ consolidated memory is inserted once, deduped on its key. ([validated by `memory
 The MCP server tracks all tool calls in a 500-entry ring buffer
 (`session-tracker.ts`), dumping to `~/.lore/last-session.json` on session exit;
 a stop hook POSTs to `/api/session-summary` for automatic episode + fact
-extraction, with no agent cooperation needed. ([validated by `session-dump.test.ts:31`](libs/server-core/src/platform/session-dump.test.ts#L25), [`session-dump.test.ts:50`](libs/server-core/src/platform/session-dump.test.ts#L50), [`session-summary.test.ts:71`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L71))
+extraction, with no agent cooperation needed. ([validated by `session-dump.test.ts:31`](libs/server-core/src/platform/session-dump.test.ts#L25), [`session-dump.test.ts:50`](libs/server-core/src/platform/session-dump.test.ts#L50), [`session-summary.test.ts:71`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L71))
 
 After every task completion (PR created, no-changes, failure), an episode is
 automatically written via `episode-writer.ts`, and for high-signal events Haiku
@@ -379,7 +379,7 @@ Tools without a file representation proxy to the GKE server over
 `LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and
 `lore_query_graph` (`GET /api/graph`, so the live knowledge graph is readable
 without a direct DB); `lore_agent_stats` has neither a file fallback nor a
-proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50), [`memory-tools.test.ts:72`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L72))
+proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84), [`memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50), [`memory-tools.test.ts:72`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L72))
 
 ## Transfer Scoring (Cross-Repo Context)
 

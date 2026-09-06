@@ -30,13 +30,13 @@ credentials.
 ## Interface
 
 Registered in `routeList`
-([registration](../../../apps/lore-api/src/server/build-server.ts#L134),
-[handler](../../../apps/lore-api/src/api/routes/tasks/task-turns.ts#L65)).
+([registration](../../../apps/lore-api/src/app/build-server.ts#L134),
+[handler](../../../apps/lore-api/src/transport/routes/tasks/task-turns.ts#L65)).
 
 - **Method + path**: `POST /api/task-turns/{taskId}`; `taskId` must be a UUID.
 - **Auth scope**: `write`. Rate-limit bucket `turns` (300/min) — a run-end
   relay is a burst of batches, which must neither starve nor be starved by
-  `default`. ([validated by `rate-limit.test.ts:39`](../../../apps/lore-api/src/http/rate-limit.test.ts#L39))
+  `default`. ([validated by `rate-limit.test.ts:39`](../../../apps/lore-api/src/transport/http/rate-limit.test.ts#L39))
 - **Body**: raw NDJSON (`payload.parse: false`) — one claude stream-json line
   per row, already redacted on the laptop before anything left the machine.
 - **Header** (optional): `x-turn-offset` — the position of this POST's first
@@ -56,24 +56,24 @@ Registered in `routeList`
 ## Behavior
 
 1. Require `LORE_AGENT_URL` + `LORE_AGENT_INTERNAL_TOKEN`, else 503; require
-   the pool, else 503. ([validated by returns 503 when the Floor relay env is not configured](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L136), [validated by returns 503 when the internal token is missing even though the floor URL is set](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L175), [validated by returns 503 when no pool is available](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L130))
+   the pool, else 503. ([validated by returns 503 when the Floor relay env is not configured](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L136), [validated by returns 503 when the internal token is missing even though the floor URL is set](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L175), [validated by returns 503 when no pool is available](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L130))
 2. The task id keys everything the Floor sink writes (`llm_calls`, run events,
    turns), so an unknown id is refused with 404 rather than stored
    uncorrelated. Ownership is NOT checked — any write-scoped token may post
    under any existing task id, matching the `/api/task-logs` precedent (which
    checks nothing at all); the guarantee here is only that fabricated ids are
-   refused. ([validated by returns 404 when the task does not exist](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L120), [validated by returns 400 when taskId is not a uuid](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L151))
+   refused. ([validated by returns 404 when the task does not exist](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L120), [validated by returns 400 when taskId is not a uuid](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L151))
 3. Split the body on newlines; a relayable line must parse as a plain JSON
    object and must NOT be an attributed envelope (`source` + `event` keys —
    the double-peel in `unwrapAttribution` would let a forged inner source
    correlate fake turns to a real assembly run) and must NOT be a
    `kind: "file"` event (it drives planning-round settlement and artifact
-   merge). Everything else is counted in `skipped`. ([validated by skips non-JSON lines, file-kind events, and pre-attributed envelopes](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L84), [`task-turns.test.ts:105`](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L105))
+   merge). Everything else is counted in `skipped`. ([validated by skips non-JSON lines, file-kind events, and pre-attributed envelopes](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L84), [`task-turns.test.ts:105`](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L105))
 4. Wrap each survivor as
    `{"source":{"task":<taskId>,"turn_key":<key>},"event":<line>}` — the
    station contract's attribution envelope, raw line embedded verbatim — and
    forward the joined NDJSON to `${LORE_AGENT_URL}/api/agent-events` with
-   `Bearer LORE_AGENT_INTERNAL_TOKEN`. ([validated by wraps each line in the task attribution envelope and forwards NDJSON to the Floor](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L54))
+   `Bearer LORE_AGENT_INTERNAL_TOKEN`. ([validated by wraps each line in the task attribution envelope and forwards NDJSON to the Floor](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L54))
 5. *(Added by #1389 — the relay used to be append-only where the GCS path it
    replaced was idempotent by overwrite.)* `turn_key` is the line's dedup
    identity: sha256 over (task id, slot, line bytes), where the slot is
@@ -92,15 +92,15 @@ Registered in `routeList`
    re-inserts `pipeline.llm_calls` cost rows and `agent_run_events` viz rows
    (follow-up #1394), and rows duplicated before #1389 stay until the 30-day
    prune ages them out. ([validated by
-   stamps the same keys when the same body is retried](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L207),
-   [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L220),
-   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L240),
-   [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L227),
-   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L251),
-   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L262))
-6. Zero survivors → 200 `{ forwarded: 0, skipped }` without calling the Floor. ([validated by returns 200 without calling the Floor when no line survives filtering](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L113))
-7. A non-OK upstream response → 502. ([validated by returns 502 when the Floor rejects the forward](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L144))
-8. Write scope is enforced like every task route. ([validated by returns 403 when the token has task scope but not write](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L162))
+   stamps the same keys when the same body is retried](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L207),
+   [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L220),
+   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L240),
+   [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L227),
+   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L251),
+   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L262))
+6. Zero survivors → 200 `{ forwarded: 0, skipped }` without calling the Floor. ([validated by returns 200 without calling the Floor when no line survives filtering](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L113))
+7. A non-OK upstream response → 502. ([validated by returns 502 when the Floor rejects the forward](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L144))
+8. Write scope is enforced like every task route. ([validated by returns 403 when the token has task scope but not write](../../../apps/lore-api/src/transport/routes/tasks/task-turns.test.ts#L162))
 
 ## Producer (mcp-server local runner)
 
