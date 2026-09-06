@@ -186,7 +186,10 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
 /** Production wiring for the `cron.implementation_loop.tick` handler. */
 export const implementationLoopTick: EventHandler = async (params) => {
   const [{ pipeline, settings, taskStore }, { projectFor }] = await Promise.all(
-    [import("../../outbound/queues.js"), import("../../outbound/project-boot.js")],
+    [
+      import("../../outbound/queues.js"),
+      import("../../outbound/project-boot.js"),
+    ],
   );
 
   await createImplementationLoopTickHandler({

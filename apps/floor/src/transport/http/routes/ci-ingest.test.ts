@@ -2,7 +2,9 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { buildServer } from "../server.js";
 import { insertEventList } from "../../../outbound/event-store.js";
 
-vi.mock("../../../outbound/event-store.js", () => ({ insertEventList: vi.fn() }));
+vi.mock("../../../outbound/event-store.js", () => ({
+  insertEventList: vi.fn(),
+}));
 
 const ORIG = process.env.LORE_INGEST_TOKEN;
 

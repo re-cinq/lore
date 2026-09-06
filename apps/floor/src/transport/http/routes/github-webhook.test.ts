@@ -3,7 +3,9 @@ import { createHmac } from "node:crypto";
 import { buildServer } from "../server.js";
 import { insertEventList } from "../../../outbound/event-store.js";
 
-vi.mock("../../../outbound/event-store.js", () => ({ insertEventList: vi.fn() }));
+vi.mock("../../../outbound/event-store.js", () => ({
+  insertEventList: vi.fn(),
+}));
 
 const SECRET = "test-webhook-secret";
 
