@@ -21,6 +21,17 @@ function note(where, what) {
   problems.push(`${where}\n    ${what}`);
 }
 
+/** The directory a declared path lives in, glob or not.
+ *
+ * The part before the FIRST glob character: `dirname` of the whole pattern is
+ * wrong for `**` (itself a segment), and `dirname` of the prefix walks one
+ * level too far, which let a renamed folder pass. */
+function probeDir(target) {
+  const fixed = target.split(/[*?]/)[0];
+
+  return fixed.endsWith("/") ? fixed.slice(0, -1) : dirname(fixed);
+}
+
 /** Every workspace package.json, found by walking the workspace globs. */
 function workspacePackages() {
   const root = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
@@ -74,8 +85,12 @@ function checkManifest(pkgDir) {
     targets.push(["types", pkg.types]);
   }
 
-  for (const [key, value] of Object.entries(pkg.bin ?? {})) {
-    targets.push([`bin.${key}`, value]);
+  if (typeof pkg.bin === "string") {
+    targets.push(["bin", pkg.bin]);
+  } else {
+    for (const [key, value] of Object.entries(pkg.bin ?? {})) {
+      targets.push([`bin.${key}`, value]);
+    }
   }
 
   for (const [subpath, value] of Object.entries(pkg.exports ?? {})) {
@@ -88,9 +103,19 @@ function checkManifest(pkgDir) {
     }
   }
 
+  // package.json is excluded from the file scan below, so the scripts that run
+  // compiled entry points are only reachable here.
+  for (const [name, script] of Object.entries(pkg.scripts ?? {})) {
+    for (const m of script.matchAll(
+      /(?:^|[\s"'/])(dist\/[\w./-]+\.(?:js|cjs|mjs))/g,
+    )) {
+      targets.push([`scripts.${name}`, m[1]]);
+    }
+  }
+
   for (const [field, target] of targets) {
     // A wildcard names a shape, not a file: check the directory it lives in.
-    const probe = target.includes("*") ? dirname(target.split("*")[0]) : target;
+    const probe = target.includes("*") ? probeDir(target) : target;
 
     if (!existsSync(join(pkgDir, probe))) {
       note(rel, `${field} → ${target}  (no such path — did a rename move it?)`);
@@ -138,12 +163,18 @@ function checkVitestConfig(pkgDir) {
   const rel = config.slice(ROOT.length + 1);
   const text = readFileSync(config, "utf8");
 
-  for (const m of text.matchAll(/["'](src\/[\w./*-]+)["']/g)) {
+  // Only `coverage.include`: a stale `exclude` names something already absent,
+  // which is harmless. An include that names nothing measures nothing and passes.
+  const includeBlock = text.match(/include:\s*\[([\s\S]*?)\]/);
+
+  if (!includeBlock) {
+    return;
+  }
+
+  for (const m of includeBlock[1].matchAll(/["'](src\/[\w./*-]+)["']/g)) {
     const declared = m[1];
     // A glob names a shape; check the fixed directory part instead.
-    const probe = declared.includes("*")
-      ? dirname(declared.split("*")[0])
-      : declared;
+    const probe = declared.includes("*") ? probeDir(declared) : declared;
 
     if (!existsSync(join(pkgDir, probe))) {
       note(
