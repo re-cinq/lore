@@ -294,6 +294,14 @@ layers:
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
 
+  # The deliberately-wrong fixture package behind scripts/check-eslint-canaries.sh.
+  # `kernel` is a leaf here so that src/kernel/a.ts importing ../jobs/ MUST be
+  # reported; if it ever stops being reported, a rule has gone quiet.
+  tools/eslint-canaries/pkg:
+    kernel: []
+    jobs:
+      - kernel
+
   # The Next app. `lib` is the data and pure-logic tier, `components` the shared
   # presentational atoms, `app` the routes that compose them. Today all three
   # import each other; stated one-way so the cycle is a finding rather than a

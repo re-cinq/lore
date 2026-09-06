@@ -30,6 +30,9 @@ export default tseslint.config(
       "**/.lore-dgraphdata/**",
       "apps/lore-code-trace/**",
       "tools/eslint-plugin-lore/**",
+      // Deliberately-wrong fixtures; scripts/check-eslint-canaries.sh lints them
+      // with --no-ignore and FAILS if the rules stop reporting them.
+      "tools/eslint-canaries/**",
       "**/next-env.d.ts",
       // Generated from apps/lore-api/openapi.json by openapi-typescript — its
       // output does not follow the repo's stylistic rules and must not be edited.
