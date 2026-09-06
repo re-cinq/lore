@@ -112,46 +112,51 @@ layers:
   # by writing the tangle down.
   apps/cluster-agent:
     ".":
-      - claim
-      - delivery
-      - inputs
-      - kernel
-      - listeners
-      - reap
+      - transport
+      - events
+      - work
+      - outbound
       - "@re-cinq/lore-shared"
-    kernel:
+    transport:
+      - domain
+      - outbound
+      - lib
       - "@re-cinq/agent-contracts"
       - "@re-cinq/lore-shared"
-    listeners:
-      - kernel
+    # `listeners/` (the Agent-CR watch) and `claim/` (registration, heartbeat,
+    # the claim loop) — both are how work arrives, so both are this tier.
+    events:
+      - work
+      - domain
+      - outbound
+      - lib
       - "@re-cinq/agent-contracts"
       - "@re-cinq/lore-shared"
-    catalog:
-      - claim
-      - kernel
+    work:
+      - domain
+      - outbound
+      - lib
       - "@re-cinq/agent-contracts"
       - "@re-cinq/lore-shared"
-    claim:
-      - catalog
-      - kernel
-      - "@re-cinq/lore-shared"
-    inputs:
-      - kernel
-      - listeners
-      - "@re-cinq/lore-shared"
-    reap:
-      - claim
-      - kernel
-      - "@re-cinq/lore-shared"
-    delivery:
-      - kernel
+    # Shared is listed because the CR contracts reference shared's pod/agent TYPES.
+    # A package is not a tier above, so this is not an upward edge — but it is the
+    # edge that closes properly only once libs/shared is itself tiered.
+    domain:
       - "@re-cinq/agent-contracts"
       - "@re-cinq/lore-shared"
-    # A suite whose subject IS the collaboration between two layers has to see
+    outbound:
+      - domain
+      - lib
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-shared"
+    lib:
+      - "@re-cinq/lore-shared"
+    # A suite whose subject IS the collaboration between two tiers has to see
     # both; the repo already treats `integration-tests` as that place.
     integration-tests:
-      - kernel
-      - reap
+      - work
+      - domain
+      - outbound
       - "@re-cinq/agent-contracts"
       - "@re-cinq/lore-shared"
 

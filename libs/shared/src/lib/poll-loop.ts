@@ -1,4 +1,4 @@
-/** The unbounded polling loop: tick forever, react, sleep a chosen delay; sibling to `withBackoff` (bounded retries on a throw), extracted from three hand-rolled loops in apps/cluster-agent/src/claim/ (claim/heartbeat/registration) that shared one skeleton. */
+/** The unbounded polling loop: tick forever, react, sleep a chosen delay; sibling to `withBackoff` (bounded retries on a throw), extracted from three hand-rolled loops in apps/cluster-agent/src/events/claim/ (claim/heartbeat/registration) that shared one skeleton. */
 
 /** min(baseMs * 2^attempts, maxMs). A negative attempt count floors at the base. */
 export function backoffDelay(
