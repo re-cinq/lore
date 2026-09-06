@@ -5,7 +5,7 @@
 
 ## Findings (what the investigation confirmed)
 
-`libs/server-core/src/features/pipeline/tasks.ts` runs raw `pool.query` SQL that
+`libs/server-core/src/work/pipeline/tasks.ts` runs raw `pool.query` SQL that
 re-implements spec-task DAG queue mechanics **already single-sourced** in
 `libs/shared/src/outbound/project/tasks/` (`TaskQueueRepository` / `PgTaskQueue` /
 `InMemoryTaskQueue`). The shared port's own docstring calls itself *"the org-wide

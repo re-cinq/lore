@@ -238,13 +238,15 @@ layers:
 
   libs/server-core:
     ".":
-      - platform
-    platform:
+      - outbound
+      - work
       - "@re-cinq/lore-shared"
-    features:
-      - "."
-      - platform
+    work:
+      - outbound
       - "@re-cinq/lore-shared"
+    outbound:
+      - "@re-cinq/lore-shared"
+    test-helpers: []
 
   libs/assembly-lines:
     ".":
@@ -327,10 +329,16 @@ layers:
     jobs:
       - kernel
 
-  # The Next app. `lib` is the data and pure-logic tier, `components` the shared
-  # presentational atoms, `app` the routes that compose them. Today all three
-  # import each other; stated one-way so the cycle is a finding rather than a
-  # description.
+  # The Next app — the system's `ui` tier, and the one package the service
+  # vocabulary does not describe. `transport / events / work / outbound` are
+  # shapes a service has; a browser app has none of them, and bending it into
+  # those names would say something untrue about every folder in it.
+  #
+  # Its internals keep the names they had: `lib` is the data and pure-logic
+  # tier, `components` the shared presentational atoms, `app` the routes that
+  # compose them. They are already one-way and already enforced, so refining
+  # them into micro-tiers is a separate step, not a prerequisite for naming what
+  # this package is.
   apps/web-ui:
     lib:
       - "@re-cinq/lore-shared"

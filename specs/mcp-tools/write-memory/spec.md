@@ -49,7 +49,7 @@ Stores one curated key/value memory (versioned, repo-scoped when a repo is detec
 2. Compute `embedding = await getQueryEmbedding(value)` (Vertex; may be null).
 3. **DB path** — if `isMemoryDbAvailable()`:
    1. Call `writeMemory(key, value, agent_id, ttl, embedding || undefined, repo)`
-      ([handler](../../../libs/server-core/src/features/memory/memory.ts#L53)). Inside the handler:
+      ([handler](../../../libs/server-core/src/work/memory/memory.ts#L53)). Inside the handler:
       - Resolve `agent = resolveAgentId(agent_id)`. Set `expiresAt` SQL to
         `now() + interval '{ttl} seconds'` when `ttl` is set, else null.
       - **Lookup scope**: when `repo` is present, match on `repo`; otherwise on
@@ -69,7 +69,7 @@ Stores one curated key/value memory (versioned, repo-scoped when a repo is detec
    2. **If `extract_facts`** — dynamically `import("memory.js")`, grab
       `getMemoryPool()`, `SELECT id FROM memory.memories WHERE key = $1 AND
       (repo = $2 OR agent_id = $3) ORDER BY version DESC LIMIT 1`, and on a hit
-      fire `extractFacts(id, value, pool)` ([facts](../../../libs/server-core/src/features/memory/facts.ts#L176))
+      fire `extractFacts(id, value, pool)` ([facts](../../../libs/server-core/src/work/memory/facts.ts#L176))
       fire-and-forget (`.catch(() => {})`). Does **not** block the response.
    3. Return `JSON.stringify(result)` as text.
 4. **Proxy path** — DB unavailable: `proxyMemory("write", { key, value,
@@ -92,7 +92,7 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 ## Dependencies & side effects
 
 - `detectCurrentRepo()`, `getQueryEmbedding()` (Vertex), `isMemoryDbAvailable()`.
-- Handler `writeMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L53)); `extractFacts` (async).
+- Handler `writeMemory` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts#L53)); `extractFacts` (async).
 - `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `writeMemoryFile` (offline).
 - Tables: `memory.memories` (insert/update), `memory.memory_versions` (insert), `memory.audit_log` (insert), `memory.facts` (async via `extract_facts`).
 - Env: `LORE_DB_HOST` (DB availability), `LORE_API_URL` + `LORE_INGEST_TOKEN` (proxy).
@@ -100,10 +100,10 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 ## Acceptance Criteria
 
 1. A first write of a key inserts version 1 and returns the write result with
-   key, version, agent, and timestamp. ([validated by `inserts version 1 for a new key and returns the write result`](libs/server-core/src/features/memory/memory.test.ts#L50))
+   key, version, agent, and timestamp. ([validated by `inserts version 1 for a new key and returns the write result`](libs/server-core/src/work/memory/memory.test.ts#L50))
 
 2. A write to an existing key increments the version and updates the row in
-   place. ([validated by `increments version when the key already exists`](libs/server-core/src/features/memory/memory.test.ts#L82))
+   place. ([validated by `increments version when the key already exists`](libs/server-core/src/work/memory/memory.test.ts#L82))
 
 3. The handler orchestration (repo detect, embedding, file fallback,
    `extract_facts` trigger) has no unit seam. *(untested: the DB branch needs a

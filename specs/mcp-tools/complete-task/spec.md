@@ -43,7 +43,7 @@ Marks a claimed ('running') spec-task as 'completed' and returns which dependent
    adapter holds no pool (ADR-032), so the completion and the dependents scan run
    in lore-api ([`POST /api/spec-tasks/complete`](../../api-routes/spec-tasks/spec.md)).
 2. The route delegates to `completeTask(pool, task_id)`
-   ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L51)). It:
+   ([handler](../../../libs/server-core/src/work/pipeline/tasks.ts#L51)). It:
    1. `SELECT id, status, context_bundle, target_repo FROM pipeline.tasks WHERE id = $1`. If no row → `{ completed: false, unblocked: [] }`.
    2. If `status !== 'running'` → `{ completed: false, unblocked: [] }` (no write).
    3. `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`.

@@ -27,7 +27,7 @@ The readiness probe reports database connectivity: `getHealthStatus()` returns
 `connected:false` with a reason when the query throws; the `/healthz` handler
 returns 200/`ok` when the DB is connected or no DB is configured, and 503/`error`
 only when a configured DB is unreachable — the Floor's own `/healthz` returning
-the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by `healthz.test.ts:12`](libs/server-core/src/platform/healthz.test.ts#L12), [`healthz.test.ts:20`](libs/server-core/src/platform/healthz.test.ts#L20), [`healthz.test.ts:38`](libs/server-core/src/platform/healthz.test.ts#L38), [`healthz.test.ts:57`](libs/server-core/src/platform/healthz.test.ts#L57), [`healthz.test.ts:70`](libs/server-core/src/platform/healthz.test.ts#L70), [`healthz.test.ts:93`](libs/server-core/src/platform/healthz.test.ts#L93), [`health.test.ts:5`](apps/floor/src/transport/http/routes/health.test.ts#L5))
+the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by `healthz.test.ts:12`](libs/server-core/src/outbound/healthz.test.ts#L12), [`healthz.test.ts:20`](libs/server-core/src/outbound/healthz.test.ts#L20), [`healthz.test.ts:38`](libs/server-core/src/outbound/healthz.test.ts#L38), [`healthz.test.ts:57`](libs/server-core/src/outbound/healthz.test.ts#L57), [`healthz.test.ts:70`](libs/server-core/src/outbound/healthz.test.ts#L70), [`healthz.test.ts:93`](libs/server-core/src/outbound/healthz.test.ts#L93), [`health.test.ts:5`](apps/floor/src/transport/http/routes/health.test.ts#L5))
 
 ### Database pool resilience
 
@@ -55,7 +55,7 @@ an approval with no checks configured is `approved`. ([validated by `github-clie
 `detectCurrentRepo` parses the git origin remote into `owner/repo` for both SSH
 and HTTPS forms (with or without the `.git` suffix), returns null when the git
 command throws, caches the result so a second call does not re-run git, and
-re-runs after `resetRepoCache` clears the cache. ([validated by `repo-detect.test.ts:17`](libs/server-core/src/features/repo/repo-detect.test.ts#L17), [`repo-detect.test.ts:22`](libs/server-core/src/features/repo/repo-detect.test.ts#L22), [`repo-detect.test.ts:30`](libs/server-core/src/features/repo/repo-detect.test.ts#L30), [`repo-detect.test.ts:37`](libs/server-core/src/features/repo/repo-detect.test.ts#L37), [`repo-detect.test.ts:44`](libs/server-core/src/features/repo/repo-detect.test.ts#L44))
+re-runs after `resetRepoCache` clears the cache. ([validated by `repo-detect.test.ts:17`](libs/server-core/src/work/repo/repo-detect.test.ts#L17), [`repo-detect.test.ts:22`](libs/server-core/src/work/repo/repo-detect.test.ts#L22), [`repo-detect.test.ts:30`](libs/server-core/src/work/repo/repo-detect.test.ts#L30), [`repo-detect.test.ts:37`](libs/server-core/src/work/repo/repo-detect.test.ts#L37), [`repo-detect.test.ts:44`](libs/server-core/src/work/repo/repo-detect.test.ts#L44))
 
 ### Schema migrations
 

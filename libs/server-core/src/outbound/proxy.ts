@@ -7,7 +7,7 @@ import {
   markFresh,
   markStale,
   type ReadCachePolicy,
-} from "./platform/proxy-cache.js";
+} from "./proxy-cache.js";
 import { PROXY_RETRY_DELAYS_MS, requestWithRetry } from "./proxy-retry.js";
 
 // ProxyResult distinguishes not_configured/unreachable; denied (401/403) prevents stale-cache serve.

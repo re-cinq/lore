@@ -41,7 +41,7 @@ Soft-deletes a memory by key (hides it from read/list/search; version history is
 ## Behavior
 
 1. **DB path** — if `isMemoryDbAvailable()`: call `deleteMemory(key, agent_id)`
-   ([handler](../../../libs/server-core/src/features/memory/memory.ts#L199)). Inside the handler:
+   ([handler](../../../libs/server-core/src/work/memory/memory.ts#L199)). Inside the handler:
    - `agent = resolveAgentId(agent_id)`.
    - `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND key =
      $2` — flips the flag for every version row of that agent+key. Note: scope
@@ -68,7 +68,7 @@ path), the proxied body, the `unreachableError` message, or
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
-- Handler `deleteMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L199)).
+- Handler `deleteMemory` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts#L199)).
 - `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `deleteMemoryFile` (offline).
 - Tables: `memory.memories` (update `is_deleted`), `memory.audit_log` (insert). `memory.memory_versions` untouched.
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
@@ -76,9 +76,9 @@ path), the proxied body, the `unreachableError` message, or
 ## Acceptance Criteria
 
 1. Deleting a key sets `is_deleted = TRUE` scoped to the agent and key and
-   returns `{ key, deleted: true }`. ([validated by `soft-deletes by agent and key, returns deleted true`](libs/server-core/src/features/memory/memory.test.ts#L172))
+   returns `{ key, deleted: true }`. ([validated by `soft-deletes by agent and key, returns deleted true`](libs/server-core/src/work/memory/memory.test.ts#L172))
 
-2. A delete writes a `delete` audit-log entry naming the deleted key. ([validated by `writes a delete audit-log entry for the key`](libs/server-core/src/features/memory/memory.test.ts#L188))
+2. A delete writes a `delete` audit-log entry naming the deleted key. ([validated by `writes a delete audit-log entry for the key`](libs/server-core/src/work/memory/memory.test.ts#L188))
 
 3. The proxy / file-fallback framing has no unit seam. *(untested: the
    proxy/file branches need `LORE_API_URL` or offline mode; the soft-delete core

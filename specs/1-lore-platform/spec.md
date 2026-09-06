@@ -357,12 +357,12 @@ pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/s
   stripped description from a `[P]` marker, a `dependsOn` list from a `[DEPENDS ON: ...]`
   marker, a plain-or-backtick file path from the trailing ` | ` suffix, and the phase
   number carried from the preceding `## Phase N` header — defaulting phase to 0 and
-  ignoring lines that are neither tasks nor phase headers. ([validated by `tasks.test.ts:25`](libs/shared/src/domain/tasks.test.ts#L25), [`tasks.test.ts:39`](libs/shared/src/domain/tasks.test.ts#L39), [`tasks.test.ts:46`](libs/shared/src/domain/tasks.test.ts#L46), [`tasks.test.ts:53`](libs/shared/src/domain/tasks.test.ts#L53), [`tasks.test.ts:69`](libs/shared/src/domain/tasks.test.ts#L69), [`tasks.test.ts:85`](libs/shared/src/domain/tasks.test.ts#L85), [`tasks.test.ts:101`](libs/shared/src/domain/tasks.test.ts#L101), [`tasks.test.ts:23`](libs/server-core/src/features/pipeline/tasks.test.ts#L23), [`tasks.test.ts:31`](libs/server-core/src/features/pipeline/tasks.test.ts#L31), [`tasks.test.ts:39`](libs/server-core/src/features/pipeline/tasks.test.ts#L39), [`tasks.test.ts:47`](libs/server-core/src/features/pipeline/tasks.test.ts#L47), [`tasks.test.ts:54`](libs/server-core/src/features/pipeline/tasks.test.ts#L54), [`tasks.test.ts:73`](libs/server-core/src/features/pipeline/tasks.test.ts#L73), [`tasks.test.ts:92`](libs/server-core/src/features/pipeline/tasks.test.ts#L92))
+  ignoring lines that are neither tasks nor phase headers. ([validated by `tasks.test.ts:25`](libs/shared/src/domain/tasks.test.ts#L25), [`tasks.test.ts:39`](libs/shared/src/domain/tasks.test.ts#L39), [`tasks.test.ts:46`](libs/shared/src/domain/tasks.test.ts#L46), [`tasks.test.ts:53`](libs/shared/src/domain/tasks.test.ts#L53), [`tasks.test.ts:69`](libs/shared/src/domain/tasks.test.ts#L69), [`tasks.test.ts:85`](libs/shared/src/domain/tasks.test.ts#L85), [`tasks.test.ts:101`](libs/shared/src/domain/tasks.test.ts#L101), [`tasks.test.ts:23`](libs/server-core/src/work/pipeline/tasks.test.ts#L23), [`tasks.test.ts:31`](libs/server-core/src/work/pipeline/tasks.test.ts#L31), [`tasks.test.ts:39`](libs/server-core/src/work/pipeline/tasks.test.ts#L39), [`tasks.test.ts:47`](libs/server-core/src/work/pipeline/tasks.test.ts#L47), [`tasks.test.ts:54`](libs/server-core/src/work/pipeline/tasks.test.ts#L54), [`tasks.test.ts:73`](libs/server-core/src/work/pipeline/tasks.test.ts#L73), [`tasks.test.ts:92`](libs/server-core/src/work/pipeline/tasks.test.ts#L92))
 - FR-4.9: `inferPhaseDependencies` derives dependency edges deterministically: a task
   depends on every task of the previous phase, sequential (non-`[P]`) tasks chain within a
   phase, `[P]` tasks stay free of intra-phase deps, explicit `[DEPENDS ON: ...]` deps are
   preserved rather than overwritten, and task lists with no phases (or empty input) are
-  returned unchanged. ([validated by `tasks.test.ts:110`](libs/shared/src/domain/tasks.test.ts#L110), [`tasks.test.ts:114`](libs/shared/src/domain/tasks.test.ts#L114), [`tasks.test.ts:120`](libs/shared/src/domain/tasks.test.ts#L120), [`tasks.test.ts:138`](libs/shared/src/domain/tasks.test.ts#L138), [`tasks.test.ts:150`](libs/shared/src/domain/tasks.test.ts#L150), [`tasks.test.ts:160`](libs/shared/src/domain/tasks.test.ts#L160), [`tasks.test.ts:106`](libs/server-core/src/features/pipeline/tasks.test.ts#L106), [`tasks.test.ts:116`](libs/server-core/src/features/pipeline/tasks.test.ts#L116), [`tasks.test.ts:133`](libs/server-core/src/features/pipeline/tasks.test.ts#L133), [`tasks.test.ts:149`](libs/server-core/src/features/pipeline/tasks.test.ts#L149), [`tasks.test.ts:165`](libs/server-core/src/features/pipeline/tasks.test.ts#L165), [`tasks.test.ts:179`](libs/server-core/src/features/pipeline/tasks.test.ts#L179), [`tasks.test.ts:206`](libs/server-core/src/features/pipeline/tasks.test.ts#L206))
+  returned unchanged. ([validated by `tasks.test.ts:110`](libs/shared/src/domain/tasks.test.ts#L110), [`tasks.test.ts:114`](libs/shared/src/domain/tasks.test.ts#L114), [`tasks.test.ts:120`](libs/shared/src/domain/tasks.test.ts#L120), [`tasks.test.ts:138`](libs/shared/src/domain/tasks.test.ts#L138), [`tasks.test.ts:150`](libs/shared/src/domain/tasks.test.ts#L150), [`tasks.test.ts:160`](libs/shared/src/domain/tasks.test.ts#L160), [`tasks.test.ts:106`](libs/server-core/src/work/pipeline/tasks.test.ts#L106), [`tasks.test.ts:116`](libs/server-core/src/work/pipeline/tasks.test.ts#L116), [`tasks.test.ts:133`](libs/server-core/src/work/pipeline/tasks.test.ts#L133), [`tasks.test.ts:149`](libs/server-core/src/work/pipeline/tasks.test.ts#L149), [`tasks.test.ts:165`](libs/server-core/src/work/pipeline/tasks.test.ts#L165), [`tasks.test.ts:179`](libs/server-core/src/work/pipeline/tasks.test.ts#L179), [`tasks.test.ts:206`](libs/server-core/src/work/pipeline/tasks.test.ts#L206))
 - FR-4.10: `specSlugFromBranch` extracts the spec slug from a
   `lore/feature-request/<slug>-<8hex>` branch by dropping the 8-hex task suffix, and returns
   null for a non-feature-request branch or one that has the prefix but no slug. ([validated by `tasks.test.ts:9`](libs/shared/src/domain/tasks.test.ts#L9), [`tasks.test.ts:15`](libs/shared/src/domain/tasks.test.ts#L15), [`tasks.test.ts:19`](libs/shared/src/domain/tasks.test.ts#L19))
@@ -418,13 +418,13 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
 
 ### FR-8: Observability (Phase 1)
 
-The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44))
+The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/outbound/otel.test.ts#L6), [`usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44))
 
 - Decision: all MCP retrieval calls are traced via OpenTelemetry spans
   exported to Cloud Monitoring (SDK-level instrumentation).
 - FR-8.2: Low-confidence retrievals (score < threshold) tagged as
   gap candidates via OTEL span attributes and Cloud Monitoring
-  custom metrics. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`otel.test.ts:10`](libs/server-core/src/platform/otel.test.ts#L10), [`otel.test.ts:14`](libs/server-core/src/platform/otel.test.ts#L14))
+  custom metrics. ([validated by `otel.test.ts:6`](libs/server-core/src/outbound/otel.test.ts#L6), [`otel.test.ts:10`](libs/server-core/src/outbound/otel.test.ts#L10), [`otel.test.ts:14`](libs/server-core/src/outbound/otel.test.ts#L14))
 - See ADR-010 for the autoresearch loop: the low-confidence gap signal
   (Langfuse trace queries → candidate generation → PromptFoo eval → PR)
   drives automated context improvement.
@@ -474,35 +474,35 @@ The system MUST automatically identify and address knowledge gaps. ([validated b
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
 The system MUST support traversable knowledge via a PostgreSQL-backed
-live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L5))
+live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/work/memory/graph.test.ts#L5))
 
 - FR-11.1: Knowledge graph stored in `memory.entities` and
   `memory.edges` tables in PostgreSQL. Updated incrementally on
-  every `lore_write_episode` call via the Lore Agent fact extractor. ([validated by `graph.test.ts:133`](libs/server-core/src/features/memory/graph.test.ts#L91))
+  every `lore_write_episode` call via the Lore Agent fact extractor. ([validated by `graph.test.ts:133`](libs/server-core/src/work/memory/graph.test.ts#L91))
 - FR-11.2: Entity types: Service, Team, Function, PR, ADR, Spec,
   Concept, Runbook. Typed relationships: OWNS, CALLS, IMPLEMENTS,
-  SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L5), [`graph.test.ts:73`](libs/server-core/src/features/memory/graph.test.ts#L73))
+  SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES. ([validated by `graph.test.ts:47`](libs/server-core/src/work/memory/graph.test.ts#L5), [`graph.test.ts:73`](libs/server-core/src/work/memory/graph.test.ts#L73))
 - FR-11.3: `lore_query_graph(query)` MCP tool traverses the live graph
   for multi-hop relationship results. ([validated by `memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L50))
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
-  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L71), [`memory-ranking.test.ts:162`](libs/shared/src/domain/memory-ranking.test.ts#L162))
+  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/work/memory/facts.test.ts#L71), [`memory-ranking.test.ts:162`](libs/shared/src/domain/memory-ranking.test.ts#L162))
 - FR-11.5: Contradiction detection: when a new fact has cosine
   similarity ≥ 0.92 to an existing one, the old fact is invalidated
   and a conflict record written to `memory.fact_conflicts`. Context
   assembly prefixes `[CONFLICT]` on facts with recent (7-day)
-  conflicts. ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L71), [`facts.test.ts:104`](libs/server-core/src/features/memory/facts.test.ts#L104))
+  conflicts. ([validated by `facts.test.ts:96`](libs/server-core/src/work/memory/facts.test.ts#L71), [`facts.test.ts:104`](libs/server-core/src/work/memory/facts.test.ts#L104))
 
 ### FR-12: Intelligent Memory Lifecycle (Phase 1)
 
 The system MUST manage agent memory automatically without agent
-cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L135))
+cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/outbound/session-tracker.test.ts#L135))
 
 - FR-12.1: MCP server tracks all tool calls in a 500-entry ring
   buffer (`session-tracker.ts`). On exit, dumps to
   `~/.lore/last-session.json`. Stop hook POSTs to
-  `/api/session-summary` for automatic episode + fact extraction. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L135), [`session-tracker.test.ts:15`](libs/server-core/src/platform/session-tracker.test.ts#L15))
+  `/api/session-summary` for automatic episode + fact extraction. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/outbound/session-tracker.test.ts#L135), [`session-tracker.test.ts:15`](libs/server-core/src/outbound/session-tracker.test.ts#L15))
 - FR-12.2: Daily job at 5 AM scores memories 0-10 using half-life
   decay (`strength = 0.5^(age / half_life_days)`). Evicts
   lowest-scoring memories when agent exceeds 500 entries. Cleans

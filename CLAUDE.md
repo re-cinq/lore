@@ -139,7 +139,7 @@ status pill — a stale header misreports the org's backlog.
   - **`spec-coverage-backfill`** (`ANTHROPIC_API_KEY`-billed, weekly Mon 11:00 UTC via `cron.spec_coverage_backfill.tick` → one per-repo assembly line; ADR-019 amendment) — finds testable un-linked statements via the v2 judge pipeline, opens a PR per spec with `proposeLinkInsertions` adding the inline parentheticals.
 
   Plus the validate pass via `libs/shared/src/work/detect/spec-coverage-validate.ts` (daily + post-ingest, resolves links, files `spec-link-rot` issues on broken links). See `specs/spec-test-coverage/`.
-- `libs/server-core/src/features/context/context-assembly.ts` — context assembly with YAML templates
+- `libs/server-core/src/work/context/context-assembly.ts` — context assembly with YAML templates
 - `libs/server-core/templates/` — YAML context assembly templates (default, review, implementation, research)
 - `libs/shared/src/work/repo-validation/repo-validation.ts` — deterministic validation (lint/typecheck detection for Node/Go/Python/Rust)
 - `apps/lore-api/src/work/repo/repo-validation-cli.ts` — CLI wrapper for validation in K8s Job pods
@@ -147,7 +147,7 @@ status pill — a stale header misreports the org's backlog.
 - `apps/floor/src/work/lib/episode-writer.ts` — shared episode writer with Haiku-driven auto-curation
 - `libs/shared/src/outbound/llm/prompt-cache.ts` — `getCacheControl(jobName)` (ephemeral + optional `ttl: "1h"`), `computeCachePrefixHash` (djb2 over system + tool schemas), `analyzeCacheBreak` (in-memory per-job tracker classifying hit / first-call / prompt-changed / ttl-expired)
 - `apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.ts` — importance decay (eviction) + fact consolidation (pattern extraction)
-- `libs/server-core/src/platform/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
+- `libs/server-core/src/outbound/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
 - `evals/` — PromptFoo eval configs per team
 
 ## Test Interface (project-test-interface)

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { FakeLlm, Llm } from "@re-cinq/lore-shared";
 import type { PgPool } from "@re-cinq/lore-shared";
 
-vi.mock("../../platform/db.js", () => ({
+vi.mock("../../outbound/db.js", () => ({
   getQueryEmbedding: vi.fn(async () => [0.1, 0.2, 0.3]),
 }));
 
@@ -202,7 +202,7 @@ describe("extractFacts fact isolation", () => {
 
 describe("extractFacts null embedding", () => {
   it("skips the contradiction check when no embedding is returned", async () => {
-    const db = await import("../../platform/db.js");
+    const db = await import("../../outbound/db.js");
 
     vi.mocked(db.getQueryEmbedding).mockResolvedValueOnce(null);
     Llm.setInstance(new FakeLlm({ text: '["Fact without embedding"]' }));

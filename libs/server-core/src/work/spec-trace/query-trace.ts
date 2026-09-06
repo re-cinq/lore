@@ -5,7 +5,7 @@ import type {
   TraceStatement,
   TraceLinkRef,
 } from "@re-cinq/lore-shared";
-import type { ProxyResult } from "../../proxy.js";
+import type { ProxyResult } from "../../outbound/proxy.js";
 
 /** Signal priority for the summary — the collisions worth surfacing first. */
 function signalRank(s: TraceStatement): number {

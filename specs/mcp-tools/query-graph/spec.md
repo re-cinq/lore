@@ -55,7 +55,7 @@ Reads the live knowledge graph and returns typed relationship edges {entity, ent
    side is `handleGraph` (`GET /api/graph`, `read` scope) calling the same
    `queryLiveGraph`.
 2. Call `queryLiveGraph(getPool(), entity, relation_type, repo,
-   include_invalidated)` ([handler](../../../libs/server-core/src/features/memory/graph.ts#L200), re-export of `@re-cinq/lore-shared`):
+   include_invalidated)` ([handler](../../../libs/server-core/src/work/memory/graph.ts#L200), re-export of `@re-cinq/lore-shared`):
    - `validFilter = include_invalidated ? "" : "AND e.valid_to IS NULL"`.
    - **`entity` given** → UNION ALL of an **outgoing** leg (`LOWER(s.name) =
      LOWER($1)`) and an **incoming** leg (`LOWER(t.name) = LOWER($1)`), each
@@ -71,13 +71,13 @@ Reads the live knowledge graph and returns typed relationship edges {entity, ent
 5. Any thrown error → `"Error querying graph: {message}"`.
 
 **Graph population** is owned by `lore_write_episode` →
-`extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/features/memory/graph.ts#L134)): entities are upserted
+`extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/work/memory/graph.ts#L134)): entities are upserted
 (`ON CONFLICT (name, entity_type, COALESCE(repo,''))`); an edge with the same
 source+relation but a different target sets the prior edge's `valid_to`; an
 exact already-valid edge is skipped. A failed entity upsert is skipped rather
 than aborting the batch, and any edge that depended on it (source or target
 missing from the upserted set) is skipped in turn; a failed edge upsert is
-likewise skipped without blocking the remaining edges. ([validated by `graph-edge.test.ts:116`](libs/server-core/src/features/memory/graph-edge.test.ts#L116), [`graph-edge.test.ts:163`](libs/server-core/src/features/memory/graph-edge.test.ts#L163))
+likewise skipped without blocking the remaining edges. ([validated by `graph-edge.test.ts:116`](libs/server-core/src/work/memory/graph-edge.test.ts#L116), [`graph-edge.test.ts:163`](libs/server-core/src/work/memory/graph-edge.test.ts#L163))
 
 ## Output
 
@@ -90,22 +90,22 @@ A single MCP text content block. One of: pretty-printed JSON array of
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `getPool()`, `trackLatency('lore_query_graph', …)`.
-- Query handler `queryLiveGraph` ([graph.ts](../../../libs/server-core/src/features/memory/graph.ts#L200)); population via `extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/features/memory/graph.ts#L134)).
+- Query handler `queryLiveGraph` ([graph.ts](../../../libs/server-core/src/work/memory/graph.ts#L200)); population via `extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/work/memory/graph.ts#L134)).
 - Tables: `memory.entities` + `memory.edges` (read); `memory.audit_log` (latency insert via `trackLatency`).
 - Env: `LORE_DB_HOST` (direct DB) **or** `LORE_API_URL` + `LORE_INGEST_TOKEN`
   (remote proxy via `GET /api/graph`).
 
 ## Acceptance Criteria
 
-1. Entities and typed edges parse from the extractor's JSON output. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L5))
+1. Entities and typed edges parse from the extractor's JSON output. ([validated by `graph.test.ts:47`](libs/server-core/src/work/memory/graph.test.ts#L5))
 
 2. Entity names are normalized to lowercase so a query matches regardless of
-   source casing. ([validated by `graph.test.ts:69`](libs/server-core/src/features/memory/graph.test.ts#L27))
+   source casing. ([validated by `graph.test.ts:69`](libs/server-core/src/work/memory/graph.test.ts#L27))
 
 3. A new edge with the same source+relation but a different target invalidates
-   the prior edge. ([validated by `graph.test.ts:133`](libs/server-core/src/features/memory/graph.test.ts#L91))
+   the prior edge. ([validated by `graph.test.ts:133`](libs/server-core/src/work/memory/graph.test.ts#L91))
 
-4. An already-present exact edge is not re-inserted. ([validated by `graph.test.ts:192`](libs/server-core/src/features/memory/graph.test.ts#L150))
+4. An already-present exact edge is not re-inserted. ([validated by `graph.test.ts:192`](libs/server-core/src/work/memory/graph.test.ts#L150))
 
 5. The live read query itself (`queryLiveGraph` SQL) has no unit seam.
    *(untested: requires live `memory.entities`/`memory.edges` rows; the
@@ -128,11 +128,11 @@ A single MCP text content block. One of: pretty-printed JSON array of
    unbuilt-graph message, a parse error, or a missing-fields error before
    falling back to entity matching and BFS traversal chains; a thrown error
    during that pass is reported as `Error reading graph: {message}` rather
-   than propagating. ([validated by `graph-handlers.test.ts:27`](libs/server-core/src/features/memory/graph-handlers.test.ts#L27), [`graph-handlers.test.ts:34`](libs/server-core/src/features/memory/graph-handlers.test.ts#L34), [`graph-handlers.test.ts:42`](libs/server-core/src/features/memory/graph-handlers.test.ts#L42), [`graph-handlers.test.ts:55`](libs/server-core/src/features/memory/graph-handlers.test.ts#L55), [`graph-handlers.test.ts:71`](libs/server-core/src/features/memory/graph-handlers.test.ts#L71), [`graph-handlers.test.ts:93`](libs/server-core/src/features/memory/graph-handlers.test.ts#L93), [`graph-handlers.test.ts:107`](libs/server-core/src/features/memory/graph-handlers.test.ts#L107), [`graph-handlers.test.ts:212`](libs/server-core/src/features/memory/graph-handlers.test.ts#L212))
+   than propagating. ([validated by `graph-handlers.test.ts:27`](libs/server-core/src/work/memory/graph-handlers.test.ts#L27), [`graph-handlers.test.ts:34`](libs/server-core/src/work/memory/graph-handlers.test.ts#L34), [`graph-handlers.test.ts:42`](libs/server-core/src/work/memory/graph-handlers.test.ts#L42), [`graph-handlers.test.ts:55`](libs/server-core/src/work/memory/graph-handlers.test.ts#L55), [`graph-handlers.test.ts:71`](libs/server-core/src/work/memory/graph-handlers.test.ts#L71), [`graph-handlers.test.ts:93`](libs/server-core/src/work/memory/graph-handlers.test.ts#L93), [`graph-handlers.test.ts:107`](libs/server-core/src/work/memory/graph-handlers.test.ts#L107), [`graph-handlers.test.ts:212`](libs/server-core/src/work/memory/graph-handlers.test.ts#L212))
 
 10. The legacy `getDomainSummaryHandler` mirrors the same not-built/parse/shape
     error precedence, then looks up a domain case-insensitively and lists
-    available domains when no match is found. ([validated by `graph-handlers.test.ts:141`](libs/server-core/src/features/memory/graph-handlers.test.ts#L141), [`graph-handlers.test.ts:148`](libs/server-core/src/features/memory/graph-handlers.test.ts#L148), [`graph-handlers.test.ts:158`](libs/server-core/src/features/memory/graph-handlers.test.ts#L158), [`graph-handlers.test.ts:171`](libs/server-core/src/features/memory/graph-handlers.test.ts#L171), [`graph-handlers.test.ts:184`](libs/server-core/src/features/memory/graph-handlers.test.ts#L184))
+    available domains when no match is found. ([validated by `graph-handlers.test.ts:141`](libs/server-core/src/work/memory/graph-handlers.test.ts#L141), [`graph-handlers.test.ts:148`](libs/server-core/src/work/memory/graph-handlers.test.ts#L148), [`graph-handlers.test.ts:158`](libs/server-core/src/work/memory/graph-handlers.test.ts#L158), [`graph-handlers.test.ts:171`](libs/server-core/src/work/memory/graph-handlers.test.ts#L171), [`graph-handlers.test.ts:184`](libs/server-core/src/work/memory/graph-handlers.test.ts#L184))
 
 ## Out of Scope
 
