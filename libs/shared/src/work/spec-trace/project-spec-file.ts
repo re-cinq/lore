@@ -5,9 +5,13 @@ import {
   segmentStatements,
   buildIntroOrdinals,
   getQueryEmbedding,
-} from "./deps.js";
-import type { DgraphClientPort } from "./deps.js";
-import { withTxn, upsertByXid, deletePredicate } from "./dgraph-upsert.js";
+} from "../../outbound/spec-trace/deps.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import {
+  withTxn,
+  upsertByXid,
+  deletePredicate,
+} from "../../outbound/spec-trace/dgraph-upsert.js";
 import { pruneOrphans } from "./project-spec-file-links.js";
 import {
   projectFeature,

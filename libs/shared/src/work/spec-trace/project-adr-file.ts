@@ -3,12 +3,16 @@
 import { createHash } from "node:crypto";
 import type { SourceDocument } from "./project-blocks.js";
 import type { ProjectionOptions } from "./project-spec-file.js";
-import type { DgraphClientPort } from "./deps.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import {
   projectDocumentBlocks,
   pruneOrphanBlocksByFile,
 } from "./project-blocks.js";
-import { withTxn, upsertByXid, deletePredicate } from "./dgraph-upsert.js";
+import {
+  withTxn,
+  upsertByXid,
+  deletePredicate,
+} from "../../outbound/spec-trace/dgraph-upsert.js";
 import { adrNumberFromPath } from "./adr-refs.js";
 
 function sha256(text: string): string {

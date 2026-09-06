@@ -1,7 +1,7 @@
 /** LLM half of spec judge; separate module so spec-judge.ts stays dependency-free. */
 
 import { Llm } from "../outbound/llm/llm.js";
-import type { Assertion } from "./spec-judge.js";
+import type { Assertion } from "../domain/spec-judge.js";
 
 export interface LlmJobContext {
   jobName: string;

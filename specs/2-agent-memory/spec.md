@@ -114,12 +114,12 @@ available to agents — the authoritative interface.
 - **`lore_search_memory(query, agent_id?, limit?, pool?, include_invalidated?,
   graph_augment?)`** — hybrid semantic + keyword search over memories
   and extracted facts using Reciprocal Rank Fusion. Results include
-  confidence annotations and similarity scores. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/work/memory-ranking.test.ts#L11))
+  confidence annotations and similarity scores. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/domain/memory-ranking.test.ts#L11))
   - `include_invalidated=true` enables historical queries (facts
     superseded by later contradictions are included). ([validated by `memory-search.test.ts:41`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L32), [`memory-search.test.ts:43`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L43))
   - `graph_augment=true` enriches results with related graph entities. ([validated by `memory-search.test.ts:63`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L54), [`memory-search.test.ts:96`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L96))
   - Results are capped at 3 per (agent_id + source) combo to prevent
-    verbose sessions from dominating (session diversification); sources already under the cap are returned intact. ([validated by `memory-ranking.test.ts:53`](libs/shared/src/work/memory-ranking.test.ts#L53), [validated by `keeps all items when each source is under the cap`](libs/shared/src/work/memory-ranking.test.ts#L99))
+    verbose sessions from dominating (session diversification); sources already under the cap are returned intact. ([validated by `memory-ranking.test.ts:53`](libs/shared/src/domain/memory-ranking.test.ts#L53), [validated by `keeps all items when each source is under the cap`](libs/shared/src/domain/memory-ranking.test.ts#L99))
   - Every search call asynchronously increments `retrieval_count`,
     updates `last_retrieved_at`, and extends `half_life_days` (+2,
     cap 365) on returned facts and memories. ([validated by `memory-search.test.ts:128`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L119))
@@ -309,7 +309,7 @@ Two daily jobs run in the Lore Agent service to manage memory health:
 
 ### Importance Decay (5:00 AM UTC)
 
-Scores all memories 0–10 using: ([validated by `memory-ranking.test.ts:113`](libs/shared/src/work/memory-ranking.test.ts#L113))
+Scores all memories 0–10 using: ([validated by `memory-ranking.test.ts:113`](libs/shared/src/domain/memory-ranking.test.ts#L113))
 
 ```
 effective_age_days = now() - (last_retrieved_at ?? created_at)
@@ -317,19 +317,19 @@ strength = 0.5 ^ (effective_age_days / half_life_days)
 ```
 
 Age is measured from `last_retrieved_at` when available, falling back to
-`created_at`, so retrieval resets the decay clock. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/work/memory-ranking.test.ts#L168))
+`created_at`, so retrieval resets the decay clock. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/domain/memory-ranking.test.ts#L168))
 
-Additional factors: ([validated by `memory-ranking.test.ts:113`](libs/shared/src/work/memory-ranking.test.ts#L113))
-- Retrieval count and `last_retrieved_at` boost scores. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/work/memory-ranking.test.ts#L168), [`memory-ranking.test.ts:113`](libs/shared/src/work/memory-ranking.test.ts#L113))
-- Confidence tier affects baseline: `stale` facts get -1 penalty. ([validated by `memory-ranking.test.ts:162`](libs/shared/src/work/memory-ranking.test.ts#L162))
+Additional factors: ([validated by `memory-ranking.test.ts:113`](libs/shared/src/domain/memory-ranking.test.ts#L113))
+- Retrieval count and `last_retrieved_at` boost scores. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/domain/memory-ranking.test.ts#L168), [`memory-ranking.test.ts:113`](libs/shared/src/domain/memory-ranking.test.ts#L113))
+- Confidence tier affects baseline: `stale` facts get -1 penalty. ([validated by `memory-ranking.test.ts:162`](libs/shared/src/domain/memory-ranking.test.ts#L162))
 - Content signals: decisions/conventions/gotchas/patterns +2,
   auto-curation/sessions -1, and content richness (short `<50` chars
-  -2, long `>500` chars +1). ([validated by `memory-ranking.test.ts:156`](libs/shared/src/work/memory-ranking.test.ts#L156), [`memory-ranking.test.ts:147`](libs/shared/src/work/memory-ranking.test.ts#L147), [validated by `adds 2 for a key containing gotcha`](libs/shared/src/work/memory-ranking.test.ts#L156), [validated by `subtracts 2 for a value shorter than 50 chars`](libs/shared/src/work/memory-ranking.test.ts#L147))
-- The final score is clamped to the `[0, 10]` range. ([validated by `memory-ranking.test.ts:180`](libs/shared/src/work/memory-ranking.test.ts#L180), [`memory-ranking.test.ts:222`](libs/shared/src/work/memory-ranking.test.ts#L222), [validated by `clamps to 0 when decay and penalties push below zero`](libs/shared/src/work/memory-ranking.test.ts#L180))
+  -2, long `>500` chars +1). ([validated by `memory-ranking.test.ts:156`](libs/shared/src/domain/memory-ranking.test.ts#L156), [`memory-ranking.test.ts:147`](libs/shared/src/domain/memory-ranking.test.ts#L147), [validated by `adds 2 for a key containing gotcha`](libs/shared/src/domain/memory-ranking.test.ts#L156), [validated by `subtracts 2 for a value shorter than 50 chars`](libs/shared/src/domain/memory-ranking.test.ts#L147))
+- The final score is clamped to the `[0, 10]` range. ([validated by `memory-ranking.test.ts:180`](libs/shared/src/domain/memory-ranking.test.ts#L180), [`memory-ranking.test.ts:222`](libs/shared/src/domain/memory-ranking.test.ts#L222), [validated by `clamps to 0 when decay and penalties push below zero`](libs/shared/src/domain/memory-ranking.test.ts#L180))
 
 When an agent exceeds 500 memories, memories are scored, sorted
 least-important-first, and the lowest-scoring are soft-deleted
-(eviction). ([validated by `memory-ranking.test.ts:233`](libs/shared/src/work/memory-ranking.test.ts#L233), [`memory-lifecycle.test.ts:63`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L63), [`memory-lifecycle.test.ts:305`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L305), [`memory-lifecycle.test.ts:77`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L77), [`memory-lifecycle.test.ts:320`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L320), [`memory-lifecycle.test.ts:87`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L87), [`memory-lifecycle.test.ts:334`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L334))
+(eviction). ([validated by `memory-ranking.test.ts:233`](libs/shared/src/domain/memory-ranking.test.ts#L233), [`memory-lifecycle.test.ts:63`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L63), [`memory-lifecycle.test.ts:305`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L305), [`memory-lifecycle.test.ts:77`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L77), [`memory-lifecycle.test.ts:320`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L320), [`memory-lifecycle.test.ts:87`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L87), [`memory-lifecycle.test.ts:334`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L334))
 
 Invalidated facts beyond a cap of 2000 are hard-deleted
 if older than 30 days. ([validated by `memory-lifecycle.test.ts:161`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L161), [`memory-lifecycle.test.ts:397`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L397), [`memory-lifecycle.test.ts:174`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L174), [`memory-lifecycle.test.ts:412`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L412))
@@ -387,7 +387,7 @@ Facts retrieved for cross-repo context are filtered by a portability
 score. Portable keywords (`error`, `pattern`, `gotcha`, `convention`)
 boost the score; local keywords (`config`, `deploy`, `url`, `auth`,
 `secret`) reduce it. Each portable keyword adds 0.15 above the 0.5 base and each local keyword subtracts 0.15, with the result clamped to `[0, 1]`. Only facts scoring >= 0.5 pass through to
-prevent repo-specific configuration from polluting other repos. ([validated by `transfer-score.test.ts:66`](apps/mcp-server/src/work/context/transfer-score.test.ts#L27), [`memory-ranking.test.ts:33`](libs/shared/src/work/memory-ranking.test.ts#L33), [`memory-ranking.test.ts:37`](libs/shared/src/work/memory-ranking.test.ts#L37), [`memory-ranking.test.ts:41`](libs/shared/src/work/memory-ranking.test.ts#L41), [`memory-ranking.test.ts:47`](libs/shared/src/work/memory-ranking.test.ts#L47))
+prevent repo-specific configuration from polluting other repos. ([validated by `transfer-score.test.ts:66`](apps/mcp-server/src/work/context/transfer-score.test.ts#L27), [`memory-ranking.test.ts:33`](libs/shared/src/domain/memory-ranking.test.ts#L33), [`memory-ranking.test.ts:37`](libs/shared/src/domain/memory-ranking.test.ts#L37), [`memory-ranking.test.ts:41`](libs/shared/src/domain/memory-ranking.test.ts#L41), [`memory-ranking.test.ts:47`](libs/shared/src/domain/memory-ranking.test.ts#L47))
 
 ## Divergences from Original Design
 

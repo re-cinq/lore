@@ -1,21 +1,21 @@
 // Spec → Test Coverage Backfill Cron (v3): reuses the v2 judge pipeline but emits edits to spec.md via a PR per spec, not spec_test_links rows (dropped in v3). Runs weekly Mon 11:00 UTC.
+import { dropIngestExcluded } from "../../domain/content-classify.js";
 import {
-  dropIngestExcluded,
-  segmentStatements,
   selectCandidates,
   argmaxByTest,
   deriveTestName,
   parseEmbedding,
-  isTestFile,
-  reassembleSpec,
   type TestChunk,
   type JudgeCandidate,
   type Judgment,
   type MatchKind,
-  extractAssertions,
-  type Project,
-  type SpecChunkWithEmbedding,
-} from "../../index.js";
+} from "../../domain/spec-judge.js";
+import { segmentStatements } from "../../domain/spec-segment.js";
+import { isTestFile } from "../../domain/test-paths.js";
+import { type SpecChunkWithEmbedding } from "../../outbound/project/chunks/chunks-port.js";
+import { type Project } from "../../outbound/project/lib/project.js";
+import { extractAssertions } from "../spec-judge-llm.js";
+import { reassembleSpec } from "../spec-summary.js";
 import { isAssertionSource } from "./spec-drift-rules.js";
 import {
   pickStatementsForBackfill,

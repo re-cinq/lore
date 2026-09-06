@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import * as dgraph from "dgraph-js-http";
 import { backfillMemoryToDgraph } from "./backfill-memory.js";
-import { parseEmbedding, cosineSimilarity } from "./spec-judge.js";
+import { parseEmbedding, cosineSimilarity } from "../domain/spec-judge.js";
 import { dgraphReachable } from "../lib/dgraph-test-gate.js";
 
 const PG_CONFIG = {

@@ -15,18 +15,15 @@ export {
   reassembleBlocks,
   type Block,
 } from "../../domain/spec-blocks.js";
-export type {
-  DgraphClientPort,
-  DgraphTxn,
-} from "../../outbound/memory-store.js";
-export { cosineSimilarity, parseEmbedding } from "../spec-judge.js";
-export { getQueryEmbedding } from "../../outbound/embeddings/embedding-service.js";
+export type { DgraphClientPort, DgraphTxn } from "../memory-store.js";
+export { cosineSimilarity, parseEmbedding } from "../../domain/spec-judge.js";
+export { getQueryEmbedding } from "../embeddings/embedding-service.js";
 export type { ProvenanceRef } from "../../domain/commit-trailers.js";
 export type {
   CoveredChunk,
   TaggedRunResult,
   TestDescriptor,
-} from "../test-report.js";
+} from "../../domain/test-report.js";
 
 /** A Dgraph query result entry carrying just a node uid. */
 export interface UidRef {

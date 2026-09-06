@@ -1,7 +1,7 @@
 /** Task lifecycle actions layered on pipeline-tasks.ts's core CRUD: retry, cancel, escalate, revise, mark-merged. */
 
 import { enforceTrue } from "../lib/enforce.js";
-import type { PgPool } from "../outbound/memory-store.js";
+import type { PgPool } from "./memory-store-types.js";
 import {
   createTask,
   getTask,

@@ -7,7 +7,7 @@ import {
   chunkGlobsForKind,
   type IngestKindDef,
 } from "./ingest-graph-task.js";
-import type { DgraphClientPort } from "./deps.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 
 const TREE = [
   "specs/auth/spec.md",

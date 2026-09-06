@@ -2,7 +2,7 @@
 
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
 import { resolveAgentId } from "../../agent-id.js";
-import { diversify, rrfMerge } from "../../../work/memory-ranking.js";
+import { diversify, rrfMerge } from "../../../domain/memory-ranking.js";
 import type { PgPool } from "../../memory-store.js";
 import {
   vectorSearchMemories,

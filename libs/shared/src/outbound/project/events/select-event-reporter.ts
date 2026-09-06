@@ -1,6 +1,6 @@
 // Where a producer reports its events: HTTP to the event-router (ADR-044) when reachable, else the local pool — logged once so a lost EVENT_ROUTER_URL in a cluster isn't a silent degradation.
 
-import { internalToken } from "../../../transport/http/internal-token.js";
+import { internalToken } from "../../../lib/internal-token.js";
 import { HttpEventReporter } from "./event-reporter-http.js";
 import { HttpEventQueue } from "./event-queue-http.js";
 import { HttpEventDeliveries } from "./event-deliveries-http.js";

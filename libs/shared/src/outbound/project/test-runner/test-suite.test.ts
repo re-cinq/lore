@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { TestSuite } from "./test-suite.js";
 import type { TestRunnerPort } from "./test-runner-port.js";
-import type { TestDescriptor } from "../../../work/test-report.js";
+import type { TestDescriptor } from "../../../domain/test-report.js";
 
 const descriptors: TestDescriptor[] = [
   {

@@ -9,13 +9,13 @@ import {
   parseRunResult,
   type TestDescriptor,
   type RunResult,
-} from "../../../work/test-report.js";
+} from "../../../domain/test-report.js";
 import {
   substituteSelector,
   resolveTestCommandManifest,
   type TestCommandManifest,
 } from "../../../domain/test-command-manifest.js";
-import { groupRunsByFile } from "../../../work/spec-trace/trace-descriptors.js";
+import { groupRunsByFile } from "../../../domain/spec-trace/trace-descriptors.js";
 import { mapWithLimit } from "../../../lib/concurrency/map-with-limit.js";
 import type { TestRunnerPort, TestRunReport } from "./test-runner-port.js";
 

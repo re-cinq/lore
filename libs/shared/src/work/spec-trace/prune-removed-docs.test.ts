@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { findRepoRoot } from "../../lib/repo-root.js";
-import type { DgraphClientPort } from "./deps.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import * as dgraph from "dgraph-js-http";
 import {
   selectPruneCandidates,
@@ -13,7 +13,7 @@ import {
 } from "./prune-removed-docs.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
-import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
+import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 
 describe("selectPruneCandidates", () => {

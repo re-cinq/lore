@@ -1,6 +1,6 @@
 /** Feature run + author wait state: orchestration over ports, testable without HTTP. */
 
-import { decideRoundDispatch } from "../../../work/feature-planning/round-dispatch.js";
+import { decideRoundDispatch } from "../../feature-planning/round-dispatch.js";
 import type { AssemblyRuns } from "../assembly-runs/assembly-runs.js";
 import type { ParkedTarget } from "../assembly-runs/parked-node.js";
 import { featureSubject } from "../assembly-runs/subject-keys.js";

@@ -7,7 +7,7 @@ import {
   type ChunkLineRange,
   type BrokenLink,
 } from "./spec-coverage-validate.js";
-import type { TestLinkRef } from "../../index.js";
+import type { TestLinkRef } from "../../domain/spec-link-parser.js";
 
 const ref = (path: string, line: number | null = null): TestLinkRef => ({
   label: "t",

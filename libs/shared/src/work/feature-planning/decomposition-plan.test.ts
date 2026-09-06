@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { specTaskRows, storyIssueBody } from "./decomposition-plan.js";
-import type { UserStory } from "./decomposition-result.js";
+import type { UserStory } from "../../domain/feature-planning/decomposition-result.js";
 
 const story: UserStory = {
   title: "Favorite a repo",

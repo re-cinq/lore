@@ -1,7 +1,7 @@
 /** Derive Statement status from TraceLink evidence tiers; untested when no links (Phase 4/T242). */
 
-import type { DgraphClientPort } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { highestTier, type EvidenceTier } from "./trace-link.js";
 
 export type StatementStatus = "verified-implemented" | "claimed" | "untested";

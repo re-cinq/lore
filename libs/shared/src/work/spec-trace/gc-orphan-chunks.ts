@@ -1,7 +1,7 @@
 /** Orphan chunk GC; deletes dropped chunks only if nothing else owns them; pass excludeOwnerUids to GC before owner deletion. */
 
-import type { DgraphClientPort } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 
 /** A garbage-collectable chunk-like node and its ownership edges. */
 type GcNodeType = "TestChunk" | "CodeChunk" | "File";

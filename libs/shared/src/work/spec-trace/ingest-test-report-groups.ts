@@ -4,8 +4,12 @@ import type {
   DgraphClientPort,
   TestDescriptor,
   TaggedRunResult,
-} from "./deps.js";
-import { deletePredicate, upsertByXid, withTxn } from "./dgraph-upsert.js";
+} from "../../outbound/spec-trace/deps.js";
+import {
+  deletePredicate,
+  upsertByXid,
+  withTxn,
+} from "../../outbound/spec-trace/dgraph-upsert.js";
 import { parseSentenceLink, sentenceLinkFromSuite } from "./sentence-link.js";
 import {
   resolveSentenceLink,

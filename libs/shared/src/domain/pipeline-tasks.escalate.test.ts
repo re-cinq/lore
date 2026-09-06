@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { escalateTask, cancelTask, reviseTask } from "./pipeline-tasks.js";
-import type { PgPool } from "../outbound/memory-store.js";
+import type { PgPool } from "./memory-store-types.js";
 
 function poolWithTask(task: Record<string, unknown> | null) {
   const query = vi.fn((sql: string, _params?: unknown[]) => {

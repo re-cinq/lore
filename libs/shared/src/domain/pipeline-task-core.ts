@@ -1,7 +1,7 @@
 /** Core pipeline-task CRUD (create/read/record-event/update-status) — split out so pipeline-task-actions.ts (retry/cancel/escalate/revise/mark-merged) can depend on it without pipeline-tasks.ts importing back from pipeline-task-actions.ts. */
 
 import { enforceTrue } from "../lib/enforce.js";
-import type { PgPool } from "../outbound/memory-store.js";
+import type { PgPool } from "./memory-store-types.js";
 import { selectList } from "../lib/row.js";
 import { PIPELINE_TASK_COLUMNS } from "./models/pipeline-task.js";
 import { TASK_EVENT_COLUMNS } from "./models/task-event.js";

@@ -2,10 +2,8 @@
 
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import {
-  extractBearer,
-  secretEquals,
-} from "@re-cinq/lore-shared/http/bearer.js";
+import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
+import { secretEquals } from "@re-cinq/lore-shared/lib/secret-equals.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import type { Emit } from "@re-cinq/lore-shared/project/events/event-input-port.js";

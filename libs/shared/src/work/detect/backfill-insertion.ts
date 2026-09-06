@@ -1,9 +1,9 @@
 // Pure link-insertion for spec-coverage-backfill: which statements need a link, and how a confirmed suggestion gets stitched into spec.md as a `(validated by ...)` parenthetical + unified diff.
+import { parseTestLinksInStatement } from "../../domain/spec-link-parser.js";
 import {
-  parseTestLinksInStatement,
   type Statement,
   type Classification,
-} from "../../index.js";
+} from "../../domain/spec-segment.js";
 
 // Statements classified `testable` with no inline test link yet — excludes narrative sections and already-linked statements so the cron never overwrites author-curated links.
 export function pickStatementsForBackfill(

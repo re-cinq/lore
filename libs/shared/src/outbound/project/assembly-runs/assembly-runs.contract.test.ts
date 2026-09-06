@@ -4,7 +4,7 @@ import { Pool } from "pg";
 import { InMemoryAssemblyRuns } from "./assembly-runs-memory.js";
 import { PgAssemblyRuns } from "./assembly-runs-pg.js";
 import type { AssemblyRunsPort } from "./assembly-runs-port.js";
-import type { RunGraph } from "./run-graph.js";
+import type { RunGraph } from "../../../domain/run-graph.js";
 
 const PG_CONFIG = {
   host: process.env.PGHOST ?? "localhost",

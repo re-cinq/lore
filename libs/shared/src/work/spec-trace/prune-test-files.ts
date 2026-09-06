@@ -1,7 +1,10 @@
 /** Deletes a pruned test file's graph subtree (chunks/suites/coverage + dangling validated_by/Repo edges) for incremental ingest deletion (specs/ci-incremental-ingest FR4); GC runs before delete, keyed on file_path so a re-run converges. */
 
-import type { DgraphClientPort, UidRef } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type {
+  DgraphClientPort,
+  UidRef,
+} from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 
 interface DoomedFile {

@@ -3,7 +3,7 @@ import {
   rrfMerge,
   type MemorySearchResult,
   type RankedItem,
-} from "../work/memory-ranking.js";
+} from "../domain/memory-ranking.js";
 import { toVectorLiteral } from "./dgraph-vector.js";
 import {
   stripMemoryPrefix,

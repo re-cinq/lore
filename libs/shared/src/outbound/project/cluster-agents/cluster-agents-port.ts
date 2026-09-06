@@ -1,4 +1,4 @@
-import { secretEquals } from "../../../transport/http/bearer.js";
+import { secretEquals } from "../../../lib/secret-equals.js";
 import type { ClusterAgent } from "../../../domain/models/cluster-agent.js";
 
 /** The registry of execution clusters (FR1 specs/running-stations-in-any-k8s-cluster): who exists, what they can run, liveness. */

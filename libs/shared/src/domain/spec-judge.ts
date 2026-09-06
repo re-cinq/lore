@@ -1,7 +1,7 @@
 // Pure judge helpers shared by the spec-test linker and the spec-coverage prepare/persist endpoints, so both sides use the same candidate-selection and segmentation contract.
 import { createHash } from "node:crypto";
-import { isTestFile, normalizeTestName } from "../domain/test-paths.js";
-import type { Chunk } from "../domain/models/chunk.js";
+import { isTestFile, normalizeTestName } from "./test-paths.js";
+import type { Chunk } from "./models/chunk.js";
 
 // ── Types ────────────────────────────────────────────────────────────
 

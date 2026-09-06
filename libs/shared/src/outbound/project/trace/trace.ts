@@ -1,13 +1,10 @@
 import type { TracePort } from "./trace-port.js";
-import type { TraceDocument } from "../../../work/spec-trace/assemble-trace-document.js";
+import type { TraceDocument } from "../../../domain/spec-trace/assemble-trace-document.js";
 import type {
   SpecSummary,
   AdrSummary,
-} from "../../../work/spec-trace/trace-document-listing.js";
-import type {
-  SpecGraph,
-  SpecRing,
-} from "../../../work/spec-trace/spec-graph.js";
+} from "../../spec-trace/trace-document-listing.js";
+import type { SpecGraph, SpecRing } from "../../spec-trace/spec-graph.js";
 
 /** Spec-traceability graph view; graph is source of truth, not Postgres chunk store. */
 export class TraceView {

@@ -1,8 +1,11 @@
 /** spec-traceability-graph — Phase 4 drift check (file-scoped): reconciles spec nodes tracing to a re-ingested file against new content (T240 content drift via `implemented_by` hash mismatch, T241 link rot on missing/moved chunks, T243 graded severity via cosine distance); link-rot-vs-content precedence and drift-clearing on realignment are consciously deferred. */
 
-import type { DgraphClientPort } from "./deps.js";
-import { cosineSimilarity, parseEmbedding } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import {
+  cosineSimilarity,
+  parseEmbedding,
+} from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import type { DriftedStatement } from "./format-drift-report.js";
 
 export interface NewCodeChunk {

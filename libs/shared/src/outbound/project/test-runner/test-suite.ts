@@ -1,4 +1,4 @@
-import type { TestDescriptor, RunResult } from "../../../work/test-report.js";
+import type { TestDescriptor, RunResult } from "../../../domain/test-report.js";
 import type { TestRunnerPort, TestRunReport } from "./test-runner-port.js";
 import { executionRefusal } from "../lib/trust.js";
 

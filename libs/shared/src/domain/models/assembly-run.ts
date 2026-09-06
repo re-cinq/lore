@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ColumnMap } from "../../lib/row.js";
-import type { RunGraph } from "../../outbound/project/assembly-runs/run-graph.js";
+import type { RunGraph } from "../run-graph.js";
 
 /** One execution of an AssemblyLine; repo is owner/repo string; graph is the blueprint clone this run executes (see ADR-024). */
 

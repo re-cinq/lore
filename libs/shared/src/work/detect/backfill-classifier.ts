@@ -2,11 +2,11 @@
 import {
   buildIntroOrdinals,
   classifyByHeuristic,
-  Llm,
   type Statement,
   type Classification,
   type UntestableCategory,
-} from "../../index.js";
+} from "../../domain/spec-segment.js";
+import { Llm } from "../../outbound/llm/llm.js";
 
 const CLASSIFIER_TOOL_SCHEMA = {
   type: "object",

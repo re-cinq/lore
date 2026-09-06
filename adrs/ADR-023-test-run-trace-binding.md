@@ -29,7 +29,7 @@ them — already setting `Statement.validated_by` **and** `Statement.violated`
 when a descriptor carries a `spec` anchor (`path#ordinal`).
 
 The gap: the producer
-([`descriptorsFromVitestList`](../libs/shared/src/work/spec-trace/trace-descriptors.ts))
+([`descriptorsFromVitestList`](../libs/shared/src/domain/spec-trace/trace-descriptors.ts))
 emits no `spec` anchor, and the only other binding —
 `groupStatementsBySentence` resolving a describe-chain against statement prose —
 rarely fires for conventional `describe("fnName", …)` tests. So the run side

@@ -5,7 +5,7 @@ export {
   descriptorsFromVitestList,
   groupRunsByFile,
   type VitestListEntry,
-} from "./spec-trace/trace-descriptors.js";
+} from "../domain/spec-trace/trace-descriptors.js";
 export {
   bindDescriptorsToSpecLinks,
   type SpecSource,
@@ -33,7 +33,7 @@ export {
   type TraceLinkRef,
   type TraceCoverage,
   type StatementState as TraceStatementState,
-} from "./spec-trace/assemble-trace-document.js";
+} from "../domain/spec-trace/assemble-trace-document.js";
 export {
   fetchTraceDocument,
   listSpecDocuments,
@@ -44,7 +44,7 @@ export {
   listAdrSummaries,
   type SpecSummary,
   type AdrSummary,
-} from "./spec-trace/trace-document-listing.js";
+} from "../outbound/spec-trace/trace-document-listing.js";
 export {
   fetchSpecGraph,
   fetchSpecRing,
@@ -61,7 +61,7 @@ export {
   type SpecRing,
   type RingSection,
   type RingStatement,
-} from "./spec-trace/spec-graph.js";
+} from "../outbound/spec-trace/spec-graph.js";
 export {
   planTraceUnits,
   runTraceUnits,
@@ -94,7 +94,7 @@ export {
   type GraphContextStatement,
   type GraphContextResult,
   type GraphSignal,
-} from "./spec-trace/graph-context.js";
+} from "../outbound/spec-trace/graph-context.js";
 export {
   runIngestGraph,
   selectIngestFiles,

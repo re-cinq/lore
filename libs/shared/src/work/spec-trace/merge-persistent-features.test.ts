@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { mergePersistentFeatures, type SpecGraph } from "./spec-graph.js";
+import {
+  mergePersistentFeatures,
+  type SpecGraph,
+} from "../../outbound/spec-trace/spec-graph.js";
 
 const baseGraph: SpecGraph = {
   nodes: [

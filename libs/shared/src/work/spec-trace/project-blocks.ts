@@ -1,8 +1,11 @@
 /** Shared lossless block projection: one Block node per {@link segmentBlocks} run (xid = `${repo}|${filePath}|block|${ordinal}`), the single authoritative writer used by both the spec and ADR layers; `Block.file_path` is set on every block so `recomputeFile` reconstructs any document uniformly, and callers own their own pruning. */
 
-import { segmentBlocks } from "./deps.js";
-import type { DgraphClientPort } from "./deps.js";
-import { upsertByXid, withTxn } from "./dgraph-upsert.js";
+import { segmentBlocks } from "../../outbound/spec-trace/deps.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import {
+  upsertByXid,
+  withTxn,
+} from "../../outbound/spec-trace/dgraph-upsert.js";
 
 /** Upserts one Block per source block of `content`, always setting `Block.file_path` (+ the `Block.spec` edge when `specUid` is given); returns the valid Block xids for the caller's pruning sweep. */
 export interface SourceDocument {

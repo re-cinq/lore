@@ -8,14 +8,14 @@ import {
 } from "../../domain/spec-status.js";
 import { withTxn } from "./dgraph-upsert.js";
 import { recomputeFile } from "./recompute-spec-file.js";
-import { summarizeMarkdown } from "./summarize-markdown.js";
+import { summarizeMarkdown } from "../../domain/spec-trace/summarize-markdown.js";
 import {
   assembleTraceDocument,
   basename,
   type TraceCoverage,
   type TraceDocument,
   type TraceDocumentResult,
-} from "./assemble-trace-document.js";
+} from "../../domain/spec-trace/assemble-trace-document.js";
 
 const LIST_SPECS_DQL = `query specs($repo: string) {
   q(func: eq(Spec.repo, $repo), orderasc: Spec.file_path) { Spec.file_path }

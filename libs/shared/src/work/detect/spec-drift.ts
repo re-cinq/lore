@@ -1,5 +1,6 @@
-import { extractAssertions } from "../../index.js";
-import type { Project, SpecChunkRow } from "../../index.js";
+import { extractAssertions } from "../spec-judge-llm.js";
+import type { SpecChunkRow } from "../../outbound/project/chunks/chunks-port.js";
+import type { Project } from "../../outbound/project/lib/project.js";
 import {
   isAssertionSource,
   shouldSkipDrift,

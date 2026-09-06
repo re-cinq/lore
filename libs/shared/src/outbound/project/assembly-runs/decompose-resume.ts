@@ -2,7 +2,7 @@
 
 import type { EventReporter } from "../events/event-queue-port.js";
 import type { AssemblyRunsPort } from "./assembly-runs-port.js";
-import type { RunGraph } from "./run-graph.js";
+import type { RunGraph } from "../../../domain/run-graph.js";
 import {
   parkedHumanNode,
   reportToParkedNode,

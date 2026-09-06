@@ -1,7 +1,11 @@
 /** ADR whole-file subtree deletion: node, `Repo.adrs` edge, incoming decided_by/supersedes refs, targeting TraceLinks, and Blocks. Same anchor-deleted-last order as the Spec subtree deleter it sits beside. */
 
-import type { DgraphClientPort, DgraphTxn, UidRef } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type {
+  DgraphClientPort,
+  DgraphTxn,
+  UidRef,
+} from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { pruneOrphanBlocksByFile } from "./project-blocks.js";
 import { firstOf, uids } from "./uid-refs.js";
 

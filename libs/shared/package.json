@@ -14,6 +14,14 @@
       "types": "./dist/outbound/project/*.d.ts",
       "default": "./dist/outbound/project/*.js"
     },
+    "./http/internal-token.js": {
+      "types": "./dist/lib/internal-token.d.ts",
+      "default": "./dist/lib/internal-token.js"
+    },
+    "./project/assembly-runs/run-graph.js": {
+      "types": "./dist/domain/run-graph.d.ts",
+      "default": "./dist/domain/run-graph.js"
+    },
     "./http/*.js": {
       "types": "./dist/transport/http/*.d.ts",
       "default": "./dist/transport/http/*.js"
@@ -53,6 +61,22 @@
     "./escalation/*.js": {
       "types": "./dist/work/escalation/*.d.ts",
       "default": "./dist/work/escalation/*.js"
+    },
+    "./feature-planning/decomposition-result.js": {
+      "types": "./dist/domain/feature-planning/decomposition-result.d.ts",
+      "default": "./dist/domain/feature-planning/decomposition-result.js"
+    },
+    "./feature-planning/gap-result.js": {
+      "types": "./dist/domain/feature-planning/gap-result.d.ts",
+      "default": "./dist/domain/feature-planning/gap-result.js"
+    },
+    "./feature-planning/planning-prompt.js": {
+      "types": "./dist/domain/feature-planning/planning-prompt.d.ts",
+      "default": "./dist/domain/feature-planning/planning-prompt.js"
+    },
+    "./feature-planning/decomposition-instructions.js": {
+      "types": "./dist/domain/feature-planning/decomposition-instructions.d.ts",
+      "default": "./dist/domain/feature-planning/decomposition-instructions.js"
     },
     "./feature-planning/*.js": {
       "types": "./dist/work/feature-planning/*.d.ts",

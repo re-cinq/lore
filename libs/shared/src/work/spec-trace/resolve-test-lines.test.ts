@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resolveTestLines } from "./resolve-test-lines.js";
-import type { TestDescriptor } from "../test-report.js";
+import type { TestDescriptor } from "../../domain/test-report.js";
 
 const FILE = `import { describe, it } from "vitest";
 

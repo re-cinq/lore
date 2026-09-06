@@ -1,7 +1,10 @@
 /** Reified TraceLink edge-evidence model; direct edges remain authoritative, evidence monotonic-up (Phase 4). */
 
-import type { DgraphClientPort } from "./deps.js";
-import { upsertByXid, withTxn } from "./dgraph-upsert.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import {
+  upsertByXid,
+  withTxn,
+} from "../../outbound/spec-trace/dgraph-upsert.js";
 import { verifyCoverageLink } from "./verify-coverage.js";
 
 export type EvidenceTier =

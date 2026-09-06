@@ -1,7 +1,7 @@
 import {
   fetchGraphContext,
   type GraphContextBlock,
-} from "../../../work/spec-trace/graph-context.js";
+} from "../../spec-trace/graph-context.js";
 import type { DgraphClientPort } from "../../memory-store.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import type { FetchResult } from "./context-assembly-types.js";

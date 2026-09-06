@@ -23,7 +23,7 @@ test-interface and POSTs ~2.4k `{commit, branch, tests, results}` to
 But that projection writes a `Statement.validated_by` / `Statement.violated`
 edge **only** when a `TestDescriptor` carries a `spec` anchor (`path#ordinal`)
 or its describe-chain *sentence-matches* a statement's text. The producer
-([`descriptorsFromVitestList`](../../libs/shared/src/work/spec-trace/trace-descriptors.ts))
+([`descriptorsFromVitestList`](../../libs/shared/src/domain/spec-trace/trace-descriptors.ts))
 emits **no `spec` anchor**, and conventional `describe("functionName", …)`
 tests do not sentence-match statement prose. So the run side knows every test's
 pass/fail but never attaches it to the statement — the **`violated` signal, the
@@ -89,7 +89,7 @@ descriptor carrying `id`, `name`, `file`, and the enclosing describe chain as it
 `suite` (omitted for a top-level `it`); it drops a stale `dist/` path that is not
 under `<pkg>/src/`, keeps two `it`s in the same file as two distinct descriptors,
 and groups descriptor ids by file in first-appearance order.
-([validated by `trace-descriptors:8`](libs/shared/src/work/spec-trace/trace-descriptors.test.ts#L8), [validated by `trace-descriptors:29`](libs/shared/src/work/spec-trace/trace-descriptors.test.ts#L29), [validated by `trace-descriptors:42`](libs/shared/src/work/spec-trace/trace-descriptors.test.ts#L42), [validated by `trace-descriptors:51`](libs/shared/src/work/spec-trace/trace-descriptors.test.ts#L51), [validated by `trace-descriptors:68`](libs/shared/src/work/spec-trace/trace-descriptors.test.ts#L68))
+([validated by `trace-descriptors:8`](libs/shared/src/domain/spec-trace/trace-descriptors.test.ts#L8), [validated by `trace-descriptors:29`](libs/shared/src/domain/spec-trace/trace-descriptors.test.ts#L29), [validated by `trace-descriptors:42`](libs/shared/src/domain/spec-trace/trace-descriptors.test.ts#L42), [validated by `trace-descriptors:51`](libs/shared/src/domain/spec-trace/trace-descriptors.test.ts#L51), [validated by `trace-descriptors:68`](libs/shared/src/domain/spec-trace/trace-descriptors.test.ts#L68))
 
 ### Binding (the inverter)
 

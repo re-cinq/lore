@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractBearer, secretEquals } from "./bearer.js";
+import { extractBearer } from "./bearer.js";
 
 describe("extractBearer", () => {
   it("returns the credential after the Bearer scheme", () => {
@@ -21,14 +21,5 @@ describe("extractBearer", () => {
     expect(extractBearer("Bearer")).toBeUndefined();
     expect(extractBearer(undefined)).toBeUndefined();
     expect(extractBearer(42)).toBeUndefined();
-  });
-});
-
-describe("secretEquals", () => {
-  it("returns true only on an exact match", () => {
-    expect(secretEquals("lca_abc", "lca_abc")).toBe(true);
-    expect(secretEquals("lca_abc", "lca_abd")).toBe(false);
-    expect(secretEquals("lca_abc", "lca_ab")).toBe(false);
-    expect(secretEquals("", "")).toBe(true);
   });
 });

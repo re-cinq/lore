@@ -3,7 +3,7 @@
 import { apiError } from "./api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // Shared constant-time compare; prevents drift from `bearer.ts` hardening.
-import { secretEquals } from "@re-cinq/lore-shared/http/bearer.js";
+import { secretEquals } from "@re-cinq/lore-shared/lib/secret-equals.js";
 import type { Server, ServerAuthScheme } from "@hapi/hapi";
 
 interface BearerOptions {

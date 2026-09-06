@@ -1,5 +1,5 @@
 import type { DgraphClientPort } from "../../memory-store.js";
-import { type TraceDocument } from "../../../work/spec-trace/assemble-trace-document.js";
+import { type TraceDocument } from "../../../domain/spec-trace/assemble-trace-document.js";
 import {
   fetchTraceDocument,
   listSpecDocuments,
@@ -8,14 +8,14 @@ import {
   listAdrSummaries,
   type SpecSummary,
   type AdrSummary,
-} from "../../../work/spec-trace/trace-document-listing.js";
-import { recomputeFile } from "../../../work/spec-trace/recompute-spec-file.js";
+} from "../../spec-trace/trace-document-listing.js";
+import { recomputeFile } from "../../spec-trace/recompute-spec-file.js";
 import {
   fetchSpecGraph,
   fetchSpecRing,
   type SpecGraph,
   type SpecRing,
-} from "../../../work/spec-trace/spec-graph.js";
+} from "../../spec-trace/spec-graph.js";
 import type { TracePort } from "./trace-port.js";
 
 /** TracePort over the live spec-trace Dgraph — the same client the ingest path projects into. */

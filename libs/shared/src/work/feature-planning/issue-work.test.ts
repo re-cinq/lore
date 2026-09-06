@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { decideIssueWork } from "./issue-work.js";
-import type { DecompositionResult } from "./decomposition-result.js";
+import type { DecompositionResult } from "../../domain/feature-planning/decomposition-result.js";
 
 const REPO_LABELS = [
   "lore-managed",

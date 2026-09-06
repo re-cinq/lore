@@ -40,45 +40,45 @@ the spec `Statement`s coupled to a task into a `GraphContextBlock`: the
 statements ranked by signal, plus the distinct ADR refs and test
 selectors to hydrate alongside them. The I/O wrapper that runs the DQL is
 a thin seam over the injected `DgraphClientPort`, mirroring
-[`fetchTraceDocument`](../../libs/shared/src/work/spec-trace/assemble-trace-document.ts).
+[`fetchTraceDocument`](../../libs/shared/src/domain/spec-trace/assemble-trace-document.ts).
 The projection and its wrapper live in
-([`graph-context.ts`](libs/shared/src/work/spec-trace/graph-context.ts)).
+([`graph-context.ts`](libs/shared/src/outbound/spec-trace/graph-context.ts)).
 
 ## Acceptance Criteria
 
 A statement's signal is the highest-priority condition it meets, in the
 order `violated` > `drifted` > `untested` > `normal`.
-([validated by `ranks ... and dedups by xid`](libs/shared/src/work/spec-trace/graph-context.test.ts#L5))
+([validated by `ranks ... and dedups by xid`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
 
 Statements are ranked by signal descending, so a `violated` statement
 precedes a `drifted` one and both precede an `untested` or `normal`
 statement.
-([validated by `ranks ... and dedups by xid`](libs/shared/src/work/spec-trace/graph-context.test.ts#L5))
+([validated by `ranks ... and dedups by xid`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
 
 A `Statement` reachable through more than one seed appears once in the
 block, deduplicated by its `Statement.xid`.
-([validated by `ranks ... and dedups by xid`](libs/shared/src/work/spec-trace/graph-context.test.ts#L5))
+([validated by `ranks ... and dedups by xid`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L5))
 
 A testable statement carrying no `validated_by` test link has signal
 `untested`; an `untestable` statement is `normal` regardless of its
 links.
-([validated by `classifies an untestable statement as normal`](libs/shared/src/work/spec-trace/graph-context.test.ts#L95))
+([validated by `classifies an untestable statement as normal`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L95))
 
 The block exposes the distinct ADR file paths across all ranked
 statements as `adrRefs`, in first-appearance order after ranking.
-([validated by `collects per-statement links and distinct block-level adrRefs and testSelectors`](libs/shared/src/work/spec-trace/graph-context.test.ts#L114))
+([validated by `collects per-statement links and distinct block-level adrRefs and testSelectors`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L114))
 
 The block exposes the distinct test file paths across all ranked
 statements as `testSelectors`.
-([validated by `collects per-statement links and distinct block-level adrRefs and testSelectors`](libs/shared/src/work/spec-trace/graph-context.test.ts#L114))
+([validated by `collects per-statement links and distinct block-level adrRefs and testSelectors`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L114))
 
 When the ranked statements exceed the budget limit, the block keeps the
 highest-signal `limit` statements and reports `truncated: true`.
-([validated by `keeps the highest-signal limit statements and reports truncated`](libs/shared/src/work/spec-trace/graph-context.test.ts#L167))
+([validated by `keeps the highest-signal limit statements and reports truncated`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L167))
 
 An empty query result projects to an empty block with no statements, no
 refs, and `truncated: false`.
-([validated by `projects an empty result to an empty block`](libs/shared/src/work/spec-trace/graph-context.test.ts#L200))
+([validated by `projects an empty result to an empty block`](libs/shared/src/outbound/spec-trace/graph-context.test.ts#L200))
 
 ### Wiring into `lore_assemble_context`
 

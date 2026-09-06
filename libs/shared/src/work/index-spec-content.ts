@@ -71,7 +71,7 @@ export {
   type CoveredChunk,
   type RunResult,
   type TaggedRunResult,
-} from "./test-report.js";
+} from "../domain/test-report.js";
 export {
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_VERSION,
@@ -121,6 +121,6 @@ export {
   type SpecInput,
   type CandidateSelection,
   type Judgment,
-} from "./spec-judge.js";
+} from "../domain/spec-judge.js";
 
 export { extractAssertions, type LlmJobContext } from "./spec-judge-llm.js";

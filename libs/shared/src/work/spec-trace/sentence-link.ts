@@ -1,6 +1,6 @@
 /** sentence-match linking: a third way to link test→spec statement (alongside inline `([validated by])` links and `TestDescriptor.spec` anchors), via the test NAME carrying a `<spec> | <sentence> | <label>` triple matched as normalized substrings. Deterministic, zero-LLM. */
 
-import type { TestDescriptor } from "../test-report.js";
+import type { TestDescriptor } from "../../domain/test-report.js";
 
 /** Drops inline `([label](target))` / `[label](target)` link parentheticals so prose matches a test name that never carried them. */
 function stripLinkParens(text: string): string {

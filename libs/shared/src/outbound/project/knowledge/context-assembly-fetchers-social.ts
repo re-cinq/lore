@@ -1,4 +1,4 @@
-import { computeTransferScore } from "../../../work/memory-ranking.js";
+import { computeTransferScore } from "../../../domain/memory-ranking.js";
 import { queryLiveGraph } from "./live-graph.js";
 import { listChunkSchemas } from "../chunks/chunk-schema.js";
 import type { PgPool } from "../../memory-store.js";

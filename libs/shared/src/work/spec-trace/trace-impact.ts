@@ -1,6 +1,6 @@
 /** trace-impact — deterministic, zero-LLM PR-diff impact: walks the spec-traceability graph (CodeChunk/Coverage overlap → Statement) and flags orphaned-coverage statements. */
 
-import type { DgraphClientPort } from "./deps.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { mergeStatements, type ImpactStatement } from "./impact-statement.js";
 import { testFileImpact } from "./impact-test-link.js";
 import { readGraphBaseline } from "./graph-baseline.js";

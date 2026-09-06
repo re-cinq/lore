@@ -1,7 +1,7 @@
 /** Dgraph reads for the code-side sweep: implementation-chunk coupling, coverage-facet coupling, and orphaned-coverage detection. */
 
-import type { DgraphClientPort } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { intervalsOverlap, parseRanges } from "./line-range.js";
 import {
   toImpactStatement,

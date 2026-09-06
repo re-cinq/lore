@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parkedNode, parkedHumanNode } from "./parked-node.js";
-import type { RunGraph } from "./run-graph.js";
+import type { RunGraph } from "../../../domain/run-graph.js";
 
 const node = (nodeId: string, iteration: number, outcome: string | null) => ({
   nodeId,

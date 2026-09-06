@@ -1,6 +1,9 @@
 // What the `issues` station files, decided from the decomposition alone. Pure: the station does the IO, this decides.
 
-import type { DecompositionResult, UserStory } from "./decomposition-result.js";
+import type {
+  DecompositionResult,
+  UserStory,
+} from "../../domain/feature-planning/decomposition-result.js";
 
 /** Every Lore-filed issue carries this, so a repo can find or ignore them all. */
 export const BASE_STORY_LABELS = ["lore-managed", "user-story"] as const;

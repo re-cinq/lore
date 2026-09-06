@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { TraceDocument } from "../../index.js";
+import type { TraceDocument } from "../../domain/spec-trace/assemble-trace-document.js";
 import {
   isAssertionSource,
   shouldSkipDrift,

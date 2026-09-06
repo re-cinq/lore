@@ -1,7 +1,7 @@
 /** Sentence-link resolver; substring-matches spec.title and statement/AC text; scoped to matched spec(s). */
 
-import type { DgraphClientPort } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { matchesNormalized, type SentenceLink } from "./sentence-link.js";
 
 interface SpecRow {

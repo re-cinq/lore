@@ -2,7 +2,7 @@
 
 import type { SourceDocument } from "./project-blocks.js";
 import type { ProjectionOptions } from "./project-spec-file.js";
-import type { DgraphClientPort } from "./deps.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
 import { matchesAnyGlob } from "./ingest-patterns.js";

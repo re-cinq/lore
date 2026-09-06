@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createTask } from "./pipeline-tasks.js";
-import type { PgPool } from "../outbound/memory-store.js";
+import type { PgPool } from "./memory-store-types.js";
 
 function poolWithTrust(level: string | null) {
   const query = vi.fn((sql: string, _params?: unknown[]) => {

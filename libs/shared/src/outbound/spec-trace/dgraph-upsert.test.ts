@@ -11,10 +11,7 @@ import {
   isTxnAborted,
 } from "./dgraph-upsert.js";
 import { enforceTrue } from "../../lib/enforce.js";
-import type {
-  DgraphClientPort,
-  DgraphTxn,
-} from "../../outbound/memory-store.js";
+import type { DgraphClientPort, DgraphTxn } from "../memory-store.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";

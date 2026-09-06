@@ -1,7 +1,10 @@
 /** Graph baseline commit; ranges recorded against one commit; pre-merge query must know which to sound. */
 
-import type { DgraphClientPort } from "./deps.js";
-import { withTxn, upsertByXid } from "./dgraph-upsert.js";
+import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
+import {
+  withTxn,
+  upsertByXid,
+} from "../../outbound/spec-trace/dgraph-upsert.js";
 
 export interface GraphBaseline {
   commit: string | null;

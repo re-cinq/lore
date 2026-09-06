@@ -5,7 +5,7 @@ import {
   PLANNING_STARTUP_GRACE_MS,
   type FeatureIteration,
 } from "./features-port.js";
-import type { GapResult } from "../../../work/feature-planning/gap-result.js";
+import type { GapResult } from "../../../domain/feature-planning/gap-result.js";
 
 const now = 1_000_000_000_000;
 const gap: GapResult = {

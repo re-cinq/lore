@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { specDriftJob } from "./spec-drift.js";
-import { Project } from "../../index.js";
+import { Project } from "../../outbound/project/lib/project.js";
 import type { ChunksPort } from "../../outbound/project/chunks/chunks-port.js";
 import type { GitHubPort } from "../../outbound/project/lib/github-port.js";
 import type { TracePort } from "../../outbound/project/trace/trace-port.js";
@@ -9,7 +9,7 @@ import type {
   CreateTaskInput,
   CreatedTask,
 } from "../../outbound/project/tasks/task-store-port.js";
-import type { TraceDocument } from "../spec-trace/assemble-trace-document.js";
+import type { TraceDocument } from "../../domain/spec-trace/assemble-trace-document.js";
 
 const REPO = "octo/repo";
 const savedDgraph = process.env.LORE_DGRAPH_HTTP;

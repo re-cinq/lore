@@ -1,17 +1,8 @@
 /** Service-to-service credential check: timing-safe comparison shared by all Lore services accepting bearer tokens. */
 
-import { timingSafeEqual } from "node:crypto";
+import { secretEquals } from "../../lib/secret-equals.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import { apiError } from "./api-error.js";
-
-/** Constant-time string compare. */
-export function secretEquals(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-
-  // timingSafeEqual throws on length mismatch; token length is not secret, only bytes.
-  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
-}
 
 /** Bearer credential from Authorization header or undefined; case-insensitive scheme, RFC 7235 §2.1. */
 export function extractBearer(header: unknown): string | undefined {

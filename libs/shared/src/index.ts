@@ -172,7 +172,7 @@ export {
   type PgPool,
   type DgraphClientPort,
   type DgraphTxn,
-} from "./outbound/memory-store-types.js";
+} from "./domain/memory-store-types.js";
 export { PostgresMemoryStore } from "./outbound/postgres-memory-store.js";
 export { ShadowMemoryStore } from "./outbound/shadow-memory-store.js";
 export {
@@ -199,7 +199,7 @@ export {
   scoreImportance,
   type MemorySearchResult,
   type RankedItem,
-} from "./work/memory-ranking.js";
+} from "./domain/memory-ranking.js";
 
 export {
   backfillMemoryToDgraph,

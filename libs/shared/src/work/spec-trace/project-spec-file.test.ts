@@ -12,11 +12,11 @@ import {
   classifyByHeuristic,
   segmentBlocks,
   parseEmbedding,
-} from "./deps.js";
+} from "../../outbound/spec-trace/deps.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
-import { recomputeFile } from "./recompute-spec-file.js";
-import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
+import { recomputeFile } from "../../outbound/spec-trace/recompute-spec-file.js";
+import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";

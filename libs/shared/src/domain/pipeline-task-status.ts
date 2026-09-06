@@ -1,6 +1,6 @@
 /** Status-column mutation for pipeline.tasks: the allowlisted extra-column writer and its compare-and-set sibling. */
 
-import type { PgPool } from "../outbound/memory-store.js";
+import type { PgPool } from "./memory-store-types.js";
 
 /** Columns setTaskStatus may write alongside `status` (allowlisted against SQL injection via dynamic keys); silently skips unknown keys, unlike setColumns which throws. */
 export const ALLOWED_TASK_COLUMNS = new Set([

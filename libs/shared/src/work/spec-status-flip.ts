@@ -12,7 +12,7 @@ import {
   statementCoverage,
   statusLabel,
 } from "./spec-status-coverage.js";
-import type { Project } from "../index.js";
+import type { Project } from "../outbound/project/lib/project.js";
 
 const BRANCH_PREFIX = "lore/spec-status-upkeep";
 

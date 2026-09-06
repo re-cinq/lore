@@ -1,4 +1,4 @@
-import type { RunGraph } from "./run-graph.js";
+import type { RunGraph } from "../../../domain/run-graph.js";
 import type {
   AssemblyRun,
   AssemblyRunStatus,

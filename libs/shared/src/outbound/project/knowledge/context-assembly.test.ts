@@ -14,7 +14,7 @@ import {
   formatCouplingItems,
   fetchCouplingSource,
 } from "./context-assembly.js";
-import type { GraphContextBlock } from "../../../work/spec-trace/graph-context.js";
+import type { GraphContextBlock } from "../../spec-trace/graph-context.js";
 
 describe("formatCouplingItems", () => {
   const block: GraphContextBlock = {

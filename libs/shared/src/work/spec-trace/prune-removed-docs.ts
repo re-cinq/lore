@@ -1,7 +1,11 @@
 /** Whole-file graph pruning: deletes the subtree of any Spec/ADR whose `file_path` vanished from the tree selection. Bad-tree-read fuse refuses a candidate set >2 docs and >50% of in-scope docs (bypassable via `force`); anchor-deleted-last (doc node + Repo edge) for crash-resume convergence. */
 
-import type { DgraphClientPort, DgraphTxn, UidRef } from "./deps.js";
-import { withTxn } from "./dgraph-upsert.js";
+import type {
+  DgraphClientPort,
+  DgraphTxn,
+  UidRef,
+} from "../../outbound/spec-trace/deps.js";
+import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { pruneOrphanBlocksByFile } from "./project-blocks.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 import { uids, firstOf } from "./uid-refs.js";

@@ -192,6 +192,50 @@ layers:
   # the errors go away, which is writing the tangle down rather than untangling
   # it. Until then shared stays the one surface the rule does not check.
 
+  # The package every other one imports, tiered by the same vocabulary so the
+  # rule reaches THROUGH it rather than stopping at its edge. Until now shared
+  # was the one surface no entry described, which made it a way to reach any
+  # tier from any tier.
+  #
+  # The 70 files still loose at src/ are deliberately not listed: they are the
+  # `.` layer for now, and sorting them is the follow-up where the duplicate
+  # hunting actually pays off.
+  libs/shared:
+    ".":
+      - transport
+      - outbound
+      - work
+      - domain
+      - lib
+    # Inbound request helpers — bearer checks, error envelopes, raw-body reads.
+    # A way IN, which is why it is not filed with the adapters below.
+    transport:
+      - outbound
+      - domain
+      - lib
+    # Every way out: the Project facade and its adapters, the pg pool, the
+    # Kubernetes and Dgraph clients, the LLM providers, embeddings.
+    outbound:
+      - domain
+      - lib
+      - test-helpers
+      - "@re-cinq/agent-contracts"
+    work:
+      - outbound
+      - domain
+      - lib
+      - test-helpers
+      - "@re-cinq/agent-contracts"
+    domain:
+      - lib
+      - "@re-cinq/agent-contracts"
+    lib: []
+    # In-memory doubles and fixtures. A leaf that only tests reach — listed so it
+    # has an entry at all, since an unlisted folder may import nothing.
+    test-helpers:
+      - domain
+      - lib
+
   libs/server-core:
     ".":
       - platform

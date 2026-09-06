@@ -3,8 +3,8 @@
 import {
   parkedHumanNode,
   type ParkedNode,
-} from "../../outbound/project/assembly-runs/parked-node.js";
-import type { RunGraph } from "../../outbound/project/assembly-runs/run-graph.js";
+} from "../project/assembly-runs/parked-node.js";
+import type { RunGraph } from "../../domain/run-graph.js";
 
 export type { ParkedNode };
 

@@ -1,5 +1,5 @@
 import { OPEN_TASK_STATES } from "../../outbound/project/tasks/task-store-port.js";
-import type { Project } from "../../index.js";
+import type { Project } from "../../outbound/project/lib/project.js";
 
 interface GapReport {
   repo: string;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { gapDetectJob } from "./gap-detect.js";
-import { Project } from "../../index.js";
+import { Project } from "../../outbound/project/lib/project.js";
 import {
   InMemoryChunks,
   type ChunkRow,
