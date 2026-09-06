@@ -5,9 +5,9 @@ import { z } from "zod";
 import { updateOrgDefinition } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
 import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-yaml.js";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
-import { apiError, rethrowBoom } from "../../../server/api-error.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { apiError, rethrowBoom } from "../../../http/api-error.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import {
   parseAgentPatch,

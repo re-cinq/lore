@@ -1,10 +1,10 @@
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { listTasks } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { clampedLimit, offsetParam } from "../common-schemas.js";
 
 // pipeline.tasks.status is free-form TEXT (no DB enum), so this bounds the shape rather than fixing a value set.

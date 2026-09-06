@@ -1281,12 +1281,12 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   database. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`redact.test.ts:78`](libs/shared/src/redact.test.ts#L78))
 - Centralized auth in `routes.ts`: every `/api/*` route enforces bearer
   token validation. Supports legacy single token (`LORE_INGEST_TOKEN`)
-  and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:56`](apps/lore-api/src/api/routes/auth.test.ts#L56), [`bearer-scope.test.ts:41`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L41))
+  and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:56`](apps/lore-api/src/http/auth.test.ts#L56), [`bearer-scope.test.ts:41`](apps/lore-api/src/http/bearer-scope.test.ts#L41))
 - Job pods run as non-root (uid 1000), drop all Linux capabilities,
   disallow privilege escalation. NetworkPolicy restricts egress to
   DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:71`](libs/shared/src/infra-contract/security-posture.test.ts#L71), [`security-posture.test.ts:76`](libs/shared/src/infra-contract/security-posture.test.ts#L76), [`security-posture.test.ts:84`](libs/shared/src/infra-contract/security-posture.test.ts#L84), [`security-posture.test.ts:90`](libs/shared/src/infra-contract/security-posture.test.ts#L90))
 - Rate limiting: 30/min webhooks, 60/min task ops, 200/min other
-  (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L50), [`rate-limit.test.ts:39`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L39), [`auth.test.ts:17`](apps/lore-api/src/api/routes/auth.test.ts#L17), [`webhook-incident.test.ts:144`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L144))
+  (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:53`](apps/lore-api/src/http/rate-limit.test.ts#L50), [`rate-limit.test.ts:39`](apps/lore-api/src/http/rate-limit.test.ts#L39), [`auth.test.ts:17`](apps/lore-api/src/http/auth.test.ts#L17), [`webhook-incident.test.ts:144`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L144))
 - Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:10`](libs/shared/src/project/notify/notify-slack.test.ts#L10), [`notify-decision.test.ts:30`](libs/shared/src/project/notify/notify-decision.test.ts#L30))
 
 ### NFR-2: Reliability & Freshness

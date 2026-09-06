@@ -22,11 +22,11 @@ import {
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { eventReporterFor } from "../event-reporter.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../../server/api-error.js";
+import { apiError } from "../../../http/api-error.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import {
   FeatureCreatedSchema,
   RoundStartedSchema,

@@ -1,11 +1,11 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import { z } from "zod";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 
 /** Ingest station's payload-by-reference fetch (~1MB too large for argv). */
 /** The stored event params, verbatim — shape varies by event name. */

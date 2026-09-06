@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
-import { apiError } from "../../../server/api-error.js";
+import { apiError } from "../../../http/api-error.js";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -9,8 +9,8 @@ import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/clu
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 /** Release a failed claim: requeues it for another cluster to try instead of letting it linger. */

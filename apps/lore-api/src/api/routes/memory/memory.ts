@@ -1,4 +1,4 @@
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -21,8 +21,8 @@ import {
 import { searchMemories } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
 import { resolveAgentId } from "@re-cinq/lore-shared";
 import { extractFactsForMemory } from "../../../features/memory/fact-extraction.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { MAX_PAGE_LIMIT } from "../common-schemas.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {

@@ -1,6 +1,6 @@
 /** zod ↔ hapi request validation (ADR-034). */
 
-import { apiError } from "../api-error.js";
+import { apiError } from "./api-error.js";
 import type { Request, ResponseToolkit } from "@hapi/hapi";
 import type { ZodError, ZodType } from "zod";
 

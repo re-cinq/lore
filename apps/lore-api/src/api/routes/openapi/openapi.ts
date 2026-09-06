@@ -3,13 +3,13 @@ import { errorMessage } from "@re-cinq/lore-shared";
 
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 import { buildOpenApiDocument } from "../../../openapi/build-document.js";
 
 const REDOC_CDN =
   "https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js";
 
-/** The full route table, incl. these two docs routes themselves — supplied by the caller (build-server.ts owns `routeList`) rather than imported, so generating the doc never needs the module that assembles it. */
+/** The full route table, incl. these two docs routes themselves — supplied by the caller (route-list.ts owns `routeList`) rather than imported, so generating the doc never needs the module that assembles it. */
 type RouteListFn = (getPool: () => Pool | null) => ServerRoute[];
 
 const generate = (getPool: () => Pool | null, routeList: RouteListFn) =>

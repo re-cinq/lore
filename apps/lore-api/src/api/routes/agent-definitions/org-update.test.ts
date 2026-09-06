@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Hapi from "@hapi/hapi";
 import type { Pool } from "pg";
-import { registerBearerScope } from "../../../server/plugins/bearer-scope.js";
+import { registerBearerScope } from "../../../http/bearer-scope.js";
 import { orgAgentDefinitionUpdateRoute } from "./org-update.js";
 import {
   AUTH,

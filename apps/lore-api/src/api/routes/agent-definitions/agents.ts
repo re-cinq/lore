@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
@@ -12,8 +12,8 @@ import {
   imageFieldTouched,
   configWithPodResources,
 } from "../../../features/agents/agents-schema.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { checkApproval, type ApprovalOutcome } from "../two-key.js";
 import type { Request } from "@hapi/hapi";
 import type { PodResourcesWrite } from "@re-cinq/lore-shared/project/agents/agent-defs-port.js";

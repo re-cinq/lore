@@ -1,13 +1,13 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../../server/api-error.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { apiError } from "../../../http/api-error.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { queryLiveGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { repoFullName, boolFlag } from "../common-schemas.js";
 
 const GraphQuery = z.object({

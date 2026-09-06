@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
-import { apiError } from "../../../server/api-error.js";
+import { apiError } from "../../../http/api-error.js";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -9,8 +9,8 @@ import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/clu
 import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 import type { CatalogStatusRepository } from "@re-cinq/lore-shared/project/agents/catalog-status-port.js";
 import { PgCatalogStatus } from "@re-cinq/lore-shared/project/agents/catalog-status-pg.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 // A cluster-agent reports what it DID with entries it read (applied/refused/skipped/deleted) — previously lived only in pod stdout and died with it (a 2026-09-01 refusal went 2h unrecorded). Reported SEPARATELY from the (GET) ack so a report failure costs visibility, never delivery.

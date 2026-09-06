@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { errorMessage } from "@re-cinq/lore-shared";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import type { Pool } from "pg";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -10,10 +10,10 @@ import {
   ApiTokenSchema,
   API_TOKEN_COLUMNS,
 } from "@re-cinq/lore-shared/models/api-token.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
-import type { TokenScope } from "../auth.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
+import type { TokenScope } from "../../../http/auth.js";
 import {
   DB_UNAVAILABLE,
   clampedLimit,

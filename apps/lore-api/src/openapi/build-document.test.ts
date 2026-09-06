@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { routeList } from "../server/build-server.js";
+import { routeList } from "../api/route-list.js";
 import { generateOpenApi, buildOpenApiDocument } from "./build-document.js";
 
 const { document, coverage } = generateOpenApi(

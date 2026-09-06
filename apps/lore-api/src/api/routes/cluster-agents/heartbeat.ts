@@ -1,12 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../../server/api-error.js";
+import { apiError } from "../../../http/api-error.js";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 /** Liveness heartbeat: bumps last_seen_at, revives offline agents to active. */

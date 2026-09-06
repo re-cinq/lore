@@ -4,11 +4,11 @@ import { orderBacklog, BACKLOG_LABEL_SEED } from "@re-cinq/lore-shared";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../../server/api-error.js";
+import { apiError } from "../../../http/api-error.js";
 import { projectFor } from "../../../platform/project-boot.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import {
   ImplementationLoopSchema,

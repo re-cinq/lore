@@ -3,7 +3,7 @@ import {
   extractBearer,
   secretEquals,
 } from "@re-cinq/lore-shared/http/bearer.js";
-import { apiError } from "../../../server/api-error.js";
+import { apiError } from "../../../http/api-error.js";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -19,8 +19,8 @@ import {
   mintAgentToken,
   hashAgentToken,
 } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 /** Cluster registration: joins the registry and receives a per-agent token (FR1). */

@@ -124,7 +124,7 @@ today. Validation errors surface only for authenticated requests.
 
 - **FR1** A single shared adapter (`server/plugins/zod-validate.ts`) converts a
   zod schema into a hapi `options.validate` function for `payload`, `query`, and
-  `params`; `getZodSchema` returns `undefined` for a validator it did not build. ([validated by `zod-validate.test.ts:17`](apps/lore-api/src/server/plugins/zod-validate.test.ts#L17), [validated by `zod-validate.test.ts:35`](apps/lore-api/src/server/plugins/zod-validate.test.ts#L35))
+  `params`; `getZodSchema` returns `undefined` for a validator it did not build. ([validated by `zod-validate.test.ts:17`](apps/lore-api/src/http/zod-validate.test.ts#L17), [validated by `zod-validate.test.ts:35`](apps/lore-api/src/http/zod-validate.test.ts#L35))
 - **FR2** Every native **write** route (`POST`/`PUT`/`DELETE` with a body)
   declares a zod `payload` schema via the adapter; routes with constrained query
   or path params declare `query`/`params` schemas where it removes an in-handler
@@ -132,7 +132,7 @@ today. Validation errors surface only for authenticated requests.
 - **FR3** Validation failures return HTTP `400` with body `{ error: <message> }`
   (the existing convention), never hapi's default `{ statusCode, error, message }`
   envelope. The message names the offending field (dotted path) where zod provides
-  it, falling back to `invalid request` when there are no issues. ([validated by `zod-validate.test.ts:63`](apps/lore-api/src/server/plugins/zod-validate.test.ts#L63), [validated by `zod-validate.test.ts:23`](apps/lore-api/src/server/plugins/zod-validate.test.ts#L23), [validated by `zod-validate.test.ts:43`](apps/lore-api/src/server/plugins/zod-validate.test.ts#L43), [validated by `zod-validate.test.ts:55`](apps/lore-api/src/server/plugins/zod-validate.test.ts#L55))
+  it, falling back to `invalid request` when there are no issues. ([validated by `zod-validate.test.ts:63`](apps/lore-api/src/http/zod-validate.test.ts#L63), [validated by `zod-validate.test.ts:23`](apps/lore-api/src/http/zod-validate.test.ts#L23), [validated by `zod-validate.test.ts:43`](apps/lore-api/src/http/zod-validate.test.ts#L43), [validated by `zod-validate.test.ts:55`](apps/lore-api/src/http/zod-validate.test.ts#L55))
 - **FR4** hapi parses request payloads natively (`parse: true`); handlers receive
   a typed, validated `request.payload`. No native-route handler calls `JSON.parse`,
   `rawBody`, or `parseJsonBodyCapped`. Those helpers are deleted when unused. A

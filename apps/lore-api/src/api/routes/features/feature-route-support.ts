@@ -1,7 +1,7 @@
 // Shared plumbing every feature route uses: the base path, the write-payload cap, the repo-param reader, and the error-mapping wrapper.
 
 import type { ResponseToolkit, ResponseObject } from "@hapi/hapi";
-import { rethrowBoom } from "../../../server/api-error.js";
+import { rethrowBoom } from "../../../http/api-error.js";
 import { ValidationError } from "@re-cinq/lore-shared/feature-planning/feature-input.js";
 
 export const BASE = "/api/repos/{owner}/{repo}/features";

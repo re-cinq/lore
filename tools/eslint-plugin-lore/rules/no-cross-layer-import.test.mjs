@@ -20,6 +20,16 @@ const FLOOR = {
 
 const opts = [FLOOR];
 
+const TEST_ONLY = {
+  layers: {
+    "apps/lore-api": {
+      api: { imports: ["http"], tests: ["server"] },
+      http: [],
+      server: ["api"],
+    },
+  },
+};
+
 const ALIASED = {
   layers: {
     "apps/web-ui": {
@@ -86,6 +96,12 @@ ruleTester.run("no-cross-layer-import", rule, {
       code: `import { x } from "./delivery/http/server.js";`,
       filename: "apps/floor/src/index.ts",
       options: opts,
+    },
+    {
+      name: "a test may import what the entry allows tests only",
+      code: `import { buildServer } from "../../server/build-server.js";`,
+      filename: "apps/lore-api/src/api/routes/healthz.test.ts",
+      options: [TEST_ONLY],
     },
     {
       name: "an aliased import its list names is allowed",
@@ -180,6 +196,13 @@ ruleTester.run("no-cross-layer-import", rule, {
       code: `import { x } from "../../merge/auto-merge.js";`,
       filename: "apps/floor/src/jobs/review/helpers/parse.ts",
       options: opts,
+      errors: [{ messageId: "notAllowed" }],
+    },
+    {
+      name: "production code may not import what only tests are allowed",
+      code: `import { buildServer } from "../../server/build-server.js";`,
+      filename: "apps/lore-api/src/api/routes/healthz.ts",
+      options: [TEST_ONLY],
       errors: [{ messageId: "notAllowed" }],
     },
     {

@@ -1,4 +1,4 @@
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -7,8 +7,8 @@ import { z } from "zod";
 import { redactSecrets as sanitizeContent } from "@re-cinq/lore-shared";
 import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
 import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { makeGraphLlmCall } from "../helpers.js";
 
 const EpisodeBody = z.object({

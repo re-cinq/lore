@@ -1,4 +1,4 @@
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 /** POST /api/repos/:o/:r/impact — pre-merge spec-breakage query; fail-soft (no Dgraph). */
 
 import type { ServerRoute } from "@hapi/hapi";
@@ -12,8 +12,8 @@ import {
   type ImpactReport,
 } from "@re-cinq/lore-shared";
 import { z } from "zod";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 
 // Fail-soft: unknown files degrade to []; missing body coerces to {}.
 const ImpactBody = z.preprocess(

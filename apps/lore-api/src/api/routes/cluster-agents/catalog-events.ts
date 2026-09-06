@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
-import { apiError } from "../../../server/api-error.js";
+import { apiError } from "../../../http/api-error.js";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -17,7 +17,7 @@ import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-ya
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
 import type { ClusterAgent } from "@re-cinq/lore-shared/models/cluster-agent.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 // A cluster-agent pulls unapplied catalog changes (fan-out sibling of claim, each agent tailing lore.catalog_events with its own cursor); delivery is AT-LEAST-ONCE, advanced only by `ack` (CRD apply is idempotent so a re-delivered replay is a no-op), and a null cursor answers with the full snapshot as the fresh-cluster bootstrap.

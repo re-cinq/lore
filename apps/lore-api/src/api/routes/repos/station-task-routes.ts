@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ServerRoute } from "@hapi/hapi";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import { z } from "zod";
 import { projectFor } from "../../../platform/project-boot.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
@@ -8,9 +8,9 @@ import {
   PipelineTaskSchema,
   PIPELINE_TASK_COLUMNS,
 } from "@re-cinq/lore-shared/models/pipeline-task.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { repoOf, fail } from "./station-helpers.js";
 
 // The station-pod task endpoints: drift/open-like lookups + queueing a new repo task.

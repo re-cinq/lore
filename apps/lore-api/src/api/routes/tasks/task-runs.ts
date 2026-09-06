@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { errorMessage } from "@re-cinq/lore-shared";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import { selectList, pickColumns } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {
@@ -10,8 +10,8 @@ import {
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 /** What the page needs of a run: enough to label it and attach a stream. */
