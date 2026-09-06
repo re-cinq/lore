@@ -6,16 +6,9 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
     exclude: ["src/integration-tests/**", "dist/**", "node_modules/**"],
-    coverage: {
-      provider: "v8",
-      // Scope the gate to new pure logic, file by file, as each is added (IO route shells + k8s adapters stay out, like the floor's).
-      include: ["src/work/agents/agent-crd.ts"],
-      thresholds: {
-        lines: 100,
-        branches: 100,
-        functions: 100,
-        statements: 100,
-      },
-    },
+    // No coverage gate. The previous one named `agents/agent-crd.ts`, a file
+    // that has never existed here, so it measured 0/0 and passed on an empty
+    // set — protection in appearance only. Add a gate here file by file when
+    // there is pure logic to hold to it, the way floor and assembly-lines do.
   },
 });

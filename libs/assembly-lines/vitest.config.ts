@@ -9,11 +9,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       // Scope the gate to new pure/port-injected logic, file by file, as added (ADR-031 Wave 2) — legacy kernel files are not retroactively boiled to 100%.
-      include: [
-        "src/node-outcome.ts",
-        "src/failure-reason.ts",
-        "src/github-action-handler.ts",
-      ],
+      include: ["src/node-outcome.ts", "src/failure-reason.ts"],
       thresholds: {
         lines: 100,
         branches: 100,

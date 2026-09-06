@@ -123,6 +123,37 @@ function checkInvocations(file, pkgDirs) {
   }
 }
 
+/** Source paths declared in a vitest config: coverage `include`, mostly.
+ *
+ * A stale one does NOT error — coverage simply measures nothing and reports
+ * 0/0, which passes. Four packages carried one of these through the tier
+ * migration, including a gate naming a file that has never existed. */
+function checkVitestConfig(pkgDir) {
+  const config = join(pkgDir, "vitest.config.ts");
+
+  if (!existsSync(config)) {
+    return;
+  }
+
+  const rel = config.slice(ROOT.length + 1);
+  const text = readFileSync(config, "utf8");
+
+  for (const m of text.matchAll(/["'](src\/[\w./*-]+)["']/g)) {
+    const declared = m[1];
+    // A glob names a shape; check the fixed directory part instead.
+    const probe = declared.includes("*")
+      ? dirname(declared.split("*")[0])
+      : declared;
+
+    if (!existsSync(join(pkgDir, probe))) {
+      note(
+        rel,
+        `${declared}  (no such source path — coverage would measure nothing)`,
+      );
+    }
+  }
+}
+
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     if (["node_modules", ".git", "dist", ".next"].includes(name)) {
@@ -145,6 +176,7 @@ const pkgDirs = workspacePackages();
 
 for (const d of pkgDirs) {
   checkManifest(d);
+  checkVitestConfig(d);
 }
 
 const scanned = ["infra", "charts", "apps", "libs", ".github", "scripts"]
@@ -160,6 +192,23 @@ const scanned = ["infra", "charts", "apps", "libs", ".github", "scripts"]
 
 for (const f of scanned) {
   checkInvocations(f, pkgDirs);
+}
+
+// A workflow that names a test file by path runs NOTHING when that path moves.
+for (const f of scanned.filter((x) => x.includes("/.github/workflows/"))) {
+  const rel = f.slice(ROOT.length + 1);
+  const text = readFileSync(f, "utf8");
+
+  for (const m of text.matchAll(/(?:^|\s)(src\/[\w./-]+\.(?:ts|tsx|mjs))/gm)) {
+    const declared = m[1];
+    const found =
+      pkgDirs.some((d) => existsSync(join(d, declared))) ||
+      existsSync(join(ROOT, declared));
+
+    if (!found) {
+      note(rel, `${declared}  (no workspace holds that source file)`);
+    }
+  }
 }
 
 if (problems.length) {
