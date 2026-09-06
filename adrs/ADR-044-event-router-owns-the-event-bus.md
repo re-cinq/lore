@@ -63,7 +63,7 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
   for.
 - GitHub is recognised by its own `X-Hub-Signature-256` header and
   authenticated by HMAC over the raw body — it carries no bearer token and is
-  never asked for one. ([validated by captures a signed webhook without any bearer token](apps/event-router/src/delivery/routes/events.test.ts#L37))
+  never asked for one. ([validated by captures a signed webhook without any bearer token](apps/event-router/src/transport/routes/events.test.ts#L37))
 - A Floor calling any of the three new services presents the SERVICE-TO-SERVICE
   token (`LORE_AGENT_INTERNAL_TOKEN`), not the org-wide ingest token, falling
   back to the latter only for local dev where one token serves both ends. The
@@ -77,21 +77,21 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
   therefore a named, tested function rather than an env read at the call site.
   ([validated by prefers the service-to-service token over the org ingest token](libs/shared/src/http/internal-token.test.ts#L5), [`internal-token.test.ts:14`](libs/shared/src/http/internal-token.test.ts#L14), [`internal-token.test.ts:18`](libs/shared/src/http/internal-token.test.ts#L18), [`internal-token.test.ts:22`](libs/shared/src/http/internal-token.test.ts#L22), [presents the service-to-service token the cluster-agent's guard mounts](apps/lore-api/src/features/agents/agent-crd-k8s.test.ts#L5), [`agent-crd-k8s.test.ts:18`](apps/lore-api/src/features/agents/agent-crd-k8s.test.ts#L18), [`agent-crd-k8s.test.ts:30`](apps/lore-api/src/features/agents/agent-crd-k8s.test.ts#L30))
 - A webhook whose signature does not verify is refused and writes nothing.
-  ([validated by refuses a webhook whose signature does not match the secret](apps/event-router/src/delivery/routes/events.test.ts#L60))
+  ([validated by refuses a webhook whose signature does not match the secret](apps/event-router/src/transport/routes/events.test.ts#L60))
 - Every other producer authenticates with a bearer token and reports the
-  generic shape, which is inserted unchanged. ([validated by inserts a reported event verbatim for a valid bearer token](apps/event-router/src/delivery/routes/events.test.ts#L86))
+  generic shape, which is inserted unchanged. ([validated by inserts a reported event verbatim for a valid bearer token](apps/event-router/src/transport/routes/events.test.ts#L86))
 - A reported event with no bearer token is refused, so the trusted branch
   cannot be reached by omitting credentials rather than presenting bad ones.
-  ([validated by refuses a reported event carrying no bearer token](apps/event-router/src/delivery/routes/events.test.ts#L98))
+  ([validated by refuses a reported event carrying no bearer token](apps/event-router/src/transport/routes/events.test.ts#L98))
 - A source outside the known vocabulary is refused at the door. An event whose
   source is a typo reaches no handler and would be discovered only by its
-  absence. ([validated by refuses a source outside the known vocabulary](apps/event-router/src/delivery/routes/events.test.ts#L109))
+  absence. ([validated by refuses a source outside the known vocabulary](apps/event-router/src/transport/routes/events.test.ts#L109))
 - A malformed body is refused with the parser's own complaint, which names the
-  offending position. ([validated by refuses a body that is not JSON](apps/event-router/src/delivery/routes/events.test.ts#L121))
+  offending position. ([validated by refuses a body that is not JSON](apps/event-router/src/transport/routes/events.test.ts#L121))
 - A rejection that belongs to no field names the body itself rather than an
-  empty path. ([validated by names the body itself when the payload is not even an object](apps/event-router/src/delivery/routes/events.test.ts#L161))
+  empty path. ([validated by names the body itself when the payload is not even an object](apps/event-router/src/transport/routes/events.test.ts#L161))
 - One webhook may carry several events — a check suite fans out to one per
-  backing PR — and every one is reported. ([validated by reports every event a single webhook fans out to](apps/event-router/src/delivery/routes/events.test.ts#L136))
+  backing PR — and every one is reported. ([validated by reports every event a single webhook fans out to](apps/event-router/src/transport/routes/events.test.ts#L136))
 
 ### The watch reports what it observes
 
@@ -144,25 +144,25 @@ exactly the calls the loop and its reaper make — and no endpoint here writes a
 event, because producing and draining are different privileges even when one
 process happens to do both.
 
-- A claim hands the caller a batch. ([validated by hands a claimed batch to the caller that asked for it](apps/event-router/src/delivery/routes/event-queue.test.ts#L27))
+- A claim hands the caller a batch. ([validated by hands a claimed batch to the caller that asked for it](apps/event-router/src/transport/routes/event-queue.test.ts#L27))
 - The atomicity is unchanged: `FOR UPDATE SKIP LOCKED` is still one statement,
   now on the router's side of the call, so two drainers claiming at once still
-  receive disjoint batches. ([validated by claims nothing twice, so two drainers cannot run the same event](apps/event-router/src/delivery/routes/event-queue.test.ts#L45))
+  receive disjoint batches. ([validated by claims nothing twice, so two drainers cannot run the same event](apps/event-router/src/transport/routes/event-queue.test.ts#L45))
 - A busy serial family can be held back at claim time, so its waiting rows stay
   `pending` rather than being parked in `processing` and reaped as presumed
-  dead. ([validated by holds back an excluded event name](apps/event-router/src/delivery/routes/event-queue.test.ts#L65))
-- An acked event is not handed out again. ([validated by marks a claimed event done](apps/event-router/src/delivery/routes/event-queue.test.ts#L81))
-- A failed event returns for another attempt after its backoff. ([validated by fails a claimed event back for another attempt after its backoff](apps/event-router/src/delivery/routes/event-queue.test.ts#L95))
+  dead. ([validated by holds back an excluded event name](apps/event-router/src/transport/routes/event-queue.test.ts#L65))
+- An acked event is not handed out again. ([validated by marks a claimed event done](apps/event-router/src/transport/routes/event-queue.test.ts#L81))
+- A failed event returns for another attempt after its backoff. ([validated by fails a claimed event back for another attempt after its backoff](apps/event-router/src/transport/routes/event-queue.test.ts#L95))
 - Dead-lettering is its own endpoint, not a flag on failure: whether an event
   has run out of attempts is the DRAINER's judgement, and folding the two
   together would move that decision to a service that does not know the retry
-  budget. ([validated by dead-letters an event that has run out of attempts](apps/event-router/src/delivery/routes/event-queue.test.ts#L110))
+  budget. ([validated by dead-letters an event that has run out of attempts](apps/event-router/src/transport/routes/event-queue.test.ts#L110))
 - The reaper recovers rows a crashed claimer left in flight, and prunes handled
-  ones. ([validated by reaps rows a crashed claimer left in flight](apps/event-router/src/delivery/routes/event-queue.test.ts#L125), [`event-queue.test.ts:141`](apps/event-router/src/delivery/routes/event-queue.test.ts#L141))
-- Draining requires the same token reporting does. ([validated by refuses to hand out a batch to a caller with no token](apps/event-router/src/delivery/routes/event-queue.test.ts#L153), [`event-queue.test.ts:163`](apps/event-router/src/delivery/routes/event-queue.test.ts#L163))
+  ones. ([validated by reaps rows a crashed claimer left in flight](apps/event-router/src/transport/routes/event-queue.test.ts#L125), [`event-queue.test.ts:141`](apps/event-router/src/transport/routes/event-queue.test.ts#L141))
+- Draining requires the same token reporting does. ([validated by refuses to hand out a batch to a caller with no token](apps/event-router/src/transport/routes/event-queue.test.ts#L153), [`event-queue.test.ts:163`](apps/event-router/src/transport/routes/event-queue.test.ts#L163))
 - The client and the routes are two halves of one contract written apart, so
   they are exercised against each other rather than each against its own idea
-  of the other. ([validated by reports an event and claims it back](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L46), [`event-queue-roundtrip.test.ts:54`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L54), [`event-queue-roundtrip.test.ts:63`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L63), [`event-queue-roundtrip.test.ts:72`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L72), [`event-queue-roundtrip.test.ts:81`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L81), [`event-queue-roundtrip.test.ts:90`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L90))
+  of the other. ([validated by reports an event and claims it back](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L46), [`event-queue-roundtrip.test.ts:54`](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L54), [`event-queue-roundtrip.test.ts:63`](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L63), [`event-queue-roundtrip.test.ts:72`](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L72), [`event-queue-roundtrip.test.ts:81`](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L81), [`event-queue-roundtrip.test.ts:90`](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L90))
 
 ### Every other producer reports through the router
 

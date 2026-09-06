@@ -8,7 +8,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       // 100% on decision logic; IO shells excluded (need cluster + DB).
-      include: ["src/delivery/routes/events.ts"],
+      include: ["src/transport/routes/events.ts"],
       thresholds: {
         lines: 100,
         branches: 100,
