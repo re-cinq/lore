@@ -14,27 +14,27 @@ is reached via subpath exports, e.g.
 
 ## What lives here
 
-- **`src/proxy.ts`** — the **API proxy client** the MCP adapter calls lore-api
+- **`src/outbound/proxy.ts`** — the **API proxy client** the MCP adapter calls lore-api
   through. `ProxyResult` distinguishes `not_configured` (file fallback is fine)
   from `unreachable` (loud failure) from `denied` (401/403 — never served from
-  stale cache). Read caching in `src/platform/proxy-cache.ts`.
-- **`src/features/memory/`** — memory, memory search, facts, graph, and the
+  stale cache). Read caching in `src/outbound/proxy-cache.ts`.
+- **`src/work/memory/`** — memory, memory search, facts, graph, and the
   `~/.lore/memory/` file fallback (`memory-file.ts`).
-- **`src/features/context/context-assembly.ts`** — context assembly. The
+- **`src/work/context/context-assembly.ts`** — context assembly. The
   retrieval engine itself is single-sourced in `@re-cinq/lore-shared`
   (`project/knowledge/context-assembly`) and re-exported here; what this
   package *owns* is the YAML templates in [`templates/`](./templates)
   (`default`, `review`, `implementation`, `research`) plus
   `loadDefaultTemplates()`, which both apps call at boot. Cross-repo context
   filtering in `cross-repo.ts`.
-- **`src/features/pipeline/`** — pipeline task CRUD policy (trust-level gate,
+- **`src/work/pipeline/`** — pipeline task CRUD policy (trust-level gate,
   default repo, retry, review-iteration) over the policy-free CRUD re-exported
   from `@re-cinq/lore-shared`.
-- **`src/features/repo/repo-detect.ts`** — detects the current `owner/repo`
+- **`src/work/repo/repo-detect.ts`** — detects the current `owner/repo`
   from the git remote.
-- **`src/features/spec-trace/query-trace.ts`** — the trace-graph query logic
+- **`src/work/spec-trace/query-trace.ts`** — the trace-graph query logic
   behind the `query_trace` MCP tool.
-- **`src/platform/`** — `otel.ts` (**trace/metric helpers on
+- **`src/outbound/`** — `otel.ts` (**trace/metric helpers on
   `@opentelemetry/api` only** — no-ops until the remote app registers an SDK),
   `tracing.ts` (optional Langfuse search tracing), `session-tracker.ts` (passive session tracking: tool-call ring buffer, dumped
   to `~/.lore/last-session.json` on exit), `db.ts` (RRF hybrid search),
