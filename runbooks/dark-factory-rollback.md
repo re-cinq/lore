@@ -103,7 +103,7 @@ gh pr create --repo "$REPO" \
 # CODEOWNER applies the label
 gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label dark-factory-approval
 
-# Disable (route: apps/lore-api/src/api/routes/dark-factory/dark-factory.ts)
+# Disable (route: apps/lore-api/src/transport/routes/dark-factory/dark-factory.ts)
 curl -X PUT "$LORE_API_URL/api/repos/$REPO/settings/dark-factory" \
   -H "Authorization: Bearer $LORE_TOKEN" \
   -H "X-Lore-Approval-PR: $REPO#$PR_NUMBER" \
@@ -379,5 +379,5 @@ own approval PR. Raising `min_trust` is admin-scope only.
 - quickstart scenarios at `specs/6-dark-factory/quickstart.md`
 - settings route spec at `specs/api-routes/dark-factory-settings/spec.md`
   (schema + two-key field list in
-  `apps/lore-api/src/features/dark-factory/dark-factory-settings.ts`)
+  `apps/lore-api/src/work/dark-factory/dark-factory-settings.ts`)
 - station contract at `specs/6-dark-factory/contracts/station-contract.md`

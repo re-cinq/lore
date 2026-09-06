@@ -3,7 +3,7 @@ import type { Server } from "@hapi/hapi";
 import pg from "pg";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import { buildServer } from "../server/build-server.js";
+import { buildServer } from "../app/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 
 const REGISTRATION_TOKEN = "test-registration-token";

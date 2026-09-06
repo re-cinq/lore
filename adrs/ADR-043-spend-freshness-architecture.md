@@ -168,7 +168,7 @@ same export the sync reads.
   the Anthropic `billed` block: interval-scoped net-of-credits totals,
   whole-table `as_of`/`billed_through` stamps, `available` decided by the
   stamp (a synced zero is not "never synced"), and `optionalTableRows`
-  degradation when the table has not been migrated. ([validated by [`spend-window.test.ts:202`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L202), [`spend-window.test.ts:218`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L218), [`spend-window.test.ts:231`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L231))
+  degradation when the table has not been migrated. ([validated by [`spend-window.test.ts:202`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L202), [`spend-window.test.ts:218`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L218), [`spend-window.test.ts:231`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L231))
 - The view renders a "Google Cloud (billed)" card (net total plus the day the
   export has closed through) and by-service/daily tables only when available,
   hiding them entirely until the export has synced; the estimate card stays

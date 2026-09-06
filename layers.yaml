@@ -238,57 +238,43 @@ layers:
   # routes; the routes must not reach back.
   apps/lore-api:
     ".":
-      - platform
-      - server
+      - app
+      - outbound
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
-    http:
+    # The hapi server and its plugins — the composition root, above transport
+    # rather than inside it, so a route can never import the server that mounts it.
+    app:
+      - transport
+      - work
+      - outbound
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    # Routes, the HTTP plumbing they share (auth, rate-limit, zod), and the
+    # OpenAPI document generated from them. `tests` is what a *.test.ts here may
+    # ALSO reach: 54 route tests inject through the built server, which is the
+    # hapi idiom for exercising a route in situ. One list cannot say both.
+    transport:
       imports:
-        - "@re-cinq/lore-server-core"
-        - "@re-cinq/lore-shared"
-      tests:
-        - server
-    platform:
-      - "@re-cinq/lore-server-core"
-      - "@re-cinq/lore-shared"
-    features:
-      - http
-      - platform
-      - "@re-cinq/lore-server-core"
-      - "@re-cinq/lore-shared"
-    # `tests` is what a *.test.ts here may ALSO reach: 54 route tests inject
-    # through the built server, which is the hapi idiom for exercising a route
-    # in situ. The route itself must not import the server that mounts it, and
-    # one list cannot say both.
-    api:
-      imports:
-        - features
-        - http
-        - openapi
-        - platform
+        - work
+        - outbound
         - "@re-cinq/lore-assembly-lines"
         - "@re-cinq/lore-server-core"
         - "@re-cinq/lore-shared"
       tests:
+        - app
         - integration-tests
-        - server
-    openapi:
-      - api
-      - features
-      - http
+    work:
+      - outbound
+      - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
-    server:
-      - api
-      - http
-      - openapi
-      - platform
-      - "@re-cinq/lore-assembly-lines"
+    outbound:
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
     integration-tests:
-      - api
-      - http
-      - server
+      - transport
+      - app
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
 

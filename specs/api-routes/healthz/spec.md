@@ -26,13 +26,13 @@ two-field response, upgraded to a full diagnostic payload when authenticated.
 
 Registered as the first entry in the route table, matched on path only
 (`url === "/healthz"`, method-agnostic)
-([registration](../../../apps/lore-api/src/server/build-server.ts#L82)).
+([registration](../../../apps/lore-api/src/app/build-server.ts#L82)).
 
 - **Method + path**: `GET /healthz` (the matcher ignores method; any verb on
   `/healthz` dispatches here).
 - **Auth**: none. The dispatcher exempts `/healthz` from both the rate limiter
   (`url !== "/healthz"` gate) and the bearer-token gate (`authExempt`)
-  ([dispatch gates](../../../apps/lore-api/src/server/build-server.ts#L146)).
+  ([dispatch gates](../../../apps/lore-api/src/app/build-server.ts#L146)).
 - **Request**: no body, no required query params. An optional
   `Authorization: Bearer <token>` header upgrades the response.
 - **Response**:
@@ -66,19 +66,19 @@ Registered as the first entry in the route table, matched on path only
 ## Output
 
 - `200 { status: "ok" }` — anonymous, connected ([validated by `returns 200
-  {status:ok} unauthenticated when connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L38)).
+  {status:ok} unauthenticated when connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L38)).
 - `503 { status: "error" }` — disconnected with `LORE_DB_HOST` set ([validated by
-  `returns 503 {status:error} when disconnected and LORE_DB_HOST set`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L45)).
+  `returns 503 {status:error} when disconnected and LORE_DB_HOST set`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L45)).
 - `200 { status: "ok" }` — disconnected with no `LORE_DB_HOST` ([validated by
-  `returns 200 ok when disconnected but no LORE_DB_HOST configured`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L54)).
+  `returns 200 ok when disconnected but no LORE_DB_HOST configured`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L54)).
 - `200 { status, database, tasks }` — authenticated + connected ([validated by
-  `includes database + task stats when authenticated and connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L61)).
+  `includes database + task stats when authenticated and connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L61)).
 - The `error` value verbatim is the string `"error"`; the `ok` value verbatim is
   the string `"ok"`.
 
 ## Dependencies & side effects
 
-- Handler: `handleHealthz` ([code](../../../apps/lore-api/src/api/routes/healthz/healthz.ts#L14)).
+- Handler: `handleHealthz` ([code](../../../apps/lore-api/src/transport/routes/healthz/healthz.ts#L14)).
 - `getHealthStatus()` from `platform/db.ts` (read-only connectivity probe).
 - `validateClientToken(pool, bearer, "read")` from `auth.ts` (a *successful* DB
   validation issues an `UPDATE pipeline.api_tokens SET last_used = now()` as a
@@ -92,38 +92,38 @@ Registered as the first entry in the route table, matched on path only
 
 An anonymous probe against a connected server returns `200 { status: "ok" }` with
 no database/tasks detail. ([validated by `returns 200 {status:ok} unauthenticated
-when connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L38))
+when connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L38))
 
 A disconnected DB with `LORE_DB_HOST` configured returns `503 { status: "error" }`.
 ([validated by `returns 503 {status:error} when disconnected and LORE_DB_HOST
-set`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L45))
+set`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L45))
 
 A disconnected DB with no `LORE_DB_HOST` configured stays `200 { status: "ok" }`.
 ([validated by `returns 200 ok when disconnected but no LORE_DB_HOST
-configured`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L54))
+configured`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L54))
 
 An authenticated probe on a connected server adds `database` and `tasks` counters.
 ([validated by `includes database + task stats when authenticated and
-connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L61))
+connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L61))
 
 A failing task-stats query degrades to zeroed counters rather than erroring.
 ([validated by `falls back to zeroed task stats when the stats query
-throws`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L74))
+throws`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L74))
 
 An authenticated probe with a null pool skips the stats query and returns zeroed
 counters. ([validated by `skips the stats query when authed but pool is
-null`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L86))
+null`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L86))
 
 A stats query returning no rows zeroes the counters. ([validated by `zeroes task
-stats when the stats query returns no rows`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L94))
+stats when the stats query returns no rows`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L94))
 
 A duplicated `authorization` header authenticates off its first value. ([validated
 by `authenticates using the first value of a duplicated authorization
-header`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L106))
+header`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L106))
 
 The dispatcher exempts `/healthz` from rate limiting and bearer auth (no 401/403/429
 is ever returned on this path). ([validated by `returns 200 {status:ok}
-unauthenticated when connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L38), [validated by `rate-limit.test.ts:105`](apps/lore-api/src/http/rate-limit.test.ts#L105))
+unauthenticated when connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L38), [validated by `rate-limit.test.ts:105`](apps/lore-api/src/transport/http/rate-limit.test.ts#L105))
 
 ## Out of Scope
 

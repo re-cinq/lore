@@ -19,8 +19,8 @@ Root cause: `pipeline.cluster_agents.paused = true` on `central`, the only agent
 
 1. A queue-timeout is stamped `infra` (reaper [:486](apps/floor/src/jobs/assembly-run/assembly-run-reaper.ts#L486) graph arm, [:269](apps/floor/src/jobs/assembly-run/assembly-run-reaper.ts#L269) single-CR arm); `infra` is not in `PERMANENT` ([error-classify.ts:135](libs/shared/src/error-classify.ts#L135)), so [transition.ts:147](libs/assembly-lines/src/transition.ts#L147) spends a budgeted back-edge on it.
 2. Nothing checks, before minting a row, that any active unpaused agent offers the node's tags — [advance-line.ts:50](apps/floor/src/jobs/assembly-run/advance-line.ts#L50) gates only on `llmGate`, and [launch-node.ts:44](apps/floor/src/jobs/assembly-run/launch-node.ts#L44) resolves the tags without asking who can serve them.
-3. A paused agent gets a `204` identical to "idle" ([claim.ts:63](apps/lore-api/src/api/routes/cluster-agents/claim.ts#L63)); the claim loop's `ClaimOutcome` has no `paused` kind and never logs `empty` (issue #1654).
-4. `GET /api/assembly-runs/{id}/nodes` projects nine fields and drops `status`, `required_tags`, `cluster_agent_id`, `claimed_at`, `failure_class` ([assembly-lines.ts:342](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.ts#L342)), so the run page cannot show any of this.
+3. A paused agent gets a `204` identical to "idle" ([claim.ts:63](apps/lore-api/src/transport/routes/cluster-agents/claim.ts#L63)); the claim loop's `ClaimOutcome` has no `paused` kind and never logs `empty` (issue #1654).
+4. `GET /api/assembly-runs/{id}/nodes` projects nine fields and drops `status`, `required_tags`, `cluster_agent_id`, `claimed_at`, `failure_class` ([assembly-lines.ts:342](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.ts#L342)), so the run page cannot show any of this.
 
 **Verified against `main` @ `156e6e3d` (2026-08-30)**, after PRs #1651, #1652, #1658–#1670 merged. Every premise above still holds on current main: no merged work introduces a capacity check, an `unclaimed` class, a paused signal, a `parked_reason`, or the extra `/nodes` fields; the acceptance harness still fakes the claim ([line-acceptance-harness.ts:182](apps/floor/src/jobs/assembly-run/line-acceptance-harness.ts#L182)); the reaper still reads `Date.now()`/`stationQueueWaitMs()` internally ([:218](apps/floor/src/jobs/assembly-run/assembly-run-reaper.ts#L218)); no open PR overlaps. What the merges DID change and this plan depends on: #1651 put single-CR launches on the claim queue (so slice F is a gate addition, not a transport change — and issue #1625 is already satisfied), and #1663 added `releaseClaim` + `ClaimOutcome` shapes that slice D extends rather than invents.
 
@@ -115,11 +115,11 @@ An implementation-loop run whose node has no capable cluster costs zero LLM re-r
 
 **Class**: behavior change. **Actor**: the satellite/central operator reading pod logs. **Trigger**: claim poll while `paused`. **Outcome**: one log line on transition into paused, one on leaving; idle backoff unchanged.
 
-**Path**: [claim.ts](apps/lore-api/src/api/routes/cluster-agents/claim.ts) `handleClaim` → `claimOnce` → `runClaimLoop` in [claim-loop.ts](apps/cluster-agent/src/events/claim/claim-loop.ts).
+**Path**: [claim.ts](apps/lore-api/src/transport/routes/cluster-agents/claim.ts) `handleClaim` → `claimOnce` → `runClaimLoop` in [claim-loop.ts](apps/cluster-agent/src/events/claim/claim-loop.ts).
 
 **Changes**
 1. `handleClaim` paused branch returns `{ code: 204, paused: true }`; the route sets header `x-lore-claim: paused` on that 204. Body stays empty → no OpenAPI change.
-2. (#1621 follow-up) [pause.ts](apps/lore-api/src/api/routes/cluster-agents/pause.ts) writes an `audit_log` row `cluster_agent_paused` `{cluster_agent_id, name, paused}` so "who paused it, when" has an answer next time.
+2. (#1621 follow-up) [pause.ts](apps/lore-api/src/transport/routes/cluster-agents/pause.ts) writes an `audit_log` row `cluster_agent_paused` `{cluster_agent_id, name, paused}` so "who paused it, when" has an answer next time.
 3. `ClaimOutcome` gains `{ kind: "paused" }`; `claimOnce` maps `204 + header` to it. `nextClaimDelay` treats `paused` like `empty` (backoff). `runClaimLoop` keeps the previous outcome kind and logs `[cluster-agent] paused by an operator — claiming nothing until un-paused` on entering, `[cluster-agent] un-paused — claiming again` on leaving.
 
 **RED**: `claim.test.ts` (paused → header present; unpaused 204 → header absent), `claim-loop.test.ts` (header → `paused`; paused ticks back off; log once across N paused ticks, once on un-pause). **GREEN/REFACTOR**: as above; `onOutcome` transition tracking lives in `runClaimLoop`, not the tick. **MUTATE**: N/A; evidence = the "logged once" assertion counts lines.
@@ -189,7 +189,7 @@ An implementation-loop run whose node has no capable cluster costs zero LLM re-r
 **Class**: behavior change (read surface). **Actor**: anyone on `/assembly-runs/{id}`. **Outcome**: each visit row shows lifecycle status, required tags, claimant, claimed-at, failure class; a parked run shows a "waiting for capacity: <parked_reason>" banner.
 
 **Changes**
-1. [assembly-lines.ts](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.ts) `StationRunRowSchema` + `/nodes` mapper: `status`, `required_tags`, `cluster_agent_id`, `claimed_at`, `failure_class`, `failure_detail` (all already on `StationRunRecord`). [run-read.ts](apps/lore-api/src/api/routes/assembly-lines/run-read.ts) `RunReadSchema`: `parked_reason`. `npm run gen:openapi && npm run gen:api-types`.
+1. [assembly-lines.ts](apps/lore-api/src/transport/routes/assembly-lines/assembly-lines.ts) `StationRunRowSchema` + `/nodes` mapper: `status`, `required_tags`, `cluster_agent_id`, `claimed_at`, `failure_class`, `failure_detail` (all already on `StationRunRecord`). [run-read.ts](apps/lore-api/src/transport/routes/assembly-lines/run-read.ts) `RunReadSchema`: `parked_reason`. `npm run gen:openapi && npm run gen:api-types`.
 2. [apps/web-ui/src/lib/assembly-runs.ts](apps/web-ui/src/lib/assembly-runs.ts) `AssemblyRunNode` + `toAssemblyRunNode` + `AssemblyRun` mapper.
 3. [RunNodeDetail.tsx](apps/web-ui/src/app/assembly-runs/[id]/RunNodeDetail.tsx): a "Dispatch" block (status · tags · claimant · claimed N min after enqueue · failure class + detail). [page.tsx](apps/web-ui/src/app/assembly-runs/[id]/page.tsx) → view: parked banner from `parkedReason`. Container/presentational split as the folder already does; view does no I/O.
 

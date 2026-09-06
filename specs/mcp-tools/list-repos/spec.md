@@ -43,7 +43,7 @@ The tool takes no parameters — the schema object is `{}`.
 1. **Availability gate** — if `process.env.LORE_DB_HOST` is unset, return the
    literal text `"Repo management requires PostgreSQL (LORE_DB_HOST not set)."`
 2. Call `getOnboardedReposWithCounts(getPool()!)`
-   ([handler](../../../apps/lore-api/src/features/repo/repo-onboard.ts#L104)), which runs a
+   ([handler](../../../apps/lore-api/src/work/repo/repo-onboard.ts#L104)), which runs a
    single `SELECT` over `lore.repos r LEFT JOIN (SELECT target_repo, COUNT(*) AS
    task_count FROM pipeline.tasks GROUP BY target_repo) tc ON tc.target_repo =
    r.full_name`, projecting `id, owner, name, full_name, team, onboarded_at,
@@ -87,7 +87,7 @@ array carrying the reported `total`. ([validated by `pages through repos beyond 
 
 A proxy failure mid-page (not_configured or denied) short-circuits the pagination loop with the matching error, rather than losing it in a partial page. ([validated by `returns a config-required message when the proxy reports not_configured mid-page`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L277), [`returns a denied error when the proxy reports denied`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L290))
 
-The `/api/repos` HTTP route (the proxy source) pages the repo list: it returns 503 when no pool, defaults to `limit 100` / `offset 0` (clamping an over-max limit to 100 and applying the offset), rejects a negative offset with 400, and returns 500 when the query throws — echoing `total`/`limit`/`offset` alongside the rows. ([validated by GET /api/repos returns 503 when pool is null](apps/lore-api/src/api/routes/repos/repos.test.ts#L30), [`repos.test.ts:36`](apps/lore-api/src/api/routes/repos/repos.test.ts#L36), [`repos.test.ts:87`](apps/lore-api/src/api/routes/repos/repos.test.ts#L87), [`repos.test.ts:99`](apps/lore-api/src/api/routes/repos/repos.test.ts#L99), [`repos.test.ts:105`](apps/lore-api/src/api/routes/repos/repos.test.ts#L105))
+The `/api/repos` HTTP route (the proxy source) pages the repo list: it returns 503 when no pool, defaults to `limit 100` / `offset 0` (clamping an over-max limit to 100 and applying the offset), rejects a negative offset with 400, and returns 500 when the query throws — echoing `total`/`limit`/`offset` alongside the rows. ([validated by GET /api/repos returns 503 when pool is null](apps/lore-api/src/transport/routes/repos/repos.test.ts#L30), [`repos.test.ts:36`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L36), [`repos.test.ts:87`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L87), [`repos.test.ts:99`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L99), [`repos.test.ts:105`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L105))
 
 ## Out of Scope
 

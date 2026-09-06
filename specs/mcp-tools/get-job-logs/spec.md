@@ -86,7 +86,7 @@ unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L677), [`lore
 returns the proxied body on
 success`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L690))
 
-The `/api/job-run-logs` HTTP route (the stdio-proxy target) reads the run's GCS object and returns `{logs, complete}`: the full body with `complete: true` when the object exists, empty with `complete: false` when it does not, 400 when `job_name`/`run_id` are missing, and 500 on a storage error. ([validated by GET /api/job-run-logs returns the file content when it exists](apps/lore-api/src/api/routes/tasks/job-run-logs.test.ts#L51), [`job-run-logs.test.ts:44`](apps/lore-api/src/api/routes/tasks/job-run-logs.test.ts#L44), [`job-run-logs.test.ts:38`](apps/lore-api/src/api/routes/tasks/job-run-logs.test.ts#L38), [`job-run-logs.test.ts:59`](apps/lore-api/src/api/routes/tasks/job-run-logs.test.ts#L59))
+The `/api/job-run-logs` HTTP route (the stdio-proxy target) reads the run's GCS object and returns `{logs, complete}`: the full body with `complete: true` when the object exists, empty with `complete: false` when it does not, 400 when `job_name`/`run_id` are missing, and 500 on a storage error. ([validated by GET /api/job-run-logs returns the file content when it exists](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L51), [`job-run-logs.test.ts:44`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L44), [`job-run-logs.test.ts:38`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L38), [`job-run-logs.test.ts:59`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L59))
 
 ## Out of Scope
 

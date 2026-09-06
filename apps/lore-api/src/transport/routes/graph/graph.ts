@@ -1,0 +1,67 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../http/api-error.js";
+import { zodResponse } from "../../http/zod-response.js";
+import { errorMessage } from "@re-cinq/lore-shared";
+import type { Pool } from "pg";
+import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
+import { queryLiveGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
+import { bearerScope } from "../../http/bearer-scope.js";
+import { zodValidate } from "../../http/zod-validate.js";
+import { repoFullName, boolFlag } from "../common-schemas.js";
+
+const GraphQuery = z.object({
+  entity: z.string().optional(),
+  relation_type: z.string().optional(),
+  repo: repoFullName.optional(),
+  include_invalidated: boolFlag,
+});
+
+type GraphQuery = z.infer<typeof GraphQuery>;
+
+/** GET /api/graph — read the live knowledge graph (MCP-proxied lore_query_graph). */
+/** Graph query results — shape follows the query. */
+const GraphQuerySchema = z.record(z.unknown());
+
+export function graphRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/graph",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(GraphQuery) },
+      },
+      GraphQuerySchema,
+      {
+        name: "GraphQuery",
+        description: "Entities and relationships matching a query",
+      },
+    ),
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), "knowledge graph requires PostgreSQL");
+
+      const {
+        entity,
+        relation_type: relationType,
+        repo,
+        include_invalidated: includeInvalidated,
+      } = request.query as unknown as GraphQuery;
+
+      try {
+        const results = await queryLiveGraph(pool, {
+          entity,
+          relationType,
+          repo,
+          includeInvalidated,
+        });
+
+        return h.response(results);
+      } catch (err) {
+        return h.response({ error: errorMessage(err) }).code(500);
+      }
+    },
+  };
+}

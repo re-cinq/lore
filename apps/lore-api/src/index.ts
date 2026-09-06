@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { initOtel } from "./platform/otel-init.js";
+import { initOtel } from "./outbound/otel-init.js";
 import pg from "pg";
 import { setPool } from "@re-cinq/lore-server-core/platform/db.js";
 import { setMemoryPool } from "@re-cinq/lore-server-core/features/memory/memory.js";
@@ -8,7 +8,7 @@ import { Llm } from "@re-cinq/lore-shared";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
-import { startHttpServer } from "./server/http-server.js";
+import { startHttpServer } from "./app/http-server.js";
 
 // Shared mutable state: the DB pool is created in main() and read lazily by route handlers via getPool().
 const state: { pool: Pool | null } = { pool: null };

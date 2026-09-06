@@ -81,9 +81,9 @@ status pill — a stale header misreports the org's backlog.
 ## Key Components
 
 - `apps/mcp-server/` — the MCP server (TypeScript)
-- `apps/lore-api/src/api/routes.ts` — barrel for the HTTP API layer; the native hapi routes are registered by `apps/lore-api/src/server/build-server.ts`, one folder per endpoint under `apps/lore-api/src/api/routes/` — e.g. `routes/dark-factory/dark-factory.ts` (GET/PUT `/api/repos/:o/:r/settings/dark-factory`, two-key authZ on privileged fields via `routes/two-key.ts`), `routes/tasks/task-timeline.ts` (`/api/tasks/:uuid/timeline`), `routes/tasks/task-by-pr.ts` (the PR↔task resolver)
-- `apps/lore-api/src/features/dark-factory/dark-factory-settings.ts` — Zod schema + `resolveSettings()` defaults + `twoKeyFieldsTouched()` for the privileged-field gate
-- `apps/lore-api/src/features/dark-factory/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
+- `apps/lore-api/src/transport/routes.ts` — barrel for the HTTP API layer; the native hapi routes are registered by `apps/lore-api/src/app/build-server.ts`, one folder per endpoint under `apps/lore-api/src/transport/routes/` — e.g. `routes/dark-factory/dark-factory.ts` (GET/PUT `/api/repos/:o/:r/settings/dark-factory`, two-key authZ on privileged fields via `routes/two-key.ts`), `routes/tasks/task-timeline.ts` (`/api/tasks/:uuid/timeline`), `routes/tasks/task-by-pr.ts` (the PR↔task resolver)
+- `apps/lore-api/src/work/dark-factory/dark-factory-settings.ts` — Zod schema + `resolveSettings()` defaults + `twoKeyFieldsTouched()` for the privileged-field gate
+- `apps/lore-api/src/work/dark-factory/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
 - `libs/shared/src/project/leases/lease-backends.ts` — `DbLeaseBackend` (Postgres CTE-based atomic acquire with takeover detection) + `FileLeaseBackend` (worktree mode under `~/.lore/leases/`) sharing a `LeaseBackend` interface (FR1.6)
 - `libs/assembly-lines/src/transition.ts` — `nextTransition()`: the pure replay that derives the walk's next step (launch / await / finish / fail) purely from the persisted `pipeline.station_runs` rows + the definition graph (exact edge + `iteration_max` accounting via `selectEdge`). The event-driven walk (`apps/floor/src/jobs/assembly-run/advance.ts`) is its Floor-side driver; the old in-process `executeAssemblyLine` (stage commits, branch-trailer resume, per-node lease) was retired in the cutover (spec 6-dark-factory FR6.9)
 - `libs/assembly-lines/src/loader.ts` — Zod schema for assembly line YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check; nodes carry optional `station_ref` (custom station image) + `timeout_minutes`, and detect nodes require `job_ref`
@@ -108,7 +108,7 @@ status pill — a stale header misreports the org's backlog.
 - `libs/shared/src/project/leases/lease-backends.ts` — `LeaseBackend` gained `reapExpired(cutoff)` (Db DELETE…RETURNING with OTEL span, File scan, `InMemoryLeaseReaper` double) so the lease-reaper goes through `project.leases` instead of a Floor-local repo
 - `apps/floor/src/kernel/queues.ts` — Floor-side lazy singletons binding the agent pool to the shared `Pg…` adapters (lazy because `getPool()` requires `initPool()` first). All Floor DB access goes through these (cross-repo/no-repo jobs) or `projectFor(repo)` (repo-scoped); inline `query()` SQL was extracted into `@re-cinq/lore-shared/project/*` ports (ADR-024 "Floor data access"). Singletons: `taskQueue`/`taskStore` (pipeline.tasks queue + record ops, incl. `setStatusIf` CAS / `setColumns` / `insertTask` gate-free), `eventQueue`, `leaseBackend`, `auditLog`, `usage` (llm_calls), `settings` (lore.repos record ops), `jobRuns`, `evalRuns`, `cost`, `contextCore`, `research`, `baseline`, `chunks`, `memoryLifecycle` (memory.* decay/feedback/episodes). Deleted the Floor-local `kernel/repositories/*`. Remaining inline-SQL holdouts (chunk-content reads in spec-coverage/gap-detect/spec-drift, global lore.settings/lore.features) are a Phase-2 knowledge-read port
 - `apps/web-ui/src/app/tasks/[id]/TimelinePanel.tsx` (+ `TimelineView.tsx`) — client container + pure presentational view for the vertical stage-commit timeline (node-type icons, outcome badges, lease indicator). `TimelinePanel` fetches `/api/tasks/:id/timeline` on mount and re-fetches on the page refresh coordinator's ticks while a non-terminal stage is in flight
-- `apps/lore-api/src/platform/github-client.ts` — consolidated GitHub auth (App + token fallback)
+- `apps/lore-api/src/outbound/github-client.ts` — consolidated GitHub auth (App + token fallback)
 - `apps/mcp-server/src/transport/tools/local-runner-tools.local.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
@@ -142,7 +142,7 @@ status pill — a stale header misreports the org's backlog.
 - `libs/server-core/src/features/context/context-assembly.ts` — context assembly with YAML templates
 - `libs/server-core/templates/` — YAML context assembly templates (default, review, implementation, research)
 - `libs/shared/src/repo-validation/repo-validation.ts` — deterministic validation (lint/typecheck detection for Node/Go/Python/Rust)
-- `apps/lore-api/src/features/repo/repo-validation-cli.ts` — CLI wrapper for validation in K8s Job pods
+- `apps/lore-api/src/work/repo/repo-validation-cli.ts` — CLI wrapper for validation in K8s Job pods
 - `scripts/slack-app-manifest.yaml` — Slack app manifest for /lore slash command
 - `apps/floor/src/jobs/lib/episode-writer.ts` — shared episode writer with Haiku-driven auto-curation
 - `libs/shared/src/llm/prompt-cache.ts` — `getCacheControl(jobName)` (ephemeral + optional `ttl: "1h"`), `computeCachePrefixHash` (djb2 over system + tool schemas), `analyzeCacheBreak` (in-memory per-job tracker classifying hit / first-call / prompt-changed / ttl-expired)
@@ -180,7 +180,7 @@ three (specs/adrs/tests) is a pipeline task.
 - `POST /api/repos/:o/:r/ingest-graph` — `{kinds[], commit, force?}`. Docs-only:
   `specs`/`adrs` fire the spec-trace trigger per kind (no task); any other kind is
   rejected `400` (test projection is CI-only via the lore-code-trace binary).
-  Scope `write`. `apps/lore-api/src/api/routes/ingest/ingest-graph.ts`.
+  Scope `write`. `apps/lore-api/src/transport/routes/ingest/ingest-graph.ts`.
 - **Test ingest = the Floor `ci-tests` hook** (the old mcp `/test-report` + `/coverage`
   routes were removed in the cutover). The `lore-code-trace` binary runs the repo's suite
   in CI and POSTs `{repo, commit, branch, tests[], results[]}` to `POST /api/webhook/ci-tests`
@@ -694,7 +694,7 @@ MCP tool's `max_tokens` parameter default is also 8K.
 - Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.
 
 **Dark Factory mode** (per-repo, off by default; ADR-016):
-- `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Three files, three jobs: the INPUT-VALIDATION schema for the settings API edge is `apps/lore-api/src/features/dark-factory/dark-factory-settings.ts` (with `resolveSettings()` defaults); the RESOLVER and its plain types are `libs/shared/src/dark-factory-settings.ts`, kept dependency-free because web-ui reaches it by relative path; and the SHAPE is `libs/shared/src/models/dark-factory-settings.ts`, which asserts at compile time that its schema infers exactly those types.
+- `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Three files, three jobs: the INPUT-VALIDATION schema for the settings API edge is `apps/lore-api/src/work/dark-factory/dark-factory-settings.ts` (with `resolveSettings()` defaults); the RESOLVER and its plain types are `libs/shared/src/dark-factory-settings.ts`, kept dependency-free because web-ui reaches it by relative path; and the SHAPE is `libs/shared/src/models/dark-factory-settings.ts`, which asserts at compile time that its schema infers exactly those types.
 - **Enablement.** Per-repo `dark_factory.enabled = true` turns on dark mode for impl/general/review tasks. All tasks execute on the ai-agent-subsystem (agent-cr); the legacy LoreTask path and its cluster gate were removed (ADR-031).
 - Privileged changes (`enabled` toggle, `auto_merge.paths`, downgrade of `require_*` to false) need two-key authorization: admin scope + an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md` (`dark-factory-authz.ts`).
 - Branch-as-state: every workflow phase commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers; the supervisor reads `git log` to resume after pod death.

@@ -46,9 +46,9 @@ closed, then draft win first; otherwise any failed check yields `checks-failing`
 and any requested-changes review yields `changes-requested` (both over an
 approval); `approved` requires an approval and every check concluded
 success/skipped, so a still-running (null-conclusion) check keeps it `open`, and
-an approval with no checks configured is `approved`. ([validated by `github-client.test.ts:29`](apps/lore-api/src/platform/github-client.test.ts#L29), [`github-client.test.ts:35`](apps/lore-api/src/platform/github-client.test.ts#L35), [`github-client.test.ts:45`](apps/lore-api/src/platform/github-client.test.ts#L45), [`github-client.test.ts:49`](apps/lore-api/src/platform/github-client.test.ts#L49), [`github-client.test.ts:55`](apps/lore-api/src/platform/github-client.test.ts#L55), [`github-client.test.ts:67`](apps/lore-api/src/platform/github-client.test.ts#L67))
+an approval with no checks configured is `approved`. ([validated by `github-client.test.ts:29`](apps/lore-api/src/outbound/github-client.test.ts#L29), [`github-client.test.ts:35`](apps/lore-api/src/outbound/github-client.test.ts#L35), [`github-client.test.ts:45`](apps/lore-api/src/outbound/github-client.test.ts#L45), [`github-client.test.ts:49`](apps/lore-api/src/outbound/github-client.test.ts#L49), [`github-client.test.ts:55`](apps/lore-api/src/outbound/github-client.test.ts#L55), [`github-client.test.ts:67`](apps/lore-api/src/outbound/github-client.test.ts#L67))
 
-`fetchPrStatus` returns null without a network call when no GitHub token is configured; otherwise it fetches the PR, reviews, and check-runs concurrently and derives `computed_status`, falling back to an empty list when the reviews or check-runs request fails, while a failure fetching the PR itself propagates. ([validated by `github-client.test.ts:110`](apps/lore-api/src/platform/github-client.test.ts#L110), [`github-client.test.ts:115`](apps/lore-api/src/platform/github-client.test.ts#L115), [`github-client.test.ts:140`](apps/lore-api/src/platform/github-client.test.ts#L140), [`github-client.test.ts:154`](apps/lore-api/src/platform/github-client.test.ts#L154), [`github-client.test.ts:168`](apps/lore-api/src/platform/github-client.test.ts#L168))
+`fetchPrStatus` returns null without a network call when no GitHub token is configured; otherwise it fetches the PR, reviews, and check-runs concurrently and derives `computed_status`, falling back to an empty list when the reviews or check-runs request fails, while a failure fetching the PR itself propagates. ([validated by `github-client.test.ts:110`](apps/lore-api/src/outbound/github-client.test.ts#L110), [`github-client.test.ts:115`](apps/lore-api/src/outbound/github-client.test.ts#L115), [`github-client.test.ts:140`](apps/lore-api/src/outbound/github-client.test.ts#L140), [`github-client.test.ts:154`](apps/lore-api/src/outbound/github-client.test.ts#L154), [`github-client.test.ts:168`](apps/lore-api/src/outbound/github-client.test.ts#L168))
 
 ### Repo detection
 
@@ -87,10 +87,10 @@ and the `InMemoryResearch` double retains every recorded attempt for assertion. 
 
 `makeGraphLlmCall` returns undefined when `ANTHROPIC_API_KEY` is unset, and
 otherwise returns a caller that routes the prompt through the `Llm` singleton
-under the `graph-extraction` job name. ([validated by `helpers.test.ts:17`](apps/lore-api/src/api/routes/helpers.test.ts#L13), [`helpers.test.ts:18`](apps/lore-api/src/api/routes/helpers.test.ts#L18))
+under the `graph-extraction` job name. ([validated by `helpers.test.ts:17`](apps/lore-api/src/transport/routes/helpers.test.ts#L13), [`helpers.test.ts:18`](apps/lore-api/src/transport/routes/helpers.test.ts#L18))
 
 `triggerAgentSpecTrace` is a no-op that resolves to undefined when there is no DB
-pool. ([validated by `spec-trace-trigger.test.ts:37`](apps/lore-api/src/api/routes/spec-trace-trigger.test.ts#L37))
+pool. ([validated by `spec-trace-trigger.test.ts:37`](apps/lore-api/src/transport/routes/spec-trace-trigger.test.ts#L37))
 
 ### Anthropic cost sync window
 

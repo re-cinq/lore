@@ -218,15 +218,15 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   the Floor, so anything wanting to start a line had to be the Floor. The write is
   `start()`'s existing atomic CTE — the `pipeline.assembly_runs` row and its
   `assembly_run.start` event land together — and the Floor's event loop claims the
-  event and walks the line as it does for every other run. ([validated by `start-run.test.ts:40`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L76), [`start-run.test.ts:88`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L88), [`start-run.test.ts:108`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L108))
+  event and walks the line as it does for every other run. ([validated by `start-run.test.ts:40`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L76), [`start-run.test.ts:88`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L88), [`start-run.test.ts:108`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L108))
 - **FR8.2 — The start endpoint refuses a body it cannot act on.** A missing
   `definition` or a `repo` that is not `owner/name` is rejected `400` and starts
   nothing; a run row minted from a malformed body would be walked by the Floor and
-  fail somewhere less legible than the call that made it. ([validated by `start-run.test.ts:85`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L121), [`start-run.test.ts:131`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L131))
+  fail somewhere less legible than the call that made it. ([validated by `start-run.test.ts:85`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L121), [`start-run.test.ts:131`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L131))
 - **FR8.3 — The endpoint is authenticated.** It is registered on the built server
   under the `task` bearer scope; an unauthenticated post is rejected `401`. Starting
   arbitrary assembly lines is a privileged capability — the courier holds a token
-  like any other client. ([validated by `start-run.test.ts:109`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L145))
+  like any other client. ([validated by `start-run.test.ts:109`](apps/lore-api/src/transport/routes/assembly-lines/start-run.test.ts#L145))
 
 - **FR9 — A scheduled job with no steps runs in lore-api, not in a line.** The
   assembly-line node types are a closed set (`agent`, `validate`, `gate`,
@@ -247,11 +247,11 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 - **FR9.1 — The endpoint runs the job named in the path and returns its
   summary.** `200` with `{ job, summary }`, the summary being the one-line
   string that was `pipeline.job_runs.result_summary`. An unknown job name is
-  `404` — a courier typo must not read as success. ([validated by `maintenance.test.ts:28`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L28), [`maintenance.test.ts:40`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L40), [`maintenance.test.ts:61`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L61))
+  `404` — a courier typo must not read as success. ([validated by `maintenance.test.ts:28`](apps/lore-api/src/transport/routes/maintenance/maintenance.test.ts#L28), [`maintenance.test.ts:40`](apps/lore-api/src/transport/routes/maintenance/maintenance.test.ts#L40), [`maintenance.test.ts:61`](apps/lore-api/src/transport/routes/maintenance/maintenance.test.ts#L61))
 - **FR9.2 — A failing job answers with a status and nothing else.** The
   courier's only channel is an HTTP status, and a job's error can carry
   connection strings and hostnames; the detail is logged where operators look
-  and never returned. ([validated by `maintenance.test.ts:47`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L47))
+  and never returned. ([validated by `maintenance.test.ts:47`](apps/lore-api/src/transport/routes/maintenance/maintenance.test.ts#L47))
 - **FR9.4 — Importance decay follows the same route.** Scoring memories against
   the half-life model and evicting past the per-agent cap is scoring plus
   database writes, so it runs in lore-api. Behaviour is carried over unchanged:
@@ -271,7 +271,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 - **FR9.3 — `memory_ttl` is the first job to move.** Its 14 lines around one
   `expireMemories()` call, and the CronJob pod built from the Floor's image that
   ran them, are deleted; the schedule is unchanged. The registry in
-  [`maintenance.ts`](apps/lore-api/src/api/routes/maintenance/maintenance.ts) is where the remaining data jobs land as they follow.
+  [`maintenance.ts`](apps/lore-api/src/transport/routes/maintenance/maintenance.ts) is where the remaining data jobs land as they follow.
 
 - **FR10 — The chart's job names and the dispatch map may not drift.** Every
   `cronJobs[].job` in `floor-helm/values.yaml` MUST resolve in the runner's

@@ -16,7 +16,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
   `options.validate` via a shared adapter; `{ error }` 400 body; hapi parses
   payloads so **malformed JSON becomes `400`, not `500`**), consequences,
   alternatives (joi / keep-500 half-refactor / status quo).
-- [x] T002 `apps/lore-api/src/http/zod-validate.ts`: `zodValidate(schema)`
+- [x] T002 `apps/lore-api/src/transport/http/zod-validate.ts`: `zodValidate(schema)`
   → an async hapi validation function (`safeParse`, throw a Boom whose
   `output.payload` is pre-shaped to `{ error: <message> }` — the `bearer-scope.ts`
   pattern). `formatZodError(err)` renders a single message naming the first
@@ -85,7 +85,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
   imports it (`rawBody` **stays** — the webhook routes still use it, FR7). Remove
   any now-unused `WRITE_PAYLOAD`/`parse:false` remnants from converted routes.
 - [x] T010 Verify all success criteria (all green — 368 tests, tsc clean, monorepo build exit 0):
-  - **SC-1** `grep -rE "rawBody|parseJsonBodyCapped|JSON.parse" apps/lore-api/src/api/routes`
+  - **SC-1** `grep -rE "rawBody|parseJsonBodyCapped|JSON.parse" apps/lore-api/src/transport/routes`
     returns nothing outside `routes/webhooks/` + tests.
   - **SC-2** malformed JSON → `400` on memory + task-post (tests cite ADR-034).
   - **SC-3** each converted route: missing/mis-typed required field → `400 { error }`.
