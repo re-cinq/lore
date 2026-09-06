@@ -7,7 +7,7 @@ export default defineConfig({
     exclude: ["dist/**", "node_modules/**"],
     coverage: {
       provider: "v8",
-      // 100% coverage on routing/latch only; pool/stations/boot excluded (need database).
+      // 100% coverage on routing/latch only; pool/work/boot excluded (need database).
       include: ["src/transport/routes/stations.ts"],
       thresholds: {
         lines: 100,
