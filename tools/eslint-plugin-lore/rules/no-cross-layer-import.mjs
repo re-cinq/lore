@@ -65,7 +65,7 @@ function loadConfig(from) {
   );
   const loaded = {
     root: dir,
-    layers: parsed?.layers ?? parsed ?? {},
+    layers: parsed?.layers ?? {},
     aliases: parsed?.aliases ?? {},
   };
   cache.set(dir, loaded);
@@ -183,7 +183,7 @@ export default {
     const entries = config.layers[pkg];
     const key = keyFor(entries, folder);
     const entry = key === undefined ? undefined : entries[key];
-    const isTest = /\.test\.tsx?$/.test(relFile);
+    const isTest = /\.test\.(?:tsx?|mjs)$/.test(relFile);
     const allowed =
       entry === undefined
         ? null
