@@ -383,7 +383,7 @@ tolerance without reinstating continuous polling. See ADR-015.
 | Privacy filtering | `@re-cinq/lore-shared` `redactSecrets()` — strips keys, JWTs, connection strings before memory writes |
 | Prompt caching | `libs/shared/src/outbound/llm/prompt-cache.ts` — `getCacheControl(jobName)` returns ephemeral (5m) or 1h breakpoints; `analyzeCacheBreak` classifies hit / first-call / break |
 | Local task runner | `apps/mcp-server/src/transport/tools/local-runner-tools.local.ts` — worktree-based execution with `validateRepoMatch`; task state in `~/.lore/local-tasks.json` |
-| Session tracker | `libs/server-core/src/platform/session-tracker.ts` — passive tool-call ring buffer (500 entries); exit dump + Stop hook POST |
+| Session tracker | `libs/server-core/src/outbound/session-tracker.ts` — passive tool-call ring buffer (500 entries); exit dump + Stop hook POST |
 | Local read cache | AgentDB optional local read cache when MCP runs in stdio mode (proxies writes to GKE backend) |
 | API token scopes | `pipeline.api_tokens` — SHA-256 hashed per-client tokens; scopes: read / write / task / webhook / admin |
 | Rate limiting | In-memory sliding window: 30/min webhooks, 60/min task ops, 200/min other; 1 MB body limit |

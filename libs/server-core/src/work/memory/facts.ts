@@ -1,6 +1,6 @@
 // Async fact extraction via configurable LLM: extracts factual statements from memory values, embeds and stores them in memory.facts for granular search. Never throws — a failed extraction must not break the write path.
 
-import { getQueryEmbedding } from "../../platform/db.js";
+import { getQueryEmbedding } from "../../outbound/db.js";
 import { Llm } from "@re-cinq/lore-shared";
 import type { PgPool } from "@re-cinq/lore-shared";
 

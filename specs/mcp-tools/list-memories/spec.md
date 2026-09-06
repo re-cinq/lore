@@ -42,7 +42,7 @@ Lists memory keys for the current repo (newest-first, paginated), returning {mem
 
 1. Resolve `repo = detectCurrentRepo() || undefined`.
 2. **DB path** — if `isMemoryDbAvailable()`: call `listMemories(agent_id, limit,
-   offset, repo)` ([handler](../../../libs/server-core/src/features/memory/memory.ts#L216)). Inside the handler the **scope precedence** is:
+   offset, repo)` ([handler](../../../libs/server-core/src/work/memory/memory.ts#L216)). Inside the handler the **scope precedence** is:
    - `repo` present → `filter = "repo = $1 AND"`, params `[repo, limit,
      offset]`.
    - else `agentId` present → `filter = "agent_id = $1 AND"`, params
@@ -77,7 +77,7 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
 ## Dependencies & side effects
 
 - `detectCurrentRepo()`, `isMemoryDbAvailable()`, `resolveAgentId()`.
-- Handler `listMemories` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L216)).
+- Handler `listMemories` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts#L216)).
 - `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `listMemoriesFile` (offline).
 - Tables: `memory.memories` (read), `memory.facts` (EXISTS subquery), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
@@ -85,15 +85,15 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
 ## Acceptance Criteria
 
 1. A repo-scoped list passes the repo as the first param and returns
-   `{ memories, total }`. ([validated by `scopes by repo and returns rows plus total`](libs/server-core/src/features/memory/memory.test.ts#L272))
+   `{ memories, total }`. ([validated by `scopes by repo and returns rows plus total`](libs/server-core/src/work/memory/memory.test.ts#L272))
 
-2. When both repo and agent are supplied, the repo filter wins. ([validated by `repo filter wins over agent when both supplied`](libs/server-core/src/features/memory/memory.test.ts#L296))
+2. When both repo and agent are supplied, the repo filter wins. ([validated by `repo filter wins over agent when both supplied`](libs/server-core/src/work/memory/memory.test.ts#L296))
 
 3. With no repo, the list scopes by agent and the count query carries only the
-   agent param. ([validated by `scopes by agent when no repo, count params hold only the agent`](libs/server-core/src/features/memory/memory.test.ts#L313))
+   agent param. ([validated by `scopes by agent when no repo, count params hold only the agent`](libs/server-core/src/work/memory/memory.test.ts#L313))
 
 4. With neither repo nor agent, the list is org-wide and the count query takes
-   no scope params. ([validated by `org-wide list when no repo and no agent uses empty filter`](libs/server-core/src/features/memory/memory.test.ts#L330))
+   no scope params. ([validated by `org-wide list when no repo and no agent uses empty filter`](libs/server-core/src/work/memory/memory.test.ts#L330))
 
 5. In local stdio mode (no DB), the tool proxies the list and returns the
    proxied body on success; a 401 is reported as a denied error on the first

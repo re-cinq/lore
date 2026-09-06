@@ -76,19 +76,19 @@ available to agents — the authoritative interface.
   If `extract_facts=true`, fact extraction runs asynchronously and
   does not block the response. An upsert overwrites the value on a
   `(agent, key, version=1)` collision; an append bumps the version and
-  concatenates on an `(agent, key)` collision. ([validated by `memory.test.ts:33`](libs/shared/src/outbound/project/memory/memory.test.ts#L33), [`memory-store-bridge.test.ts:40`](libs/shared/src/outbound/project/memory/memory-store-bridge.test.ts#L40), [`memory-lifecycle.test.ts:124`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L124), [`memory-lifecycle.test.ts:375`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L375), [`memory-lifecycle.test.ts:139`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L139), [`memory-lifecycle.test.ts:385`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L385), [`memory.test.ts:110`](libs/server-core/src/features/memory/memory.test.ts#L110))
+  concatenates on an `(agent, key)` collision. ([validated by `memory.test.ts:33`](libs/shared/src/outbound/project/memory/memory.test.ts#L33), [`memory-store-bridge.test.ts:40`](libs/shared/src/outbound/project/memory/memory-store-bridge.test.ts#L40), [`memory-lifecycle.test.ts:124`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L124), [`memory-lifecycle.test.ts:375`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L375), [`memory-lifecycle.test.ts:139`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L139), [`memory-lifecycle.test.ts:385`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L385), [`memory.test.ts:110`](libs/server-core/src/work/memory/memory.test.ts#L110))
 
 - `writeMemory` (the `lore_write_memory` path) writes the memories row and its
   version row atomically: when the pool provides a client (`connect()`), the
   write runs inside one transaction, so a
   failed version insert rolls the memories insert back instead of leaving a
-  version-less memory behind (#1154). ([validated by `memory.test.ts:460`](libs/server-core/src/features/memory/memory.test.ts#L460), [`memory.test.ts:489`](libs/server-core/src/features/memory/memory.test.ts#L489), [`memory.test.ts:508`](libs/server-core/src/features/memory/memory.test.ts#L508))
+  version-less memory behind (#1154). ([validated by `memory.test.ts:460`](libs/server-core/src/work/memory/memory.test.ts#L460), [`memory.test.ts:489`](libs/server-core/src/work/memory/memory.test.ts#L489), [`memory.test.ts:508`](libs/server-core/src/work/memory/memory.test.ts#L508))
 
 - `sharedWrite` (pool-scoped writes) carries the same atomicity contract: the
   shared-pool lookup/create, the memories insert, and the version insert all
   run on one client between `BEGIN` and `COMMIT` when the pool provides
   `connect()`, a failed version insert rolls the whole write back, and a
-  query-only pool keeps the sequential path (#1158). ([validated by `memory.test.ts:610`](libs/server-core/src/features/memory/memory.test.ts#L610), [`memory.test.ts:648`](libs/server-core/src/features/memory/memory.test.ts#L648), [`memory.test.ts:671`](libs/server-core/src/features/memory/memory.test.ts#L671))
+  query-only pool keeps the sequential path (#1158). ([validated by `memory.test.ts:610`](libs/server-core/src/work/memory/memory.test.ts#L610), [`memory.test.ts:648`](libs/server-core/src/work/memory/memory.test.ts#L648), [`memory.test.ts:671`](libs/server-core/src/work/memory/memory.test.ts#L671))
 
 - `PostgresMemoryStore.writeMemory` (the `MemoryStore` seam's Postgres backend)
   applies the same transaction around its memories write and version insert,
@@ -97,17 +97,17 @@ available to agents — the authoritative interface.
 
 - Memory writers bind `ttl` as a `make_interval(secs => $n)` query parameter
   instead of interpolating it into the SQL text, binding NULL when no ttl is
-  given (#1158). ([validated by `memory.test.ts:705`](libs/server-core/src/features/memory/memory.test.ts#L705), [`memory.test.ts:744`](libs/server-core/src/features/memory/memory.test.ts#L744), [`memory.test.ts:781`](libs/server-core/src/features/memory/memory.test.ts#L781), [`postgres-memory-store.test.ts:390`](libs/shared/src/outbound/postgres-memory-store.test.ts#L390), [`postgres-memory-store.test.ts:428`](libs/shared/src/outbound/postgres-memory-store.test.ts#L428), [`postgres-memory-store.test.ts:464`](libs/shared/src/outbound/postgres-memory-store.test.ts#L464))
+  given (#1158). ([validated by `memory.test.ts:705`](libs/server-core/src/work/memory/memory.test.ts#L705), [`memory.test.ts:744`](libs/server-core/src/work/memory/memory.test.ts#L744), [`memory.test.ts:781`](libs/server-core/src/work/memory/memory.test.ts#L781), [`postgres-memory-store.test.ts:390`](libs/shared/src/outbound/postgres-memory-store.test.ts#L390), [`postgres-memory-store.test.ts:428`](libs/shared/src/outbound/postgres-memory-store.test.ts#L428), [`postgres-memory-store.test.ts:464`](libs/shared/src/outbound/postgres-memory-store.test.ts#L464))
 
 - **`lore_read_memory(key, agent_id?, version?)`** — returns the latest
   version by default. Pass `version="all"` for full version history, or a
-  specific version number to read that one version. ([validated by `memory.test.ts:150`](libs/server-core/src/features/memory/memory.test.ts#L150), [`memory.test.ts:177`](libs/server-core/src/features/memory/memory.test.ts#L177), [`memory.test.ts:208`](libs/server-core/src/features/memory/memory.test.ts#L208))
+  specific version number to read that one version. ([validated by `memory.test.ts:150`](libs/server-core/src/work/memory/memory.test.ts#L150), [`memory.test.ts:177`](libs/server-core/src/work/memory/memory.test.ts#L177), [`memory.test.ts:208`](libs/server-core/src/work/memory/memory.test.ts#L208))
 
 - **`lore_delete_memory(key, agent_id?)`** — soft-deletes (sets `is_deleted`,
-  preserved in history but excluded from search). ([validated by `memory.test.ts:242`](libs/server-core/src/features/memory/memory.test.ts#L242))
+  preserved in history but excluded from search). ([validated by `memory.test.ts:242`](libs/server-core/src/work/memory/memory.test.ts#L242))
 
 - **`lore_list_memories(agent_id?, limit?, offset?)`** — paginated listing
-  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:272`](libs/server-core/src/features/memory/memory.test.ts#L272), [`memory.test.ts:219`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L219))
+  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:272`](libs/server-core/src/work/memory/memory.test.ts#L272), [`memory.test.ts:219`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L219))
 
 ### Semantic Search
 
@@ -131,7 +131,7 @@ available to agents — the authoritative interface.
   extraction runs asynchronously. Knowledge graph entities and edges
   are extracted and upserted. Superseded facts are auto-invalidated
   (cosine similarity >= 0.92). Does not require the agent to
-  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84), [`facts.test.ts:5`](libs/server-core/src/features/memory/facts.test.ts#L5), [`graph.test.ts:5`](libs/server-core/src/features/memory/graph.test.ts#L5))
+  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L84), [`facts.test.ts:5`](libs/server-core/src/work/memory/facts.test.ts#L5), [`graph.test.ts:5`](libs/server-core/src/work/memory/graph.test.ts#L5))
 
 ### Knowledge Graph
 
@@ -146,7 +146,7 @@ available to agents — the authoritative interface.
   extracted, search count, and episode count. Primary health and usage
   tool. (Snapshot count and shared pool count are always 0 — those MCP
   tools were not shipped; see
-  [Divergences from Original Design](#divergences-from-original-design).) ([validated by `memory.test.ts:377`](libs/server-core/src/features/memory/memory.test.ts#L377))
+  [Divergences from Original Design](#divergences-from-original-design).) ([validated by `memory.test.ts:377`](libs/server-core/src/work/memory/memory.test.ts#L377))
 
 ## Agent ID Resolution
 
@@ -189,7 +189,7 @@ PostgreSQL database.
 ### memory_versions
 
 Mirrors each write to `memories`, preserving full history queryable via
-`lore_read_memory(key, version="all")`. ([validated by `memory.test.ts:177`](libs/server-core/src/features/memory/memory.test.ts#L177))
+`lore_read_memory(key, version="all")`. ([validated by `memory.test.ts:177`](libs/server-core/src/work/memory/memory.test.ts#L177))
 
 ### facts
 
@@ -214,7 +214,7 @@ Mirrors each write to `memories`, preserving full history queryable via
   by cosine similarity; at or above a `0.92` threshold the old fact's
   `valid_to` is set, `invalidated_by` is linked, and a row is written to
   `fact_conflicts` before invalidation so context assembly can surface disputed
-  knowledge with a `[CONFLICT]` prefix. ([validated by `facts-extraction.test.ts:42`](libs/server-core/src/features/memory/facts-extraction.test.ts#L42))
+  knowledge with a `[CONFLICT]` prefix. ([validated by `facts-extraction.test.ts:42`](libs/server-core/src/work/memory/facts-extraction.test.ts#L42))
 
 #### Invalidated-fact eviction
 
@@ -233,8 +233,8 @@ Mirrors each write to `memories`, preserving full history queryable via
 
 #### Confidence lifecycle
 
-- `observed` — default for episode-sourced facts. ([validated by `facts-extraction.test.ts:142`](libs/server-core/src/features/memory/facts-extraction.test.ts#L142))
-- `inferred` — for memory-sourced extractions. ([validated by `facts-extraction.test.ts:111`](libs/server-core/src/features/memory/facts-extraction.test.ts#L111))
+- `observed` — default for episode-sourced facts. ([validated by `facts-extraction.test.ts:142`](libs/server-core/src/work/memory/facts-extraction.test.ts#L142))
+- `inferred` — for memory-sourced extractions. ([validated by `facts-extraction.test.ts:111`](libs/server-core/src/work/memory/facts-extraction.test.ts#L111))
 - Decision: `verified` is the human-confirmed tier, set manually (no automated code path).
 - `stale` — automatically applied after 30 days of zero retrieval.
   Stale facts revive to `observed` on next retrieval. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L188), [`memory-search.test.ts:119`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L119))
@@ -253,7 +253,7 @@ returning the new id or null when a duplicate already exists. ([validated by `me
 Live knowledge graph: entities represent services, teams, technologies, and
 other named concepts; edges represent typed relationships (e.g., `depends_on`,
 `owns`, `uses`), both carry temporal validity, and contradictory edges (same
-source + relation, different target) auto-invalidate the prior edge. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L5), [`graph-edge.test.ts:40`](libs/server-core/src/features/memory/graph-edge.test.ts#L40), [`graph-edge.test.ts:86`](libs/server-core/src/features/memory/graph-edge.test.ts#L86))
+source + relation, different target) auto-invalidate the prior edge. ([validated by `graph.test.ts:47`](libs/server-core/src/work/memory/graph.test.ts#L5), [`graph-edge.test.ts:40`](libs/server-core/src/work/memory/graph-edge.test.ts#L40), [`graph-edge.test.ts:86`](libs/server-core/src/work/memory/graph-edge.test.ts#L86))
 
 ### snapshots
 
@@ -273,7 +273,7 @@ falling back to an unscoped search. ([validated by `memory-search.test.ts:174`](
 ### audit_log
 
 Immutable record of all operations (write, read, search, delete)
-with timestamp and agent ID. ([validated by `memory.test.ts:258`](libs/server-core/src/features/memory/memory.test.ts#L258))
+with timestamp and agent ID. ([validated by `memory.test.ts:258`](libs/server-core/src/work/memory/memory.test.ts#L258))
 
 ## Fact Extraction
 
@@ -283,7 +283,7 @@ on all `lore_write_episode` calls. ([validated by `episode.test.ts:84`](apps/lor
 Extraction is asynchronous and non-blocking: if the LLM is unreachable the
 memory write succeeds immediately and the memory stays searchable as raw text,
 and a failed extraction (after its internal retries) is dropped rather than
-blocking or being re-queued. ([validated by `facts-extraction.test.ts:90`](libs/server-core/src/features/memory/facts-extraction.test.ts#L90))
+blocking or being re-queued. ([validated by `facts-extraction.test.ts:90`](libs/server-core/src/work/memory/facts-extraction.test.ts#L90))
 
 The extraction LLM is configurable via `LORE_FACT_LLM` — `claude` (Anthropic,
 the default), `openai`, or `ollama` (local). ([validated by `select-provider.test.ts:29`](libs/shared/src/outbound/llm/select-provider.test.ts#L29), [`select-provider.test.ts:17`](libs/shared/src/outbound/llm/select-provider.test.ts#L17), [`select-provider.test.ts:23`](libs/shared/src/outbound/llm/select-provider.test.ts#L23))
@@ -295,13 +295,13 @@ each extracted fact gets an independent embedding for fine-grained search. ([val
 The LLM's raw output is parsed into individual facts: a JSON array
 (unwrapping ```` ```json ```` code fences), falling back to newline /
 numbered-list splitting for non-JSON, with empty strings filtered out
-and a cap of 10 facts. ([validated by `facts.test.ts:39`](libs/server-core/src/features/memory/facts.test.ts#L14), [`facts.test.ts:20`](libs/server-core/src/features/memory/facts.test.ts#L20), [`facts.test.ts:26`](libs/server-core/src/features/memory/facts.test.ts#L26), [`facts.test.ts:40`](libs/server-core/src/features/memory/facts.test.ts#L40))
+and a cap of 10 facts. ([validated by `facts.test.ts:39`](libs/server-core/src/work/memory/facts.test.ts#L14), [`facts.test.ts:20`](libs/server-core/src/work/memory/facts.test.ts#L20), [`facts.test.ts:26`](libs/server-core/src/work/memory/facts.test.ts#L26), [`facts.test.ts:40`](libs/server-core/src/work/memory/facts.test.ts#L40))
 
 Each parsed fact is stored independently: a fact whose insert fails is
 skipped without aborting the rest of the batch, and a fact whose embedding
 could not be computed is still inserted (with a null embedding) but never
 reaches the contradiction check, which needs a vector to compare against.
-([validated by `facts-extraction.test.ts:170`](libs/server-core/src/features/memory/facts-extraction.test.ts#L170), [`facts-extraction.test.ts:204`](libs/server-core/src/features/memory/facts-extraction.test.ts#L204))
+([validated by `facts-extraction.test.ts:170`](libs/server-core/src/work/memory/facts-extraction.test.ts#L170), [`facts-extraction.test.ts:204`](libs/server-core/src/work/memory/facts-extraction.test.ts#L204))
 
 ## Memory Lifecycle (Background Jobs)
 
@@ -353,7 +353,7 @@ consolidated memory is inserted once, deduped on its key. ([validated by `memory
 The MCP server tracks all tool calls in a 500-entry ring buffer
 (`session-tracker.ts`), dumping to `~/.lore/last-session.json` on session exit;
 a stop hook POSTs to `/api/session-summary` for automatic episode + fact
-extraction, with no agent cooperation needed. ([validated by `session-dump.test.ts:31`](libs/server-core/src/platform/session-dump.test.ts#L25), [`session-dump.test.ts:50`](libs/server-core/src/platform/session-dump.test.ts#L50), [`session-summary.test.ts:71`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L71))
+extraction, with no agent cooperation needed. ([validated by `session-dump.test.ts:31`](libs/server-core/src/outbound/session-dump.test.ts#L25), [`session-dump.test.ts:50`](libs/server-core/src/outbound/session-dump.test.ts#L50), [`session-summary.test.ts:71`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L71))
 
 After every task completion (PR created, no-changes, failure), an episode is
 automatically written via `episode-writer.ts`, and for high-signal events Haiku
@@ -373,7 +373,7 @@ When PostgreSQL is unavailable, the key-value memory operations
 (`write`/`read`/`search`/`delete`/`list`) fall back transparently to
 `~/.lore/memory/` on disk (`memory-file.ts`) — reads and writes continue with
 degraded search (no vector similarity); availability is decided by whether a
-Postgres pool has been configured via `setMemoryPool`. ([validated by `memory.test.ts:38`](libs/server-core/src/features/memory/memory.test.ts#L38), [`memory.test.ts:43`](libs/server-core/src/features/memory/memory.test.ts#L43), [`memory-file.test.ts:33`](libs/server-core/src/features/memory/memory-file.test.ts#L33), [`memory-file.test.ts:46`](libs/server-core/src/features/memory/memory-file.test.ts#L46), [`memory-file.test.ts:60`](libs/server-core/src/features/memory/memory-file.test.ts#L60), [`memory-file.test.ts:87`](libs/server-core/src/features/memory/memory-file.test.ts#L87), [`memory-file.test.ts:101`](libs/server-core/src/features/memory/memory-file.test.ts#L101), [`memory-file.test.ts:120`](libs/server-core/src/features/memory/memory-file.test.ts#L120), [`memory-file.test.ts:129`](libs/server-core/src/features/memory/memory-file.test.ts#L129))
+Postgres pool has been configured via `setMemoryPool`. ([validated by `memory.test.ts:38`](libs/server-core/src/work/memory/memory.test.ts#L38), [`memory.test.ts:43`](libs/server-core/src/work/memory/memory.test.ts#L43), [`memory-file.test.ts:33`](libs/server-core/src/work/memory/memory-file.test.ts#L33), [`memory-file.test.ts:46`](libs/server-core/src/work/memory/memory-file.test.ts#L46), [`memory-file.test.ts:60`](libs/server-core/src/work/memory/memory-file.test.ts#L60), [`memory-file.test.ts:87`](libs/server-core/src/work/memory/memory-file.test.ts#L87), [`memory-file.test.ts:101`](libs/server-core/src/work/memory/memory-file.test.ts#L101), [`memory-file.test.ts:120`](libs/server-core/src/work/memory/memory-file.test.ts#L120), [`memory-file.test.ts:129`](libs/server-core/src/work/memory/memory-file.test.ts#L129))
 
 Tools without a file representation proxy to the GKE server over
 `LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and
@@ -426,7 +426,7 @@ Decision: the following capabilities were added beyond the original spec:
 - When PostgreSQL is unavailable, the file-backed fallback
   (`~/.lore/memory/`) keeps reads and writes available with degraded search
   quality (no vector similarity), recovering to full search quality
-  automatically when the database reconnects. ([validated by `memory.test.ts:38`](libs/server-core/src/features/memory/memory.test.ts#L38), [`memory.test.ts:43`](libs/server-core/src/features/memory/memory.test.ts#L43))
+  automatically when the database reconnects. ([validated by `memory.test.ts:38`](libs/server-core/src/work/memory/memory.test.ts#L38), [`memory.test.ts:43`](libs/server-core/src/work/memory/memory.test.ts#L43))
 - Agent-level eviction (500-memory cap) prevents unbounded growth. ([validated by `memory-lifecycle.test.ts:63`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L63), [`memory-lifecycle.test.ts:87`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L87))
 - Agent/repo isolation by default: agent A cannot read agent B's private
   memories without explicit pool sharing, and a read bound to one repo never
@@ -434,7 +434,7 @@ Decision: the following capabilities were added beyond the original spec:
 - All memory writes pass through `sanitizeContent()` / `redactSecrets()`
   to strip API keys, JWTs, private keys, connection strings, and
   bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/work/episode-writer.test.ts#L13))
-- Audit trail is immutable. ([validated by `memory.test.ts:258`](libs/server-core/src/features/memory/memory.test.ts#L258))
+- Audit trail is immutable. ([validated by `memory.test.ts:258`](libs/server-core/src/work/memory/memory.test.ts#L258))
 
 ## Operational Targets (Background)
 

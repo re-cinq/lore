@@ -53,7 +53,7 @@ Parses a speckit tasks.md and idempotently upserts each checklist item as a spec
    tasks answers `{parsed: 0, synced: 0, created: 0}` and the tool renders
    `"No tasks found in the provided markdown."`.
 4. The route delegates to `syncTasksToDb(pool, repo, spec_slug, parsed)`
-   ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L24)). For each parsed task it:
+   ([handler](../../../libs/server-core/src/work/pipeline/tasks.ts#L24)). For each parsed task it:
    1. Builds `title = "{specTaskId}: {description}"` and a `metadata` object
       (`spec_task_id`, `depends_on`, `spec_slug`, `parallelizable`, `phase`,
       `file_path`); `status = 'completed'` if the checkbox was ticked, else `'pending'`.
@@ -90,7 +90,7 @@ A supplied task-group id is threaded into the grouped insert statement. ([valida
 
 Across a mixed batch only the previously-unseen tasks count toward `created`. ([validated by `tasks-db.test.ts:96`](apps/mcp-server/src/work/pipeline/tasks-db.test.ts#L96))
 
-The markdown is parsed into structured tasks with id, description, completion, parallel and dependency markers. ([validated by `tasks.test.ts:5`](libs/server-core/src/features/pipeline/tasks.test.ts#L5))
+The markdown is parsed into structured tasks with id, description, completion, parallel and dependency markers. ([validated by `tasks.test.ts:5`](libs/server-core/src/work/pipeline/tasks.test.ts#L5))
 
 The raw markdown, repo, and slug are posted to `/api/spec-tasks/sync` and the
 counts are rendered as the synced/created summary. ([validated by `lore_sync_tasks posts the raw markdown and summarizes the counts`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L462))

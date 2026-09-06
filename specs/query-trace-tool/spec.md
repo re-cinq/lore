@@ -50,9 +50,9 @@ main-branch graph through the remote API.
 Wire `lore-query-trace` to proxy a read to the remote `/trace/document` route and
 project the returned `TraceDocument` into agent-readable text. The orchestrator
 resolves the repo, issues one GET via the proxy, and formats the result
-([`runQueryTrace`](../../libs/server-core/src/features/spec-trace/query-trace.ts#L153));
+([`runQueryTrace`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L153));
 the projection itself is a pure function
-([`formatTraceQuery`](../../libs/server-core/src/features/spec-trace/query-trace.ts#L120));
+([`formatTraceQuery`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L120));
 the GET proxy reuses the shared retry/config machinery
 ([`proxyGetApi`](../../apps/mcp-server/src/transport/tools/deps.ts#L16)); the tool is
 registered read-only on the shared surface
@@ -62,35 +62,35 @@ registered read-only on the shared surface
 
 With no `statement` selector, the result lists the document coverage and then
 only the `violated`, `drifted`, and `untested` statements, in that order.
-([validated by `with no selector, lists coverage then violated, drifted, untested statements in that order`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L19))
+([validated by `with no selector, lists coverage then violated, drifted, untested statements in that order`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L19))
 
 An ordinal selector returns that statement in full with its test, code, and ADR
 links grouped, and flags it when violated.
-([validated by `with an ordinal selector, returns that statement with its test, code, and adr links grouped`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L70))
+([validated by `with an ordinal selector, returns that statement with its test, code, and adr links grouped`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L70))
 
 A case-insensitive text-substring selector returns every matching statement.
-([validated by `with a case-insensitive substring selector, returns every matching statement`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L106))
+([validated by `with a case-insensitive substring selector, returns every matching statement`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L106))
 
 An empty `TraceDocument` yields a no-graph-data message rather than an error;
 with no selector and no violated/drifted/untested statements, it says so
 instead; and a selector matching nothing returns a no-match message.
-([validated by `with an empty document, returns a no-graph-data message rather than throwing`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L141), [validated by `with no selector and no violated, drifted, or untested statements, says so`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L148), [validated by `with a selector matching nothing, returns a no-match message`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L167))
+([validated by `with an empty document, returns a no-graph-data message rather than throwing`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L141), [validated by `with no selector and no violated, drifted, or untested statements, says so`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L148), [validated by `with a selector matching nothing, returns a no-match message`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L167))
 
 The tool proxies a GET to the repo's `trace/document` route and formats the
 returned document.
-([validated by `proxies a GET to the repo's trace/document route and formats the result`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L210))
+([validated by `proxies a GET to the repo's trace/document route and formats the result`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L210))
 
 The tool resolves the repo from `detectCurrentRepo` when `repo` is omitted, and
 reports clearly when none can be detected.
-([validated by `resolves the repo from detectRepo when repo is omitted, and reports when none is found`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L230))
+([validated by `resolves the repo from detectRepo when repo is omitted, and reports when none is found`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L230))
 
 With `LORE_API_URL` or the token unset, the tool returns a not-configured text
 response rather than throwing.
-([validated by `returns a not-configured message when no proxy is configured`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L239))
+([validated by `returns a not-configured message when no proxy is configured`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L239))
 
 A `403 insufficient scope` from the remote surfaces a read-scope hint; a
 non-403 unreachable error omits it.
-([validated by `surfaces a read-scope hint when the remote returns 403 insufficient scope`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L251), [validated by `omits the scope hint for a non-403 unreachable error`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L268))
+([validated by `surfaces a read-scope hint when the remote returns 403 insufficient scope`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L251), [validated by `omits the scope hint for a non-403 unreachable error`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L268))
 
 ## Out of Scope
 

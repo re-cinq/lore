@@ -10,6 +10,26 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./proxy.js": {
+      "types": "./dist/outbound/proxy.d.ts",
+      "default": "./dist/outbound/proxy.js"
+    },
+    "./features/*.js": {
+      "types": "./dist/work/*.d.ts",
+      "default": "./dist/work/*.js"
+    },
+    "./platform/*.js": {
+      "types": "./dist/outbound/*.d.ts",
+      "default": "./dist/outbound/*.js"
+    },
+    "./features/*.js": {
+      "types": "./dist/work/*.d.ts",
+      "default": "./dist/work/*.js"
+    },
+    "./platform/*.js": {
+      "types": "./dist/outbound/*.d.ts",
+      "default": "./dist/outbound/*.js"
+    },
     "./*.js": {
       "types": "./dist/*.d.ts",
       "default": "./dist/*.js"

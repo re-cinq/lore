@@ -255,10 +255,10 @@ review:
 
 1. Implementation PR → review LoreTask CR created automatically (when auto_review enabled)
 2. Review Job pod clones repo, reads spec + diff, posts PR comments
-3. Approved: parent task marked as `review/approved` ([validated by `pipeline.test.ts:69`](libs/server-core/src/features/pipeline/pipeline.test.ts#L64), [`pipeline.test.ts:53`](libs/server-core/src/features/pipeline/pipeline.test.ts#L53))
-4. Changes requested (iteration < 2): new implementation LoreTask with feedback, same branch ([validated by `review-feedback.test.ts`](libs/shared/src/work/review-feedback.test.ts), [`pipeline.test.ts:113`](libs/server-core/src/features/pipeline/pipeline.test.ts#L113))
+3. Approved: parent task marked as `review/approved` ([validated by `pipeline.test.ts:69`](libs/server-core/src/work/pipeline/pipeline.test.ts#L64), [`pipeline.test.ts:53`](libs/server-core/src/work/pipeline/pipeline.test.ts#L53))
+4. Changes requested (iteration < 2): new implementation LoreTask with feedback, same branch ([validated by `review-feedback.test.ts`](libs/shared/src/work/review-feedback.test.ts), [`pipeline.test.ts:113`](libs/server-core/src/work/pipeline/pipeline.test.ts#L113))
 
-5. Changes requested (iteration >= 2): escalate with `needs-human-review` label ([validated by `pipeline.test.ts:90`](libs/server-core/src/features/pipeline/pipeline.test.ts#L85))
+5. Changes requested (iteration >= 2): escalate with `needs-human-review` label ([validated by `pipeline.test.ts:90`](libs/server-core/src/work/pipeline/pipeline.test.ts#L85))
 6. Review completes in <5 min
 7. Review result visible in pipeline UI
 8. Auto-review is opt-in per repo

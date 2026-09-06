@@ -45,7 +45,7 @@ Lists spec-tasks that are 'pending' AND whose every dependency has completed —
    adapter holds no pool (ADR-032), so the dependency query runs in lore-api
    ([`GET /api/spec-tasks/ready`](../../api-routes/spec-tasks/spec.md)).
 3. The route delegates to `getReadyTasks(pool, repo)`
-   ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L24)). It runs a single query
+   ([handler](../../../libs/server-core/src/work/pipeline/tasks.ts#L24)). It runs a single query
    selecting `id, description, status, context_bundle, agent_id` from
    `pipeline.tasks` where `task_type = 'spec-task'`, `target_repo = $1`,
    `status = 'pending'`, and a correlated `NOT EXISTS` over each

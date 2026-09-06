@@ -73,7 +73,7 @@ The JSON bodies above; no HTML, no redirects, no fan-out to other services.
 ## Dependencies & side effects
 
 - `parseTasks` / `syncTasksToDb` / `getReadyTasks` / `claimTask` / `completeTask`
-  ([module](../../../libs/server-core/src/features/pipeline/tasks.ts#L16)).
+  ([module](../../../libs/server-core/src/work/pipeline/tasks.ts#L16)).
 - `pipeline.tasks` (read + upsert + status transitions) and
   `pipeline.task_events` (best-effort claim/complete events).
 
