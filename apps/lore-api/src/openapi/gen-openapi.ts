@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { generateOpenApi } from "./build-document.js";
-import { routeList } from "../server/build-server.js";
+import { routeList } from "../api/route-list.js";
 
 export function openApiArtifactPath(): string {
   return resolve(import.meta.dirname, "../../openapi.json");

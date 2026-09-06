@@ -1,11 +1,11 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../../server/api-error.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { apiError } from "../../../http/api-error.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import type { Pool } from "pg";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { formatZodError } from "../../../server/plugins/zod-validate.js";
+import { formatZodError } from "../../../http/zod-validate.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 
 // Constant-time string compare; length-guarded since timingSafeEqual throws on unequal buffers.

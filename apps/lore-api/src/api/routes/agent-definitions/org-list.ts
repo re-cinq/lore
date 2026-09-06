@@ -5,9 +5,9 @@ import { z } from "zod";
 import { PgAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
 import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-yaml.js";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
-import { apiError } from "../../../server/api-error.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { apiError } from "../../../http/api-error.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 // The org-default catalog (org rows over yaml, no project layer); empty-string repo deliberately degrades PgAgentDefs to org+yaml only.

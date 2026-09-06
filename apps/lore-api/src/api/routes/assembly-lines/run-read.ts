@@ -1,6 +1,6 @@
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { z } from "zod";
-import { apiError } from "../../../server/api-error.js";
+import { apiError } from "../../../http/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -18,7 +18,7 @@ import type {
   StationRunRecord,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 
 // GET /api/assembly-runs/{id} — the run, its nodes, and the Station each dispatches to; moved from the Floor (#1347) once lore-api's Dockerfile started building libs/assembly-lines too. stationInherited surfaces station inheritance in the response rather than leaving it to be reconstructed from YAML.
 

@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { getHealthStatus } from "@re-cinq/lore-server-core/platform/db.js";
-import { validateClientToken } from "../auth.js";
+import { validateClientToken } from "../../../http/auth.js";
 
 const TASK_STATS_SQL = `SELECT count(*) FILTER (WHERE created_at > current_date)::int as today, count(*) FILTER (WHERE status = 'pending')::int as pending FROM pipeline.tasks`;
 

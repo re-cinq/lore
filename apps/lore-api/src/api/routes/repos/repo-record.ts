@@ -1,13 +1,13 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { errorMessage } from "@re-cinq/lore-shared";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import { toRow } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import { RepoSchema, REPO_COLUMNS } from "@re-cinq/lore-shared/models/repo.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { projectFor } from "../../../platform/project-boot.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
 
 // Collapses 9 web-ui call sites that each selected a different column subset of this row into one whole-record endpoint; wire stays snake_case (not camelCase) because mcp-server reads `full_name` from it — renaming is expand/contract work.
 export function repoRecordRoute(): ServerRoute {

@@ -1,14 +1,14 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../../server/api-error.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { apiError } from "../../../http/api-error.js";
+import { zodResponse } from "../../../http/zod-response.js";
 /** POST /api/repos/:o/:r/ingest-graph — spec-traceability projection trigger (docs only). */
 
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { triggerAgentSpecTrace } from "../helpers.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 
 /** The only kinds this route projects — both read from repo markdown. */
 const DOC_KINDS = new Set(["specs", "adrs"]);

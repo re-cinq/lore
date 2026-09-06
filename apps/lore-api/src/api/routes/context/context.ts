@@ -1,4 +1,4 @@
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -7,8 +7,8 @@ import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/c
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { resolveCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
 import { z } from "zod";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { repoFullName, boolFlag } from "../common-schemas.js";
 
 // max_tokens defaults to 8000; template/agent_id/cross_repo follow documented behavior.

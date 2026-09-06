@@ -1,7 +1,7 @@
 /** OpenAPI 3.1 document generation (ADR-035): projects routeList to operations with request/response contracts. */
 
 import type { ServerRoute } from "@hapi/hapi";
-import { bucketFor } from "../server/plugins/rate-limit.js";
+import { bucketFor } from "../http/rate-limit.js";
 import {
   WILDCARD_METHODS,
   METHOD_NOT_ALLOWED_FALLBACKS,

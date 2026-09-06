@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { openApiArtifactPath } from "./gen-openapi.js";
 import { generateOpenApi } from "./build-document.js";
-import { routeList } from "../server/build-server.js";
+import { routeList } from "../api/route-list.js";
 
 describe("the committed OpenAPI artifact", () => {
   it("is written next to lore-api's package.json", () => {

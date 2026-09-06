@@ -9,10 +9,10 @@ import {
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
 import { projectFor } from "../../../platform/project-boot.js";
-import { apiError, rethrowBoom } from "../../../server/api-error.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { apiError, rethrowBoom } from "../../../http/api-error.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { repoFullName } from "../common-schemas.js";
 
 // POST /api/assembly-runs — the seam a courier CronJob posts to (#1357), since assemblyRuns.start() was previously reachable only in-process from the Floor; uses start()'s existing atomic CTE, so nothing here knows what the line does.

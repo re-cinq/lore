@@ -1,10 +1,10 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../../server/api-error.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { apiError } from "../../../http/api-error.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { z } from "zod";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 
 // Is the factory's model access down right now (#1455)? Derived on READ from station_runs, not mirrored from the Floor's in-memory gate — lore-api can't see another pod's memory.
 

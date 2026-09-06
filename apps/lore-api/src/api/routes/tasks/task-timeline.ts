@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../../server/api-error.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { apiError } from "../../../http/api-error.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { z } from "zod";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -11,7 +11,7 @@ import {
   PIPELINE_TASK_COLUMNS,
 } from "@re-cinq/lore-shared/models/pipeline-task.js";
 import { getOctokit } from "../../../platform/github-client.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 
 export interface TimelineCommit {
   sha: string;

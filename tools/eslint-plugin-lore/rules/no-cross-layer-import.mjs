@@ -27,6 +27,11 @@
  *
  * npm and node: specifiers are never governed — package.json already owns that.
  * Cross-package `@re-cinq/*` specifiers are, written verbatim in a list.
+ *
+ * An entry may be a plain list, or `{ imports: [...], tests: [...] }` where
+ * `tests` names what a *.test.ts file in that layer may ALSO import. A route
+ * test that boots the server it mounts into needs the composition root; the
+ * route itself must not, and one list cannot say both.
  */
 
 import fs from "node:fs";
@@ -173,7 +178,14 @@ export default {
 
     const entries = config.layers[pkg];
     const key = keyFor(entries, folder);
-    const allowed = key === undefined ? null : (entries[key] ?? []);
+    const entry = key === undefined ? undefined : entries[key];
+    const isTest = /\.test\.tsx?$/.test(relFile);
+    const allowed =
+      entry === undefined
+        ? null
+        : Array.isArray(entry)
+          ? entry
+          : [...(entry.imports ?? []), ...(isTest ? (entry.tests ?? []) : [])];
     const layer = key === undefined ? null : layerRoot(key, folder);
 
     // `join`, never `resolve`: resolve() with a relative base silently prepends

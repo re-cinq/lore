@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../../server/api-error.js";
+import { apiError } from "../../../http/api-error.js";
 import { z } from "zod";
 import { errorMessage } from "@re-cinq/lore-shared";
 // Webhook routes: GET/POST/secret for read/write/admin with graceful degradation.
@@ -12,8 +12,8 @@ import {
   type WebhookSkipReason,
 } from "../../../features/webhook/webhook-ensure.js";
 import { classifyWebhook } from "../../../features/webhook/webhook-status.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 
 function canonicalUrl(): string {
   return process.env.LORE_WEBHOOK_URL || "";

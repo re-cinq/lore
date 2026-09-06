@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import {
   errorMessage,
   cancelPipelineTask,
@@ -12,8 +12,8 @@ import type { ServerRoute, ResponseToolkit, ResponseObject } from "@hapi/hapi";
 import { z } from "zod";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 // POST /api/task multiplexes 5 shapes with irregular dispatch (status-update has no `action`, create is the fallback), so a discriminated union would contort (ADR-034 FR6) — branch selection stays in the handler.

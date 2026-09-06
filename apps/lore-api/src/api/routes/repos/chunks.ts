@@ -1,10 +1,10 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import { z } from "zod";
 import type { ServerRoute } from "@hapi/hapi";
 import { projectFor } from "../../../platform/project-boot.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 
 // Vector-store chunk reads for detection jobs, via `project.chunks` (not direct DB) so a station pod's ChunksHttp adapter never opens Postgres (ADR-031 D7); body shape varies by {kind}.
 const CHUNK_KINDS = new Set([

@@ -6,8 +6,8 @@ import {
 } from "@re-cinq/lore-assembly-lines";
 import type { Pool } from "pg";
 import { PgCatalogStatus } from "@re-cinq/lore-shared/project/agents/catalog-status-pg.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
 
 // Where each catalog entry dispatches from; a definition with no reference here is either blueprint-less (runbook/onboard) or dormant — the caller decides which.
 

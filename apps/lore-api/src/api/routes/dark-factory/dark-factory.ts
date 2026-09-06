@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool, PoolClient } from "pg";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import type {
   Request,
   ResponseToolkit,
@@ -17,8 +17,8 @@ import type { DarkFactoryState } from "../../../features/dark-factory/baseline-c
 import { projectFor } from "../../../platform/project-boot.js";
 import { z } from "zod";
 import { ResolvedDarkFactorySettingsSchema } from "@re-cinq/lore-shared/models/dark-factory-settings.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 import { checkApproval } from "../two-key.js";
 import {
   applyPatch,

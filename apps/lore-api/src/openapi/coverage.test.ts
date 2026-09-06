@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { ServerRoute } from "@hapi/hapi";
-import { routeList } from "../server/build-server.js";
-import { bearerScope } from "../server/plugins/bearer-scope.js";
+import { routeList } from "../api/route-list.js";
+import { bearerScope } from "../http/bearer-scope.js";
 import {
   generateOpenApi,
   normalizePath,

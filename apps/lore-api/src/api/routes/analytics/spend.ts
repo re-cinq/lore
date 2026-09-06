@@ -1,16 +1,16 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../../server/api-error.js";
+import { apiError } from "../../../http/api-error.js";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {
   JobRunSchema,
   JOB_RUN_COLUMNS,
 } from "@re-cinq/lore-shared/models/job-run.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { z } from "zod";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 // The analytics screen's six reads, one caller (old month-to-date /api/spend moved into /api/analytics/spend-window); job_runs alone derives from the pipeline.job_runs model, not an inline aggregate.

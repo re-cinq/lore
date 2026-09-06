@@ -1,10 +1,10 @@
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { z } from "zod";
 /** The commit whose line numbering the graph's ranges are expressed in (needed for diff validation). */
 
 import type { ServerRoute } from "@hapi/hapi";
 import { createDgraphClient, readGraphBaseline } from "@re-cinq/lore-shared";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 
 // Shared object (hapi serializes to JSON, never hands to caller).
 const UNSTAMPED = { graphCommit: null, graphCommitAt: null, source: "none" };

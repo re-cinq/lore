@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { buildServer } from "../build-server.js";
+import { buildServer } from "../server/build-server.js";
 import {
   useRateLimitSafeClock,
   AUTH,
@@ -25,7 +25,7 @@ describe("rate-limit ext", () => {
 
   it("routes /api/embed to its own 1200/min bucket — the per-statement projector burst must not starve (or be starved by) the 200/min default", async () => {
     const { bucketFor } = await import("./rate-limit.js");
-    const { rateLimit } = await import("../../api/routes/auth.js");
+    const { rateLimit } = await import("./auth.js");
 
     expect(bucketFor("/api/embed")).toBe("embed");
 

@@ -20,7 +20,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 1 — Schema reachability (least-invasive)
 
-- [x] T002 `apps/lore-api/src/server/plugins/zod-validate.ts`: `zodValidate(schema)`
+- [x] T002 `apps/lore-api/src/http/zod-validate.ts`: `zodValidate(schema)`
   stamps `fn.zodSchema = schema` (typed `ZodValidateFn<T>`); add `getZodSchema(fn)`
   returning the schema or `undefined`. Behavior otherwise unchanged. Extend
   `zod-validate.test.ts`: the returned fn still validates, and `getZodSchema`

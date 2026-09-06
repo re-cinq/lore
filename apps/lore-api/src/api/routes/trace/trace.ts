@@ -1,12 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { mergePersistentFeatures } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../platform/project-boot.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 
 // kind: Set check (404 unknown); path: bounded to 1024 chars.
 const TraceQuery = z.object({ path: z.string().max(1024).optional() });

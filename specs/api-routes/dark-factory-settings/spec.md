@@ -219,7 +219,7 @@ A rollback failure after a write failure is swallowed and still returns `500 { e
 ([validated by `dark-factory.test.ts:376`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L375))
 
 The route requires `admin` scope via the `SCOPE_OVERRIDES` override. ([validated by
-`bearer-scope.test.ts`](apps/lore-api/src/server/plugins/bearer-scope.test.ts) and `applies the
+`bearer-scope.test.ts`](apps/lore-api/src/http/bearer-scope.test.ts) and `applies the
 dark-factory admin scope override (403 for a read
 token)`](../../../apps/mcp-server/src/api/routes/dispatch.test.ts#L181))
 

@@ -1,7 +1,7 @@
 /** Rate limiting as a hapi extension (ADR-033). */
 
 import type { Server } from "@hapi/hapi";
-import { rateLimit, type RateBucket } from "../../api/routes/auth.js";
+import { rateLimit, type RateBucket } from "./auth.js";
 
 const BUCKET_RULES: ReadonlyArray<{
   matches: (path: string) => boolean;

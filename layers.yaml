@@ -232,6 +232,68 @@ layers:
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
 
+  # The remote REST backend. `http` is the route-authoring toolkit — error
+  # envelope, bearer scopes, zod request/response wiring, token + rate-limit
+  # checks — which every route and the server both use; it lived under `server/`
+  # and `api/routes/`, which made every route import the server it mounts into.
+  # `server` builds the hapi tree, so it is the composition root and reaches the
+  # routes; the routes must not reach back.
+  apps/lore-api:
+    ".":
+      - platform
+      - server
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    http:
+      imports:
+        - "@re-cinq/lore-server-core"
+        - "@re-cinq/lore-shared"
+      tests:
+        - server
+    platform:
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    features:
+      - http
+      - platform
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    # `tests` is what a *.test.ts here may ALSO reach: 54 route tests inject
+    # through the built server, which is the hapi idiom for exercising a route
+    # in situ. The route itself must not import the server that mounts it, and
+    # one list cannot say both.
+    api:
+      imports:
+        - features
+        - http
+        - openapi
+        - platform
+        - "@re-cinq/lore-assembly-lines"
+        - "@re-cinq/lore-server-core"
+        - "@re-cinq/lore-shared"
+      tests:
+        - integration-tests
+        - server
+    openapi:
+      - api
+      - features
+      - http
+      - "@re-cinq/lore-shared"
+    server:
+      - api
+      - http
+      - openapi
+      - platform
+      - "@re-cinq/lore-assembly-lines"
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+    integration-tests:
+      - api
+      - http
+      - server
+      - "@re-cinq/lore-server-core"
+      - "@re-cinq/lore-shared"
+
   # The Next app. `lib` is the data and pure-logic tier, `components` the shared
   # presentational atoms, `app` the routes that compose them. Today all three
   # import each other; stated one-way so the cycle is a finding rather than a

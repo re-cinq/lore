@@ -3,7 +3,7 @@ import { errorMessage } from "@re-cinq/lore-shared";
 
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
 import { buildOpenApiDocument } from "../../../openapi/build-document.js";
 
 const REDOC_CDN =

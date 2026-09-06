@@ -3,11 +3,11 @@
 import type { ServerRoute, RouteOptions } from "@hapi/hapi";
 import type { ZodType } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { getZodSchema } from "../server/plugins/zod-validate.js";
+import { getZodSchema } from "../http/zod-validate.js";
 import {
   getResponseMeta,
   type OpenApiResponseMeta,
-} from "../server/plugins/zod-response.js";
+} from "../http/zod-response.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { BODYLESS_WRITES, domainBody } from "./domain-routes.js";
 

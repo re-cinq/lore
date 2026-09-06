@@ -1,9 +1,9 @@
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { zodResponse } from "../../../http/zod-response.js";
 import { z } from "zod";
 import { errorMessage, getQueryEmbedding } from "@re-cinq/lore-shared";
 import type { ServerRoute } from "@hapi/hapi";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
 
 /** Station pods' embedding proxy (no GCP creds in pods; read scope). */
 

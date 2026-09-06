@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { errorMessage } from "@re-cinq/lore-shared";
-import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { rethrowBoom, apiError } from "../../../http/api-error.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {
   PipelineTaskSchema,
@@ -13,8 +13,8 @@ import {
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { getTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { bearerScope } from "../../../server/plugins/bearer-scope.js";
-import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodResponse } from "../../../http/zod-response.js";
 
 // Task row plus its transition trail, keyed by COLUMN names — that's what deployed web-ui reads; flipping it is expand/contract work.
 const TaskDetailSchema = wireSchema(
