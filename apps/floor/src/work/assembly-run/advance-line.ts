@@ -67,6 +67,37 @@ async function priorFailuresIfAgent(
     : undefined;
 }
 
+/** Resolved BEFORE the station_runs row is written, because the row RECORDS the dispatch — otherwise the prompt and round content exist only on an Agent CR that gets pruned. */
+async function dispatchForNode(
+  ctx: {
+    node: RunGraphNode;
+    task: ReturnType<typeof taskFromAssemblyRun>;
+    assemblyRun: AssemblyRunRecord;
+    nodeId: string;
+    iteration: number;
+    visits: NodeVisit[];
+  },
+  deps: AdvanceDeps,
+): ReturnType<typeof resolveNodeDispatch> {
+  const { node, task, assemblyRun, nodeId, iteration, visits } = ctx;
+
+  return await resolveNodeDispatch(
+    {
+      node,
+      task,
+      iteration,
+      priorOutcome: priorOutcomeOf(visits, nodeId),
+      // How a retried node learns why it is running again instead of repeating itself.
+      incomingFailure: incomingFailureOf(visits),
+      priorFailures: await priorFailuresIfAgent(
+        { node, assemblyRun, nodeId, visits },
+        deps,
+      ),
+    },
+    deps,
+  );
+}
+
 export async function advanceLine(
   assemblyLineId: string,
   deps: AdvanceDeps,
@@ -102,19 +133,14 @@ export async function advanceLine(
     return;
   }
   const task = taskFromAssemblyRun(assemblyRun);
-  // Resolved BEFORE the row, because the row RECORDS it — otherwise the prompt/round content only exists on a pruned Agent CR.
-  const dispatch = await resolveNodeDispatch(
+  const dispatch = await dispatchForNode(
     {
       node,
       task,
+      assemblyRun,
+      nodeId: transition.nodeId,
       iteration: transition.iteration,
-      priorOutcome: priorOutcomeOf(visits, transition.nodeId),
-      // How a retried node learns why it is running again instead of repeating itself.
-      incomingFailure: incomingFailureOf(visits),
-      priorFailures: await priorFailuresIfAgent(
-        { node, assemblyRun, nodeId: transition.nodeId, visits },
-        deps,
-      ),
+      visits,
     },
     deps,
   );

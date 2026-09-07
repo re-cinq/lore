@@ -282,6 +282,45 @@ export interface AgentEventsRouteDeps {
   findByTokenHash?: RegistryOrSharedTokenDeps["findByTokenHash"];
 }
 
+/** One pass over the NDJSON body feeds every sink: cost rows, run-viz events, turns, and declared artifacts. An oversized body still records COST — only the visualization and turn stores are skipped, because losing telemetry is cheaper than losing the bill. */
+async function ingestAgentSink(rawNdjson: string): Promise<{
+  events: number;
+  recorded: number;
+  attributes: Record<string, number | boolean>;
+}> {
+  const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
+  // Turns ride the SAME single pass as the cost rows and the projection, reusing the oversized gate — no second parse, no second size rule.
+  const { costRows, runEvents, fileEvents, turns, turnsDropped, turnsCapped } =
+    parseAgentSink(rawNdjson, !oversized, !oversized);
+  const cost = await recordAgentCosts(costRows);
+  const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
+  const turnRows = turns.length > 0 ? await recordRunTurns(turns) : 0;
+  // Declared artifacts ride the same sink as cost + telemetry, so a planning round's result lands here rather than needing its own channel.
+  const planningRounds = await recordPlanningResults(fileEvents);
+
+  await mergeArtifacts(fileEvents);
+
+  reportTurnAnomalies(turnsDropped, turnsCapped);
+  await writeCostDegradedAudit(cost);
+
+  return {
+    events: costRows.length,
+    recorded: cost.recorded,
+    attributes: {
+      "agent_events.count": costRows.length,
+      "agent_events.recorded": cost.recorded,
+      "agent_events.uncorrelated": cost.uncorrelated,
+      "agent_events.failed": cost.failed,
+      "agent_events.viz_rows": vizRows,
+      "agent_events.planning_rounds": planningRounds,
+      "agent_events.turn_rows": turnRows,
+      "agent_events.turns_dropped": turnsDropped,
+      "agent_events.turns_capped": turnsCapped,
+      "agent_events.oversized": oversized,
+    },
+  };
+}
+
 export function agentEventsRoute(deps: AgentEventsRouteDeps = {}): ServerRoute {
   return {
     method: "POST",
@@ -300,47 +339,15 @@ export function agentEventsRoute(deps: AgentEventsRouteDeps = {}): ServerRoute {
       );
 
       // A throw here becomes a 500 via hapi, and the request-tracing extension records the exception on the request span — no per-handler try/catch.
-      const rawNdjson = rawBody(request);
-      const oversized =
-        Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
-      // Turns ride the SAME single pass as the cost rows and the projection, reusing the oversized gate — no second parse, no second size rule.
-      const {
-        costRows,
-        runEvents,
-        fileEvents,
-        turns,
-        turnsDropped,
-        turnsCapped,
-      } = parseAgentSink(rawNdjson, !oversized, !oversized);
-      const cost = await recordAgentCosts(costRows);
-      const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
-      const turnRows = turns.length > 0 ? await recordRunTurns(turns) : 0;
-      // Declared artifacts ride the same sink as cost + telemetry, so a planning round's result lands here rather than needing its own channel.
-      const planningRounds = await recordPlanningResults(fileEvents);
+      const ingested = await ingestAgentSink(rawBody(request));
 
-      await mergeArtifacts(fileEvents);
-
-      reportTurnAnomalies(turnsDropped, turnsCapped);
-      await writeCostDegradedAudit(cost);
-
-      request.app.span?.setAttributes({
-        "agent_events.count": costRows.length,
-        "agent_events.recorded": cost.recorded,
-        "agent_events.uncorrelated": cost.uncorrelated,
-        "agent_events.failed": cost.failed,
-        "agent_events.viz_rows": vizRows,
-        "agent_events.planning_rounds": planningRounds,
-        "agent_events.turn_rows": turnRows,
-        "agent_events.turns_dropped": turnsDropped,
-        "agent_events.turns_capped": turnsCapped,
-        "agent_events.oversized": oversized,
-      });
+      request.app.span?.setAttributes(ingested.attributes);
 
       return h
         .response({
           status: "ok",
-          events: costRows.length,
-          recorded: cost.recorded,
+          events: ingested.events,
+          recorded: ingested.recorded,
         })
         .code(200);
     },

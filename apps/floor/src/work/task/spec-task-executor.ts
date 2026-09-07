@@ -72,6 +72,32 @@ function runningCountForGroup(
 }
 
 /** Claim one ready spec-task and dispatch its Agent CR; returns whether a CR actually started. A failure after the claim returns the task to `pending` so the next tick retries it. */
+/** Runs as an `implementation` agent, but LABELLED `spec-task`: the recipe is the same, the provenance is not, and the label is what the run page and every later query read. */
+async function runSpecTaskAgent(
+  task: ReadySpecTask,
+  brief: ReturnType<typeof specTaskBrief>,
+  defaults: AgentDispatchDefaults,
+): Promise<{ started: boolean }> {
+  const project = await projectFor(task.target_repo);
+
+  return await project.agents.run(task.id, {
+    mode: "cluster",
+    taskType: "implementation",
+    description: brief.description,
+    prompt: buildPrompt("implementation", brief.description),
+    branch: brief.branchName,
+    model: defaults.model,
+    timeoutMinutes: defaults.timeoutMinutes,
+    // extraLabels (spread last) overrides taskType so the CR's metadata label reads "spec-task", not "implementation".
+    extraLabels: {
+      "lore.re-cinq.com/task-type": "spec-task",
+      ...(brief.specSlug
+        ? { "lore.re-cinq.com/spec-slug": labelValue(brief.specSlug) }
+        : {}),
+    },
+  });
+}
+
 async function dispatchSpecTask(
   task: ReadySpecTask,
   runningByGroup: Map<string, number>,
@@ -95,23 +121,7 @@ async function dispatchSpecTask(
   const brief = specTaskBrief(task);
 
   try {
-    const project = await projectFor(task.target_repo);
-    const result = await project.agents.run(task.id, {
-      mode: "cluster",
-      taskType: "implementation",
-      description: brief.description,
-      prompt: buildPrompt("implementation", brief.description),
-      branch: brief.branchName,
-      model: defaults.model,
-      timeoutMinutes: defaults.timeoutMinutes,
-      // extraLabels (spread last) overrides taskType so the CR's metadata label reads "spec-task", not "implementation".
-      extraLabels: {
-        "lore.re-cinq.com/task-type": "spec-task",
-        ...(brief.specSlug
-          ? { "lore.re-cinq.com/spec-slug": labelValue(brief.specSlug) }
-          : {}),
-      },
-    });
+    const result = await runSpecTaskAgent(task, brief, defaults);
 
     if (!result.started) {
       console.log(

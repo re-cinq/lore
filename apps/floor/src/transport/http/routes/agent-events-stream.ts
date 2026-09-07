@@ -66,116 +66,137 @@ export interface RunEventStream {
 const bufferedBytes = (stream: PassThrough): number =>
   stream.writableLength + stream.readableLength;
 
-export function streamRunEvents(
-  stream: PassThrough,
-  deps: RunEventStreamDeps,
-): RunEventStream {
-  const pageSize = deps.pageSize ?? PAGE_SIZE;
-  const highWaterMark = deps.highWaterMark ?? HIGH_WATER_MARK;
-
-  let closed = false;
-  let live = false;
-  let cursor = deps.after;
-  const buffered: AgentRunEventRow[] = [];
+/** One subscriber's stream. Owns every piece of state the catch-up phase, the live phase and teardown all touch: whether the stream is closed, whether it has caught up, how far it has read, and what arrived while it was still reading. */
+class RunEventSession {
+  private closed = false;
+  /** False until catch-up completes; until then bus rows are buffered rather than written, so a client never sees a live row before its history. */
+  private live = false;
+  private cursor: string;
+  private readonly buffered: AgentRunEventRow[] = [];
+  private readonly pageSize: number;
+  private readonly highWaterMark: number;
 
   // Collected rather than named: the overflow callback needs `teardown`, which needs the unsubscribe the same call returns.
-  const cleanups: (() => void)[] = [];
+  private readonly cleanups: (() => void)[] = [];
 
-  const teardown = (): void => {
-    if (closed) {
+  constructor(
+    private readonly stream: PassThrough,
+    private readonly deps: RunEventStreamDeps,
+  ) {
+    this.cursor = deps.after;
+    this.pageSize = deps.pageSize ?? PAGE_SIZE;
+    this.highWaterMark = deps.highWaterMark ?? HIGH_WATER_MARK;
+  }
+
+  readonly teardown = (): void => {
+    if (this.closed) {
       return;
     }
-    closed = true;
+    this.closed = true;
 
-    for (const cleanup of cleanups.splice(0)) {
+    for (const cleanup of this.cleanups.splice(0)) {
       cleanup();
     }
-    buffered.length = 0;
-    stream.end();
+    this.buffered.length = 0;
+    this.stream.end();
   };
 
-  const write = (chunk: string): void => {
-    if (closed) {
+  private write(chunk: string): void {
+    if (this.closed) {
       return;
     }
-    stream.write(chunk);
+    this.stream.write(chunk);
 
-    if (bufferedBytes(stream) > highWaterMark) {
-      teardown();
+    if (bufferedBytes(this.stream) > this.highWaterMark) {
+      this.teardown();
     }
-  };
+  }
 
-  const deliver = (rows: readonly AgentRunEventRow[]): void => {
+  private deliver(rows: readonly AgentRunEventRow[]): void {
     for (const row of rows) {
-      if (BigInt(row.id) <= BigInt(cursor)) {
+      if (BigInt(row.id) <= BigInt(this.cursor)) {
         continue;
       }
-      cursor = row.id;
-      write(sseFrame(row));
+      this.cursor = row.id;
+      this.write(sseFrame(row));
     }
-  };
+  }
 
   // The bus's MAX_BUFFERED_EVENTS guard cannot protect this array — during catch-up the backlog sits HERE. Same cap, same recovery (end + EventSource replay).
-  const buffer = (rows: AgentRunEventRow[]): void => {
-    if (closed) {
+  private buffer(rows: AgentRunEventRow[]): void {
+    if (this.closed) {
       return;
     }
-    buffered.push(...rows);
+    this.buffered.push(...rows);
 
-    if (buffered.length > MAX_BUFFERED_EVENTS) {
-      teardown();
+    if (this.buffered.length > MAX_BUFFERED_EVENTS) {
+      this.teardown();
     }
-  };
+  }
 
-  cleanups.push(
-    deps.bus.subscribe(
-      deps.assemblyLineId,
-      (rows) => (live ? deliver(rows) : buffer(rows)),
-      teardown,
-    ),
-  );
+  subscribe(): void {
+    this.cleanups.push(
+      this.deps.bus.subscribe(
+        this.deps.assemblyLineId,
+        (rows) => (this.live ? this.deliver(rows) : this.buffer(rows)),
+        this.teardown,
+      ),
+    );
 
-  const heartbeat = setInterval(
-    () => write(sseComment("ping")),
-    deps.heartbeatMs ?? HEARTBEAT_MS,
-  );
+    const heartbeat = setInterval(
+      () => this.write(sseComment("ping")),
+      this.deps.heartbeatMs ?? HEARTBEAT_MS,
+    );
 
-  cleanups.push(() => clearInterval(heartbeat));
-  stream.on("error", teardown);
+    this.cleanups.push(() => clearInterval(heartbeat));
+    this.stream.on("error", this.teardown);
+  }
 
-  const ready = (async () => {
+  /** Reads history to the end, then flips live and flushes whatever the bus delivered meanwhile. */
+  async catchUp(): Promise<void> {
     for (;;) {
-      const page = await deps.events.listSince(
-        deps.assemblyLineId,
-        cursor,
-        pageSize,
+      const page = await this.deps.events.listSince(
+        this.deps.assemblyLineId,
+        this.cursor,
+        this.pageSize,
       );
 
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- teardown() can flip `closed` during the await above (stream error, overflow); TS's linear CFA can't see that.
-      if (closed) {
+      if (this.closed) {
         return;
       }
-      deliver(page);
+      this.deliver(page);
 
-      if (page.length < pageSize) {
+      if (page.length < this.pageSize) {
         break;
       }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- same async-flip hazard as above: closed can turn true while the loop was awaiting.
-    if (closed) {
+    if (this.closed) {
       return;
     }
-    write(
-      `event: catchup-complete\ndata: ${JSON.stringify({ lastId: cursor })}\n\n`,
+    this.write(
+      `event: catchup-complete\ndata: ${JSON.stringify({ lastId: this.cursor })}\n\n`,
     );
-    live = true;
-    deliver(buffered.splice(0));
-  })();
+    this.live = true;
+    this.deliver(this.buffered.splice(0));
+  }
+}
 
-  ready.catch(teardown);
+export function streamRunEvents(
+  stream: PassThrough,
+  deps: RunEventStreamDeps,
+): RunEventStream {
+  const session = new RunEventSession(stream, deps);
 
-  return { teardown, ready };
+  session.subscribe();
+
+  const ready = session.catchUp();
+
+  ready.catch(session.teardown);
+
+  return { teardown: session.teardown, ready };
 }
 
 type StreamRouteDeps = Pick<

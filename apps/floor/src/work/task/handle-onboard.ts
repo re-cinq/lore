@@ -29,37 +29,26 @@ import {
 
 export { ONBOARD_STATIC_FILES, ONBOARD_FILES } from "./onboard-content.js";
 
-export async function handleOnboard({
-  task,
-  targetRepo,
-  branchName,
-  model,
-  issueNumber,
-}: TaskHandlerInput): Promise<void> {
-  const project = await projectFor(targetRepo);
-
-  // 1. Pre-fetch repo context
+/** Reads the repo once and decides what onboarding still owes it. A repo that already has every file is an error rather than an empty run, because an onboard PR with no files is indistinguishable from a broken one. */
+async function planOnboarding(targetRepo: string): Promise<{
+  contextStr: string;
+  existingFiles: Set<string>;
+  toGenerate: Awaited<ReturnType<typeof planOnboardFiles>>;
+}> {
   console.log(`[floor] Onboard: fetching context for ${targetRepo}...`);
   const context = await fetchRepoContext(targetRepo);
-  const contextStr = JSON.stringify(context, null, 2);
 
   console.log(
     `[floor] Onboard: ${context.tree.length} tree entries, ${Object.keys(context.files).length} files`,
   );
 
-  // 2. Determine which files already exist
   const existingFiles = new Set([
     ...context.tree,
     ...Object.keys(context.files),
   ]);
-
-  // Check subdirectories
-  const hasAdrs =
-    context.tree.includes("adrs") || context.tree.includes("docs");
-
   const toGenerate = await planOnboardFiles(targetRepo, {
     existingFiles,
-    hasAdrs,
+    hasAdrs: context.tree.includes("adrs") || context.tree.includes("docs"),
   });
 
   enforceTrue(
@@ -70,20 +59,21 @@ export async function handleOnboard({
 
   console.log(`[floor] Onboard: generating ${toGenerate.length} files...`);
 
-  // 4. Create branch
-  await project.repo.createBranch(branchName);
-
-  const { committed, failures } = await commitOnboardFiles({
-    project,
-    branchName,
+  return {
+    contextStr: JSON.stringify(context, null, 2),
     existingFiles,
-    contextStr,
-    task,
-    model,
     toGenerate,
-  });
+  };
+}
 
-  // Configure ingest callback before opening PR so failures can be reported; never write empty vars
+/** Runs BEFORE the PR is opened so its failures can be reported in the PR body — a repo that silently never calls back is the failure this exists to make visible. */
+async function configureAndAudit(input: {
+  project: Awaited<ReturnType<typeof projectFor>>;
+  targetRepo: string;
+  task: TaskHandlerInput["task"];
+  failures: Parameters<typeof anyWorkflowsPermissionFailure>[0];
+}): Promise<{ configFailures: string[]; workflowsPermissionDenied: boolean }> {
+  const { project, targetRepo, task, failures } = input;
   const configFailures = await configureIngestCallback(project);
 
   logIngestConfigResult(targetRepo, configFailures);
@@ -97,6 +87,36 @@ export async function handleOnboard({
     configFailures,
     workflowsPermissionDenied,
   });
+
+  return { configFailures, workflowsPermissionDenied };
+}
+
+export async function handleOnboard({
+  task,
+  targetRepo,
+  branchName,
+  model,
+  issueNumber,
+}: TaskHandlerInput): Promise<void> {
+  const project = await projectFor(targetRepo);
+  const { contextStr, existingFiles, toGenerate } =
+    await planOnboarding(targetRepo);
+
+  await project.repo.createBranch(branchName);
+
+  const { committed, failures } = await commitOnboardFiles({
+    project,
+    branchName,
+    existingFiles,
+    contextStr,
+    task,
+    model,
+    toGenerate,
+  });
+
+  const { configFailures, workflowsPermissionDenied } = await configureAndAudit(
+    { project, targetRepo, task, failures },
+  );
 
   const pr = await openOnboardingPr({
     project,

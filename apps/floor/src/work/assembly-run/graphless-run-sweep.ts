@@ -38,12 +38,53 @@ export async function reapGraphlessRun(
   return sweepTerminalSingleCr(row, singleCrOpen, ctx.deps);
 }
 
+/** Nothing ever claimed it, so the run ends. Both the node and the line carry the same reason — naming the required tags is the point, exactly as on the graph arm. */
+async function failUnclaimed(
+  row: AssemblyRunRecord,
+  singleCrOpen: StationRunRecord,
+  ctx: GraphlessSweepContext,
+): Promise<void> {
+  const { deps, whyUnclaimed } = ctx;
+  const reason = whyUnclaimed(singleCrOpen.requiredTags);
+
+  await deps.assemblyRuns.finishStationRunOnce(
+    singleCrOpen.id,
+    "failed",
+    undefined,
+    { failureClass: "unclaimed", failureDetail: reason },
+  );
+  await finishLine(row, "error", reason, deps);
+}
+
+/** The claimant went offline, so the work goes back on the queue for another agent rather than failing. Audited, because a cluster agent dropping claims is a fleet symptom, not this run's problem. */
+async function requeueOffline(
+  row: AssemblyRunRecord,
+  singleCrOpen: StationRunRecord,
+  ctx: GraphlessSweepContext,
+): Promise<void> {
+  const { deps, nowMs } = ctx;
+
+  await deps.assemblyRuns.requeueStationRun(singleCrOpen.id);
+  await deps.audit?.({
+    event_type: "cluster_agent_offline",
+    payload: {
+      cluster_agent_id: singleCrOpen.clusterAgentId,
+      station_run_id: singleCrOpen.stationRunId,
+      assembly_run_id: row.id,
+      node_id: singleCrOpen.nodeId,
+      elapsed_since_claim_ms: singleCrOpen.claimedAt
+        ? nowMs - singleCrOpen.claimedAt.getTime()
+        : null,
+    },
+  });
+}
+
 async function settleUnclaimedSingleCr(
   row: AssemblyRunRecord,
   singleCrOpen: StationRunRecord,
   ctx: GraphlessSweepContext,
 ): Promise<"queue-timeout" | "requeued" | null> {
-  const { deps, offlineAgents, queueWaitMs, nowMs, whyUnclaimed } = ctx;
+  const { offlineAgents, queueWaitMs, nowMs } = ctx;
   // With no graph there is no node budget and no walk to notice — the queue wait is the only bound.
   const recovery = decideNodeRecovery({
     claimantOffline:
@@ -59,40 +100,13 @@ async function settleUnclaimedSingleCr(
   });
 
   if (recovery.kind === "queue-timeout") {
-    await deps.assemblyRuns.finishStationRunOnce(
-      singleCrOpen.id,
-      "failed",
-      undefined,
-      {
-        failureClass: "unclaimed",
-        // Naming the tags is the point, exactly as on the graph arm.
-        failureDetail: whyUnclaimed(singleCrOpen.requiredTags),
-      },
-    );
-    await finishLine(
-      row,
-      "error",
-      whyUnclaimed(singleCrOpen.requiredTags),
-      deps,
-    );
+    await failUnclaimed(row, singleCrOpen, ctx);
 
     return "queue-timeout";
   }
 
   if (recovery.kind === "requeue-offline") {
-    await deps.assemblyRuns.requeueStationRun(singleCrOpen.id);
-    await deps.audit?.({
-      event_type: "cluster_agent_offline",
-      payload: {
-        cluster_agent_id: singleCrOpen.clusterAgentId,
-        station_run_id: singleCrOpen.stationRunId,
-        assembly_run_id: row.id,
-        node_id: singleCrOpen.nodeId,
-        elapsed_since_claim_ms: singleCrOpen.claimedAt
-          ? nowMs - singleCrOpen.claimedAt.getTime()
-          : null,
-      },
-    });
+    await requeueOffline(row, singleCrOpen, ctx);
 
     return "requeued";
   }

@@ -139,6 +139,51 @@ export interface RottenAnchorReportInput {
   repo: { read(path: string, ref?: string): Promise<string | null> };
 }
 
+type SpecFile = { path: string; content: string };
+
+/** A path in the PR's file list that reads back null was deleted in this PR — there is nothing to check its anchors against. */
+async function readChangedSpecs(
+  input: RottenAnchorReportInput,
+  changed: string[],
+): Promise<SpecFile[]> {
+  const specs: SpecFile[] = [];
+
+  for (const path of changed) {
+    const content = await input.repo.read(path, input.branch);
+
+    if (content !== null) {
+      specs.push({ path, content });
+    }
+  }
+
+  return specs;
+}
+
+/** Pre-fetches every candidate target so `findRottenAnchors` stays SYNCHRONOUS — the check is pure, and the reads it needs happen here. A path that was never fetched, or fetched as missing, reads back null, which the caller treats as a dead target. */
+async function prefetchAnchorTargets(
+  input: RottenAnchorReportInput,
+  specs: SpecFile[],
+): Promise<(path: string) => string[] | null> {
+  const cache = new Map<string, string[] | null>();
+  const candidates = new Set(
+    specs.flatMap((spec) =>
+      [...spec.content.matchAll(ANCHOR)]
+        .map((match) => match[1])
+        .filter((target) => !/^[a-z]+:\/\//.test(target))
+        .flatMap((target) => targetCandidates(spec.path, target)),
+    ),
+  );
+
+  for (const candidate of candidates) {
+    cache.set(
+      candidate,
+      linesOf(await input.repo.read(candidate, input.branch)),
+    );
+  }
+
+  return (path) => cache.get(path) ?? null;
+}
+
 /** PR comment body listing rotten anchors, or null if markdown clean. */
 export async function rottenAnchorReport(
   input: RottenAnchorReportInput,
@@ -150,39 +195,8 @@ export async function rottenAnchorReport(
   if (changed.length === 0) {
     return null;
   }
-  const specs: Array<{ path: string; content: string }> = [];
-
-  for (const path of changed) {
-    const content = await input.repo.read(path, input.branch);
-
-    if (content !== null) {
-      specs.push({ path, content });
-    }
-  }
-  const cache = new Map<string, string[] | null>();
-  const readLines = (path: string): string[] | null => {
-    if (!cache.has(path)) {
-      cache.set(path, null);
-    }
-
-    return cache.get(path) ?? null;
-  };
-
-  // Pre-fetch every candidate target so findRottenAnchors stays synchronous.
-  const candidates = new Set(
-    specs.flatMap((spec) =>
-      [...spec.content.matchAll(ANCHOR)]
-        .map((match) => match[1])
-        .filter((target) => !/^[a-z]+:\/\//.test(target))
-        .flatMap((target) => targetCandidates(spec.path, target)),
-    ),
-  );
-
-  for (const candidate of candidates) {
-    const content = await input.repo.read(candidate, input.branch);
-
-    cache.set(candidate, linesOf(content));
-  }
+  const specs = await readChangedSpecs(input, changed);
+  const readLines = await prefetchAnchorTargets(input, specs);
   const rotten = findRottenAnchors(specs, readLines);
 
   if (rotten.length === 0) {
