@@ -86,11 +86,32 @@ function NodeLogBody({
 }
 
 // One collapsible live-log panel for one node's pod, read on-demand; older runs fall back to retained Cloud Logging.
-export default function NodeLogPanel({
-  assemblyLineId,
-  agentCrName,
-  label,
-}: NodeLogPanelProps) {
+/** The logs, or the message to show instead. A 403 is an ANSWER — the reader lacks access to the repo — so it comes back as text rather than as a thrown error. */
+async function readNodeLogs(
+  assemblyLineId: string,
+  agentCrName: string,
+): Promise<NodeLogsResponse | string> {
+  try {
+    const res = await fetch(nodeLogsUrl(assemblyLineId, agentCrName), {
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (res.status === 403) {
+      return "Access denied — you do not have access to this repository.";
+    }
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    return (await res.json()) as NodeLogsResponse;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+}
+
+/** Keeps this node's logs current while the card is open: fetch on first open, poll while the pod is still running, and scroll to the newest line on every arrival. A 403 is stored as a MESSAGE rather than thrown — the reader lacks access to the repo, which is an answer, not a failure. */
+function useNodeLogs(assemblyLineId: string, agentCrName: string) {
   const [open, setOpen] = useState(false);
   const [resp, setResp] = useState<NodeLogsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,26 +120,15 @@ export default function NodeLogPanel({
   const entries = useMemo(() => parseAgentLog(resp?.logs ?? ""), [resp?.logs]);
 
   const fetchLogs = useCallback(async () => {
-    try {
-      const res = await fetch(nodeLogsUrl(assemblyLineId, agentCrName), {
-        signal: AbortSignal.timeout(15_000),
-      });
+    const result = await readNodeLogs(assemblyLineId, agentCrName);
 
-      if (res.status === 403) {
-        setError("Access denied — you do not have access to this repository.");
+    if (typeof result === "string") {
+      setError(result);
 
-        return;
-      }
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      setResp((await res.json()) as NodeLogsResponse);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      return;
     }
+    setResp(result);
+    setError(null);
   }, [assemblyLineId, agentCrName]);
 
   useEffect(() => {
@@ -140,6 +150,34 @@ export default function NodeLogPanel({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [resp]);
+
+  return {
+    open,
+    setOpen,
+    resp,
+    error,
+    showRaw,
+    setShowRaw,
+    entries,
+    bottomRef,
+  };
+}
+
+export default function NodeLogPanel({
+  assemblyLineId,
+  agentCrName,
+  label,
+}: NodeLogPanelProps) {
+  const {
+    open,
+    setOpen,
+    resp,
+    error,
+    showRaw,
+    setShowRaw,
+    entries,
+    bottomRef,
+  } = useNodeLogs(assemblyLineId, agentCrName);
 
   return (
     <CollapsibleCard

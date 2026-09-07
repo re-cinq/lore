@@ -18,6 +18,24 @@ export interface RunEventStreamOptions {
 }
 
 // Subscribes to the SSE proxy while `enabled`; manual backoff covers repeated failures. Callbacks live in refs so inline-closure callers don't rebuild the socket every render.
+/** Schedules the next attempt, or gives up. Giving up returns NO timer: the caller reacts to "offline" by dropping to history-only mode, so there is nothing left to cancel. */
+function scheduleReconnect(
+  attempt: number,
+  connect: () => void,
+  onConnectionChange: (state: ConnectionState) => void,
+): ReturnType<typeof setTimeout> | null {
+  const action = reconnectAction(attempt);
+
+  if (action.kind === "give-up") {
+    onConnectionChange("offline");
+
+    return null;
+  }
+  onConnectionChange("reconnecting");
+
+  return setTimeout(connect, action.delayMs);
+}
+
 /** Opens the run's event stream and keeps it open, returning its disposer. Reconnect state lives here rather than in React state on purpose: an attempt counter that triggered a re-render would tear down the socket it is counting for. `afterId` is read as a FUNCTION so a resumed connection starts from the newest event seen, not from the id captured when the stream first opened. */
 function openRunStream(
   runId: string,
@@ -48,29 +66,22 @@ function openRunStream(
     handlers.onConnectionChange(attempt === 0 ? "connecting" : "reconnecting");
     source = new EventSource(streamUrl(runId, handlers.afterId()));
     source.addEventListener("agent-event", handleMessage);
-    source.addEventListener("catchup-complete", () => {
-      attempt = 0;
-      handlers.onConnectionChange("live");
-    });
-    source.addEventListener("open", () => {
-      attempt = 0;
-      handlers.onConnectionChange("live");
-    });
+
+    // Either signal means the connection is good, so both clear the attempt count.
+    for (const live of ["catchup-complete", "open"]) {
+      source.addEventListener(live, () => {
+        attempt = 0;
+        handlers.onConnectionChange("live");
+      });
+    }
     source.onerror = () => {
       source?.close();
       attempt += 1;
-
-      const action = reconnectAction(attempt);
-
-      // Terminal for this session — no timer scheduled; the caller reacts to "offline" by dropping to history-only mode.
-      if (action.kind === "give-up") {
-        handlers.onConnectionChange("offline");
-
-        return;
-      }
-
-      handlers.onConnectionChange("reconnecting");
-      retryTimer = setTimeout(connect, action.delayMs);
+      retryTimer = scheduleReconnect(
+        attempt,
+        connect,
+        handlers.onConnectionChange,
+      );
     };
   };
 
