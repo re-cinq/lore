@@ -506,4 +506,4 @@ to improve.
 
 - [research.md](research.md) — technology decisions and best practices
 - [data-model.md](data-model.md) — entity definitions and relationships
-- [contracts/mcp-tools.md](contracts/mcp-tools.md) — MCP tool interface contracts
+- [docs/mcp-tools.md](docs/mcp-tools.md) — MCP tool interface contracts

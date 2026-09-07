@@ -49,7 +49,7 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 
 Spec authoring is the most context-dependent step in the Lore pipeline and the
 least interactive. `feature-request`
-([handle-feature-request.ts](../apps/floor/src/application/task-processing/handle-feature-request.ts))
+([handle-feature-request.ts](../apps/floor/src/work/task/handle-feature-request.ts))
 runs one LLM pass and opens a PR — no human in the loop, no place for a draft,
 and no way to steer the architecture before the PR exists. Features themselves
 are not first-class: they are `specs/<n>-<name>/` folders *computed* into the
@@ -79,7 +79,7 @@ of truth in the graph.**
   the repo and reason over it, and finalize must commit a file; both are pod work.
 - **The planning Station starts after clone + whole-timeline context.** The pod is
   passed `LORE_FEATURE_ID`/`LORE_FEATURE_ITERATION`; context hydration
-  ([context.ts](../apps/mcp-server/src/api/routes/context.ts)) prepends the full
+  ([context.ts](../apps/lore-api/src/transport/routes/context/context.ts)) prepends the full
   feature timeline (prior rounds' results + per-section answers, read through
   `project.features`) ahead of the assembled project context, so each round builds
   on the last.

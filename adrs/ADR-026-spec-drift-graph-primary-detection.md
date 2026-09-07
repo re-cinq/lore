@@ -13,7 +13,7 @@ This ADR makes spec-drift detection decide from the statement-level spec-trace g
 ## Context
 
 The weekly `spec_drift` cron
-([spec-drift.ts](../apps/floor/src/application/jobs/cron/spec-drift.ts)) decided
+([spec-drift.ts](../libs/shared/src/work/detect/spec-drift.ts)) decided
 drift by LLM-extracting named "assertions" from a spec and checking each name
 against the code-chunk `symbol_name` set. Three failures fell out of that design,
 all visible in the [#571](https://github.com/re-cinq/lore/issues/571) batch
@@ -55,7 +55,7 @@ heuristic only as a de-noised fallback.**
   rather than filing a terminal `lore-failed`.
 - **Actionable issues.** Every drift issue lists the graph-detected drifted
   statements verbatim, carries a static remediation guidance block
-  ([drift-issue-guidance.ts](../apps/floor/src/work/spec-trace/spec-drift/drift-issue-guidance.ts)),
+  ([drift-issue-guidance.ts](../apps/floor/src/domain/drift-issue-guidance.ts)),
   attributes the creator as `spec-drift`, and links the `Lore-Task` trailer to the
   deployed task page ([issue-body.ts](../apps/floor/src/work/task/issue-body.ts)).
 
