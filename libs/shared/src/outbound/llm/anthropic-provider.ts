@@ -157,6 +157,47 @@ export class AnthropicProvider implements LlmProvider {
     );
   }
 
+  /** What every call owes regardless of shape: token usage, its cost, the persisted call record, and whether this request hit the prompt cache. The cache-break tag is computed HERE because it compares against the previous call for the same job — reading it per call site would report the wrong prefix. */
+  private async account(
+    req: LlmCompleteRequest | LlmToolRequest,
+    model: string,
+    response: Anthropic.Message,
+    call: {
+      start: number;
+      prefixHash: ReturnType<typeof computeCachePrefixHash>;
+    },
+  ): Promise<{
+    usage: ReturnType<typeof extractUsage>;
+    costUsd: number;
+    durationMs: number;
+    breakTag: string;
+  }> {
+    const durationMs = Date.now() - call.start;
+    const usage = extractUsage(response);
+    const costUsd = computeCost(model, usage);
+
+    await this.logCall(req, model, {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      costUsd,
+      durationMs,
+    });
+
+    return {
+      usage,
+      costUsd,
+      durationMs,
+      breakTag: formatBreakLogTag(
+        analyzeCacheBreak(
+          req.jobName,
+          call.prefixHash,
+          usage.cacheCreationTokens,
+          usage.cacheReadTokens,
+        ),
+      ),
+    };
+  }
+
   async complete(req: LlmCompleteRequest): Promise<LlmCompletion> {
     const model = resolveModel(req, this.model);
     const maxTokens = resolveMaxTokens(req);
@@ -171,43 +212,20 @@ export class AnthropicProvider implements LlmProvider {
         ...systemParam(req.systemPrompt, req.jobName),
         messages: [{ role: "user", content: req.prompt }],
       });
-      const durationMs = Date.now() - start;
-      const text = firstTextBlock(response);
-      const {
-        inputTokens,
-        outputTokens,
-        cacheCreationTokens,
-        cacheReadTokens,
-      } = extractUsage(response);
-      const costUsd = computeCost(model, {
-        inputTokens,
-        outputTokens,
-        cacheCreationTokens,
-        cacheReadTokens,
-      });
-      const breakAnalysis = analyzeCacheBreak(
-        req.jobName,
-        prefixHash,
-        cacheCreationTokens,
-        cacheReadTokens,
+      const { usage, costUsd, durationMs, breakTag } = await this.account(
+        req,
+        model,
+        response,
+        { start, prefixHash },
       );
 
-      await this.logCall(req, model, {
-        inputTokens,
-        outputTokens,
-        costUsd,
-        durationMs,
-      });
       console.log(
-        `[llm] call: ${model} ${inputTokens}+${outputTokens} tokens (cache ${formatBreakLogTag(breakAnalysis)} w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
+        `[llm] call: ${model} ${usage.inputTokens}+${usage.outputTokens} tokens (cache ${breakTag} w/r ${usage.cacheCreationTokens}/${usage.cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
       );
 
       return {
-        text,
-        inputTokens,
-        outputTokens,
-        cacheCreationTokens,
-        cacheReadTokens,
+        text: firstTextBlock(response),
+        ...usage,
         costUsd,
         durationMs,
         model,
@@ -245,30 +263,14 @@ export class AnthropicProvider implements LlmProvider {
         tools,
         tool_choice: { type: "tool", name: req.toolName },
       });
-      const durationMs = Date.now() - start;
-      const usage = extractUsage(response);
-      const costUsd = computeCost(model, usage);
-
-      logToolCall({
+      const { usage, costUsd, durationMs, breakTag } = await this.account(
+        req,
         model,
-        usage,
-        costUsd,
-        durationMs,
-        breakTag: formatBreakLogTag(
-          analyzeCacheBreak(
-            req.jobName,
-            prefixHash,
-            usage.cacheCreationTokens,
-            usage.cacheReadTokens,
-          ),
-        ),
-      });
-      await this.logCall(req, model, {
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        costUsd,
-        durationMs,
-      });
+        response,
+        { start, prefixHash },
+      );
+
+      logToolCall({ model, usage, costUsd, durationMs, breakTag });
 
       return {
         parsed: toolInput<T>(response),
