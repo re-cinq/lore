@@ -54,20 +54,8 @@ async function insertStart(
 }
 
 /** Fork-and-rerun (specs/fork-rerun-from-node): validates then writes line+event+inherited node rows in one CTE; agent_cr_name nulled on copies so run-viz/cost joins never misattribute to the fork. */
-async function startResumed(
-  pool: PgPool,
-  input: AssemblyRunStartInput,
-  resumeFrom: AssemblyRunResumeFrom,
-): Promise<string> {
-  const { source, prefix } = resolveResumePrefix(
-    input,
-    await getById(pool, resumeFrom.lineId),
-    await listStationRuns(pool, resumeFrom.lineId),
-  );
-  // Copy bounds on n.id <= cutoff (node-row ids are monotone in walk order); failure_class/detail/agent_cr_name dropped since they describe the finished attempt, not inherited history (replay would otherwise fail the fork on an inherited permanent-failure visit).
-  const cutoffNodeRowId = prefix[prefix.length - 1].id;
-  const { rows } = await pool.query(
-    `WITH al AS (
+/** One statement so a fork is all-or-nothing: the run row, its start event, the bus fan-out, and the copy of the inherited node rows. `failure_class`, `failure_detail` and `agent_cr_name` are deliberately dropped — they describe the attempt that finished, not history the fork inherits, and replaying them would fail the fork on an inherited permanent-failure visit. */
+const RESUME_START_SQL = `WITH al AS (
        INSERT INTO pipeline.assembly_runs
          (blueprint_name, task_id, repo, branch, args, blueprint_hash, graph,
           resumed_from_run_id, resumed_from_node_id, inherited_node_count, subject_key)
@@ -102,25 +90,37 @@ async function startResumed(
           AND n.id <= $9::bigint
         ORDER BY n.id
      )
-     SELECT id FROM al`,
-    [
-      input.blueprintName,
-      source.taskId,
-      input.repo,
-      source.branch,
-      JSON.stringify(input.args ?? source.args),
-      source.blueprintHash,
-      resumeFrom.lineId,
-      resumeFrom.nodeId,
-      cutoffNodeRowId,
-      prefix.length,
-      // A fork replays its source's rows, so it walks the same graph.
-      source.graph ? JSON.stringify(source.graph) : null,
-      // Fork takes over source's subject (legal only from a terminal run, so the key is free); `?? null` since a bound param needs a value, not undefined.
-      input.subjectKey ?? source.subjectKey ?? null,
-      resumeFrom.iteration ?? null,
-    ],
+     SELECT id FROM al`;
+
+async function startResumed(
+  pool: PgPool,
+  input: AssemblyRunStartInput,
+  resumeFrom: AssemblyRunResumeFrom,
+): Promise<string> {
+  const { source, prefix } = resolveResumePrefix(
+    input,
+    await getById(pool, resumeFrom.lineId),
+    await listStationRuns(pool, resumeFrom.lineId),
   );
+  // Copy bounds on n.id <= cutoff (node-row ids are monotone in walk order); failure_class/detail/agent_cr_name dropped since they describe the finished attempt, not inherited history (replay would otherwise fail the fork on an inherited permanent-failure visit).
+  const cutoffNodeRowId = prefix[prefix.length - 1].id;
+  const { rows } = await pool.query(RESUME_START_SQL, [
+    input.blueprintName,
+    source.taskId,
+    input.repo,
+    source.branch,
+    JSON.stringify(input.args ?? source.args),
+    source.blueprintHash,
+    resumeFrom.lineId,
+    resumeFrom.nodeId,
+    cutoffNodeRowId,
+    prefix.length,
+    // A fork replays its source's rows, so it walks the same graph.
+    source.graph ? JSON.stringify(source.graph) : null,
+    // Fork takes over source's subject (legal only from a terminal run, so the key is free); `?? null` since a bound param needs a value, not undefined.
+    input.subjectKey ?? source.subjectKey ?? null,
+    resumeFrom.iteration ?? null,
+  ]);
 
   return rows[0].id as string;
 }

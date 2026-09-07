@@ -39,19 +39,10 @@ export interface ResumePrefix {
   prefix: StationRunRecord[];
 }
 
-/** Validates a resumeFrom start against its source line and returns the inherited node rows (history through the chosen node's latest completed row, inclusive); throws before the caller writes anything. */
-export function resolveResumePrefix(
+/** A fork INHERITS the source line's branch and task, so passing either is a caller error rather than an override — silently ignoring them would fork onto the wrong branch. */
+function assertResumeInput(
   input: AssemblyRunStartInput,
-  source: AssemblyRunRecord | null,
-  nodes: StationRunRecord[],
-): ResumePrefix {
-  const resumeFrom = input.resumeFrom;
-
-  enforceTrue(
-    resumeFrom,
-    ResumeRefusedError,
-    "resolveResumePrefix called without resumeFrom",
-  );
+): asserts input is AssemblyRunStartInput & { blueprintHash: string } {
   enforceTrue(
     input.branch === undefined,
     ResumeRefusedError,
@@ -67,6 +58,14 @@ export function resolveResumePrefix(
     ResumeRefusedError,
     "resume-from start requires definitionHash — the current definition's content hash",
   );
+}
+
+/** The source must be the SAME definition, at the same content hash, and already over. A changed definition is refused rather than replayed: the prefix being reused was produced by nodes that may no longer exist. */
+function assertForkableSource(
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord | null,
+  resumeFrom: NonNullable<AssemblyRunStartInput["resumeFrom"]>,
+): asserts source is AssemblyRunRecord {
   enforceTrue(
     source,
     ResumeRefusedError,
@@ -87,16 +86,35 @@ export function resolveResumePrefix(
     ResumeRefusedError,
     `resume-from source line "${source.id}" is still ${source.status} — only a finished or failed line can be forked`,
   );
+  const sourceHash = source.blueprintHash;
+
   enforceTrue(
-    source.blueprintHash,
+    sourceHash,
     ResumeRefusedError,
     `resume-from source line "${source.id}" predates definition hashing — backfill pipeline.assembly_runs.blueprint_hash before forking it`,
   );
   enforceTrue(
-    source.blueprintHash === input.blueprintHash,
+    sourceHash === input.blueprintHash,
     ResumeRefusedError,
-    `resume-from source line "${source.id}": definition "${source.blueprintName}" has changed since that run (${short(source.blueprintHash)} ≠ ${short(input.blueprintHash)})`,
+    `resume-from source line "${source.id}": definition "${source.blueprintName}" has changed since that run (${short(sourceHash)} ≠ ${short(input.blueprintHash ?? "")})`,
   );
+}
+
+/** Validates a resumeFrom start against its source line and returns the inherited node rows (history through the chosen node's latest completed row, inclusive); throws before the caller writes anything. */
+export function resolveResumePrefix(
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord | null,
+  nodes: StationRunRecord[],
+): ResumePrefix {
+  const resumeFrom = input.resumeFrom;
+
+  enforceTrue(
+    resumeFrom,
+    ResumeRefusedError,
+    "resolveResumePrefix called without resumeFrom",
+  );
+  assertResumeInput(input);
+  assertForkableSource(input, source, resumeFrom);
 
   const cutoff = resumeCutoffIndex(
     nodes,
