@@ -20,7 +20,7 @@ export default defineConfig({
         "src/work/assembly-run/spec-pr.ts",
         "src/work/station/agent-cr-station-backend.ts",
         "src/work/station/station-run-input.ts",
-        "src/work/lib/agent-watcher-logic.ts",
+        "src/domain/agent-watcher-logic.ts",
       ],
       thresholds: {
         lines: 100,

@@ -1,5 +1,5 @@
 import { trace } from "@opentelemetry/api";
-import { writeAuditLog } from "../lib/audit.js";
+import { writeAuditLog } from "../../outbound/audit.js";
 import { pipeline } from "../../outbound/queues.js";
 import type { LeaseReaper } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js";

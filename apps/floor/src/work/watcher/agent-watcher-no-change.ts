@@ -2,8 +2,8 @@
 import { writeEpisode, errorMessage } from "@re-cinq/lore-shared";
 import { projectFor } from "../../outbound/project-boot.js";
 import { memoryLifecycle, pipeline, taskStore } from "../../outbound/queues.js";
-import { generateArtifactCopy } from "../lib/artifact-copy.js";
-import { taskPageUrl } from "../lib/agent-watcher-logic.js";
+import { generateArtifactCopy } from "../../outbound/artifact-copy.js";
+import { taskPageUrl } from "../../domain/agent-watcher-logic.js";
 import {
   type AgentContext,
   getIssueNumber,

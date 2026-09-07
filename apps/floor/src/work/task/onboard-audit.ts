@@ -6,7 +6,7 @@ import {
   type StepFailure,
 } from "@re-cinq/lore-shared";
 import { DISPATCH_LABELS } from "@re-cinq/lore-shared/task-types/dispatch-labels.js";
-import { writeAuditLog } from "../lib/audit.js";
+import { writeAuditLog } from "../../outbound/audit.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import type { TaskHandlerInput } from "./task-handler-input.js";
 

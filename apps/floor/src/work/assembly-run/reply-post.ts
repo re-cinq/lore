@@ -3,7 +3,7 @@
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { parseReviewReply } from "@re-cinq/lore-shared/review/review-reply.js";
-import { writeAuditLog } from "../lib/audit.js";
+import { writeAuditLog } from "../../outbound/audit.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 import type {

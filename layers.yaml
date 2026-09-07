@@ -67,7 +67,9 @@ layers:
       - "@re-cinq/agent-contracts"
       - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
-    # Fifteen folders, one job each.
+    # Fourteen folders, one job each — and nothing else. `work/lib` used to sit
+    # among them holding ten unrelated modules; it turned out to be a tier split
+    # rather than a shared-helper folder, and it is gone.
     work:
       - outbound
       - domain
@@ -87,7 +89,12 @@ layers:
       - "@re-cinq/lore-shared"
     # The bus contract, so a job can implement a handler without importing the
     # loop that dispatches it. A leaf with no I/O.
+    # `agent-watcher-logic` and `assembly-line-names` reason about Agent CRs and
+    # assembly-line definitions, so they name those packages. A package is not a
+    # tier above — these stay pure of I/O, which is what domain means here.
     domain:
+      - "@re-cinq/agent-contracts"
+      - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-shared"
     lib:
       - "@re-cinq/lore-shared"

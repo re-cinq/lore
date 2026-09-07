@@ -1,7 +1,7 @@
 /** Terminal Agent-run processing (ADR-031), event-driven off `kubernetes.agent.{succeeded,failed}` — never reads the cluster back, since dispatch is pull-based and the pod may have run somewhere this process can't reach. Per-outcome handling is split across agent-watcher-*.ts by job; this module holds the run-row bookkeeping and the phase dispatch that ties them together. */
 
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
-import { assemblyLineNames } from "../lib/assembly-line-names.js";
+import { assemblyLineNames } from "../../domain/assembly-line-names.js";
 import { pipeline, taskStore } from "../../outbound/queues.js";
 import {
   parseReviewResult,
@@ -10,15 +10,15 @@ import {
   dispatchFacts,
   stationOutcomeForRunOutcome,
   type AgentTerminalReport,
-} from "../lib/agent-watcher-logic.js";
+} from "../../domain/agent-watcher-logic.js";
 import { type AgentContext } from "./agent-watcher-notify.js";
 import { handleSucceededChanges } from "./agent-watcher-pr-delivery.js";
 import { handleFailure } from "./agent-watcher-failure.js";
 import { handleReviewVerdict } from "./agent-watcher-review.js";
 
-import { cleanupPerTaskToken } from "../lib/per-task-token.js";
+import { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
 
-export { cleanupPerTaskToken } from "../lib/per-task-token.js";
+export { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
 
 /** Closes a single-CR task's open run rows from the task's post-handler status; `phase` disambiguates a Failed-but-still-`running` task so it closes `failed`, not `completed`. */
 async function finishSingleCrRunRows(

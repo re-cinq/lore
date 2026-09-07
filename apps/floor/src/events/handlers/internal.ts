@@ -10,7 +10,7 @@ import { projectFor } from "../../outbound/project-boot.js";
 import { insertEvent } from "../../outbound/event-store.js";
 import { getPool } from "../../outbound/db.js";
 import { pipeline, chunks, settings } from "../../outbound/queues.js";
-import { writeAuditLog } from "../../work/lib/audit.js";
+import { writeAuditLog } from "../../outbound/audit.js";
 import type { EventHandler } from "../../domain/event-types.js";
 
 /** `internal.repo.team_changed` — relocates legacy `org_shared.chunks` rows now (rather than waiting for the nightly reindex safety net) since a team re-point makes them invisible to resolved-schema reads; errors propagate so the event loop's retry/dead-letter can handle them. org_shared → team direction only. */

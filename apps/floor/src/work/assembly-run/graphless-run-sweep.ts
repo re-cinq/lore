@@ -7,7 +7,7 @@ import { decideNodeRecovery } from "./node-recovery-decision.js";
 import {
   runOutcomeFromTaskStatus,
   stationOutcomeForRunOutcome,
-} from "../lib/agent-watcher-logic.js";
+} from "../../domain/agent-watcher-logic.js";
 import type { AssemblyLineReaperDeps } from "./assembly-run-reaper.js";
 
 export interface GraphlessSweepContext {

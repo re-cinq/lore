@@ -38,7 +38,7 @@ const writeAuditLog = vi.fn();
 vi.mock("../../outbound/project-boot.js", () => ({
   projectFor: async () => fakeProject,
 }));
-vi.mock("../lib/audit.js", () => ({
+vi.mock("../../outbound/audit.js", () => ({
   writeAuditLog: (...a: unknown[]) => writeAuditLog(...a),
 }));
 vi.mock("./repo-context.js", () => ({

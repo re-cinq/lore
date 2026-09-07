@@ -6,7 +6,7 @@ import { AssemblyLineStationBackend } from "../work/assembly-run/assembly-run-st
 import { AgentCrStationBackend } from "../work/station/agent-cr-station-backend.js";
 import { clusterAgent, pipeline, settings } from "../outbound/queues.js";
 import { useStationBackend } from "../outbound/project-boot.js";
-import { assemblyLineNames } from "../work/lib/assembly-line-names.js";
+import { assemblyLineNames } from "../domain/assembly-line-names.js";
 
 /** Station backend (ADR-031): Agent CR path; Floor reads via HttpAgentApi lister. */
 export function stationBackend(

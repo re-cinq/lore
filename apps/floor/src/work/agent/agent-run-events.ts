@@ -6,7 +6,7 @@ import type {
   AgentRunEventInsert,
   AgentRunEventType,
 } from "@re-cinq/lore-shared";
-import { truncateForStorage } from "../lib/truncate-for-storage.js";
+import { truncateForStorage } from "../../lib/truncate-for-storage.js";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
 
 const SUMMARY_MAX_CHARS = 200;

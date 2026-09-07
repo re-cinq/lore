@@ -5,7 +5,7 @@ import type {
   AssemblyRunRecord,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import { writeAuditLog } from "../lib/audit.js";
+import { writeAuditLog } from "../../outbound/audit.js";
 import { isFailureOutcome } from "./notify-failure.js";
 import {
   isReviewDefinition,

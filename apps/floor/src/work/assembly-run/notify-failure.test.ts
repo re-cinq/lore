@@ -1,7 +1,7 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import type { AuditLogEntry } from "../lib/audit.js";
+import type { AuditLogEntry } from "../../outbound/audit.js";
 import {
   isFailureOutcome,
   failureNotice,

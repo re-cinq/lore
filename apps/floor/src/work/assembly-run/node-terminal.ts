@@ -15,7 +15,7 @@ import { budgetSkipBody } from "@re-cinq/lore-shared/review/review-summary.js";
 import { usage } from "../../outbound/queues.js";
 import { publishPrCheck } from "./pr-check.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { writeAuditLog } from "../lib/audit.js";
+import { writeAuditLog } from "../../outbound/audit.js";
 import {
   prNumberFromRow,
   reviewPromptApplies,
