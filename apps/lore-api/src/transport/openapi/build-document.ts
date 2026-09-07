@@ -198,19 +198,15 @@ function addRouteOperations(
   }
 }
 
-export function generateOpenApi(
-  routes: ServerRoute[],
-  opts: GenerateOptions = {},
-): { document: OpenApiDocument; coverage: Coverage } {
-  const schemas: Record<string, JsonSchema> = {
-    Error: {
-      type: "object",
-      properties: { error: { type: "string" } },
-      required: ["error"],
-    },
-  };
-  const paths: Record<string, Record<string, Operation>> = {};
-  const coverage: Coverage = {
+/** Key-sorted copy, so a generated artifact records WHAT is served rather than the order the routes were registered in — regrouping the route list would otherwise rewrite 10k lines of JSON and drown the real diff. Plain code-unit comparison, NOT localeCompare: collation varies with the runtime's ICU data, so a laptop and CI could sort identically-named paths differently and each would read the other's output as drift. */
+function byKey<T>(entries: Record<string, T>): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(entries).sort(([a], [b]) => Number(a > b) - Number(a < b)),
+  );
+}
+
+function emptyCoverage(): Coverage {
+  return {
     covered: [],
     lifted: [],
     freeform: [],
@@ -221,24 +217,18 @@ export function generateOpenApi(
     responses: [],
     responsesMissing: [],
   };
+}
 
-  for (const route of routes) {
-    if (isExcludedPath(route.path)) {
-      coverage.excluded.push(route.path);
-      continue;
-    }
-    const normPath = normalizePath(route.path);
+/** Everything about the API that is NOT derived from walking the routes: its title, its description, and where it is served. */
+function openApiDocument(input: {
+  opts: GenerateOptions;
+  usedTags: Set<string>;
+  paths: Record<string, Record<string, Operation>>;
+  schemas: Record<string, JsonSchema>;
+}): OpenApiDocument {
+  const { opts, usedTags, paths, schemas } = input;
 
-    addRouteOperations(route, normPath, { coverage, schemas, paths });
-  }
-
-  const usedTags = new Set<string>(
-    Object.values(paths).flatMap((pathItem) =>
-      Object.values(pathItem).map((op) => op.tags[0]),
-    ),
-  );
-
-  const document: OpenApiDocument = {
+  return {
     openapi: "3.1.0",
     info: {
       title: API_TITLE,
@@ -257,13 +247,46 @@ export function generateOpenApi(
     servers: [{ url: opts.serverUrl ?? "/" }],
     // Only categories actually in use, in canonical sidebar order.
     tags: CATEGORY_ORDER.filter((c) => usedTags.has(c.name)),
-    paths,
+    paths: byKey(paths),
     components: {
       securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },
-      schemas,
+      schemas: byKey(schemas),
       responses: errorResponses(),
     },
   };
+}
+
+export function generateOpenApi(
+  routes: ServerRoute[],
+  opts: GenerateOptions = {},
+): { document: OpenApiDocument; coverage: Coverage } {
+  const schemas: Record<string, JsonSchema> = {
+    Error: {
+      type: "object",
+      properties: { error: { type: "string" } },
+      required: ["error"],
+    },
+  };
+  const paths: Record<string, Record<string, Operation>> = {};
+  const coverage = emptyCoverage();
+
+  for (const route of routes) {
+    if (isExcludedPath(route.path)) {
+      coverage.excluded.push(route.path);
+      continue;
+    }
+    const normPath = normalizePath(route.path);
+
+    addRouteOperations(route, normPath, { coverage, schemas, paths });
+  }
+
+  const usedTags = new Set<string>(
+    Object.values(paths).flatMap((pathItem) =>
+      Object.values(pathItem).map((op) => op.tags[0]),
+    ),
+  );
+
+  const document = openApiDocument({ opts, usedTags, paths, schemas });
 
   return { document, coverage };
 }
