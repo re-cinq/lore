@@ -3,9 +3,9 @@
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { writeAuditLog, type AuditLogEntry } from "../lib/audit.js";
+import { writeAuditLog, type AuditLogEntry } from "../../outbound/audit.js";
 import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js";
-import { loreTaskRef } from "../lib/task-ref.js";
+import { loreTaskRef } from "../../domain/task-ref.js";
 import {
   isReviewDefinition,
   REVIEW_RERUN_HINT,

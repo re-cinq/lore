@@ -2,7 +2,7 @@ import type {
   AuditLogEntry,
   AuditPort,
 } from "@re-cinq/lore-shared/project/audit/audit-port.js";
-import { pipeline } from "../../outbound/queues.js";
+import { pipeline } from "./queues.js";
 
 export type { AuditLogEntry };
 

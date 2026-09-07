@@ -13,7 +13,9 @@ import {
   NodeTracerProvider,
 } from "@opentelemetry/sdk-trace-node";
 
-vi.mock("../lib/audit.js", () => ({ writeAuditLog: vi.fn(async () => {}) }));
+vi.mock("../../outbound/audit.js", () => ({
+  writeAuditLog: vi.fn(async () => {}),
+}));
 
 import { evaluateAndMerge, type AutoMergeJobInputs } from "./auto-merge.js";
 

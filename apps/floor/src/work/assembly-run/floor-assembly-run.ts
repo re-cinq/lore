@@ -4,7 +4,7 @@ import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/ru
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { serializeStationInput } from "@re-cinq/lore-shared/station-input.js";
 import { builtinStationName } from "@re-cinq/lore-assembly-lines";
-import { truncateForStorage } from "../lib/truncate-for-storage.js";
+import { truncateForStorage } from "../../lib/truncate-for-storage.js";
 import {
   boundedStationRunInput,
   INPUT_PARAM_MAX_BYTES,

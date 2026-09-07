@@ -8,13 +8,13 @@ import type {
 import { REVIEW_HELP } from "@re-cinq/lore-shared/review/review-summary.js";
 import type { TriageAction } from "@re-cinq/lore-shared/review/comment-triage.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { shouldAutoReview } from "../lib/should-auto-review.js";
-import { loreTaskRef } from "../lib/task-ref.js";
+import { shouldAutoReview } from "../../outbound/should-auto-review.js";
+import { loreTaskRef } from "../../domain/task-ref.js";
 import { reviewSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 
 import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
 import type { ClosedRunRef } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { cleanupPerTaskToken } from "../lib/per-task-token.js";
+import { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
 import {
   decideReviewOnOpen,
   decideReviewOnReply,

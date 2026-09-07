@@ -1,19 +1,19 @@
 // Turning a succeeded run with code changes into an open PR: changed-file count, PR body, cross-links, the auto-merge CI gate, and opt-in auto-review.
-import { cleanupPerTaskToken } from "../lib/per-task-token.js";
+import { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
 import { startEscalationLine } from "@re-cinq/lore-shared/escalation/start-escalation-line.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { memoryLifecycle, pipeline, taskStore } from "../../outbound/queues.js";
 import { writeEpisodeWithCuration, errorMessage } from "@re-cinq/lore-shared";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import { prFooter, linkifyMarkdown } from "@re-cinq/lore-shared";
-import { generateArtifactCopy } from "../lib/artifact-copy.js";
-import { shouldAutoReview } from "../lib/should-auto-review.js";
+import { generateArtifactCopy } from "../../outbound/artifact-copy.js";
+import { shouldAutoReview } from "../../outbound/should-auto-review.js";
 import {
   decideCiGate,
   decideFeatureLink,
   taskPageUrl,
   stampPrOnOpenRuns,
-} from "../lib/agent-watcher-logic.js";
+} from "../../domain/agent-watcher-logic.js";
 import {
   type AgentContext,
   getIssueNumber,

@@ -4,7 +4,7 @@ import {
   type Project,
   type StationCompletion,
 } from "@re-cinq/lore-shared";
-import { generateArtifactCopy } from "../lib/artifact-copy.js";
+import { generateArtifactCopy } from "../../outbound/artifact-copy.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
 /** After a failed planning round, revert to 'draft' ONLY when no round ever produced a result — never badge a failed feature 'awaiting-input'. */

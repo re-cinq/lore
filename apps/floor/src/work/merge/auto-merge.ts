@@ -5,7 +5,7 @@ import {
   type ResolvedDarkFactorySettings,
 } from "@re-cinq/lore-shared";
 import { withBackoff } from "@re-cinq/lore-shared/lib/backoff.js";
-import { writeAuditLog } from "../lib/audit.js";
+import { writeAuditLog } from "../../outbound/audit.js";
 import { projectFor } from "../../outbound/project-boot.js";
 
 const tracer = trace.getTracer("lore.auto_merge");

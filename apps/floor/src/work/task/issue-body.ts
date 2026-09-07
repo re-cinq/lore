@@ -1,11 +1,11 @@
 /** Pure composition of a Lore-managed GitHub issue body; appended *after* the LLM copy pass, which compresses the body and strips trailers. */
 
-import { loreTaskRef } from "../lib/task-ref.js";
+import { loreTaskRef } from "../../domain/task-ref.js";
 import {
   isDriftTask,
   DRIFT_ISSUE_GUIDANCE,
   type DriftTaskLike,
-} from "../lib/drift-issue-guidance.js";
+} from "../../domain/drift-issue-guidance.js";
 
 export interface IssueComposeTask extends DriftTaskLike {
   id: string;

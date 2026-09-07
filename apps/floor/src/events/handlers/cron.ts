@@ -75,7 +75,7 @@ export const assemblyLineReaper: EventHandler = async () => {
     import("../../work/assembly-run/node-event-handler.js"),
     import("../../outbound/queues.js"),
   ]);
-  const { writeAuditLog } = await import("../../work/lib/audit.js");
+  const { writeAuditLog } = await import("../../outbound/audit.js");
   const summary = await assemblyLineReaperJob({
     ...(await productionNodeEventDeps()),
     taskStatus: async (taskId) =>

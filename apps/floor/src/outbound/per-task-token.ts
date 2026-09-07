@@ -1,7 +1,7 @@
 /** Best-effort per-task token + AgentDefinition/Station cleanup (#697). A job service: the watcher reclaims it when a task settles, the walk when a whole line is done, and the review line when its own run ends. */
 
 import { HttpTokenCleanup } from "@re-cinq/lore-shared";
-import { clusterAgent } from "../../outbound/queues.js";
+import { clusterAgent } from "./queues.js";
 
 export function cleanupPerTaskToken(taskId: string): Promise<void> {
   return new HttpTokenCleanup(clusterAgent()).cleanup(taskId).catch((err) =>

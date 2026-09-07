@@ -16,7 +16,7 @@ import {
 } from "../../../work/agent/agent-events.js";
 import { agentEventBus } from "../../../work/agent/agent-event-bus.js";
 import { MAX_RUN_TURNS_PER_BATCH } from "../../../work/agent/agent-run-turns.js";
-import { writeAuditLog } from "../../../work/lib/audit.js";
+import { writeAuditLog } from "../../../outbound/audit.js";
 import { rawBody } from "../raw-body.js";
 import type {
   AgentRunEventInsert,

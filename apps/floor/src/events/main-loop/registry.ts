@@ -1,12 +1,12 @@
 /** The event registry (layer 2 → layer 3): maps a fully-qualified event_name to exactly one handler; a producer emitting an unregistered name dead-letters with "no handler". */
 
 import type { EventHandler } from "../../domain/event-types.js";
-import * as github from "../../events/handlers/github.js";
-import * as internal from "../../events/handlers/internal.js";
-import * as cron from "../../events/handlers/cron.js";
+import * as github from "../handlers/github.js";
+import * as internal from "../handlers/internal.js";
+import * as cron from "../handlers/cron.js";
 import * as detect from "../../work/detect/fan-out.js";
 import { implementationLoopTick } from "../../work/backlog/implementation-loop.js";
-import * as kubernetes from "../../events/handlers/kubernetes.js";
+import * as kubernetes from "../handlers/kubernetes.js";
 import { assemblyLineStart } from "../../work/assembly-run/start-event-handler.js";
 import { assemblyLineResume } from "../../work/assembly-run/resume-event-handler.js";
 import {

@@ -4,7 +4,7 @@ import type { PipelineTask } from "@re-cinq/lore-shared";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
-import { generateArtifactCopy } from "../lib/artifact-copy.js";
+import { generateArtifactCopy } from "../../outbound/artifact-copy.js";
 import { pipeline } from "../../outbound/queues.js";
 import { composeIssueBody } from "./issue-body.js";
 import { setStatus, insertEvent } from "./task-helpers.js";

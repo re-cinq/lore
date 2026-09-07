@@ -1,4 +1,4 @@
-import { settings } from "../../outbound/queues.js";
+import { settings } from "./queues.js";
 
 /** The per-repo `auto_review` opt-in as a pure predicate testable without the DB; {@link shouldAutoReview} is the DB-backed wrapper. */
 export function autoReviewEnabled(rawSettings: unknown): boolean {

@@ -1,6 +1,6 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import { chunks, settings } from "../../../outbound/queues.js";
-import { writeAuditLog } from "../../lib/audit.js";
+import { writeAuditLog } from "../../../outbound/audit.js";
 import {
   classifyFile,
   CHUNKER_VERSION,

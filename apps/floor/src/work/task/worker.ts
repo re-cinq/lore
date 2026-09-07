@@ -1,5 +1,5 @@
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { taskPageUrl } from "../lib/agent-watcher-logic.js";
+import { taskPageUrl } from "../../domain/agent-watcher-logic.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /** Core task processing worker: polls pipeline.tasks, dispatches to the LLM, creates branches + PRs. */
@@ -29,8 +29,8 @@ export { handleFeatureRequest } from "./handle-feature-request.js";
 export { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 export { handleOnboard } from "./handle-onboard.js";
 
-export { isFeatureLifecycleType } from "../lib/task-lifecycle-type.js";
-import { isFeatureLifecycleType } from "../lib/task-lifecycle-type.js";
+export { isFeatureLifecycleType } from "../../domain/task-lifecycle-type.js";
+import { isFeatureLifecycleType } from "../../domain/task-lifecycle-type.js";
 
 // ── Crash recovery ────────────────────────────────────────────────────
 
