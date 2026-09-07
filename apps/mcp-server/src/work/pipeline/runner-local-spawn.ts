@@ -94,6 +94,89 @@ function addWorktree(opts: {
   });
 }
 
+/** Starts the process, and takes the worktree back down if it never came up — a worktree with no run behind it is invisible work holding a branch name nobody will reuse. */
+function spawnOrUnwind(
+  run: { worktreePath: string; logFile: string; model: string; prompt: string },
+  repoRoot: string,
+): number {
+  const pid = spawnRun(
+    run.worktreePath,
+    run.logFile,
+    run.model,
+    withLoreWorkflowPreamble(run.prompt),
+  );
+
+  if (pid === undefined) {
+    removeWorktreeAt(repoRoot, run.worktreePath);
+
+    throw new Error("Failed to spawn Claude Code process");
+  }
+
+  return pid;
+}
+
+/** Where one local run lives. The branch carries the task-id suffix so two runs of the same description never collide, and both the worktree and the log sit OUTSIDE the checkout — anything written inside it becomes noise in the PR (#250). */
+function runPaths(run: { taskId: string; prompt: string; taskType: string }): {
+  branch: string;
+  worktreePath: string;
+  logFile: string;
+} {
+  const { taskId, prompt, taskType } = run;
+
+  return {
+    branch: `lore/${taskType}/${slugify(prompt.substring(0, 60))}-${taskId.substring(0, 8)}`,
+    worktreePath: path.join(WORKTREES_DIR, taskId),
+    logFile: path.join(LOGS_DIR, `${taskId}.log`),
+  };
+}
+
+/** Creates the worktree, starts the run, and takes the worktree back down if the process never started — a worktree with no run behind it is invisible work that blocks the branch name. */
+function startRun(
+  run: {
+    taskId: string;
+    prompt: string;
+    repo: string;
+    taskType: string;
+    model?: string;
+  },
+  repoRoot: string,
+): LocalTask {
+  const { taskId, prompt, repo, model } = run;
+  const { branch, worktreePath, logFile } = runPaths(run);
+
+  addWorktree({ repoRoot, worktreePath, branch, taskId });
+
+  const pid = spawnOrUnwind(
+    { worktreePath, logFile, model: model || readConfig().model, prompt },
+    repoRoot,
+  );
+
+  return {
+    taskId,
+    pid,
+    branch,
+    repo,
+    worktreePath,
+    logFile,
+    startedAt: new Date().toISOString(),
+    status: "running",
+  };
+}
+
+/** Best-effort: the task is already recorded as cancelled, so a worktree that will not go quietly is a message rather than a failed cancellation. */
+function discardWorktree(worktreePath: string, taskId: string): void {
+  try {
+    execSync(`git worktree remove "${worktreePath}" --force`, {
+      stdio: "pipe",
+      timeout: 10000,
+    });
+  } catch {
+    console.error(
+      `[lore] local-runner: could not remove worktree for ${taskId}`,
+    );
+  }
+}
+
 export async function spawnLocalTask(opts: {
   taskId: string;
   prompt: string;
@@ -116,34 +199,10 @@ export async function spawnLocalTask(opts: {
   // Refuse to run if the developer's cwd is a checkout of a different repo than the task's target_repo.
   validateRepoMatch(repo, detectRepo());
 
-  const branch = `lore/${taskType}/${slugify(prompt.substring(0, 60))}-${taskId.substring(0, 8)}`;
-  const worktreePath = path.join(WORKTREES_DIR, taskId);
-  const logFile = path.join(LOGS_DIR, `${taskId}.log`);
-
-  addWorktree({ repoRoot, worktreePath, branch, taskId });
-
-  const pid = spawnRun(
-    worktreePath,
-    logFile,
-    model || readConfig().model,
-    withLoreWorkflowPreamble(prompt),
+  const taskMeta = startRun(
+    { taskId, prompt, repo, taskType, model },
+    repoRoot,
   );
-
-  if (pid === undefined) {
-    removeWorktreeAt(repoRoot, worktreePath);
-
-    throw new Error("Failed to spawn Claude Code process");
-  }
-  const taskMeta: LocalTask = {
-    taskId,
-    pid,
-    branch,
-    repo,
-    worktreePath,
-    logFile,
-    startedAt: new Date().toISOString(),
-    status: "running",
-  };
   // Task metadata goes into ~/.lore/local-tasks.json only, never inside the worktree — writing it there previously caused noise PRs (#250).
   const tasks = readTasks();
 
@@ -191,7 +250,7 @@ export function cancelLocalTask(taskId: string): {
     return { cancelled: false, error: `Task is ${task.status}` };
   }
 
-  // Kill the process
+  // A process that is already gone is the ordinary case, not a failure to cancel.
   try {
     process.kill(task.pid, "SIGTERM");
   } catch {
@@ -201,18 +260,7 @@ export function cancelLocalTask(taskId: string): {
   task.status = "failed";
   task.error = "Cancelled by user";
   writeTasks(tasks);
-
-  // Clean up worktree (best effort)
-  try {
-    execSync(`git worktree remove "${task.worktreePath}" --force`, {
-      stdio: "pipe",
-      timeout: 10000,
-    });
-  } catch {
-    console.error(
-      `[lore] local-runner: could not remove worktree for ${taskId}`,
-    );
-  }
+  discardWorktree(task.worktreePath, taskId);
 
   // Update pipeline status (fire and forget)
   updateTaskViaAPI(taskId, "cancelled", {}).catch((err) =>

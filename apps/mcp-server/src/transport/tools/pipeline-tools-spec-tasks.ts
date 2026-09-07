@@ -15,6 +15,15 @@ import {
   CLAIM_TASK_INPUT,
 } from "./pipeline-tools-schemas.js";
 
+/** Reports parsing nothing as its own outcome, not as a sync of zero: an unparsed tasks.md is a markdown problem the caller can fix, while "synced 0" reads as the file being empty. */
+function syncSummary(body: unknown, repo: string, specSlug: string): string {
+  const sync = body as SyncTasksResponse;
+
+  return sync.parsed === 0
+    ? "No tasks found in the provided markdown."
+    : `Synced ${sync.synced} tasks (${sync.created} new) for ${repo} / ${specSlug}.`;
+}
+
 function registerSyncTasksTool(server: McpServer) {
   server.tool(
     "lore_sync_tasks",
@@ -37,13 +46,7 @@ function registerSyncTasksTool(server: McpServer) {
         {
           op: "syncing spec-tasks",
           toolName: "lore_sync_tasks",
-          render: (body) => {
-            const sync = body as SyncTasksResponse;
-
-            return sync.parsed === 0
-              ? "No tasks found in the provided markdown."
-              : `Synced ${sync.synced} tasks (${sync.created} new) for ${resolvedRepo} / ${spec_slug}.`;
-          },
+          render: (body) => syncSummary(body, resolvedRepo, spec_slug),
         },
       );
     },

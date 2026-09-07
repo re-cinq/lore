@@ -62,6 +62,29 @@ async function pendingFromDb(
   }
 }
 
+/** The unfiltered pending list. Returns nothing rather than throwing on a non-ok response — the caller's whole contract is that a poll never surfaces an error. */
+async function fetchPendingRows(
+  apiUrl: string,
+  token: string,
+): Promise<PendingTaskRow[]> {
+  const resp = await fetch(`${apiUrl}/api/task`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action: "list", status: "pending" }),
+  });
+
+  if (!resp.ok) {
+    return [];
+  }
+  const body = (await resp.json()) as { tasks?: PendingTaskRow[] };
+
+  return body.tasks || [];
+}
+
 async function pendingFromApi(
   repos: string[],
   taskTypes: string[],
@@ -73,24 +96,12 @@ async function pendingFromApi(
     return [];
   }
 
+  // Every failure yields an empty list: this runs on a poll, and a statusline that briefly shows nothing beats one that shows an error.
   try {
-    const resp = await fetch(`${apiUrl}/api/task`, {
-      signal: AbortSignal.timeout(30_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ action: "list", status: "pending" }),
-    });
-
-    if (!resp.ok) {
-      return [];
-    }
-    const body = (await resp.json()) as { tasks?: PendingTaskRow[] };
+    const rows = await fetchPendingRows(apiUrl, token);
 
     // The API answers with every pending task; the repo/type filter the SQL did is applied here instead.
-    return (body.tasks || [])
+    return rows
       .filter(
         (t) => repos.includes(t.target_repo) && taskTypes.includes(t.task_type),
       )

@@ -133,30 +133,41 @@ function turnLinesToRelay(task: LocalTask, rawLogs: string): string[] {
   return kept;
 }
 
+/** Sends one NDJSON batch. `x-turn-offset` is what makes a resend idempotent — the server keys on it, so a retried batch replaces rather than duplicates. */
+async function postTurns(
+  relay: { apiUrl: string; token: string; task: LocalTask },
+  batch: string[],
+  offset: number,
+): Promise<void> {
+  const { apiUrl, token, task } = relay;
+  const resp = await fetch(`${apiUrl}/api/task-turns/${task.taskId}`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/x-ndjson",
+      "x-turn-offset": String(offset),
+    },
+    body: batch.join("\n"),
+  });
+
+  if (!resp.ok) {
+    throw new Error(
+      `turn ingest returned ${resp.status} for task ${task.taskId}`,
+    );
+  }
+}
+
 async function postTurnBatch(
   relay: { apiUrl: string; token: string; task: LocalTask },
   batch: string[],
   offset: number,
 ): Promise<boolean> {
-  const { apiUrl, token, task } = relay;
+  const { task } = relay;
 
+  // Best-effort by contract: the transcript is observability, and losing a batch of it must never fail the run that produced it.
   try {
-    const resp = await fetch(`${apiUrl}/api/task-turns/${task.taskId}`, {
-      signal: AbortSignal.timeout(30_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/x-ndjson",
-        "x-turn-offset": String(offset),
-      },
-      body: batch.join("\n"),
-    });
-
-    if (!resp.ok) {
-      throw new Error(
-        `turn ingest returned ${resp.status} for task ${task.taskId}`,
-      );
-    }
+    await postTurns(relay, batch, offset);
 
     return true;
   } catch (err) {

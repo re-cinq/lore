@@ -95,6 +95,71 @@ function wrongRepoWarning(description: string, repo: string): string | null {
   return `Warning: This task references ${repoRefMatch[1]} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoRefMatch[1].split("/")[1]} && claude`;
 }
 
+/** Starts a brand-new task here. The pipeline row is created first so the task has an id the org can see; offline it falls back to a generated uuid rather than refusing to run, because the worktree run is the point and the row is bookkeeping. */
+async function runTaskLocally(args: {
+  description: string;
+  task_type: string;
+  model?: string;
+}) {
+  const { spawnLocalTask, detectRepo, getRepoRoot } =
+    await import("../../work/pipeline/runner.local.js");
+  const repo = detectRepo();
+
+  if (!repo) {
+    return textResult("Error: not in a git repository with a GitHub remote");
+  }
+  // Refuses a description that names a DIFFERENT repo than the one you are standing in — the run would push to the wrong place.
+  const warning = wrongRepoWarning(args.description, repo);
+
+  if (warning) {
+    return textResult(warning);
+  }
+  const taskId =
+    (await createPipelineTaskViaApi(args.description, args.task_type, repo)) ??
+    crypto.randomUUID();
+  const task = await spawnLocalTask({
+    taskId,
+    prompt: args.description,
+    repo,
+    taskType: args.task_type,
+    model: args.model,
+    repoRoot: getRepoRoot() || undefined,
+  });
+
+  return textResult(
+    `Task running locally in background.\n\nTask ID: ${task.taskId}\nBranch: ${task.branch}\nWorktree: ${task.worktreePath}\nLogs: ${task.logFile}\nPID: ${task.pid}\n\nYour session continues normally. Watch progress in the statusline.`,
+  );
+}
+
+/** Takes an EXISTING pending task. The claim is best-effort but the skip is not: leaving it on the pending list after the worktree has started is how two machines end up running the same task. */
+async function claimAndRunLocally(args: { task_id: string; model?: string }) {
+  const { spawnLocalTask, getRepoRoot, skipTask, listPendingTasks } =
+    await import("../../work/pipeline/runner.local.js");
+  const task = await resolvePendingTask(args.task_id, listPendingTasks());
+
+  if (!task) {
+    return textResult(
+      `Task ${args.task_id} not found or not in pending status. Run lore_list_pending_tasks first.`,
+    );
+  }
+  await claimTaskBestEffort(task.id);
+
+  const localTask = await spawnLocalTask({
+    taskId: task.id,
+    prompt: task.description,
+    repo: task.target_repo,
+    taskType: task.task_type,
+    model: args.model,
+    repoRoot: getRepoRoot() || undefined,
+  });
+
+  skipTask(task.id);
+
+  return textResult(
+    `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
+  );
+}
+
 function registerRunTaskLocallyTool(server: McpServer) {
   server.tool(
     "lore_run_task_locally",
@@ -102,41 +167,7 @@ function registerRunTaskLocallyTool(server: McpServer) {
     RUN_TASK_LOCALLY_INPUT,
     async (args) => {
       try {
-        const { spawnLocalTask, detectRepo, getRepoRoot } =
-          await import("../../work/pipeline/runner.local.js");
-        const repo = detectRepo();
-
-        if (!repo) {
-          return textResult(
-            "Error: not in a git repository with a GitHub remote",
-          );
-        }
-        const warning = wrongRepoWarning(args.description, repo);
-
-        if (warning) {
-          return textResult(warning);
-        }
-
-        // Create pipeline task via API; fall back to a generated UUID offline.
-        const taskId =
-          (await createPipelineTaskViaApi(
-            args.description,
-            args.task_type,
-            repo,
-          )) ?? crypto.randomUUID();
-
-        const task = await spawnLocalTask({
-          taskId,
-          prompt: args.description,
-          repo,
-          taskType: args.task_type,
-          model: args.model,
-          repoRoot: getRepoRoot() || undefined,
-        });
-
-        return textResult(
-          `Task running locally in background.\n\nTask ID: ${task.taskId}\nBranch: ${task.branch}\nWorktree: ${task.worktreePath}\nLogs: ${task.logFile}\nPID: ${task.pid}\n\nYour session continues normally. Watch progress in the statusline.`,
-        );
+        return await runTaskLocally(args);
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }
@@ -203,31 +234,7 @@ function registerClaimAndRunLocallyTool(server: McpServer) {
     CLAIM_AND_RUN_LOCALLY_INPUT,
     async (args) => {
       try {
-        const { spawnLocalTask, getRepoRoot, skipTask, listPendingTasks } =
-          await import("../../work/pipeline/runner.local.js");
-        const task = await resolvePendingTask(args.task_id, listPendingTasks());
-
-        if (!task) {
-          return textResult(
-            `Task ${args.task_id} not found or not in pending status. Run lore_list_pending_tasks first.`,
-          );
-        }
-        await claimTaskBestEffort(task.id);
-
-        const localTask = await spawnLocalTask({
-          taskId: task.id,
-          prompt: task.description,
-          repo: task.target_repo,
-          taskType: task.task_type,
-          model: args.model,
-          repoRoot: getRepoRoot() || undefined,
-        });
-
-        skipTask(task.id);
-
-        return textResult(
-          `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
-        );
+        return await claimAndRunLocally(args);
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }

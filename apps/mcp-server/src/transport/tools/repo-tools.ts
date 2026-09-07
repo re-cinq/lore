@@ -78,35 +78,72 @@ function repoPage(
   return { repos, total };
 }
 
+/** Walks every page. The API caps one response at 100, so an org with more repos than that would silently see only the first page; `total` ends the walk even when a page comes back exactly full. */
+async function walkRepoPages(): Promise<
+  | { repos: unknown[]; total: number }
+  | { failure: ReturnType<typeof proxyFailure> }
+> {
+  const pageSize = 100;
+  const repos: unknown[] = [];
+
+  for (let offset = 0; ; offset += pageSize) {
+    const proxied = await proxyGetApi(
+      `/api/repos?limit=${pageSize}&offset=${offset}`,
+    );
+
+    if (!proxied.ok) {
+      return {
+        failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied),
+      };
+    }
+    const page = repoPage(proxied.body, repos.length);
+
+    repos.push(...page.repos);
+
+    if (page.repos.length < pageSize || repos.length >= page.total) {
+      return { repos, total: page.total };
+    }
+  }
+}
+
+/** Ingests now rather than waiting for the nightly pass, then drops the assemble cache for that repo — a freshly merged ADR that the next bundle does not contain is the whole reason somebody reaches for this tool. */
+async function ingestFiles(files: string[], repo?: string) {
+  const resolvedRepo = repo || detectCurrentRepo();
+
+  if (!resolvedRepo) {
+    return textResult(
+      "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
+    );
+  }
+  const credentials = ingestCredentials();
+
+  if (!credentials) {
+    return textResult(
+      "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
+    );
+  }
+  const commit = await resolveCommitSha(resolvedRepo);
+  const outcome = await postIngest(credentials, files, resolvedRepo, commit);
+
+  if (outcome.ingested) {
+    invalidateCache(["lore_assemble_context"], resolvedRepo);
+  }
+
+  return textResult(outcome.message);
+}
+
 function registerListReposTool(server: McpServer) {
   server.tool(
     "lore_list_repos",
     `Lists every repo onboarded into Lore as JSON ({ repos, total }) with per-repo metadata and pipeline task count. Pages through all repos automatically. Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.`,
     {},
     async () => {
-      // The API caps a single response at 100, so walk the offset — an org with >100 repos would otherwise silently see only the first page.
-      const pageSize = 100;
-      const repos: unknown[] = [];
-      let total: number;
+      const walked = await walkRepoPages();
 
-      for (let offset = 0; ; offset += pageSize) {
-        const proxied = await proxyGetApi(
-          `/api/repos?limit=${pageSize}&offset=${offset}`,
-        );
-
-        if (!proxied.ok) {
-          return proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied);
-        }
-
-        const page = repoPage(proxied.body, repos.length);
-
-        repos.push(...page.repos);
-        total = page.total;
-
-        if (page.repos.length < pageSize || repos.length >= total) {
-          break;
-        }
+      if ("failure" in walked) {
+        return walked.failure;
       }
+      const { repos, total } = walked;
 
       if (repos.length === 0) {
         return textResult(
@@ -231,35 +268,7 @@ function registerIngestFilesTool(server: McpServer) {
     INGEST_FILES_INPUT,
     async ({ files, repo }) => {
       try {
-        const resolvedRepo = repo || detectCurrentRepo();
-
-        if (!resolvedRepo) {
-          return textResult(
-            "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
-          );
-        }
-
-        const credentials = ingestCredentials();
-
-        if (!credentials) {
-          return textResult(
-            "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
-          );
-        }
-
-        const commit = await resolveCommitSha(resolvedRepo);
-        const outcome = await postIngest(
-          credentials,
-          files,
-          resolvedRepo,
-          commit,
-        );
-
-        if (outcome.ingested) {
-          invalidateCache(["lore_assemble_context"], resolvedRepo);
-        }
-
-        return textResult(outcome.message);
+        return await ingestFiles(files, repo);
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }

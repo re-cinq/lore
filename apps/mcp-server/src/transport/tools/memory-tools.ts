@@ -84,42 +84,68 @@ function resolveVersionParam(
   return version ? Number(version) : undefined;
 }
 
+/** What these tools resolve to. `textResult` returns a one-element tuple and the proxy interpreter returns an array; naming the wider shape lets both flow out of one function. */
+type ToolText = { content: Array<{ type: "text"; text: string }> };
+
+/** Every memory read answers the same way: the cached proxy first, the server's own answer when it has one, and the local `~/.lore/memory` store when it does not. That fallback is why these tools still answer on a laptop with no API configured. */
+async function cachedMemoryRead(
+  spec: {
+    tool: string;
+    op: "read" | "list" | "search";
+    args: Record<string, unknown>;
+    repo?: string;
+  },
+  fromFile: () => ToolText,
+): Promise<ToolText> {
+  const proxied = await withReadCache(
+    {
+      tool: spec.tool,
+      args: spec.args,
+      repo: spec.repo,
+      ttlSeconds: 300,
+    },
+    () => proxyMemory(spec.op, spec.args),
+  );
+
+  return interpretMemoryProxy(spec.tool, proxied) ?? fromFile();
+}
+
+/** The exact-key read. A miss is reported as a miss rather than an error — asking for a key that is not there is an ordinary answer. */
+async function readMemory(args: {
+  key: string;
+  agent_id?: string;
+  version?: string;
+}) {
+  const { key, agent_id, version } = args;
+
+  return cachedMemoryRead(
+    {
+      tool: "lore_read_memory",
+      op: "read",
+      args: { key, agent_id: agent_id || resolveAgentId(), version },
+    },
+    () => {
+      const result = readMemoryFile(
+        key,
+        agent_id,
+        resolveVersionParam(version),
+      );
+
+      return result
+        ? textResult(JSON.stringify(result, null, 2))
+        : textResult(`Memory "${key}" not found.`);
+    },
+  );
+}
+
 function registerReadMemoryTool(server: McpServer) {
   server.tool(
     "lore_read_memory",
     `Fetches one memory by its exact key and returns the stored row as JSON (latest version by default, or full history/specific version on request). Use only when you already know the precise key. Instead: lore_search_memory when searching by meaning; lore_list_memories to enumerate keys.`,
     READ_MEMORY_INPUT,
-    async ({ key, agent_id, version }) => {
+    async (args) => {
       try {
-        const proxied = await withReadCache(
-          {
-            tool: "lore_read_memory",
-            args: { key, agent_id: agent_id || resolveAgentId(), version },
-            ttlSeconds: 300,
-          },
-          () =>
-            proxyMemory("read", {
-              key,
-              agent_id: agent_id || resolveAgentId(),
-              version,
-            }),
-        );
-        const handled = interpretMemoryProxy("lore_read_memory", proxied);
-
-        if (handled) {
-          return handled;
-        }
-        const result = readMemoryFile(
-          key,
-          agent_id,
-          resolveVersionParam(version),
-        );
-
-        if (!result) {
-          return textResult(`Memory "${key}" not found.`);
-        }
-
-        return textResult(JSON.stringify(result, null, 2));
+        return await readMemory(args);
       } catch (err) {
         return textResult(`Error reading memory: ${errorMessage(err)}`);
       }
@@ -164,34 +190,60 @@ function registerListMemoriesTool(server: McpServer) {
     LIST_MEMORIES_INPUT,
     async ({ agent_id, limit, offset }) => {
       try {
+        // The detected repo scopes the listing; without one it falls back to the agent, then org-wide.
         const repo = detectCurrentRepo() || undefined;
 
-        const proxied = await withReadCache(
+        return await cachedMemoryRead(
           {
             tool: "lore_list_memories",
+            op: "list",
             args: { agent_id: agent_id || undefined, limit, repo },
-            repo: repo || undefined,
-            ttlSeconds: 300,
+            repo,
           },
           () =>
-            proxyMemory("list", {
-              agent_id: agent_id || undefined,
-              limit,
-              repo,
-            }),
+            textResult(
+              JSON.stringify(
+                listMemoriesFile(agent_id, limit, offset),
+                null,
+                2,
+              ),
+            ),
         );
-        const handled = interpretMemoryProxy("lore_list_memories", proxied);
-
-        if (handled) {
-          return handled;
-        }
-        const result = listMemoriesFile(agent_id, limit, offset);
-
-        return textResult(JSON.stringify(result, null, 2));
       } catch (err) {
         return textResult(`Error listing memories: ${errorMessage(err)}`);
       }
     },
+  );
+}
+
+/** Semantic search, or substring matching when it falls back — the file store holds no embeddings, so a laptop with no API gets a strictly weaker answer rather than none. */
+async function searchMemory(args: {
+  query: string;
+  agent_id?: string;
+  pool?: string;
+  limit: number;
+  include_invalidated?: boolean;
+  graph_augment?: boolean;
+}): Promise<ToolText> {
+  const { query, agent_id, pool, limit } = args;
+
+  return cachedMemoryRead(
+    {
+      tool: "lore_search_memory",
+      op: "search",
+      args: {
+        query,
+        agent_id: agent_id || undefined,
+        pool_name: pool,
+        limit,
+        include_invalidated: args.include_invalidated,
+        graph_augment: args.graph_augment,
+      },
+    },
+    () =>
+      textResult(
+        JSON.stringify(searchMemoryFile(query, agent_id, limit), null, 2),
+      ),
   );
 }
 
@@ -200,39 +252,9 @@ function registerSearchMemoryTool(server: McpServer) {
     "lore_search_memory",
     `Semantic (vector + keyword) search across org-wide memories and extracted facts; returns a relevance-ranked array of {key, value, score, agent_id, source, id?, confidence?} (source: memory|fact|episode|graph). Use to find past learnings, decisions, corrections, and facts when you do NOT have an exact key. Instead: lore_read_memory for exact-key lookup; lore_list_memories to enumerate keys; lore_search_context for raw repo document passages (conventions, ADRs, .md text); lore_query_graph to traverse entity relationships; lore_assemble_context for the token-budgeted startup bundle (the mandatory first call).`,
     SEARCH_MEMORY_INPUT,
-    async ({
-      query,
-      agent_id,
-      pool,
-      limit,
-      include_invalidated,
-      graph_augment,
-    }) => {
+    async (args) => {
       try {
-        const searchArgs = {
-          query,
-          agent_id: agent_id || undefined,
-          pool_name: pool,
-          limit,
-          include_invalidated,
-          graph_augment,
-        };
-        const proxied = await withReadCache(
-          {
-            tool: "lore_search_memory",
-            args: searchArgs,
-            ttlSeconds: 300,
-          },
-          () => proxyMemory("search", searchArgs),
-        );
-        const handled = interpretMemoryProxy("lore_search_memory", proxied);
-
-        if (handled) {
-          return handled;
-        }
-        const results = searchMemoryFile(query, agent_id, limit);
-
-        return textResult(JSON.stringify(results, null, 2));
+        return await searchMemory(args);
       } catch (err) {
         return textResult(`Error searching memories: ${errorMessage(err)}`);
       }

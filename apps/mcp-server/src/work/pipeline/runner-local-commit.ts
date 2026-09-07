@@ -136,6 +136,48 @@ export function removeWorktree(task: LocalTask): void {
   }
 }
 
+/** What the finished run left behind. `git status --porcelain` in the worktree is the whole verdict on whether it did anything; the worktree goes away in both settled cases. */
+async function settleRun(
+  task: LocalTask,
+  tasks: LocalTask[],
+  idx: number,
+): Promise<string> {
+  const status = execSync("git status --porcelain", {
+    cwd: task.worktreePath,
+    encoding: "utf-8",
+    timeout: 10000,
+  }).trim();
+  const verdict = status
+    ? await processWorktreeChanges(task, tasks, idx, status)
+    : "no-changes";
+
+  if (verdict === "validation-failed") {
+    return verdict;
+  }
+
+  if (verdict === "no-changes") {
+    await completeWithoutChanges(task, tasks, idx);
+  }
+  removeWorktree(task);
+
+  return verdict;
+}
+
+/** The worktree is deliberately KEPT on failure: it holds the run's state, and it is the only thing a developer can open to see what went wrong. */
+async function recordRunFailure(
+  task: LocalTask,
+  tasks: LocalTask[],
+  idx: number,
+  errMsg: string,
+): Promise<void> {
+  if (idx >= 0) {
+    tasks[idx].status = "failed";
+    tasks[idx].error = errMsg;
+  }
+  await updateTaskViaAPI(task.taskId, "failed", { failure_reason: errMsg });
+  console.error(`[lore] local-runner: task ${task.taskId} failed: ${errMsg}`);
+}
+
 export async function monitorTask(task: LocalTask): Promise<void> {
   await waitForExit(task.pid);
 
@@ -143,35 +185,12 @@ export async function monitorTask(task: LocalTask): Promise<void> {
   const idx = tasks.findIndex((t) => t.taskId === task.taskId);
 
   try {
-    // `git status --porcelain` in the worktree is the whole verdict on whether the run did anything.
-    const status = execSync("git status --porcelain", {
-      cwd: task.worktreePath,
-      encoding: "utf-8",
-      timeout: 10000,
-    }).trim();
-    const verdict = status
-      ? await processWorktreeChanges(task, tasks, idx, status)
-      : "no-changes";
-
-    // A validation hand-off already wrote status and artifacts, and deliberately keeps its worktree.
-    if (verdict === "validation-failed") {
+    if ((await settleRun(task, tasks, idx)) === "validation-failed") {
+      // The hand-off already wrote status and artifacts, and deliberately keeps its worktree.
       return;
     }
-
-    if (verdict === "no-changes") {
-      await completeWithoutChanges(task, tasks, idx);
-    }
-    removeWorktree(task);
   } catch (err: unknown) {
-    const errMsg = errorMessage(err);
-
-    if (idx >= 0) {
-      tasks[idx].status = "failed";
-      tasks[idx].error = errMsg;
-    }
-    await updateTaskViaAPI(task.taskId, "failed", { failure_reason: errMsg });
-    // Don't clean up worktree on failure — keep for debugging
-    console.error(`[lore] local-runner: task ${task.taskId} failed: ${errMsg}`);
+    await recordRunFailure(task, tasks, idx, errorMessage(err));
   }
   // Same ordering rule as the early-return path: persist the status snapshot before the slow artifact round-trips.
   writeTasks(tasks);

@@ -4,6 +4,33 @@ import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-
 import { proxyGetApi, withReadCache, textResult } from "./deps.js";
 import { runQueryTrace } from "@re-cinq/lore-server-core/features/spec-trace/query-trace.js";
 
+/** Reads one spec's coverage. Cached for 10 minutes and keyed on the PATH alone, deliberately: the graph is reprojected by CI on push, so within a working session the same spec gives the same answer. */
+async function queryTrace(args: {
+  spec: string;
+  statement?: string;
+  repo?: string;
+}): Promise<string> {
+  const { spec, statement, repo } = args;
+
+  return runQueryTrace(
+    { repo, spec, statement },
+    {
+      proxyGet: (path: string) =>
+        withReadCache(
+          {
+            tool: "lore-query-trace",
+            args: { path },
+            repo: repo || undefined,
+            ttlSeconds: 600,
+          },
+          () => proxyGetApi(path),
+          { label: false },
+        ),
+      detectRepo: detectCurrentRepo,
+    },
+  );
+}
+
 export function registerSpecTraceTools(server: McpServer) {
   server.tool(
     "lore-query-trace",
@@ -27,24 +54,6 @@ export function registerSpecTraceTools(server: McpServer) {
           "Target repo as 'owner/repo'. Defaults to the repo detected from cwd git remote.",
         ),
     },
-    async ({ spec, statement, repo }) => {
-      const cachedGet = (path: string) =>
-        withReadCache(
-          {
-            tool: "lore-query-trace",
-            args: { path },
-            repo: repo || undefined,
-            ttlSeconds: 600,
-          },
-          () => proxyGetApi(path),
-          { label: false },
-        );
-      const text = await runQueryTrace(
-        { repo, spec, statement },
-        { proxyGet: cachedGet, detectRepo: detectCurrentRepo },
-      );
-
-      return textResult(text);
-    },
+    async (args) => textResult(await queryTrace(args)),
   );
 }

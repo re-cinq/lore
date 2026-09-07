@@ -8,6 +8,31 @@ import {
   ENABLE_TASK_NOTIFICATIONS_INPUT,
 } from "./pipeline-tools-schemas.js";
 
+/** The offline view, read from the notifier's own cache. It is the same list the API would serve, minus repos this machine has never seen — which is why the API is tried first rather than this. */
+async function pendingFromFile(filterRepo?: string) {
+  const { listPendingTasks } =
+    await import("../../work/pipeline/runner.local.js");
+  const allTasks = listPendingTasks();
+  const tasks = filterRepo
+    ? allTasks.filter((t) => t.target_repo === filterRepo)
+    : allTasks;
+
+  if (tasks.length === 0) {
+    return textResult(
+      filterRepo ? `No pending tasks for ${filterRepo}.` : "No pending tasks.",
+    );
+  }
+
+  return textResult(
+    tasks
+      .map(
+        (t) =>
+          `${t.id.substring(0, 8)} ${t.task_type} ${t.target_repo}${t.issue_number ? " #" + t.issue_number : ""}\n  ${t.description}`,
+      )
+      .join("\n\n"),
+  );
+}
+
 function registerListPendingTasksTool(server: McpServer) {
   server.tool(
     "lore_list_pending_tasks",
@@ -21,27 +46,8 @@ function registerListPendingTasksTool(server: McpServer) {
         if (apiListing) {
           return apiListing;
         }
-        // Fallback to local pending file
-        const { listPendingTasks } =
-          await import("../../work/pipeline/runner.local.js");
-        const allTasks = listPendingTasks();
-        const tasks = filterRepo
-          ? allTasks.filter((t) => t.target_repo === filterRepo)
-          : allTasks;
 
-        if (tasks.length === 0) {
-          return textResult(
-            filterRepo
-              ? `No pending tasks for ${filterRepo}.`
-              : "No pending tasks.",
-          );
-        }
-        const lines = tasks.map(
-          (t) =>
-            `${t.id.substring(0, 8)} ${t.task_type} ${t.target_repo}${t.issue_number ? " #" + t.issue_number : ""}\n  ${t.description}`,
-        );
-
-        return textResult(lines.join("\n\n"));
+        return await pendingFromFile(filterRepo);
       } catch (err) {
         return textResult(`Error listing pending tasks: ${errorMessage(err)}`);
       }
@@ -71,6 +77,38 @@ function registerSkipTaskTool(server: McpServer) {
   );
 }
 
+/** Starts the poller, defaulting to the repo the caller is standing in. The default task types are the ones a developer can actually pick up locally — a surfaced task nobody can run is noise on the statusline. */
+async function startTaskNotifier(args: {
+  repos?: string[];
+  task_types?: string[];
+}) {
+  const { startNotifier, detectRepo, isNotifierRunning } =
+    await import("../../work/pipeline/runner.local.js");
+
+  if (isNotifierRunning()) {
+    return textResult("Task notifications already active.");
+  }
+  const repos = args.repos || ([detectRepo()].filter(Boolean) as string[]);
+
+  if (repos.length === 0) {
+    return textResult(
+      "Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote.",
+    );
+  }
+  const taskTypes = args.task_types || [
+    "implementation",
+    "general",
+    "runbook",
+    "gap-fill",
+  ];
+
+  startNotifier(repos, taskTypes);
+
+  return textResult(
+    `Watching for pending tasks on ${repos.join(", ")}.\nTypes: ${taskTypes.join(", ")}\nCheck the statusline for new tasks.`,
+  );
+}
+
 function registerEnableTaskNotificationsTool(server: McpServer) {
   server.tool(
     "lore_enable_task_notifications",
@@ -78,32 +116,7 @@ function registerEnableTaskNotificationsTool(server: McpServer) {
     ENABLE_TASK_NOTIFICATIONS_INPUT,
     async (args) => {
       try {
-        const { startNotifier, detectRepo, isNotifierRunning } =
-          await import("../../work/pipeline/runner.local.js");
-
-        if (isNotifierRunning()) {
-          return textResult("Task notifications already active.");
-        }
-        const repos =
-          args.repos || ([detectRepo()].filter(Boolean) as string[]);
-
-        if (repos.length === 0) {
-          return textResult(
-            "Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote.",
-          );
-        }
-        const taskTypes = args.task_types || [
-          "implementation",
-          "general",
-          "runbook",
-          "gap-fill",
-        ];
-
-        startNotifier(repos, taskTypes);
-
-        return textResult(
-          `Watching for pending tasks on ${repos.join(", ")}.\nTypes: ${taskTypes.join(", ")}\nCheck the statusline for new tasks.`,
-        );
+        return await startTaskNotifier(args);
       } catch (err) {
         return textResult(
           `Error enabling task notifications: ${errorMessage(err)}`,

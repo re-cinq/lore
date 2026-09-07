@@ -73,6 +73,27 @@ function buildTaskLogsParams(
   return params;
 }
 
+/** Both log reads are the same read: logs live server-side, so with no API there is nothing to fall back to. Cached for a DAY but only once `complete` — a still-running task's partial transcript must never be served as its final one. */
+async function cachedLogRead(read: {
+  tool: string;
+  missing: string;
+  path: (apiUrl: string) => string;
+  args: Record<string, unknown>;
+}) {
+  const creds = resolveApiCredentials();
+
+  if (!creds) {
+    return textResult(read.missing);
+  }
+  const proxied = await withReadCache(
+    { tool: read.tool, args: read.args, ttlSeconds: 86400 },
+    () => fetchLogsResult(read.path(creds.apiUrl), creds.token),
+    { label: false, cacheIf: completeOnly },
+  );
+
+  return interpretLogsProxy(read.tool, proxied);
+}
+
 function registerGetTaskLogsTool(server: McpServer) {
   server.tool(
     "lore_get_task_logs",
@@ -80,31 +101,17 @@ function registerGetTaskLogsTool(server: McpServer) {
     GET_TASK_LOGS_INPUT,
     async ({ task_id, offset, cursor }) => {
       try {
-        // Logs live server-side; the API resolves the task's repo from task_id since the local adapter holds no DB to look it up.
-        const creds = resolveApiCredentials();
-
-        if (!creds) {
-          return textResult("Task logs require LORE_API_URL.");
-        }
-        const params = buildTaskLogsParams(task_id, offset, cursor);
-        const proxied = await withReadCache(
-          {
-            tool: "lore_get_task_logs",
-            args:
-              cursor === undefined
-                ? { task_id, offset }
-                : { task_id, offset, cursor },
-            ttlSeconds: 86400,
-          },
-          () =>
-            fetchLogsResult(
-              `${creds.apiUrl}/api/task-logs?${params}`,
-              creds.token,
-            ),
-          { label: false, cacheIf: completeOnly },
-        );
-
-        return interpretLogsProxy("lore_get_task_logs", proxied);
+        // The API resolves the task's repo from task_id — the local adapter holds no DB to look it up in.
+        return await cachedLogRead({
+          tool: "lore_get_task_logs",
+          missing: "Task logs require LORE_API_URL.",
+          path: (apiUrl) =>
+            `${apiUrl}/api/task-logs?${buildTaskLogsParams(task_id, offset, cursor)}`,
+          args:
+            cursor === undefined
+              ? { task_id, offset }
+              : { task_id, offset, cursor },
+        });
       } catch (err) {
         return textResult(`Error getting task logs: ${errorMessage(err)}`);
       }
@@ -119,28 +126,13 @@ function registerGetJobLogsTool(server: McpServer) {
     GET_JOB_LOGS_INPUT,
     async ({ job_name, run_id }) => {
       try {
-        // Proxy log reads to the remote API (logs live server-side in GCS).
-        const creds = resolveApiCredentials();
-
-        if (!creds) {
-          return textResult("Job-run logs require LORE_API_URL.");
-        }
-        const params = new URLSearchParams({ job_name, run_id });
-        const proxied = await withReadCache(
-          {
-            tool: "lore_get_job_logs",
-            args: { job_name, run_id },
-            ttlSeconds: 86400,
-          },
-          () =>
-            fetchLogsResult(
-              `${creds.apiUrl}/api/job-run-logs?${params}`,
-              creds.token,
-            ),
-          { label: false, cacheIf: completeOnly },
-        );
-
-        return interpretLogsProxy("lore_get_job_logs", proxied);
+        return await cachedLogRead({
+          tool: "lore_get_job_logs",
+          missing: "Job-run logs require LORE_API_URL.",
+          path: (apiUrl) =>
+            `${apiUrl}/api/job-run-logs?${new URLSearchParams({ job_name, run_id })}`,
+          args: { job_name, run_id },
+        });
       } catch (err) {
         return textResult(`Error getting job logs: ${errorMessage(err)}`);
       }
