@@ -117,23 +117,21 @@ interface ResolvedTaskFields {
   priority: string;
 }
 
+/** What the INSERT hands back: the id plus the three columns the database, not the caller, decided. */
+interface InsertedTaskRow {
+  id: string;
+  status: string;
+  priority: string;
+  created_at: string;
+}
+
 /** The insert itself. The statement differs by whether a task group was named, so the SQL and its params are built together — a mismatched pair would bind the group id into the wrong column. */
 async function insertTaskRow(
   pool: PgPool,
   input: CreateTaskInput,
   resolved: ResolvedTaskFields,
-): Promise<{
-  id: string;
-  status: string;
-  priority: string;
-  created_at: string;
-}> {
-  const result = await pool.query<{
-    id: string;
-    status: string;
-    priority: string;
-    created_at: string;
-  }>(
+): Promise<InsertedTaskRow> {
+  const result = await pool.query<InsertedTaskRow>(
     buildInsertTaskSql(Boolean(input.taskGroupId)),
     buildInsertTaskParams({
       description: input.description,
@@ -151,25 +149,32 @@ async function insertTaskRow(
   return result.rows[0];
 }
 
-export async function createTask(
+/** Both gates a task must pass before a row exists: a description the model can actually read, and a task type this repo's trust level permits. A repo-less task skips the trust check because there is no repo whose ladder would apply. */
+async function enforceCreatable(
   pool: PgPool,
   input: CreateTaskInput,
-): Promise<CreatedTask> {
-  const taskType = input.taskType ?? "general";
-  const repo = input.targetRepo;
-  const createdBy = input.createdBy ?? "ui";
-
+  taskType: string,
+): Promise<void> {
   enforceTrue(
     input.description.length <= 10000,
     Error,
     "Description too long (max 10000 chars)",
   );
 
-  if (repo) {
-    await enforceRepoTrustForTaskType(pool, repo, taskType);
+  if (input.targetRepo) {
+    await enforceRepoTrustForTaskType(pool, input.targetRepo, taskType);
   }
+}
 
+export async function createTask(
+  pool: PgPool,
+  input: CreateTaskInput,
+): Promise<CreatedTask> {
+  const taskType = input.taskType ?? "general";
+  const createdBy = input.createdBy ?? "ui";
   const resolvedPriority = resolvePriority(input.priority);
+
+  await enforceCreatable(pool, input, taskType);
   const task = await insertTaskRow(pool, input, {
     taskType,
     createdBy,
@@ -181,10 +186,7 @@ export async function createTask(
     pool,
     task.id,
     { from: null, to: "pending" },
-    {
-      created_by: createdBy,
-      priority: resolvedPriority,
-    },
+    { created_by: createdBy, priority: resolvedPriority },
   );
 
   return {

@@ -87,35 +87,64 @@ export interface BackfillCandidates {
 }
 
 /** The cheap half: reassemble the spec, classify its statements, and narrow to the tests worth asking a model about. Returns null when there is nothing to judge — a spec whose statements are all linked or untestable, or one no candidate test comes close to — so the expensive judgement is never entered for free. */
-export async function findBackfillCandidates(
-  repo: string,
-  specPath: string,
-  chunks: SpecChunkWithEmbedding[],
+/** Statements worth suggesting a link for: testable, and not already linked. Classification runs over ALL statements rather than only the unlinked ones — a narrative sentence with no link is not a gap, and treating it as one is how a spec ends up with links on its introduction. */
+async function unlinkedTestable(specPath: string, content: string) {
+  const statements = segmentStatements(content);
+
+  return pickStatementsForBackfill(
+    statements,
+    await classifyAllStatements(specPath, statements),
+  );
+}
+
+/** Tests that might validate this spec. The spec's own assertions are extracted first and matched against the code chunks — vector proximity alone pairs a spec with whatever merely SOUNDS like it, and a link suggested on that basis is noise a reviewer has to refute. */
+async function candidateTests(
+  spec: {
+    repo: string;
+    file_path: string;
+    content: string;
+    embedding: number[] | null;
+  },
   codeChunks: TestChunk[],
-): Promise<BackfillCandidates | null> {
-  const content = reassembleSpec(
+) {
+  const assertions = await extractAssertions(spec.content, spec.file_path, {
+    jobName: "spec_coverage_backfill",
+  });
+
+  return selectCandidates(spec, assertions, codeChunks).candidates;
+}
+
+/** The spec as one document again. It is stored in chunks for search, but classification and link insertion both need the whole thing — a statement's testability often turns on the heading two chunks above it. */
+function reassembleChunks(chunks: SpecChunkWithEmbedding[]): string {
+  return reassembleSpec(
     chunks.map((c) => ({
       content: c.content,
       ingested_at: c.ingestedAt,
       chunk_index: c.chunkIndex,
     })),
   );
-  const statements = segmentStatements(content);
-  const classifications = await classifyAllStatements(specPath, statements);
+}
 
-  const unlinked = pickStatementsForBackfill(statements, classifications);
+export async function findBackfillCandidates(
+  repo: string,
+  specPath: string,
+  chunks: SpecChunkWithEmbedding[],
+  codeChunks: TestChunk[],
+): Promise<BackfillCandidates | null> {
+  const content = reassembleChunks(chunks);
+  const unlinked = await unlinkedTestable(specPath, content);
 
   if (unlinked.length === 0) {
     return null;
   }
 
-  const assertions = await extractAssertions(content, specPath, {
-    jobName: "spec_coverage_backfill",
-  });
-  const specEmbedding = parseEmbedding(firstChunkEmbedding(chunks));
-  const { candidates } = selectCandidates(
-    { repo, file_path: specPath, content, embedding: specEmbedding },
-    assertions,
+  const candidates = await candidateTests(
+    {
+      repo,
+      file_path: specPath,
+      content,
+      embedding: parseEmbedding(firstChunkEmbedding(chunks)),
+    },
     codeChunks,
   );
 

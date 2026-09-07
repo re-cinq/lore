@@ -153,6 +153,22 @@ export interface FacetedTarget {
   facets: Record<string, string | number | boolean>;
 }
 
+/** One edge target with its facets spelled the way Dgraph wants them: `predicate|key` alongside the uid, not nested under it. */
+function withFacets(
+  predicate: string,
+  { uid, facets }: FacetedTarget,
+): Record<string, unknown> {
+  return {
+    uid,
+    ...Object.fromEntries(
+      Object.entries(facets).map(([key, value]) => [
+        `${predicate}|${key}`,
+        value,
+      ]),
+    ),
+  };
+}
+
 /** Like {@link replaceEdge}, but each target carries scalar facets written as `predicate|key` pairs — used for `Coverage.covers|ranges`. Delete-then-set so re-ingest mirrors the latest set. */
 export async function replaceEdgeWithFacets(
   dgraph: DgraphClientPort,
@@ -174,19 +190,42 @@ export async function replaceEdgeWithFacets(
     txn.mutate({
       setJson: {
         uid,
-        [predicate]: targets.map(({ uid: target, facets }) => ({
-          uid: target,
-          ...Object.fromEntries(
-            Object.entries(facets).map(([key, value]) => [
-              `${predicate}|${key}`,
-              value,
-            ]),
-          ),
-        })),
+        [predicate]: targets.map((target) => withFacets(predicate, target)),
       },
       commitNow: true,
     }),
   );
+}
+
+async function updateNode(
+  txn: DgraphTxn,
+  uid: string,
+  fields: Record<string, unknown>,
+): Promise<string> {
+  await txn.mutate({ setJson: { uid, ...fields }, commitNow: true });
+
+  return uid;
+}
+
+/** Creates the node under a blank-node label and reads back the uid Dgraph assigned it. */
+async function createNode(
+  txn: DgraphTxn,
+  nodeType: SpecTraceNodeType,
+  xid: string,
+  fields: Record<string, unknown>,
+): Promise<string> {
+  const label = nodeType.toLowerCase();
+  const created = await txn.mutate({
+    setJson: {
+      uid: `_:${label}`,
+      "dgraph.type": nodeType,
+      [`${nodeType}.xid`]: xid,
+      ...fields,
+    },
+    commitNow: true,
+  });
+
+  return newUid(created, label);
 }
 
 /** Upserts a node identified by its `<Type>.xid` predicate: reuses the existing uid if present, else creates a fresh blank node; `fields` applied in both branches. */
@@ -204,28 +243,11 @@ export async function upsertByXid(
       { $xid: xid },
     );
     const existing = res.data.found?.[0]?.uid as string | undefined;
+    const uid = existing
+      ? await updateNode(txn, existing, jsonFields)
+      : await createNode(txn, nodeType, xid, jsonFields);
 
-    if (existing) {
-      await txn.mutate({
-        setJson: { uid: existing, ...jsonFields },
-        commitNow: true,
-      });
-      await setEmptyStrings(dgraph, existing, emptyStringPredicates);
-
-      return existing;
-    }
-    const label = nodeType.toLowerCase();
-    const created = await txn.mutate({
-      setJson: {
-        uid: `_:${label}`,
-        "dgraph.type": nodeType,
-        [`${nodeType}.xid`]: xid,
-        ...jsonFields,
-      },
-      commitNow: true,
-    });
-    const uid = newUid(created, label);
-
+    // Empty strings go in a mutation of their own: Dgraph drops `""` from a setJson, so the only way to STORE one is a separate nquad write.
     await setEmptyStrings(dgraph, uid, emptyStringPredicates);
 
     return uid;

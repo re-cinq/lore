@@ -126,6 +126,27 @@ export async function readSpecStatements(
 }
 
 /** Disturbed statements from a changed spec, as impact findings; only changed+validated statements are listed. */
+/** One changed statement as the impact report shows it. `rewrittenAs` carries the text that REPLACED it where a rewrite could be paired — showing "this statement is gone" beside an unrelated new one reads as a deletion, which is not what happened. */
+function impactOf(
+  stmt: Awaited<ReturnType<typeof readSpecStatements>>[number],
+  specPath: string,
+  rewrittenAs: string | undefined,
+): ImpactStatement & { xid: string } {
+  return {
+    xid: stmt.xid,
+    specPath,
+    specTitle: stmt.specTitle,
+    section: stmt.section,
+    statementText: stmt.text,
+    statementAnchor: specPath,
+    tests: stmt.tests,
+    changedFile: specPath,
+    evidence: "statement-edit" as const,
+    changeKind: "changed" as const,
+    rewrittenAs,
+  };
+}
+
 export async function specFileImpact(
   dgraph: DgraphClientPort,
   repo: string,
@@ -147,19 +168,10 @@ export async function specFileImpact(
 
   return {
     added: delta.addedTexts.length,
+    // A changed statement with NO tests is counted, not listed: there is nothing to warn about breaking, but the count is what says the spec is drifting away from its coverage.
     changedWithoutTests: delta.changed.length - validated.length,
-    statements: validated.map((stmt) => ({
-      xid: stmt.xid,
-      specPath,
-      specTitle: stmt.specTitle,
-      section: stmt.section,
-      statementText: stmt.text,
-      statementAnchor: specPath,
-      tests: stmt.tests,
-      changedFile: specPath,
-      evidence: "statement-edit" as const,
-      changeKind: "changed" as const,
-      rewrittenAs: rewrites.get(stmt.text) ?? undefined,
-    })),
+    statements: validated.map((stmt) =>
+      impactOf(stmt, specPath, rewrites.get(stmt.text) ?? undefined),
+    ),
   };
 }

@@ -100,19 +100,8 @@ function pushThreadPage(
   });
 }
 
-export async function listReviewThreads(
-  ok: Octokit,
-  repo: string,
-  number: number,
-): Promise<ReviewThread[]> {
-  const [owner, name] = split(repo);
-  const threads: ReviewThread[] = [];
-  let cursor: string | null = null;
-  let hasNextPage = true;
-
-  while (hasNextPage) {
-    const response: ReviewThreadsResponse = await ok.graphql(
-      `query ($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+/** Review threads with their comment ids. GraphQL rather than REST because resolution state (`isResolved`, `isOutdated`) is a thread-level fact the REST review-comments endpoint does not report at all. */
+const REVIEW_THREADS_QUERY = `query ($owner: String!, $name: String!, $number: Int!, $cursor: String) {
         repository(owner: $owner, name: $name) {
           pullRequest(number: $number) {
             reviewThreads(first: 100, after: $cursor) {
@@ -129,7 +118,21 @@ export async function listReviewThreads(
             }
           }
         }
-      }`,
+      }`;
+
+export async function listReviewThreads(
+  ok: Octokit,
+  repo: string,
+  number: number,
+): Promise<ReviewThread[]> {
+  const [owner, name] = split(repo);
+  const threads: ReviewThread[] = [];
+  let cursor: string | null = null;
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const response: ReviewThreadsResponse = await ok.graphql(
+      REVIEW_THREADS_QUERY,
       { owner, name, number, cursor },
     );
     const page = response.repository?.pullRequest?.reviewThreads;

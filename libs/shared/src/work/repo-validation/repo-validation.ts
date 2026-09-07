@@ -99,6 +99,41 @@ function resolveStepCommand(
     : scopeCommandToFiles(step.name, step.command, relevantFiles);
 }
 
+/** One validation step. A step whose command matches none of the changed files is REPORTED as skipped rather than dropped: "eslint had nothing to check" and "eslint never ran" look identical in a bare pass, and only one of them is fine. */
+interface StepDeps {
+  repoRoot: string;
+  changedFiles: string[] | undefined;
+  exec: ValidationExec;
+}
+
+async function runStep(
+  step: ValidationStep,
+  { repoRoot, changedFiles, exec }: StepDeps,
+): Promise<StepResult> {
+  const start = Date.now();
+  const command = resolveStepCommand(step, changedFiles);
+
+  if (command === undefined) {
+    return {
+      name: step.name,
+      passed: true,
+      output: "skipped (no matching files)",
+      durationMs: 0,
+    };
+  }
+  const { output, passed } = await exec(command, {
+    cwd: repoRoot,
+    timeoutMs: step.timeoutMs,
+  });
+
+  return {
+    name: step.name,
+    passed,
+    output: truncateOutput(output),
+    durationMs: Date.now() - start,
+  };
+}
+
 export async function runValidation(
   repoRoot: string,
   steps: ValidationStep[],
@@ -111,38 +146,12 @@ export async function runValidation(
 
   const results: StepResult[] = [];
 
+  // Sequential, not parallel: the steps share one working tree, and two toolchains writing caches into it at once is how a green run turns red on the retry.
   for (const step of steps) {
-    const start = Date.now();
-    // For eslint/ruff, scope to changed files if available
-    const command = resolveStepCommand(step, changedFiles);
-
-    if (command === undefined) {
-      results.push({
-        name: step.name,
-        passed: true,
-        output: "skipped (no matching files)",
-        durationMs: 0,
-      });
-      continue;
-    }
-
-    const { output, passed } = await exec(command, {
-      cwd: repoRoot,
-      timeoutMs: step.timeoutMs,
-    });
-
-    results.push({
-      name: step.name,
-      passed,
-      output: truncateOutput(output),
-      durationMs: Date.now() - start,
-    });
+    results.push(await runStep(step, { repoRoot, changedFiles, exec }));
   }
 
-  return {
-    passed: results.every((r) => r.passed),
-    steps: results,
-  };
+  return { passed: results.every((r) => r.passed), steps: results };
 }
 
 // ── File scoping helpers ────────────────────────────────────────────

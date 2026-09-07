@@ -203,8 +203,7 @@ export type PlanningRecovery =
   | { kind: "orphan"; iteration: number }
   | { kind: "transition"; iteration: number };
 
-/** Pure: reconciles a mid-planning feature whose latest round looks stuck. Running+dead-runtime -> orphan (mark failed, revert feature); ready+still-planning -> transition (re-apply a missed status write); else none. */
-export function decidePlanningRecovery(args: {
+interface PlanningRecoveryInput {
   iterations: FeatureIteration[];
   featureStatus: FeatureStatus;
   isActive: boolean;
@@ -212,7 +211,12 @@ export function decidePlanningRecovery(args: {
   windowMs?: number;
   /** True when the round's task has an OPEN assembly run — then the run reaper owns liveness and this never orphans (fixes #1297, 2026-08-18: a transient k8s probe failed an already-succeeded round). */
   runOpen?: boolean;
-}): PlanningRecovery {
+}
+
+/** Pure: reconciles a mid-planning feature whose latest round looks stuck. Running+dead-runtime -> orphan (mark failed, revert feature); ready+still-planning -> transition (re-apply a missed status write); else none. */
+export function decidePlanningRecovery(
+  args: PlanningRecoveryInput,
+): PlanningRecovery {
   const {
     iterations,
     featureStatus,

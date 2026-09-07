@@ -86,6 +86,14 @@ function assertForkableSource(
     ResumeRefusedError,
     `resume-from source line "${source.id}" is still ${source.status} — only a finished or failed line can be forked`,
   );
+  assertSameDefinition(input, source);
+}
+
+/** The definition must be byte-identical to the one that produced the prefix. A changed definition is refused rather than replayed: the nodes whose output is being inherited may no longer exist, and a fork onto a graph they are absent from would carry results nothing in the new run accounts for. */
+function assertSameDefinition(
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord,
+): void {
   const sourceHash = source.blueprintHash;
 
   enforceTrue(
@@ -98,6 +106,37 @@ function assertForkableSource(
     ResumeRefusedError,
     `resume-from source line "${source.id}": definition "${source.blueprintName}" has changed since that run (${short(sourceHash)} ≠ ${short(input.blueprintHash ?? "")})`,
   );
+}
+
+/** The node rows the new run inherits: history up to and including the chosen node's latest completed row. Every row in it must have an outcome — a prefix containing a node that never finished is not a replayable history, it is a run that was still going. */
+function prefixThrough(
+  source: AssemblyRunRecord,
+  nodes: StationRunRecord[],
+  resumeFrom: NonNullable<AssemblyRunStartInput["resumeFrom"]>,
+): StationRunRecord[] {
+  const cutoff = resumeCutoffIndex(
+    nodes,
+    resumeFrom.nodeId,
+    resumeFrom.iteration,
+  );
+
+  enforceTrue(
+    cutoff >= 0,
+    ResumeRefusedError,
+    resumeFrom.iteration === undefined
+      ? `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" node to fork from`
+      : `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" iteration ${resumeFrom.iteration} to fork from`,
+  );
+  const prefix = nodes.slice(0, cutoff + 1);
+  const unfinished = prefix.find((n) => n.outcome === null);
+
+  enforceTrue(
+    !unfinished,
+    ResumeRefusedError,
+    `resume-from source line "${source.id}" has an unfinished "${unfinished?.nodeId}" node inside the prefix — its history is not replayable`,
+  );
+
+  return prefix;
 }
 
 /** Validates a resumeFrom start against its source line and returns the inherited node rows (history through the chosen node's latest completed row, inclusive); throws before the caller writes anything. */
@@ -116,30 +155,7 @@ export function resolveResumePrefix(
   assertResumeInput(input);
   assertForkableSource(input, source, resumeFrom);
 
-  const cutoff = resumeCutoffIndex(
-    nodes,
-    resumeFrom.nodeId,
-    resumeFrom.iteration,
-  );
-
-  enforceTrue(
-    cutoff >= 0,
-    ResumeRefusedError,
-    resumeFrom.iteration === undefined
-      ? `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" node to fork from`
-      : `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" iteration ${resumeFrom.iteration} to fork from`,
-  );
-
-  const prefix = nodes.slice(0, cutoff + 1);
-  const unfinished = prefix.find((n) => n.outcome === null);
-
-  enforceTrue(
-    !unfinished,
-    ResumeRefusedError,
-    `resume-from source line "${source.id}" has an unfinished "${unfinished?.nodeId}" node inside the prefix — its history is not replayable`,
-  );
-
-  return { source, prefix };
+  return { source, prefix: prefixThrough(source, nodes, resumeFrom) };
 }
 
 function short(hash: string): string {

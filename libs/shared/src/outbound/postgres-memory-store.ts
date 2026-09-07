@@ -168,6 +168,23 @@ async function upsertMemoryTransactionally(
   }
 }
 
+const HISTORY_SQL = `SELECT mv.version, mv.value, mv.created_at
+         FROM memory.memory_versions mv
+         JOIN memory.memories m ON m.id = mv.memory_id
+         WHERE m.agent_id = $1 AND m.key = $2
+         ORDER BY mv.version DESC`;
+
+const HISTORY_SQL_BY_VERSION = `SELECT mv.version, mv.value, mv.created_at
+         FROM memory.memory_versions mv
+         JOIN memory.memories m ON m.id = mv.memory_id
+         WHERE m.agent_id = $1 AND m.key = $2 AND mv.version = $3`;
+
+const CURRENT_VERSION_SQL = `SELECT key, value, version, created_at
+       FROM memory.memories
+       WHERE agent_id = $1 AND key = $2 AND is_deleted = FALSE
+         AND (expires_at IS NULL OR expires_at > now())
+       ORDER BY version DESC LIMIT 1`;
+
 export class PostgresMemoryStore implements MemoryStore {
   readonly backend = "postgres" as const;
 
@@ -201,49 +218,37 @@ export class PostgresMemoryStore implements MemoryStore {
     version?: string | number,
   ): Promise<MemoryRecord | MemoryRecord[] | null> {
     const agent = agentId;
+    // Every branch is audited, including the ones that find nothing: a read that missed is still a read somebody made.
+    const found = await this.readVersions(key, agent, version);
 
+    await this.auditLog(agent, "read", key);
+
+    return found;
+  }
+
+  /** All versions, one version, or the current one — the history table answers the first two, the live row the third. A soft-deleted or expired memory is invisible to the current-version read but still present in its history, which is what makes "what did this key say last week" answerable after a delete. */
+  private async readVersions(
+    key: string,
+    agent: string,
+    version?: string | number,
+  ): Promise<MemoryRecord | MemoryRecord[] | null> {
     if (version === "all") {
-      // Return all versions
-      const { rows } = await this.pool.query(
-        `SELECT mv.version, mv.value, mv.created_at
-         FROM memory.memory_versions mv
-         JOIN memory.memories m ON m.id = mv.memory_id
-         WHERE m.agent_id = $1 AND m.key = $2
-         ORDER BY mv.version DESC`,
-        [agent, key],
-      );
-
-      await this.auditLog(agent, "read", key);
+      const { rows } = await this.pool.query(HISTORY_SQL, [agent, key]);
 
       return rows;
     }
 
     if (isNumericVersion(version)) {
-      // Specific version
-      const { rows } = await this.pool.query(
-        `SELECT mv.version, mv.value, mv.created_at
-         FROM memory.memory_versions mv
-         JOIN memory.memories m ON m.id = mv.memory_id
-         WHERE m.agent_id = $1 AND m.key = $2 AND mv.version = $3`,
-        [agent, key, Number(version)],
-      );
-
-      await this.auditLog(agent, "read", key);
+      const { rows } = await this.pool.query(`${HISTORY_SQL_BY_VERSION}`, [
+        agent,
+        key,
+        Number(version),
+      ]);
 
       return rows[0] || null;
     }
 
-    // Latest version
-    const { rows } = await this.pool.query(
-      `SELECT key, value, version, created_at
-       FROM memory.memories
-       WHERE agent_id = $1 AND key = $2 AND is_deleted = FALSE
-         AND (expires_at IS NULL OR expires_at > now())
-       ORDER BY version DESC LIMIT 1`,
-      [agent, key],
-    );
-
-    await this.auditLog(agent, "read", key);
+    const { rows } = await this.pool.query(CURRENT_VERSION_SQL, [agent, key]);
 
     return rows[0] || null;
   }
@@ -287,18 +292,26 @@ export class PostgresMemoryStore implements MemoryStore {
       params,
     );
 
-    const scopeKey = repo || agentId;
-    const countParams = scopeKey ? [scopeKey] : [];
-    const countResult = await this.pool.query(
-      `SELECT count(*)::int as total FROM memory.memories
-       WHERE ${filter} is_deleted = FALSE
-         AND (expires_at IS NULL OR expires_at > now())`,
-      countParams,
-    );
+    const total = await this.countInScope(filter, repo || agentId);
 
     await this.auditLog(agentId || "org", "list", null);
 
-    return { memories: rows, total: countResult.rows[0].total as number };
+    return { memories: rows, total };
+  }
+
+  /** How many memories the same scope holds, ignoring the page window — the caller needs it to know there is a next page at all. Deliberately a second query rather than a window function: the page read is the hot path, and it should not carry a full count. */
+  private async countInScope(
+    filter: string,
+    scopeKey: string | undefined,
+  ): Promise<number> {
+    const { rows } = await this.pool.query(
+      `SELECT count(*)::int as total FROM memory.memories
+       WHERE ${filter} is_deleted = FALSE
+         AND (expires_at IS NULL OR expires_at > now())`,
+      scopeKey ? [scopeKey] : [],
+    );
+
+    return rows[0].total as number;
   }
 
   private async auditLog(

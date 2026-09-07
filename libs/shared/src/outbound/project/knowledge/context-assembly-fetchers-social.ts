@@ -82,6 +82,16 @@ function onlyTransferable(
     .filter((r) => r.transferScore >= 0.5);
 }
 
+/** A hit from another repo, tagged `cross_repo` so the assembled block can say where it came from — context borrowed from elsewhere is worth less to the reader if they cannot tell it is borrowed. */
+function toCrossRepoItem(row: ChunkSearchHit): SourceItem {
+  return mkItem(row.content, {
+    source_path: row.file_path,
+    repo: row.repo,
+    content_type: "cross_repo",
+    score: toScore(row.score),
+  });
+}
+
 async function fetchCrossRepo(
   pool: PgPool,
   query: string,
@@ -105,17 +115,7 @@ async function fetchCrossRepo(
     return { sources: [], status: "empty" };
   }
 
-  return {
-    sources: scored.map((r) =>
-      mkItem(r.content, {
-        source_path: r.file_path,
-        repo: r.repo,
-        content_type: "cross_repo",
-        score: toScore(r.score),
-      }),
-    ),
-    status: "ok",
-  };
+  return { sources: scored.map(toCrossRepoItem), status: "ok" };
 }
 
 /** The repo's incidents array, or empty when settings carry none (malformed or absent alike). */

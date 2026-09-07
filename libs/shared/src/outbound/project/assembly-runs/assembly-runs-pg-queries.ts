@@ -134,14 +134,9 @@ export async function getById(
 }
 
 /** The one filtered read both list shapes run; NULL-guarded predicate per field (not concatenated clauses) so every param is bound and the plan is reusable. */
-async function selectList(
-  pool: PgPool,
-  columns: string,
-  query: AssemblyRunQuery,
-): Promise<unknown[]> {
-  const blueprints = blueprintNameList(query.blueprintName);
-  const { rows } = await pool.query(
-    `SELECT ${columns}
+/** Every filter as an `IS NULL OR` pair, so one statement serves every combination rather than building SQL per query. The cluster-agent filter is an EXISTS over open claims: a run "belongs to" an agent while that agent holds a visit of it, which is a fact about the visits, not the run. `id` breaks the ORDER BY tie — two runs started in the same millisecond would otherwise come back in an order Postgres may vary between calls, which reads as rows jumping around a paged list. */
+function listSql(columns: string): string {
+  return `SELECT ${columns}
        FROM pipeline.assembly_runs
       WHERE ($1::text   IS NULL OR repo = $1)
         AND ($2::text[] IS NULL OR blueprint_name = ANY($2::text[]))
@@ -155,23 +150,26 @@ async function selectList(
                WHERE claims.assembly_run_id = pipeline.assembly_runs.id
                  AND claims.cluster_agent_id = $9
                  AND claims.outcome IS NULL))
-      -- id breaks the tie: two runs started in the same millisecond would
-      -- otherwise come back in an order Postgres is free to vary between
-      -- calls, which reads as rows jumping around a paged list.
       ORDER BY created_at DESC, id DESC
-      LIMIT $7`,
-    [
-      orNull(query.repo),
-      blueprints,
-      toArrayOrNull(query.status),
-      orNull(query.taskId),
-      orNull(query.prNumber),
-      orNull(query.createdAfter),
-      query.limit ?? 50,
-      orNull(query.subjectKey),
-      orNull(query.clusterAgentId),
-    ],
-  );
+      LIMIT $7`;
+}
+
+async function selectList(
+  pool: PgPool,
+  columns: string,
+  query: AssemblyRunQuery,
+): Promise<unknown[]> {
+  const { rows } = await pool.query(listSql(columns), [
+    orNull(query.repo),
+    blueprintNameList(query.blueprintName),
+    toArrayOrNull(query.status),
+    orNull(query.taskId),
+    orNull(query.prNumber),
+    orNull(query.createdAfter),
+    query.limit ?? 50,
+    orNull(query.subjectKey),
+    orNull(query.clusterAgentId),
+  ]);
 
   return rows;
 }

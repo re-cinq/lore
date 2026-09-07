@@ -12,12 +12,9 @@ import { findOpenBySubject, getById } from "./assembly-runs-pg-queries.js";
 import { listStationRuns } from "./assembly-runs-pg-station-runs.js";
 
 /** The plain-start write: row + `assembly_line.start` event in ONE CTE. */
-async function insertStart(
-  pool: PgPool,
-  input: AssemblyRunStartInput,
-): Promise<string> {
-  const { rows } = await pool.query(
-    `WITH al AS (
+/** The run row and its start event in ONE statement. Both or neither: a run inserted without its event is queued with nothing to claim it, and an event without its run points at a row that does not exist. The fan-out CTE creates the delivery rows in the same breath, because fan-out reads the subscription set at INSERT time — a second statement would race a subscriber registering between them. */
+function startRunSql(): string {
+  return `WITH al AS (
        INSERT INTO pipeline.assembly_runs (blueprint_name, task_id, repo, branch, subject_key, args)
        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
        RETURNING id
@@ -39,16 +36,21 @@ async function insertStart(
      ), fan AS (
        ${fanOutClause("ev")}
      )
-     SELECT id FROM al`,
-    [
-      input.blueprintName,
-      input.taskId ?? null,
-      input.repo,
-      input.branch ?? null,
-      input.subjectKey ?? null,
-      JSON.stringify(input.args ?? {}),
-    ],
-  );
+     SELECT id FROM al`;
+}
+
+async function insertStart(
+  pool: PgPool,
+  input: AssemblyRunStartInput,
+): Promise<string> {
+  const { rows } = await pool.query(startRunSql(), [
+    input.blueprintName,
+    input.taskId ?? null,
+    input.repo,
+    input.branch ?? null,
+    input.subjectKey ?? null,
+    JSON.stringify(input.args ?? {}),
+  ]);
 
   return rows[0].id as string;
 }
@@ -179,15 +181,8 @@ export async function stampBlueprint(
   );
 }
 
-export async function finish(
-  pool: PgPool,
-  id: string,
-  outcome: string,
-  reason?: string,
-): Promise<boolean> {
-  // First writer decides — duplicate/late finishers never overwrite a terminal row; RETURNING reports the win for once-only side effects. Closing the run also closes any visit still open under it in the SAME statement: the reaper sweeps OPEN runs only, so a visit left open when its run went terminal was never revisited (86 rows stranded since 2026-08-21, each billing phantom pod-hours at the spend page's 2h cap). Gated on `won`, COALESCE-guarded so a visit that DID report keeps its outcome.
-  const { rows } = await pool.query(
-    `WITH won AS (
+/** First writer decides: a duplicate or late finisher never overwrites a terminal row, and RETURNING reports the win so once-only side effects fire once. Closing the run also closes any visit still open under it IN THE SAME STATEMENT — the reaper sweeps open RUNS only, so a visit left open when its run went terminal was never revisited (86 rows stranded since 2026-08-21, each billing phantom pod-hours at the spend page's 2h cap). Gated on `won` and COALESCE-guarded, so a visit that DID report keeps the outcome it reported. */
+const FINISH_SQL = `WITH won AS (
        UPDATE pipeline.assembly_runs
           SET status = CASE WHEN $1 = 'error' THEN 'failed' ELSE 'finished' END,
               outcome = $1,
@@ -209,9 +204,15 @@ export async function finish(
           AND finished_at IS NULL
         RETURNING 1
      )
-     SELECT id FROM won`,
-    [outcome, reason ?? null, id],
-  );
+     SELECT id FROM won`;
+
+export async function finish(
+  pool: PgPool,
+  id: string,
+  outcome: string,
+  reason?: string,
+): Promise<boolean> {
+  const { rows } = await pool.query(FINISH_SQL, [outcome, reason ?? null, id]);
 
   return rows.length > 0;
 }

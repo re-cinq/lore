@@ -143,6 +143,28 @@ function logCallFailure(kind: string, err: unknown): void {
   console.error(`[llm] ${kind} failed:`, err);
 }
 
+/** The generateContent request body. A system instruction and a response schema are both omitted entirely when absent rather than sent empty — Gemini treats a present-but-blank `systemInstruction` as an instruction. */
+function generateBody(
+  systemPrompt: string | undefined,
+  prompt: string,
+  responseSchema?: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...(systemPrompt
+      ? { systemInstruction: { parts: [{ text: systemPrompt }] } }
+      : {}),
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    ...(responseSchema
+      ? {
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema,
+          },
+        }
+      : {}),
+  };
+}
+
 export class GeminiProvider implements LlmProvider {
   readonly vendor = "gemini";
 
@@ -208,20 +230,9 @@ export class GeminiProvider implements LlmProvider {
           "x-goog-api-key": apiKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...(systemPrompt
-            ? { systemInstruction: { parts: [{ text: systemPrompt }] } }
-            : {}),
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          ...(responseSchema
-            ? {
-                generationConfig: {
-                  responseMimeType: "application/json",
-                  responseSchema,
-                },
-              }
-            : {}),
-        }),
+        body: JSON.stringify(
+          generateBody(systemPrompt, prompt, responseSchema),
+        ),
       },
     );
 

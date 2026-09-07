@@ -50,19 +50,50 @@ function perDocCapFor(
 }
 
 /** Budget one section's deduped items: how much it gets, what survives, why it was omitted. Pure — the caller applies the deduction. */
+/** How many tokens this section may spend. Weighted by PRIORITY — priority 1 gets the largest share — and normalized across the sections that actually returned something, so an empty source hands its budget to the others rather than wasting it. The 1.5x allows deliberate per-section overflow: sections rarely fill their share exactly, and the hard `remaining` cap still bounds the total. */
+function allocate(
+  section: { priority: number; max_tokens?: number },
+  { remaining, minTokens, nonEmptyWeight }: SectionBudget,
+): number {
+  const weight = (6 - section.priority) / nonEmptyWeight;
+
+  return Math.min(
+    section.max_tokens ?? Infinity,
+    Math.floor(minTokens * weight * 1.5),
+    remaining,
+  );
+}
+
+/** A section that contributed nothing. Zeroed rather than absent so the trace can still show it was considered — "omitted, budget exhausted" is information the caller acts on; a missing entry is not. */
+const EXCLUDED_SECTION = {
+  allocatedBudget: 0,
+  finalTokens: 0,
+  truncated: false,
+  included: false,
+  keptItems: [] as SourceItem[],
+};
+
+/** A section that did contribute. `included` is keyed on items kept, not on budget spent: a section allocated room that nothing fitted into is omitted, not empty. */
+function includedSection(
+  allocatedBudget: number,
+  fit: ReturnType<typeof fitItemsToBudget>,
+): SectionFit {
+  return {
+    allocatedBudget,
+    finalTokens: fit.kept.reduce((sum, i) => sum + i.tokens, 0),
+    truncated: fit.truncated,
+    included: fit.kept.length > 0,
+    keptItems: fit.kept,
+  };
+}
+
 function fitSection(
   deduped: SourceItem[],
   status: FetchStatus,
   section: { priority: number; max_tokens?: number },
   { remaining, minTokens, nonEmptyWeight }: SectionBudget,
 ): SectionFit {
-  const excluded = {
-    allocatedBudget: 0,
-    finalTokens: 0,
-    truncated: false,
-    included: false,
-    keptItems: [] as SourceItem[],
-  };
+  const excluded = EXCLUDED_SECTION;
 
   if (deduped.length === 0) {
     return { ...excluded, omitReason: emptyStatusReason(status) };
@@ -71,29 +102,25 @@ function fitSection(
   if (remaining <= 0) {
     return { ...excluded, omitReason: "budget exhausted" };
   }
-  const weight = (6 - section.priority) / nonEmptyWeight;
-  const allocatedBudget = Math.min(
-    section.max_tokens ?? Infinity,
-    Math.floor(minTokens * weight * 1.5), // allow some per-section overflow
+  const allocatedBudget = allocate(section, {
     remaining,
-  );
+    minTokens,
+    nonEmptyWeight,
+  });
 
+  // Under ~100 tokens there is no room for a useful excerpt — half a paragraph is worse than saying the section was omitted.
   if (allocatedBudget <= 100) {
     return { ...excluded, allocatedBudget, omitReason: "budget exhausted" };
   }
-  const fit = fitItemsToBudget(
-    deduped,
-    allocatedBudget,
-    perDocCapFor(deduped, allocatedBudget),
-  );
 
-  return {
+  return includedSection(
     allocatedBudget,
-    finalTokens: fit.kept.reduce((sum, i) => sum + i.tokens, 0),
-    truncated: fit.truncated,
-    included: fit.kept.length > 0,
-    keptItems: fit.kept,
-  };
+    fitItemsToBudget(
+      deduped,
+      allocatedBudget,
+      perDocCapFor(deduped, allocatedBudget),
+    ),
+  );
 }
 
 export interface FetchedSection {

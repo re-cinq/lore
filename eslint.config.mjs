@@ -320,10 +320,7 @@ export default tseslint.config(
     // Draining toward 30, one package per PR (100 → 50 landed 2026-09-07). These
     // stay red at 50 meanwhile: a package is removed from this list in the same
     // PR that empties its queue, so no bound is ever unenforced.
-    files: [
-      "apps/web-ui/**/*.{ts,tsx}",
-      "libs/shared/**/*.ts",
-    ],
+    files: ["apps/web-ui/**/*.{ts,tsx}"],
     rules: {
       "max-lines-per-function": [
         "error",

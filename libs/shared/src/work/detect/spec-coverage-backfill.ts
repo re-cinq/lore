@@ -109,17 +109,44 @@ async function backfillOneSpec(
   }
 }
 
+/** The specs this run may suggest links for. Chunks today's ingest policy would refuse are dropped: stale pre-exclusion debris must not receive suggested links, which would then be reviewed and merged into files nobody ingests any more (#1018). */
+async function specsToBackfill(
+  project: Project,
+  specPathFilter: BackfillOptions["specPathFilter"],
+) {
+  return resolveSpecsToProcess(
+    dropIngestExcluded(await project.chunks.specChunksForBackfill()),
+    specPathFilter,
+  );
+}
+
+/** Runs the backfill for each spec and tallies what came of it. A spec that produced nothing is NOT counted: "0 specs, 0 suggestions" and "40 specs, 0 suggestions" say different things about a repo, and only the second means the job looked and found nothing to suggest. */
+async function backfillEach(
+  byPath: Map<string, SpecChunkWithEmbedding[]>,
+  ctx: { project: Project; repo: string; codeChunks: TestChunk[] },
+): Promise<{ specs: number; suggestions: number; prs: number }> {
+  const tally = { specs: 0, suggestions: 0, prs: 0 };
+
+  for (const [specPath, chunks] of byPath) {
+    const summary = await backfillOneSpec({ ...ctx, specPath, chunks });
+
+    if (summary) {
+      tally.specs++;
+      tally.suggestions += summary.suggestions;
+      tally.prs += summary.prUrl ? 1 : 0;
+    }
+  }
+
+  return tally;
+}
+
 export async function specCoverageBackfillJob(
   opts: BackfillOptions,
 ): Promise<string> {
   const repo = opts.repoFilter;
   const project = opts.project;
 
-  // Skip chunks today's ingest policy refuses — stale pre-exclusion debris must not receive suggested links (#1018).
-  const specRows = dropIngestExcluded(
-    await project.chunks.specChunksForBackfill(),
-  );
-  const specs = resolveSpecsToProcess(specRows, opts.specPathFilter);
+  const specs = await specsToBackfill(project, opts.specPathFilter);
 
   if (specs.length === 0) {
     console.log(`[job] spec-coverage-backfill: no specs for ${repo}`);
@@ -131,31 +158,8 @@ export async function specCoverageBackfillJob(
   const codeChunks = await buildTestChunks(project);
   const byPath = groupSpecsByPath(specs);
 
-  let totalSpecs = 0;
-  let totalSuggestions = 0;
-  let totalPrsOpened = 0;
-
-  for (const [specPath, chunks] of byPath) {
-    const summary = await backfillOneSpec({
-      project,
-      repo,
-      specPath,
-      chunks,
-      codeChunks,
-    });
-
-    if (!summary) {
-      continue;
-    }
-    totalSpecs++;
-    totalSuggestions += summary.suggestions;
-
-    if (summary.prUrl) {
-      totalPrsOpened++;
-    }
-  }
-
-  const out = `Backfill: ${totalSpecs} specs in ${repo} — ${totalSuggestions} suggestions, ${totalPrsOpened} PRs opened`;
+  const tally = await backfillEach(byPath, { project, repo, codeChunks });
+  const out = `Backfill: ${tally.specs} specs in ${repo} — ${tally.suggestions} suggestions, ${tally.prs} PRs opened`;
 
   console.log(`[job] spec-coverage-backfill: ${out}`);
 
@@ -194,40 +198,29 @@ import {
 async function runBackfillForSpec(
   project: Project,
   repo: string,
-  {
-    path: specPath,
-    chunks,
-  }: { path: string; chunks: SpecChunkWithEmbedding[] },
+  spec: { path: string; chunks: SpecChunkWithEmbedding[] },
   codeChunks: TestChunk[],
 ): Promise<SpecBackfillSummary> {
+  const specPath = spec.path;
   const found = await findBackfillCandidates(
     repo,
     specPath,
-    chunks,
+    spec.chunks,
     codeChunks,
   );
 
   if (!found) {
     return { suggestions: 0, prUrl: null };
   }
-  const { content } = found;
-
-  const judged = await judgeAndCompose(specPath, content, found);
+  // Two gates before a PR: candidates must be FOUND, then each must survive the judge. A suggestion nobody vouched for costs a reviewer more than it saves.
+  const judged = await judgeAndCompose(specPath, found.content, found);
 
   if (!judged) {
     return { suggestions: 0, prUrl: null };
   }
-  const { newContent, diffPreview, applied, confirmed } = judged;
 
-  const prUrl = await openBackfillPr({
-    project,
-    repo,
-    specPath,
-    newContent,
-    applied,
-    confirmed,
-    diffPreview,
-  });
-
-  return { suggestions: applied, prUrl };
+  return {
+    suggestions: judged.applied,
+    prUrl: await openBackfillPr({ project, repo, specPath, ...judged }),
+  };
 }

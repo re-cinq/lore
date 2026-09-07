@@ -16,12 +16,12 @@ export interface SentenceMatch {
   nodeType: "Statement" | "AcceptanceCriterion";
 }
 
-export async function resolveSentenceLink(
+/** Every spec in the repo with its statements and acceptance criteria. One query rather than per-spec reads: a link names a spec by TITLE, so the match cannot be pushed into the query. */
+async function readRepoSpecs(
   dgraph: DgraphClientPort,
   repo: string,
-  link: SentenceLink,
-): Promise<SentenceMatch[]> {
-  const specs = await withTxn(dgraph, async (txn) => {
+): Promise<SpecRow[]> {
+  return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($repo: string) {
         specs(func: eq(Spec.repo, $repo)) {
@@ -35,7 +35,33 @@ export async function resolveSentenceLink(
 
     return (res.data.specs ?? []) as SpecRow[];
   });
+}
 
+/** Statements and acceptance criteria whose text matches. Both are searched because a link may name either — an AC is a statement a reader can check, and the two are separate nodes only because the graph distinguishes them. */
+function matchesIn(spec: SpecRow, sentence: string): SentenceMatch[] {
+  return [
+    ...(spec.stmts ?? [])
+      .filter((stmt) =>
+        matchesNormalized(stmt["Statement.text"] ?? "", sentence),
+      )
+      .map((stmt): SentenceMatch => ({ uid: stmt.uid, nodeType: "Statement" })),
+    ...(spec.acs ?? [])
+      .filter((ac) =>
+        matchesNormalized(ac["AcceptanceCriterion.text"] ?? "", sentence),
+      )
+      .map((ac): SentenceMatch => ({
+        uid: ac.uid,
+        nodeType: "AcceptanceCriterion",
+      })),
+  ];
+}
+
+export async function resolveSentenceLink(
+  dgraph: DgraphClientPort,
+  repo: string,
+  link: SentenceLink,
+): Promise<SentenceMatch[]> {
+  const specs = await readRepoSpecs(dgraph, repo);
   const matched: SentenceMatch[] = [];
 
   for (const spec of specs) {
@@ -43,29 +69,7 @@ export async function resolveSentenceLink(
       continue;
     }
 
-    matched.push(
-      ...(spec.stmts ?? [])
-        .filter((stmt) =>
-          matchesNormalized(stmt["Statement.text"] ?? "", link.sentence),
-        )
-        .map((stmt): SentenceMatch => ({
-          uid: stmt.uid,
-          nodeType: "Statement",
-        })),
-    );
-    matched.push(
-      ...(spec.acs ?? [])
-        .filter((ac) =>
-          matchesNormalized(
-            ac["AcceptanceCriterion.text"] ?? "",
-            link.sentence,
-          ),
-        )
-        .map((ac): SentenceMatch => ({
-          uid: ac.uid,
-          nodeType: "AcceptanceCriterion",
-        })),
-    );
+    matched.push(...matchesIn(spec, link.sentence));
   }
 
   return matched;

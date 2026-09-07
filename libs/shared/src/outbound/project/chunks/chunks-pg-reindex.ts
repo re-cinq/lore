@@ -98,7 +98,18 @@ export async function pruneChunksForFiles(
 /** Move-then-delete in ONE statement so a chunk is never in both schemas or neither. A row already present in the target is not moved but IS dropped from org_shared — the target copy is the newer one, and leaving the legacy row would keep serving it. */
 function relocateSql(schema: string): string {
   return `WITH moved AS (
-       INSERT INTO ${schema}.chunks
+${movedCte(schema)}
+     ),
+     dropped AS (
+${droppedCte(schema)}
+     )
+     SELECT (SELECT count(*) FROM moved)::text AS moved,
+            (SELECT count(*) FROM dropped)::text AS dropped`;
+}
+
+/** Copies each legacy chunk into the team schema, stamping where it came from. The `ingested_by` backfill is only applied to rows that predate that field — a chunk whose ingester IS recorded keeps its own provenance. */
+function movedCte(schema: string): string {
+  return `       INSERT INTO ${schema}.chunks
          (id, content, embedding, content_type, team, repo, file_path,
           author, ingested_at, metadata)
        SELECT o.id, o.content, o.embedding, o.content_type, $2, o.repo,
@@ -118,10 +129,12 @@ function relocateSql(schema: string): string {
            WHERE t.repo = o.repo AND t.file_path = o.file_path
          )
        ON CONFLICT (id) DO NOTHING
-       RETURNING id
-     ),
-     dropped AS (
-       DELETE FROM org_shared.chunks o
+       RETURNING id`;
+}
+
+/** Clears the legacy rows: the ones just moved, and the ones that were skipped BECAUSE the target already holds them. The target copy is the newer one, so leaving the org_shared row behind would keep serving the stale text. */
+function droppedCte(schema: string): string {
+  return `       DELETE FROM org_shared.chunks o
        WHERE o.repo = $1
          AND (o.id IN (SELECT id FROM moved)
               OR EXISTS (
@@ -129,10 +142,7 @@ function relocateSql(schema: string): string {
                 WHERE t.repo = o.repo
                   AND (t.file_path = o.file_path OR t.id = o.id)
               ))
-       RETURNING id
-     )
-     SELECT (SELECT count(*) FROM moved)::text AS moved,
-            (SELECT count(*) FROM dropped)::text AS dropped`;
+       RETURNING id`;
 }
 
 export async function relocateLegacyChunks(

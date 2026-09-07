@@ -4,6 +4,33 @@ import { newUid } from "./dgraph-vector.js";
 import { withTxn } from "./dgraph-txn.js";
 import { flattenHops, type GraphHop } from "./dgraph-graph-hops.js";
 
+/** A fresh Entity. The dedup key is stored alongside its three parts because identity here is the COMBINATION — the same name under a different type, or in a different repo, is a different thing. */
+function newEntity({
+  name,
+  entityType,
+  repo,
+  dedupKey,
+}: {
+  name: string;
+  entityType: string;
+  repo: string;
+  dedupKey: string;
+}): Record<string, unknown> {
+  const now = new Date().toISOString();
+
+  return {
+    uid: "_:ent",
+    "dgraph.type": "Entity",
+    "Entity.xid": randomUUID(),
+    "Entity.name": name,
+    "Entity.entity_type": entityType,
+    "Entity.repo": repo,
+    "Entity.dedup_key": dedupKey,
+    "Entity.created_at": now,
+    "Entity.updated_at": now,
+  };
+}
+
 async function upsertEntity(
   client: DgraphClientPort,
   name: string,
@@ -23,19 +50,8 @@ async function upsertEntity(
       return found.uid as string;
     }
 
-    const now = new Date().toISOString();
     const created = await txn.mutate({
-      setJson: {
-        uid: "_:ent",
-        "dgraph.type": "Entity",
-        "Entity.xid": randomUUID(),
-        "Entity.name": name,
-        "Entity.entity_type": entityType,
-        "Entity.repo": repo,
-        "Entity.dedup_key": dedupKey,
-        "Entity.created_at": now,
-        "Entity.updated_at": now,
-      },
+      setJson: newEntity({ name, entityType, repo, dedupKey }),
       commitNow: true,
     });
 
@@ -75,53 +91,80 @@ async function findContradictedRels(
   });
 }
 
-export async function upsertEdge(
+/** Closes an edge by TIME rather than deleting it: the graph is temporal, and "this was true until now" is the answer a historical query needs. */
+function closeEdge(relUid: string, now: string) {
+  return {
+    uid: relUid,
+    "GraphRel.active": false,
+    "GraphRel.valid_to": now,
+  };
+}
+
+/** The new edge, hung off the source entity so one mutation creates both the relationship and its back-reference. */
+function openEdge(
+  edge: { sourceUid: string; targetUid: string; relationType: string },
+  now: string,
+) {
+  return {
+    uid: edge.sourceUid,
+    "Entity.out_rels": {
+      uid: "_:rel",
+      "dgraph.type": "GraphRel",
+      "GraphRel.xid": randomUUID(),
+      "GraphRel.relation_type": edge.relationType,
+      "GraphRel.active": true,
+      "GraphRel.valid_from": now,
+      "GraphRel.created_at": now,
+      "GraphRel.source": { uid: edge.sourceUid },
+      "GraphRel.target": { uid: edge.targetUid },
+    },
+  };
+}
+
+interface EdgeInput {
+  source: string;
+  target: string;
+  relationType: string;
+  entityType?: string;
+  repo?: string;
+}
+
+/** Both endpoints, created if this is the first time either has been named. Entity type and repo default to empty rather than being required: an edge extracted from prose often knows the two names and nothing else, and refusing it would lose the relationship entirely. */
+async function endpointUids(
   client: DgraphClientPort,
-  input: {
-    source: string;
-    target: string;
-    relationType: string;
-    entityType?: string;
-    repo?: string;
-  },
-): Promise<void> {
+  input: EdgeInput,
+): Promise<[string, string]> {
   const entityType = input.entityType ?? "";
   const repo = input.repo ?? "";
-  const sourceUid = await upsertEntity(client, input.source, entityType, repo);
-  const targetUid = await upsertEntity(client, input.target, entityType, repo);
-  const now = new Date().toISOString();
 
-  const contradictedUids = await findContradictedRels(
+  return Promise.all([
+    upsertEntity(client, input.source, entityType, repo),
+    upsertEntity(client, input.target, entityType, repo),
+  ]);
+}
+
+export async function upsertEdge(
+  client: DgraphClientPort,
+  input: EdgeInput,
+): Promise<void> {
+  const [sourceUid, targetUid] = await endpointUids(client, input);
+  const now = new Date().toISOString();
+  const contradicted = await findContradictedRels(
     client,
     sourceUid,
     input.relationType,
     targetUid,
   );
 
-  const invalidations = contradictedUids.map((relUid) => ({
-    uid: relUid,
-    "GraphRel.active": false,
-    "GraphRel.valid_to": now,
-  }));
-
+  // ONE transaction: the contradicted edges are closed and the new one opened together, or a reader between the two writes sees the relationship twice — or not at all.
   await withTxn(client, (txn) =>
     txn.mutate({
       setJson: [
-        ...invalidations,
-        {
-          uid: sourceUid,
-          "Entity.out_rels": {
-            uid: "_:rel",
-            "dgraph.type": "GraphRel",
-            "GraphRel.xid": randomUUID(),
-            "GraphRel.relation_type": input.relationType,
-            "GraphRel.active": true,
-            "GraphRel.valid_from": now,
-            "GraphRel.created_at": now,
-            "GraphRel.source": { uid: sourceUid },
-            "GraphRel.target": { uid: targetUid },
-          },
-        },
+        ...contradicted.map((relUid) => closeEdge(relUid, now)),
+        openEdge(
+          { sourceUid, targetUid, relationType: input.relationType },
+          now,
+        ),
       ],
       commitNow: true,
     }),

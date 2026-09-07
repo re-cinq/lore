@@ -85,6 +85,16 @@ export function toIso(value: unknown): string | undefined {
   }
 }
 
+/** The item as it will be kept — itself when it fits, otherwise a truncated copy. Returning the SAME object when nothing was cut is what lets the caller tell "kept whole" from "kept in part" without re-measuring. */
+function fitOne(source: SourceItem, limit: number): SourceItem {
+  if (source.tokens <= limit) {
+    return source;
+  }
+  const text = truncateText(source.text, limit);
+
+  return { ...source, text, tokens: estimateTokens(text) };
+}
+
 /** Pack sources into a token budget: keep whole sources, truncate the overflow source, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
 export function fitItemsToBudget(
   sources: SourceItem[],
@@ -103,17 +113,14 @@ export function fitItemsToBudget(
       break;
     }
     const limit = Math.min(remaining, maxPerDocTokens ?? Infinity);
+    const fitted = fitOne(it, limit);
 
-    if (it.tokens <= limit) {
-      kept.push(it);
-      used += it.tokens;
+    kept.push(fitted);
+    used += fitted.tokens;
+
+    if (fitted === it) {
       continue;
     }
-    const text = truncateText(it.text, limit);
-    const tokens = estimateTokens(text);
-
-    kept.push({ ...it, text, tokens });
-    used += tokens;
     truncated = true;
 
     // Stop only when the BUDGET was the binding limit; a per-doc cap leaves room to keep packing.

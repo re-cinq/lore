@@ -17,6 +17,14 @@ export interface OpenAiProviderOptions {
   fetchFn?: typeof fetch;
 }
 
+/** The conversation as OpenAI wants it. The system turn is dropped when there is none — an empty system message is still a message the model weighs. */
+function chatMessages(systemPrompt: string | undefined, prompt: string) {
+  return [
+    ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+    { role: "user", content: prompt },
+  ];
+}
+
 export class OpenAiProvider implements LlmProvider {
   readonly vendor = "openai";
 
@@ -59,10 +67,6 @@ export class OpenAiProvider implements LlmProvider {
     const apiKey = this.opts.apiKey ?? process.env.OPENAI_API_KEY;
 
     enforceTrue(apiKey, Error, "OPENAI_API_KEY not set");
-    const messages = [
-      ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-      { role: "user", content: prompt },
-    ];
     const doFetch = this.opts.fetchFn ?? fetch;
     const res = await doFetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -72,7 +76,7 @@ export class OpenAiProvider implements LlmProvider {
       },
       body: JSON.stringify({
         model: this.opts.model,
-        messages,
+        messages: chatMessages(systemPrompt, prompt),
         temperature: 0,
       }),
     });

@@ -71,6 +71,31 @@ function addUniqueEdgeResults(
   }
 }
 
+/** Exactly what {@link addUniqueEdgeResults} consumes — derived from it rather than restated, so the query and its reader cannot drift apart. */
+type EdgeRows = Parameters<typeof addUniqueEdgeResults>[1];
+
+const NEIGHBOR_EDGES_SQL = `SELECT s.name as source_name, s.entity_type as source_type,
+                e.relation_type, t.name as target_name, t.entity_type as target_type
+         FROM memory.edges e
+         JOIN memory.entities s ON s.id = e.source_id
+         JOIN memory.entities t ON t.id = e.target_id
+         WHERE (LOWER(s.name) = $1 OR LOWER(t.name) = $1)
+           AND e.valid_to IS NULL
+         LIMIT 10`;
+
+/** This entity's current 1-hop edges, or none. Augmentation is a bonus on top of a result set that already stands on its own, so one entity whose lookup fails costs its neighbors and nothing else. */
+async function neighborEdges(pool: PgPool, entity: string): Promise<EdgeRows> {
+  try {
+    const { rows } = await pool.query<EdgeRows[number]>(NEIGHBOR_EDGES_SQL, [
+      entity,
+    ]);
+
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
 async function graphAugment(
   pool: PgPool,
   entities: string[],
@@ -83,29 +108,12 @@ async function graphAugment(
   const seen = new Set<string>();
 
   for (const entity of entities) {
-    try {
-      const { rows } = await pool.query<{
-        source_name: string;
-        source_type: string;
-        relation_type: string;
-        target_name: string;
-        target_type: string;
-      }>(
-        `SELECT s.name as source_name, s.entity_type as source_type,
-                e.relation_type, t.name as target_name, t.entity_type as target_type
-         FROM memory.edges e
-         JOIN memory.entities s ON s.id = e.source_id
-         JOIN memory.entities t ON t.id = e.target_id
-         WHERE (LOWER(s.name) = $1 OR LOWER(t.name) = $1)
-           AND e.valid_to IS NULL
-         LIMIT 10`,
-        [entity],
-      );
-
-      addUniqueEdgeResults(entity, rows, seen, results);
-    } catch {
-      // Skip this entity on error
-    }
+    addUniqueEdgeResults(
+      entity,
+      await neighborEdges(pool, entity),
+      seen,
+      results,
+    );
   }
 
   return results.slice(0, 10);

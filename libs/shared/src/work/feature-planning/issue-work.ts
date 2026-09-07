@@ -27,23 +27,18 @@ export type IssueWork =
   | { outcome: "changes_requested"; objection: string };
 
 /** The issues and spec-tasks a decomposition calls for, or the objection that sends it back; rejects invented labels because GitHub's create-issue silently adds unknown ones to the repo's real taxonomy. */
-export function decideIssueWork(
+/** Why this decomposition cannot be filed, if it cannot. Each objection is written to be ACTED ON by the model that produced it — this text goes back as the rework prompt, so "no user stories" and a list of the exact unknown labels are instructions, not diagnostics. Labels are checked against the repo because inventing one silently files an Issue nobody's filters will ever show. */
+function firstObjection(
   decomposition: DecompositionResult,
   repoLabels: readonly string[],
-): IssueWork {
+): string | null {
   if (decomposition.stories.length === 0) {
-    return {
-      outcome: "changes_requested",
-      objection: "the decomposition contains no user stories",
-    };
+    return "the decomposition contains no user stories";
   }
   const taskless = decomposition.stories.find((s) => s.tasks.length === 0);
 
   if (taskless) {
-    return {
-      outcome: "changes_requested",
-      objection: `the story "${taskless.title}" breaks into no tasks — a story nobody can start is not an implementation plan`,
-    };
+    return `the story "${taskless.title}" breaks into no tasks — a story nobody can start is not an implementation plan`;
   }
   const known = new Set(repoLabels);
   const unknown = new Set(
@@ -52,16 +47,25 @@ export function decideIssueWork(
       .filter((label) => !known.has(label)),
   );
 
-  if (unknown.size > 0) {
-    const named = [...unknown]
-      .sort()
-      .map((l) => `"${l}"`)
-      .join(", ");
+  if (unknown.size === 0) {
+    return null;
+  }
+  const named = [...unknown]
+    .sort()
+    .map((l) => `"${l}"`)
+    .join(", ");
 
-    return {
-      outcome: "changes_requested",
-      objection: `these labels do not exist in this repository: ${named}. Use only labels the repo already has.`,
-    };
+  return `these labels do not exist in this repository: ${named}. Use only labels the repo already has.`;
+}
+
+export function decideIssueWork(
+  decomposition: DecompositionResult,
+  repoLabels: readonly string[],
+): IssueWork {
+  const objection = firstObjection(decomposition, repoLabels);
+
+  if (objection) {
+    return { outcome: "changes_requested", objection };
   }
 
   return {

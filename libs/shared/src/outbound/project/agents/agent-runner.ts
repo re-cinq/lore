@@ -9,6 +9,32 @@ import type { StationBackend } from "./station-port.js";
 import { runClaudeCli } from "./claude-cli.js";
 
 // Agent execution routing to injected providers: local (claude --print), cluster (Station via StationBackend), direct (LlmPort).
+/** What the backend is asked to run. Only the three fields the pipeline itself owns get defaults here — a task type, a description, and the branch its work lands on; every other option passes through as given, because the backend, not this router, decides what a missing one means. */
+function launchSpec(
+  { repo, taskId, prompt }: { repo: string; taskId: string; prompt: string },
+  runOpts: AgentRunOpts,
+) {
+  return {
+    taskId,
+    taskType: runOpts.taskType ?? "general",
+    description: runOpts.description ?? "",
+    prompt,
+    targetRepo: repo,
+    branch: runOpts.branch ?? `lore/task-${taskId}`,
+    model: runOpts.model,
+    timeoutMinutes: runOpts.timeoutMinutes,
+    prNumber: runOpts.prNumber,
+    name: runOpts.name,
+    extraLabels: runOpts.extraLabels,
+    darkFactory: runOpts.darkFactory,
+    image: runOpts.image,
+    featureId: runOpts.featureId,
+    roundFeedback: runOpts.roundFeedback,
+    resumeFromTask: runOpts.resumeFromTask,
+    lineArgs: runOpts.lineArgs,
+  };
+}
+
 export class AgentRunner implements AgentRunnerPort {
   constructor(
     private readonly env: NodeJS.ProcessEnv = process.env,
@@ -68,25 +94,9 @@ export class AgentRunner implements AgentRunnerPort {
       Error,
       'agents.run mode "cluster" needs a StationBackend provider',
     );
-    const res = await station.launch({
-      taskId,
-      taskType: runOpts.taskType ?? "general",
-      description: runOpts.description ?? "",
-      prompt,
-      targetRepo: repo,
-      branch: runOpts.branch ?? `lore/task-${taskId}`,
-      model: runOpts.model,
-      timeoutMinutes: runOpts.timeoutMinutes,
-      prNumber: runOpts.prNumber,
-      name: runOpts.name,
-      extraLabels: runOpts.extraLabels,
-      darkFactory: runOpts.darkFactory,
-      image: runOpts.image,
-      featureId: runOpts.featureId,
-      roundFeedback: runOpts.roundFeedback,
-      resumeFromTask: runOpts.resumeFromTask,
-      lineArgs: runOpts.lineArgs,
-    });
+    const res = await station.launch(
+      launchSpec({ repo, taskId, prompt }, runOpts),
+    );
 
     // Sync backends (docker) carry completion; async backends (k8s) omit it (watcher resolves).
     return {

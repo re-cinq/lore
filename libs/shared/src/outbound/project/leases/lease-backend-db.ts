@@ -24,6 +24,22 @@ function currentHolderOf(rows: { holder: string }[]): string | undefined {
 }
 
 /** Postgres-backed {@link LeaseBackend}: atomic upsert-with-takeover-detection via one CTE. */
+/** One statement, and the CTE is load-bearing: it captures the PRIOR holder before the upsert overwrites it, which is what makes a takeover auditable (#T027). The `WHERE expires_at < now()` on the DO UPDATE is the lease itself — an unexpired lease matches nothing, the statement reports no effect, and the caller is rejected rather than silently stealing the branch. */
+const ACQUIRE_SQL = `WITH prev AS (
+             SELECT holder AS prev_holder
+               FROM pipeline.task_leases
+              WHERE branch_name = $1
+           )
+           INSERT INTO pipeline.task_leases (branch_name, task_id, holder, expires_at)
+           VALUES ($1, $2, $3, now() + ($4::int || ' seconds')::interval)
+           ON CONFLICT (branch_name) DO UPDATE
+             SET task_id     = EXCLUDED.task_id,
+                 holder      = EXCLUDED.holder,
+                 acquired_at = now(),
+                 expires_at  = EXCLUDED.expires_at
+             WHERE pipeline.task_leases.expires_at < now()
+           RETURNING (SELECT prev_holder FROM prev) AS previous_holder`;
+
 export class DbLeaseBackend implements LeaseBackend {
   constructor(private readonly pool: LeasePool) {}
 
@@ -37,26 +53,9 @@ export class DbLeaseBackend implements LeaseBackend {
       "acquire",
       { backend: "db", branchName, taskId: taskId ?? "", holder, ttlSec },
       async (span) => {
-        // CTE captures prior holder for takeover audit (#T027).
         const result = await this.pool.query<{
           previous_holder: string | null;
-        }>(
-          `WITH prev AS (
-             SELECT holder AS prev_holder
-               FROM pipeline.task_leases
-              WHERE branch_name = $1
-           )
-           INSERT INTO pipeline.task_leases (branch_name, task_id, holder, expires_at)
-           VALUES ($1, $2, $3, now() + ($4::int || ' seconds')::interval)
-           ON CONFLICT (branch_name) DO UPDATE
-             SET task_id     = EXCLUDED.task_id,
-                 holder      = EXCLUDED.holder,
-                 acquired_at = now(),
-                 expires_at  = EXCLUDED.expires_at
-             WHERE pipeline.task_leases.expires_at < now()
-           RETURNING (SELECT prev_holder FROM prev) AS previous_holder`,
-          [branchName, taskId, holder, ttlSec],
-        );
+        }>(ACQUIRE_SQL, [branchName, taskId, holder, ttlSec]);
 
         if (hadEffect(result)) {
           return acquiredResult(span, previousHolderOf(result.rows));

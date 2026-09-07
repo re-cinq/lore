@@ -23,6 +23,13 @@ function unavailableBecause(agent: ClusterAgent): string {
   return agent.paused ? "paused" : "offline";
 }
 
+/** Each capable-but-unavailable agent with WHY, so an operator reads one line and knows whether to unpause something or go looking for a dead pod. */
+function unavailableList(providers: ClusterAgent[]): string {
+  return providers
+    .map((agent) => `${agent.name} (${unavailableBecause(agent)})`)
+    .join(", ");
+}
+
 export function capacityFor(
   requiredTags: string[],
   agents: ClusterAgent[],
@@ -49,13 +56,10 @@ export function capacityFor(
   if (available.length > 0) {
     return { kind: "capable", agents: available };
   }
-  const named = providers
-    .map((agent) => `${agent.name} (${unavailableBecause(agent)})`)
-    .join(", ");
 
   return {
     kind: "all-unavailable",
-    reason: `every cluster-agent offering ${tags} is unavailable: ${named}`,
+    reason: `every cluster-agent offering ${tags} is unavailable: ${unavailableList(providers)}`,
   };
 }
 

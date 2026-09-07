@@ -8,32 +8,36 @@ import type {
 } from "./assembly-runs-port.js";
 import { toNodeRecord } from "./assembly-runs-pg-rows.js";
 
-export async function ensureStationRun(
-  pool: PgPool,
-  input: StationRunStartInput,
-): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
-  // DO UPDATE (not DO NOTHING) so the statement always locks+returns the row, including the concurrent-duplicate race; xmax=0 distinguishes create from converged duplicate.
-  const { rows } = await pool.query(
-    `INSERT INTO pipeline.station_runs
+/** DO UPDATE rather than DO NOTHING, so the statement always locks and RETURNS the row — including in the concurrent-duplicate race, where DO NOTHING would return nothing and the caller could not tell a duplicate from a failure. `xmax = 0` is what distinguishes the row this call created from the one it converged on. The input is COALESCEd rather than overwritten: a re-dispatch must keep the spec the first one was armed with. */
+const ENSURE_SQL = `INSERT INTO pipeline.station_runs
        (assembly_run_id, node_id, iteration, agent_cr_name, input,
         status, required_tags, dispatch_spec)
      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8::jsonb)
      ON CONFLICT (assembly_run_id, node_id, iteration)
        DO UPDATE SET input = COALESCE(pipeline.station_runs.input, EXCLUDED.input)
-     RETURNING id, station_run_id, (xmax = 0) AS created`,
-    [
-      input.assemblyRunId,
-      input.nodeId,
-      input.iteration,
-      input.agentCrName ?? null,
-      input.input ? JSON.stringify(input.input) : null,
-      input.status ?? "running",
-      input.requiredTags ?? [],
-      input.dispatchSpec !== undefined
-        ? JSON.stringify(input.dispatchSpec)
-        : null,
-    ],
-  );
+     RETURNING id, station_run_id, (xmax = 0) AS created`;
+
+/** The upsert's bound values, in the order `ENSURE_SQL` declares them. Kept beside nothing else because the pairing is positional: a value inserted here without its placeholder binds silently into the wrong column. */
+function ensureParams(input: StationRunStartInput): unknown[] {
+  return [
+    input.assemblyRunId,
+    input.nodeId,
+    input.iteration,
+    input.agentCrName ?? null,
+    input.input ? JSON.stringify(input.input) : null,
+    input.status ?? "running",
+    input.requiredTags ?? [],
+    input.dispatchSpec !== undefined
+      ? JSON.stringify(input.dispatchSpec)
+      : null,
+  ];
+}
+
+export async function ensureStationRun(
+  pool: PgPool,
+  input: StationRunStartInput,
+): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
+  const { rows } = await pool.query(ENSURE_SQL, ensureParams(input));
 
   enforceTrue(
     rows.length === 1,
@@ -104,16 +108,8 @@ export async function enqueueStationRunDispatch(
   );
 }
 
-export async function claimNextStationRun(
-  pool: PgPool,
-  claimant: {
-    clusterAgentId: string;
-    tags: string[];
-  },
-): Promise<ClaimedStationRun | null> {
-  // One statement: FOR UPDATE SKIP LOCKED subquery + UPDATE share a snapshot, so concurrent claimants never take the same row.
-  const { rows } = await pool.query(
-    `WITH next AS (
+/** ONE statement: the `FOR UPDATE SKIP LOCKED` subquery and the UPDATE share a snapshot, so two claimants can never take the same row. `required_tags <@ $2` is containment, not overlap — an agent must satisfy EVERY tag a node asks for, or a run needing `gpu` would go to a cluster that has none. Ordered by id so the oldest queued work is claimed first. */
+const CLAIM_SQL = `WITH next AS (
        SELECT id FROM pipeline.station_runs
         WHERE status = 'queued' AND outcome IS NULL
           AND dispatch_spec IS NOT NULL
@@ -127,14 +123,11 @@ export async function claimNextStationRun(
        FROM next
       WHERE sr.id = next.id
      RETURNING sr.id, sr.station_run_id, sr.assembly_run_id, sr.node_id,
-               sr.iteration, sr.agent_cr_name, sr.dispatch_spec`,
-    [claimant.clusterAgentId, claimant.tags],
-  );
+               sr.iteration, sr.agent_cr_name, sr.dispatch_spec`;
 
-  if (!rows[0]) {
-    return null;
-  }
-  const row = rows[0] as {
+/** The claimed row in the caller's spelling. `id` is stringified because it is a bigint: it outgrows a JS number, and the cluster-agent round-trips it as an identifier rather than doing arithmetic on it. */
+function toClaimed(row: unknown): ClaimedStationRun {
+  const r = row as {
     id: number | string;
     station_run_id: string;
     assembly_run_id: string;
@@ -145,14 +138,29 @@ export async function claimNextStationRun(
   };
 
   return {
-    nodeRowId: String(row.id),
-    stationRunId: row.station_run_id,
-    assemblyRunId: row.assembly_run_id,
-    nodeId: row.node_id,
-    iteration: row.iteration,
-    agentCrName: row.agent_cr_name,
-    dispatchSpec: row.dispatch_spec,
+    nodeRowId: String(r.id),
+    stationRunId: r.station_run_id,
+    assemblyRunId: r.assembly_run_id,
+    nodeId: r.node_id,
+    iteration: r.iteration,
+    agentCrName: r.agent_cr_name,
+    dispatchSpec: r.dispatch_spec,
   };
+}
+
+export async function claimNextStationRun(
+  pool: PgPool,
+  claimant: {
+    clusterAgentId: string;
+    tags: string[];
+  },
+): Promise<ClaimedStationRun | null> {
+  const { rows } = await pool.query(CLAIM_SQL, [
+    claimant.clusterAgentId,
+    claimant.tags,
+  ]);
+
+  return rows[0] ? toClaimed(rows[0]) : null;
 }
 
 export async function requeueStationRun(
@@ -207,5 +215,7 @@ export async function listStationRuns(
     [assemblyRunId],
   );
 
-  return rows.map((r) => toNodeRecord(r as Parameters<typeof toNodeRecord>[0]));
+  return rows.map((r) =>
+    toNodeRecord(r as unknown as Parameters<typeof toNodeRecord>[0]),
+  );
 }

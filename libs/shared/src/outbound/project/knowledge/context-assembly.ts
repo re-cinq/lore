@@ -252,58 +252,95 @@ function composeAssembled(
   };
 }
 
-export async function assembleContext(
-  pool: PgPool,
-  query: string,
-  {
-    templateName = "default",
-    maxTokens,
-    repo,
-    agentId,
-    crossRepo,
-    includeIds,
-    debug,
-    dgraph,
-  }: AssembleOptions = {},
-): Promise<AssembledResult> {
-  const startedAt = Date.now();
-  const template = getTemplate(templateName);
-  const minTokens = assemblyBudget(templateName, maxTokens);
-  const freshness = await resolveFreshness(pool, repo);
-
-  const timings: Record<string, number> = {};
-  const fetched = await fetchAllSections(
-    // cross_repo is only consulted when explicitly requested.
-    template.sections.filter((s) => s.source !== "cross_repo" || crossRepo),
-    { pool, dgraph, query, repo, agentId },
-    timings,
+/** Every section the template asks for. `cross_repo` is consulted ONLY when explicitly requested: a linked repo's context is useful when someone asked for it and noise when they did not, and the transfer-score filter downstream cannot tell the difference. */
+async function fetchSections(
+  template: ReturnType<typeof getTemplate>,
+  sources: Parameters<typeof fetchAllSections>[1],
+  opts: { crossRepo: boolean | undefined; timings: Record<string, number> },
+) {
+  return fetchAllSections(
+    template.sections.filter(
+      (s) => s.source !== "cross_repo" || opts.crossRepo,
+    ),
+    sources,
+    opts.timings,
   );
-  const { serialized, traceSections } = allocateSections(fetched, minTokens);
-  const refs = includeIds
-    ? await collectAssembledRefs(pool, query, agentId)
-    : emptyAssembledRefs;
+}
 
-  const result = composeAssembled(
-    { query, templateName, minTokens },
-    serialized,
-    freshness,
-  );
-
-  if (debug) {
-    result.trace = buildAssemblyTrace({
-      query,
-      templateName,
-      minTokens,
-      crossRepo,
-      template,
-      traceSections,
-      sections: result.sections,
-      freshness,
-      startedAt,
-      timings,
-    });
+/** Composes the bundle and hangs the optional annotations on it: the debug trace (which records what each source contributed and how long it took) and the context refs (which a merged PR later boosts the half-life of, and a rejected one penalises). */
+function annotate(
+  result: AssembledResult,
+  trace: Parameters<typeof buildAssemblyTrace>[0] | null,
+  refs: Awaited<ReturnType<typeof collectAssembledRefs>>,
+): AssembledResult {
+  if (trace) {
+    result.trace = buildAssemblyTrace(trace);
   }
   applyContextRefs(result, refs);
 
   return result;
+}
+
+/** Every section fetched, packed into the budget, and serialized into one block. */
+async function assembleSections(
+  {
+    template,
+    templateName,
+    minTokens,
+  }: {
+    template: ReturnType<typeof getTemplate>;
+    templateName: string;
+    minTokens: number;
+  },
+  sources: Parameters<typeof fetchSections>[1],
+  fetchOptions: Parameters<typeof fetchSections>[2],
+) {
+  // Freshness is read BEFORE the sections: it tells the caller its context may be out of date, which matters most when the assembly otherwise succeeded.
+  const freshness = await resolveFreshness(sources.pool, sources.repo);
+  const { serialized, traceSections } = allocateSections(
+    await fetchSections(template, sources, fetchOptions),
+    minTokens,
+  );
+
+  return {
+    result: composeAssembled(
+      { query: sources.query, templateName, minTokens },
+      serialized,
+      freshness,
+    ),
+    traceSections,
+    freshness,
+  };
+}
+
+export async function assembleContext(
+  pool: PgPool,
+  query: string,
+  options: AssembleOptions = {},
+): Promise<AssembledResult> {
+  const { templateName = "default", repo, agentId, crossRepo } = options;
+  const { includeIds, debug, dgraph } = options;
+  const startedAt = Date.now();
+  const template = getTemplate(templateName);
+  const minTokens = assemblyBudget(templateName, options.maxTokens);
+  const timings: Record<string, number> = {};
+  const { result, traceSections, freshness } = await assembleSections(
+    { template, templateName, minTokens },
+    { pool, dgraph, query, repo, agentId },
+    { crossRepo, timings },
+  );
+
+  return annotate(
+    result,
+    debug
+      ? {
+          ...{ query, templateName, minTokens, crossRepo, template },
+          ...{ traceSections, sections: result.sections, freshness },
+          ...{ startedAt, timings },
+        }
+      : null,
+    includeIds
+      ? await collectAssembledRefs(pool, query, agentId)
+      : emptyAssembledRefs,
+  );
 }

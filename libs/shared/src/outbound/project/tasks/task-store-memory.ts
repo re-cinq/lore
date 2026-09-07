@@ -143,19 +143,29 @@ export class InMemoryTaskStore implements TaskStorePort {
     }
   }
 
-  async create(input: CreateTaskInput): Promise<CreatedTask> {
-    const taskType = input.taskType ?? "general";
-    const repo = input.targetRepo;
-    const createdBy = input.createdBy ?? "ui";
-
+  /** Mirrors the Pg path's create-time gates exactly — a double that accepts what production refuses tests nothing. */
+  private enforceCreatable(
+    input: CreateTaskInput,
+    repo: string | undefined,
+    taskType: string,
+  ): void {
     enforceTrue(
       input.description.length <= 10000,
       Error,
       "Description too long (max 10000 chars)",
     );
     this.enforceTrustGate(repo, taskType);
+  }
+
+  async create(input: CreateTaskInput): Promise<CreatedTask> {
+    const taskType = input.taskType ?? "general";
+    const repo = input.targetRepo;
+    const createdBy = input.createdBy ?? "ui";
     const priority = input.priority === "immediate" ? "immediate" : "normal";
     const createdAt = this.now().toISOString();
+
+    this.enforceCreatable(input, repo, taskType);
+
     const task = this.buildTaskRow(input, {
       taskType,
       repo,

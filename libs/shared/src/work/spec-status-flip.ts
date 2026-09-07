@@ -81,6 +81,19 @@ type FlipDecision =
       testable: number;
     };
 
+/** The spec's content with its status row set to `target`, or null when the row has gone missing between the two reads. `allowTerminal` is safe here: terminal statuses returned before this call, and a Shipped→In Progress demotion is exactly this function's job. */
+function rewriteTo(
+  content: string,
+  target: NonNullable<ReturnType<typeof expectedStatus>>,
+): { newLabel: string; newContent: string } | null {
+  const newLabel = statusLabel(target, "spec");
+  const newContent = rewriteSpecStatusRow(content, newLabel, {
+    allowTerminal: true,
+  });
+
+  return newContent === null ? null : { newLabel, newContent };
+}
+
 // Reconciles specPath's status header with its coverage: skips when no-status-row/terminal/no-coverage/already-current, otherwise the rewritten content to commit.
 function decideStatusFlip(content: string): FlipDecision {
   const current = parseDocStatus(content, "spec").status;
@@ -104,24 +117,13 @@ function decideStatusFlip(content: string): FlipDecision {
   if (target === current) {
     return { outcome: "skip", reason: "already-current", status: current };
   }
-  const newLabel = statusLabel(target, "spec");
-  // `allowTerminal` is safe: terminal statuses already returned above, and a Shipped→In Progress demotion is exactly this call's job.
-  const newContent = rewriteSpecStatusRow(content, newLabel, {
-    allowTerminal: true,
-  });
+  const rewritten = rewriteTo(content, target);
 
-  if (newContent === null) {
+  if (rewritten === null) {
     return { outcome: "skip", reason: "no-status-row", status: current };
   }
 
-  return {
-    outcome: "flip",
-    status: target,
-    newLabel,
-    newContent,
-    linked,
-    testable,
-  };
+  return { outcome: "flip", status: target, ...rewritten, linked, testable };
 }
 
 interface FlipPrMeta {

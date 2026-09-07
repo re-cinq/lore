@@ -24,34 +24,32 @@ function emptyToNull(value: string | undefined): string | null {
   return value || null;
 }
 
-function entityGraphQuery(validFilter: string): string {
+/** One direction of the entity's edges: `near` is the side matched against the queried name, `far` the neighbor reported back. Both halves of the UNION are this same shape with the sides swapped — an edge is stored once, but the entity at either end wants to see it. */
+function edgesFrom(
+  near: "s" | "t",
+  far: "s" | "t",
+  direction: "outgoing" | "incoming",
+  validFilter: string,
+): string {
   return `SELECT
-       s.name as entity, s.entity_type,
+       ${near}.name as entity, ${near}.entity_type,
        e.relation_type as relation,
-       t.name as related_entity, t.entity_type as related_type,
-       'outgoing' as direction,
+       ${far}.name as related_entity, ${far}.entity_type as related_type,
+       '${direction}' as direction,
        e.valid_from
      FROM memory.edges e
      JOIN memory.entities s ON s.id = e.source_id
      JOIN memory.entities t ON t.id = e.target_id
-     WHERE LOWER(s.name) = LOWER($1)
+     WHERE LOWER(${near}.name) = LOWER($1)
        ${validFilter}
        AND ($2::text IS NULL OR e.relation_type = $2)
-       AND ($3::text IS NULL OR s.repo = $3)
+       AND ($3::text IS NULL OR ${near}.repo = $3)`;
+}
+
+function entityGraphQuery(validFilter: string): string {
+  return `${edgesFrom("s", "t", "outgoing", validFilter)}
      UNION ALL
-     SELECT
-       t.name as entity, t.entity_type,
-       e.relation_type as relation,
-       s.name as related_entity, s.entity_type as related_type,
-       'incoming' as direction,
-       e.valid_from
-     FROM memory.edges e
-     JOIN memory.entities s ON s.id = e.source_id
-     JOIN memory.entities t ON t.id = e.target_id
-     WHERE LOWER(t.name) = LOWER($1)
-       ${validFilter}
-       AND ($2::text IS NULL OR e.relation_type = $2)
-       AND ($3::text IS NULL OR t.repo = $3)
+     ${edgesFrom("t", "s", "incoming", validFilter)}
      ORDER BY valid_from DESC
      LIMIT 50`;
 }

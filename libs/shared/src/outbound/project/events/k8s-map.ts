@@ -80,6 +80,18 @@ function isAssemblyNodeEvent(
   return Boolean(assemblyLineId && nodeId && agentName);
 }
 
+function nodeParams(
+  node: {
+    assemblyLineId: string | null;
+    nodeId: string | null;
+    iteration: number | null;
+    agentName: string | null;
+  },
+  run: { taskId: string | null; phase: string; status: unknown },
+): Record<string, unknown> {
+  return { ...node, ...run };
+}
+
 export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
   const terminal = terminalAgentPhase(agent);
 
@@ -92,20 +104,15 @@ export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
   const agentName = agent.metadata?.name ?? null;
   const status = agentStatus(agent, phase);
 
-  // Assembly-line NODE CR: own event family, deduped per CR name (task-keyed dedupe swallows later nodes).
+  // Assembly-line NODE CR: own event family, deduped per CR NAME — a task-keyed dedupe would swallow every node after the first, since one line's nodes all share a task.
   if (isAssemblyNodeEvent(assemblyLineId, nodeId, agentName)) {
     return {
       eventName: `kubernetes.agent_node.${action}`,
       source: "kubernetes",
-      params: {
-        assemblyLineId,
-        nodeId,
-        iteration,
-        agentName,
-        taskId,
-        phase,
-        status,
-      },
+      params: nodeParams(
+        { assemblyLineId, nodeId, iteration, agentName },
+        { taskId, phase, status },
+      ),
       dedupeKey: k8sAgentNodeDedupeKey(agentName, phase),
     };
   }

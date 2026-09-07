@@ -204,6 +204,27 @@ export async function updateOrgDefinition(
   return toDef(rows[0] as unknown as AgentRow);
 }
 
+/** Upserts the PROJECT row, so editing an inherited org default forks a row rather than rewriting the default for every other repo. The catalog event goes in the same statement: a definition change nothing observed is a change the running fleet never picks up. */
+const UPDATE_DEF_SQL = `WITH written AS (
+         INSERT INTO lore.agent_definitions
+           (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, ${mergedConfigSql("$8::jsonb", 10, 11, 12)}, (SELECT id FROM lore.repos WHERE full_name = $9))
+         ON CONFLICT (name, project_id) WHERE project_id IS NOT NULL DO UPDATE SET
+           model = EXCLUDED.model,
+           timeout_minutes = EXCLUDED.timeout_minutes,
+           prompt = EXCLUDED.prompt,
+           image = EXCLUDED.image,
+           execution_mode = EXCLUDED.execution_mode,
+           review_required = EXCLUDED.review_required,
+           config = ${mergedConfigSql("lore.agent_definitions.config", 10, 11, 12)},
+           updated_at = now()
+         RETURNING ${RET_COLS}
+       ), event AS (
+         INSERT INTO lore.catalog_events (name, project_id, op)
+         SELECT name, project_id, 'upsert' FROM written
+       )
+       SELECT ${RET_COLS} FROM written`;
+
 export class PgAgentDefs implements AgentDefsPort {
   constructor(
     private readonly pool: PgPool,
@@ -296,34 +317,12 @@ export class PgAgentDefs implements AgentDefsPort {
     patch: Partial<AgentDefinitionInput>,
     podResources?: PodResourcesWrite,
   ): Promise<AgentDefinition> {
-    // Upsert the project row so editing an inherited org default forks a row.
-    const { rows } = await this.pool.query(
-      `WITH written AS (
-         INSERT INTO lore.agent_definitions
-           (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, ${mergedConfigSql("$8::jsonb", 10, 11, 12)}, (SELECT id FROM lore.repos WHERE full_name = $9))
-         ON CONFLICT (name, project_id) WHERE project_id IS NOT NULL DO UPDATE SET
-           model = EXCLUDED.model,
-           timeout_minutes = EXCLUDED.timeout_minutes,
-           prompt = EXCLUDED.prompt,
-           image = EXCLUDED.image,
-           execution_mode = EXCLUDED.execution_mode,
-           review_required = EXCLUDED.review_required,
-           config = ${mergedConfigSql("lore.agent_definitions.config", 10, 11, 12)},
-           updated_at = now()
-         RETURNING ${RET_COLS}
-       ), event AS (
-         INSERT INTO lore.catalog_events (name, project_id, op)
-         SELECT name, project_id, 'upsert' FROM written
-       )
-       SELECT ${RET_COLS} FROM written`,
-      [
-        name,
-        ...patchDefaults(patch),
-        repo,
-        ...podResourcesParams(podResources),
-      ],
-    );
+    const { rows } = await this.pool.query(UPDATE_DEF_SQL, [
+      name,
+      ...patchDefaults(patch),
+      repo,
+      ...podResourcesParams(podResources),
+    ]);
 
     return toDef(rows[0] as unknown as AgentRow);
   }

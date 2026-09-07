@@ -32,6 +32,28 @@ function coverageRecordsFromGroups(payload: CoveragePayload) {
   }));
 }
 
+/** A coverage-only payload. The test counts are zero rather than absent: this kind carries no descriptors, and reporting it as having validated nothing is what distinguishes it from a test report whose tests all failed. */
+async function ingestCoverageKind(
+  dgraph: DgraphClientPort,
+  repo: string,
+  report: CoveragePayload,
+): Promise<SpecTraceOutcome> {
+  const result = await ingestCoverageReport(
+    dgraph,
+    { repo, tool: "coverage-report", commit: report.commit ?? "" },
+    coverageRecordsFromGroups(report),
+  );
+
+  return {
+    kind: "coverage",
+    testChunks: 0,
+    validatedBy: 0,
+    violated: 0,
+    coverageNodes: result.coverageNodes,
+    coversEdges: result.coversEdges,
+  };
+}
+
 export async function ingestSpecTrace(
   dgraph: DgraphClientPort,
   repo: string,
@@ -48,23 +70,8 @@ export async function ingestSpecTrace(
 
       return { kind, ...result };
     }
-    case "coverage": {
-      const report = payload as CoveragePayload;
-      const result = await ingestCoverageReport(
-        dgraph,
-        { repo, tool: "coverage-report", commit: report.commit ?? "" },
-        coverageRecordsFromGroups(report),
-      );
-
-      return {
-        kind,
-        testChunks: 0,
-        validatedBy: 0,
-        violated: 0,
-        coverageNodes: result.coverageNodes,
-        coversEdges: result.coversEdges,
-      };
-    }
+    case "coverage":
+      return ingestCoverageKind(dgraph, repo, payload as CoveragePayload);
     default:
       throw new Error(`ingestSpecTrace: unrecognized kind "${kind}"`);
   }

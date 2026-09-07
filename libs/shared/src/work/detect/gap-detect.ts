@@ -39,6 +39,52 @@ export async function gapDetectJob(opts: GapDetectOptions): Promise<string> {
   return summary;
 }
 
+/** The three kinds of context a repo can simply be missing. Checked against the INGESTED chunks rather than the repo's files: a CLAUDE.md that exists but was never ingested is invisible to every agent, which is the gap this reports. */
+async function missingContent(
+  repo: string,
+  project: Project,
+): Promise<GapReport[]> {
+  const checks: Array<[GapReport["type"], boolean, string]> = [
+    [
+      "missing-claude-md",
+      await project.chunks.hasChunk("doc", "CLAUDE.md"),
+      `${repo} has no CLAUDE.md in context`,
+    ],
+    [
+      "missing-adrs",
+      await project.chunks.hasChunk("adr"),
+      `${repo} has no architecture decision records`,
+    ],
+    [
+      "missing-specs",
+      await project.chunks.hasChunk("spec"),
+      `${repo} has no spec files in context`,
+    ],
+  ];
+
+  return checks
+    .filter(([, present]) => !present)
+    .map(([type, , detail]) => ({ repo, type, detail }));
+}
+
+/** Content the reindex has not re-verified lately. A FLOOR rather than any staleness at all: a handful of untouched chunks is normal in a quiet repo, and reporting those would train people to ignore the gap report. */
+async function staleContent(
+  repo: string,
+  project: Project,
+): Promise<GapReport[]> {
+  const staleCount = await project.chunks.staleChunkCount(STALE_DAYS);
+
+  return staleCount > STALE_CHUNK_FLOOR
+    ? [
+        {
+          repo,
+          type: "stale-content" as const,
+          detail: `${repo} has ${staleCount} chunks not verified by reindex in >${STALE_DAYS} days`,
+        },
+      ]
+    : [];
+}
+
 async function detectGaps(
   repo: string,
   project: Project,
@@ -46,38 +92,8 @@ async function detectGaps(
   const gaps: GapReport[] = [];
 
   try {
-    if (!(await project.chunks.hasChunk("doc", "CLAUDE.md"))) {
-      gaps.push({
-        repo,
-        type: "missing-claude-md",
-        detail: `${repo} has no CLAUDE.md in context`,
-      });
-    }
-
-    if (!(await project.chunks.hasChunk("adr"))) {
-      gaps.push({
-        repo,
-        type: "missing-adrs",
-        detail: `${repo} has no architecture decision records`,
-      });
-    }
-
-    if (!(await project.chunks.hasChunk("spec"))) {
-      gaps.push({
-        repo,
-        type: "missing-specs",
-        detail: `${repo} has no spec files in context`,
-      });
-    }
-    const staleCount = await project.chunks.staleChunkCount(STALE_DAYS);
-
-    if (staleCount > STALE_CHUNK_FLOOR) {
-      gaps.push({
-        repo,
-        type: "stale-content",
-        detail: `${repo} has ${staleCount} chunks not verified by reindex in >${STALE_DAYS} days`,
-      });
-    }
+    gaps.push(...(await missingContent(repo, project)));
+    gaps.push(...(await staleContent(repo, project)));
   } catch (err) {
     console.error(`[job] gap-detect: error checking ${repo}:`, err);
   }

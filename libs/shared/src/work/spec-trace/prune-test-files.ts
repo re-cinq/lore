@@ -26,6 +26,14 @@ interface DoomedChunkRow {
   covOut?: { uid: string; covered?: UidRef[] };
 }
 
+/** The `[owner, chunk]` pairs to delete, one per node claiming this chunk. */
+function edgesFromOwners(
+  owners: UidRef[] | undefined,
+  chunkUid: string,
+): Array<[string, string]> {
+  return (owners ?? []).map((owner): [string, string] => [owner.uid, chunkUid]);
+}
+
 /** `TestChunk.coverage` is the only live chunk→Coverage edge; `Coverage.test` is unwritten dead schema. */
 function collectChunkEdges(chunks: DoomedChunkRow[]): {
   coverageUids: string[];
@@ -45,18 +53,8 @@ function collectChunkEdges(chunks: DoomedChunkRow[]): {
         coveredUids.add(coveredRef.uid),
       );
     }
-    statementEdges.push(
-      ...(chunk.stmts ?? []).map((owner): [string, string] => [
-        owner.uid,
-        chunk.uid,
-      ]),
-    );
-    criterionEdges.push(
-      ...(chunk.acs ?? []).map((owner): [string, string] => [
-        owner.uid,
-        chunk.uid,
-      ]),
-    );
+    statementEdges.push(...edgesFromOwners(chunk.stmts, chunk.uid));
+    criterionEdges.push(...edgesFromOwners(chunk.acs, chunk.uid));
   }
 
   return {
@@ -77,14 +75,8 @@ function parseFileSubtreeResponse(res: {
   return { chunks, suites, rootUid: root?.[0]?.uid ?? null };
 }
 
-async function queryFileSubtree(
-  dgraph: DgraphClientPort,
-  repo: string,
-  filePath: string,
-): Promise<DoomedFile | null> {
-  return withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query q($repo: string, $file: string) {
+/** Everything rooted at one test file. The reverse edges (`~Statement.validated_by`) are what make the delete complete — a chunk knows its coverage, but only the reverse direction finds the statements claiming it. */
+const FILE_SUBTREE_QUERY = `query q($repo: string, $file: string) {
         chunks(func: eq(TestChunk.repo, $repo))
             @filter(eq(TestChunk.file_path, $file)) {
           uid
@@ -95,9 +87,18 @@ async function queryFileSubtree(
         suites(func: eq(TestSuite.repo, $repo))
             @filter(eq(TestSuite.file_path, $file)) { uid }
         root(func: eq(Repo.xid, $repo)) { uid }
-      }`,
-      { $repo: repo, $file: filePath },
-    );
+      }`;
+
+async function queryFileSubtree(
+  dgraph: DgraphClientPort,
+  repo: string,
+  filePath: string,
+): Promise<DoomedFile | null> {
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(FILE_SUBTREE_QUERY, {
+      $repo: repo,
+      $file: filePath,
+    });
     const { chunks, suites, rootUid } = parseFileSubtreeResponse(res);
 
     if (chunks.length === 0 && suites.length === 0) {
@@ -148,6 +149,53 @@ function deleteNquadsFor(target: FileSubtree): string[] {
   return deletes;
 }
 
+/** One test file's subtree, garbage-collected and then deleted; a file with no graph presence prunes nothing. */
+async function pruneOneTestFile(
+  dgraph: DgraphClientPort,
+  repo: string,
+  filePath: string,
+): Promise<number> {
+  const doomed = await queryFileSubtree(dgraph, repo, filePath);
+
+  if (!doomed) {
+    return 0;
+  }
+
+  await gcCoveredNodes(dgraph, doomed);
+
+  // Re-query uids before the atomic delete mutation — Dgraph only detects write-write conflicts, so this is the staleness guard.
+  const target = await queryFileSubtree(dgraph, repo, filePath);
+
+  if (!target) {
+    return 0;
+  }
+
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({
+      deleteNquads: deleteNquadsFor(target).join("\n"),
+      commitNow: true,
+    }),
+  );
+
+  return target.chunkUids.length;
+}
+
+/** Drops the CodeChunks and Files this test file was the last cover of. The doomed chunks and coverage rows are excluded as owners — they are about to go, so counting them would keep a genuinely orphaned node alive. */
+async function gcCoveredNodes(
+  dgraph: DgraphClientPort,
+  doomed: FileSubtree,
+): Promise<void> {
+  const excludeOwners = new Set([...doomed.coverageUids, ...doomed.chunkUids]);
+
+  for (const type of ["CodeChunk", "File"] as const) {
+    await gcOrphanChunks(dgraph, type, {
+      previous: doomed.coveredUids,
+      current: [],
+      excludeOwners,
+    });
+  }
+}
+
 export async function pruneTestFiles(
   dgraph: DgraphClientPort,
   repo: string,
@@ -156,38 +204,7 @@ export async function pruneTestFiles(
   let prunedChunks = 0;
 
   for (const filePath of files) {
-    const doomed = await queryFileSubtree(dgraph, repo, filePath);
-
-    if (!doomed) {
-      continue;
-    }
-
-    // GC before delete, excluding doomed nodes as owners, so a still-referenced CodeChunk/File survives.
-    const excluded = new Set([...doomed.coverageUids, ...doomed.chunkUids]);
-
-    await gcOrphanChunks(dgraph, "CodeChunk", {
-      previous: doomed.coveredUids,
-      current: [],
-      excludeOwners: excluded,
-    });
-    await gcOrphanChunks(dgraph, "File", {
-      previous: doomed.coveredUids,
-      current: [],
-      excludeOwners: excluded,
-    });
-
-    // Re-query uids before the atomic delete mutation — Dgraph only detects write-write conflicts, so this is the staleness guard.
-    const target = await queryFileSubtree(dgraph, repo, filePath);
-
-    if (!target) {
-      continue;
-    }
-    const deletes = deleteNquadsFor(target);
-
-    await withTxn(dgraph, (txn) =>
-      txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true }),
-    );
-    prunedChunks += target.chunkUids.length;
+    prunedChunks += await pruneOneTestFile(dgraph, repo, filePath);
   }
 
   return { prunedChunks };

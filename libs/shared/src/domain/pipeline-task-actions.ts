@@ -86,17 +86,13 @@ export async function escalateTask(
   return { task_id: taskId, priority: "immediate" };
 }
 
-/** Queues a revision of a task from human feedback: a follow-up task on the SAME branch/PR at immediate priority, with the parent moved to `revision-requested`. */
-export async function reviseTask(
+/** The follow-up task, at `immediate` priority and pointed at the SAME branch and PR — a revision continues the existing work rather than opening a second PR beside it. Everything but a feature-request revises as an `implementation`: the feedback is on code, whatever produced it. */
+async function insertRevisionTask(
   pool: PgPool,
+  task: NonNullable<Awaited<ReturnType<typeof getTask>>>,
   taskId: string,
   feedback: string,
-): Promise<{ task_id: string; revision_task_id: string }> {
-  const task = await getTask(pool, taskId);
-
-  enforceTrue(task, Error, "Task not found");
-  enforceTrue(Boolean(feedback.trim()), Error, "Feedback is required");
-
+): Promise<string> {
   const { rows } = await pool.query<{ id: string }>(
     `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
      VALUES ($1, $2, $3, $4, $5, 'immediate') RETURNING id`,
@@ -115,7 +111,22 @@ export async function reviseTask(
       }),
     ],
   );
-  const revisionTaskId = rows[0].id;
+
+  return rows[0].id;
+}
+
+/** Queues a revision of a task from human feedback: a follow-up task on the SAME branch/PR at immediate priority, with the parent moved to `revision-requested`. */
+export async function reviseTask(
+  pool: PgPool,
+  taskId: string,
+  feedback: string,
+): Promise<{ task_id: string; revision_task_id: string }> {
+  const task = await getTask(pool, taskId);
+
+  enforceTrue(task, Error, "Task not found");
+  enforceTrue(Boolean(feedback.trim()), Error, "Feedback is required");
+
+  const revisionTaskId = await insertRevisionTask(pool, task, taskId, feedback);
 
   await recordEvent(
     pool,

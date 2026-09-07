@@ -98,12 +98,8 @@ export class PgFeatures implements FeaturesPort {
     return rows as Feature[];
   }
 
-  async appendIteration(
-    repo: string,
-    id: string,
-    userAnswers: unknown,
-    parentIteration: number | null = null,
-  ): Promise<FeatureIteration> {
+  /** Claims the next iteration number and puts the feature back into `planning`. The counter lives on the feature, not on the round, so two concurrent appends cannot both claim the same number. */
+  private async bumpIteration(repo: string, id: string): Promise<number> {
     const { rows } = await this.pool.query(
       `UPDATE lore.features
           SET current_iteration = current_iteration + 1,
@@ -113,8 +109,17 @@ export class PgFeatures implements FeaturesPort {
         RETURNING current_iteration`,
       [id, repo],
     );
-    const iteration = (rows[0] as { current_iteration: number })
-      .current_iteration;
+
+    return (rows[0] as { current_iteration: number }).current_iteration;
+  }
+
+  async appendIteration(
+    repo: string,
+    id: string,
+    userAnswers: unknown,
+    parentIteration: number | null = null,
+  ): Promise<FeatureIteration> {
+    const iteration = await this.bumpIteration(repo, id);
     const { rows: inserted } = await this.pool.query<FeatureIteration>(
       `INSERT INTO lore.feature_iterations
          (feature_id, iteration, status, user_answers, parent_iteration)

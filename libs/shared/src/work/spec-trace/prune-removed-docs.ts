@@ -167,6 +167,32 @@ async function querySpecSubtree(
   return buildDoomedSpecSubtree(spec, rootUid);
 }
 
+/** Collects what the spec's subtree was the last owner of. The ownership queries still see the doomed Statements and ACs alive, so their uids are excluded from the owner check — otherwise a chunk owned ONLY by this spec's children would look owned and survive as an orphan. The Feature goes too, but only once nothing else claims it. */
+async function gcSpecLeavings(
+  dgraph: DgraphClientPort,
+  doomed: SpecSubtree,
+): Promise<void> {
+  const excludeOwners = new Set(doomed.childUids);
+
+  await gcOrphanChunks(dgraph, "TestChunk", {
+    previous: doomed.validatedUids,
+    current: [],
+    excludeOwners,
+  });
+  await gcOrphanChunks(dgraph, "CodeChunk", {
+    previous: doomed.implementedUids,
+    current: [],
+    excludeOwners,
+  });
+
+  if (doomed.featureUid) {
+    await gcFeatureIfOrphan(dgraph, doomed.featureUid, doomed.specUid);
+  }
+}
+
+/** What {@link querySpecSubtree} returns when the spec exists. */
+type SpecSubtree = NonNullable<Awaited<ReturnType<typeof querySpecSubtree>>>;
+
 /** Deletes a Spec's whole subtree plus GC of link-target chunks and the owning Feature (only when ownerless); missing Spec is a no-op; anchor-deleted-last for crash resume. */
 export async function deleteSpecSubtree(
   dgraph: DgraphClientPort,
@@ -181,23 +207,7 @@ export async function deleteSpecSubtree(
     return;
   }
 
-  // The ownership queries see the doomed Statements/ACs still alive, so their uids are excluded — a chunk owned ONLY by this spec's children is orphaned.
-  const doomedOwners = new Set(doomed.childUids);
-
-  await gcOrphanChunks(dgraph, "TestChunk", {
-    previous: doomed.validatedUids,
-    current: [],
-    excludeOwners: doomedOwners,
-  });
-  await gcOrphanChunks(dgraph, "CodeChunk", {
-    previous: doomed.implementedUids,
-    current: [],
-    excludeOwners: doomedOwners,
-  });
-
-  if (doomed.featureUid) {
-    await gcFeatureIfOrphan(dgraph, doomed.featureUid, doomed.specUid);
-  }
+  await gcSpecLeavings(dgraph, doomed);
 
   // An empty valid set makes the file-scoped Block sweep delete every Block.
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, new Set());

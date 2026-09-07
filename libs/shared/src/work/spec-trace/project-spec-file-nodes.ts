@@ -47,33 +47,39 @@ export async function projectFeature(
 export type SpecSegment = ReturnType<typeof segmentStatements>[number];
 
 /** Upserts a Section per unique enclosing heading in document order, points `Spec.sections` at them, and returns heading→uid so statements can attach. */
-export async function projectSections(
-  context: ProjectionContext,
-  segments: SpecSegment[],
-): Promise<Map<string, string>> {
-  const { dgraph, repo, filePath, specUid } = context;
-  const uniqueHeadings = [
+/** The document's headings in order, deduplicated. Segments with no enclosing heading are dropped rather than grouped under a synthetic one: a statement in a document's preamble belongs to no section, and inventing one would put it under a heading a reader cannot find. */
+function uniqueHeadings(segments: SpecSegment[]): string[] {
+  return [
     ...new Set(
       segments
         .map((segment) => segment.enclosingHeading)
         .filter((heading): heading is string => heading !== null),
     ),
   ];
+}
+
+export async function projectSections(
+  context: ProjectionContext,
+  segments: SpecSegment[],
+): Promise<Map<string, string>> {
+  const { dgraph, repo, filePath, specUid } = context;
   const sectionUidByHeading = new Map<string, string>();
 
-  for (const [sectionOrdinal, heading] of uniqueHeadings.entries()) {
-    const sectionUid = await upsertByXid(
-      dgraph,
-      "Section",
-      `${repo}|${filePath}|${sectionOrdinal}`,
-      {
-        "Section.heading": heading,
-        "Section.ordinal": sectionOrdinal,
-        "Section.spec": { uid: specUid },
-      },
+  // Ordinal is the heading's POSITION in the document, and the xid is built from it — a heading that moves gets a different xid and is re-anchored by the prune that follows.
+  for (const [sectionOrdinal, heading] of uniqueHeadings(segments).entries()) {
+    sectionUidByHeading.set(
+      heading,
+      await upsertByXid(
+        dgraph,
+        "Section",
+        `${repo}|${filePath}|${sectionOrdinal}`,
+        {
+          "Section.heading": heading,
+          "Section.ordinal": sectionOrdinal,
+          "Section.spec": { uid: specUid },
+        },
+      ),
     );
-
-    sectionUidByHeading.set(heading, sectionUid);
   }
 
   if (sectionUidByHeading.size) {
@@ -87,6 +93,38 @@ export async function projectSections(
   return sectionUidByHeading;
 }
 
+/** The Statement node's own predicates. Optional ones are omitted rather than nulled: a stored null reads back the same as a deliberate value, so writing one would make an unclassified statement look deliberately uncategorized. */
+function statementFacts(
+  { repo, specUid }: ProjectionContext,
+  segment: SpecSegment,
+  {
+    classification,
+    sectionUid,
+    embedding,
+  }: {
+    classification: Classification;
+    sectionUid: string | undefined;
+    embedding: number[] | null | undefined;
+  },
+): Record<string, unknown> {
+  return {
+    "Statement.repo": repo,
+    "Statement.ordinal": segment.ordinal,
+    "Statement.text": segment.text,
+    "Statement.text_hash": sha256(segment.text),
+    "Statement.spec": { uid: specUid },
+    "Statement.kind": segment.kind,
+    "Statement.testability": classification.testability,
+    ...(classification.category != null
+      ? { "Statement.category": classification.category }
+      : {}),
+    ...(sectionUid !== undefined
+      ? { "Statement.section": { uid: sectionUid } }
+      : {}),
+    ...(embedding ? { "Statement.embedding": vectorLiteral(embedding) } : {}),
+  };
+}
+
 /** Upserts one Statement, its inline-link chunks, and its `Statement.section` edge when the segment sits under a heading. */
 export async function projectStatement(
   context: ProjectionContext,
@@ -94,33 +132,18 @@ export async function projectStatement(
   sectionUidByHeading: Map<string, string>,
   classification: Classification,
 ): Promise<void> {
-  const { dgraph, repo, filePath, specUid } = context;
+  const { dgraph, repo, filePath } = context;
   const embedding = await context.embed(segment.text);
 
   const statementUid = await upsertByXid(
     dgraph,
     "Statement",
     `${repo}|${filePath}|${segment.ordinal}`,
-    {
-      "Statement.repo": repo,
-      "Statement.ordinal": segment.ordinal,
-      "Statement.text": segment.text,
-      "Statement.text_hash": sha256(segment.text),
-      "Statement.spec": { uid: specUid },
-      "Statement.kind": segment.kind,
-      "Statement.testability": classification.testability,
-      ...(classification.category != null
-        ? { "Statement.category": classification.category }
-        : {}),
-      ...(segment.enclosingHeading !== null
-        ? {
-            "Statement.section": {
-              uid: sectionUidByHeading.get(segment.enclosingHeading),
-            },
-          }
-        : {}),
-      ...(embedding ? { "Statement.embedding": vectorLiteral(embedding) } : {}),
-    },
+    statementFacts(context, segment, {
+      classification,
+      sectionUid: sectionUidByHeading.get(segment.enclosingHeading ?? ""),
+      embedding,
+    }),
   );
 
   await projectLinkEdges(context, statementUid, segment.text, {

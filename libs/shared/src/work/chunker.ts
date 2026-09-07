@@ -218,6 +218,23 @@ export function buildIngestedChunkMetadata(
   };
 }
 
+/** Chunks along the file's own syntax tree, falling back to the whole file when the grammar is missing or parses to nothing useful. A file that yields zero AST chunks is still indexable as one unit — dropping it would make the code invisible to search. */
+async function chunkByAst(content: string, ext: string): Promise<Chunk[]> {
+  const parser = await ensureParser();
+  const lang = await loadGrammar(ext);
+
+  if (!lang) {
+    return chunkSlidingWindow(content);
+  }
+
+  parser.setLanguage(lang);
+  const chunks = chunkCodeAST(parser.parse(content), content, ext);
+
+  return chunks.length > 0
+    ? chunks
+    : wholeFileChunk(content, { start_line: 1, end_line: lineCount(content) });
+}
+
 async function chunkFileRaw(
   content: string,
   filePath: string,
@@ -237,23 +254,7 @@ async function chunkFileRaw(
   }
 
   try {
-    const p = await ensureParser();
-    const lang = await loadGrammar(ext);
-
-    if (!lang) {
-      return chunkSlidingWindow(content);
-    }
-
-    p.setLanguage(lang);
-    const tree = p.parse(content);
-    const chunks = chunkCodeAST(tree, content, ext);
-
-    return chunks.length > 0
-      ? chunks
-      : wholeFileChunk(content, {
-          start_line: 1,
-          end_line: lineCount(content),
-        });
+    return await chunkByAst(content, ext);
   } catch (err) {
     console.error(
       `[chunker] AST parse failed for ${filePath}, falling back to sliding window:`,

@@ -184,6 +184,13 @@ interface ImpactAssembly {
   docsCount: number;
 }
 
+/** Which commit the graph was last projected at, when it is known. A report against an unprojected graph says so by omission rather than by naming a commit it did not read. */
+function graphCommitOf(baseline: ImpactAssembly["baseline"]) {
+  return baseline.commit
+    ? { graphCommit: baseline.commit, graphCommitAt: baseline.at ?? undefined }
+    : {};
+}
+
 function assembleImpactReport({
   options,
   changed,
@@ -204,12 +211,7 @@ function assembleImpactReport({
     testSelectors: [
       ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
     ],
-    ...(baseline.commit
-      ? {
-          graphCommit: baseline.commit,
-          graphCommitAt: baseline.at ?? undefined,
-        }
-      : {}),
+    ...graphCommitOf(baseline),
     examined: {
       files: changed.length,
       withGraphData: code.withGraphData,
@@ -220,6 +222,14 @@ function assembleImpactReport({
   };
 }
 
+/** A report that found nothing, for the two cases where nothing COULD be found: no graph to read, and a client whose diff is too coarse to trust. Both report `ok`-shaped emptiness rather than an error — the caller annotates a PR with it, and an empty annotation is the honest answer. */
+const EMPTY_IMPACT = {
+  status: "ok",
+  statements: [],
+  orphaned: [],
+  testSelectors: [],
+} satisfies Partial<ImpactReport>;
+
 export async function computeImpact(
   dgraph: DgraphClientPort | null,
   repo: string,
@@ -227,22 +237,14 @@ export async function computeImpact(
   options: ImpactOptions = {},
 ): Promise<ImpactReport> {
   if (!dgraph) {
-    return {
-      status: "unavailable",
-      statements: [],
-      orphaned: [],
-      testSelectors: [],
-    };
+    return { ...EMPTY_IMPACT, status: "unavailable" };
   }
 
   // A protocol-1 client diffed against the base-branch tip, so its file list carries everything merged to base since branch point; suppress rather than publish.
   if ((options.protocol ?? 1) < 2) {
     return {
-      status: "ok",
+      ...EMPTY_IMPACT,
       protocol: 1,
-      statements: [],
-      orphaned: [],
-      testSelectors: [],
       skipped: [{ path: "*", reason: "legacy-client" }],
     };
   }

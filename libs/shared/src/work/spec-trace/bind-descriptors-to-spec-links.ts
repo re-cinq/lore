@@ -38,6 +38,32 @@ function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
   );
 }
 
+/** The spec anchors whose `([validated by](file#Lline))` link falls INSIDE this test's own line range. A descriptor with no line bounds gets none — the runner could not say where the test is, so nothing can be said about which links point at it. */
+function anchorsFor(
+  index: ReturnType<typeof buildLinkIndex>,
+  descriptor: TestDescriptor,
+): string[] {
+  const { startLine, endLine } = descriptor;
+
+  if (startLine === undefined || endLine === undefined) {
+    return [];
+  }
+  const file = normalizePath(descriptor.file);
+
+  return [
+    ...new Set(
+      index
+        .filter(
+          (entry) =>
+            entry.path === file &&
+            entry.line >= startLine &&
+            entry.line <= endLine,
+        )
+        .map((entry) => entry.anchor),
+    ),
+  ];
+}
+
 export function bindDescriptorsToSpecLinks(
   descriptors: TestDescriptor[],
   specs: SpecSource[],
@@ -45,29 +71,11 @@ export function bindDescriptorsToSpecLinks(
   const index = buildLinkIndex(specs);
 
   return descriptors.map((descriptor) => {
-    const { startLine, endLine, spec } = descriptor;
-
-    if (spec !== undefined) {
+    // A descriptor that already names its spec keeps it: the author's own anchor outranks anything inferred from line ranges.
+    if (descriptor.spec !== undefined) {
       return descriptor;
     }
-
-    if (startLine === undefined || endLine === undefined) {
-      return descriptor;
-    }
-
-    const file = normalizePath(descriptor.file);
-    const anchors = [
-      ...new Set(
-        index
-          .filter(
-            (entry) =>
-              entry.path === file &&
-              entry.line >= startLine &&
-              entry.line <= endLine,
-          )
-          .map((entry) => entry.anchor),
-      ),
-    ];
+    const anchors = anchorsFor(index, descriptor);
 
     if (anchors.length === 0) {
       return descriptor;

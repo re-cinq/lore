@@ -34,6 +34,20 @@ export interface BrokenLink {
 
 // ── Pure helpers ────────────────────────────────────────────────────
 
+/** Whether any chunk of the file spans this line. Chunks carrying no range (pre-v2 chunker output) make the question unanswerable, and an unanswerable question is not a broken link — so no ranges reads as covered. */
+function coversLine(matching: ChunkLineRange[], line: number): boolean {
+  const ranged = matching.filter(
+    (c) => c.start_line !== null && c.end_line !== null,
+  );
+
+  return (
+    ranged.length === 0 ||
+    ranged.some(
+      (c) => (c.start_line as number) <= line && line <= (c.end_line as number),
+    )
+  );
+}
+
 export function resolveTestLink(
   link: TestLinkRef,
   chunks: ChunkLineRange[],
@@ -45,26 +59,15 @@ export function resolveTestLink(
     return { ok: false, reason: "file-missing" };
   }
 
-  if (link.line === null) {
+  // A link with no line, or one whose file has no line ranges to check against, is UNVERIFIABLE rather than broken — both answer ok.
+  if (link.line === null || coversLine(matching, link.line)) {
     return { ok: true };
   }
+
+  // Chunks with ranges only — the lag check compares against the file's last known line.
   const ranged = matching.filter(
     (c) => c.start_line !== null && c.end_line !== null,
   );
-
-  // A file whose chunks carry no line ranges (pre-v2 chunker output) is unverifiable, not broken.
-  if (ranged.length === 0) {
-    return { ok: true };
-  }
-  const covers = ranged.some(
-    (c) =>
-      (c.start_line as number) <= (link.line as number) &&
-      (link.line as number) <= (c.end_line as number),
-  );
-
-  if (covers) {
-    return { ok: true };
-  }
 
   if (isIndexLagShaped(link.line, ranged, specIngestedAt)) {
     return { ok: true };
@@ -99,6 +102,16 @@ function isIndexLagShaped(
   return Math.max(...stamps) < new Date(specIngestedAt).getTime();
 }
 
+/** Links that ARE valid but sit in the wrong place: a coverage link must trail its statement, because a link mid-sentence attaches to no statement the parser can identify. Reported as rot so the author moves it rather than wondering why coverage does not count. */
+function misplacedLinks(specPath: string, statementText: string): BrokenLink[] {
+  return findMisplacedCoverageLinks(statementText).map((link) => ({
+    spec_path: specPath,
+    statement_text: statementText,
+    link: { ...link, path: resolveLinkPath(link.path, specPath) },
+    reason: "non-trailing-link" as const,
+  }));
+}
+
 function brokenLinksForStatement(
   {
     path: specPath,
@@ -128,14 +141,7 @@ function brokenLinksForStatement(
     }
   }
 
-  for (const link of findMisplacedCoverageLinks(statementText)) {
-    out.push({
-      spec_path: specPath,
-      statement_text: statementText,
-      link: { ...link, path: resolveLinkPath(link.path, specPath) },
-      reason: "non-trailing-link",
-    });
-  }
+  out.push(...misplacedLinks(specPath, statementText));
 
   return out;
 }
@@ -215,6 +221,52 @@ function latestIngest(chunks: SpecChunkWithIngest[]): string | Date | null {
   );
 }
 
+/** The line ranges every test occupies, in the shape the link resolver reads. Passed through `dropIngestExcluded` like the specs: excluded-path chunks can linger from before the exclusion existed, and their links would otherwise surface as rot (#1018). */
+async function readTestRanges(
+  project: ValidateOptions["project"],
+): Promise<ChunkLineRange[]> {
+  return dropIngestExcluded(await project.chunks.testChunkRanges()).map(
+    (c) => ({
+      file_path: c.filePath,
+      start_line: c.startLine,
+      end_line: c.endLine,
+      ingested_at: c.ingestedAt,
+    }),
+  );
+}
+
+/** Walks every spec, reassembling it from its chunks before checking links. Reassembly is necessary because a spec is stored in pieces and a link's LINE NUMBER only means anything against the whole document — checking chunk by chunk would resolve every line against the wrong offset. */
+async function scanSpecs(
+  project: ValidateOptions["project"],
+  specs: Awaited<
+    ReturnType<ValidateOptions["project"]["chunks"]["specChunksWithIngest"]>
+  >,
+): Promise<{ broken: BrokenLink[]; totalSpecs: number }> {
+  const testChunks = await readTestRanges(project);
+  const broken: BrokenLink[] = [];
+  let totalSpecs = 0;
+
+  for (const [specPath, chunks] of specsByPath(specs)) {
+    totalSpecs++;
+    broken.push(
+      ...collectBrokenLinks(
+        specPath,
+        reassembleSpec(
+          chunks.map((c) => ({
+            content: c.content,
+            ingested_at: c.ingestedAt,
+            chunk_index: c.chunkIndex,
+          })),
+        ),
+        testChunks,
+        latestIngest(chunks),
+      ),
+    );
+  }
+
+  return { broken, totalSpecs };
+}
+
 export async function validateSpecCoverageJob(
   opts: ValidateOptions,
 ): Promise<string> {
@@ -230,37 +282,7 @@ export async function validateSpecCoverageJob(
     return "No specs found";
   }
 
-  const testChunks: ChunkLineRange[] = dropIngestExcluded(
-    await project.chunks.testChunkRanges(),
-  ).map((c) => ({
-    file_path: c.filePath,
-    start_line: c.startLine,
-    end_line: c.endLine,
-    ingested_at: c.ingestedAt,
-  }));
-
-  const broken: BrokenLink[] = [];
-  let totalSpecs = 0;
-
-  for (const [specPath, chunks] of specsByPath(specs)) {
-    totalSpecs++;
-    const content = reassembleSpec(
-      chunks.map((c) => ({
-        content: c.content,
-        ingested_at: c.ingestedAt,
-        chunk_index: c.chunkIndex,
-      })),
-    );
-
-    broken.push(
-      ...collectBrokenLinks(
-        specPath,
-        content,
-        testChunks,
-        latestIngest(chunks),
-      ),
-    );
-  }
+  const { broken, totalSpecs } = await scanSpecs(project, specs);
 
   let reportsOpened = 0;
 
@@ -276,24 +298,32 @@ export async function validateSpecCoverageJob(
 }
 
 /** Files a spec-link-rot issue unless an open one exists; a read failure falls through to file, since surfacing rot beats silence. Returns 0 or 1. */
+/** Whether a link-rot issue is already open. A failed read answers FALSE — filing a possible duplicate is recoverable, while skipping on an unreadable issue list means rot goes unreported for as long as the read keeps failing. */
+async function alreadyReported(
+  project: Project,
+  repo: string,
+): Promise<boolean> {
+  const openIssues = await project.issues
+    .list({ state: "open" })
+    .catch((err) => {
+      console.error(
+        `[job] spec-coverage-validate: open-issue read failed for ${repo}:`,
+        err,
+      );
+
+      return [] as Awaited<ReturnType<typeof project.issues.list>>;
+    });
+
+  return hasOpenLinkRotIssue(openIssues);
+}
+
 async function fileLinkRotReport(
   project: Project,
   repo: string,
   broken: BrokenLink[],
 ): Promise<number> {
   try {
-    const openIssues = await project.issues
-      .list({ state: "open" })
-      .catch((err) => {
-        console.error(
-          `[job] spec-coverage-validate: open-issue read failed for ${repo}:`,
-          err,
-        );
-
-        return [] as Awaited<ReturnType<typeof project.issues.list>>;
-      });
-
-    if (hasOpenLinkRotIssue(openIssues)) {
+    if (await alreadyReported(project, repo)) {
       console.log(
         `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links, open spec-link-rot issue exists, skipping`,
       );

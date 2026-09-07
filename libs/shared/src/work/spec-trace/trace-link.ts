@@ -30,12 +30,12 @@ function tailOf(xid: string, repo: string): string {
   return xid.startsWith(`${repo}|`) ? xid.slice(repo.length + 1) : xid;
 }
 
-/** Upsert TraceLink with deterministic xid; evidence only ever raises tier, never lowers. */
-export async function upsertTraceLink(
+/** The tier this link should end up at. A link only ever climbs: an inline `([validated by …])` claim that has since been proven by an actual test run must not be demoted back to a claim by the next projection that re-reads the markdown. */
+async function raisedEvidence(
   dgraph: DgraphClientPort,
-  args: UpsertTraceLinkArgs,
-): Promise<string> {
-  const xid = `${args.repo}|${tailOf(args.statementXid, args.repo)}|${tailOf(args.targetXid, args.repo)}|${args.kind}`;
+  xid: string,
+  incoming: EvidenceTier,
+): Promise<EvidenceTier> {
   const existing = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($x: string){ tl(func: eq(TraceLink.xid, $x)){ TraceLink.evidence } }`,
@@ -44,9 +44,17 @@ export async function upsertTraceLink(
 
     return res.data.tl?.[0]?.["TraceLink.evidence"] as EvidenceTier | undefined;
   });
-  const evidence = existing
-    ? (highestTier([existing, args.evidence]) ?? args.evidence)
-    : args.evidence;
+
+  return existing ? (highestTier([existing, incoming]) ?? incoming) : incoming;
+}
+
+/** Upsert TraceLink with deterministic xid; evidence only ever raises tier, never lowers. */
+export async function upsertTraceLink(
+  dgraph: DgraphClientPort,
+  args: UpsertTraceLinkArgs,
+): Promise<string> {
+  const xid = `${args.repo}|${tailOf(args.statementXid, args.repo)}|${tailOf(args.targetXid, args.repo)}|${args.kind}`;
+  const evidence = await raisedEvidence(dgraph, xid, args.evidence);
   const traceLinkUid = await upsertByXid(dgraph, "TraceLink", xid, {
     "TraceLink.repo": args.repo,
     "TraceLink.statement": { uid: args.statementUid },

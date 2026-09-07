@@ -154,18 +154,21 @@ export class FileLeaseBackend implements LeaseBackend {
     );
   }
 
+  /** The lease files on disk, or none when the directory does not exist yet. A worktree that has never taken a lease has nothing to reap, which is not an error. */
+  private async listLeaseFiles(): Promise<string[]> {
+    try {
+      return await fs.readdir(this.leasesDir);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        return [];
+      }
+      throw err;
+    }
+  }
+
   async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
     return await leaseSpan("reap", { backend: "file" }, async (span) => {
-      let entries: string[];
-
-      try {
-        entries = await fs.readdir(this.leasesDir);
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-          return [];
-        }
-        throw err;
-      }
+      const entries = await this.listLeaseFiles();
       const reaped: ExpiredLease[] = [];
 
       for (const entry of entries) {
