@@ -1,30 +1,15 @@
 // Spec → Test Coverage Backfill Cron (v3): reuses the v2 judge pipeline but emits edits to spec.md via a PR per spec, not spec_test_links rows (dropped in v3). Runs weekly Mon 11:00 UTC.
 import { dropIngestExcluded } from "../../domain/content-classify.js";
 import {
-  selectCandidates,
-  argmaxByTest,
   deriveTestName,
   parseEmbedding,
   type TestChunk,
-  type JudgeCandidate,
-  type Judgment,
-  type MatchKind,
 } from "../../domain/spec-judge.js";
-import { segmentStatements } from "../../domain/spec-segment.js";
 import { isTestFile } from "../../domain/test-paths.js";
 import { type SpecChunkWithEmbedding } from "../../outbound/project/chunks/chunks-port.js";
 import { type Project } from "../../outbound/project/lib/project.js";
-import { extractAssertions } from "../spec-judge-llm.js";
-import { reassembleSpec } from "../spec-summary.js";
 import { isAssertionSource } from "./spec-drift-rules.js";
-import {
-  pickStatementsForBackfill,
-  proposeLinkInsertions,
-  type Suggestion,
-} from "./backfill-insertion.js";
-import { judgeLink } from "./backfill-judge.js";
-import { classifyAllStatements } from "./backfill-classifier.js";
-import { buildLabel, openBackfillPr } from "./backfill-pr.js";
+import { openBackfillPr } from "./backfill-pr.js";
 
 export {
   pickStatementsForBackfill,
@@ -197,65 +182,14 @@ interface SpecBackfillSummary {
   prUrl: string | null;
 }
 
-function firstChunkEmbedding(
-  chunks: SpecChunkWithEmbedding[],
-): SpecChunkWithEmbedding["embedding"] | undefined {
-  const first = chunks.at(0);
-
-  return first ? first.embedding : undefined;
-}
-
 // Judge each candidate against the un-linked testable subset.
-async function judgeCandidates(
-  specPath: string,
-  content: string,
-  unlinked: Array<{ ordinal: number; text: string }>,
-  candidates: JudgeCandidate[],
-): Promise<Judgment[]> {
-  const judgments: Judgment[] = [];
-
-  for (const candidate of candidates) {
-    const verdict = await judgeLink(
-      { file_path: specPath, content },
-      unlinked,
-      candidate,
-    );
-
-    judgments.push({
-      test_file: candidate.test_file,
-      test_name: candidate.test_name,
-      test_line: candidate.test_line,
-      symbol: candidate.symbol,
-      match_kind: candidate.match_kind as MatchKind,
-      ...verdict,
-    });
-  }
-
-  return judgments;
-}
 
 // Build Suggestion[] from confirmed judgments + the unlinked text map.
-function buildSuggestionsFromJudgments(
-  confirmed: Judgment[],
-  unlinked: Array<{ ordinal: number; text: string }>,
-): Suggestion[] {
-  const textByOrdinal = new Map(unlinked.map((u) => [u.ordinal, u.text]));
 
-  return confirmed
-    .filter(
-      (j) =>
-        j.statement_ordinal !== null && textByOrdinal.has(j.statement_ordinal),
-    )
-    .map((j) => ({
-      statement_ordinal: j.statement_ordinal as number,
-      statement_text: textByOrdinal.get(
-        j.statement_ordinal as number,
-      ) as string,
-      test_file: j.test_file,
-      test_line: j.test_line,
-      label: buildLabel(j.test_file, j.test_line),
-    }));
-}
+import {
+  findBackfillCandidates,
+  judgeAndCompose,
+} from "./spec-coverage-suggest.js";
 
 async function runBackfillForSpec(
   project: Project,
@@ -266,62 +200,24 @@ async function runBackfillForSpec(
   }: { path: string; chunks: SpecChunkWithEmbedding[] },
   codeChunks: TestChunk[],
 ): Promise<SpecBackfillSummary> {
-  const content = reassembleSpec(
-    chunks.map((c) => ({
-      content: c.content,
-      ingested_at: c.ingestedAt,
-      chunk_index: c.chunkIndex,
-    })),
-  );
-  const statements = segmentStatements(content);
-  const classifications = await classifyAllStatements(specPath, statements);
-
-  const unlinked = pickStatementsForBackfill(statements, classifications);
-
-  if (unlinked.length === 0) {
-    return { suggestions: 0, prUrl: null };
-  }
-
-  const assertions = await extractAssertions(content, specPath, {
-    jobName: "spec_coverage_backfill",
-  });
-  const specEmbedding = parseEmbedding(firstChunkEmbedding(chunks));
-  const { candidates } = selectCandidates(
-    { repo, file_path: specPath, content, embedding: specEmbedding },
-    assertions,
+  const found = await findBackfillCandidates(
+    repo,
+    specPath,
+    chunks,
     codeChunks,
   );
 
-  if (candidates.length === 0) {
+  if (!found) {
     return { suggestions: 0, prUrl: null };
   }
+  const { content } = found;
 
-  const judgments = await judgeCandidates(
-    specPath,
-    content,
-    unlinked,
-    candidates,
-  );
-  const confirmed = argmaxByTest(judgments);
+  const judged = await judgeAndCompose(specPath, content, found);
 
-  if (confirmed.length === 0) {
+  if (!judged) {
     return { suggestions: 0, prUrl: null };
   }
-
-  const suggestions = buildSuggestionsFromJudgments(confirmed, unlinked);
-
-  if (suggestions.length === 0) {
-    return { suggestions: 0, prUrl: null };
-  }
-
-  const { newContent, diffPreview, applied } = proposeLinkInsertions(
-    content,
-    suggestions,
-  );
-
-  if (applied === 0) {
-    return { suggestions: 0, prUrl: null };
-  }
+  const { newContent, diffPreview, applied, confirmed } = judged;
 
   const prUrl = await openBackfillPr({
     project,

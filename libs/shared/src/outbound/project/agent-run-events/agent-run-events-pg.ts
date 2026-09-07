@@ -88,20 +88,7 @@ function toInsertRow(row: AgentRunEventInsert) {
 }
 
 /** Postgres-backed {@link AgentRunEventsRepository}. Batch as ONE jsonb parameter via jsonb_to_recordset (varies row count, agent-controlled text never in statement). Correlation via LEFT JOIN LATERAL for resilience. */
-export class PgAgentRunEvents implements AgentRunEventsRepository {
-  constructor(private readonly pool: PgPool) {}
-
-  async insertBatch(
-    rows: readonly AgentRunEventInsert[],
-  ): Promise<AgentRunEventRow[]> {
-    if (rows.length === 0) {
-      return [];
-    }
-
-    const batch = rows.map(toInsertRow);
-
-    const { rows: inserted } = await this.pool.query<AgentRunEventDbRow>(
-      `INSERT INTO pipeline.agent_run_events (
+const AGENT_RUN_EVENT_INSERT_SQL = `INSERT INTO pipeline.agent_run_events (
          task_id, agent_cr_name, assembly_line_id, station_run_id, node_id, iteration,
          event_type, tool_name, tool_use_id, is_error, file_paths, summary, payload
        )
@@ -147,7 +134,22 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
          ORDER BY node.id DESC
          LIMIT 1
        ) correlated ON true
-       RETURNING *`,
+       RETURNING *`;
+
+export class PgAgentRunEvents implements AgentRunEventsRepository {
+  constructor(private readonly pool: PgPool) {}
+
+  async insertBatch(
+    rows: readonly AgentRunEventInsert[],
+  ): Promise<AgentRunEventRow[]> {
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const batch = rows.map(toInsertRow);
+
+    const { rows: inserted } = await this.pool.query<AgentRunEventDbRow>(
+      AGENT_RUN_EVENT_INSERT_SQL,
       [JSON.stringify(batch)],
     );
 
