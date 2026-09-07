@@ -11,38 +11,46 @@ import {
   LIST_TASK_GROUP_INPUT,
 } from "./pipeline-tools-schemas.js";
 
+/** The general task listing. `limit` is capped here rather than trusted from the caller — an agent asking for everything would otherwise pull the whole table through the MCP transport. */
+async function listPipelineTasks(args: {
+  status?: string;
+  limit: number;
+  offset: number;
+}) {
+  const apiUrl = process.env.LORE_API_URL;
+  const apiToken = process.env.LORE_INGEST_TOKEN;
+
+  if (!apiUrl || !apiToken) {
+    return textResult(
+      "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access.",
+    );
+  }
+  const params = new URLSearchParams({
+    limit: String(Math.min(args.limit, 100)),
+    offset: String(args.offset),
+  });
+
+  if (args.status) {
+    params.set("status", args.status);
+  }
+  const res = await fetch(`${apiUrl}/api/tasks?${params}`, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { Authorization: `Bearer ${apiToken}` },
+  });
+
+  return res.ok
+    ? textResult(JSON.stringify(await res.json(), null, 2))
+    : textResult(`Remote error: ${res.statusText}`);
+}
+
 function registerListPipelineTasksTool(server: McpServer) {
   server.tool(
     "lore_list_pipeline_tasks",
     "Lists pipeline tasks newest-first as JSON, optionally filtered by status. General browse view across all tasks and statuses. Instead: lore_list_pending_tasks for unclaimed work to grab locally; lore_ready_tasks for dependency-ready spec-tasks in one repo; lore_list_task_group for one feature's group; lore_list_local_tasks for tasks running on your machine.",
     LIST_PIPELINE_TASKS_INPUT,
-    async ({ status, limit, offset }) => {
+    async (args) => {
       try {
-        const apiUrl = process.env.LORE_API_URL;
-        const apiToken = process.env.LORE_INGEST_TOKEN;
-
-        if (!apiUrl || !apiToken) {
-          return textResult(
-            "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access.",
-          );
-        }
-        const params = new URLSearchParams();
-
-        if (status) {
-          params.set("status", status);
-        }
-        params.set("limit", String(Math.min(limit, 100)));
-        params.set("offset", String(offset));
-        const res = await fetch(`${apiUrl}/api/tasks?${params}`, {
-          signal: AbortSignal.timeout(30_000),
-          headers: { Authorization: `Bearer ${apiToken}` },
-        });
-
-        if (!res.ok) {
-          return textResult(`Remote error: ${res.statusText}`);
-        }
-
-        return textResult(JSON.stringify(await res.json(), null, 2));
+        return await listPipelineTasks(args);
       } catch (err) {
         return textResult(`Error listing pipeline tasks: ${errorMessage(err)}`);
       }

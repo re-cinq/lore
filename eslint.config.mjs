@@ -324,7 +324,6 @@ export default tseslint.config(
       "apps/web-ui/**/*.{ts,tsx}",
       "apps/lore-api/**/*.ts",
       "apps/floor/**/*.ts",
-      "apps/mcp-server/**/*.ts",
       "libs/shared/**/*.ts",
     ],
     rules: {

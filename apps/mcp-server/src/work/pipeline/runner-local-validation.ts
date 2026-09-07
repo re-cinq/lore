@@ -115,6 +115,19 @@ export async function handOffToHuman(
 }
 
 // Deterministic validation (Minions-inspired): lint/typecheck before commit with one fix retry; "failed" means the task was marked needs-human-help and its artifacts persisted.
+/** The first validation pass, scoped to the files this run changed — a repo with pre-existing lint debt would otherwise fail every task that touches it. */
+async function firstPass(
+  task: LocalTask,
+  tooling: ReturnType<typeof detectTooling>,
+  changedFiles: string[],
+): Promise<Awaited<ReturnType<typeof runValidation>>> {
+  console.log(
+    `[lore] local-runner: running ${tooling.language} validation (${tooling.quickChecks.map((s) => s.name).join(", ")})`,
+  );
+
+  return runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
+}
+
 export async function validateBeforeCommit(
   task: LocalTask,
   tasks: LocalTask[],
@@ -123,17 +136,11 @@ export async function validateBeforeCommit(
 ): Promise<"passed" | "failed"> {
   const tooling = detectTooling(task.worktreePath);
 
+  // A repo with no detectable tooling is not a failing repo — there is nothing to run, so there is nothing to fail.
   if (tooling.quickChecks.length === 0) {
     return "passed";
   }
-  console.log(
-    `[lore] local-runner: running ${tooling.language} validation (${tooling.quickChecks.map((s) => s.name).join(", ")})`,
-  );
-  const validation = await runValidation(
-    task.worktreePath,
-    tooling.quickChecks,
-    changedFiles,
-  );
+  const validation = await firstPass(task, tooling, changedFiles);
 
   if (validation.passed) {
     return "passed";

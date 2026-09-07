@@ -194,57 +194,75 @@ async function routeMcp(
   res.writeHead(405).end();
 }
 
+/** Health and skills, both deliberately open: the probe cannot hold a token, and the skills bundle is org conventions rather than secrets. Returns whether the request was answered here. */
+async function handledUnauthenticated(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: string,
+  skillsRoot: string,
+): Promise<boolean> {
+  if (isHealthzRequest(req, url)) {
+    res.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
+
+    return true;
+  }
+
+  return handleSkillsRequest(req, res, skillsRoot);
+}
+
+/** The gateway's four surfaces in precedence order: health (unauthenticated, for the probe), skills (unauthenticated — org conventions, not secrets), then /mcp behind the bearer. Anything else is a 404 rather than a 401, so an unauthenticated scan cannot map what exists here. */
+async function routeRequest(
+  mcp: McpContext,
+  wiring: {
+    skillsRoot: string;
+    authorized: (req: IncomingMessage) => boolean;
+  },
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const url = req.url ?? "";
+
+  if (await handledUnauthenticated(req, res, url, wiring.skillsRoot)) {
+    return;
+  }
+
+  if (!url.startsWith("/mcp")) {
+    res.writeHead(404).end();
+
+    return;
+  }
+
+  if (!wiring.authorized(req)) {
+    jsonRpcError(res, 401, "Unauthorized");
+
+    return;
+  }
+
+  await routeMcp(
+    mcp,
+    req,
+    res,
+    req.headers["mcp-session-id"] as string | undefined,
+  );
+}
+
 export function startHttpGateway(opts: HttpGatewayOptions): Server {
   const sessions = new Map<string, StreamableHTTPServerTransport>();
   // The agent-skills bundle baked into this gateway image; the subsystem init fetches it over /skills, not part of MCP.
   const skillsRoot =
     process.env.LORE_AGENT_SKILLS_DIR ?? resolve(process.cwd(), "agent-skills");
-
-  const authorized = (req: IncomingMessage): boolean =>
-    !opts.authToken || req.headers.authorization === `Bearer ${opts.authToken}`;
-
-  const server = createServer((req, res) => {
-    void handle(req, res).catch((err: unknown) => reportUnhandled(res, err));
-  });
-
+  const wiring = {
+    skillsRoot,
+    authorized: (req: IncomingMessage): boolean =>
+      !opts.authToken ||
+      req.headers.authorization === `Bearer ${opts.authToken}`,
+  };
   const mcp: McpContext = { sessions, opts };
-
-  async function handle(
-    req: IncomingMessage,
-    res: ServerResponse,
-  ): Promise<void> {
-    const url = req.url ?? "";
-
-    if (isHealthzRequest(req, url)) {
-      res.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
-
-      return;
-    }
-
-    // Skills registry (unauthenticated — org conventions, not secrets). Owns /skills/*.
-    if (await handleSkillsRequest(req, res, skillsRoot)) {
-      return;
-    }
-
-    if (!url.startsWith("/mcp")) {
-      res.writeHead(404).end();
-
-      return;
-    }
-
-    if (!authorized(req)) {
-      jsonRpcError(res, 401, "Unauthorized");
-
-      return;
-    }
-
-    await routeMcp(
-      mcp,
-      req,
-      res,
-      req.headers["mcp-session-id"] as string | undefined,
+  const server = createServer((req, res) => {
+    void routeRequest(mcp, wiring, req, res).catch((err: unknown) =>
+      reportUnhandled(res, err),
     );
-  }
+  });
 
   server.listen(opts.port, () => {
     console.error(

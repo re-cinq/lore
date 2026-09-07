@@ -1,4 +1,3 @@
-import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { readFileSync, existsSync } from "node:fs";
@@ -10,16 +9,8 @@ import {
 } from "@re-cinq/lore-server-core/platform/db.js";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
-import {
-  trackLatency,
-  proxyGetApi,
-  withReadCache,
-  unreachableError,
-  deniedError,
-  textResult,
-  type ProxyResult,
-} from "./deps.js";
-import { updateBanner } from "../../work/update/mcp-update.js";
+import { textResult } from "./deps.js";
+import { registerAssembleContextTool } from "./context-tools-assemble.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -137,41 +128,6 @@ const SEARCH_CONTEXT_INPUT = {
   limit: z.number().default(8).describe("Maximum passages to return."),
 };
 
-const ASSEMBLE_CONTEXT_INPUT = {
-  query: z
-    .string()
-    .describe(
-      "Natural-language description of the context needed. Drives retrieval and ranking across all sources.",
-    ),
-  template: z
-    .string()
-    .default("default")
-    .describe(
-      "Section-ordering profile. Recognized values: 'default' | 'review' | 'implementation' | 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries.",
-    ),
-  max_tokens: z
-    .number()
-    .min(2000)
-    .default(8000)
-    .describe(
-      "Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000.",
-    ),
-  repo: z
-    .string()
-    .optional()
-    .describe("'owner/repo'. Auto-detected from the git remote when omitted."),
-  agent_id: z
-    .string()
-    .optional()
-    .describe("Overrides the ambient agent id used to scope memories/facts."),
-  cross_repo: z
-    .boolean()
-    .default(false)
-    .describe(
-      "When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false.",
-    ),
-};
-
 export function registerContextTools(server: McpServer) {
   registerSearchContextTool(server);
   registerAssembleContextTool(server);
@@ -242,119 +198,5 @@ Use this when you want chunk-level evidence or the exact wording of a convention
 }
 
 // MCP tool input args (lore_assemble_context's own snake_case schema), not a DB row.
-// eslint-disable-next-line lore/no-row-types-outside-models
-interface AssembleContextExtraArgs {
-  max_tokens?: number;
-  cross_repo?: boolean;
-  agent_id?: string;
-}
 
 // Only sent when non-default so these extras also seed the cache key, keeping a 16000-token request from being served an 8000-token cached body.
-function buildAssembleExtras(
-  args: AssembleContextExtraArgs,
-): Record<string, string> {
-  const extras: Record<string, string> = {};
-
-  if (args.max_tokens) {
-    extras.max_tokens = String(args.max_tokens);
-  }
-
-  if (args.cross_repo) {
-    extras.cross_repo = "true";
-  }
-
-  if (args.agent_id) {
-    extras.agent_id = args.agent_id;
-  }
-
-  return extras;
-}
-
-function resolveRepoLabel(repo: string | undefined): string {
-  return repo || detectCurrentRepo() || "";
-}
-
-async function fetchAssembledContext(
-  params: URLSearchParams,
-): Promise<ProxyResult> {
-  const r = await proxyGetApi(`/api/context?${params.toString()}`);
-
-  if (!r.ok) {
-    return r;
-  }
-  const body = JSON.parse(r.body) as { text?: string };
-
-  // A reachable backend returning empty context is a real result, not an outage — return as-is rather than serving a stale, mislabeled fallback.
-  return { ok: true as const, body: body.text ?? "" };
-}
-
-async function interpretProxiedContext(
-  proxied: ProxyResult,
-): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  if (proxied.ok) {
-    const banner = await updateBanner();
-
-    return textResult(banner + proxied.body);
-  }
-
-  if (proxied.reason === "unreachable") {
-    return unreachableError("lore_assemble_context", proxied.detail);
-  }
-
-  if (proxied.reason === "denied") {
-    return deniedError("lore_assemble_context", proxied.detail);
-  }
-
-  return textResult(
-    "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
-  );
-}
-
-function registerAssembleContextTool(server: McpServer) {
-  server.tool(
-    "lore_assemble_context",
-    `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
-Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
-    ASSEMBLE_CONTEXT_INPUT,
-    async ({ query, template, max_tokens, repo, agent_id, cross_repo }) => {
-      return trackLatency("lore_assemble_context", async () => {
-        try {
-          // Local stdio mode proxies to GKE through the read-through cache.
-          const apiUrl = process.env.LORE_API_URL;
-          const apiToken = process.env.LORE_INGEST_TOKEN;
-
-          if (!apiUrl || !apiToken) {
-            return textResult(
-              "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
-            );
-          }
-          const resolvedRepo = resolveRepoLabel(repo);
-          const extras = buildAssembleExtras({
-            max_tokens,
-            cross_repo,
-            agent_id,
-          });
-          const params = new URLSearchParams({
-            query,
-            template,
-            repo: resolvedRepo,
-            ...extras,
-          });
-          const proxied = await withReadCache(
-            {
-              tool: "lore_assemble_context",
-              args: { query, template, repo: resolvedRepo, ...extras },
-              repo: resolvedRepo || undefined,
-              ttlSeconds: 600,
-            },
-            () => fetchAssembledContext(params),
-          );
-
-          return await interpretProxiedContext(proxied);
-        } catch (err) {
-          return textResult(`Error assembling context: ${errorMessage(err)}`);
-        }
-      });
-    },
-  );
-}

@@ -35,7 +35,7 @@ function renderProxied(
   );
 }
 
-export function registerUsageTools(server: McpServer) {
+function registerLoreMyUsage(server: McpServer) {
   server.tool(
     "lore_my_usage",
     `Reports the calling agent's own task count and input/output token totals across three windows (today, 7_day, 30_day); returns { agent_id, usage: { today, 7_day, 30_day } }. Instead: for org-wide throughput, success rates, and per-type breakdown use lore_get_analytics — this tool is single-agent only and does not report success rates or per-type counts.`,
@@ -63,7 +63,9 @@ export function registerUsageTools(server: McpServer) {
       }
     },
   );
+}
 
+function registerLoreGetAnalytics(server: McpServer) {
   server.tool(
     "lore_get_analytics",
     `Returns org-wide pipeline analytics for a time window: { period, usage: { llm_calls, input_tokens, output_tokens }, tasks: { total, succeeded, failed }, by_type }. Note: by_type[].tasks is a numeric string (raw pg bigint). Instead: for a single agent's own footprint use lore_my_usage — this tool is not per-agent and does not filter by caller.`,
@@ -87,4 +89,10 @@ export function registerUsageTools(server: McpServer) {
       }
     },
   );
+}
+
+export function registerUsageTools(server: McpServer) {
+  registerLoreMyUsage(server);
+
+  registerLoreGetAnalytics(server);
 }

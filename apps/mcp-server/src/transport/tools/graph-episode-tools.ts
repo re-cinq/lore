@@ -95,44 +95,46 @@ function buildGraphQueryParams(args: GraphQueryArgs): URLSearchParams {
   return params;
 }
 
+/** Reads the graph through the API — the adapter holds no pool even in stdio mode, so an unconfigured LORE_API_URL leaves nothing to read and says so rather than reporting an empty graph. */
+async function queryGraph(args: {
+  entity?: string;
+  relation_type?: string;
+  repo?: string;
+  include_invalidated?: boolean;
+}) {
+  const params = buildGraphQueryParams(args);
+  // Cached like assemble: edges change only when an episode is ingested, which is minutes-scale.
+  const proxied = await withReadCache(
+    {
+      tool: "lore_query_graph",
+      args: { ...args },
+      repo: args.repo || undefined,
+      ttlSeconds: 600,
+    },
+    () => proxyGetApi(`/api/graph?${params.toString()}`),
+  );
+
+  return (
+    interpretMemoryProxy("lore_query_graph", proxied) ??
+    textResult(
+      "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL.",
+    )
+  );
+}
+
 function registerQueryGraphTool(server: McpServer) {
   server.tool(
     "lore_query_graph",
     `Reads the live knowledge graph and returns typed relationship edges {entity, entity_type, relation, related_entity, related_type, direction, valid_from} for one entity, or recent edges when no entity given. Use when you want structured relationships (uses/owns/depends-on/replaced-by), not prose. Graph is populated asynchronously by lore_write_episode — no writes here. Instead: lore_search_memory for learnings and facts in prose form; lore_search_context for raw document passages; lore_assemble_context for the token-budgeted startup bundle.`,
     QUERY_GRAPH_INPUT,
-    async ({ entity, relation_type, repo, include_invalidated }) => {
-      return trackLatency("lore_query_graph", async () => {
+    async (args) =>
+      trackLatency("lore_query_graph", async () => {
         try {
-          // Local stdio mode proxies the read to the GKE server over LORE_API_URL (mirrors lore_assemble_context) instead of requiring a direct DB.
-          const params = buildGraphQueryParams({
-            entity,
-            relation_type,
-            repo,
-            include_invalidated,
-          });
-          const proxied = await withReadCache(
-            {
-              tool: "lore_query_graph",
-              args: { entity, relation_type, repo, include_invalidated },
-              repo: repo || undefined,
-              ttlSeconds: 600,
-            },
-            () => proxyGetApi(`/api/graph?${params.toString()}`),
-          );
-          const handled = interpretMemoryProxy("lore_query_graph", proxied);
-
-          if (handled) {
-            return handled;
-          }
-
-          return textResult(
-            "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL.",
-          );
+          return await queryGraph(args);
         } catch (err) {
           return textResult(`Error querying graph: ${errorMessage(err)}`);
         }
-      });
-    },
+      }),
   );
 }
 
