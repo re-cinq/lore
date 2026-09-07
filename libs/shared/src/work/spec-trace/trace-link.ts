@@ -68,12 +68,18 @@ export async function upsertTraceLink(
   return traceLinkUid;
 }
 
-export async function projectTraceLinks(
+interface StatementEdges {
+  uid: string;
+  validated?: Array<{ uid: string; "TestChunk.xid": string }>;
+  implemented?: Array<{ uid: string; "CodeChunk.xid": string }>;
+}
+
+/** The statement's outgoing evidence edges, or undefined when the statement itself is gone. */
+async function readStatementEdges(
   dgraph: DgraphClientPort,
-  repo: string,
   statementXid: string,
-): Promise<{ links: number }> {
-  const stmt = await withTxn(dgraph, async (txn) => {
+): Promise<StatementEdges | undefined> {
+  return await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($sx: string){ stmt(func: eq(Statement.xid, $sx)){
         uid
@@ -83,29 +89,28 @@ export async function projectTraceLinks(
       { $sx: statementXid },
     );
 
-    return res.data.stmt?.[0] as
-      | {
-          uid: string;
-          validated?: Array<{ uid: string; "TestChunk.xid": string }>;
-          implemented?: Array<{ uid: string; "CodeChunk.xid": string }>;
-        }
-      | undefined;
+    return res.data.stmt?.[0] as StatementEdges | undefined;
   });
+}
 
-  if (!stmt) {
-    return { links: 0 };
-  }
-
-  const verdict = await verifyCoverageLink(dgraph, statementXid);
-  const validatedEvidence: EvidenceTier =
-    verdict === "execution-verified" ? "execution-verified" : "human-linked";
-
-  const derivedLinks: Array<{
+/** A validated_by edge is EXECUTION-VERIFIED only when a run actually covered the statement; a human-written link that no test exercised stays human-linked, so the two never read as the same strength of claim. An implemented_by edge is always human-linked — nothing executes it. */
+async function deriveLinks(
+  dgraph: DgraphClientPort,
+  statementXid: string,
+  stmt: StatementEdges,
+): Promise<
+  Array<{
     targetUid: string;
     targetXid: string;
     kind: TraceLinkKind;
     evidence: EvidenceTier;
-  }> = [
+  }>
+> {
+  const verdict = await verifyCoverageLink(dgraph, statementXid);
+  const validatedEvidence: EvidenceTier =
+    verdict === "execution-verified" ? "execution-verified" : "human-linked";
+
+  return [
     ...(stmt.validated ?? []).map((target) => ({
       targetUid: target.uid,
       targetXid: target["TestChunk.xid"],
@@ -119,6 +124,20 @@ export async function projectTraceLinks(
       evidence: "human-linked" as const,
     })),
   ];
+}
+
+export async function projectTraceLinks(
+  dgraph: DgraphClientPort,
+  repo: string,
+  statementXid: string,
+): Promise<{ links: number }> {
+  const stmt = await readStatementEdges(dgraph, statementXid);
+
+  if (!stmt) {
+    return { links: 0 };
+  }
+
+  const derivedLinks = await deriveLinks(dgraph, statementXid, stmt);
 
   for (const link of derivedLinks) {
     await upsertTraceLink(dgraph, {
