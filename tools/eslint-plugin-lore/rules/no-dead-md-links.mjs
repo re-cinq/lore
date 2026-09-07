@@ -15,7 +15,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 
 /** A link we can check: repo-relative, not a URL, not a bare fragment. */
 function isRepoPath(url) {
@@ -59,9 +59,16 @@ export default {
         }
 
         // Specs write validated-by targets from the repo root and prose links
-        // relative to the document, so either resolving is a live link.
-        if (existsSync(resolve(docDir, target))) return;
-        if (existsSync(resolve(cwd, target))) return;
+        // relative to the document, so either resolving is a live link — but a
+        // path with enough `..` climbs OUT of the repo, and in a git worktree
+        // that lands in the parent checkout where a moved file may still sit.
+        // A link that only resolves outside the repo is dead inside it.
+        const inRepo = (candidate) =>
+          candidate === cwd || candidate.startsWith(cwd + sep);
+        const fromDoc = resolve(docDir, target);
+        if (inRepo(fromDoc) && existsSync(fromDoc)) return;
+        const fromRoot = resolve(cwd, target);
+        if (inRepo(fromRoot) && existsSync(fromRoot)) return;
 
         context.report({ node, messageId: "dead", data: { target } });
       },
