@@ -4,13 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Icon from "@/components/Icon";
 
-export default function AppShell({
-  sidebar,
-  children,
-}: {
-  sidebar: React.ReactNode;
-  children: React.ReactNode;
-}) {
+/** The mobile drawer's behaviour: it closes on navigation, takes focus when it opens and hands it back to the hamburger when it closes, and closes on Escape. Together these are what make it usable without a mouse. */
+function useSidebarDrawer() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -47,6 +42,19 @@ export default function AppShell({
 
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [sidebarOpen]);
+
+  return { sidebarOpen, setSidebarOpen, closeButtonRef, hamburgerRef };
+}
+
+export default function AppShell({
+  sidebar,
+  children,
+}: {
+  sidebar: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const { sidebarOpen, setSidebarOpen, closeButtonRef, hamburgerRef } =
+    useSidebarDrawer();
 
   return (
     <div className={`app-layout${sidebarOpen ? " sidebar-open" : ""}`}>

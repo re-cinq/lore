@@ -39,6 +39,51 @@ const groups: NavGroup[] = [
   },
 ];
 
+/** A labelled group collapses; an unlabelled one is always open, which is how the top-level links render without a header. */
+function NavGroupSection({
+  group,
+  pathname,
+  collapsed,
+  onToggle,
+}: {
+  group: NavGroup;
+  pathname: string;
+  collapsed: boolean;
+  onToggle: (label: string) => void;
+}) {
+  const links = group.links.map(({ href, label }) => (
+    <NavLink
+      key={href}
+      href={href}
+      label={label}
+      active={isNavActive(pathname, href, "/")}
+    />
+  ));
+
+  if (!group.label) {
+    return <div className={styles.group}>{links}</div>;
+  }
+
+  return (
+    <div className={styles.group}>
+      <button
+        type="button"
+        className={styles.groupLabel}
+        onClick={() => onToggle(group.label!)}
+        aria-expanded={!collapsed}
+      >
+        {group.label}
+        <Icon
+          name="chevron"
+          size={12}
+          className={collapsed ? styles.chevronCollapsed : styles.chevron}
+        />
+      </button>
+      {!collapsed && links}
+    </div>
+  );
+}
+
 export default function SidebarNav() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -46,50 +91,18 @@ export default function SidebarNav() {
   const toggle = (label: string) =>
     setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }));
 
-  const renderLinks = (links: NavGroup["links"]) =>
-    links.map(({ href, label }) => (
-      <NavLink
-        key={href}
-        href={href}
-        label={label}
-        active={isNavActive(pathname, href, "/")}
-      />
-    ));
-
   return (
     <>
       <nav>
-        {groups.map((group, i) => {
-          if (!group.label) {
-            return (
-              <div key={`group-${i}`} className={styles.group}>
-                {renderLinks(group.links)}
-              </div>
-            );
-          }
-          const isCollapsed = collapsed[group.label] ?? false;
-
-          return (
-            <div key={group.label} className={styles.group}>
-              <button
-                type="button"
-                className={styles.groupLabel}
-                onClick={() => toggle(group.label!)}
-                aria-expanded={!isCollapsed}
-              >
-                {group.label}
-                <Icon
-                  name="chevron"
-                  size={12}
-                  className={
-                    isCollapsed ? styles.chevronCollapsed : styles.chevron
-                  }
-                />
-              </button>
-              {!isCollapsed && renderLinks(group.links)}
-            </div>
-          );
-        })}
+        {groups.map((group, i) => (
+          <NavGroupSection
+            key={group.label ?? `group-${i}`}
+            group={group}
+            pathname={pathname}
+            collapsed={group.label ? (collapsed[group.label] ?? false) : false}
+            onToggle={toggle}
+          />
+        ))}
       </nav>
       <div className={styles.footer}>
         <NavLink

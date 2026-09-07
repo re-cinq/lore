@@ -81,6 +81,52 @@ function ingestionSummary(repo: Repo): string {
 }
 
 // Pure render — repo list/status come from page.tsx; fixIngestWorkflows is the only mutation, fired via the client button.
+/** One repo's card. The freshness dot and the ingest badge are the two things a reader scans for — everything else on the card is context for them. */
+function RepoCard({
+  repo: r,
+  ingest,
+}: {
+  repo: HomeViewProps["repos"][number];
+  ingest: ReturnType<HomeViewProps["ingestStatus"]["get"]>;
+}) {
+  return (
+    <Link href={`/repos/${r.owner}/${r.name}`} className="repo-card">
+      <h3 className={styles.cardTitle}>
+        <span
+          title={freshnessIndicator(r.last_ingested_at).label}
+          className={styles.freshnessDot}
+          style={{
+            ["--dot-color" as string]: freshnessIndicator(r.last_ingested_at)
+              .color,
+          }}
+        />
+        {r.full_name}
+      </h3>
+      <div className="repo-meta">
+        {r.team && <span className="badge">{r.team}</span>}
+        <span className="meta">{r.task_count} tasks</span>
+        {r.active_agents > 0 && (
+          <span className="badge badge-green">{r.active_agents} running</span>
+        )}
+        {(() => {
+          const badge = ingestBadge(ingest);
+
+          return badge ? (
+            <span
+              className={`badge ${styles.ingestBadge}`}
+              title={`${badge.label} — fixable from the dashboard`}
+              style={{ ["--badge-color" as string]: badge.color }}
+            >
+              <Icon name="warning" size={12} inline /> {badge.label}
+            </span>
+          ) : null;
+        })()}
+      </div>
+      <div className="meta">{ingestionSummary(r)}</div>
+    </Link>
+  );
+}
+
 export default function HomeView({
   repos,
   ingestStatus,
@@ -108,47 +154,11 @@ export default function HomeView({
       </div>
       <div className="repo-grid">
         {repos.map((r) => (
-          <Link
+          <RepoCard
             key={r.full_name}
-            href={`/repos/${r.owner}/${r.name}`}
-            className="repo-card"
-          >
-            <h3 className={styles.cardTitle}>
-              <span
-                title={freshnessIndicator(r.last_ingested_at).label}
-                className={styles.freshnessDot}
-                style={{
-                  ["--dot-color" as string]: freshnessIndicator(
-                    r.last_ingested_at,
-                  ).color,
-                }}
-              />
-              {r.full_name}
-            </h3>
-            <div className="repo-meta">
-              {r.team && <span className="badge">{r.team}</span>}
-              <span className="meta">{r.task_count} tasks</span>
-              {r.active_agents > 0 && (
-                <span className="badge badge-green">
-                  {r.active_agents} running
-                </span>
-              )}
-              {(() => {
-                const badge = ingestBadge(ingestStatus.get(r.full_name));
-
-                return badge ? (
-                  <span
-                    className={`badge ${styles.ingestBadge}`}
-                    title={`${badge.label} — fixable from the dashboard`}
-                    style={{ ["--badge-color" as string]: badge.color }}
-                  >
-                    <Icon name="warning" size={12} inline /> {badge.label}
-                  </span>
-                ) : null;
-              })()}
-            </div>
-            <div className="meta">{ingestionSummary(r)}</div>
-          </Link>
+            repo={r}
+            ingest={ingestStatus.get(r.full_name)}
+          />
         ))}
         {repos.length === 0 && (
           <div className="placeholder">
