@@ -225,7 +225,8 @@ async function openLocal(args: OpenLocalArgs): Promise<void> {
   editor.revealRange(target, vscode.TextEditorRevealType.InCenter);
 }
 
-export function activate(context: vscode.ExtensionContext): void {
+/** Everything the extension owns for the window's lifetime. Pushed onto `context.subscriptions` so VS Code disposes them on deactivate — a listener left registered would keep firing against a dead index. */
+function registerSubscriptions(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     decImplemented,
     decCovered,
@@ -253,6 +254,10 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
   );
+}
+
+export function activate(context: vscode.ExtensionContext): void {
+  registerSubscriptions(context);
 
   const config = vscode.workspace.getConfiguration("lore");
 

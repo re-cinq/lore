@@ -143,7 +143,7 @@ export default tseslint.config(
       // state, and a composition root).
       "max-lines-per-function": [
         "error",
-        { max: 50, skipBlankLines: true, skipComments: true },
+        { max: 30, skipBlankLines: true, skipComments: true },
       ],
       complexity: ["error", 6],
       // A module that needs 300 lines to state its job is usually holding more
