@@ -1,4 +1,9 @@
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import type { AssemblyRunStartInput } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -63,13 +68,27 @@ function buildStartInput(
 }
 
 // The fork's drift guard needs the CURRENT definition's hash as its left-hand side; libs/shared can't derive it (the dependency runs the other way).
+/** Where the resumed run picks up. `iteration` is OMITTED rather than passed as undefined when the caller did not name one: the port treats an absent iteration as "the latest visit" and an explicit one as an exact row, and those are different resumes. */
+function resumePoint(resumeFrom: {
+  run_id: string;
+  node_id: string;
+  iteration?: number;
+}) {
+  return {
+    lineId: resumeFrom.run_id,
+    nodeId: resumeFrom.node_id,
+    ...(resumeFrom.iteration === undefined
+      ? {}
+      : { iteration: resumeFrom.iteration }),
+  };
+}
+
 async function startResumedRun(
   body: z.infer<typeof StartBody>,
   input: AssemblyRunStartInput,
   start: StartRun,
   loadDefinitions: LoadDefinitions,
 ): Promise<string> {
-  const resumeFrom = body.resume_from as NonNullable<typeof body.resume_from>;
   const definition = (await loadDefinitions()).get(body.definition);
 
   enforceTrue(
@@ -82,13 +101,9 @@ async function startResumedRun(
     return await start({
       ...input,
       blueprintHash: definitionHash(definition),
-      resumeFrom: {
-        lineId: resumeFrom.run_id,
-        nodeId: resumeFrom.node_id,
-        ...(resumeFrom.iteration === undefined
-          ? {}
-          : { iteration: resumeFrom.iteration }),
-      },
+      resumeFrom: resumePoint(
+        body.resume_from as NonNullable<typeof body.resume_from>,
+      ),
     });
   } catch (err) {
     rethrowBoom(err);
@@ -100,6 +115,25 @@ async function startResumedRun(
 
     throw err;
   }
+}
+
+/** Starts a run, or resumes one from a node. The row and its start event are written in ONE atomic statement, so a run is never queued with nothing to claim it. */
+async function serveStartRun(
+  start: StartRun,
+  loadDefinitions: LoadDefinitions,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const body = request.payload as z.infer<typeof StartBody>;
+  const input = buildStartInput(body);
+
+  if (body.resume_from === undefined) {
+    return h.response({ id: await start(input) }).code(201);
+  }
+
+  const id = await startResumedRun(body, input, start, loadDefinitions);
+
+  return h.response({ id }).code(201);
 }
 
 export function startRunRoute(
@@ -122,17 +156,6 @@ export function startRunRoute(
         errors: [400, 409],
       },
     ),
-    handler: async (request, h) => {
-      const body = request.payload as z.infer<typeof StartBody>;
-      const input = buildStartInput(body);
-
-      if (body.resume_from === undefined) {
-        return h.response({ id: await start(input) }).code(201);
-      }
-
-      const id = await startResumedRun(body, input, start, loadDefinitions);
-
-      return h.response({ id }).code(201);
-    },
+    handler: (request, h) => serveStartRun(start, loadDefinitions, request, h),
   };
 }

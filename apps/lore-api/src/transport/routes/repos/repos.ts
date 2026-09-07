@@ -5,7 +5,12 @@ import { toRow } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import { RepoSchema, REPO_COLUMNS } from "@re-cinq/lore-shared/models/repo.js";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { getOnboardedReposWithCounts } from "../../../work/repo/repo-onboard.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -38,6 +43,41 @@ const RepoListResponse = z.object({
   offset: z.number(),
 });
 
+/** A page of onboarded repos with their per-repo metadata and task counts. */
+async function serveRepoList(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { limit, offset } = request.query as unknown as ReposQuery;
+
+  try {
+    const { repos, total } = await getOnboardedReposWithCounts(
+      pool,
+      limit,
+      offset,
+    );
+
+    return h.response({
+      repos: repos.map(({ taskCount, activeAgents, ...repo }) => ({
+        ...toRow(REPO_COLUMNS, repo),
+        task_count: taskCount,
+        active_agents: activeAgents,
+      })),
+      total,
+      limit,
+      offset,
+    });
+  } catch (err) {
+    console.error("[repos] API error:", errorMessage(err));
+
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function reposRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -50,34 +90,6 @@ export function reposRoute(getPool: () => Pool | null): ServerRoute {
       RepoListResponse,
       { name: "RepoList", description: "A page of onboarded repos" },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { limit, offset } = request.query as unknown as ReposQuery;
-
-      try {
-        const { repos, total } = await getOnboardedReposWithCounts(
-          pool,
-          limit,
-          offset,
-        );
-
-        return h.response({
-          repos: repos.map(({ taskCount, activeAgents, ...repo }) => ({
-            ...toRow(REPO_COLUMNS, repo),
-            task_count: taskCount,
-            active_agents: activeAgents,
-          })),
-          total,
-          limit,
-          offset,
-        });
-      } catch (err) {
-        console.error("[repos] API error:", errorMessage(err));
-
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveRepoList(getPool, request, h),
   };
 }

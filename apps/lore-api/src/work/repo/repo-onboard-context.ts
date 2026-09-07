@@ -144,6 +144,33 @@ async function sampleSourceFiles(
   }
 }
 
+/** The files in one directory, or none. A 404 is SILENT — most repos have only some of these directories, and logging every absent one would bury the errors that matter. */
+async function listFilesIn(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  target: { owner: string; repo: string; fullName: string },
+  dir: string,
+): Promise<Array<{ name: string; path: string; type: string }>> {
+  try {
+    const { data: content } = await octokit.rest.repos.getContent({
+      owner: target.owner,
+      repo: target.repo,
+      path: dir,
+    });
+
+    return Array.isArray(content)
+      ? content.filter((e) => e.type === "file")
+      : [];
+  } catch (err) {
+    if ((err as { status?: number }).status !== 404) {
+      console.error(
+        `[onboard] Error listing ${target.fullName}/${dir}: ${errorMessage(err)}`,
+      );
+    }
+
+    return [];
+  }
+}
+
 async function fetchSamples(
   octokit: Awaited<ReturnType<typeof getOctokit>>,
   owner: string,
@@ -157,26 +184,7 @@ async function fetchSamples(
       break;
     }
 
-    let entries: Array<{ name: string; path: string; type: string }> = [];
-
-    try {
-      const { data: content } = await octokit.rest.repos.getContent({
-        owner,
-        repo,
-        path: dir,
-      });
-
-      if (Array.isArray(content)) {
-        entries = content.filter((e) => e.type === "file");
-      }
-    } catch (err) {
-      if ((err as { status?: number }).status !== 404) {
-        console.error(
-          `[onboard] Error listing ${fullName}/${dir}: ${errorMessage(err)}`,
-        );
-      }
-      continue;
-    }
+    const entries = await listFilesIn(octokit, { owner, repo, fullName }, dir);
 
     await sampleSourceFiles(
       octokit,

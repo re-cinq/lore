@@ -1,7 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { apiError } from "../../http/api-error.js";
-import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
@@ -32,6 +37,48 @@ export interface ClaimDeps {
 }
 
 /** The handler core, injectable for tests: authenticate, match, claim. */
+/** Who is asking, and whether they may claim at all. A PAUSED agent gets the same 204 as "nothing queued" — it needs no new client behaviour, just its existing idle backoff — and the check lives here because pausing is a fact about the registry, not about the queue. */
+async function authorizeClaimant(
+  deps: ClaimDeps,
+  bearer: string | undefined,
+  agentId: string,
+): Promise<
+  | {
+      agent: Awaited<ReturnType<ClaimDeps["agents"]["findByTokenHash"]>> &
+        object;
+    }
+  | { code: 401 | 403; body: { error: string } }
+  | { code: 204 }
+> {
+  if (!bearer) {
+    return { code: 401, body: { error: "unauthorized" } };
+  }
+  const agent = await deps.agents.findByTokenHash(hashAgentToken(bearer));
+
+  if (!agent || agent.id !== agentId) {
+    return { code: 403, body: { error: "forbidden" } };
+  }
+
+  return mayClaim(agent) ? { agent } : { code: 204 };
+}
+
+/** What a claiming agent is handed. The `spec` rides ALONG with the ids: the claim armed it, and re-deriving it in the cluster would let a re-dispatch build something different from what was claimed. */
+function claimBody(
+  claimed: NonNullable<
+    Awaited<ReturnType<ClaimDeps["runs"]["claimNextStationRun"]>>
+  >,
+): z.infer<typeof ClaimResponse> {
+  return {
+    station_run_id: claimed.stationRunId,
+    node_row_id: claimed.nodeRowId,
+    assembly_run_id: claimed.assemblyRunId,
+    node_id: claimed.nodeId,
+    iteration: claimed.iteration,
+    agent_cr_name: claimed.agentCrName,
+    spec: claimed.dispatchSpec,
+  };
+}
+
 export async function handleClaim(
   deps: ClaimDeps,
   bearer: string | undefined,
@@ -41,21 +88,12 @@ export async function handleClaim(
   | { code: 204 }
   | { code: 401 | 403 | 503; body: { error: string } }
 > {
-  if (!bearer) {
-    return { code: 401, body: { error: "unauthorized" } };
+  const authorized = await authorizeClaimant(deps, bearer, agentId);
+
+  if ("code" in authorized) {
+    return authorized;
   }
-
-  const agent = await deps.agents.findByTokenHash(hashAgentToken(bearer));
-
-  if (!agent || agent.id !== agentId) {
-    return { code: 403, body: { error: "forbidden" } };
-  }
-
-  if (!mayClaim(agent)) {
-    // Same 204 as "nothing queued": a paused agent needs no new client behaviour, just its existing idle backoff; enforced HERE since pausing is a fact about the registry, not the queue.
-    return { code: 204 };
-  }
-
+  const agent = authorized.agent;
   const claimed = await deps.runs.claimNextStationRun({
     clusterAgentId: agent.id,
     tags: agent.tags,
@@ -65,18 +103,34 @@ export async function handleClaim(
     return { code: 204 };
   }
 
-  return {
-    code: 200,
-    body: {
-      station_run_id: claimed.stationRunId,
-      node_row_id: claimed.nodeRowId,
-      assembly_run_id: claimed.assemblyRunId,
-      node_id: claimed.nodeId,
-      iteration: claimed.iteration,
-      agent_cr_name: claimed.agentCrName,
-      spec: claimed.dispatchSpec,
+  return { code: 200, body: claimBody(claimed) };
+}
+
+/** A cluster-agent asking for work. Dispatch is PULL-only, so this is the one path by which a run reaches any cluster — including the platform's own. */
+async function serveClaim(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const bearer = extractBearer(request.headers.authorization);
+
+  const result = await handleClaim(
+    {
+      agents: new PgClusterAgents(pool),
+      runs: new PgAssemblyRuns(pool),
     },
-  };
+    bearer,
+    request.params.id,
+  );
+
+  if (result.code === 204) {
+    return h.response().code(204);
+  }
+
+  return h.response(result.body).code(result.code);
 }
 
 export function clusterAgentClaimRoute(
@@ -96,26 +150,6 @@ export function clusterAgentClaimRoute(
           "The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable",
       },
     ),
-    handler: async (request: Request, h: ResponseToolkit) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const bearer = extractBearer(request.headers.authorization);
-
-      const result = await handleClaim(
-        {
-          agents: new PgClusterAgents(pool),
-          runs: new PgAssemblyRuns(pool),
-        },
-        bearer,
-        request.params.id,
-      );
-
-      if (result.code === 204) {
-        return h.response().code(204);
-      }
-
-      return h.response(result.body).code(result.code);
-    },
+    handler: (request, h) => serveClaim(getPool, request, h),
   };
 }

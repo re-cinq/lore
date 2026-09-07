@@ -1,7 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { apiError } from "../../http/api-error.js";
-import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
@@ -175,6 +180,38 @@ export async function handleCatalogEvents(
   return buildTailResponse(deps, cursor);
 }
 
+/** The catalog changes a cluster-agent has not applied yet, from its cursor — the pull side of catalog sync, since nothing is pushed to a cluster. */
+async function serveCatalogEvents(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const bearer = extractBearer(request.headers.authorization);
+  const ackRaw = request.query.ack;
+  const yaml = new AgentDefsYaml();
+
+  const result = await handleCatalogEvents(
+    {
+      agents: new PgClusterAgents(pool),
+      events: new PgCatalogEvents(pool),
+      resolveEntry: (name, projectId) =>
+        resolveCatalogEntry(pool, yaml, name, projectId),
+    },
+    bearer,
+    request.params.id,
+    {
+      ack:
+        typeof ackRaw === "string" && /^\d+$/.test(ackRaw) ? ackRaw : undefined,
+      snapshot: request.query.snapshot === "1",
+    },
+  );
+
+  return h.response(result.body).code(result.code);
+}
+
 export function clusterAgentCatalogEventsRoute(
   getPool: () => Pool | null,
 ): ServerRoute {
@@ -192,33 +229,6 @@ export function clusterAgentCatalogEventsRoute(
           "The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete",
       },
     ),
-    handler: async (request: Request, h: ResponseToolkit) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const bearer = extractBearer(request.headers.authorization);
-      const ackRaw = request.query.ack;
-      const yaml = new AgentDefsYaml();
-
-      const result = await handleCatalogEvents(
-        {
-          agents: new PgClusterAgents(pool),
-          events: new PgCatalogEvents(pool),
-          resolveEntry: (name, projectId) =>
-            resolveCatalogEntry(pool, yaml, name, projectId),
-        },
-        bearer,
-        request.params.id,
-        {
-          ack:
-            typeof ackRaw === "string" && /^\d+$/.test(ackRaw)
-              ? ackRaw
-              : undefined,
-          snapshot: request.query.snapshot === "1",
-        },
-      );
-
-      return h.response(result.body).code(result.code);
-    },
+    handler: (request, h) => serveCatalogEvents(getPool, request, h),
   };
 }

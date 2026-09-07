@@ -3,7 +3,12 @@ import { apiError } from "../../http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { z } from "zod";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { parseTrailers } from "@re-cinq/lore-shared";
 import { getOctokit } from "../../../outbound/github-client.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -72,6 +77,61 @@ async function taskIdFromGithub(
   return taskId ? { task_id: taskId, trailer_source: "final_commit" } : null;
 }
 
+/** Resolves a PR back to the task that opened it. In dark-factory mode the `Lore-Task:` trailer is the only cross-reference, so this read is what makes a PR traceable. */
+/** The PR this read is about. The number is checked against digits explicitly: hapi's `{number}` segment does not constrain the way the legacy matcher did, and an unchecked parse would carry a NaN into the query rather than refusing here. */
+function prTarget(request: Request): {
+  owner: string;
+  repoName: string;
+  prNumber: number;
+} {
+  enforceTrue(
+    /^[0-9]+$/.test(request.params.number),
+    apiError(400),
+    "invalid pr number",
+  );
+
+  return {
+    owner: request.params.owner,
+    repoName: request.params.repo,
+    prNumber: Number.parseInt(request.params.number, 10),
+  };
+}
+
+async function serveTaskByPr(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), "database unavailable");
+  const { owner, repoName, prNumber } = prTarget(request);
+  // The DB first: it holds the link for every PR Lore opened itself, and the trailer parse below is for PRs it did not.
+  const dbTaskId = await taskIdFromDb(pool, `${owner}/${repoName}`, prNumber);
+
+  if (dbTaskId) {
+    return h.response({ task_id: dbTaskId, trailer_source: "db" });
+  }
+
+  // Not in the DB: read the PR body and its final commit for a `Lore-Task:` trailer, which is the only cross-reference a dark-factory PR carries.
+  try {
+    const fromGithub = await taskIdFromGithub(owner, repoName, prNumber);
+
+    return fromGithub
+      ? h.response(fromGithub)
+      : h.response({ error: "no_trailer_found" }).code(404);
+  } catch (err) {
+    enforceTrue(
+      (err as { status?: number }).status !== 404,
+      apiError(404),
+      "pr_not_found",
+    );
+    console.error("[by-pr] GitHub fallback failed:", err);
+
+    return h.response({ error: "github_api" }).code(500);
+  }
+}
+
 export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -81,49 +141,6 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
       description: "The task a pull request belongs to",
       errors: [404],
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), "database unavailable");
-
-      const owner = request.params.owner;
-      const repoName = request.params.repo;
-
-      // hapi's `{number}` doesn't constrain to digits like the legacy matcher did — reject non-numeric here, not a confusing NaN downstream.
-      enforceTrue(
-        /^[0-9]+$/.test(request.params.number),
-        apiError(400),
-        "invalid pr number",
-      );
-      const prNumber = Number.parseInt(request.params.number, 10);
-      const repo = `${owner}/${repoName}`;
-
-      // First try the DB — fast path.
-      const dbTaskId = await taskIdFromDb(pool, repo, prNumber);
-
-      if (dbTaskId) {
-        return h.response({ task_id: dbTaskId, trailer_source: "db" });
-      }
-
-      // Fall back to GitHub API: fetch PR body + final commit and parse for the Lore-Task: trailer.
-      try {
-        const fromGithub = await taskIdFromGithub(owner, repoName, prNumber);
-
-        if (fromGithub) {
-          return h.response(fromGithub);
-        }
-
-        return h.response({ error: "no_trailer_found" }).code(404);
-      } catch (err) {
-        enforceTrue(
-          (err as { status?: number }).status !== 404,
-          apiError(404),
-          "pr_not_found",
-        );
-        console.error("[by-pr] GitHub fallback failed:", err);
-
-        return h.response({ error: "github_api" }).code(500);
-      }
-    },
+    handler: (request, h) => serveTaskByPr(getPool, request, h),
   };
 }

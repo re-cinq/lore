@@ -169,6 +169,22 @@ function normalizeReviews(reviews: unknown): PrReview[] {
 }
 
 // Fetch live PR state via raw REST; returns null if GitHub not configured
+/** The PR and its two verdicts. Reviews are fetched alongside the PR and their failure swallowed — a PR nobody has reviewed yet is the normal case, and it must not cost the checks. The check runs need the head SHA, so they follow rather than join the pair. */
+async function readPr(token: string, repo: string, prNumber: number) {
+  const [pr, rawReviews] = await Promise.all([
+    ghFetch(token, `/repos/${repo}/pulls/${prNumber}`),
+    ghFetch(token, `/repos/${repo}/pulls/${prNumber}/reviews`).catch(() => []),
+  ]);
+
+  return {
+    pr,
+    checks: normalizeChecks(
+      await fetchCheckRuns(token, repo, (pr.head as { sha: string }).sha),
+    ),
+    reviewList: normalizeReviews(rawReviews),
+  };
+}
+
 export async function fetchPrStatus(
   repo: string,
   prNumber: number,
@@ -179,18 +195,7 @@ export async function fetchPrStatus(
     return null;
   }
 
-  const [pr, rawReviews] = await Promise.all([
-    ghFetch(token, `/repos/${repo}/pulls/${prNumber}`),
-    ghFetch(token, `/repos/${repo}/pulls/${prNumber}/reviews`).catch(() => []),
-  ]);
-  const checkRuns = await fetchCheckRuns(
-    token,
-    repo,
-    (pr.head as { sha: string }).sha,
-  );
-  const checks = normalizeChecks(checkRuns);
-  const reviewList = normalizeReviews(rawReviews);
-  const computed_status = deriveComputedStatus(pr, checks, reviewList);
+  const { pr, checks, reviewList } = await readPr(token, repo, prNumber);
 
   return {
     number: pr.number,
@@ -202,7 +207,7 @@ export async function fetchPrStatus(
     html_url: pr.html_url,
     checks,
     reviews: reviewList,
-    computed_status,
+    computed_status: deriveComputedStatus(pr, checks, reviewList),
   };
 }
 

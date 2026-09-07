@@ -1,5 +1,10 @@
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { RunningPodInfo } from "@re-cinq/lore-shared";
 import { ClusterAgentClient } from "@re-cinq/lore-shared/cluster/cluster-agent-client.js";
@@ -46,6 +51,55 @@ const defaultDeps = (): SpendWindowDeps => ({
   now: () => new Date(),
 });
 
+/** Spend over one window, from the billing export where there is one and the per-call estimate otherwise — the estimate is labelled, so a reader knows which they are looking at. */
+/** The window to report on, as INCLUSIVE day bounds — `[from 00:00, to + 1 day)`. A bad range is the caller's error (400), not a server failure, which is why the parse is caught here rather than left to the error shaper. */
+function resolveWindow(
+  q: Record<string, string | undefined>,
+  deps: SpendWindowDeps,
+): SpendWindow {
+  let interval: { from: string; to: string };
+
+  try {
+    interval = spendInterval(q.from, q.to, deps.now());
+  } catch (err) {
+    throw apiError(400)((err as Error).message);
+  }
+
+  return {
+    interval,
+    fromTs: `${interval.from}T00:00:00Z`,
+    toTs: new Date(
+      Date.parse(`${interval.to}T00:00:00Z`) + 24 * 60 * 60 * 1000,
+    ).toISOString(),
+  };
+}
+
+async function serveSpendWindow(
+  getPool: () => Pool | null,
+  deps: SpendWindowDeps,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const win = resolveWindow(
+    request.query as Record<string, string | undefined>,
+    deps,
+  );
+
+  return h
+    .response({
+      interval: win.interval,
+      llm: await readLlmSpend(pool, win),
+      billed: await readAnthropicSpend(pool, win),
+      gcp: await readGcpSpend(pool, win),
+      compute: await readComputeSpend(pool, win, deps),
+      budget: await readBudget(pool),
+    })
+    .code(200);
+}
+
 export function spendWindowRoute(
   getPool: () => Pool | null,
   deps: SpendWindowDeps = defaultDeps(),
@@ -59,37 +113,6 @@ export function spendWindowRoute(
         "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, the recorded balance, and the estimated Kubernetes compute cost",
       errors: [400],
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const q = request.query as Record<string, string | undefined>;
-      let interval: { from: string; to: string };
-
-      try {
-        interval = spendInterval(q.from, q.to, deps.now());
-      } catch (err) {
-        throw apiError(400)((err as Error).message);
-      }
-      // Inclusive day bounds: [from 00:00, to + 1 day).
-      const win: SpendWindow = {
-        interval,
-        fromTs: `${interval.from}T00:00:00Z`,
-        toTs: new Date(
-          Date.parse(`${interval.to}T00:00:00Z`) + 24 * 60 * 60 * 1000,
-        ).toISOString(),
-      };
-
-      return h
-        .response({
-          interval,
-          llm: await readLlmSpend(pool, win),
-          billed: await readAnthropicSpend(pool, win),
-          gcp: await readGcpSpend(pool, win),
-          compute: await readComputeSpend(pool, win, deps),
-          budget: await readBudget(pool),
-        })
-        .code(200);
-    },
+    handler: (request, h) => serveSpendWindow(getPool, deps, request, h),
   };
 }

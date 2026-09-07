@@ -1,7 +1,7 @@
 import { zodResponse } from "../../http/zod-response.js";
 import { z } from "zod";
 import { apiError } from "../../http/api-error.js";
-import type { ServerRoute } from "@hapi/hapi";
+import type { Request, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
@@ -78,6 +78,50 @@ export function describeNode(
   };
 }
 
+/** One run, enriched: its nodes, its task and the definition it walks — the canonical read the run page is built from. */
+/** The injected port, or one built on the pool. The guard pairs the two possibilities because a disjunction cannot narrow `pool` on its own — the cast is proven by having required one of them. */
+function resolvePort(
+  pool: Pool | null,
+  runs: AssemblyRunsPort | undefined,
+): AssemblyRunsPort {
+  enforceTrue(
+    runs !== undefined || pool !== null,
+    apiError(503),
+    "database unavailable",
+  );
+
+  return runs ?? new PgAssemblyRuns(pool as Pool);
+}
+
+async function serveRunRead(
+  getPool: () => Pool | null,
+  load: () => Promise<Map<string, AssemblyLine>>,
+  runs: AssemblyRunsPort | undefined,
+  request: Request,
+): Promise<object> {
+  const port = resolvePort(getPool(), runs);
+  const line = await port.getById(request.params.id);
+
+  enforceTrue(line !== null, apiError(404), "assembly run not found");
+  const [rows, graph] = await Promise.all([
+    port.listStationRuns(line.id),
+    // The run's own clone; loaded by name only for rows stamped before clones existed (same rule as the walk and the reaper).
+    resolveRunGraph(line, load),
+  ]);
+
+  return {
+    line,
+    definitionKnown: Boolean(graph),
+    nodes: rows.map((row) =>
+      describeNode(
+        row,
+        graph?.nodes.find((n) => n.id === row.nodeId),
+        line.args,
+      ),
+    ),
+  };
+}
+
 export function runReadRoute(
   getPool: () => Pool | null,
   load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
@@ -91,36 +135,6 @@ export function runReadRoute(
       description: "A run joined to the graph it walked",
       errors: [404],
     }),
-    handler: async (request) => {
-      const pool = getPool();
-
-      // A disjunction cannot narrow `pool`; the cast below is proven by this guard pairing `runs !== undefined` with `pool !== null`.
-      enforceTrue(
-        runs !== undefined || pool !== null,
-        apiError(503),
-        "database unavailable",
-      );
-      const port = runs ?? new PgAssemblyRuns(pool as Pool);
-      const line = await port.getById(request.params.id);
-
-      enforceTrue(line !== null, apiError(404), "assembly run not found");
-      const [rows, graph] = await Promise.all([
-        port.listStationRuns(line.id),
-        // The run's own clone; loaded by name only for rows stamped before clones existed (same rule as the walk and the reaper).
-        resolveRunGraph(line, load),
-      ]);
-
-      return {
-        line,
-        definitionKnown: Boolean(graph),
-        nodes: rows.map((row) =>
-          describeNode(
-            row,
-            graph?.nodes.find((n) => n.id === row.nodeId),
-            line.args,
-          ),
-        ),
-      };
-    },
+    handler: (request) => serveRunRead(getPool, load, runs, request),
   };
 }

@@ -9,7 +9,12 @@ import {
 import { zodResponse } from "../../http/zod-response.js";
 import { z } from "zod";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
@@ -55,6 +60,47 @@ const AnalyticsOverviewSchema = z.object({
   job_runs: z.array(wireSchema(JobRunSchema, JOB_RUN_COLUMNS)),
 });
 
+/** Org-wide pipeline analytics for a period: usage, task outcomes and the per-type breakdown behind the dashboard. */
+/** The dashboard's six sections. Run together: they are independent reads and the page shows all of them at once, so serialising them would make the slowest one the sum of all six. */
+async function overviewSections(pool: Pool) {
+  const [
+    summaryRows,
+    usageByTaskType,
+    usageByRepo,
+    dailyUsage,
+    latencyStats,
+    jobRuns,
+  ] = await Promise.all([
+    rows(pool, TASK_SUMMARY_SQL),
+    rows(pool, USAGE_BY_TASK_TYPE_SQL),
+    rows(pool, USAGE_BY_REPO_SQL),
+    rows(pool, DAILY_USAGE_SQL),
+    rows(pool, TOOL_LATENCY_SQL),
+    rows(pool, RECENT_JOB_RUNS_SQL),
+  ]);
+
+  return {
+    task_summary: summaryRows[0] ?? null,
+    usage_by_task_type: usageByTaskType,
+    usage_by_repo: usageByRepo,
+    daily_usage: dailyUsage,
+    latency_stats: latencyStats,
+    job_runs: jobRuns,
+  };
+}
+
+async function serveAnalyticsOverview(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  return h.response(await overviewSections(pool));
+}
+
 export function analyticsOverviewRoute(
   getPool: () => Pool | null,
 ): ServerRoute {
@@ -65,35 +111,7 @@ export function analyticsOverviewRoute(
       name: "AnalyticsOverview",
       description: "Pipeline and usage roll-ups",
     }),
-    handler: async (_request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const [
-        summaryRows,
-        usageByTaskType,
-        usageByRepo,
-        dailyUsage,
-        latencyStats,
-        jobRuns,
-      ] = await Promise.all([
-        rows(pool, TASK_SUMMARY_SQL),
-        rows(pool, USAGE_BY_TASK_TYPE_SQL),
-        rows(pool, USAGE_BY_REPO_SQL),
-        rows(pool, DAILY_USAGE_SQL),
-        rows(pool, TOOL_LATENCY_SQL),
-        rows(pool, RECENT_JOB_RUNS_SQL),
-      ]);
-
-      return h.response({
-        task_summary: summaryRows[0] ?? null,
-        usage_by_task_type: usageByTaskType,
-        usage_by_repo: usageByRepo,
-        daily_usage: dailyUsage,
-        latency_stats: latencyStats,
-        job_runs: jobRuns,
-      });
-    },
+    handler: (request, h) => serveAnalyticsOverview(getPool, request, h),
   };
 }
 

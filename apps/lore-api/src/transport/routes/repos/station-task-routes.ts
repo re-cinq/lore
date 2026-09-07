@@ -1,5 +1,10 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { rethrowBoom, apiError } from "../../http/api-error.js";
 import { z } from "zod";
 import { projectFor } from "../../../outbound/project-boot.js";
@@ -70,6 +75,37 @@ export function driftTasksRoute(): ServerRoute {
   };
 }
 
+/** Tasks a station may still act on — queued or running — which is the set a reaper decides about. */
+async function serveOpenLikeTasks(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  try {
+    const q = request.query as Record<string, string | undefined>;
+
+    enforceTrue(
+      q.task_type && q.description_prefix,
+      apiError(400),
+      "task_type + description_prefix required",
+    );
+    const statuses = (q.statuses ?? "").split(",").filter(Boolean);
+    const p = await projectFor(repoOf(request.params));
+
+    return h.response({
+      tasks: await p.tasks.findOpenLike({
+        taskType: q.task_type,
+        descriptionPrefix: q.description_prefix,
+        statuses,
+      }),
+    });
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    return fail(h, err);
+  }
+}
+
 export function openLikeTasksRoute(): ServerRoute {
   return {
     method: "GET",
@@ -78,32 +114,7 @@ export function openLikeTasksRoute(): ServerRoute {
       name: "OpenLikeTaskList",
       description: "Open tasks matching a prefix",
     }),
-    handler: async (request, h) => {
-      try {
-        const q = request.query as Record<string, string | undefined>;
-
-        enforceTrue(
-          q.task_type && q.description_prefix,
-          apiError(400),
-          "task_type + description_prefix required",
-        );
-        const statuses = (q.statuses ?? "").split(",").filter(Boolean);
-        const p = await projectFor(repoOf(request.params));
-
-        return h.response({
-          tasks: await p.tasks.findOpenLike({
-            taskType: q.task_type,
-            descriptionPrefix: q.description_prefix,
-            statuses,
-          }),
-        });
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        return fail(h, err);
-      }
-    },
+    handler: (request, h) => serveOpenLikeTasks(request, h),
   };
 }
 

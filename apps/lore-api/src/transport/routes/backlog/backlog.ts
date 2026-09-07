@@ -62,6 +62,36 @@ interface BacklogState {
 }
 
 /** Everything the view needs, read in one place: the toggle, the loop's task rows, the repo's open issues, and the run each task belongs to. */
+/** The loop's own tasks, newest first. TWICE the display cap is read: the open ones are filtered out to build the "recent" list, and without the headroom a repo with several in flight would show a short one. */
+async function readLoopTasks(pool: Pool, repo: string): Promise<LoopTaskRow[]> {
+  const { rows } = await pool.query<LoopTaskRow>(
+    `SELECT ${selectList(LOOP_TASK_COLUMNS)}
+           FROM pipeline.tasks
+          WHERE target_repo = $1 AND task_type = 'implementation-loop'
+          ORDER BY created_at DESC
+          LIMIT ${RECENT_LIMIT * 2}`,
+    [repo],
+  );
+
+  return rows;
+}
+
+/** The run driving this repo's backlog, if one is open. Keyed on the `backlog` subject rather than on a task, because the driver run outlives any single ticket it works. */
+async function readCurrentRunId(
+  pool: Pool,
+  repo: string,
+): Promise<string | null> {
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id FROM pipeline.assembly_runs
+          WHERE repo = $1 AND subject_key = 'backlog'
+            AND status IN ('queued', 'running')
+          ORDER BY created_at DESC LIMIT 1`,
+    [repo],
+  );
+
+  return rows[0]?.id ?? null;
+}
+
 async function loadBacklogState(
   pool: Pool,
   repo: string,
@@ -72,24 +102,14 @@ async function loadBacklogState(
 
   enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
 
-  // 2x the display cap: filtering out the open rows must still leave a full recent list.
-  const { rows: taskRows } = await pool.query<LoopTaskRow>(
-    `SELECT ${selectList(LOOP_TASK_COLUMNS)}
-           FROM pipeline.tasks
-          WHERE target_repo = $1 AND task_type = 'implementation-loop'
-          ORDER BY created_at DESC
-          LIMIT ${RECENT_LIMIT * 2}`,
-    [repo],
-  );
-  const project = await projectFor(repo);
-  const openIssues = await project.issues.list({ state: "open" });
-  const { rows: runRows } = await pool.query<{ id: string }>(
-    `SELECT id FROM pipeline.assembly_runs
-          WHERE repo = $1 AND subject_key = 'backlog'
-            AND status IN ('queued', 'running')
-          ORDER BY created_at DESC LIMIT 1`,
-    [repo],
-  );
+  const taskRows = await readLoopTasks(pool, repo);
+  const openIssues = await (
+    await projectFor(repo)
+  ).issues.list({
+    state: "open",
+  });
+  const currentRunId = await readCurrentRunId(pool, repo);
+  // Last, and in this order: the node read is scoped to the task ids above, and the run lookup shares its cursor.
   const { taskRuns, nodeRows } = await fetchRunContext(
     pool,
     taskRows.map((t) => t.id),
@@ -99,13 +119,51 @@ async function loadBacklogState(
     enabled: resolveEnabled(rows[0].settings),
     taskRows,
     openIssues,
-    currentRunId: runRows[0]?.id ?? null,
+    currentRunId,
     runByTask: new Map(taskRuns.map((r) => [r.task_id, r])),
     nodeRows,
   };
 }
 
-/** Splits the loop's tasks into the one being worked, the queue behind it, and what it recently finished. */
+/** What is queued behind the current work. Issues whose task is neither failed nor cancelled are EXCLUDED — this mirrors the driver's own eligibility guard, and without it an issue already being worked appeared as "next up" and in "recent" at the same time. */
+function nextTickets(
+  openIssues: BacklogState["openIssues"],
+  taskRows: BacklogState["taskRows"],
+): unknown[] {
+  const guardedIssues = new Set(
+    taskRows
+      .filter((t) => !["failed", "cancelled"].includes(t.status))
+      .map((t) => t.issue_number),
+  );
+
+  return orderBacklog(openIssues)
+    .filter((i) => !guardedIssues.has(i.number))
+    .map((i) => ({
+      issue_number: i.number,
+      issue_url: i.url ?? null,
+      title: i.title,
+      priority: priorityOf(i),
+      pr_url: null,
+      state: "queued",
+      created_at: i.createdAt ? new Date(i.createdAt).toISOString() : null,
+      error: null,
+      run_id: null,
+      pipeline: null,
+    }));
+}
+
+/** Settled work, newest first and capped. The current ticket is excluded by identity rather than by status, so a task that settled between the two reads does not appear twice. */
+function recentTickets(state: BacklogState, currentRow: unknown): Ticket[] {
+  const { taskRows, openIssues, runByTask, nodeRows } = state;
+
+  return taskRows
+    .filter((t) => t !== currentRow)
+    .filter((t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status))
+    .slice(0, RECENT_LIMIT)
+    .map((t) => taskTicket(t, openIssues, runByTask.get(t.id), nodeRows))
+    .filter((t): t is Ticket => t !== null);
+}
+
 function projectBacklog(state: BacklogState): {
   current: Ticket | null;
   next: unknown[];
@@ -114,12 +172,6 @@ function projectBacklog(state: BacklogState): {
   const { taskRows, openIssues, runByTask, nodeRows } = state;
   const currentRow = taskRows.find((t) =>
     (OPEN_TASK_STATES as readonly string[]).includes(t.status),
-  );
-  // Mirror the driver's eligibility guard: an issue whose task isn't failed/cancelled is already being worked or addressed — showing it as "next up" duplicated it into next and recent at once.
-  const guardedIssues = new Set(
-    taskRows
-      .filter((t) => !["failed", "cancelled"].includes(t.status))
-      .map((t) => t.issue_number),
   );
 
   return {
@@ -131,28 +183,8 @@ function projectBacklog(state: BacklogState): {
           nodeRows,
         )
       : null,
-    next: orderBacklog(openIssues)
-      .filter((i) => !guardedIssues.has(i.number))
-      .map((i) => ({
-        issue_number: i.number,
-        issue_url: i.url ?? null,
-        title: i.title,
-        priority: priorityOf(i),
-        pr_url: null,
-        state: "queued",
-        created_at: i.createdAt ? new Date(i.createdAt).toISOString() : null,
-        error: null,
-        run_id: null,
-        pipeline: null,
-      })),
-    recent: taskRows
-      .filter((t) => t !== currentRow)
-      .filter(
-        (t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status),
-      )
-      .slice(0, RECENT_LIMIT)
-      .map((t) => taskTicket(t, openIssues, runByTask.get(t.id), nodeRows))
-      .filter((t): t is Ticket => t !== null),
+    next: nextTickets(openIssues, taskRows),
+    recent: recentTickets(state, currentRow),
   };
 }
 
@@ -183,6 +215,40 @@ function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+/** Flips the loop's `enabled` flag. The UPDATE merges rather than replaces at BOTH levels — the repo's other settings and the loop's own other keys must survive a toggle. */
+async function setLoopEnabled(
+  pool: Pool,
+  repo: string,
+  enabled: boolean,
+): Promise<void> {
+  const { rows } = await pool.query<{ full_name: string }>(
+    "SELECT full_name FROM lore.repos WHERE full_name = $1",
+    [repo],
+  );
+
+  enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
+  await pool.query(
+    `UPDATE lore.repos
+            SET settings = COALESCE(settings, '{}'::jsonb)
+              || jsonb_build_object('implementation_loop',
+                   COALESCE(settings->'implementation_loop', '{}'::jsonb)
+                     || jsonb_build_object('enabled', $2::boolean))
+          WHERE full_name = $1`,
+    [repo, enabled],
+  );
+}
+
+/** Seeds the loop's label taxonomy (FR1/FR7) for repos onboarded before the feature existed. Create-or-ignore, and swallowed: the settings write has already committed, so a code-host hiccup must not report the toggle as failed. */
+async function seedBacklogLabels(repo: string): Promise<void> {
+  try {
+    await (await projectFor(repo)).issues.createLabels(BACKLOG_LABEL_SEED);
+  } catch (err) {
+    console.warn(
+      `[implementation-loop] label seeding for ${repo} failed: ${String(err)}`,
+    );
+  }
+}
+
 function writeBacklogRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "PUT",
@@ -204,33 +270,11 @@ function writeBacklogRoute(getPool: () => Pool | null): ServerRoute {
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
       const repo = repoOf(request.params);
       const { enabled } = request.payload as { enabled: boolean };
-      const { rows } = await pool.query<{ full_name: string }>(
-        "SELECT full_name FROM lore.repos WHERE full_name = $1",
-        [repo],
-      );
 
-      enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
-      await pool.query(
-        `UPDATE lore.repos
-            SET settings = COALESCE(settings, '{}'::jsonb)
-              || jsonb_build_object('implementation_loop',
-                   COALESCE(settings->'implementation_loop', '{}'::jsonb)
-                     || jsonb_build_object('enabled', $2::boolean))
-          WHERE full_name = $1`,
-        [repo, enabled],
-      );
+      await setLoopEnabled(pool, repo, enabled);
 
-      // Opting in seeds the loop's label taxonomy (FR1/FR7) for repos onboarded before the feature existed; create-or-ignore-existing, and a code-host hiccup must not fail the settings write that already committed.
       if (enabled) {
-        try {
-          const project = await projectFor(repo);
-
-          await project.issues.createLabels(BACKLOG_LABEL_SEED);
-        } catch (err) {
-          console.warn(
-            `[implementation-loop] label seeding for ${repo} failed: ${String(err)}`,
-          );
-        }
+        await seedBacklogLabels(repo);
       }
 
       return h.response({ ok: true as const, enabled }).code(200);

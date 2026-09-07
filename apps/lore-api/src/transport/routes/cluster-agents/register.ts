@@ -2,7 +2,12 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { secretEquals } from "@re-cinq/lore-shared/lib/secret-equals.js";
 import { apiError } from "../../http/api-error.js";
-import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import {
@@ -95,40 +100,25 @@ const NAME_TAKEN = {
 };
 
 /** The handler core, injectable for tests: gate, decide, mint, persist. */
-export async function handleRegister(
+/** Writes the registration and answers with the token. Losing a concurrent registration reads the same as a taken NAME — another process holds it either way, and the loser must re-register rather than assume it won. The token is served here and never again: only its hash is stored. */
+async function registerAgent(
   deps: RegisterDeps,
-  bearer: string | undefined,
   body: RegisterBody,
+  decision: Exclude<RegistrationDecision, { kind: "reject" }>,
+  presented: string,
 ): Promise<
   | { code: 200; body: z.infer<typeof RegisterResponse> }
-  | { code: 401 | 409 | 503; body: { error: string } }
+  | { code: 409; body: { error: string } }
 > {
-  if (isUnauthorizedRegistration(deps, bearer)) {
-    return { code: 401, body: { error: "unauthorized" } };
-  }
-
-  const existing = await deps.repository.findByName(body.name);
-  const presented = body.current_token ?? "";
-  const decision: RegistrationDecision = decideRegistration(
-    existing,
-    presented ? hashAgentToken(presented) : null,
-  );
-
-  if (decision.kind === "reject") {
-    return NAME_TAKEN;
-  }
-
   const issued = issueTokenForDecision(decision, presented);
-  const input: RegisterClusterAgentInput = {
+  const agent = await persistRegistration(deps, decision, {
     name: body.name,
     tags: body.tags,
     tokenHash: issued.tokenHash,
     clusterInfo: body.cluster_info,
-  };
-  const agent = await persistRegistration(deps, decision, input);
+  });
 
   if (agent === null) {
-    // Lost a concurrent registration — same as a taken name.
     return NAME_TAKEN;
   }
 
@@ -141,6 +131,54 @@ export async function handleRegister(
       token: issued.token,
     },
   };
+}
+
+export async function handleRegister(
+  deps: RegisterDeps,
+  bearer: string | undefined,
+  body: RegisterBody,
+): Promise<
+  | { code: 200; body: z.infer<typeof RegisterResponse> }
+  | { code: 401 | 409 | 503; body: { error: string } }
+> {
+  if (isUnauthorizedRegistration(deps, bearer)) {
+    return { code: 401, body: { error: "unauthorized" } };
+  }
+
+  const presented = body.current_token ?? "";
+  const decision: RegistrationDecision = decideRegistration(
+    await deps.repository.findByName(body.name),
+    presented ? hashAgentToken(presented) : null,
+  );
+
+  if (decision.kind === "reject") {
+    return NAME_TAKEN;
+  }
+
+  return registerAgent(deps, body, decision, presented);
+}
+
+/** A cluster-agent introducing itself. Registration is mandatory in every cluster: nothing is ever pushed to an agent, so an unregistered process would simply never be given work. */
+async function serveRegister(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const bearer = extractBearer(request.headers.authorization);
+
+  const result = await handleRegister(
+    {
+      repository: new PgClusterAgents(pool),
+      registrationToken: process.env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN,
+    },
+    bearer,
+    request.payload as RegisterBody,
+  );
+
+  return h.response(result.body).code(result.code);
 }
 
 export function clusterAgentRegisterRoute(
@@ -162,22 +200,6 @@ export function clusterAgentRegisterRoute(
         errors: [401, 409],
       },
     ),
-    handler: async (request: Request, h: ResponseToolkit) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const bearer = extractBearer(request.headers.authorization);
-
-      const result = await handleRegister(
-        {
-          repository: new PgClusterAgents(pool),
-          registrationToken: process.env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN,
-        },
-        bearer,
-        request.payload as RegisterBody,
-      );
-
-      return h.response(result.body).code(result.code);
-    },
+    handler: (request, h) => serveRegister(getPool, request, h),
   };
 }

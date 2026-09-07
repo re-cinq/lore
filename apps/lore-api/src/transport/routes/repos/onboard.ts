@@ -2,7 +2,12 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../http/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { onboardRepo } from "../../../work/repo/repo-onboard.js";
 import { zodResponse } from "../../http/zod-response.js";
@@ -46,6 +51,31 @@ const OnboardResultSchema = z.union([
   }),
 ]);
 
+/** Queues a repo's onboarding, or reports the block that refused it. Duplicate protection lives here rather than on the trust ladder — onboarding is allowed at every tier, but only once. */
+async function serveOnboard(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  try {
+    const { repo, reonboard } = request.payload as OnboardBody;
+    const result = await onboardRepo(pool, repo, { reonboard });
+
+    // A guarded refusal is existing state, not a failure — 409 tells it apart from a broken onboarding.
+    return "blocked" in result
+      ? h.response(result).code(409)
+      : h.response(result);
+  } catch (err) {
+    console.error("[onboard] API error:", errorMessage(err));
+
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function onboardRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -62,24 +92,6 @@ export function onboardRoute(getPool: () => Pool | null): ServerRoute {
         errors: [400, 409],
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      try {
-        const { repo, reonboard } = request.payload as OnboardBody;
-        const result = await onboardRepo(pool, repo, { reonboard });
-
-        // A guarded refusal is existing state, not a failure — 409 tells it apart from a broken onboarding.
-        return "blocked" in result
-          ? h.response(result).code(409)
-          : h.response(result);
-      } catch (err) {
-        console.error("[onboard] API error:", errorMessage(err));
-
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveOnboard(getPool, request, h),
   };
 }

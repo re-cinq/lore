@@ -1,7 +1,12 @@
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
 import {
@@ -238,6 +243,41 @@ async function listAction(
   return { ...result, limit: body.limit, offset: body.offset };
 }
 
+/** The memory verbs behind one POST: read, write, delete and list share a route because the MCP adapter proxies them as one action field. */
+async function serveMemoryAction(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+  const body = request.payload as MemoryBody;
+
+  try {
+    // Only the two actions that carry text to match on pay for an embedding.
+    const embedding = await embeddingFor(body);
+
+    if (body.action === "write") {
+      return h.response(await writeAction(pool, body, embedding));
+    }
+
+    if (body.action === "read") {
+      return h.response(await readAction(body));
+    }
+
+    if (body.action === "search") {
+      return h.response(await searchAction(pool, body));
+    }
+
+    if (body.action === "delete") {
+      return h.response(await deleteAction(body));
+    }
+
+    return h.response(await listAction(body));
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function memoryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -254,34 +294,6 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
         errors: [400, 404],
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-      const body = request.payload as MemoryBody;
-
-      try {
-        // Only the two actions that carry text to match on pay for an embedding.
-        const embedding = await embeddingFor(body);
-
-        if (body.action === "write") {
-          return h.response(await writeAction(pool, body, embedding));
-        }
-
-        if (body.action === "read") {
-          return h.response(await readAction(body));
-        }
-
-        if (body.action === "search") {
-          return h.response(await searchAction(pool, body));
-        }
-
-        if (body.action === "delete") {
-          return h.response(await deleteAction(body));
-        }
-
-        return h.response(await listAction(body));
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveMemoryAction(getPool, request, h),
   };
 }

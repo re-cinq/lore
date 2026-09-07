@@ -1,6 +1,11 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../http/api-error.js";
-import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
@@ -47,6 +52,25 @@ export async function handleSetPaused(
   };
 }
 
+/** Pauses or resumes one cluster-agent. A paused agent keeps heartbeating — it is still healthy, just not claiming — so its runs are not reaped out from under it. */
+async function servePause(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  const result = await handleSetPaused(
+    { agents: new PgClusterAgents(pool) },
+    request.params.id,
+    request.payload as PauseBody,
+  );
+
+  return h.response(result.body).code(result.code);
+}
+
 export function clusterAgentPauseRoute(
   getPool: () => Pool | null,
 ): ServerRoute {
@@ -66,18 +90,6 @@ export function clusterAgentPauseRoute(
         errors: [404],
       },
     ),
-    handler: async (request: Request, h: ResponseToolkit) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const result = await handleSetPaused(
-        { agents: new PgClusterAgents(pool) },
-        request.params.id,
-        request.payload as PauseBody,
-      );
-
-      return h.response(result.body).code(result.code);
-    },
+    handler: (request, h) => servePause(getPool, request, h),
   };
 }

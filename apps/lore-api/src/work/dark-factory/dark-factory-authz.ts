@@ -139,6 +139,69 @@ function isTeamOnlyCodeowners(
   );
 }
 
+/** The approval must be on the repo being changed. An approval PR against a DIFFERENT repo would satisfy the ceremony while nobody who owns this code had seen it. */
+function enforceSameRepo(
+  prRef: string,
+  prRepo: string,
+  targetRepo: string,
+): void {
+  if (prRepo !== targetRepo) {
+    throw new TwoKeyError(
+      `Approval PR ${prRef} is against ${prRepo}, not ${targetRepo}`,
+      "wrong_repo",
+    );
+  }
+}
+
+/** The person who applied the label must own the code. A CODEOWNERS file of only team handles is refused EXPLICITLY rather than treated as "no owners": team-membership lookup is not implemented, and silently failing closed would read as the approver being unauthorized when the real problem is this checker. */
+async function enforceApproverIsCodeowner(check: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  targetRepo: string;
+  approver: string;
+}): Promise<void> {
+  const { octokit, owner, repo, targetRepo, approver } = check;
+  const codeowners = await fetchCodeowners({ octokit, owner, repo });
+
+  if (isCodeowner(approver, codeowners)) {
+    return;
+  }
+
+  enforceTrue(
+    !isTeamOnlyCodeowners(codeowners),
+    (message) => new TwoKeyError(message, "team_membership_unresolved"),
+    `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
+      `team-membership lookup is not implemented in v1. Add an explicit ` +
+      `@user owner for the approver, or wait for the per-path team ` +
+      `resolution follow-up.`,
+  );
+  throw new TwoKeyError(
+    `${approver} is not a CODEOWNERS member of ${targetRepo}`,
+    "approver_not_codeowner",
+  );
+}
+
+/** The approval PR, which must still be OPEN. A merged or closed PR would let one approval authorize changes indefinitely; requiring it open is what makes the ceremony a live decision rather than a past one. */
+async function fetchOpenApprovalPr(target: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  number: number;
+  prRef: string;
+}) {
+  const pr = await fetchApprovalPr(target);
+
+  if (pr.data.state !== "open") {
+    throw new TwoKeyError(
+      `Approval PR ${target.prRef} is ${pr.data.state}; ceremony requires open PR`,
+      "pr_state",
+    );
+  }
+
+  return pr;
+}
+
 /** Verify the approval ceremony; returns evidence or throws TwoKeyError. Approval PR must match targetRepo (FR3.9). */
 export async function verifyApproval(opts: {
   octokit: Octokit;
@@ -148,44 +211,23 @@ export async function verifyApproval(opts: {
   const { octokit, prRef, targetRepo } = opts;
   const { owner, repo, number } = parsePrRef(prRef);
 
-  if (`${owner}/${repo}` !== targetRepo) {
-    throw new TwoKeyError(
-      `Approval PR ${prRef} is against ${owner}/${repo}, not ${targetRepo}`,
-      "wrong_repo",
-    );
-  }
+  enforceSameRepo(prRef, `${owner}/${repo}`, targetRepo);
 
-  const pr = await fetchApprovalPr({ octokit, owner, repo, number, prRef });
-
-  if (pr.data.state !== "open") {
-    throw new TwoKeyError(
-      `Approval PR ${prRef} is ${pr.data.state}; ceremony requires open PR`,
-      "pr_state",
-    );
-  }
-
-  const events = await fetchApprovalEvents(octokit, owner, repo, number);
-  const labelEvent = findApprovalLabelEvent(events);
+  const pr = await fetchOpenApprovalPr({ octokit, owner, repo, number, prRef });
+  const labelEvent = findApprovalLabelEvent(
+    await fetchApprovalEvents(octokit, owner, repo, number),
+  );
 
   assertLabelPresent(labelEvent, prRef);
-
   const approver = labelEvent.actor.login;
-  const codeowners = await fetchCodeowners({ octokit, owner, repo });
 
-  if (!isCodeowner(approver, codeowners)) {
-    enforceTrue(
-      !isTeamOnlyCodeowners(codeowners),
-      (message) => new TwoKeyError(message, "team_membership_unresolved"),
-      `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
-        `team-membership lookup is not implemented in v1. Add an explicit ` +
-        `@user owner for the approver, or wait for the per-path team ` +
-        `resolution follow-up.`,
-    );
-    throw new TwoKeyError(
-      `${approver} is not a CODEOWNERS member of ${targetRepo}`,
-      "approver_not_codeowner",
-    );
-  }
+  await enforceApproverIsCodeowner({
+    octokit,
+    owner,
+    repo,
+    targetRepo,
+    approver,
+  });
 
   return {
     prRef,

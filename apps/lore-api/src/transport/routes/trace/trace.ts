@@ -1,7 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { rethrowBoom, apiError } from "../../http/api-error.js";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { mergePersistentFeatures } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
@@ -77,6 +82,40 @@ const PATH_KINDS: Record<
   source: async (trace, filePath) => ({ source: await trace.source(filePath) }),
 };
 
+/** A traceability read, shaped by {kind}: the spec-to-test graph the coverage view and the VS Code extension both read. */
+async function serveTrace(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const kind = request.params.kind;
+
+  enforceTrue(TRACE_KINDS.has(kind), apiError(404), "not found");
+  const { path: filePath = "" } = request.query as TraceQuery;
+
+  try {
+    const project = await projectFor(
+      `${request.params.owner}/${request.params.repo}`,
+    );
+    const trace = project.trace;
+    const noPathHandler = NO_PATH_KINDS[kind];
+
+    if (noPathHandler) {
+      return h.response(await noPathHandler(trace, project));
+    }
+
+    enforceTrue(filePath, apiError(400), "path query param required");
+
+    return h.response(await PATH_KINDS[kind](trace, filePath));
+  } catch (err) {
+    // Guard's refusal carries its status; only unexpected failure needs shaping.
+    rethrowBoom(err);
+
+    return h
+      .response({ error: err instanceof Error ? err.message : String(err) })
+      .code(500);
+  }
+}
+
 export function traceRoute(): ServerRoute {
   return {
     method: "GET",
@@ -93,34 +132,6 @@ export function traceRoute(): ServerRoute {
         errors: [400, 404],
       },
     ),
-    handler: async (request, h) => {
-      const kind = request.params.kind;
-
-      enforceTrue(TRACE_KINDS.has(kind), apiError(404), "not found");
-      const { path: filePath = "" } = request.query as TraceQuery;
-
-      try {
-        const project = await projectFor(
-          `${request.params.owner}/${request.params.repo}`,
-        );
-        const trace = project.trace;
-        const noPathHandler = NO_PATH_KINDS[kind];
-
-        if (noPathHandler) {
-          return h.response(await noPathHandler(trace, project));
-        }
-
-        enforceTrue(filePath, apiError(400), "path query param required");
-
-        return h.response(await PATH_KINDS[kind](trace, filePath));
-      } catch (err) {
-        // Guard's refusal carries its status; only unexpected failure needs shaping.
-        rethrowBoom(err);
-
-        return h
-          .response({ error: err instanceof Error ? err.message : String(err) })
-          .code(500);
-      }
-    },
+    handler: (request, h) => serveTrace(request, h),
   };
 }

@@ -175,6 +175,29 @@ interface RepoIdentity {
   name: string;
 }
 
+/** The repo row FIRST, then its task. The order is load-bearing: the task's trust gate reads that row, so a task created before it would be judged against a repo that does not exist yet. Re-onboarding refreshes the timestamp rather than inserting a second row. */
+async function insertRepoAndTask(
+  client: PoolClient,
+  { fullName, owner, name }: RepoIdentity,
+): Promise<OnboardWrite> {
+  const { rows } = await client.query<{ id: string }>(
+    `INSERT INTO lore.repos (owner, name, full_name)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now()
+       RETURNING id`,
+    [owner, name, fullName],
+  );
+  const task = await createPipelineTask(client, {
+    description: onboardTaskDescription(fullName),
+    taskType: "onboard",
+    targetRepo: fullName,
+    createdBy: "onboard-system",
+    contextBundle: { repo: fullName },
+  });
+
+  return { repoId: rows[0].id, taskId: task.task_id };
+}
+
 async function writeOnboard(
   client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
@@ -203,26 +226,11 @@ async function writeOnboard(
       task_id: decision.taskId,
     };
   }
-
-  // Upsert first so task's trust gate reads this row; re-onboarding refreshes timestamp.
-  const { rows } = await client.query<{ id: string }>(
-    `INSERT INTO lore.repos (owner, name, full_name)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now()
-       RETURNING id`,
-    [owner, name, fullName],
-  );
-  const task = await createPipelineTask(client, {
-    description: onboardTaskDescription(fullName),
-    taskType: "onboard",
-    targetRepo: fullName,
-    createdBy: "onboard-system",
-    contextBundle: { repo: fullName },
-  });
+  const written = await insertRepoAndTask(client, { fullName, owner, name });
 
   await client.query("COMMIT");
 
-  return { repoId: rows[0].id, taskId: task.task_id };
+  return written;
 }
 
 /** Webhook wiring is best-effort — a skip is worth a warning, never a failure. */
@@ -242,6 +250,24 @@ function logWebhookOutcome(
   );
 }
 
+/** Runs the onboarding write on its own connection, rolling back anything the write left open. The rollback is unconditional on failure and swallowed: the connection is about to be released either way, and a failed rollback must not replace the error that caused it. */
+async function writeOnboardTx(
+  pool: Pool,
+  identity: RepoIdentity,
+  options: { reonboard?: boolean },
+): Promise<OnboardWrite> {
+  const client = await pool.connect();
+
+  try {
+    return await writeOnboard(client, identity, options);
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 /** Onboards a repo by inserting into lore.repos and submitting an onboard task; guarded against duplicates via per-repo advisory lock (#968). */
 export async function onboardRepo(
   pool: Pool,
@@ -256,17 +282,11 @@ export async function onboardRepo(
     `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
   );
 
-  const client = await pool.connect();
-  let written: OnboardWrite;
-
-  try {
-    written = await writeOnboard(client, { fullName, owner, name }, options);
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  const written = await writeOnboardTx(
+    pool,
+    { fullName, owner, name },
+    options,
+  );
 
   if ("blocked" in written) {
     return written;
@@ -289,7 +309,54 @@ export { fetchRepoContext, type RepoContext } from "./repo-onboard-context.js";
 
 // ── Onboarding PR merge detection (T018) ────────────────────────────
 
-/** Checks all repos with unmerged onboarding PRs; marks merged PRs for nightly ingestion (T019). */
+/** Marks the onboarding done and queues the first ingestion. The merge is what makes the repo's conventions readable, so this does not wait for the nightly pass — a freshly onboarded repo whose CLAUDE.md nobody has read yet is exactly the case onboarding exists to fix. */
+async function recordMergedOnboarding(
+  pool: Pool,
+  repo: { id: string; full_name: string },
+): Promise<void> {
+  await pool.query(
+    `UPDATE lore.repos SET onboarding_pr_merged = true, last_ingested_at = now() WHERE id = $1`,
+    [repo.id],
+  );
+  const { createTask } =
+    await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
+
+  await createTask({
+    description: `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
+    taskType: "general",
+    targetRepo: repo.full_name,
+    createdBy: "onboard-ingest",
+  });
+  console.log(
+    `[repo-onboard] Onboarding PR merged for ${repo.full_name}, ingestion triggered`,
+  );
+}
+
+/** Whether this repo's onboarding PR has merged, and what to do if it has. Failure is per repo: one repo whose PR cannot be read must not stop the sweep for the rest. */
+async function checkOnboardingPr(
+  pool: Pool,
+  repo: { id: string; full_name: string; onboarding_pr_url: string },
+): Promise<void> {
+  const match = /\/pull\/(\d+)/.exec(repo.onboarding_pr_url);
+
+  if (!match) {
+    return;
+  }
+  const [owner, name] = repo.full_name.split("/");
+  const octokit = await getOctokit();
+  const { data: pr } = await octokit.rest.pulls.get({
+    owner,
+    repo: name,
+    pull_number: parseInt(match[1]),
+  });
+
+  if (!pr.merged) {
+    return;
+  }
+
+  await recordMergedOnboarding(pool, repo);
+}
+
 export async function checkOnboardingPRs(pool: Pool): Promise<void> {
   const { rows } = await pool.query(
     `SELECT id, full_name, onboarding_pr_url FROM lore.repos
@@ -298,42 +365,7 @@ export async function checkOnboardingPRs(pool: Pool): Promise<void> {
 
   for (const repo of rows) {
     try {
-      // Extract PR number from URL
-      const match = repo.onboarding_pr_url.match(/\/pull\/(\d+)/);
-
-      if (!match) {
-        continue;
-      }
-      const prNumber = parseInt(match[1]);
-      const [owner, name] = repo.full_name.split("/");
-
-      // Check PR status via GitHub API
-      const octokit = await getOctokit();
-      const { data: pr } = await octokit.rest.pulls.get({
-        owner,
-        repo: name,
-        pull_number: prNumber,
-      });
-
-      if (pr.merged) {
-        await pool.query(
-          `UPDATE lore.repos SET onboarding_pr_merged = true, last_ingested_at = now() WHERE id = $1`,
-          [repo.id],
-        );
-        // Trigger initial ingestion via pipeline
-        const { createTask } =
-          await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
-
-        await createTask({
-          description: `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
-          taskType: "general",
-          targetRepo: repo.full_name,
-          createdBy: "onboard-ingest",
-        });
-        console.log(
-          `[repo-onboard] Onboarding PR merged for ${repo.full_name}, ingestion triggered`,
-        );
-      }
+      await checkOnboardingPr(pool, repo);
     } catch (err) {
       console.error(
         `[repo-onboard] Error checking PR for ${repo.full_name}: ${errorMessage(err)}`,

@@ -1,7 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../http/api-error.js";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -38,6 +43,37 @@ export function taskViewRoutes(getPool: () => Pool | null): ServerRoute[] {
   ];
 }
 
+/** A repo's recent tasks, newest first. */
+async function serveRepoTasks(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { repo, limit } = request.query as unknown as RepoTasksQuery;
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT ${selectList(REPO_TASK_COLUMNS)}
+         FROM pipeline.tasks
+        WHERE target_repo = $1
+        ORDER BY created_at DESC
+        LIMIT $2`,
+      [repo, limit],
+    );
+
+    return h.response({ tasks: rows });
+  } catch (err) {
+    if (missingTable(err)) {
+      return h.response({ tasks: [] });
+    }
+
+    throw err;
+  }
+}
+
 function repoTasksRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -50,31 +86,7 @@ function repoTasksRoute(getPool: () => Pool | null): ServerRoute {
       RepoTaskListSchema,
       { name: "RepoTaskList", description: "A repo's recent tasks" },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { repo, limit } = request.query as unknown as RepoTasksQuery;
-
-      try {
-        const { rows } = await pool.query(
-          `SELECT ${selectList(REPO_TASK_COLUMNS)}
-             FROM pipeline.tasks
-            WHERE target_repo = $1
-            ORDER BY created_at DESC
-            LIMIT $2`,
-          [repo, limit],
-        );
-
-        return h.response({ tasks: rows });
-      } catch (err) {
-        if (missingTable(err)) {
-          return h.response({ tasks: [] });
-        }
-
-        throw err;
-      }
-    },
+    handler: (request, h) => serveRepoTasks(getPool, request, h),
   };
 }
 
@@ -102,9 +114,9 @@ function taskStatsRoute(getPool: () => Pool | null): ServerRoute {
 }
 
 /** The FULL OUTER JOIN is the point: an agent that only wrote memories never appears in pipeline.tasks, and one that only ran tasks never appears in memory.memories. The cost aggregate stays SQL-side rather than shipping the whole pipeline history to Node per row. */
-function agentActivitySql(repo: string | undefined): string {
-  return `WITH task_agents AS (
-           SELECT t.agent_id,
+/** An agent's task side: how much it ran, what it cost, and the most recent thing it was asked to do. The `reason` columns take the LATEST row rather than aggregating — a list of every description would be unreadable, and the newest one is what explains why the agent is on screen. */
+function taskAgentsCte(repo: string | undefined): string {
+  return `SELECT t.agent_id,
                   count(DISTINCT t.id)::int              as task_count,
                   COALESCE(SUM(lc.cost_usd), 0)::float   as cost_usd,
                   string_agg(DISTINCT t.created_by, ', ') as created_by,
@@ -115,15 +127,25 @@ function agentActivitySql(repo: string | undefined): string {
              LEFT JOIN pipeline.llm_calls lc ON lc.task_id = t.id
             WHERE t.agent_id IS NOT NULL
               ${repo ? "AND t.target_repo = $1" : ""}
-            GROUP BY t.agent_id
-         ),
-         mem_agents AS (
-           SELECT agent_id, count(*)::int as memory_count,
+            GROUP BY t.agent_id`;
+}
+
+/** An agent's memory side. Separate from tasks because the two do not imply each other: an agent can write memory without ever running a task, and the FULL OUTER JOIN below is what keeps both visible. */
+function memoryAgentsCte(repo: string | undefined): string {
+  return `SELECT agent_id, count(*)::int as memory_count,
                   max(created_at) as last_memory_at
              FROM memory.memories
             WHERE is_deleted = FALSE
               ${repo ? "AND repo = $1" : ""}
-            GROUP BY agent_id
+            GROUP BY agent_id`;
+}
+
+function agentActivitySql(repo: string | undefined): string {
+  return `WITH task_agents AS (
+           ${taskAgentsCte(repo)}
+         ),
+         mem_agents AS (
+           ${memoryAgentsCte(repo)}
          )
          SELECT COALESCE(ta.agent_id, ma.agent_id)           as agent_id,
                 COALESCE(ta.task_count, 0)                   as task_count,
@@ -196,6 +218,36 @@ function taskRuntimeRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+/** The audit trail: every auto-merge decision, dark-factory settings change and escalation, which is the record a rollback is reconstructed from. */
+async function serveAuditLog(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { repo, event_types, limit } =
+    request.query as unknown as AuditLogQuery;
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT event_type, payload, created_at FROM pipeline.audit_log
+        WHERE repo = $1 AND event_type = ANY($2)
+        ORDER BY created_at DESC LIMIT $3`,
+      [repo, event_types.split(",").map((t) => t.trim()), limit],
+    );
+
+    return h.response({ entries: rows });
+  } catch (err) {
+    if (missingTable(err)) {
+      return h.response({ entries: [] });
+    }
+
+    throw err;
+  }
+}
+
 function auditLogRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -211,29 +263,6 @@ function auditLogRoute(getPool: () => Pool | null): ServerRoute {
         description: "Recent audit entries for a repo",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { repo, event_types, limit } =
-        request.query as unknown as AuditLogQuery;
-
-      try {
-        const { rows } = await pool.query(
-          `SELECT event_type, payload, created_at FROM pipeline.audit_log
-            WHERE repo = $1 AND event_type = ANY($2)
-            ORDER BY created_at DESC LIMIT $3`,
-          [repo, event_types.split(",").map((t) => t.trim()), limit],
-        );
-
-        return h.response({ entries: rows });
-      } catch (err) {
-        if (missingTable(err)) {
-          return h.response({ entries: [] });
-        }
-
-        throw err;
-      }
-    },
+    handler: (request, h) => serveAuditLog(getPool, request, h),
   };
 }

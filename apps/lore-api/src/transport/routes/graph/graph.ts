@@ -3,7 +3,12 @@ import { apiError } from "../../http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { queryLiveGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -23,6 +28,37 @@ type GraphQuery = z.infer<typeof GraphQuery>;
 /** Graph query results — shape follows the query. */
 const GraphQuerySchema = z.record(z.unknown());
 
+/** Entities and relationships matching a query. The graph is written asynchronously by episode ingestion, so this read may legitimately trail the memory it describes. */
+async function serveGraph(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), "knowledge graph requires PostgreSQL");
+
+  const {
+    entity,
+    relation_type: relationType,
+    repo,
+    include_invalidated: includeInvalidated,
+  } = request.query as unknown as GraphQuery;
+
+  try {
+    const results = await queryLiveGraph(pool, {
+      entity,
+      relationType,
+      repo,
+      includeInvalidated,
+    });
+
+    return h.response(results);
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function graphRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -38,30 +74,6 @@ export function graphRoute(getPool: () => Pool | null): ServerRoute {
         description: "Entities and relationships matching a query",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), "knowledge graph requires PostgreSQL");
-
-      const {
-        entity,
-        relation_type: relationType,
-        repo,
-        include_invalidated: includeInvalidated,
-      } = request.query as unknown as GraphQuery;
-
-      try {
-        const results = await queryLiveGraph(pool, {
-          entity,
-          relationType,
-          repo,
-          includeInvalidated,
-        });
-
-        return h.response(results);
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveGraph(getPool, request, h),
   };
 }

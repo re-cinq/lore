@@ -153,6 +153,31 @@ function enrichedFields(
 }
 
 // One run as the run views read it; definition_name doubles blueprint_name under its pre-rename spelling for the legacy-alias rollout window — DELETE alongside that alias.
+/** What the run IS. `definition_name` is served alongside `blueprint_name` with the same value: it is the pre-rename spelling, kept because clients still read it. */
+function identity(run: AssemblyRunSummary) {
+  return {
+    id: run.id,
+    blueprint_name: run.blueprintName,
+    definition_name: run.blueprintName,
+    task_id: run.taskId,
+    repo: run.repo,
+    branch: run.branch,
+    subject_key: run.subjectKey,
+  };
+}
+
+/** Where the run GOT to. `started_at` and `finished_at` are nullable because a queued run has neither — the created time is the only one every run has. */
+function lifecycle(run: AssemblyRunSummary) {
+  return {
+    status: run.status,
+    outcome: run.outcome,
+    reason: run.reason,
+    created_at: run.createdAt.toISOString(),
+    started_at: isoOrNull(run.startedAt),
+    finished_at: isoOrNull(run.finishedAt),
+  };
+}
+
 export function toRunRow(
   run: AssemblyRunSummary & { graph?: unknown },
   enrichment: RunEnrichment | undefined,
@@ -164,20 +189,9 @@ export function toRunRow(
   );
 
   return {
-    id: run.id,
-    blueprint_name: run.blueprintName,
-    definition_name: run.blueprintName,
-    task_id: run.taskId,
-    repo: run.repo,
-    branch: run.branch,
-    subject_key: run.subjectKey,
+    ...identity(run),
     ...graphField(withGraph, run.graph),
-    status: run.status,
-    outcome: run.outcome,
-    reason: run.reason,
-    created_at: run.createdAt.toISOString(),
-    started_at: isoOrNull(run.startedAt),
-    finished_at: isoOrNull(run.finishedAt),
+    ...lifecycle(run),
     args_pr_number: argsPrNumber(run.args["pr_number"]),
     pr_url,
     task_pr_number,

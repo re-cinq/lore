@@ -2,7 +2,12 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import type { Pool } from "pg";
-import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { formatZodError } from "../../http/zod-validate.js";
@@ -198,14 +203,14 @@ function credentialsPresented(
 }
 
 // Upserts the parsed incident onto the repo's FIFO-capped settings list.
-async function upsertIncident(
+/** Appends the incident and keeps only the ten most recent. Capped in SQL rather than in code because the settings blob is read on every context assembly — an unbounded incident list would grow into every agent's prompt budget. */
+async function appendIncident(
   pool: Pool,
-  result: { repo: string; entry: IncidentEntry },
-  h: ResponseToolkit,
-) {
-  try {
-    await pool.query(
-      `UPDATE lore.repos
+  repo: string,
+  entry: IncidentEntry,
+): Promise<void> {
+  await pool.query(
+    `UPDATE lore.repos
              SET settings = jsonb_set(
                COALESCE(settings, '{}'),
                '{incidents}',
@@ -218,8 +223,17 @@ async function upsertIncident(
                ) sub)
              )
              WHERE full_name = $1`,
-      [result.repo, JSON.stringify(result.entry)],
-    );
+    [repo, JSON.stringify(entry)],
+  );
+}
+
+async function upsertIncident(
+  pool: Pool,
+  result: { repo: string; entry: IncidentEntry },
+  h: ResponseToolkit,
+) {
+  try {
+    await appendIncident(pool, result.repo, result.entry);
 
     return h.response({ ok: true, repo: result.repo });
   } catch (err) {
@@ -229,6 +243,43 @@ async function upsertIncident(
       })
       .code(500);
   }
+}
+
+/** A production incident from PagerDuty or Opsgenie. Recorded on the repo so context assembly can surface it at priority 1 — an agent working during an incident should know. */
+async function serveIncident(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const secret = process.env.LORE_INCIDENT_WEBHOOK_SECRET;
+  const token = process.env.LORE_INCIDENT_WEBHOOK_TOKEN;
+
+  enforceTrue(
+    secret || token,
+    apiError(503),
+    "incident webhook not configured",
+  );
+
+  const body = rawBody(request);
+
+  enforceTrue(
+    credentialsPresented(request, secret, token, body),
+    apiError(401),
+    "unauthorized",
+  );
+
+  const result = parseIncident(body, Date.now());
+
+  // result.error exists only inside this branch; type-narrowing prevents enforce.
+  if ("error" in result) {
+    return h.response({ error: result.error }).code(400);
+  }
+
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), "database unavailable");
+
+  return upsertIncident(pool, result, h);
 }
 
 export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
@@ -244,36 +295,6 @@ export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
         description: "The incident was attached to a repo",
       },
     ),
-    handler: async (request, h) => {
-      const secret = process.env.LORE_INCIDENT_WEBHOOK_SECRET;
-      const token = process.env.LORE_INCIDENT_WEBHOOK_TOKEN;
-
-      enforceTrue(
-        secret || token,
-        apiError(503),
-        "incident webhook not configured",
-      );
-
-      const body = rawBody(request);
-
-      enforceTrue(
-        credentialsPresented(request, secret, token, body),
-        apiError(401),
-        "unauthorized",
-      );
-
-      const result = parseIncident(body, Date.now());
-
-      // result.error exists only inside this branch; type-narrowing prevents enforce.
-      if ("error" in result) {
-        return h.response({ error: result.error }).code(400);
-      }
-
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), "database unavailable");
-
-      return upsertIncident(pool, result, h);
-    },
+    handler: (request, h) => serveIncident(getPool, request, h),
   };
 }
