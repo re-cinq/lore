@@ -152,7 +152,11 @@ export async function runRegistrant(opts: RegistrantOpts): Promise<void> {
 
   await runClaimLoop({
     claim: () =>
-      claimOnce({ apiUrl: config.apiUrl, identity, launch: backend.launch }),
+      claimOnce({
+        apiUrl: config.apiUrl,
+        identity,
+        launch: (spec) => backend.launch(spec),
+      }),
     reRegister,
     sleep,
     baseDelayMs: claimIntervalMs(env),
