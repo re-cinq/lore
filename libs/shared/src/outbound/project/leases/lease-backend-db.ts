@@ -1,6 +1,6 @@
 import {
   DEFAULT_TTL_SEC,
-  tracer,
+  leaseSpan,
   acquiredResult,
   type LeasePool,
   type LeaseBackend,
@@ -33,14 +33,10 @@ export class DbLeaseBackend implements LeaseBackend {
     holder: string,
     ttlSec: number = DEFAULT_TTL_SEC,
   ): Promise<AcquireResult> {
-    return await tracer.startActiveSpan("lore.lease.acquire", async (span) => {
-      span.setAttribute("branch_name", branchName);
-      span.setAttribute("task_id", taskId ?? "");
-      span.setAttribute("holder", holder);
-      span.setAttribute("ttl_sec", ttlSec);
-      span.setAttribute("backend", "db");
-
-      try {
+    return await leaseSpan(
+      "acquire",
+      { backend: "db", branchName, taskId: taskId ?? "", holder, ttlSec },
+      async (span) => {
         // CTE captures prior holder for takeover audit (#T027).
         const result = await this.pool.query<{
           previous_holder: string | null;
@@ -79,10 +75,8 @@ export class DbLeaseBackend implements LeaseBackend {
         }
 
         return { acquired: false, currentHolder };
-      } finally {
-        span.end();
-      }
-    });
+      },
+    );
   }
 
   async refresh(
@@ -91,17 +85,10 @@ export class DbLeaseBackend implements LeaseBackend {
     ttlSec: number = DEFAULT_TTL_SEC,
     phase?: string,
   ): Promise<boolean> {
-    return await tracer.startActiveSpan("lore.lease.refresh", async (span) => {
-      span.setAttribute("branch_name", branchName);
-      span.setAttribute("holder", holder);
-      span.setAttribute("ttl_sec", ttlSec);
-      span.setAttribute("backend", "db");
-
-      if (phase) {
-        span.setAttribute("phase", phase);
-      }
-
-      try {
+    return await leaseSpan(
+      "refresh",
+      { backend: "db", branchName, holder, ttlSec, phase },
+      async (span) => {
         const result = await this.pool.query(
           `UPDATE pipeline.task_leases
               SET expires_at = now() + ($2::int || ' seconds')::interval,
@@ -114,19 +101,15 @@ export class DbLeaseBackend implements LeaseBackend {
         span.setAttribute("outcome", refreshed ? "refreshed" : "not_held");
 
         return refreshed;
-      } finally {
-        span.end();
-      }
-    });
+      },
+    );
   }
 
   async release(branchName: string, holder: string): Promise<boolean> {
-    return await tracer.startActiveSpan("lore.lease.release", async (span) => {
-      span.setAttribute("branch_name", branchName);
-      span.setAttribute("holder", holder);
-      span.setAttribute("backend", "db");
-
-      try {
+    return await leaseSpan(
+      "release",
+      { backend: "db", branchName, holder },
+      async (span) => {
         const result = await this.pool.query(
           `DELETE FROM pipeline.task_leases
             WHERE branch_name = $1 AND holder = $2`,
@@ -137,30 +120,22 @@ export class DbLeaseBackend implements LeaseBackend {
         span.setAttribute("outcome", released ? "released" : "not_held");
 
         return released;
-      } finally {
-        span.end();
-      }
-    });
+      },
+    );
   }
 
   async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
-    return await tracer.startActiveSpan("lore.lease.reap", async (span) => {
-      span.setAttribute("backend", "db");
-
-      try {
-        const result = await this.pool.query<ExpiredLease>(
-          `DELETE FROM pipeline.task_leases
+    return await leaseSpan("reap", { backend: "db" }, async (span) => {
+      const result = await this.pool.query<ExpiredLease>(
+        `DELETE FROM pipeline.task_leases
             WHERE expires_at < $1
           RETURNING branch_name, task_id, holder, expires_at`,
-          [cutoff],
-        );
+        [cutoff],
+      );
 
-        span.setAttribute("reaped_count", result.rows.length);
+      span.setAttribute("reaped_count", result.rows.length);
 
-        return result.rows;
-      } finally {
-        span.end();
-      }
+      return result.rows;
     });
   }
 }
