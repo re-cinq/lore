@@ -17,7 +17,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > a story/task tree, Issues per story, `spec-task` rows — are unchanged.
 >
 > **What went wrong.** The trigger was a task-type predicate:
-> [decompose-kick.ts](../apps/floor/src/work/task/decompose-kick.ts) fires only when a
+> `decompose-kick.ts` fires only when a
 > merged PR belongs to a `feature-finalize` task. Once finalize became a *resume* of the
 > feature-planning line ([features.ts](../apps/lore-api/src/transport/routes/features/features.ts))
 > the owning task is `feature-planning`, the predicate stops matching, and **decomposition
@@ -27,7 +27,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > **The replacement.** [feature-planning.yaml](../libs/assembly-lines/src/assembly-lines/feature-planning.yaml)
 > gains a `merged` node of type `wait` with `signal: pr_merged`, followed by the
 > `decompose` and `issues` nodes lifted from
-> [feature-decompose.yaml](../libs/assembly-lines/src/assembly-lines/feature-decompose.yaml),
+> `feature-decompose.yaml`,
 > which is retired. One line now spans the whole feature lifecycle:
 >
 > ```
@@ -72,7 +72,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 Smart feature planning (ADR-027) ends at a merged `specs/<slug>/spec.md` PR plus,
 optionally, a single whole-feature "user story" Issue. Nothing turns that spec
 into implementable work. The planning prompt
-([planning-instructions.ts](../libs/shared/src/work/feature-planning/planning-instructions.ts))
+(`planning-instructions.ts`)
 deliberately refuses to break the feature into user stories or tasks and defers
 that to "a separate downstream agent" — but that agent did not exist. The result:
 a planned feature stalls after the spec lands; the handoff from *what we're

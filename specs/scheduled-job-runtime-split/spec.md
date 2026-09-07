@@ -7,13 +7,13 @@
 | Created  | 2026-06-02                                    |
 | Owner    | Platform Engineering                          |
 | ADR      | [ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md) |
-| Supersedes | Scheduling portion of [5-lore-agent](../5-lore-agent/spec.md) (Problem #5, FR-6, SC#2) |
+| Supersedes | Scheduling portion of `5-lore-agent` (Problem #5, FR-6, SC#2) |
 
 This runtime split runs Lore's periodic work under two profiles — sub-minute, hot-path, webhook-coupled jobs stay in the always-on agent's in-process scheduler while heavy, infrequent batch jobs move to isolated Kubernetes CronJobs — so each batch job gets its own resource limits, retries, timeouts, missed-run catch-up, and run history.
 
 ## Problem Statement
 
-[Spec 5-lore-agent](../5-lore-agent/spec.md) deliberately consolidated all
+`Spec 5-lore-agent` deliberately consolidated all
 periodic work into a single in-process `node-cron` scheduler inside the
 always-on `lore-agent` process. Its Problem #5 framed "scattered scheduling
 across K8s CronJobs and MCP polling loops" as the defect; its Vision promised to
@@ -247,11 +247,11 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 - **FR9.1 — The endpoint runs the job named in the path and returns its
   summary.** `200` with `{ job, summary }`, the summary being the one-line
   string that was `pipeline.job_runs.result_summary`. An unknown job name is
-  `404` — a courier typo must not read as success. ([validated by `maintenance.test.ts:28`](apps/lore-api/src/transport/routes/maintenance/maintenance.test.ts#L28), [`maintenance.test.ts:40`](apps/lore-api/src/transport/routes/maintenance/maintenance.test.ts#L40), [`maintenance.test.ts:61`](apps/lore-api/src/transport/routes/maintenance/maintenance.test.ts#L61))
+  `404` — a courier typo must not read as success.
 - **FR9.2 — A failing job answers with a status and nothing else.** The
   courier's only channel is an HTTP status, and a job's error can carry
   connection strings and hostnames; the detail is logged where operators look
-  and never returned. ([validated by `maintenance.test.ts:47`](apps/lore-api/src/transport/routes/maintenance/maintenance.test.ts#L47))
+  and never returned.
 - **FR9.4 — Importance decay follows the same route.** Scoring memories against
   the half-life model and evicting past the per-agent cap is scoring plus
   database writes, so it runs in lore-api. Behaviour is carried over unchanged:
@@ -271,7 +271,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 - **FR9.3 — `memory_ttl` is the first job to move.** Its 14 lines around one
   `expireMemories()` call, and the CronJob pod built from the Floor's image that
   ran them, are deleted; the schedule is unchanged. The registry in
-  [`maintenance.ts`](apps/lore-api/src/transport/routes/maintenance/maintenance.ts) is where the remaining data jobs land as they follow.
+  ``maintenance.ts`` is where the remaining data jobs land as they follow.
 
 - **FR10 — The chart's job names and the dispatch map may not drift.** Every
   `cronJobs[].job` in `floor-helm/values.yaml` MUST resolve in the runner's
@@ -337,7 +337,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    parses the Admin cost/usage report — cents-string amount → dollars, 1h + 5m ephemeral
    cache-creation buckets summed, cost joined to tokens per date+model), and `context_reindex`
    selects only the doc seed roots (`CLAUDE.md`/`AGENTS.md`/`adrs/`/`specs/<feature>`/`.specify`),
-   excluding source code, root docs, and binary/unsupported files. ([validated by `ttl-cleanup.test.ts:25`](apps/floor/src/work/memory/ttl-cleanup/ttl-cleanup.test.ts#L25), [`ttl-cleanup.test.ts:34`](apps/floor/src/work/memory/ttl-cleanup/ttl-cleanup.test.ts#L34), [`anthropic-cost-sync.test.ts:10`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts:9`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts:37`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts:73`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L73), [`anthropic-cost.test.ts:92`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L92), [`reindex-seed.test.ts:5`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L5), [`reindex-seed.test.ts:30`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L30), [`reindex-seed.test.ts:36`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L36))
+   excluding source code, root docs, and binary/unsupported files. ([validated by `anthropic-cost-sync.test.ts:10`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts:9`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts:37`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts:73`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L73), [`anthropic-cost.test.ts:92`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L92), [`reindex-seed.test.ts:5`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L5), [`reindex-seed.test.ts:30`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L30), [`reindex-seed.test.ts:36`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L36))
 
 10. The detection-family cron tick fans out one per-repo assembly line (2026-07 amendment):
    `detectBranchName` keys each run `detect/<definition>/<repo>` (the old lease key, now the

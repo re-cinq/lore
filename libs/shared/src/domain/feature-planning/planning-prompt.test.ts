@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { parse } from "yaml";
 import {
   composePlanningPrompt,
@@ -11,7 +10,7 @@ import { parseGapResult, type GapResult } from "./gap-result.js";
 
 function planningPromptTemplate(): string {
   const yamlPath = resolve(
-    dirname(fileURLToPath(import.meta.url)),
+    import.meta.dirname,
     "../../../../../scripts/task-types.yaml",
   );
   const doc = parse(readFileSync(yamlPath, "utf-8")) as {

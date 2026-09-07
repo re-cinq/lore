@@ -14,7 +14,7 @@ This split separates the local stdio MCP adapter from the remote HTTPS REST back
 
 Today the local stdio MCP adapter and the remote HTTPS REST backend are the
 **same deployable**, `apps/mcp-server`. One `index.ts` builds an `McpServer`,
-and [`server/transports.ts`](../../apps/mcp-server/src/server/transports.ts)
+and ``server/transports.ts``
 picks the runtime at boot from `MCP_TRANSPORT`: `stdio` (a developer's machine)
 or `http` (the GKE REST backend the stdio adapter proxies to).
 
@@ -43,7 +43,7 @@ Only the **local** adapter actually speaks the MCP protocol. The name belongs to
 the local side alone.
 
 A third issue is **route-layer ergonomics**: every REST handler lives flat in
-[`api/routes/`](../../apps/mcp-server/src/api/routes/) — ~30 handler modules and
+``api/routes/`` — ~30 handler modules and
 their tests in one directory. Adding or finding a route means scanning a wall of
 sibling files.
 

@@ -16,7 +16,7 @@ The remote REST backend [`apps/lore-api`](../../apps/lore-api/) serves every
 `/api/*` route on a **hand-rolled `node:http` server**. The transport is a bare
 [`createServer`](../../apps/lore-api/src/app/http-server.ts); dispatch is an
 ordered match-table in
-[`api/routes/index.ts`](../../apps/lore-api/src/transport/routes/index.ts) where each
+[`api/routes/index.ts`](../../apps/lore-api/src/transport/route-list.ts) where each
 of ~30 routes is a `{ match, handle }` pair tested top-to-bottom until one wins.
 Every handler carries the raw signature `(req: IncomingMessage, res:
 ServerResponse, pool)` and writes its own response through a `json(res, code,

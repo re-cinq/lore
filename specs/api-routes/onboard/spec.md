@@ -60,7 +60,7 @@ JSON body:
 4. Destructure `{ repo }`. If `repo` is falsy **or** `!repo.includes("/")` → 400
    with the verbatim required-fields error; return.
 5. `await onboardRepo(pool, repo, { reonboard })`
-   ([feature](../../../apps/mcp-server/src/work/repo/repo-onboard.js)); a result
+   ([feature](../../../apps/lore-api/src/work/repo/repo-onboard.ts)); a result
    carrying `blocked` is a conflict with existing state rather than a failure, so
    write 409 with it — otherwise write 200 with the result.
 6. **Catch** — log `[onboard] API error: <message>` and write 500
@@ -82,7 +82,7 @@ onboarding PR opens and cleared by the Floor's merge-check when that PR is close
 without merging, so a rejected onboarding does not refuse the repo forever. ([validated by `nulls the onboarding PR url by row id when that PR closed unmerged`](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L89))
 
 The web-ui onboard form and the repo-page re-onboard button take the same lock
-through their own mirror of the guard, which decides identically. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/web-ui/src/lib/onboard.test.ts#L50), [`shares the advisory-lock key so both apps serialize on it`](apps/web-ui/src/lib/onboard-guard.parity.test.ts#L47))
+through their own mirror of the guard, which decides identically. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/web-ui/src/lib/onboard.test.ts#L50))
 
 ## Output
 

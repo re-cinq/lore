@@ -58,7 +58,7 @@ JSON body:
 4. Destructure `{ files, repo, commit }`. If `files` is not an array **or**
    `repo` is falsy → 400 with the verbatim required-fields error; return.
 5. `await ingestFiles(pool, files, repo, commit || "HEAD")`
-   ([engine](../../../apps/mcp-server/src/work/spec-trace/ingest.js)).
+   ([engine](../../../apps/lore-api/src/work/spec-trace/ingest.ts)).
 6. Write 200 with the `result` object.
 7. **Landed gate** — compute `landed`: true iff `result.results` is an array and
    at least one entry has `status === "ingested"` or `status === "deleted"`.

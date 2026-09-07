@@ -49,8 +49,8 @@ that's plumbing, not duplication.
 ## Spec-traceability
 | Route | Spec | Auth | Purpose |
 |-------|------|------|---------|
-| ~~`POST /api/repos/:o/:r/coverage`~~ | [spec](repo-coverage/spec.md) | — | **Removed** (cutover): coverage is parsed in the lore-code-trace binary now; ingest is the Floor `ci-tests` hook. |
-| ~~`POST /api/repos/:o/:r/test-report`~~ | [spec](repo-test-report/spec.md) | — | **Removed** (cutover): test ingest is `POST /api/webhook/ci-tests` on Floor, fed by the lore-code-trace binary. |
+| ~~`POST /api/repos/:o/:r/coverage`~~ | `spec` | — | **Removed** (cutover): coverage is parsed in the lore-code-trace binary now; ingest is the Floor `ci-tests` hook. |
+| ~~`POST /api/repos/:o/:r/test-report`~~ | `spec` | — | **Removed** (cutover): test ingest is `POST /api/webhook/ci-tests` on Floor, fed by the lore-code-trace binary. |
 | `POST /api/repos/:o/:r/impact` | [spec](repo-impact/spec.md) | write | Deterministic pre-merge spec-impact for a diff. |
 | `GET /api/repos/:o/:r/trace/*` | [spec](repo-trace/spec.md) | read | Read a repo's trace docs/graph/ring. |
 | `GET /api/trace/specs` | [spec](global-trace-specs/spec.md) | read | Cross-repo spec document list. |

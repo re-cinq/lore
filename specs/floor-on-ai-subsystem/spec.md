@@ -205,7 +205,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
 > in-process handler deletion. Criteria link as each phase's PR lands.
 
 15. `model: "exec"` routes to a non-LLM adapter spawning the recipe's `tool_config.command` with the
-    rendered prompt appended; no CRD schema change. ([validated by agentForModel exec routing test](../ai-agent-subsystem/packages/agentcore/source/agentcore/vendors/select.d))
+    rendered prompt appended; no CRD schema change.
 
 16. Node YAML accepts optional `station_ref` (custom station, default `def-<type>`) and
     `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L531))
@@ -270,7 +270,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `success` with a no-tooling `Lore-Validation: none` extra on an empty repo, `gate` echoes the
     `condition_ref` (`none` when absent), `github_action` times out to `failed` after its CI poll
     budget, and `detect` dispatches by `job_ref` returning the detector's capped summary (throwing on
-    an unknown `job_ref`). ([validated by `validate.test.ts:39`](apps/stations/src/work/validate/validate.test.ts#L39), [`gate.test.ts:17`](apps/stations/src/work/gate/gate.test.ts#L17), [`github-action.test.ts:23`](apps/stations/src/work/github-action/github-action.test.ts#L23), [`detect.test.ts:18`](apps/stations/src/work/detect/detect.test.ts#L18), [`detect.test.ts:34`](apps/stations/src/work/detect/detect.test.ts#L34), [`station-input.test.ts:19`](libs/shared/src/domain/station-input.test.ts#L19), [`station-input.test.ts:31`](libs/shared/src/domain/station-input.test.ts#L31), [`station-input.test.ts:46`](libs/shared/src/domain/station-input.test.ts#L46), [`station-input.test.ts:63`](libs/shared/src/domain/station-input.test.ts#L63), [`station-input.test.ts:67`](libs/shared/src/domain/station-input.test.ts#L67), [`station-input.test.ts:73`](libs/shared/src/domain/station-input.test.ts#L73), [`station-input.test.ts:88`](libs/shared/src/domain/station-input.test.ts#L88), [`station-input.test.ts:107`](libs/shared/src/domain/station-input.test.ts#L107))
+    an unknown `job_ref`). ([validated by `validate.test.ts:39`](apps/stations/src/work/validate/validate.test.ts#L39), [`detect.test.ts:18`](apps/stations/src/work/detect/detect.test.ts#L18), [`detect.test.ts:34`](apps/stations/src/work/detect/detect.test.ts#L34), [`station-input.test.ts:19`](libs/shared/src/domain/station-input.test.ts#L19), [`station-input.test.ts:31`](libs/shared/src/domain/station-input.test.ts#L31), [`station-input.test.ts:46`](libs/shared/src/domain/station-input.test.ts#L46), [`station-input.test.ts:63`](libs/shared/src/domain/station-input.test.ts#L63), [`station-input.test.ts:67`](libs/shared/src/domain/station-input.test.ts#L67), [`station-input.test.ts:73`](libs/shared/src/domain/station-input.test.ts#L73), [`station-input.test.ts:88`](libs/shared/src/domain/station-input.test.ts#L88), [`station-input.test.ts:107`](libs/shared/src/domain/station-input.test.ts#L107))
 
 23. *(added 2026-07-31)* A station that makes its own LLM calls (comment-triage today) MUST report
     their usage for cost accounting despite having no Postgres (D7): the node result carries the
@@ -458,7 +458,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   an un-advanced task on a `Failed` CR maps to `failed` (not completed) while a `Succeeded` CR maps to
   `completed`. ([validated by `agent-watcher-logic.test.ts:90`](apps/floor/src/domain/agent-watcher-logic.test.ts#L90), [`agent-watcher-logic.test.ts:94`](apps/floor/src/domain/agent-watcher-logic.test.ts#L94), [`agent-watcher-logic.test.ts:98`](apps/floor/src/domain/agent-watcher-logic.test.ts#L98), [`agent-watcher-logic.test.ts:79`](apps/floor/src/domain/agent-watcher-logic.test.ts#L79), [`agent-watcher-logic.test.ts:101`](apps/floor/src/domain/agent-watcher-logic.test.ts#L101), [`agent-watcher-logic.test.ts:105`](apps/floor/src/domain/agent-watcher-logic.test.ts#L105))
 - **Issue-body log links.** `taskPageUrl` builds the web-ui task-page link (`{LORE_UI_URL}/tasks/{taskId}`,
-  trailing slashes stripped) that the watcher embeds as the "See [logs](…)" copy in Lore-managed issue
+  trailing slashes stripped) that the watcher embeds as the "See `logs`" copy in Lore-managed issue
   bodies — the task page's log viewer is the canonical surface, replacing the browser-unclickable
   `gs://` object URL (#1294). When no UI base URL is configured it returns undefined and the copy
   degrades to plain "See logs" rather than fabricating a dead link. ([validated by `agent-watcher-logic.test.ts:141`](apps/floor/src/domain/agent-watcher-logic.test.ts#L141), [`agent-watcher-logic.test.ts:147`](apps/floor/src/domain/agent-watcher-logic.test.ts#L147), [`agent-watcher-logic.test.ts:153`](apps/floor/src/domain/agent-watcher-logic.test.ts#L153), [`agent-watcher-logic.test.ts:157`](apps/floor/src/domain/agent-watcher-logic.test.ts#L157))
