@@ -1,3 +1,5 @@
+import type { PipelineRepositories } from "@re-cinq/lore-shared";
+import type { Project } from "@re-cinq/lore-shared";
 import type { CiConclusion } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import type { ReviewThread } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
@@ -46,21 +48,11 @@ interface ParkedVerdict {
   verdict: PrReadyVerdict;
 }
 
-/** Locates the parked node and gathers everything `decidePrReady` needs, or null to skip this run untallied. */
-async function evaluateParkedRun(
+/** The evidence a parked PR is judged on, or null when there is nothing to judge yet. All four reads run together — they are independent, and this job sweeps every parked run on a tick. */
+async function verdictForRun(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
-): Promise<ParkedVerdict | null> {
-  const parked = parkedHumanNode(
-    run.status,
-    await deps.listStationRuns(run.id),
-    run.graph,
-    { type: AWAIT_STATION_TYPE, fallbackNodeId: AWAIT_NODE },
-  );
-
-  if (!parked) {
-    return null;
-  }
+): Promise<PrReadyVerdict | null> {
   const prNumber = Number(run.args.pr_number) || 0;
 
   if (!prNumber) {
@@ -70,6 +62,7 @@ async function evaluateParkedRun(
 
     return null;
   }
+  // A PR with no head sha has no commit to check — it was closed, or the branch is gone.
   const headSha = await deps.getPrHeadSha(run.repo, prNumber);
 
   if (!headSha) {
@@ -86,13 +79,37 @@ async function evaluateParkedRun(
     deps.hasCiHistory(run.repo),
   ]);
 
+  return decidePrReady({ ci, threads, openReviewRunCount, hasCiHistory });
+}
+
+/** Locates the parked node and pairs it with its verdict, or null to skip this run untallied. */
+async function evaluateParkedRun(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+): Promise<ParkedVerdict | null> {
+  const parked = parkedHumanNode(
+    run.status,
+    await deps.listStationRuns(run.id),
+    run.graph,
+    { type: AWAIT_STATION_TYPE, fallbackNodeId: AWAIT_NODE },
+  );
+
+  if (!parked) {
+    return null;
+  }
+  const verdict = await verdictForRun(run, deps);
+
+  if (!verdict) {
+    return null;
+  }
+
   return {
     target: {
       lineId: run.id,
       nodeId: parked.nodeId,
       iteration: parked.iteration,
     },
-    verdict: decidePrReady({ ci, threads, openReviewRunCount, hasCiHistory }),
+    verdict,
   };
 }
 
@@ -161,7 +178,22 @@ export async function prReadyCheckSweep(
   return summarizeSweep(runs.length, tally);
 }
 
-/** Production entry — the manifest's run. Deps bound to the stations kernel. */
+/** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */
+/** Memoizes a per-repo read for the length of one sweep. The PROMISE is cached, not its value, so two PRs of the same repo asked concurrently still make one call. */
+function perRepo<T>(
+  read: (repo: string) => Promise<T>,
+): (repo: string) => Promise<T> {
+  const cache = new Map<string, Promise<T>>();
+
+  return (repo: string) => {
+    const cached = cache.get(repo) ?? read(repo);
+
+    cache.set(repo, cached);
+
+    return cached;
+  };
+}
+
 /** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */
 function sweepRepoCache<
   P extends {
@@ -174,60 +206,56 @@ function sweepRepoCache<
   projectOf: (repo: string) => Promise<P>;
   hasCiHistory: (repo: string) => Promise<boolean>;
 } {
-  const projects = new Map<string, Promise<P>>();
-  const projectOf = (repo: string): Promise<P> => {
-    const cached = projects.get(repo) ?? projectFor(repo);
-
-    projects.set(repo, cached);
-
-    return cached;
-  };
-  const ciHistory = new Map<string, Promise<boolean>>();
-  const readCiHistory = async (repo: string): Promise<boolean> => {
-    const project = await projectOf(repo);
-
-    return (
-      (await project.pulls.ciConclusion(await project.repo.defaultBranch())) !==
-      "none"
-    );
-  };
+  const projectOf = perRepo(projectFor);
 
   return {
     projectOf,
-    hasCiHistory: (repo) => {
-      const cached = ciHistory.get(repo) ?? readCiHistory(repo);
+    // "This repo runs CI at all" — decided off the default branch, so a PR that has simply not started its checks yet is not mistaken for a repo without any.
+    hasCiHistory: perRepo(async (repo: string) => {
+      const project = await projectOf(repo);
 
-      ciHistory.set(repo, cached);
-
-      return cached;
-    },
+      return (
+        (await project.pulls.ciConclusion(
+          await project.repo.defaultBranch(),
+        )) !== "none"
+      );
+    }),
   };
 }
 
-export async function prReadyCheckJob(): Promise<string> {
-  const { pipeline, eventProxy } = await import("../../outbound/queues.js");
-  const { queuedReporter } =
-    await import("@re-cinq/lore-shared/project/events/event-proxy.js");
-  const { projectFor } = await import("../../outbound/project-boot.js");
-  const { reportToParkedNode } =
-    await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
-  const OPEN = ["queued", "running"] as const;
-  const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
+/** The PR-side reads, all through one per-sweep repo cache. */
+function prReads(
+  projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
+): Pick<
+  PrReadyCheckDeps,
+  "getPrHeadSha" | "ciConclusion" | "listReviewThreads"
+> {
+  return {
+    getPrHeadSha: async (repo, number) =>
+      (await (await projectOf(repo)).pulls.get(number))?.headSha ?? null,
+    ciConclusion: async (repo, ref) =>
+      (await projectOf(repo)).pulls.ciConclusion(ref),
+    listReviewThreads: async (repo, number) =>
+      (await projectOf(repo)).pulls.listReviewThreads(number),
+  };
+}
 
-  return prReadyCheckSweep({
+/** The run-side reads. `countOpenReviewRuns` is what keeps a PR parked while a review of it is still in flight — resuming then would judge CI that the review is about to invalidate. */
+function runReads(
+  pipeline: () => Pick<PipelineRepositories, "assemblyRuns">,
+): Pick<
+  PrReadyCheckDeps,
+  "listOpenLoopRuns" | "listStationRuns" | "countOpenReviewRuns"
+> {
+  const OPEN = ["queued", "running"] as const;
+
+  return {
     listOpenLoopRuns: () =>
       pipeline().assemblyRuns.list({
         blueprintName: "implementation-loop",
         status: OPEN,
       }),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
-    getPrHeadSha: async (repo, number) =>
-      (await (await projectOf(repo)).pulls.get(number))?.headSha ?? null,
-    ciConclusion: async (repo, ref) =>
-      (await projectOf(repo)).pulls.ciConclusion(ref),
-    hasCiHistory,
-    listReviewThreads: async (repo, number) =>
-      (await projectOf(repo)).pulls.listReviewThreads(number),
     countOpenReviewRuns: async (repo, number) =>
       (
         await pipeline().assemblyRuns.listSummaries({
@@ -237,7 +265,24 @@ export async function prReadyCheckJob(): Promise<string> {
           prNumber: number,
         })
       ).length,
-    // Report through queue, not direct insert; sweep resolves regardless of delivery to avoid losing resume on router blip
+  };
+}
+
+/** Production entry — the manifest's run. Deps bound to the stations kernel. */
+export async function prReadyCheckJob(): Promise<string> {
+  const { pipeline, eventProxy } = await import("../../outbound/queues.js");
+  const { queuedReporter } =
+    await import("@re-cinq/lore-shared/project/events/event-proxy.js");
+  const { projectFor } = await import("../../outbound/project-boot.js");
+  const { reportToParkedNode } =
+    await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
+  const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
+
+  return prReadyCheckSweep({
+    ...runReads(pipeline),
+    ...prReads(projectOf),
+    hasCiHistory,
+    // Reported through the queue rather than inserted directly, and the sweep resolves whether or not delivery lands — a router blip must not cost the run its resume.
     report: (target, outcome, args) =>
       reportToParkedNode(queuedReporter(eventProxy()), target, {
         outcome,

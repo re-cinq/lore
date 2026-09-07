@@ -35,6 +35,32 @@ export interface IngestStationDeps {
 // Vertex embeddings via the API (FR4) — pods have no GCP credentials.
 const EMBED_429_DELAYS_MS = [2000, 5000, 15000];
 
+interface EmbedProxy {
+  baseUrl: string;
+  token: string | undefined;
+  fetchImpl: typeof fetch;
+  sleep: (ms: number) => Promise<void>;
+}
+
+/** POSTs one text, retrying only 429 — the embedder is shared across every ingesting repo, so rate limiting is an ordinary queueing signal rather than a fault. Any other status is returned as-is for the caller to enforce on. */
+async function postEmbed(proxy: EmbedProxy, text: string): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await proxy.fetchImpl(`${proxy.baseUrl}/api/embed`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${proxy.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    if (res.status !== 429 || attempt >= EMBED_429_DELAYS_MS.length) {
+      return res;
+    }
+    await proxy.sleep(EMBED_429_DELAYS_MS[attempt]);
+  }
+}
+
 export function apiEmbed(
   baseUrl: string,
   token: string | undefined,
@@ -42,24 +68,10 @@ export function apiEmbed(
   sleep: (ms: number) => Promise<void> = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms)),
 ): (text: string) => Promise<number[] | null> {
+  const proxy: EmbedProxy = { baseUrl, token, fetchImpl, sleep };
+
   return async (text: string) => {
-    let res: Response;
-
-    for (let attempt = 0; ; attempt++) {
-      res = await fetchImpl(`${baseUrl}/api/embed`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text }),
-      });
-
-      if (res.status !== 429 || attempt >= EMBED_429_DELAYS_MS.length) {
-        break;
-      }
-      await sleep(EMBED_429_DELAYS_MS[attempt]);
-    }
+    const res = await postEmbed(proxy, text);
 
     enforceTrue(
       res.ok,
@@ -184,13 +196,28 @@ interface ResolvedIngestTarget {
   dgraph: DgraphClientPort;
 }
 
+/** Where the projection reads from: the clone on disk, and the embedder. Both are handed in rather than reached for, so the same walk runs against a test workspace. */
+function graphSources(
+  target: ResolvedIngestTarget,
+  deps: IngestStationDeps,
+): Parameters<typeof runIngestGraph>[1] {
+  const { workspaceDir, dgraph } = target;
+
+  return {
+    dgraph,
+    listTree: () => listClone(workspaceDir),
+    readFile: async (path: string) =>
+      readFile(join(workspaceDir, path), "utf8"),
+    embed: deps.embed ?? defaultEmbed(),
+  };
+}
+
 async function runDocsIngest(
   kind: "specs" | "adrs",
   input: StationInput,
   target: ResolvedIngestTarget,
   deps: IngestStationDeps,
 ): Promise<NodeResult> {
-  const { workspaceDir, dgraph } = target;
   const summary = await runIngestGraph(
     {
       kind,
@@ -198,13 +225,7 @@ async function runDocsIngest(
       glob: input.params.glob as string | undefined,
       force: input.params.force === "true",
     },
-    {
-      dgraph,
-      listTree: () => listClone(workspaceDir),
-      readFile: async (path: string) =>
-        readFile(join(workspaceDir, path), "utf8"),
-      embed: deps.embed ?? defaultEmbed(),
-    },
+    graphSources(target, deps),
   );
 
   const extras = summaryExtras(summary);

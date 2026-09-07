@@ -67,13 +67,9 @@ export interface UsageRow {
 // The merged bucket IS the stored row's upsert shape (one declaration in `libs/shared/src/domain/models/anthropic-cost-daily.ts`) — it used to be restated here with the key spelled `date` vs the writer's `bucketDate`, a hand-written rename seam.
 export type AnthropicCostDailyRow = SharedCostDailyRow;
 
-export function mergeCostAndUsage(
-  costRows: CostRow[],
-  usageRows: UsageRow[],
-): AnthropicCostDailyRow[] {
-  const byKey = new Map<string, AnthropicCostDailyRow>();
-
-  const blank = (bucketDate: string, model: string): AnthropicCostDailyRow => ({
+/** An empty day/model row. Both halves start from one of these because cost and usage are separate reports: a model can appear in either alone, and the missing half must read as zero rather than absent. */
+function blankRow(bucketDate: string, model: string): AnthropicCostDailyRow {
+  return {
     bucketDate,
     model,
     costUsd: 0,
@@ -81,11 +77,18 @@ export function mergeCostAndUsage(
     outputTokens: 0,
     cacheReadTokens: 0,
     cacheCreationTokens: 0,
-  });
+  };
+}
+
+export function mergeCostAndUsage(
+  costRows: CostRow[],
+  usageRows: UsageRow[],
+): AnthropicCostDailyRow[] {
+  const byKey = new Map<string, AnthropicCostDailyRow>();
 
   for (const cost of costRows) {
     const key = `${cost.date}|${cost.model}`;
-    const row = byKey.get(key) ?? blank(cost.date, cost.model);
+    const row = byKey.get(key) ?? blankRow(cost.date, cost.model);
 
     row.costUsd += cost.costUsd;
     byKey.set(key, row);
@@ -93,7 +96,7 @@ export function mergeCostAndUsage(
 
   for (const usage of usageRows) {
     const key = `${usage.date}|${usage.model}`;
-    const row = byKey.get(key) ?? blank(usage.date, usage.model);
+    const row = byKey.get(key) ?? blankRow(usage.date, usage.model);
 
     row.inputTokens += usage.inputTokens;
     row.outputTokens += usage.outputTokens;

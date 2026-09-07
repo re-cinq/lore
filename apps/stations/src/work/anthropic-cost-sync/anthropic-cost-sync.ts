@@ -47,6 +47,38 @@ function bucketPageUrl(
   return url;
 }
 
+interface BucketPage {
+  buckets: unknown[];
+  next: string | null;
+}
+
+/** One page of usage buckets. A non-ok response throws rather than ending the walk: a partial cost sync silently under-reports spend, which is worse than a failed job somebody retries. */
+async function fetchBucketPage(
+  url: URL,
+  adminKey: string,
+): Promise<BucketPage> {
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { "x-api-key": adminKey, "anthropic-version": ANTHROPIC_VERSION },
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      `Anthropic ${url.pathname} returned ${res.status}: ${await res.text()}`,
+    );
+  }
+  const body = (await res.json()) as {
+    data?: unknown[];
+    has_more?: boolean;
+    next_page?: string | null;
+  };
+
+  return {
+    buckets: Array.isArray(body.data) ? body.data : [],
+    next: body.has_more ? (body.next_page ?? null) : null,
+  };
+}
+
 async function fetchAllBuckets(
   endpoint: string,
   baseParams: Record<string, string>,
@@ -57,32 +89,13 @@ async function fetchAllBuckets(
   let page: string | null = null;
 
   do {
-    const url = bucketPageUrl(endpoint, baseParams, groupBy, page);
+    const result = await fetchBucketPage(
+      bucketPageUrl(endpoint, baseParams, groupBy, page),
+      adminKey,
+    );
 
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(30_000),
-      headers: {
-        "x-api-key": adminKey,
-        "anthropic-version": ANTHROPIC_VERSION,
-      },
-    });
-
-    if (!res.ok) {
-      throw new Error(
-        `Anthropic ${endpoint} returned ${res.status}: ${await res.text()}`,
-      );
-    }
-
-    const body = (await res.json()) as {
-      data?: unknown[];
-      has_more?: boolean;
-      next_page?: string | null;
-    };
-
-    if (Array.isArray(body.data)) {
-      buckets.push(...body.data);
-    }
-    page = body.has_more ? (body.next_page ?? null) : null;
+    buckets.push(...result.buckets);
+    page = result.next;
   } while (page);
 
   return buckets;

@@ -50,6 +50,17 @@ export async function runIssuesStation(
       extras: { "Lore-Issues-Objection": work.objection },
     };
   }
+
+  return fileWork(project, decomposition, work, input);
+}
+
+/** Issues first, then the spec-tasks that reference them — a task filed against an Issue that does not exist yet has nowhere to report. */
+async function fileWork(
+  project: ReturnType<typeof createStationProject>,
+  decomposition: Parameters<typeof fileStoryIssues>[1],
+  work: Extract<ReturnType<typeof decideIssueWork>, { outcome: "proceed" }>,
+  input: StationInput,
+): Promise<NodeResult> {
   const filed = await fileStoryIssues(project, decomposition, work.issues);
 
   await createSpecTasks(project, work.tasks, input, filed);
