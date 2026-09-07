@@ -103,6 +103,80 @@ interface AnalysisViewProps {
   rewinding: boolean;
 }
 
+/** No round has produced an analysis yet. Distinct from a FAILED round, which shows the failure instead — an author who sees this has nothing wrong to fix, only a round still to finish. */
+function NoAnalysisYet() {
+  return (
+    <div className="spec-card">
+      <Alert variant="secondary">
+        Planning hasn&apos;t produced an analysis yet — it will appear here once
+        the first round finishes.
+      </Alert>
+    </div>
+  );
+}
+
+/** Says what a rewind DOES to the rounds after the chosen one: they stay on record but are not carried forward, which is the part an author cannot infer from the picker. */
+function RewindNote({
+  show,
+  continueFrom,
+}: {
+  show: boolean;
+  continueFrom: number | undefined;
+}) {
+  if (!show) {
+    return null;
+  }
+
+  return (
+    <p className={`meta ${styles.rewindNote}`} role="status">
+      This round continues round {continueFrom} — rounds after it stay on record
+      but are not carried forward.
+    </p>
+  );
+}
+
+/** The analysis itself: what the round found, what the author can say back, and what a rewind would do. Separate from AnalysisView, which decides WHETHER there is an analysis to show at all. */
+function AnalysisBody({
+  failureBlock,
+  gap,
+  feedback,
+  handlers,
+  pending,
+  rounds,
+  continueFrom,
+  rewinding,
+}: Pick<
+  AnalysisViewProps,
+  "feedback" | "handlers" | "pending" | "rounds" | "continueFrom" | "rewinding"
+> & {
+  // Non-optional here: the caller only renders this once it HAS an analysis.
+  gap: NonNullable<AnalysisViewProps["gap"]>;
+  failureBlock: React.ReactNode;
+}) {
+  return (
+    <div>
+      {failureBlock ? (
+        <div className={styles.failureSlot}>{failureBlock}</div>
+      ) : null}
+      <GapSections
+        gap={gap}
+        feedback={feedback}
+        onChange={handlers.onChangeFeedback}
+        onCreateDraft={handlers.onCreateDraft}
+      />
+      <RoundActions
+        pending={pending}
+        rounds={rounds}
+        continueFrom={continueFrom}
+        onRefine={handlers.onRefine}
+        onCreateSpecPr={handlers.onCreateSpecPr}
+        onContinueFrom={handlers.onContinueFrom}
+      />
+      <RewindNote show={rewinding} continueFrom={continueFrom} />
+    </div>
+  );
+}
+
 export function AnalysisView({
   iteration,
   failed,
@@ -117,14 +191,8 @@ export function AnalysisView({
   continueFrom,
   rewinding,
 }: AnalysisViewProps) {
-  const {
-    onChangeFeedback,
-    onCreateDraft,
-    onRefine,
-    onCreateSpecPr,
-    onContinueFrom,
-  } = handlers;
-  const failureBlock = (
+  const { onRefine } = handlers;
+  const failureBlock = failed ? (
     <FailureBlock
       iteration={iteration}
       failureReason={failureReason}
@@ -133,45 +201,22 @@ export function AnalysisView({
       pending={pending}
       onRetry={onRefine}
     />
-  );
+  ) : null;
 
-  // No analysis ever produced: pure failure (if the latest failed) or an empty state.
   if (!gap) {
-    return failed ? (
-      failureBlock
-    ) : (
-      <div className="spec-card">
-        <Alert variant="secondary">
-          Planning hasn&apos;t produced an analysis yet — it will appear here
-          once the first round finishes.
-        </Alert>
-      </div>
-    );
+    return failureBlock ?? <NoAnalysisYet />;
   }
 
   return (
-    <div>
-      {failed && <div className={styles.failureSlot}>{failureBlock}</div>}
-      <GapSections
-        gap={gap}
-        feedback={feedback}
-        onChange={onChangeFeedback}
-        onCreateDraft={onCreateDraft}
-      />
-      <RoundActions
-        pending={pending}
-        rounds={rounds}
-        continueFrom={continueFrom}
-        onRefine={onRefine}
-        onCreateSpecPr={onCreateSpecPr}
-        onContinueFrom={onContinueFrom}
-      />
-      {rewinding && (
-        <p className={`meta ${styles.rewindNote}`} role="status">
-          This round continues round {continueFrom} — rounds after it stay on
-          record but are not carried forward.
-        </p>
-      )}
-    </div>
+    <AnalysisBody
+      failureBlock={failureBlock}
+      gap={gap}
+      feedback={feedback}
+      handlers={handlers}
+      pending={pending}
+      rounds={rounds}
+      continueFrom={continueFrom}
+      rewinding={rewinding}
+    />
   );
 }
