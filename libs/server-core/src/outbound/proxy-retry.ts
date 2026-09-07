@@ -61,18 +61,51 @@ function describeFetchError(err: unknown): string {
 type RequestOutcome =
   { done: true; result: ProxyResult } | { done: false; detail: string };
 
-// One fetch attempt: ok body, an authoritative denial, a non-retriable refusal, or a retry signal.
-async function attemptRequest(
-  makeRequest: () => Promise<Response>,
-  label: string,
+/** A request and how to describe it when it fails — one shape, because attempt/classify/retry all need the same three. */
+interface Attempt {
+  makeRequest: () => Promise<Response>;
+  label: string;
   buildNonRetriableResult: (
     status: number,
     detail: string,
     errorBody: string,
-  ) => ProxyResult,
+  ) => ProxyResult;
+}
+
+/** A non-ok response is one of three answers, and only the middle one is worth another attempt. */
+async function classifyFailure(
+  res: Response,
+  attempt: Attempt,
 ): Promise<RequestOutcome> {
+  const statusDetail = `HTTP ${res.status} ${res.statusText}`;
+
+  if (isAuthDenial(res.status)) {
+    console.error(`[lore-mcp] ${attempt.label} denied (${statusDetail})`);
+
+    return {
+      done: true,
+      result: { ok: false, reason: "denied", detail: statusDetail },
+    };
+  }
+
+  if (isRetriableStatus(res.status)) {
+    return { done: false, detail: statusDetail };
+  }
+  const errorBody = await readErrorBody(res);
+  const detail = errorBodyDetail(res.status, res.statusText, errorBody);
+
+  console.error(`[lore-mcp] ${attempt.label} failed (${detail}); not retrying`);
+
+  return {
+    done: true,
+    result: attempt.buildNonRetriableResult(res.status, detail, errorBody),
+  };
+}
+
+// One fetch attempt: ok body, an authoritative denial, a non-retriable refusal, or a retry signal.
+async function attemptRequest(attempt: Attempt): Promise<RequestOutcome> {
   try {
-    const res = await makeRequest();
+    const res = await attempt.makeRequest();
 
     if (res.ok) {
       return {
@@ -80,32 +113,26 @@ async function attemptRequest(
         result: { ok: true, body: JSON.stringify(await res.json()) },
       };
     }
-    const statusDetail = `HTTP ${res.status} ${res.statusText}`;
 
-    if (isAuthDenial(res.status)) {
-      console.error(`[lore-mcp] ${label} denied (${statusDetail})`);
-
-      return {
-        done: true,
-        result: { ok: false, reason: "denied", detail: statusDetail },
-      };
-    }
-
-    if (isRetriableStatus(res.status)) {
-      return { done: false, detail: statusDetail };
-    }
-    const errorBody = await readErrorBody(res);
-    const detail = errorBodyDetail(res.status, res.statusText, errorBody);
-
-    console.error(`[lore-mcp] ${label} failed (${detail}); not retrying`);
-
-    return {
-      done: true,
-      result: buildNonRetriableResult(res.status, detail, errorBody),
-    };
+    return await classifyFailure(res, attempt);
   } catch (err) {
+    // A thrown fetch is always worth another attempt: it never reached a status, so nothing has told us the request is unacceptable.
     return { done: false, detail: describeFetchError(err) };
   }
+}
+
+/** Waits out one backoff step, announcing the failure that caused it — the log line belongs here so a caller reading the loop sees only the decision. */
+async function backoff(
+  attempt: number,
+  label: string,
+  detail: string,
+): Promise<void> {
+  const delay = PROXY_RETRY_DELAYS_MS[attempt];
+
+  console.error(
+    `[lore-mcp] ${label} attempt ${attempt + 1} failed (${detail}); retrying in ${delay}ms`,
+  );
+  await new Promise((r) => setTimeout(r, delay));
 }
 
 // Shared retry loop behind proxyToApi/proxyGetApi: only the request + non-retriable-4xx shape differ.
@@ -118,27 +145,19 @@ export async function requestWithRetry(
     errorBody: string,
   ) => ProxyResult,
 ): Promise<ProxyResult> {
+  const attempt: Attempt = { makeRequest, label, buildNonRetriableResult };
   let lastDetail = "no attempts made";
 
-  for (let attempt = 0; attempt <= PROXY_RETRY_DELAYS_MS.length; attempt++) {
-    const outcome = await attemptRequest(
-      makeRequest,
-      label,
-      buildNonRetriableResult,
-    );
+  for (let n = 0; n <= PROXY_RETRY_DELAYS_MS.length; n++) {
+    const outcome = await attemptRequest(attempt);
 
     if (outcome.done) {
       return outcome.result;
     }
     lastDetail = outcome.detail;
 
-    if (attempt < PROXY_RETRY_DELAYS_MS.length) {
-      const delay = PROXY_RETRY_DELAYS_MS[attempt];
-
-      console.error(
-        `[lore-mcp] ${label} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`,
-      );
-      await new Promise((r) => setTimeout(r, delay));
+    if (n < PROXY_RETRY_DELAYS_MS.length) {
+      await backoff(n, label, lastDetail);
     }
   }
   console.error(

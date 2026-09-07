@@ -48,39 +48,43 @@ interface UpsertArgs {
   repo?: string;
 }
 
-async function upsertMemoryWithVersion(
+type Upsert = { memoryId: string; version: number };
+
+/** Supersedes the live row IN PLACE, keeping its id — the version table is what preserves the old value, and a new id here would orphan every fact and episode already pointing at this memory. `created_at` is refreshed because decay scores age from the last write, not the first. */
+async function updateExisting(
   db: Pick<PgPool, "query">,
-  { key, value, agent, ttl, embedding, repo }: UpsertArgs,
-): Promise<{ memoryId: string; version: number }> {
-  const embeddingParam = toEmbeddingParam(embedding);
-  const ttlSeconds = ttl || null;
-  const lookup = resolveLookup(repo, agent);
-  const existing = await db.query(
-    `SELECT id, version FROM memory.memories
-     WHERE ${lookup.field} = $1 AND key = $2 AND is_deleted = FALSE
-     ORDER BY version DESC LIMIT 1`,
-    [lookup.value, key],
-  );
+  row: { id: string; version: number },
+  write: {
+    value: string;
+    embeddingParam: string | null;
+    ttlSeconds: number | null;
+  },
+): Promise<Upsert> {
+  const { value, embeddingParam, ttlSeconds } = write;
+  const memoryId = row.id;
+  const version = row.version + 1;
 
-  if (existing.rows.length > 0) {
-    // Update: increment version
-    const version = (existing.rows[0].version as number) + 1;
-    const memoryId = existing.rows[0].id as string;
-
-    await db.query(
-      `UPDATE memory.memories
+  await db.query(
+    `UPDATE memory.memories
        SET value = $1, version = $2, embedding = $3,
            ttl_seconds = $4, expires_at = now() + make_interval(secs => $5),
            created_at = now()
        WHERE id = $6`,
-      [value, version, embeddingParam, ttlSeconds, ttlSeconds, memoryId],
-    );
-    await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
+    [value, version, embeddingParam, ttlSeconds, ttlSeconds, memoryId],
+  );
+  await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
 
-    return { memoryId, version };
-  }
+  return { memoryId, version };
+}
 
-  // New memory
+/** The first write of a key: the row and its version 1 entry, so a memory is never in the store without the history that explains it. */
+async function insertFirst(
+  db: Pick<PgPool, "query">,
+  args: UpsertArgs,
+  write: { embeddingParam: string | null; ttlSeconds: number | null },
+): Promise<Upsert> {
+  const { key, value, agent, repo } = args;
+  const { embeddingParam, ttlSeconds } = write;
   const version = 1;
   const result = await db.query(
     `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
@@ -93,6 +97,38 @@ async function upsertMemoryWithVersion(
   await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
 
   return { memoryId, version };
+}
+
+async function upsertMemoryWithVersion(
+  db: Pick<PgPool, "query">,
+  args: UpsertArgs,
+): Promise<Upsert> {
+  const { key, agent, ttl, embedding, repo } = args;
+  const write = {
+    embeddingParam: toEmbeddingParam(embedding),
+    ttlSeconds: ttl || null,
+  };
+  // A repo-scoped memory is looked up by repo, an agent's own by agent — the same key means different memories in each.
+  const lookup = resolveLookup(repo, agent);
+  const existing = await db.query(
+    `SELECT id, version FROM memory.memories
+     WHERE ${lookup.field} = $1 AND key = $2 AND is_deleted = FALSE
+     ORDER BY version DESC LIMIT 1`,
+    [lookup.value, key],
+  );
+
+  if (existing.rows.length === 0) {
+    return insertFirst(db, args, write);
+  }
+
+  return updateExisting(
+    db,
+    {
+      id: existing.rows[0].id as string,
+      version: existing.rows[0].version as number,
+    },
+    { ...write, value: args.value },
+  );
 }
 
 // A memories row is never written without its version record (#1154).

@@ -188,6 +188,28 @@ export const getDomainSummaryInputSchema = {
 
 // ---------- Tool handlers ----------
 
+/** The answer for one query: the entities that matched and what they reach. Bare seed labels are dropped when longer chains already contain them — but only then, so a match with no relationships still reports itself rather than reading as no match at all. */
+function describeMatches(graph: Graph, query: string, depth: number): string {
+  const lowerQuery = query.toLowerCase();
+  const matchingIds = new Set(
+    graph.entities
+      .filter((entity) => entityMatchesQuery(entity, lowerQuery))
+      .map((entity) => entity.id),
+  );
+
+  if (matchingIds.size === 0) {
+    return `No entities found matching "${query}". Try a broader search term.`;
+  }
+  const chains = traverseGraph(graph, matchingIds, depth);
+  const traversal = chains.filter((c) => c.includes("→"));
+  const noun = matchingIds.size === 1 ? "entity" : "entities";
+
+  return (
+    `Found ${matchingIds.size} matching ${noun}, depth=${depth}:\n\n` +
+    (traversal.length > 0 ? traversal : chains).join("\n")
+  );
+}
+
 // graph_search: find entities matching a query and traverse relationships.
 export async function graphSearchHandler({
   query,
@@ -202,27 +224,8 @@ export async function graphSearchHandler({
     if (typeof graph === "string") {
       return text(graph);
     }
-    const lowerQuery = query.toLowerCase();
-    const matchingIds = new Set(
-      graph.entities
-        .filter((entity) => entityMatchesQuery(entity, lowerQuery))
-        .map((entity) => entity.id),
-    );
 
-    if (matchingIds.size === 0) {
-      return text(
-        `No entities found matching "${query}". Try a broader search term.`,
-      );
-    }
-    const chains = traverseGraph(graph, matchingIds, depth);
-    // Bare seed labels are dropped when longer chains already contain them, to keep the output concise.
-    const traversal = chains.filter((c) => c.includes("→"));
-    const noun = matchingIds.size === 1 ? "entity" : "entities";
-
-    return text(
-      `Found ${matchingIds.size} matching ${noun}, depth=${depth}:\n\n` +
-        (traversal.length > 0 ? traversal : chains).join("\n"),
-    );
+    return text(describeMatches(graph, query, depth));
   } catch (err: unknown) {
     return text(`Error reading graph: ${errorMessage(err)}`);
   }

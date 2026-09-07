@@ -26,6 +26,58 @@ function snapshotsDir(agentId: string): string {
   return join(agentDir(agentId), "snapshots");
 }
 
+type MemoryRefs = Record<string, { value: string; version: number }>;
+
+/** What a snapshot captures: value and version of everything alive at that moment. Deleted and expired records are skipped, so restoring never resurrects them. */
+function liveRefs(memories: Record<string, MemoryRecord>): MemoryRefs {
+  const refs: MemoryRefs = {};
+
+  for (const [key, record] of Object.entries(memories)) {
+    if (record.is_deleted || isExpired(record)) {
+      continue;
+    }
+    refs[key] = { value: record.value, version: record.version };
+  }
+
+  return refs;
+}
+
+/** Rebuilds records from a snapshot's refs. `created_at` is the RESTORE time, not the original — a snapshot carries no TTL, so a restored memory starts a fresh life rather than inheriting an expiry that has already passed. */
+function recordsFrom(
+  refs: MemoryRefs,
+  now: string,
+): Record<string, MemoryRecord> {
+  return Object.fromEntries(
+    Object.entries(refs).map(([key, ref]) => [
+      key,
+      {
+        value: ref.value,
+        version: ref.version,
+        created_at: now,
+        ttl_seconds: null,
+        is_deleted: false,
+        expires_at: null,
+      },
+    ]),
+  );
+}
+
+/** Both halves of a snapshot record the same two facts, and the pair is what makes an audit line answerable: which file, and how much of the store it holds. */
+function auditSnapshot(
+  operation: string,
+  agentId: string,
+  snapshotPath: string,
+  memoryCount: number,
+): void {
+  appendAudit({
+    agent_id: agentId,
+    operation,
+    memory_key: null,
+    pool_name: null,
+    metadata: { snapshot_path: snapshotPath, memory_count: memoryCount },
+  });
+}
+
 export function createSnapshotFile(agentId?: string): {
   snapshot_path: string;
   memory_count: number;
@@ -38,15 +90,7 @@ export function createSnapshotFile(agentId?: string): {
 
   const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
 
-  // Collect all active (non-deleted, non-expired) memories
-  const memoryRefs: Record<string, { value: string; version: number }> = {};
-
-  for (const [key, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) {
-      continue;
-    }
-    memoryRefs[key] = { value: record.value, version: record.version };
-  }
+  const memoryRefs = liveRefs(memories);
 
   const snapshot: SnapshotRecord = {
     snapshot_id: randomUUID(),
@@ -57,16 +101,12 @@ export function createSnapshotFile(agentId?: string): {
 
   writeJson(snapshotPath, snapshot);
 
-  appendAudit({
-    agent_id: id,
-    operation: "create_snapshot",
-    memory_key: null,
-    pool_name: null,
-    metadata: {
-      snapshot_path: snapshotPath,
-      memory_count: Object.keys(memoryRefs).length,
-    },
-  });
+  auditSnapshot(
+    "create_snapshot",
+    id,
+    snapshotPath,
+    Object.keys(memoryRefs).length,
+  );
 
   return {
     snapshot_path: snapshotPath,
@@ -88,32 +128,16 @@ export function restoreSnapshotFile(snapshotPath: string): {
   const id = snapshot.agent_id;
   const now = new Date().toISOString();
 
-  // Rebuild memories from snapshot refs
-  const restoredMemories: Record<string, MemoryRecord> = {};
-
-  for (const [key, ref] of Object.entries(snapshot.memory_refs)) {
-    restoredMemories[key] = {
-      value: ref.value,
-      version: ref.version,
-      created_at: now,
-      ttl_seconds: null,
-      is_deleted: false,
-      expires_at: null,
-    };
-  }
+  const restoredMemories = recordsFrom(snapshot.memory_refs, now);
 
   writeJson(memoriesPath(id), restoredMemories);
 
-  appendAudit({
-    agent_id: id,
-    operation: "restore_snapshot",
-    memory_key: null,
-    pool_name: null,
-    metadata: {
-      snapshot_path: snapshotPath,
-      memory_count: Object.keys(restoredMemories).length,
-    },
-  });
+  auditSnapshot(
+    "restore_snapshot",
+    id,
+    snapshotPath,
+    Object.keys(restoredMemories).length,
+  );
 
   return { restored: true, memory_count: Object.keys(restoredMemories).length };
 }
