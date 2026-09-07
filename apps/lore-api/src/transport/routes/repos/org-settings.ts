@@ -1,7 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../http/api-error.js";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -71,6 +76,40 @@ function readOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+/** Writes the org-wide settings every repo inherits where it has not overridden them. */
+async function serveOrgSettingsWrite(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { entries } = request.payload as SettingsBody;
+
+  const unknown = entries.find((entry) => !WRITABLE_KEYS.has(entry.key));
+
+  if (unknown) {
+    return h
+      .response({ error: `not a writable setting: ${unknown.key}` })
+      .code(400);
+  }
+
+  for (const { key, value } of entries) {
+    // A blank value is "leave it alone", not "erase it" — the form posts every field every time.
+    if (!value.trim()) {
+      continue;
+    }
+    await pool.query(
+      `INSERT INTO lore.settings (key, value) VALUES ($1, $2)
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`,
+      [key, value.trim()],
+    );
+  }
+
+  return h.response({ ok: true });
+}
+
 function writeOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "PUT",
@@ -83,34 +122,7 @@ function writeOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
       OkSchema,
       { name: "OrgSettingsSaved", description: "The settings were written" },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { entries } = request.payload as SettingsBody;
-
-      const unknown = entries.find((entry) => !WRITABLE_KEYS.has(entry.key));
-
-      if (unknown) {
-        return h
-          .response({ error: `not a writable setting: ${unknown.key}` })
-          .code(400);
-      }
-
-      for (const { key, value } of entries) {
-        // A blank value is "leave it alone", not "erase it" — the form posts every field every time.
-        if (!value.trim()) {
-          continue;
-        }
-        await pool.query(
-          `INSERT INTO lore.settings (key, value) VALUES ($1, $2)
-           ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`,
-          [key, value.trim()],
-        );
-      }
-
-      return h.response({ ok: true });
-    },
+    handler: (request, h) => serveOrgSettingsWrite(getPool, request, h),
   };
 }
 

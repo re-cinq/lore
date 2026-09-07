@@ -49,49 +49,62 @@ const DarkFactoryAppliedSchema = z.object({
 });
 
 /** One route per verb so each declares its own contract; the wildcard route exists only to answer 405 instead of hapi's 404. */
+/** Both real verbs need the pool, so the guard is stated once. */
+function withPool(
+  getPool: () => Pool | null,
+  serve: (
+    request: Request,
+    h: ResponseToolkit,
+    pool: Pool,
+    repo: string,
+  ) => Promise<ResponseObject>,
+) {
+  return async (request: Request, h: ResponseToolkit) => {
+    const pool = getPool();
+
+    return pool
+      ? serve(request, h, pool, repoOf(request.params))
+      : h.response({ error: "database unavailable" }).code(503);
+  };
+}
+
+/** Reads every knob RESOLVED — defaults merged in — so a caller sees what is in force rather than what happens to be stored. */
+function readRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: DF_PATH,
+    options: zodResponse(
+      bearerScope("admin"),
+      ResolvedDarkFactorySettingsSchema,
+      {
+        name: "DarkFactorySettings",
+        description: "Every dark-factory knob, resolved",
+      },
+    ),
+    handler: withPool(getPool, (_request, h, _pool, repo) =>
+      handleGet(repo, h),
+    ),
+  };
+}
+
+/** The write. Its 409 is the two-key gate: a privileged field needs admin scope AND a CODEOWNER-approved PR, so a refusal here is an authorization answer rather than a validation one. */
+function writeRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "PUT",
+    path: DF_PATH,
+    options: zodResponse(bearerScope("admin"), DarkFactoryAppliedSchema, {
+      name: "DarkFactorySettingsApplied",
+      description: "What the write applied, and under whose authority",
+      errors: [400, 409],
+    }),
+    handler: withPool(getPool, handlePut),
+  };
+}
+
 export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute[] {
-  /** Both real verbs need the pool, so the guard is stated once. */
-  const withPool =
-    (
-      serve: (
-        request: Request,
-        h: ResponseToolkit,
-        pool: Pool,
-        repo: string,
-      ) => Promise<ResponseObject>,
-    ) =>
-    async (request: Request, h: ResponseToolkit) => {
-      const pool = getPool();
-
-      return pool
-        ? serve(request, h, pool, repoOf(request.params))
-        : h.response({ error: "database unavailable" }).code(503);
-    };
-
   return [
-    {
-      method: "GET",
-      path: DF_PATH,
-      options: zodResponse(
-        bearerScope("admin"),
-        ResolvedDarkFactorySettingsSchema,
-        {
-          name: "DarkFactorySettings",
-          description: "Every dark-factory knob, resolved",
-        },
-      ),
-      handler: withPool((_request, h, _pool, repo) => handleGet(repo, h)),
-    },
-    {
-      method: "PUT",
-      path: DF_PATH,
-      options: zodResponse(bearerScope("admin"), DarkFactoryAppliedSchema, {
-        name: "DarkFactorySettingsApplied",
-        description: "What the write applied, and under whose authority",
-        errors: [400, 409],
-      }),
-      handler: withPool(handlePut),
-    },
+    readRoute(getPool),
+    writeRoute(getPool),
     {
       // Fallback only — a concrete verb above always wins in hapi.
       method: "*",
@@ -201,49 +214,68 @@ interface SettingsWrite extends SettingsPatch {
   ceremony: Ceremony;
 }
 
+/** The transaction itself. The row is SELECTed `FOR UPDATE` because the patch is a merge of what was read: two concurrent PUTs to one repo would otherwise each write a merge of the state they saw, and the later write would silently drop the earlier one's fields. The baseline capture runs AFTER the commit — it reads counters, and holding the row lock through it would serialize unrelated writes. */
+/** The write and its audit row, in that order and inside the same transaction. Both or neither: a settings change with no audit entry is exactly the thing the dark-factory rollback runbook cannot reconstruct. */
+async function writeAndAudit(
+  client: PoolClient,
+  write: SettingsWrite,
+  applied: ReturnType<typeof applyPatch>,
+): Promise<void> {
+  await client.query(
+    `UPDATE lore.repos SET settings = $1 WHERE full_name = $2`,
+    [applied.settings, write.repo],
+  );
+  await auditChange(client, write, {
+    prev: applied.prev,
+    next: {
+      dark_factory: applied.next,
+      task_overrides: applied.settings.task_overrides,
+    },
+  });
+}
+
+async function applyUnderLock(
+  client: PoolClient,
+  write: SettingsWrite,
+): Promise<ResponseObject> {
+  const { pool, repo, h, patch, toPatch } = write;
+
+  await client.query("BEGIN");
+  const { rows } = await client.query(
+    `SELECT settings FROM lore.repos WHERE full_name = $1 FOR UPDATE`,
+    [repo],
+  );
+
+  if (rows.length === 0) {
+    await client.query("ROLLBACK");
+
+    return h.response({ error: "repo not onboarded", repo }).code(404);
+  }
+  const applied = applyPatch(rows[0].settings, patch, toPatch);
+
+  await writeAndAudit(client, write, applied);
+  await client.query("COMMIT");
+  await captureBaselineIfEnabling(
+    repo,
+    pool,
+    applied.prev.dark_factory,
+    applied.next,
+  );
+
+  return h.response({
+    ok: true,
+    applied: applied.next,
+    ceremony: write.ceremony,
+  });
+}
+
 /** Read current, merge patch, write back, audit — under one row lock, because two concurrent PUTs to the same repo would otherwise each write a merge of the state they read. lore.repos.settings is JSONB. */
 async function writeSettings(write: SettingsWrite): Promise<ResponseObject> {
-  const { pool, repo, h, patch, toPatch } = write;
+  const { pool, h } = write;
   const client = await pool.connect();
 
   try {
-    await client.query("BEGIN");
-    const { rows } = await client.query(
-      `SELECT settings FROM lore.repos WHERE full_name = $1 FOR UPDATE`,
-      [repo],
-    );
-
-    if (rows.length === 0) {
-      await client.query("ROLLBACK");
-
-      return h.response({ error: "repo not onboarded", repo }).code(404);
-    }
-    const applied = applyPatch(rows[0].settings, patch, toPatch);
-
-    await client.query(
-      `UPDATE lore.repos SET settings = $1 WHERE full_name = $2`,
-      [applied.settings, repo],
-    );
-    await auditChange(client, write, {
-      prev: applied.prev,
-      next: {
-        dark_factory: applied.next,
-        task_overrides: applied.settings.task_overrides,
-      },
-    });
-    await client.query("COMMIT");
-    await captureBaselineIfEnabling(
-      repo,
-      pool,
-      applied.prev.dark_factory,
-      applied.next,
-    );
-
-    return h.response({
-      ok: true,
-      applied: applied.next,
-      ceremony: write.ceremony,
-    });
+    return await applyUnderLock(client, write);
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[dark-factory] PUT settings failed:", err);

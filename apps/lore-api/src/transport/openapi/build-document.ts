@@ -140,6 +140,31 @@ interface DocumentBuild {
   paths: Record<string, Record<string, Operation>>;
 }
 
+/** The fields an operation carries only sometimes. They are set rather than always-present-and-empty because the generated client reads the DOCUMENT: an empty `parameters` array and an absent one produce different types. */
+function applyOptionalFields(
+  op: Operation,
+  extras: {
+    scope: string | undefined;
+    params: Operation["parameters"] extends (infer P)[] | undefined
+      ? P[]
+      : never;
+    hasOptional: boolean;
+  },
+): void {
+  if (extras.scope) {
+    op["x-required-scope"] = extras.scope;
+  }
+
+  if (extras.params.length) {
+    op.parameters = extras.params;
+  }
+
+  if (extras.hasOptional) {
+    op.description =
+      "A trailing path parameter is optional; omit it for the collection form.";
+  }
+}
+
 function buildOperation(
   route: ServerRoute,
   method: string,
@@ -165,18 +190,7 @@ function buildOperation(
     responses: responsesFor(publicOp, hasBody, success),
   };
 
-  if (scope) {
-    op["x-required-scope"] = scope;
-  }
-
-  if (params.length) {
-    op.parameters = params;
-  }
-
-  if (hasOptional) {
-    op.description =
-      "A trailing path parameter is optional; omit it for the collection form.";
-  }
+  applyOptionalFields(op, { scope, params, hasOptional });
 
   if (hasBody) {
     applyRequestBody(op, route, method, coverage);
@@ -220,6 +234,17 @@ function emptyCoverage(): Coverage {
 }
 
 /** Everything about the API that is NOT derived from walking the routes: its title, its description, and where it is served. */
+/** The document's own preamble — what this contract is generated from, and what the two OpenAPI extensions mean. Kept beside the builder because it describes THIS generator's conventions, not the API's behaviour. */
+const DOCUMENT_DESCRIPTION =
+  "Generated from the lore-api hapi route zod schemas (ADR-035). This document " +
+  "describes request contracts, success bodies and the uniform `{ error }` error " +
+  "envelope. A route declares its body with `zodResponse`; where that body shares " +
+  "fields with a table, the schema is derived from that table's model and column " +
+  "map, so a renamed column cannot leave the contract behind. The two routes that " +
+  "declare none are `/api/openapi.json` (this document) and `/api/docs` (HTML). " +
+  "Per-route required scope is the `x-required-scope` extension (HTTP bearer has no " +
+  "scope list); the rate-limit bucket is `x-rate-limit-bucket`.";
+
 function openApiDocument(input: {
   opts: GenerateOptions;
   usedTags: Set<string>;
@@ -233,15 +258,7 @@ function openApiDocument(input: {
     info: {
       title: API_TITLE,
       version: opts.version ?? DEFAULT_VERSION,
-      description:
-        "Generated from the lore-api hapi route zod schemas (ADR-035). This document " +
-        "describes request contracts, success bodies and the uniform `{ error }` error " +
-        "envelope. A route declares its body with `zodResponse`; where that body shares " +
-        "fields with a table, the schema is derived from that table's model and column " +
-        "map, so a renamed column cannot leave the contract behind. The two routes that " +
-        "declare none are `/api/openapi.json` (this document) and `/api/docs` (HTML). " +
-        "Per-route required scope is the `x-required-scope` extension (HTTP bearer has no " +
-        "scope list); the rate-limit bucket is `x-rate-limit-bucket`.",
+      description: DOCUMENT_DESCRIPTION,
     },
     // Defaults to `/` when LORE_API_URL is unset; OpenAPI requires non-empty servers list.
     servers: [{ url: opts.serverUrl ?? "/" }],

@@ -1,7 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../http/api-error.js";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -96,6 +101,30 @@ async function readEdgesFor(
   return rows;
 }
 
+/** Entities and edges of the knowledge graph, for browsing rather than querying — the whole neighbourhood, not the answer to a question. */
+async function serveGraphBrowse(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { entity, type, show_invalid } =
+    request.query as unknown as GraphBrowseQuery;
+
+  const { rows: statRows } = await pool.query(GRAPH_STATS_SQL);
+  const { rows: entityTypes } = await pool.query(ENTITY_TYPES_SQL);
+  const { rows: entities } = await readEntities(pool, type);
+
+  return h.response({
+    stats: statRows[0] ?? {},
+    entity_types: entityTypes,
+    entities,
+    edges: await readEdgesFor(pool, entity, show_invalid),
+  });
+}
+
 function graphBrowseRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -111,24 +140,7 @@ function graphBrowseRoute(getPool: () => Pool | null): ServerRoute {
         description: "Entities and edges of the knowledge graph",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { entity, type, show_invalid } =
-        request.query as unknown as GraphBrowseQuery;
-
-      const { rows: statRows } = await pool.query(GRAPH_STATS_SQL);
-      const { rows: entityTypes } = await pool.query(ENTITY_TYPES_SQL);
-      const { rows: entities } = await readEntities(pool, type);
-
-      return h.response({
-        stats: statRows[0] ?? {},
-        entity_types: entityTypes,
-        entities,
-        edges: await readEdgesFor(pool, entity, show_invalid),
-      });
-    },
+    handler: (request, h) => serveGraphBrowse(getPool, request, h),
   };
 }
 
@@ -159,6 +171,35 @@ function listPoolsRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+/** One shared pool and what it holds. Pools are how memory crosses agent boundaries, so the count is what tells a reader whether anyone is actually using it. */
+async function servePoolDetail(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { rows } = await pool.query(
+    `SELECT id, name, created_by, created_at
+       FROM memory.shared_pools WHERE name = $1`,
+    [request.params.name],
+  );
+
+  enforceTrue(rows.length !== 0, apiError(404), "Pool not found");
+  const { rows: entries } = await pool.query(
+    `SELECT m.id, m.key, m.value, m.agent_id, m.version, m.created_at
+       FROM memory.memories m
+      WHERE m.pool_id = $1
+        AND m.is_deleted = FALSE
+        AND (m.expires_at IS NULL OR m.expires_at > now())
+      ORDER BY m.created_at DESC`,
+    [rows[0].id],
+  );
+
+  return h.response({ pool: rows[0], entries });
+}
+
 function poolDetailRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -168,29 +209,7 @@ function poolDetailRoute(getPool: () => Pool | null): ServerRoute {
       description: "One pool and the live entries in it",
       errors: [404],
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { rows } = await pool.query(
-        `SELECT id, name, created_by, created_at
-           FROM memory.shared_pools WHERE name = $1`,
-        [request.params.name],
-      );
-
-      enforceTrue(rows.length !== 0, apiError(404), "Pool not found");
-      const { rows: entries } = await pool.query(
-        `SELECT m.id, m.key, m.value, m.agent_id, m.version, m.created_at
-           FROM memory.memories m
-          WHERE m.pool_id = $1
-            AND m.is_deleted = FALSE
-            AND (m.expires_at IS NULL OR m.expires_at > now())
-          ORDER BY m.created_at DESC`,
-        [rows[0].id],
-      );
-
-      return h.response({ pool: rows[0], entries });
-    },
+    handler: (request, h) => servePoolDetail(getPool, request, h),
   };
 }
 
@@ -213,6 +232,38 @@ function episodeFilter(source: string | undefined, agent: string | undefined) {
   return { where, params };
 }
 
+/** Recent episodes — the raw text facts were extracted FROM, which is what makes an extracted fact auditable. */
+async function serveEpisodeList(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { source, agent, limit, offset } =
+    request.query as unknown as EpisodesQuery;
+  const { where, params } = episodeFilter(source, agent);
+
+  const { rows: countRows } = await pool.query<{ count: number }>(
+    `SELECT count(*)::int as count FROM memory.episodes e ${where}`,
+    params,
+  );
+  const { rows: episodes } = await pool.query(
+    `SELECT e.id, e.agent_id, e.source, e.ref,
+            LEFT(e.content, 300) as content_preview,
+            (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count,
+            e.created_at
+       FROM memory.episodes e
+       ${where}
+      ORDER BY e.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
+  );
+
+  return h.response({ episodes, total: countRows[0]?.count ?? 0 });
+}
+
 function listEpisodesRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -225,31 +276,6 @@ function listEpisodesRoute(getPool: () => Pool | null): ServerRoute {
       EpisodePageSchema,
       { name: "EpisodePage", description: "A page of ingested episodes" },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { source, agent, limit, offset } =
-        request.query as unknown as EpisodesQuery;
-      const { where, params } = episodeFilter(source, agent);
-
-      const { rows: countRows } = await pool.query<{ count: number }>(
-        `SELECT count(*)::int as count FROM memory.episodes e ${where}`,
-        params,
-      );
-      const { rows: episodes } = await pool.query(
-        `SELECT e.id, e.agent_id, e.source, e.ref,
-                LEFT(e.content, 300) as content_preview,
-                (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count,
-                e.created_at
-           FROM memory.episodes e
-           ${where}
-          ORDER BY e.created_at DESC
-          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-        [...params, limit, offset],
-      );
-
-      return h.response({ episodes, total: countRows[0]?.count ?? 0 });
-    },
+    handler: (request, h) => serveEpisodeList(getPool, request, h),
   };
 }

@@ -242,6 +242,35 @@ async function assertDeltaAcceptable(
   );
 }
 
+/** What this delta did to the STORED commit, once its chunks have been projected. A partial upload projects its share but must NOT advance the commit — the next chunk still needs the same base — and an unmigrated `ingest_state` is not a failure either, because the graph has already absorbed the delta. Only a commit that moved under us is a conflict. */
+async function settleDelta(
+  pool: Pool,
+  repo: string,
+  body: IngestDeltaBody,
+): Promise<"pending-chunks" | "unrecorded" | "advanced"> {
+  const finalChunk =
+    body.seq === undefined ||
+    body.total === undefined ||
+    body.seq >= body.total;
+
+  if (!finalChunk) {
+    return "pending-chunks";
+  }
+  const advanced = await advanceStoredCommit(pool, repo, body);
+
+  if (advanced === "unrecorded") {
+    return "unrecorded";
+  }
+
+  enforceTrue(
+    advanced,
+    apiError(409, { current: await storedCommit(pool, repo, body.kind) }),
+    "the stored commit moved during projection — re-fetch ingest-state and re-diff",
+  );
+
+  return "advanced";
+}
+
 export function ingestDeltaRoute(
   getPool: () => Pool | null,
   deps: IngestDeltaDeps = defaultDeps(),
@@ -260,34 +289,13 @@ export function ingestDeltaRoute(
       await assertDeltaAcceptable(pool, deps, repo, body);
 
       const counts = await applyDelta(deps, repo, body);
-      const answer = (state: "pending-chunks" | "unrecorded" | "advanced") => ({
+
+      return h.response({
         kind: body.kind,
         commit: body.commit,
-        state,
+        state: await settleDelta(pool, repo, body),
         ...counts,
       });
-      // A partial upload has projected its share but must not move the stored commit — the next chunk still needs the same base.
-      const finalChunk =
-        body.seq === undefined ||
-        body.total === undefined ||
-        body.seq >= body.total;
-
-      if (!finalChunk) {
-        return h.response(answer("pending-chunks"));
-      }
-      const advanced = await advanceStoredCommit(pool, repo, body);
-
-      // An unmigrated ingest_state is not a failure: the graph already absorbed the delta.
-      if (advanced === "unrecorded") {
-        return h.response(answer("unrecorded"));
-      }
-      enforceTrue(
-        advanced,
-        apiError(409, { current: await storedCommit(pool, repo, body.kind) }),
-        "the stored commit moved during projection — re-fetch ingest-state and re-diff",
-      );
-
-      return h.response(answer("advanced"));
     },
   };
 }

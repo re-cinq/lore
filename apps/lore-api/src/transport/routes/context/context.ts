@@ -1,7 +1,12 @@
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { createDgraphClient } from "@re-cinq/lore-shared";
 import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
@@ -111,6 +116,47 @@ async function assembleForQuery(
   });
 }
 
+/** Assembles the token-budgeted context bundle: every source at once, ordered by template, which is what makes it the mandatory first call for an agent. */
+/** The assembled bundle. `text` is nulled when empty rather than served as an empty string: a caller distinguishes "assembled nothing" from "assembled blank", and only the first is worth telling an agent about. */
+async function assembledResponse(pool: Pool, q: ContextQuery) {
+  const result = await assembleForQuery(pool, q.query as string, {
+    repo: q.repo,
+    template: q.template,
+    maxTokens: q.max_tokens,
+    agentId: q.agent_id,
+    debug: q.debug,
+    crossRepoRequested: q.cross_repo,
+  });
+
+  return {
+    text: result.text || null,
+    sections: result.sections,
+    trace: result.trace,
+  };
+}
+
+async function serveContext(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+  const q = request.query as unknown as ContextQuery;
+
+  try {
+    // Without a query there is nothing to assemble AGAINST — the repo's stored context is returned as-is.
+    if (!(q.query && pool)) {
+      return h.response({
+        text: await joinedTextOrNull(pool, q.repo, q.max_tokens),
+      });
+    }
+
+    return h.response(await assembledResponse(pool, q));
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function contextRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -123,42 +169,6 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
       AssembledContextSchema,
       { name: "AssembledContext", description: "The assembled context block" },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-      const {
-        repo,
-        query,
-        template,
-        debug,
-        max_tokens: maxTokens,
-        agent_id: agentId,
-        cross_repo: crossRepoRequested,
-      } = request.query as unknown as ContextQuery;
-
-      try {
-        // Without a query there is nothing to assemble AGAINST — the repo's stored context is returned as-is.
-        if (!(query && pool)) {
-          return h.response({
-            text: await joinedTextOrNull(pool, repo, maxTokens),
-          });
-        }
-        const result = await assembleForQuery(pool, query, {
-          repo,
-          template,
-          maxTokens,
-          agentId,
-          debug,
-          crossRepoRequested,
-        });
-
-        return h.response({
-          text: result.text || null,
-          sections: result.sections,
-          trace: result.trace,
-        });
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveContext(getPool, request, h),
   };
 }

@@ -3,7 +3,12 @@ import { apiError } from "../../http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import {
   parseTasks,
@@ -49,6 +54,36 @@ const SpecClaimSchema = z.object({
 });
 const SpecCompleteSchema = z.record(z.unknown());
 
+/** Parses a tasks.md and upserts each checklist item. Idempotent by design: it runs again on every re-sync of the same spec, and must converge rather than duplicate. */
+async function serveSpecTaskSync(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  const { repo, spec_slug, tasks_markdown } = request.payload as SyncBody;
+
+  try {
+    const parsed = parseTasks(tasks_markdown);
+
+    if (parsed.length === 0) {
+      return h.response({ parsed: 0, synced: 0, created: 0 });
+    }
+    const { synced, created } = await syncTasksToDb(
+      pool,
+      { repo, specSlug: spec_slug },
+      parsed,
+    );
+
+    return h.response({ parsed: parsed.length, synced, created });
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function specTasksSyncRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -64,30 +99,7 @@ export function specTasksSyncRoute(getPool: () => Pool | null): ServerRoute {
         description: "How many spec tasks the sync parsed and created",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const { repo, spec_slug, tasks_markdown } = request.payload as SyncBody;
-
-      try {
-        const parsed = parseTasks(tasks_markdown);
-
-        if (parsed.length === 0) {
-          return h.response({ parsed: 0, synced: 0, created: 0 });
-        }
-        const { synced, created } = await syncTasksToDb(
-          pool,
-          { repo, specSlug: spec_slug },
-          parsed,
-        );
-
-        return h.response({ parsed: parsed.length, synced, created });
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveSpecTaskSync(getPool, request, h),
   };
 }
 

@@ -128,6 +128,33 @@ function leaseFromRow(row: { holder: string; expires_at: string }): {
 }
 
 /** Two of the three outcomes are not errors: a task with no branch yet has no timeline to read, and a deleted branch is a merged or abandoned one. Only GitHub failing is a 500. */
+/** The timeline from the branch's own history. A DELETED branch is reported as such rather than as an empty timeline — the work happened, and saying "no commits" would read as the task having done nothing. The lease is read last: it says whether anyone is holding the branch right now, which only matters once there are commits to hold. */
+async function branchTimeline(
+  pool: Pool,
+  task: TimelineTaskRow,
+  branch: { repo: string; name: string },
+): Promise<Record<string, unknown>> {
+  const history = await readBranchHistory(
+    branch.repo,
+    branch.name,
+    task.pr_number,
+  );
+
+  if (history === "branch-deleted") {
+    return { pr_state: null, commits: [], branch_deleted: true };
+  }
+
+  enforceTrue(history !== "github-error", apiError(500), "github_api");
+  const commits = buildTimeline(history.commits, task.created_at);
+
+  return {
+    pr_state: history.prState,
+    commits,
+    current_stage: commits.at(-1)?.stage ?? null,
+    lease: await readLease(pool, branch.name),
+  };
+}
+
 async function taskTimeline(
   pool: Pool,
   taskId: string,
@@ -143,6 +170,7 @@ async function taskTimeline(
     pr_url: task.pr_url,
   };
 
+  // A task with no branch yet is PENDING, not empty: it has not failed to produce commits, it has not started.
   if (!task.target_repo || !task.target_branch) {
     return {
       ...base,
@@ -152,25 +180,13 @@ async function taskTimeline(
       pending: "no_branch",
     };
   }
-  const history = await readBranchHistory(
-    task.target_repo,
-    task.target_branch,
-    task.pr_number,
-  );
-
-  if (history === "branch-deleted") {
-    return { ...base, pr_state: null, commits: [], branch_deleted: true };
-  }
-
-  enforceTrue(history !== "github-error", apiError(500), "github_api");
-  const commits = buildTimeline(history.commits, task.created_at);
 
   return {
     ...base,
-    pr_state: history.prState,
-    commits,
-    current_stage: commits.at(-1)?.stage ?? null,
-    lease: await readLease(pool, task.target_branch),
+    ...(await branchTimeline(pool, task, {
+      repo: task.target_repo,
+      name: task.target_branch,
+    })),
   };
 }
 
@@ -218,28 +234,44 @@ async function readTaskRow(
   return rows[0];
 }
 
+/** The branch's commits, newest first, capped at one page. A hundred is far more than a task's own history — a longer branch has been reused, and its earlier commits belong to work this timeline is not describing. */
+async function listBranchCommits(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  target: { owner: string; repo: string; branch: string },
+): Promise<RawCommit[]> {
+  const r = await octokit.rest.repos.listCommits({
+    owner: target.owner,
+    repo: target.repo,
+    sha: target.branch,
+    per_page: 100,
+  });
+
+  return r.data as RawCommit[];
+}
+
+/** What a branch read can answer: its history, or one of the two ways there is no history to report. Both non-answers are values rather than throws — the caller reports each of them differently, and neither is a failure of this service. */
+type BranchHistory =
+  | { commits: RawCommit[]; prState: "open" | "closed" | "merged" | null }
+  | "branch-deleted"
+  | "github-error";
+
 /** Read through the GitHub API rather than a checkout — the branch is the remote source of truth, and this service holds no clone. A 404 means the branch is gone, which the caller reports rather than treating as failure. */
 async function readBranchHistory(
   repo: string,
   branch: string,
   prNumber: number | null,
-): Promise<
-  | { commits: RawCommit[]; prState: "open" | "closed" | "merged" | null }
-  | "branch-deleted"
-  | "github-error"
-> {
+): Promise<BranchHistory> {
   try {
     const [owner, repoName] = repo.split("/");
     const octokit = await getOctokit();
-    const r = await octokit.rest.repos.listCommits({
+    const commits = await listBranchCommits(octokit, {
       owner,
       repo: repoName,
-      sha: branch,
-      per_page: 100,
+      branch,
     });
 
     return {
-      commits: r.data as RawCommit[],
+      commits,
       prState: prNumber
         ? await readPrState(octokit, owner, repoName, prNumber)
         : null,

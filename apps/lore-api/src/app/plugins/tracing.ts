@@ -14,7 +14,8 @@ declare module "@hapi/hapi" {
   }
 }
 
-export function registerRequestTracing(server: Server): void {
+/** Opens the span. Named `http.request` here and RENAMED to the matched route on the way out — the route is not known until hapi has matched it, and a span named after the raw path would make one span per id. */
+function openRequestSpan(server: Server): void {
   server.ext("onRequest", (request, h) => {
     request.app.span = tracer.startSpan("http.request", {
       attributes: {
@@ -25,7 +26,10 @@ export function registerRequestTracing(server: Server): void {
 
     return h.continue;
   });
+}
 
+/** Closes the span and records the request metrics. Runs on `onPreResponse` rather than the response event so it still fires for a request that never reached a handler — a 404 or an auth refusal is exactly the kind a dashboard needs to show. */
+function closeRequestSpan(server: Server): void {
   server.ext("onPreResponse", (request, h) => {
     const res = request.response;
     const statusCode = Boom.isBoom(res)
@@ -59,4 +63,9 @@ export function registerRequestTracing(server: Server): void {
 
     return h.continue;
   });
+}
+
+export function registerRequestTracing(server: Server): void {
+  openRequestSpan(server);
+  closeRequestSpan(server);
 }

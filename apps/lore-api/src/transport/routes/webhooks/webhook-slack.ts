@@ -168,6 +168,44 @@ async function retryReply(retryTaskId: string): Promise<object> {
 }
 
 /** Which repo the command lands on comes from the channel it was typed in; an unmapped channel is told so rather than defaulting somewhere surprising. */
+/** What the channel sees. `in_channel` rather than ephemeral, deliberately: a task created from Slack is team work, and the people who would otherwise duplicate it are the ones reading that channel. The follow-up line differs by priority because a backlog task needs somebody to pick it up, and an immediate one does not. */
+function createdMessage(
+  command: SlashCommand,
+  targetRepo: string,
+  taskId: string,
+): object {
+  const priorityLabel =
+    command.priority === "immediate" ? " | Priority: `immediate`" : "";
+  const followUp =
+    command.priority === "immediate"
+      ? "Agent will pick this up shortly."
+      : "Task in backlog — claim locally or use the UI to run now.";
+
+  return {
+    response_type: "in_channel",
+    text: `Task created on \`${targetRepo}\`:\n> ${command.description}\n\nType: \`${command.taskType}\`${priorityLabel} | ID: \`${taskId}\`\n${followUp}`,
+  };
+}
+
+/** The task a slash command becomes. The channel id rides in the context bundle because the watcher posts the PR link BACK to it — without that, a task created from Slack finishes silently somewhere the person who asked cannot see. */
+function taskInput(
+  command: SlashCommand,
+  targetRepo: string,
+  from: { channelId: string; userName: string },
+) {
+  return {
+    description: command.description,
+    taskType: command.taskType,
+    targetRepo,
+    createdBy: `slack:${from.userName}`,
+    contextBundle: {
+      slack_channel_id: from.channelId,
+      slack_user: from.userName,
+    },
+    priority: command.priority,
+  };
+}
+
 async function createReply(
   pool: Pool | null,
   command: SlashCommand,
@@ -183,28 +221,9 @@ async function createReply(
   }
 
   try {
-    const taskResult = await createTask({
-      description: command.description,
-      taskType: command.taskType,
-      targetRepo,
-      createdBy: `slack:${from.userName}`,
-      contextBundle: {
-        slack_channel_id: from.channelId,
-        slack_user: from.userName,
-      },
-      priority: command.priority,
-    });
-    const priorityLabel =
-      command.priority === "immediate" ? " | Priority: `immediate`" : "";
-    const followUp =
-      command.priority === "immediate"
-        ? "Agent will pick this up shortly."
-        : "Task in backlog — claim locally or use the UI to run now.";
+    const taskResult = await createTask(taskInput(command, targetRepo, from));
 
-    return {
-      response_type: "in_channel",
-      text: `Task created on \`${targetRepo}\`:\n> ${command.description}\n\nType: \`${command.taskType}\`${priorityLabel} | ID: \`${taskResult.task_id}\`\n${followUp}`,
-    };
+    return createdMessage(command, targetRepo, taskResult.task_id);
   } catch (err) {
     return {
       response_type: "ephemeral",
@@ -235,6 +254,37 @@ function challengeResponse(h: ResponseToolkit, params: URLSearchParams) {
     .code(200);
 }
 
+/** The /lore slash command. Answers with the message Slack renders back in the channel, so the reply IS the user-visible result rather than a status code. */
+async function serveSlackCommand(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const body = rawBody(request);
+  const refusal = authenticateSlack(request, body, h);
+
+  if (refusal) {
+    return refusal;
+  }
+  const params = new URLSearchParams(body);
+
+  if (params.get("type") === "url_verification") {
+    return challengeResponse(h, params);
+  }
+  const commandText = commandTextFrom(params);
+
+  if (!commandText) {
+    return h.response({ response_type: "ephemeral", text: USAGE });
+  }
+  const command = parseSlashCommand(commandText);
+
+  if (command.retryTaskId) {
+    return h.response(await retryReply(command.retryTaskId));
+  }
+
+  return h.response(await createReply(getPool(), command, slackSender(params)));
+}
+
 export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -248,32 +298,6 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
         description: "The message Slack renders back in the channel",
       },
     ),
-    handler: async (request, h) => {
-      const body = rawBody(request);
-      const refusal = authenticateSlack(request, body, h);
-
-      if (refusal) {
-        return refusal;
-      }
-      const params = new URLSearchParams(body);
-
-      if (params.get("type") === "url_verification") {
-        return challengeResponse(h, params);
-      }
-      const commandText = commandTextFrom(params);
-
-      if (!commandText) {
-        return h.response({ response_type: "ephemeral", text: USAGE });
-      }
-      const command = parseSlashCommand(commandText);
-
-      if (command.retryTaskId) {
-        return h.response(await retryReply(command.retryTaskId));
-      }
-
-      return h.response(
-        await createReply(getPool(), command, slackSender(params)),
-      );
-    },
+    handler: (request, h) => serveSlackCommand(getPool, request, h),
   };
 }

@@ -34,6 +34,26 @@ function toGcpTotals(
 }
 
 /** What GCP billed for the cluster the platform runs on. */
+/** One GCP breakdown — by service, or by day. Both sum gross plus credits, which is what nets to the invoice; reporting gross alone would show a bill nobody pays. `optionalTableRows` absorbs a missing table, because the billing export lands after the migration that reads it. */
+async function gcpBreakdown(
+  pool: Pool,
+  interval: { from: string; to: string },
+  by: "service" | "bucket_date",
+) {
+  const column =
+    by === "service" ? "service" : "bucket_date::text AS bucket_date";
+  const order = by === "service" ? "cost_usd DESC" : "bucket_date DESC";
+
+  return optionalTableRows(
+    pool,
+    `SELECT ${column}, SUM(cost_usd + credits_usd)::float8 AS cost_usd
+       FROM pipeline.gcp_cost_daily
+      WHERE bucket_date >= $1::date AND bucket_date <= $2::date
+      GROUP BY ${by} ORDER BY ${order}`,
+    [interval.from, interval.to],
+  );
+}
+
 export async function readGcpSpend(pool: Pool, win: SpendWindow) {
   const { interval } = win;
 
@@ -53,27 +73,10 @@ export async function readGcpSpend(pool: Pool, win: SpendWindow) {
      FROM pipeline.gcp_cost_daily`,
     [interval.from, interval.to],
   );
-  const gcpByService = await optionalTableRows(
-    pool,
-    `SELECT service, SUM(cost_usd + credits_usd)::float8 AS cost_usd
-       FROM pipeline.gcp_cost_daily
-      WHERE bucket_date >= $1::date AND bucket_date <= $2::date
-      GROUP BY service ORDER BY cost_usd DESC`,
-    [interval.from, interval.to],
-  );
-  const gcpDaily = await optionalTableRows(
-    pool,
-    `SELECT bucket_date::text AS bucket_date,
-            SUM(cost_usd + credits_usd)::float8 AS cost_usd
-       FROM pipeline.gcp_cost_daily
-      WHERE bucket_date >= $1::date AND bucket_date <= $2::date
-      GROUP BY bucket_date ORDER BY bucket_date DESC`,
-    [interval.from, interval.to],
-  );
 
   return {
     ...toGcpTotals(gcpTotalRows[0]),
-    by_service: gcpByService,
-    daily: gcpDaily,
+    by_service: await gcpBreakdown(pool, interval, "service"),
+    daily: await gcpBreakdown(pool, interval, "bucket_date"),
   };
 }

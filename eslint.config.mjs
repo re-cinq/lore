@@ -322,7 +322,6 @@ export default tseslint.config(
     // PR that empties its queue, so no bound is ever unenforced.
     files: [
       "apps/web-ui/**/*.{ts,tsx}",
-      "apps/lore-api/**/*.ts",
       "libs/shared/**/*.ts",
     ],
     rules: {

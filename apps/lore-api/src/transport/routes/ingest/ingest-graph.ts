@@ -4,7 +4,12 @@ import { zodResponse } from "../../http/zod-response.js";
 /** POST /api/repos/:o/:r/ingest-graph — spec-traceability projection trigger (docs only). */
 
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { triggerAgentSpecTrace } from "../helpers.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -30,6 +35,39 @@ type IngestGraphBody = z.infer<typeof IngestGraphBody>;
 /** Which projection kinds the push triggered. */
 const IngestTriggeredSchema = z.object({ triggered: z.array(z.string()) });
 
+/** Projects a repo's specs or ADRs into the traceability graph. Test projection is deliberately NOT accepted here — that path is CI-only, through the lore-code-trace binary. */
+async function serveIngestGraph(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const repo = `${request.params.owner}/${request.params.repo}`;
+  const body = request.payload as IngestGraphBody;
+
+  const requested =
+    body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
+  const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
+
+  enforceTrue(
+    unsupported.length <= 0,
+    apiError(400),
+    `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
+  );
+
+  // Each doc kind → fire-and-forget projection trigger.
+  const pool = getPool();
+
+  for (const kind of requested) {
+    void triggerAgentSpecTrace(pool, repo, kind, {
+      commit: body.commit,
+      force: body.force,
+      glob: body.glob,
+    });
+  }
+
+  return h.response({ triggered: requested });
+}
+
 export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -46,32 +84,6 @@ export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
         errors: [400],
       },
     ),
-    handler: async (request, h) => {
-      const repo = `${request.params.owner}/${request.params.repo}`;
-      const body = request.payload as IngestGraphBody;
-
-      const requested =
-        body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
-      const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
-
-      enforceTrue(
-        unsupported.length <= 0,
-        apiError(400),
-        `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
-      );
-
-      // Each doc kind → fire-and-forget projection trigger.
-      const pool = getPool();
-
-      for (const kind of requested) {
-        void triggerAgentSpecTrace(pool, repo, kind, {
-          commit: body.commit,
-          force: body.force,
-          glob: body.glob,
-        });
-      }
-
-      return h.response({ triggered: requested });
-    },
+    handler: (request, h) => serveIngestGraph(getPool, request, h),
   };
 }

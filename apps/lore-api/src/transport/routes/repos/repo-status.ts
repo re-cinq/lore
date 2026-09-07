@@ -1,6 +1,11 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -69,6 +74,55 @@ async function repoActivity(pool: Pool, repo: string) {
   };
 }
 
+/** Onboarding state and current activity, including `last_ingested_at` and the staleness flag — the read that tells an agent its context may be out of date. */
+/** An onboarded repo's status. `stale` is computed here rather than left to the caller: every reader would otherwise pick its own threshold, and this flag is what an agent uses to decide whether to trust the context it just assembled. */
+async function onboardedStatus(
+  pool: Pool,
+  repo: string,
+  row: Parameters<typeof parseRepoRow>[0],
+) {
+  const { settings, lastIngested } = parseRepoRow(row);
+
+  return {
+    onboarded: true,
+    repo,
+    ...(await repoActivity(pool, repo)),
+    auto_review: settings.auto_review === true,
+    last_ingested_at: lastIngested,
+    stale: isStale(lastIngested),
+  };
+}
+
+async function serveRepoStatus(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+  const { repo } = request.query as RepoStatusQuery;
+
+  if (!repo || !pool) {
+    return h.response({ onboarded: false });
+  }
+
+  try {
+    const repoRow = await pool.query(
+      `SELECT settings, last_ingested_at FROM lore.repos WHERE full_name = $1`,
+      [repo],
+    );
+
+    if (repoRow.rows.length === 0) {
+      return h.response({ onboarded: false, repo });
+    }
+
+    return h.response(await onboardedStatus(pool, repo, repoRow.rows[0]));
+  } catch (err) {
+    console.error("[repo-status] Error:", errorMessage(err));
+
+    return h.response({ onboarded: false, error: errorMessage(err) });
+  }
+}
+
 export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -84,40 +138,6 @@ export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
         description: "Onboarding state and current activity for a repo",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-      const { repo } = request.query as RepoStatusQuery;
-
-      if (!repo || !pool) {
-        return h.response({ onboarded: false });
-      }
-
-      try {
-        const repoRow = await pool.query(
-          `SELECT settings, last_ingested_at FROM lore.repos WHERE full_name = $1`,
-          [repo],
-        );
-
-        if (repoRow.rows.length === 0) {
-          return h.response({ onboarded: false, repo });
-        }
-
-        const { settings, lastIngested } = parseRepoRow(repoRow.rows[0]);
-        const activity = await repoActivity(pool, repo);
-
-        return h.response({
-          onboarded: true,
-          repo,
-          ...activity,
-          auto_review: settings.auto_review === true,
-          last_ingested_at: lastIngested,
-          stale: isStale(lastIngested),
-        });
-      } catch (err) {
-        console.error("[repo-status] Error:", errorMessage(err));
-
-        return h.response({ onboarded: false, error: errorMessage(err) });
-      }
-    },
+    handler: (request, h) => serveRepoStatus(getPool, request, h),
   };
 }

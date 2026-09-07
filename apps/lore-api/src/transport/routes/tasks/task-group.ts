@@ -3,7 +3,12 @@ import { apiError } from "../../http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -25,6 +30,36 @@ const TaskGroupSchema = z.object({
   tasks: z.array(z.record(z.unknown())),
 });
 
+/** Every task in one feature's group, with completion state — the view that answers whether a multi-repo feature is done. */
+async function serveTaskGroup(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  const { id } = request.params as unknown as GroupParams;
+
+  try {
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT id, description, task_type, status, target_repo, pr_url, created_at
+       FROM pipeline.tasks WHERE task_group_id = $1 ORDER BY created_at`,
+      [id],
+    );
+
+    return h.response({
+      group_id: id,
+      total: rows.length,
+      completed: rows.filter((t) => TERMINAL_SUCCESS.includes(t.status)).length,
+      tasks: rows,
+    });
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function taskGroupRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -40,30 +75,6 @@ export function taskGroupRoute(getPool: () => Pool | null): ServerRoute {
         description: "Every task in a group, with completion",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const { id } = request.params as unknown as GroupParams;
-
-      try {
-        const { rows } = await pool.query<{ status: string }>(
-          `SELECT id, description, task_type, status, target_repo, pr_url, created_at
-           FROM pipeline.tasks WHERE task_group_id = $1 ORDER BY created_at`,
-          [id],
-        );
-
-        return h.response({
-          group_id: id,
-          total: rows.length,
-          completed: rows.filter((t) => TERMINAL_SUCCESS.includes(t.status))
-            .length,
-          tasks: rows,
-        });
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveTaskGroup(getPool, request, h),
   };
 }

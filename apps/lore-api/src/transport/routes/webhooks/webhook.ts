@@ -4,7 +4,12 @@ import { z } from "zod";
 import { errorMessage } from "@re-cinq/lore-shared";
 // Webhook routes: GET/POST/secret for read/write/admin with graceful degradation.
 
-import type { ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { listRepoWebhooks } from "../../../work/webhook/webhook-manage.js";
 import {
   ensureFloorWebhook,
@@ -39,6 +44,36 @@ const WebhookSecretSchema = z.object({
   canonicalUrl: z.string(),
 });
 
+/** Whether this deployment's webhook plumbing is configured, without revealing the secret it would verify against. */
+async function serveWebhookStatus(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const url = canonicalUrl();
+
+  if (!url) {
+    return h.response({
+      state: "unknown",
+      canonicalUrl: "",
+      reason: "webhook_host_not_configured",
+    });
+  }
+
+  try {
+    return h.response(
+      classifyWebhook(await listRepoWebhooks(repoOf(request)), url),
+    );
+  } catch (err) {
+    // 403 = App lacks Webhooks permission; surface as unknown for graceful UI fallback.
+    const reason =
+      (err as { status?: number }).status === 403
+        ? "app_no_webhook_permission"
+        : "read_failed";
+
+    return h.response({ state: "unknown", canonicalUrl: url, reason });
+  }
+}
+
 export function webhookStatusRoute(): ServerRoute {
   return {
     method: "GET",
@@ -47,31 +82,7 @@ export function webhookStatusRoute(): ServerRoute {
       name: "RepoWebhookStatus",
       description: "Whether the repo's webhook points at this platform",
     }),
-    handler: async (request, h) => {
-      const url = canonicalUrl();
-
-      if (!url) {
-        return h.response({
-          state: "unknown",
-          canonicalUrl: "",
-          reason: "webhook_host_not_configured",
-        });
-      }
-
-      try {
-        return h.response(
-          classifyWebhook(await listRepoWebhooks(repoOf(request)), url),
-        );
-      } catch (err) {
-        // 403 = App lacks Webhooks permission; surface as unknown for graceful UI fallback.
-        const reason =
-          (err as { status?: number }).status === 403
-            ? "app_no_webhook_permission"
-            : "read_failed";
-
-        return h.response({ state: "unknown", canonicalUrl: url, reason });
-      }
-    },
+    handler: (request, h) => serveWebhookStatus(request, h),
   };
 }
 

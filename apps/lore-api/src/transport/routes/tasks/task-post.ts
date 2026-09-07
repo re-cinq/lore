@@ -8,7 +8,12 @@ import {
   revisePipelineTask,
 } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute, ResponseToolkit, ResponseObject } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
@@ -257,6 +262,33 @@ async function createTaskFromBody(
   return h.response(await createTask(createTaskArgs(parsed, description)));
 }
 
+/** Creating a task, or acknowledging a transition on one — the same endpoint, because the caller is the same MCP tool and the action rides in the body. */
+async function serveTaskPost(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  try {
+    const parsed = request.payload as TaskBody;
+
+    return (
+      (await actOnExistingTask(pool, h, parsed)) ??
+      (await createTaskFromBody(h, parsed))
+    );
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    console.error("[api/task] error:", errorMessage(err));
+
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -273,26 +305,6 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
         errors: [400, 404, 409],
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      try {
-        const parsed = request.payload as TaskBody;
-
-        return (
-          (await actOnExistingTask(pool, h, parsed)) ??
-          (await createTaskFromBody(h, parsed))
-        );
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        console.error("[api/task] error:", errorMessage(err));
-
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveTaskPost(getPool, request, h),
   };
 }

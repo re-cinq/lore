@@ -1,7 +1,12 @@
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { redactSecrets as sanitizeContent } from "@re-cinq/lore-shared";
@@ -81,6 +86,51 @@ function scheduleBackgroundExtraction(
   ).catch(() => {});
 }
 
+/** Ingests an episode and reports whether it was NEW: the writer is idempotent on content, so a re-posted conversation turn does not re-extract its facts. */
+/** Stores one episode and starts its fact extraction. Content is SANITIZED before it is hashed or stored — this table is org-wide, and a secret in a conversation turn would otherwise be readable by every agent. The hash is what makes a re-posted turn a duplicate rather than a second episode, and extraction is scheduled only for a genuinely new one. */
+async function writeEpisode(pool: Pool, body: EpisodeBody) {
+  const { content, source, ref, agent_id } = body;
+  const agent = agent_id || "unknown";
+  const safeContent = sanitizeContent(content);
+  const scopedRef = ref || null;
+  const episodeId = await insertEpisode(pool, {
+    agent,
+    safeContent,
+    contentHash: createHash("sha256").update(safeContent).digest("hex"),
+    source: source || "session",
+    ref: scopedRef,
+  });
+
+  if (episodeId === undefined) {
+    return { status: "duplicate" };
+  }
+
+  scheduleBackgroundExtraction(pool, {
+    episodeId,
+    safeContent,
+    agent,
+    ref: scopedRef,
+  });
+
+  return { status: "ok", episode_id: episodeId };
+}
+
+async function serveEpisodeWrite(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  try {
+    const written = await writeEpisode(pool!, request.payload as EpisodeBody);
+
+    return h.response(written);
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function episodeRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -93,41 +143,6 @@ export function episodeRoute(getPool: () => Pool | null): ServerRoute {
       EpisodeWrittenSchema,
       { name: "EpisodeWritten", description: "Whether the episode was new" },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      try {
-        const { content, source, ref, agent_id } =
-          request.payload as EpisodeBody;
-        const agent = agent_id || "unknown";
-        const safeContent = sanitizeContent(content);
-        const scopedRef = ref || null;
-        const contentHash = createHash("sha256")
-          .update(safeContent)
-          .digest("hex");
-        const episodeId = await insertEpisode(pool!, {
-          agent,
-          safeContent,
-          contentHash,
-          source: source || "session",
-          ref: scopedRef,
-        });
-
-        if (episodeId === undefined) {
-          return h.response({ status: "duplicate" });
-        }
-
-        scheduleBackgroundExtraction(pool!, {
-          episodeId,
-          safeContent,
-          agent,
-          ref: scopedRef,
-        });
-
-        return h.response({ status: "ok", episode_id: episodeId });
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveEpisodeWrite(getPool, request, h),
   };
 }

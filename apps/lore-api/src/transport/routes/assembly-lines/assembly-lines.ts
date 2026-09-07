@@ -1,7 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
 import { rethrowBoom, apiError } from "../../http/api-error.js";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
@@ -61,7 +66,7 @@ export function assemblyLineRoutes(
   return withLegacyAlias([
     listRunsRoute(getPool, portFor),
     runNodesRoute(getPool, portFor),
-    runTokenUsageRoute(getPool),
+    runTokenUsageRoute(getPool, portFor),
     // runDetailRoute stays OUTSIDE the alias: it is already spelled the legacy way, and aliasing it to itself makes hapi reject the duplicate route.
   ]).concat([runDetailRoute(getPool, portFor)]);
 }
@@ -85,6 +90,36 @@ async function selectRuns(
   });
 }
 
+/** A page of runs, newest first. Filters are applied in SQL rather than after the fetch, because a busy org's run table is large and the page is small. */
+async function serveRunList(
+  getPool: () => Pool | null,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const query = request.query as unknown as RunsQuery;
+
+  try {
+    const selected = await selectRuns(portFor(pool), query);
+    const enrichment = await enrichmentById(pool, selected);
+
+    return h.response({
+      runs: selected.map((run) =>
+        toRunRow(run, enrichment.get(run.id), query.task_id !== undefined),
+      ),
+    });
+  } catch (err) {
+    if (missingTable(err)) {
+      return h.response({ runs: [] });
+    }
+
+    throw err;
+  }
+}
+
 function listRunsRoute(
   getPool: () => Pool | null,
   portFor: (pool: Pool) => AssemblyRunsPort,
@@ -103,30 +138,44 @@ function listRunsRoute(
         description: "A page of runs, newest first",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const query = request.query as unknown as RunsQuery;
-
-      try {
-        const selected = await selectRuns(portFor(pool), query);
-        const enrichment = await enrichmentById(pool, selected);
-
-        return h.response({
-          runs: selected.map((run) =>
-            toRunRow(run, enrichment.get(run.id), query.task_id !== undefined),
-          ),
-        });
-      } catch (err) {
-        if (missingTable(err)) {
-          return h.response({ runs: [] });
-        }
-
-        throw err;
-      }
-    },
+    handler: (request, h) => serveRunList(getPool, portFor, request, h),
   };
+}
+
+/** The run's station visits in VISIT order, not node order — a line that loops visits the same node more than once, and the sequence is what the timeline draws. */
+async function serveRunNodes(
+  getPool: () => Pool | null,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  try {
+    const visits = await portFor(pool).listStationRuns(request.params.id);
+
+    return h.response({
+      nodes: visits.map((visit) => ({
+        node_id: visit.nodeId,
+        station_run_id: visit.stationRunId,
+        iteration: visit.iteration,
+        outcome: visit.outcome,
+        agent_cr_name: visit.agentCrName,
+        input: visit.input,
+        commit_sha: visit.commitSha,
+        started_at: visit.startedAt.toISOString(),
+        finished_at: visit.finishedAt?.toISOString() ?? null,
+      })),
+    });
+  } catch (err) {
+    if (missingTable(err)) {
+      return h.response({ nodes: [] });
+    }
+
+    throw err;
+  }
 }
 
 function runNodesRoute(
@@ -140,39 +189,60 @@ function runNodesRoute(
       name: "StationRunList",
       description: "The run's station visits, in visit order",
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      try {
-        const visits = await portFor(pool).listStationRuns(request.params.id);
-
-        return h.response({
-          nodes: visits.map((visit) => ({
-            node_id: visit.nodeId,
-            station_run_id: visit.stationRunId,
-            iteration: visit.iteration,
-            outcome: visit.outcome,
-            agent_cr_name: visit.agentCrName,
-            input: visit.input,
-            commit_sha: visit.commitSha,
-            started_at: visit.startedAt.toISOString(),
-            finished_at: visit.finishedAt?.toISOString() ?? null,
-          })),
-        });
-      } catch (err) {
-        if (missingTable(err)) {
-          return h.response({ nodes: [] });
-        }
-
-        throw err;
-      }
-    },
+    handler: (request, h) => serveRunNodes(getPool, portFor, request, h),
   };
 }
 
-function runTokenUsageRoute(getPool: () => Pool | null): ServerRoute {
+/** Tokens spent on the run so far. Summed from llm_calls rather than stored on the run, so a run still in flight reports what it has spent up to now. */
+/** Sums the run's tokens from `pipeline.agent_run_turns`, NOT `llm_calls`: the cost table only lands a row when the run ENDS, while turns arrive as the pod streams — this is the only source that can answer "so far". */
+async function sumRunTokens(pool: Pool, runId: string): Promise<unknown> {
+  const { rows } = await pool.query(
+    `SELECT
+         COALESCE(SUM((usage->>'input_tokens')::bigint), 0)::int AS input_tokens,
+         COALESCE(SUM((usage->>'output_tokens')::bigint), 0)::int AS output_tokens,
+         COALESCE(SUM((usage->>'cache_creation_input_tokens')::bigint), 0)::int
+           AS cache_creation_tokens,
+         COALESCE(SUM((usage->>'cache_read_input_tokens')::bigint), 0)::int
+           AS cache_read_tokens
+       FROM (
+         SELECT envelope->'event'->'message'->'usage' AS usage
+           FROM pipeline.agent_run_turns
+          WHERE assembly_line_id = $1
+            AND envelope->'event'->'message' ? 'usage'
+       ) turns`,
+    [runId],
+  );
+
+  return rows[0] ?? null;
+}
+
+async function serveRunTokenUsage(
+  getPool: () => Pool | null,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  try {
+    return h.response({
+      usage: await sumRunTokens(pool, request.params.id as string),
+    });
+  } catch (err) {
+    if (missingTable(err)) {
+      return h.response({ usage: null });
+    }
+
+    throw err;
+  }
+}
+
+function runTokenUsageRoute(
+  getPool: () => Pool | null,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+): ServerRoute {
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/token-usage",
@@ -180,39 +250,7 @@ function runTokenUsageRoute(getPool: () => Pool | null): ServerRoute {
       name: "AssemblyRunTokenUsage",
       description: "Tokens spent so far on the run",
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      // pipeline.agent_run_turns, NOT llm_calls: the cost table only lands a row when the run ENDS, but turns arrive while the pod streams — the only source that can answer "so far".
-      try {
-        const { rows } = await pool.query(
-          `SELECT
-             COALESCE(SUM((usage->>'input_tokens')::bigint), 0)::int AS input_tokens,
-             COALESCE(SUM((usage->>'output_tokens')::bigint), 0)::int AS output_tokens,
-             COALESCE(SUM((usage->>'cache_creation_input_tokens')::bigint), 0)::int
-               AS cache_creation_tokens,
-             COALESCE(SUM((usage->>'cache_read_input_tokens')::bigint), 0)::int
-               AS cache_read_tokens
-           FROM (
-             SELECT envelope->'event'->'message'->'usage' AS usage
-               FROM pipeline.agent_run_turns
-              WHERE assembly_line_id = $1
-                AND envelope->'event'->'message' ? 'usage'
-           ) turns`,
-          [request.params.id],
-        );
-
-        return h.response({ usage: rows[0] ?? null });
-      } catch (err) {
-        if (missingTable(err)) {
-          return h.response({ usage: null });
-        }
-
-        throw err;
-      }
-    },
+    handler: (request, h) => serveRunTokenUsage(getPool, portFor, request, h),
   };
 }
 

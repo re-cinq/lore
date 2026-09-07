@@ -20,6 +20,15 @@ export interface PipelineAnalytics {
   by_type: { task_type: string; tasks: string }[];
 }
 
+/** Task outcomes for the period. `pr-created` and `merged` both count as SUCCEEDED: a task that opened a PR did its job, whether or not a human has merged it yet. */
+function taskCounts(row: { total: string; succeeded: string; failed: string }) {
+  return {
+    total: parseInt(row.total),
+    succeeded: parseInt(row.succeeded),
+    failed: parseInt(row.failed),
+  };
+}
+
 export async function pipelineAnalytics(
   pool: Pool,
   period: AnalyticsPeriod,
@@ -39,16 +48,13 @@ export async function pipelineAnalytics(
 
   return {
     period,
+    // Parsed here rather than cast in SQL: pg returns these as strings because a count can outgrow a JS number, and the API contract is a number.
     usage: {
       llm_calls: parseInt(usageResult.rows[0].calls),
       input_tokens: parseInt(usageResult.rows[0].input_tokens),
       output_tokens: parseInt(usageResult.rows[0].output_tokens),
     },
-    tasks: {
-      total: parseInt(taskResult.rows[0].total),
-      succeeded: parseInt(taskResult.rows[0].succeeded),
-      failed: parseInt(taskResult.rows[0].failed),
-    },
+    tasks: taskCounts(taskResult.rows[0]),
     by_type: byTypeResult.rows,
   };
 }

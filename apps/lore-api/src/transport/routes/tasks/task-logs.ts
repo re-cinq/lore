@@ -198,6 +198,31 @@ async function readLogsBucket({
   };
 }
 
+/** A slice of one task's transcript, from whichever source holds it. The TURN STORE is read first: a cluster run streams into `pipeline.agent_run_turns` while it works, and the log bucket is only ever written by the mcp local runner — so a cluster task has turns and no bucket, and a local one has the reverse. */
+async function readTranscript(
+  pool: Pool | null,
+  query: TaskLogsQuery,
+): Promise<object> {
+  const { task_id: taskId, offset } = query;
+  const stored = await resolveTurnStore(pool, taskId, offset, query.cursor);
+
+  if (stored && stored.turnSlice.sawTurns) {
+    return turnStoreSliceResponse(stored, offset);
+  }
+  const repo = resolvedRepo(query.repo ?? null, stored);
+
+  enforceTrue(repo || pool, apiError(503), DB_UNAVAILABLE);
+  enforceTrue(repo, apiError(404), `task not found: ${taskId}`);
+
+  return readLogsBucket({
+    pool,
+    repo,
+    taskId,
+    offset,
+    finished: turnStoreFinished(stored),
+  });
+}
+
 export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -216,33 +241,9 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
     ),
     handler: async (request, h) => {
       const query = request.query as unknown as TaskLogsQuery;
-      const taskId = query.task_id;
-      const offset = query.offset;
-      let repo: string | null = query.repo ?? null;
 
       try {
-        const pool = getPool();
-
-        // Cluster runs stream to pipeline.agent_run_turns; the bucket is only ever written by the mcp local runner, so the turn store is read first.
-        const stored = await resolveTurnStore(
-          pool,
-          taskId,
-          offset,
-          query.cursor,
-        );
-        const finished = turnStoreFinished(stored);
-
-        if (stored && stored.turnSlice.sawTurns) {
-          return h.response(turnStoreSliceResponse(stored, offset));
-        }
-        repo = resolvedRepo(repo, stored);
-
-        enforceTrue(repo || pool, apiError(503), DB_UNAVAILABLE);
-        enforceTrue(repo, apiError(404), `task not found: ${taskId}`);
-
-        return h.response(
-          await readLogsBucket({ pool, repo, taskId, offset, finished }),
-        );
+        return h.response(await readTranscript(getPool(), query));
       } catch (err) {
         // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);

@@ -59,6 +59,57 @@ interface IngestedFileTarget {
   contentType: string;
 }
 
+/** Inserts one chunk and returns its id. Metadata is stamped at insert so a chunk carries where it came from without a join — the search path reads it on every hit. */
+async function insertChunk(
+  pool: Pool,
+  schema: string,
+  target: IngestedFileTarget,
+  chunk: Awaited<ReturnType<typeof chunkFile>>[number],
+): Promise<string | undefined> {
+  const { rows } = await pool.query(
+    `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+    [
+      chunk.content,
+      target.contentType,
+      schema,
+      target.repo,
+      target.filePath,
+      JSON.stringify(
+        buildIngestedChunkMetadata(chunk, {
+          filePath: target.filePath,
+          ingestedBy: "api",
+          commit: target.commit,
+        }),
+      ),
+    ],
+  );
+
+  return rows[0]?.id;
+}
+
+/** Embeds a chunk and stores the vector, reporting whether it landed. A separate UPDATE rather than part of the INSERT: embedding calls an external model, and a chunk that fails to embed is still worth having — it stays findable by keyword search. Only the first 8k characters are embedded, which is the model's own window. */
+async function embedChunk(
+  pool: Pool,
+  schema: string,
+  chunkId: string,
+  content: string,
+): Promise<boolean> {
+  const embedding = await getQueryEmbedding(content.substring(0, 8000));
+
+  if (!embedding) {
+    return false;
+  }
+
+  await pool.query(
+    `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
+    [`[${embedding.join(",")}]`, chunkId],
+  );
+
+  return true;
+}
+
 /** Inserts each chunk and its embedding (input capped at 8k chars as a safety net). */
 async function insertChunksWithEmbeddings(
   pool: Pool,
@@ -70,39 +121,11 @@ async function insertChunksWithEmbeddings(
   let embedded = false;
 
   for (const chunk of chunks) {
-    const { rows } = await pool.query(
-      `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id`,
-      [
-        chunk.content,
-        target.contentType,
-        schema,
-        target.repo,
-        target.filePath,
-        JSON.stringify(
-          buildIngestedChunkMetadata(chunk, {
-            filePath: target.filePath,
-            ingestedBy: "api",
-            commit: target.commit,
-          }),
-        ),
-      ],
-    );
-    const chunkId = rows[0]?.id;
+    const chunkId = await insertChunk(pool, schema, target, chunk);
 
-    if (!firstChunkId) {
-      firstChunkId = chunkId;
-    }
-    const embedding = await getQueryEmbedding(chunk.content.substring(0, 8000));
+    firstChunkId ??= chunkId;
 
-    if (embedding && chunkId) {
-      const embeddingStr = `[${embedding.join(",")}]`;
-
-      await pool.query(
-        `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
-        [embeddingStr, chunkId],
-      );
+    if (chunkId && (await embedChunk(pool, schema, chunkId, chunk.content))) {
       embedded = true;
     }
   }
@@ -128,61 +151,83 @@ async function deleteChunks(
   );
 }
 
+/** Replaces a file's chunks — never appends. Re-ingesting must not leave the previous version's chunks searchable alongside the new ones, which is why the delete is unconditional rather than a diff. */
+async function replaceChunks(
+  ctx: IngestOneFileContext,
+  file: { filePath: string; content: string; contentType: string },
+): Promise<IngestResult> {
+  const { pool, schema, repo, commit } = ctx;
+  const { filePath, content, contentType } = file;
+
+  await deleteChunks(ctx, filePath);
+
+  const { firstChunkId, embedded } = await insertChunksWithEmbeddings(
+    pool,
+    schema,
+    { repo, filePath, commit, contentType },
+    await chunkFile(content, filePath, contentType),
+  );
+
+  return {
+    file: filePath,
+    status: "ingested",
+    chunk_id: firstChunkId,
+    embedded,
+  };
+}
+
+/** What a resolved file becomes. A 404 is a DELETION rather than a failure — the file was ingested once and is gone now, so its chunks go with it — while an unreadable or unclassifiable path is SKIPPED, because neither is a fault in this repo's content. */
+async function ingestResolved(
+  ctx: IngestOneFileContext,
+  filePath: string,
+  resolved: { content: string | null; missing404: boolean },
+): Promise<IngestResult> {
+  if (resolved.missing404) {
+    await deleteChunks(ctx, filePath);
+
+    return { file: filePath, status: "deleted" };
+  }
+
+  if (!resolved.content) {
+    return {
+      file: filePath,
+      status: "skipped",
+      error: "not a file (directory?)",
+    };
+  }
+  const contentType = classifyFile(filePath);
+
+  if (!contentType) {
+    return {
+      file: filePath,
+      status: "skipped",
+      error: "unsupported file type",
+    };
+  }
+
+  return replaceChunks(ctx, {
+    filePath,
+    content: resolved.content,
+    contentType,
+  });
+}
+
 async function ingestOneFile(
   ctx: IngestOneFileContext,
   fileEntry: IngestFile,
 ): Promise<IngestResult> {
-  const { pool, schema, repo, commit, githubCtx } = ctx;
+  const { commit, githubCtx } = ctx;
   const filePath = typeof fileEntry === "string" ? fileEntry : fileEntry.path;
 
   try {
-    const { content, missing404 } = await resolveFileContent(
+    const resolved = await resolveFileContent(
       fileEntry,
       githubCtx,
       filePath,
       commit,
     );
 
-    if (missing404) {
-      await deleteChunks(ctx, filePath);
-
-      return { file: filePath, status: "deleted" };
-    }
-
-    if (!content) {
-      return {
-        file: filePath,
-        status: "skipped",
-        error: "not a file (directory?)",
-      };
-    }
-
-    const contentType = classifyFile(filePath);
-
-    if (!contentType) {
-      return {
-        file: filePath,
-        status: "skipped",
-        error: "unsupported file type",
-      };
-    }
-
-    // Replace, never append: re-ingesting a file must not leave the previous version's chunks searchable alongside the new ones.
-    await deleteChunks(ctx, filePath);
-
-    const { firstChunkId, embedded } = await insertChunksWithEmbeddings(
-      pool,
-      schema,
-      { repo, filePath, commit, contentType },
-      await chunkFile(content, filePath, contentType),
-    );
-
-    return {
-      file: filePath,
-      status: "ingested",
-      chunk_id: firstChunkId,
-      embedded,
-    };
+    return await ingestResolved(ctx, filePath, resolved);
   } catch (err) {
     console.error(`[ingest] Error processing ${filePath}:`, errorMessage(err));
 
@@ -215,6 +260,20 @@ function tallyIngestResults(results: IngestResult[]): {
   );
 }
 
+/** Ingests each file IN ORDER rather than in parallel: they share one schema and one GitHub context, and a burst of concurrent embedding calls is what the 429 backoff exists to avoid. Each file's own failure is already contained by `ingestOneFile`. */
+async function ingestEach(
+  files: IngestFile[],
+  fileCtx: IngestOneFileContext,
+): Promise<IngestResult[]> {
+  const results: IngestResult[] = [];
+
+  for (const fileEntry of files) {
+    results.push(await ingestOneFile(fileCtx, fileEntry));
+  }
+
+  return results;
+}
+
 export async function ingestFiles(
   pool: Pool,
   files: IngestFile[],
@@ -231,21 +290,13 @@ export async function ingestFiles(
 
   enforceTrue(SCHEMA_RE.test(schema), Error, `Invalid schema name: ${schema}`);
 
-  const githubCtx = await resolveGithubFetchContext(files, repo);
-  const results: IngestResult[] = [];
-
-  const fileCtx: IngestOneFileContext = {
+  const results = await ingestEach(files, {
     pool,
     schema,
     repo,
     commit,
-    githubCtx,
-  };
-
-  for (const fileEntry of files) {
-    results.push(await ingestOneFile(fileCtx, fileEntry));
-  }
-
+    githubCtx: await resolveGithubFetchContext(files, repo),
+  });
   const counts = tallyIngestResults(results);
 
   console.error(

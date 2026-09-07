@@ -93,36 +93,39 @@ function expiryIso(expiresInDays: number | undefined): string | null {
 }
 
 /** GET lists, POST writes (separate shapes); wildcard 405 fallback (validation skipped). */
-export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
-  const listOptions = zodResponse(
-    {
-      ...bearerScope("admin"),
-      validate: { query: zodValidate(TokensQuery) },
-    },
-    TokenListSchema,
-    {
-      name: "TokenList",
-      description: "A page of active tokens; the hash is never served",
-    },
-  );
-  const writeOptions = zodResponse(bearerScope("admin"), TokenWriteSchema, {
-    name: "TokenWriteResult",
-    description:
-      "The revoke acknowledgement, or the created token — served once and never again",
-    errors: [400],
-  });
+/** The listing NEVER serves the hash — it is the only stored form of a token, and serving it would make the store as good as the token itself. */
+const LIST_OPTIONS = zodResponse(
+  {
+    ...bearerScope("admin"),
+    validate: { query: zodValidate(TokensQuery) },
+  },
+  TokenListSchema,
+  {
+    name: "TokenList",
+    description: "A page of active tokens; the hash is never served",
+  },
+);
 
+/** The write answers with the created token ONCE. There is no second read: only its hash is stored, so a caller who loses it mints a new one. */
+const WRITE_OPTIONS = zodResponse(bearerScope("admin"), TokenWriteSchema, {
+  name: "TokenWriteResult",
+  description:
+    "The revoke acknowledgement, or the created token — served once and never again",
+  errors: [400],
+});
+
+export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   return [
     {
       method: "GET",
       path: "/api/tokens",
-      options: listOptions,
+      options: LIST_OPTIONS,
       handler: (request, h) => listTokens(getPool(), request, h),
     },
     {
       method: "POST",
       path: "/api/tokens",
-      options: writeOptions,
+      options: WRITE_OPTIONS,
       handler: (request, h) => writeToken(getPool(), request, h),
     },
     {

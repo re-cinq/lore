@@ -40,44 +40,57 @@ function roundDeps(
 }
 
 /** ONE planning round per feature: a second start while one is in flight is refused with the round that holds it, not queued. An orphaned `running` past its window no longer counts as in flight. */
+/** Refuses a second round while one is running. 409 rather than queueing: two rounds on one feature would answer the same questions from different drafts, and the author would have no way to tell which reply belonged to which. */
+function inFlightConflict(feature: {
+  iterations: Parameters<typeof roundInFlight>[0];
+}): { code: number; body: object } | null {
+  const inFlight = roundInFlight(feature.iterations, Date.now());
+
+  return inFlight
+    ? {
+        code: 409,
+        body: {
+          error: `A planning round (round ${inFlight.iteration}) is already running for this feature — wait for it to finish before starting another.`,
+          iteration: inFlight.iteration,
+        },
+      }
+    : null;
+}
+
+/** What the author is asking this round to do. `rewoundTo` is the iteration they NAMED, kept separate from the basis the sequence resolves — conflating the two breaks rewind, because a resolved basis is not evidence that anyone asked to rewind. */
+function roundInput(body: {
+  user_answers?: unknown;
+  from_iteration?: unknown;
+}) {
+  return {
+    answers: parseSectionAnswers(body.user_answers),
+    rewoundTo:
+      typeof body.from_iteration === "number" ? body.from_iteration : undefined,
+  };
+}
+
 export async function startPlanningRound(
   getPool: () => Pool | null,
   request: Request,
 ): Promise<{ code: number; body: object }> {
-  const repo = repoOf(request.params);
-  const id = request.params.id;
   const body = request.payload as {
     user_answers?: unknown;
     from_iteration?: unknown;
   };
-  const project = await projectFor(repo);
-  const feature = await project.features.get(id);
+  const project = await projectFor(repoOf(request.params));
+  const feature = await project.features.get(request.params.id);
 
   enforceTrue(feature, apiError(404), "feature not found");
 
-  const inFlight = roundInFlight(feature.iterations, Date.now());
+  const conflict = inFlightConflict(feature);
 
-  if (inFlight) {
-    return {
-      code: 409,
-      body: {
-        error: `A planning round (round ${inFlight.iteration}) is already running for this feature — wait for it to finish before starting another.`,
-        iteration: inFlight.iteration,
-      },
-    };
+  if (conflict) {
+    return conflict;
   }
-
   // Sequence logic lives in shared; this contributes only the HTTP status mapping.
   const round = await startRefinementRound(
     feature,
-    {
-      answers: parseSectionAnswers(body.user_answers),
-      // Rewind is author-named; the basis is resolved either way, and conflating them breaks rewind.
-      rewoundTo:
-        typeof body.from_iteration === "number"
-          ? body.from_iteration
-          : undefined,
-    },
+    roundInput(body),
     roundDeps(getPool, project),
   );
 
@@ -88,6 +101,27 @@ export async function startPlanningRound(
       ...runIdBothSpellings(round.runId),
       task_id: null,
     },
+  };
+}
+
+/** What the resumed line is told. The merge onto existing args is SHALLOW, and that shapes all three keys: `description` is rewritten because a tail node would otherwise still read refine's brief (#1470), the author's answers ride along because dropping them loses their feedback, and the two refine-only keys are explicitly nulled — omitting them would leave the previous round's values in place. */
+function acceptArgs(
+  feature: {
+    title: string;
+    original_prompt: string;
+    iterations: Parameters<typeof latestReadyGap>[0];
+  },
+  userAnswers: unknown,
+): Record<string, unknown> {
+  return {
+    description: composePlanningPrompt({
+      title: feature.title,
+      originalPrompt: feature.original_prompt,
+      priorGap: latestReadyGap(feature.iterations),
+      answers: parseSectionAnswers(userAnswers),
+    }),
+    round_feedback: null,
+    resume_from_iteration: null,
   };
 }
 
@@ -121,19 +155,7 @@ export async function acceptPlan(
   );
   await reportToParkedNode(eventReporterFor(getPool()), parked, {
     outcome: "success",
-    args: {
-      // Tail nodes read `description`; a shallow merge would leave refine's brief in place (#1470).
-      description: composePlanningPrompt({
-        title: feature.title,
-        originalPrompt: feature.original_prompt,
-        priorGap: latestReadyGap(feature.iterations),
-        // Accept carries answers like refine does; dropping them loses author feedback.
-        answers: parseSectionAnswers(body.user_answers),
-      }),
-      // Omitted keys survive a shallow merge, so these are nulled to clear refine's leftovers.
-      round_feedback: null,
-      resume_from_iteration: null,
-    },
+    args: acceptArgs(feature, body.user_answers),
   });
 
   return parked;

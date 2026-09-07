@@ -2,7 +2,12 @@ import { insertEvent } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../http/api-error.js";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -94,6 +99,48 @@ async function notifyTeamChanged(pool: Pool, repo: string): Promise<void> {
   }
 }
 
+/** One repo's settings. Cross-repo links are bidirectional, so writing them here also updates the repo on the other side of the link. */
+async function serveRepoSettings(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const repo = `${request.params.owner}/${request.params.repo}`;
+  const body = request.payload as RepoSettingsBody;
+
+  const { rows } = await pool.query<{ team: string | null }>(
+    `SELECT full_name, team FROM lore.repos WHERE full_name = $1`,
+    [repo],
+  );
+
+  enforceTrue(rows.length !== 0, apiError(404), "Repo not found");
+  const existing = rows[0];
+
+  const darkFactory = (body.settings as { dark_factory?: unknown } | undefined)
+    ?.dark_factory;
+
+  enforceDarkFactoryAllowed(darkFactory, repo);
+
+  const { updates, values } = repoUpdateClauses(body);
+
+  enforceTrue(updates.length !== 0, apiError(400), "No fields to update");
+  values.push(repo);
+  await pool.query(
+    `UPDATE lore.repos SET ${updates.join(", ")} WHERE full_name = $${values.length}`,
+    values,
+  );
+
+  // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
+  if (body.team !== undefined && (body.team || null) !== existing.team) {
+    await notifyTeamChanged(pool, repo);
+  }
+
+  return h.response({ ok: true });
+}
+
 export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "PUT",
@@ -109,42 +156,6 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
         description: "The repo settings were written",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const repo = `${request.params.owner}/${request.params.repo}`;
-      const body = request.payload as RepoSettingsBody;
-
-      const { rows } = await pool.query<{ team: string | null }>(
-        `SELECT full_name, team FROM lore.repos WHERE full_name = $1`,
-        [repo],
-      );
-
-      enforceTrue(rows.length !== 0, apiError(404), "Repo not found");
-      const existing = rows[0];
-
-      const darkFactory = (
-        body.settings as { dark_factory?: unknown } | undefined
-      )?.dark_factory;
-
-      enforceDarkFactoryAllowed(darkFactory, repo);
-
-      const { updates, values } = repoUpdateClauses(body);
-
-      enforceTrue(updates.length !== 0, apiError(400), "No fields to update");
-      values.push(repo);
-      await pool.query(
-        `UPDATE lore.repos SET ${updates.join(", ")} WHERE full_name = $${values.length}`,
-        values,
-      );
-
-      // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
-      if (body.team !== undefined && (body.team || null) !== existing.team) {
-        await notifyTeamChanged(pool, repo);
-      }
-
-      return h.response({ ok: true });
-    },
+    handler: (request, h) => serveRepoSettings(getPool, request, h),
   };
 }

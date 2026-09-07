@@ -1,7 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../http/api-error.js";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -102,6 +107,34 @@ export function memorySearchRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+/** An agent's memories with their versions and extracted facts — the browse view behind the memory page. */
+async function serveMemoryList(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { agent, limit } = request.query as unknown as MemoriesQuery;
+
+  const { rows: memories } = await pool.query<{
+    id: string;
+    has_facts: boolean;
+  }>(
+    `SELECT m.id, m.key, m.value, m.version, m.created_at, m.ttl_seconds,
+            EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
+       FROM memory.memories m
+      WHERE m.agent_id = $1 AND m.is_deleted = FALSE
+        AND (m.expires_at IS NULL OR m.expires_at > now())
+      ORDER BY m.created_at DESC
+      LIMIT $2`,
+    [agent, limit],
+  );
+
+  return h.response({ memories: await withHistory(pool, memories) });
+}
+
 export function listMemoriesRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -117,27 +150,6 @@ export function listMemoriesRoute(getPool: () => Pool | null): ServerRoute {
         description: "An agent's memories with versions and facts",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { agent, limit } = request.query as unknown as MemoriesQuery;
-
-      const { rows: memories } = await pool.query<{
-        id: string;
-        has_facts: boolean;
-      }>(
-        `SELECT m.id, m.key, m.value, m.version, m.created_at, m.ttl_seconds,
-                EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
-           FROM memory.memories m
-          WHERE m.agent_id = $1 AND m.is_deleted = FALSE
-            AND (m.expires_at IS NULL OR m.expires_at > now())
-          ORDER BY m.created_at DESC
-          LIMIT $2`,
-        [agent, limit],
-      );
-
-      return h.response({ memories: await withHistory(pool, memories) });
-    },
+    handler: (request, h) => serveMemoryList(getPool, request, h),
   };
 }

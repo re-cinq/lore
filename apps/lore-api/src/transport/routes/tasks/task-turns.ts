@@ -99,6 +99,27 @@ const TurnsRelayedSchema = z.object({
 type RelayResult = { forwarded: number; skipped: number } | { error: string };
 
 /** Forwards a local runner's turns to the Floor's sink. The task id keys everything the sink writes, so an unknown id is REFUSED rather than stored uncorrelated. */
+/** Forwards the batch to the Floor's own sink. Each line is wrapped with its KEY, which is what makes a resend idempotent — the Floor dedupes on it, so a retried relay replaces rather than duplicates. */
+async function forwardToFloor(
+  taskId: string,
+  relayable: Array<{ line: string; key: string }>,
+  floor: { url: string; token: string },
+): Promise<{ ok: boolean; status: number }> {
+  const upstream = await fetch(`${floor.url}/api/agent-events`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${floor.token}`,
+      "Content-Type": "application/x-ndjson",
+    },
+    body: relayable
+      .map(({ line, key }) => wrapTaskEnvelope(taskId, line, key))
+      .join("\n"),
+  });
+
+  return { ok: upstream.ok, status: upstream.status };
+}
+
 async function relayTurns(
   pool: Pool,
   taskId: string,
@@ -123,21 +144,11 @@ async function relayTurns(
     return { forwarded: 0, skipped };
   }
 
-  const upstream = await fetch(`${floor.url}/api/agent-events`, {
-    signal: AbortSignal.timeout(30_000),
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${floor.token}`,
-      "Content-Type": "application/x-ndjson",
-    },
-    body: relayable
-      .map(({ line, key }) => wrapTaskEnvelope(taskId, line, key))
-      .join("\n"),
-  });
+  const forwarded = await forwardToFloor(taskId, relayable, floor);
 
-  return upstream.ok
+  return forwarded.ok
     ? { forwarded: relayable.length, skipped }
-    : { error: `floor relay failed: ${upstream.status}` };
+    : { error: `floor relay failed: ${forwarded.status}` };
 }
 
 const TURNS_ROUTE_OPTIONS = zodResponse(
@@ -160,6 +171,16 @@ const TURNS_ROUTE_OPTIONS = zodResponse(
   },
 );
 
+/** Where turns are relayed to. Refused as 503 rather than dropped when unconfigured: a local runner posting into a deployment with no Floor should hear that its transcript is going nowhere. */
+function relayTarget(): { url: string; token: string } {
+  const url = process.env.LORE_AGENT_URL;
+  const token = process.env.LORE_AGENT_INTERNAL_TOKEN;
+
+  enforceTrue(url && token, apiError(503), "floor relay not configured");
+
+  return { url, token };
+}
+
 export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -167,15 +188,7 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
     options: TURNS_ROUTE_OPTIONS,
     handler: async (request, h) => {
       const { taskId } = request.params as z.infer<typeof TaskTurnsParams>;
-      const floorUrl = process.env.LORE_AGENT_URL;
-      const internalToken = process.env.LORE_AGENT_INTERNAL_TOKEN;
-
-      enforceTrue(
-        floorUrl && internalToken,
-        apiError(503),
-        "floor relay not configured",
-      );
-
+      const floor = relayTarget();
       const pool = getPool();
 
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
@@ -188,9 +201,10 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
             raw: rawBody(request),
             offset: parseTurnOffset(request.headers["x-turn-offset"]),
           },
-          { url: floorUrl, token: internalToken },
+          floor,
         );
 
+        // 502, not 500: the relay itself worked and the FLOOR refused, which is a different thing for a caller deciding whether to retry.
         return "error" in relayed
           ? h.response({ error: relayed.error }).code(502)
           : h.response(relayed);

@@ -62,6 +62,24 @@ function payloadNumber(payload: Record<string, unknown>, key: string) {
 }
 
 /** The handler core, injectable for tests: roster + claim counts + offline log. */
+/** One "agent went offline" audit entry, flattened. The run it was holding is carried through: the useful question about an offline agent is what it took down with it, not that it went. */
+function offlineEvent(entry: {
+  createdAt: Date;
+  payload: Record<string, unknown>;
+}) {
+  return {
+    created_at: entry.createdAt.toISOString(),
+    cluster_agent_id: payloadString(entry.payload, "cluster_agent_id"),
+    station_run_id: payloadString(entry.payload, "station_run_id"),
+    assembly_run_id: payloadString(entry.payload, "assembly_run_id"),
+    node_id: payloadString(entry.payload, "node_id"),
+    elapsed_since_claim_ms: payloadNumber(
+      entry.payload,
+      "elapsed_since_claim_ms",
+    ),
+  };
+}
+
 export async function handleClusterAgentList(
   deps: ClusterAgentListDeps,
 ): Promise<ClusterAgentListBody> {
@@ -81,17 +99,7 @@ export async function handleClusterAgentList(
       last_seen_at: agent.lastSeenAt.toISOString(),
       running_claims: openClaims[agent.id] ?? 0,
     })),
-    offline_events: offlineEntries.map((entry) => ({
-      created_at: entry.createdAt.toISOString(),
-      cluster_agent_id: payloadString(entry.payload, "cluster_agent_id"),
-      station_run_id: payloadString(entry.payload, "station_run_id"),
-      assembly_run_id: payloadString(entry.payload, "assembly_run_id"),
-      node_id: payloadString(entry.payload, "node_id"),
-      elapsed_since_claim_ms: payloadNumber(
-        entry.payload,
-        "elapsed_since_claim_ms",
-      ),
-    })),
+    offline_events: offlineEntries.map(offlineEvent),
   };
 }
 

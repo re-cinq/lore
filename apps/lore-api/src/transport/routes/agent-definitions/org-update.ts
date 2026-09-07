@@ -1,3 +1,4 @@
+import type { Request, ResponseToolkit, ResponseObject } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
@@ -61,6 +62,66 @@ async function resolveOrgPodResourcesUpdate(
   };
 }
 
+/** Applies a validated patch to the ORG default. `image` is refused here rather than ignored: an org-wide image change affects every repo that has not overridden it, so it is a per-repo decision by design. */
+async function applyOrgPatch(
+  pool: Pool,
+  name: string,
+  patch: ReturnType<typeof parseAgentPatch>,
+) {
+  enforceTrue(
+    !imageFieldTouched(patch),
+    apiError(400, { detail: IMAGE_ORG_DETAIL }),
+    "image_org_gated",
+  );
+  const { pod_resources, ...fields } = patch;
+  const agent = await updateOrgDefinition(
+    pool,
+    orgDefinitionFields(name, fields),
+    await resolveOrgPodResourcesUpdate(name, pod_resources),
+  );
+
+  await audit(pool, "agent_org_updated", { name });
+
+  return agent;
+}
+
+/** The org-default write. Two nested try blocks on purpose: a malformed body is the CALLER's mistake and answers 400 with the parse issues, while anything after it is either a guard's own refusal (which already carries its status) or an unexpected failure. */
+async function serveOrgUpdate(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const name = request.params.name as string;
+
+  try {
+    let patch: ReturnType<typeof parseAgentPatch>;
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
+      patch = parseAgentPatch(request.payload ?? {});
+    } catch (err) {
+      return h
+        .response({ error: "invalid_agent", issues: issuesOf(err) })
+        .code(400);
+    }
+
+    return h.response({
+      ok: true,
+      agent: await applyOrgPatch(pool, name, patch),
+    });
+  } catch (err) {
+    // A guard's refusal (the org image gate) already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    console.error("[agents] org update failed:", err);
+
+    return h.response({ error: "internal" }).code(500);
+  }
+}
+
 export function orgAgentDefinitionUpdateRoute(
   getPool: () => Pool | null,
 ): ServerRoute {
@@ -72,54 +133,7 @@ export function orgAgentDefinitionUpdateRoute(
       description: "The updated org-default definition",
       errors: [400],
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const name = request.params.name as string;
-
-      try {
-        let patch: ReturnType<typeof parseAgentPatch>;
-
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
-          patch = parseAgentPatch(request.payload ?? {});
-        } catch (err) {
-          return h
-            .response({ error: "invalid_agent", issues: issuesOf(err) })
-            .code(400);
-        }
-
-        enforceTrue(
-          !imageFieldTouched(patch),
-          apiError(400, { detail: IMAGE_ORG_DETAIL }),
-          "image_org_gated",
-        );
-
-        const { pod_resources, ...fields } = patch;
-        const podResources = await resolveOrgPodResourcesUpdate(
-          name,
-          pod_resources,
-        );
-
-        const agent = await updateOrgDefinition(
-          pool,
-          orgDefinitionFields(name, fields),
-          podResources,
-        );
-
-        await audit(pool, "agent_org_updated", { name });
-
-        return h.response({ ok: true, agent });
-      } catch (err) {
-        // A guard's refusal (the org image gate) already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        console.error("[agents] org update failed:", err);
-
-        return h.response({ error: "internal" }).code(500);
-      }
-    },
+    handler: (request, h) => serveOrgUpdate(getPool, request, h),
   };
 }
 
