@@ -24,6 +24,13 @@ const repoRoot = join(import.meta.dirname, "..");
 
 const BINARY_PREFIX = "@typescript/typescript-";
 
+/** `apps/floor/node_modules/typescript`, not the root copy typescript-eslint
+ *  keeps at 5.x and not a third party's own nested one at whatever it wants. */
+const isWorkspaceTypescript = (path) =>
+  !path.startsWith("node_modules/") &&
+  path.endsWith("/node_modules/typescript") &&
+  path.indexOf("/node_modules/") === path.lastIndexOf("/node_modules/");
+
 /** Every complaint the guard has about this package.json + lockfile pair;
  *  empty means the lockfile is sound. */
 export function platformBinaryFindings({ pkg, lock }) {
@@ -40,9 +47,7 @@ export function platformBinaryFindings({ pkg, lock }) {
   const packages = lock.packages ?? {};
   const workspaceTypescripts = Object.entries(packages).filter(
     ([path, entry]) =>
-      path !== "node_modules/typescript" &&
-      path.endsWith("/node_modules/typescript") &&
-      entry.version !== undefined,
+      isWorkspaceTypescript(path) && entry.version !== undefined,
   );
 
   return declared.flatMap((name) => {

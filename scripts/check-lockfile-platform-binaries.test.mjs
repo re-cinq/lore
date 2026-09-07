@@ -82,3 +82,31 @@ test("reports a package.json that declares no platform binary at all", () => {
     "package.json declares no @typescript/typescript-* optionalDependencies; the guard has nothing to check",
   ]);
 });
+
+test("ignores a third-party dependency's own nested typescript", () => {
+  assert.deepEqual(
+    platformBinaryFindings({
+      pkg: pkg(["linux-x64"]),
+      lock: lock({
+        "node_modules/@typescript/typescript-linux-x64": "7.0.2",
+        "node_modules/some-tool/node_modules/typescript": "5.4.5",
+        "libs/shared/node_modules/typescript": "7.0.2",
+      }),
+    }),
+    [],
+  );
+});
+
+test("ignores a third-party typescript nested inside a workspace", () => {
+  assert.deepEqual(
+    platformBinaryFindings({
+      pkg: pkg(["linux-x64"]),
+      lock: lock({
+        "node_modules/@typescript/typescript-linux-x64": "7.0.2",
+        "apps/floor/node_modules/some-tool/node_modules/typescript": "5.4.5",
+        "apps/floor/node_modules/typescript": "7.0.2",
+      }),
+    }),
+    [],
+  );
+});
