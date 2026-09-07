@@ -29,12 +29,6 @@ export interface Template {
 
 const templates = new Map<string, Template>();
 
-function resolveTemplateDir(dir?: string): string {
-  return (
-    dir || join(import.meta.dirname || process.cwd(), "../..", "templates")
-  );
-}
-
 function loadTemplateFile(templateDir: string, file: string): void {
   try {
     const raw = readFileSync(join(templateDir, file), "utf-8");
@@ -48,9 +42,8 @@ function loadTemplateFile(templateDir: string, file: string): void {
   }
 }
 
-export function loadTemplates(dir?: string): void {
-  const templateDir = resolveTemplateDir(dir);
-
+// The caller names the directory: templates ship with `libs/server-core`, not with this package, so there is no default to fall back to.
+export function loadTemplates(templateDir: string): void {
   if (!existsSync(templateDir)) {
     console.warn(
       `[context-assembly] Templates directory not found: ${templateDir}`,

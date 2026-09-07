@@ -21,6 +21,142 @@ function note(where, what) {
   problems.push(`${where}\n    ${what}`);
 }
 
+/** Filesystem paths a file computes from its OWN location at runtime.
+ *
+ * `resolve(import.meta.dirname, "../x")` and `new URL("../x", import.meta.url)`
+ * are ordinary strings to every compiler, so a rename moves the file and leaves
+ * the `..` count behind. Five of these broke during the tier migration, each
+ * found by a test failing in a way that looked nothing like a path problem.
+ *
+ * Only literal arguments can be resolved. A file that computes a path some other
+ * way is listed as UNCHECKED rather than passed over — "not checkable" and
+ * "checked and fine" must not read the same, which is the whole reason the
+ * eslint canary exists.
+ */
+const DIRNAME_CALL =
+  /\b(?:resolve|join)\(\s*import\.meta\.dirname\s*((?:,\s*"[^"]*")+)\s*\)/g;
+const URL_CALL = /new URL\(\s*"([^"]+)"\s*,\s*import\.meta\.url\s*\)/g;
+const COMPUTES_PATH = /import\.meta\.(?:dirname|url)|fileURLToPath/;
+
+function checkRuntimePaths(file) {
+  const rel = file.slice(ROOT.length + 1);
+  const text = readFileSync(file, "utf8");
+
+  if (!COMPUTES_PATH.test(text)) {
+    return { checked: 0, unchecked: false };
+  }
+
+  const here = dirname(file);
+  let checked = 0;
+
+  for (const m of text.matchAll(DIRNAME_CALL)) {
+    const parts = [...m[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]);
+    const target = resolve(here, ...parts);
+
+    checked += 1;
+
+    if (!existsSync(target)) {
+      note(
+        rel,
+        `${m[0].slice(0, 60)}…  resolves to ${target.slice(ROOT.length + 1)}, which does not exist`,
+      );
+    }
+  }
+
+  for (const m of text.matchAll(URL_CALL)) {
+    const target = resolve(here, m[1]);
+
+    checked += 1;
+
+    if (!existsSync(target)) {
+      note(
+        rel,
+        `new URL("${m[1]}", import.meta.url) resolves to ${target.slice(ROOT.length + 1)}, which does not exist`,
+      );
+    }
+  }
+
+  return { checked, unchecked: checked === 0 };
+}
+
+/** A tsconfig `paths` alias into a workspace's src BYPASSES its export map.
+ *
+ * Wildcard fallbacks cover any subpath whose target keeps its shape. They cannot
+ * express a PIN — an export whose target moved somewhere the pattern does not
+ * reach, like `project/assembly-runs/run-graph.js` landing in `domain/`. When
+ * exports pin one and the alias does not, every consumer resolves and this one
+ * config does not, which is a failure only the drift check sees.
+ */
+function checkAliasCoverage(tsconfigPath, pkgDirs) {
+  const rel = tsconfigPath.slice(ROOT.length + 1);
+  const raw = readFileSync(tsconfigPath, "utf8").replace(/^\s*\/\/.*$/gm, "");
+  const paths = JSON.parse(raw).compilerOptions?.paths ?? {};
+  const base = dirname(tsconfigPath);
+
+  // Which workspace does each alias point into?
+  const aliased = new Map();
+
+  for (const [pattern, targets] of Object.entries(paths)) {
+    const name = pattern.replace(/\/\*$/, "");
+
+    if (!name.startsWith("@")) {
+      continue;
+    }
+    const dir = pkgDirs.find((d) => {
+      const pkg = JSON.parse(readFileSync(join(d, "package.json"), "utf8"));
+
+      return pkg.name === name;
+    });
+
+    if (dir) {
+      aliased.set(name, dir);
+    }
+  }
+
+  for (const [name, pkgDir] of aliased) {
+    const pkg = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8"));
+
+    for (const subpath of Object.keys(pkg.exports ?? {})) {
+      if (subpath === "." || subpath.includes("*")) {
+        continue;
+      }
+      const spec = name + subpath.slice(1); // "./x.js" -> "@pkg/x.js"
+
+      const candidates = paths[spec] ?? [];
+
+      if (candidates.length === 0) {
+        for (const [pattern, targets] of Object.entries(paths)) {
+          if (!pattern.endsWith("/*")) {
+            continue;
+          }
+          const prefix = pattern.slice(0, -1);
+
+          if (!spec.startsWith(prefix)) {
+            continue;
+          }
+          const star = spec.slice(prefix.length);
+
+          candidates.push(...targets.map((t) => t.replace("*", star)));
+        }
+      }
+
+      // A .js specifier resolves to the .ts that produces it.
+      const found = candidates.some((c) =>
+        [c, c.replace(/\.js$/, ".ts"), c.replace(/\.js$/, ".tsx")].some((x) =>
+          existsSync(resolve(base, x)),
+        ),
+      );
+
+      if (!found) {
+        note(
+          rel,
+          `${spec} is a pinned export that no \`paths\` alias resolves — pin it here too`,
+        );
+      }
+    }
+  }
+}
+
 /** The directory a declared path lives in, glob or not.
  *
  * The part before the FIRST glob character: `dirname` of the whole pattern is
@@ -210,6 +346,15 @@ for (const d of pkgDirs) {
   checkVitestConfig(d);
 }
 
+// tsconfigs that alias a workspace package into its src, bypassing exports.
+for (const f of ["scripts/type-drift/tsconfig.drift.json"]) {
+  const p = join(ROOT, f);
+
+  if (existsSync(p)) {
+    checkAliasCoverage(p, pkgDirs);
+  }
+}
+
 const scanned = ["infra", "charts", "apps", "libs", ".github", "scripts"]
   .map((d) => join(ROOT, d))
   .filter(existsSync)
@@ -242,6 +387,25 @@ for (const f of scanned.filter((x) => x.includes("/.github/workflows/"))) {
   }
 }
 
+const sources = ["apps", "libs", "scripts", "tools"]
+  .map((d) => join(ROOT, d))
+  .filter(existsSync)
+  .flatMap((d) => walk(d))
+  .filter((f) => f.endsWith(".ts") && !f.includes("/dist/"));
+
+let runtimeChecked = 0;
+const runtimeUnchecked = [];
+
+for (const f of sources) {
+  const { checked, unchecked } = checkRuntimePaths(f);
+
+  runtimeChecked += checked;
+
+  if (unchecked) {
+    runtimeUnchecked.push(f.slice(ROOT.length + 1));
+  }
+}
+
 if (problems.length) {
   console.error(
     `\n[declared-paths] ${problems.length} declared path(s) do not resolve:\n`,
@@ -261,6 +425,19 @@ if (problems.length) {
 console.log(
   `[declared-paths] ${pkgDirs.length - skipped.length} manifests and ${scanned.length} files — every declared path resolves`,
 );
+console.log(
+  `[declared-paths] ${runtimeChecked} runtime-computed paths resolve`,
+);
+
+if (runtimeUnchecked.length) {
+  console.log(
+    `[declared-paths] ${runtimeUnchecked.length} file(s) compute a path in a form this cannot parse — NOT checked, listed so the gap is visible:`,
+  );
+
+  for (const f of runtimeUnchecked) {
+    console.log(`[declared-paths]     ${f}`);
+  }
+}
 
 for (const s of skipped) {
   console.log(
