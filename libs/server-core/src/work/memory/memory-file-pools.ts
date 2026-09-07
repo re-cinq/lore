@@ -3,6 +3,7 @@
 import { join } from "node:path";
 import { resolveAgentId } from "@re-cinq/lore-shared";
 import {
+  nextVersionFor,
   BASE_DIR,
   type MemoryRecord,
   type MemoryEntry,
@@ -40,10 +41,7 @@ export function sharedWriteFile(
 
   const memories = readJson<Record<string, MemoryRecord>>(filePath, {});
 
-  const existing = memories[key];
-  const nextVersion =
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- memories is Record<string, MemoryRecord> read from disk JSON; this key may genuinely be absent
-    existing && !existing.is_deleted ? existing.version + 1 : 1;
+  const nextVersion = nextVersionFor(memories[key]);
 
   memories[key] = {
     value,

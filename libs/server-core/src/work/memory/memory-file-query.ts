@@ -11,15 +11,11 @@ import {
   type SearchResult,
 } from "./memory-file-core.js";
 
-export function listMemoriesFile(
-  agentId?: string,
-  limit: number = 50,
-  offset: number = 0,
-): { memories: MemoryListEntry[]; total: number } {
-  const id = resolveAgentId(agentId);
-  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
-
-  // Filter out deleted and expired entries
+/** The live entries, newest first. Deleted and expired records stay on disk — the store never rewrites a file to drop one — so every reader filters them out itself. */
+function activeEntries(
+  memories: Record<string, MemoryRecord>,
+  id: string,
+): MemoryListEntry[] {
   const active: MemoryListEntry[] = [];
 
   for (const [key, record] of Object.entries(memories)) {
@@ -36,9 +32,20 @@ export function listMemoriesFile(
       has_facts: false,
     });
   }
-
-  // Sort by created_at descending (newest first)
   active.sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  return active;
+}
+
+export function listMemoriesFile(
+  agentId?: string,
+  limit: number = 50,
+  offset: number = 0,
+): { memories: MemoryListEntry[]; total: number } {
+  const id = resolveAgentId(agentId);
+  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
+
+  const active = activeEntries(memories, id);
 
   const total = active.length;
   const paged = active.slice(offset, offset + limit);

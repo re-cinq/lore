@@ -33,6 +33,26 @@ export async function createSnapshot(agentId?: string) {
   };
 }
 
+/** Puts each memory back to the version the snapshot names, embedding included — a value restored without its embedding stays invisible to search, which is worse than not restoring it. A ref whose version row is gone is left alone rather than blanked. */
+async function revertToVersions(
+  pool: NonNullable<ReturnType<typeof getMemoryPool>>,
+  refs: Array<{ memory_id: string; version: number }>,
+): Promise<void> {
+  for (const ref of refs) {
+    const { rows: ver } = await pool.query(
+      `SELECT value, embedding FROM memory.memory_versions WHERE memory_id = $1 AND version = $2`,
+      [ref.memory_id, ref.version],
+    );
+
+    if (ver.length > 0) {
+      await pool.query(
+        `UPDATE memory.memories SET value = $1, version = $2, embedding = $3, is_deleted = FALSE WHERE id = $4`,
+        [ver[0].value, ref.version, ver[0].embedding, ref.memory_id],
+      );
+    }
+  }
+}
+
 export async function restoreSnapshot(snapshotId: string) {
   const pool = getMemoryPool()!;
   const { rows: snaps } = await pool.query(
@@ -48,20 +68,7 @@ export async function restoreSnapshot(snapshotId: string) {
   }>;
   const refIds = refs.map((r) => r.memory_id);
 
-  // Revert each memory to snapshotted version
-  for (const ref of refs) {
-    const { rows: ver } = await pool.query(
-      `SELECT value, embedding FROM memory.memory_versions WHERE memory_id = $1 AND version = $2`,
-      [ref.memory_id, ref.version],
-    );
-
-    if (ver.length > 0) {
-      await pool.query(
-        `UPDATE memory.memories SET value = $1, version = $2, embedding = $3, is_deleted = FALSE WHERE id = $4`,
-        [ver[0].value, ref.version, ver[0].embedding, ref.memory_id],
-      );
-    }
-  }
+  await revertToVersions(pool, refs);
   // Soft-delete memories created after snapshot that aren't in refs
   await pool.query(
     `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND id != ALL($2::uuid[]) AND created_at > $3`,

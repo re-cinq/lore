@@ -327,7 +327,6 @@ export default tseslint.config(
       "apps/mcp-server/**/*.ts",
       "apps/stations/**/*.ts",
       "libs/shared/**/*.ts",
-      "libs/server-core/**/*.ts",
     ],
     rules: {
       "max-lines-per-function": [

@@ -167,3 +167,8 @@ export function activeMemoryEntry(
     expires_at: record.expires_at,
   };
 }
+
+/** A soft-deleted key starts over at 1 — the history it had belonged to a memory somebody removed, and continuing its numbering would read as an edit of it. */
+export function nextVersionFor(existing: MemoryRecord | undefined): number {
+  return existing && !existing.is_deleted ? existing.version + 1 : 1;
+}

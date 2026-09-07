@@ -103,37 +103,14 @@ export function createTask({
 
 // ── Review iteration (T025) ─────────────────────────────────────────
 
-export async function handleReviewResult(
+/** A second round of changes goes to a human: two agent-driven iterations on the same PR have not converged, and a third would spend tokens re-litigating the same comments. */
+async function escalateOrIterate(
+  task: { task_type: unknown; target_repo: string; target_branch?: string },
   taskId: string,
-  approved: boolean,
+  iteration: number,
   comments: string,
 ): Promise<void> {
-  const task = await getTask(taskId);
-
-  if (!task) {
-    return;
-  }
-
-  if (approved) {
-    // Agent approval logged but human still needs to approve
-    await updateTaskStatus(taskId, "review", {
-      review_result: "approved",
-      comments,
-    });
-
-    return;
-  }
-
-  // Check iteration count
-  const iteration = ((task.review_iteration as number) || 0) + 1;
-
-  await getPool().query(
-    `UPDATE pipeline.tasks SET review_iteration = $1 WHERE id = $2`,
-    [iteration, taskId],
-  );
-
   if (iteration >= 2) {
-    // Max iterations reached, escalate to human
     await updateTaskStatus(taskId, "review", {
       review_result: "needs-human-review",
       comments,
@@ -143,7 +120,7 @@ export async function handleReviewResult(
     return;
   }
 
-  // Re-trigger implementation agent with review feedback (immediate — active feedback loop)
+  // `immediate` because this closes an active feedback loop — the reviewer is waiting on the same PR, not queueing new work.
   await createTask({
     description: `Address review feedback on PR: ${comments.substring(0, 200)}`,
     taskType: task.task_type as string,
@@ -156,6 +133,37 @@ export async function handleReviewResult(
     review_result: "changes-requested",
     iteration,
   });
+}
+
+export async function handleReviewResult(
+  taskId: string,
+  approved: boolean,
+  comments: string,
+): Promise<void> {
+  const task = await getTask(taskId);
+
+  if (!task) {
+    return;
+  }
+
+  if (approved) {
+    // Agent approval is recorded, not acted on — a human still merges.
+    await updateTaskStatus(taskId, "review", {
+      review_result: "approved",
+      comments,
+    });
+
+    return;
+  }
+  const iteration = ((task.review_iteration as number) || 0) + 1;
+
+  // Counted BEFORE the retry is created, so a crash mid-dispatch cannot replay the same iteration forever.
+  await getPool().query(
+    `UPDATE pipeline.tasks SET review_iteration = $1 WHERE id = $2`,
+    [iteration, taskId],
+  );
+
+  await escalateOrIterate(task, taskId, iteration, comments);
 }
 
 // ── Task retry (single source in shared) ────────────────────────────
