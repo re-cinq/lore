@@ -8,7 +8,7 @@ import {
 import type { WireOf } from "../../../lib/wire-schema.js";
 import {
   DEFAULT_TTL_SEC,
-  tracer,
+  leaseSpan,
   acquiredResult,
   type LeaseBackend,
   type AcquireResult,
@@ -78,14 +78,10 @@ export class FileLeaseBackend implements LeaseBackend {
     holder: string,
     ttlSec: number = DEFAULT_TTL_SEC,
   ): Promise<AcquireResult> {
-    return await tracer.startActiveSpan("lore.lease.acquire", async (span) => {
-      span.setAttribute("branch_name", branchName);
-      span.setAttribute("task_id", taskId ?? "");
-      span.setAttribute("holder", holder);
-      span.setAttribute("ttl_sec", ttlSec);
-      span.setAttribute("backend", "file");
-
-      try {
+    return await leaseSpan(
+      "acquire",
+      { backend: "file", branchName, taskId: taskId ?? "", holder, ttlSec },
+      async (span) => {
         const existing = await this.readRecord(branchName);
         const now = Date.now();
         const rejected = rejectedIfHeld(existing, now, span);
@@ -105,10 +101,8 @@ export class FileLeaseBackend implements LeaseBackend {
         });
 
         return acquiredResult(span, tookOverFrom);
-      } finally {
-        span.end();
-      }
-    });
+      },
+    );
   }
 
   async refresh(
@@ -117,17 +111,10 @@ export class FileLeaseBackend implements LeaseBackend {
     ttlSec: number = DEFAULT_TTL_SEC,
     phase?: string,
   ): Promise<boolean> {
-    return await tracer.startActiveSpan("lore.lease.refresh", async (span) => {
-      span.setAttribute("branch_name", branchName);
-      span.setAttribute("holder", holder);
-      span.setAttribute("ttl_sec", ttlSec);
-      span.setAttribute("backend", "file");
-
-      if (phase) {
-        span.setAttribute("phase", phase);
-      }
-
-      try {
+    return await leaseSpan(
+      "refresh",
+      { backend: "file", branchName, holder, ttlSec, phase },
+      async (span) => {
         const existing = await this.readRecord(branchName);
 
         if (!existing || existing.holder !== holder) {
@@ -143,19 +130,15 @@ export class FileLeaseBackend implements LeaseBackend {
         span.setAttribute("outcome", "refreshed");
 
         return true;
-      } finally {
-        span.end();
-      }
-    });
+      },
+    );
   }
 
   async release(branchName: string, holder: string): Promise<boolean> {
-    return await tracer.startActiveSpan("lore.lease.release", async (span) => {
-      span.setAttribute("branch_name", branchName);
-      span.setAttribute("holder", holder);
-      span.setAttribute("backend", "file");
-
-      try {
+    return await leaseSpan(
+      "release",
+      { backend: "file", branchName, holder },
+      async (span) => {
         const existing = await this.readRecord(branchName);
 
         if (!existing || existing.holder !== holder) {
@@ -167,51 +150,43 @@ export class FileLeaseBackend implements LeaseBackend {
         span.setAttribute("outcome", "released");
 
         return true;
-      } finally {
-        span.end();
-      }
-    });
+      },
+    );
   }
 
   async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
-    return await tracer.startActiveSpan("lore.lease.reap", async (span) => {
-      span.setAttribute("backend", "file");
+    return await leaseSpan("reap", { backend: "file" }, async (span) => {
+      let entries: string[];
 
       try {
-        let entries: string[];
-
-        try {
-          entries = await fs.readdir(this.leasesDir);
-        } catch (err) {
-          if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-            return [];
-          }
-          throw err;
+        entries = await fs.readdir(this.leasesDir);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          return [];
         }
-        const reaped: ExpiredLease[] = [];
-
-        for (const entry of entries) {
-          const rec = await this.readRecord(
-            decodeURIComponent(entry.replace(/\.json$/, "")),
-          );
-
-          if (!rec || new Date(rec.expires_at).getTime() >= cutoff.getTime()) {
-            continue;
-          }
-          await fs.unlink(path.join(this.leasesDir, entry));
-          reaped.push({
-            branch_name: rec.branch_name,
-            task_id: rec.task_id,
-            holder: rec.holder,
-            expires_at: rec.expires_at,
-          });
-        }
-        span.setAttribute("reaped_count", reaped.length);
-
-        return reaped;
-      } finally {
-        span.end();
+        throw err;
       }
+      const reaped: ExpiredLease[] = [];
+
+      for (const entry of entries) {
+        const rec = await this.readRecord(
+          decodeURIComponent(entry.replace(/\.json$/, "")),
+        );
+
+        if (!rec || new Date(rec.expires_at).getTime() >= cutoff.getTime()) {
+          continue;
+        }
+        await fs.unlink(path.join(this.leasesDir, entry));
+        reaped.push({
+          branch_name: rec.branch_name,
+          task_id: rec.task_id,
+          holder: rec.holder,
+          expires_at: rec.expires_at,
+        });
+      }
+      span.setAttribute("reaped_count", reaped.length);
+
+      return reaped;
     });
   }
 }

@@ -151,14 +151,6 @@ jobs:
           - name: catalog-drift
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
             test: bash scripts/check-catalog-drift.sh
-          # web-ui's builtin assembly-line graphs are GENERATED from the YAMLs —
-          # it is outside the workspace and carries no YAML parser, so it needs a
-          # copy, and the hand copy rotted (feature-planning claimed 2 nodes while
-          # the YAML had 9, and 8 lines were missing outright). This fails the moment
-          # a definition changes without regenerating.
-          - name: builtin-definitions-drift
-            build: npm run build -w @re-cinq/lore-shared
-            test: bash scripts/check-builtin-definitions-drift.sh
           # The OpenAPI artifact + the client types generated from it. web-ui's Docker
           # context (apps/web-ui) cannot reach lore-api at build time, so both are
           # COMMITTED rather than generated during the image build — which means only

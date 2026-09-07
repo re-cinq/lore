@@ -1,4 +1,4 @@
-// Blueprint graphs as TEST FIXTURES; was builtin-definitions.ts, now runs carry their own (FR6.38).
+// Blueprint graphs as TEST FIXTURES. Runs carry their own graph (FR6.38), so these pin shapes for tests rather than describing what ships.
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import {

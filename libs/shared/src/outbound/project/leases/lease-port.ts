@@ -15,6 +15,7 @@ export interface LeasePool {
 
 export const DEFAULT_TTL_SEC = 600;
 
+/** Captured at module load, so a test that records spans must register its provider once and never call `trace.disable()`: disabling installs a fresh proxy provider and leaves this tracer delegating to the old one, which silently makes every span a no-op. */
 export const tracer: Tracer = trace.getTracer("lore.lease");
 
 export const EXPIRED_LEASE_SHAPE = TaskLeaseSchema.pick({
@@ -78,4 +79,46 @@ export function acquiredResult(
 /** The narrow reap surface the lease-reaper depends on (DbLeaseBackend satisfies it). */
 export interface LeaseReaper {
   reapExpired(cutoff: Date): Promise<ExpiredLease[]>;
+}
+
+/** The attributes a lease span carries; a field left `undefined` is one the operation does not have. */
+export interface LeaseSpanAttrs {
+  backend: "db" | "file";
+  branchName?: string;
+  taskId?: string;
+  holder?: string;
+  ttlSec?: number;
+  phase?: string;
+}
+
+const SPAN_ATTRS: ReadonlyArray<[keyof LeaseSpanAttrs, string]> = [
+  ["branchName", "branch_name"],
+  ["taskId", "task_id"],
+  ["holder", "holder"],
+  ["ttlSec", "ttl_sec"],
+  ["backend", "backend"],
+  ["phase", "phase"],
+];
+
+/** Opens the span a lease operation records. Both backends trace the same four operations with the same attributes, so the snake_case names are spelled here once rather than once per backend — a typo in one copy would have diverged the two backends' telemetry silently. `end()` runs even when the body throws. */
+export async function leaseSpan<T>(
+  op: "acquire" | "refresh" | "release" | "reap",
+  attrs: LeaseSpanAttrs,
+  body: (span: Span) => Promise<T>,
+): Promise<T> {
+  return await tracer.startActiveSpan(`lore.lease.${op}`, async (span) => {
+    for (const [field, attribute] of SPAN_ATTRS) {
+      const value = attrs[field];
+
+      if (value !== undefined) {
+        span.setAttribute(attribute, value);
+      }
+    }
+
+    try {
+      return await body(span);
+    } finally {
+      span.end();
+    }
+  });
 }

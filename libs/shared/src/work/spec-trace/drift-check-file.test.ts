@@ -108,6 +108,87 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     }
   }
 
+  interface ChunkSeed {
+    filePath?: string;
+    startLine?: number;
+    endLine?: number;
+    symbolName?: string | null;
+    contentHash?: string | null;
+  }
+
+  const ORDINARY_CHUNK = {
+    filePath: "src/widget.ts",
+    startLine: 1,
+    endLine: 20,
+    symbolName: "render" as string | null,
+    contentHash: "OLDHASH" as string | null,
+  };
+
+  async function seedCodeChunk(
+    repo: string,
+    seed: ChunkSeed = {},
+  ): Promise<string> {
+    const { filePath, startLine, endLine, symbolName, contentHash } = {
+      ...ORDINARY_CHUNK,
+      ...seed,
+    };
+    const seeded = await dgraphClient.newTxn().mutate({
+      setJson: {
+        uid: "_:cc",
+        "dgraph.type": "CodeChunk",
+        "CodeChunk.xid": `${repo}|${filePath}|${startLine}`,
+        "CodeChunk.repo": repo,
+        "CodeChunk.file_path": filePath,
+        "CodeChunk.start_line": startLine,
+        "CodeChunk.end_line": endLine,
+        ...(symbolName === null ? {} : { "CodeChunk.symbol_name": symbolName }),
+        ...(contentHash === null
+          ? {}
+          : { "CodeChunk.content_hash": contentHash }),
+      },
+      commitNow: true,
+    });
+
+    return seeded.data.uids.cc;
+  }
+
+  interface SpecNodeSeed {
+    type?: "Statement" | "AcceptanceCriterion";
+    xid: string;
+    ordinal?: number;
+    text?: string;
+    codeChunkUid: string;
+    embedding?: string;
+  }
+
+  const ORDINARY_SPEC_NODE = {
+    type: "Statement" as "Statement" | "AcceptanceCriterion",
+    ordinal: 7,
+    text: "The widget renders a click.",
+    embedding: undefined as string | undefined,
+  };
+
+  async function seedSpecNode(seed: SpecNodeSeed): Promise<void> {
+    const { type, xid, ordinal, text, codeChunkUid, embedding } = {
+      ...ORDINARY_SPEC_NODE,
+      ...seed,
+    };
+
+    await dgraphClient.newTxn().mutate({
+      setJson: {
+        "dgraph.type": type,
+        [`${type}.xid`]: xid,
+        [`${type}.ordinal`]: ordinal,
+        [`${type}.text`]: text,
+        [`${type}.implemented_by`]: [{ uid: codeChunkUid }],
+        ...(embedding === undefined
+          ? {}
+          : { [`${type}.embedding`]: embedding }),
+      },
+      commitNow: true,
+    });
+  }
+
   let createdRepo = "";
   let createdStatementXid = "";
   let createdAcXid = "";
@@ -136,32 +217,9 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
     createdStatementXid = statementXid;
 
-    const seededCodeChunk = await dgraphClient.newTxn().mutate({
-      setJson: {
-        uid: "_:cc",
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|src/widget.ts|1`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/widget.ts",
-        "CodeChunk.start_line": 1,
-        "CodeChunk.end_line": 20,
-        "CodeChunk.symbol_name": "render",
-        "CodeChunk.content_hash": "OLDHASH",
-      },
-      commitNow: true,
-    });
-    const codeChunkUid = seededCodeChunk.data.uids.cc;
+    const codeChunkUid = await seedCodeChunk(repo);
 
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        "dgraph.type": "Statement",
-        "Statement.xid": statementXid,
-        "Statement.ordinal": 7,
-        "Statement.text": "The widget renders a click.",
-        "Statement.implemented_by": [{ uid: codeChunkUid }],
-      },
-      commitNow: true,
-    });
+    await seedSpecNode({ xid: statementXid, codeChunkUid });
 
     await driftCheckFile(
       repo,
@@ -212,32 +270,9 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
     createdStatementXid = statementXid;
 
-    const seededCodeChunk = await dgraphClient.newTxn().mutate({
-      setJson: {
-        uid: "_:cc",
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|src/widget.ts|1`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/widget.ts",
-        "CodeChunk.start_line": 1,
-        "CodeChunk.end_line": 20,
-        "CodeChunk.symbol_name": "render",
-        "CodeChunk.content_hash": "OLDHASH",
-      },
-      commitNow: true,
-    });
-    const codeChunkUid = seededCodeChunk.data.uids.cc;
+    const codeChunkUid = await seedCodeChunk(repo);
 
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        "dgraph.type": "Statement",
-        "Statement.xid": statementXid,
-        "Statement.ordinal": 7,
-        "Statement.text": "The widget renders a click.",
-        "Statement.implemented_by": [{ uid: codeChunkUid }],
-      },
-      commitNow: true,
-    });
+    await seedSpecNode({ xid: statementXid, codeChunkUid });
 
     const result = await driftCheckFile(
       repo,
@@ -274,31 +309,14 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
     createdAcXid = acXid;
 
-    const seededCodeChunk = await dgraphClient.newTxn().mutate({
-      setJson: {
-        uid: "_:cc",
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|src/widget.ts|1`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/widget.ts",
-        "CodeChunk.start_line": 1,
-        "CodeChunk.end_line": 20,
-        "CodeChunk.symbol_name": "render",
-        "CodeChunk.content_hash": "OLDHASH",
-      },
-      commitNow: true,
-    });
-    const codeChunkUid = seededCodeChunk.data.uids.cc;
+    const codeChunkUid = await seedCodeChunk(repo);
 
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        "dgraph.type": "AcceptanceCriterion",
-        "AcceptanceCriterion.xid": acXid,
-        "AcceptanceCriterion.ordinal": 3,
-        "AcceptanceCriterion.text": "The system rejects an expired token.",
-        "AcceptanceCriterion.implemented_by": [{ uid: codeChunkUid }],
-      },
-      commitNow: true,
+    await seedSpecNode({
+      type: "AcceptanceCriterion",
+      xid: acXid,
+      ordinal: 3,
+      text: "The system rejects an expired token.",
+      codeChunkUid: codeChunkUid,
     });
 
     const result = await driftCheckFile(
@@ -346,31 +364,9 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
     createdStatementXid = statementXid;
 
-    const seededCodeChunk = await dgraphClient.newTxn().mutate({
-      setJson: {
-        uid: "_:cc",
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|src/widget.ts|1`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/widget.ts",
-        "CodeChunk.start_line": 1,
-        "CodeChunk.end_line": 20,
-        "CodeChunk.symbol_name": "render",
-      },
-      commitNow: true,
-    });
-    const codeChunkUid = seededCodeChunk.data.uids.cc;
+    const codeChunkUid = await seedCodeChunk(repo, { contentHash: null });
 
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        "dgraph.type": "Statement",
-        "Statement.xid": statementXid,
-        "Statement.ordinal": 7,
-        "Statement.text": "The widget renders a click.",
-        "Statement.implemented_by": [{ uid: codeChunkUid }],
-      },
-      commitNow: true,
-    });
+    await seedSpecNode({ xid: statementXid, codeChunkUid });
 
     const result = await driftCheckFile(
       repo,
@@ -420,32 +416,9 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
     createdStatementXid = statementXid;
 
-    const seededCodeChunk = await dgraphClient.newTxn().mutate({
-      setJson: {
-        uid: "_:cc",
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|src/gone.ts|1`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/gone.ts",
-        "CodeChunk.start_line": 1,
-        "CodeChunk.end_line": 20,
-        "CodeChunk.symbol_name": "render",
-        "CodeChunk.content_hash": "OLDHASH",
-      },
-      commitNow: true,
-    });
-    const codeChunkUid = seededCodeChunk.data.uids.cc;
+    const codeChunkUid = await seedCodeChunk(repo, { filePath: "src/gone.ts" });
 
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        "dgraph.type": "Statement",
-        "Statement.xid": statementXid,
-        "Statement.ordinal": 7,
-        "Statement.text": "The widget renders a click.",
-        "Statement.implemented_by": [{ uid: codeChunkUid }],
-      },
-      commitNow: true,
-    });
+    await seedSpecNode({ xid: statementXid, codeChunkUid });
 
     await driftCheckFile(repo, "src/gone.ts", [], dgraphClient);
 
@@ -472,32 +445,12 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
     createdStatementXid = statementXid;
 
-    const seededCodeChunk = await dgraphClient.newTxn().mutate({
-      setJson: {
-        uid: "_:cc",
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|src/widget.ts|1`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/widget.ts",
-        "CodeChunk.start_line": 1,
-        "CodeChunk.end_line": 20,
-        "CodeChunk.symbol_name": "render",
-        "CodeChunk.content_hash": "OLDHASH",
-      },
-      commitNow: true,
-    });
-    const codeChunkUid = seededCodeChunk.data.uids.cc;
+    const codeChunkUid = await seedCodeChunk(repo);
 
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        "dgraph.type": "Statement",
-        "Statement.xid": statementXid,
-        "Statement.ordinal": 7,
-        "Statement.text": "The widget renders a click.",
-        "Statement.implemented_by": [{ uid: codeChunkUid }],
-        "Statement.embedding": `[${pad768([1, 1, 0]).join(",")}]`,
-      },
-      commitNow: true,
+    await seedSpecNode({
+      xid: statementXid,
+      codeChunkUid: codeChunkUid,
+      embedding: `[${pad768([1, 1, 0]).join(",")}]`,
     });
 
     await driftCheckFile(
@@ -539,32 +492,12 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
     createdStatementXid = statementXid;
 
-    const seededCodeChunk = await dgraphClient.newTxn().mutate({
-      setJson: {
-        uid: "_:cc",
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|src/widget.ts|50`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/widget.ts",
-        "CodeChunk.start_line": 50,
-        "CodeChunk.end_line": 60,
-        "CodeChunk.symbol_name": "render",
-        "CodeChunk.content_hash": "OLDHASH",
-      },
-      commitNow: true,
+    const codeChunkUid = await seedCodeChunk(repo, {
+      startLine: 50,
+      endLine: 60,
     });
-    const codeChunkUid = seededCodeChunk.data.uids.cc;
 
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        "dgraph.type": "Statement",
-        "Statement.xid": statementXid,
-        "Statement.ordinal": 7,
-        "Statement.text": "The widget renders a click.",
-        "Statement.implemented_by": [{ uid: codeChunkUid }],
-      },
-      commitNow: true,
-    });
+    await seedSpecNode({ xid: statementXid, codeChunkUid });
 
     await driftCheckFile(
       repo,
@@ -604,31 +537,16 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
     createdStatementXid = statementXid;
 
-    const seededCodeChunk = await dgraphClient.newTxn().mutate({
-      setJson: {
-        uid: "_:cc",
-        "dgraph.type": "CodeChunk",
-        "CodeChunk.xid": `${repo}|src/widget.rb|10`,
-        "CodeChunk.repo": repo,
-        "CodeChunk.file_path": "src/widget.rb",
-        "CodeChunk.start_line": 10,
-        "CodeChunk.end_line": 20,
-        "CodeChunk.content_hash": "OLDHASH",
-      },
-      commitNow: true,
+    const ccUid = await seedCodeChunk(repo, {
+      filePath: "src/widget.rb",
+      startLine: 10,
+      symbolName: null,
     });
-    const ccUid = seededCodeChunk.data.uids.cc;
 
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        uid: "_:stmt",
-        "dgraph.type": "Statement",
-        "Statement.xid": statementXid,
-        "Statement.ordinal": 7,
-        "Statement.text": "The widget emits a click.",
-        "Statement.implemented_by": [{ uid: ccUid }],
-      },
-      commitNow: true,
+    await seedSpecNode({
+      xid: statementXid,
+      text: "The widget emits a click.",
+      codeChunkUid: ccUid,
     });
 
     await driftCheckFile(

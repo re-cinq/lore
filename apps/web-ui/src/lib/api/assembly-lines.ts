@@ -1,7 +1,7 @@
 import "server-only";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 
-// Reads a definition from the Floor (owns the YAMLs) rather than the GENERATED builtin-definitions.ts copy, so a YAML edit shows up after a Floor deploy alone.
+// Reads a definition from the Floor, which owns the YAMLs, so a YAML edit shows up after a Floor deploy alone and web-ui carries no copy to rot.
 
 /** Never throws — an unreachable or unconfigured Floor yields null and the caller renders nothing. */
 export async function getAssemblyLineDefinition(
