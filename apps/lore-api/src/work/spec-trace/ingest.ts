@@ -118,6 +118,16 @@ interface IngestOneFileContext {
   githubCtx: GithubFetchContext | null;
 }
 
+async function deleteChunks(
+  ctx: IngestOneFileContext,
+  filePath: string,
+): Promise<void> {
+  await ctx.pool.query(
+    `DELETE FROM ${ctx.schema}.chunks WHERE file_path = $1 AND repo = $2`,
+    [filePath, ctx.repo],
+  );
+}
+
 async function ingestOneFile(
   ctx: IngestOneFileContext,
   fileEntry: IngestFile,
@@ -134,10 +144,7 @@ async function ingestOneFile(
     );
 
     if (missing404) {
-      await pool.query(
-        `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
-        [filePath, repo],
-      );
+      await deleteChunks(ctx, filePath);
 
       return { file: filePath, status: "deleted" };
     }
@@ -160,17 +167,14 @@ async function ingestOneFile(
       };
     }
 
-    await pool.query(
-      `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
-      [filePath, repo],
-    );
+    // Replace, never append: re-ingesting a file must not leave the previous version's chunks searchable alongside the new ones.
+    await deleteChunks(ctx, filePath);
 
-    const chunks = await chunkFile(content, filePath, contentType);
     const { firstChunkId, embedded } = await insertChunksWithEmbeddings(
       pool,
       schema,
       { repo, filePath, commit, contentType },
-      chunks,
+      await chunkFile(content, filePath, contentType),
     );
 
     return {

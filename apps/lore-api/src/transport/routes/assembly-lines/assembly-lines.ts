@@ -66,6 +66,25 @@ export function assemblyLineRoutes(
   ]).concat([runDetailRoute(getPool, portFor)]);
 }
 
+/** A task-centric caller DRAWS the run it gets back, so it needs the full record; a browse page renders tables that never touch the graph, so it gets summaries. */
+async function selectRuns(
+  port: AssemblyRunsPort,
+  query: RunsQuery,
+): Promise<Awaited<ReturnType<AssemblyRunsPort["listSummaries"]>>> {
+  if (query.task_id) {
+    return await port.list({ taskId: query.task_id, limit: query.limit });
+  }
+
+  return await port.listSummaries({
+    repo: query.repo,
+    blueprintName: query.blueprint,
+    status: query.status ? [query.status as AssemblyRunStatus] : undefined,
+    subjectKey: query.subject_key,
+    clusterAgentId: query.cluster_agent_id,
+    limit: query.limit,
+  });
+}
+
 function listRunsRoute(
   getPool: () => Pool | null,
   portFor: (pool: Pool) => AssemblyRunsPort,
@@ -88,34 +107,15 @@ function listRunsRoute(
       const pool = getPool();
 
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const {
-        status,
-        repo,
-        blueprint,
-        task_id,
-        subject_key,
-        cluster_agent_id,
-        limit,
-      } = request.query as unknown as RunsQuery;
-      const port = portFor(pool);
+      const query = request.query as unknown as RunsQuery;
 
       try {
-        // A task-centric caller draws the run it gets back (needs the clone); a browse page renders tables that never touch it.
-        const selected = task_id
-          ? await port.list({ taskId: task_id, limit })
-          : await port.listSummaries({
-              repo,
-              blueprintName: blueprint,
-              status: status ? [status as AssemblyRunStatus] : undefined,
-              subjectKey: subject_key,
-              clusterAgentId: cluster_agent_id,
-              limit,
-            });
+        const selected = await selectRuns(portFor(pool), query);
         const enrichment = await enrichmentById(pool, selected);
 
         return h.response({
           runs: selected.map((run) =>
-            toRunRow(run, enrichment.get(run.id), task_id !== undefined),
+            toRunRow(run, enrichment.get(run.id), query.task_id !== undefined),
           ),
         });
       } catch (err) {

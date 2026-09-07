@@ -3,24 +3,13 @@
 import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { applyGapResult } from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
-import { composePlanningPrompt } from "@re-cinq/lore-shared/feature-planning/planning-prompt.js";
-import {
-  enforceFeatureInput,
-  parseSectionAnswers,
-} from "@re-cinq/lore-shared/feature-planning/feature-input.js";
-import {
-  roundInFlight,
-  canFinalize,
-  latestReadyGap,
-} from "@re-cinq/lore-shared/project/features/features-port.js";
-import { findParkedAuthorNode } from "@re-cinq/lore-shared/project/features/planning-run.js";
-import { startRefinementRound } from "@re-cinq/lore-shared/project/features/refinement-round.js";
+import { enforceFeatureInput } from "@re-cinq/lore-shared/feature-planning/feature-input.js";
+import { latestReadyGap } from "@re-cinq/lore-shared/project/features/features-port.js";
+
 import {
   startFeaturePlanning,
   type StartPlanningDeps,
 } from "@re-cinq/lore-shared/project/features/start-planning.js";
-import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
-import { eventReporterFor } from "../event-reporter.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../http/api-error.js";
 import { projectFor } from "../../../outbound/project-boot.js";
@@ -36,6 +25,7 @@ import {
   runIdBothSpellings,
 } from "./features-schema.js";
 import { run, BASE, WRITE_PAYLOAD, repoOf } from "./feature-route-support.js";
+import { acceptPlan, startPlanningRound } from "./feature-round-actions.js";
 
 /** Binds planning sequence to task queue; repo lands verbatim in target_repo. */
 const createPlanningTask: StartPlanningDeps["createPlanningTask"] = async ({
@@ -118,63 +108,9 @@ export function createIterationRoute(getPool: () => Pool | null): ServerRoute {
     },
     handler: (request, h) =>
       run(h, async () => {
-        const repo = repoOf(request.params);
-        const id = request.params.id;
-        const body = request.payload as {
-          user_answers?: unknown;
-          from_iteration?: unknown;
-        };
-        const project = await projectFor(repo);
-        const features = project.features;
-        const feature = await features.get(id);
+        const result = await startPlanningRound(getPool, request);
 
-        enforceTrue(feature, apiError(404), "feature not found");
-
-        // One planning round per feature; orphaned `running` past window is dead.
-        const inFlight = roundInFlight(feature.iterations, Date.now());
-
-        if (inFlight) {
-          return h
-            .response({
-              error: `A planning round (round ${inFlight.iteration}) is already running for this feature — wait for it to finish before starting another.`,
-              iteration: inFlight.iteration,
-            })
-            .code(409);
-        }
-
-        const answers = parseSectionAnswers(body.user_answers);
-        // Rewind is author-named; basis resolved either way; conflating them breaks rewind.
-        const rewoundTo =
-          typeof body.from_iteration === "number"
-            ? body.from_iteration
-            : undefined;
-
-        // Sequence logic in shared; route contributes only HTTP error status mapping.
-        const round = await startRefinementRound(
-          feature,
-          { answers, rewoundTo },
-          {
-            invalidBasis: apiError(400),
-            notParked: (runId) => apiError(409, runIdBothSpellings(runId)),
-            parkedNode: (featureId) =>
-              findParkedAuthorNode(project.assemblyRuns, featureId),
-            appendIteration: (featureId, roundAnswers, basisIteration) =>
-              features.appendIteration(featureId, roundAnswers, basisIteration),
-            report: (target, outcome, args) =>
-              reportToParkedNode(eventReporterFor(getPool()), target, {
-                outcome,
-                args,
-              }),
-          },
-        );
-
-        return h
-          .response({
-            iteration: round.iteration,
-            ...runIdBothSpellings(round.runId),
-            task_id: null,
-          })
-          .code(202);
+        return h.response(result.body).code(result.code);
       }),
   };
 }
@@ -241,48 +177,7 @@ export function finalizeRoutes(getPool: () => Pool | null): ServerRoute[] {
       },
       handler: (request, h) =>
         run(h, async () => {
-          const repo = repoOf(request.params);
-          const id = request.params.id;
-          const body = request.payload as { user_answers?: unknown };
-          const project = await projectFor(repo);
-          const features = project.features;
-          const feature = await features.get(id);
-
-          enforceTrue(feature, apiError(404), "feature not found");
-          enforceTrue(
-            canFinalize(feature.status),
-            apiError(409),
-            `cannot finalize a feature in '${feature.status}' state`,
-          );
-          // Accept carries answers like refine; dropping them loses author feedback.
-          const answers = parseSectionAnswers(body.user_answers);
-          // Accepting reports success to author node; spec work runs on same line as edge.
-          const { runId, parked } = await findParkedAuthorNode(
-            project.assemblyRuns,
-            id,
-          );
-
-          // Structural guard: canFinalize + parked node detect double-click; run-id explains refusal.
-          enforceTrue(
-            parked,
-            apiError(409, runIdBothSpellings(runId)),
-            "no plan is waiting to be accepted — this feature's line is not parked on the author",
-          );
-          await reportToParkedNode(eventReporterFor(getPool()), parked, {
-            outcome: "success",
-            args: {
-              // Tail nodes read description; shallow merge would leave refine's brief (#1470).
-              description: composePlanningPrompt({
-                title: feature.title,
-                originalPrompt: feature.original_prompt,
-                priorGap: latestReadyGap(feature.iterations),
-                answers,
-              }),
-              // Omitted keys survive shallow merge; null them to clear refine leftovers.
-              round_feedback: null,
-              resume_from_iteration: null,
-            },
-          });
+          const parked = await acceptPlan(getPool, request);
 
           return h.response(runIdBothSpellings(parked.lineId)).code(202);
         }),
