@@ -108,6 +108,41 @@ function PromptDebugHelp() {
   );
 }
 
+/** The template picker and the submit, which travel together: the template decides WHICH assembly runs, so choosing one and running it is a single decision. */
+function FormControls({
+  template,
+  templates,
+  loading,
+  canSubmit,
+  onTemplateChange,
+}: Pick<
+  AssembledContextViewProps,
+  "template" | "templates" | "loading" | "onTemplateChange"
+> & { canSubmit: boolean }) {
+  return (
+    <div className={styles.controls}>
+      <label htmlFor="template" className="meta">
+        Template
+      </label>
+      <select
+        id="template"
+        value={template}
+        onChange={(e) => onTemplateChange(e.target.value)}
+        className={styles.select}
+      >
+        {templates.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+      <button type="submit" className="btn" disabled={!canSubmit}>
+        {loading ? "Assembling…" : "Assemble"}
+      </button>
+    </div>
+  );
+}
+
 function QueryForm({
   query,
   template,
@@ -145,26 +180,13 @@ function QueryForm({
         rows={2}
         className={styles.textarea}
       />
-      <div className={styles.controls}>
-        <label htmlFor="template" className="meta">
-          Template
-        </label>
-        <select
-          id="template"
-          value={template}
-          onChange={(e) => onTemplateChange(e.target.value)}
-          className={styles.select}
-        >
-          {templates.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <button type="submit" className="btn" disabled={!canSubmit}>
-          {loading ? "Assembling…" : "Assemble"}
-        </button>
-      </div>
+      <FormControls
+        template={template}
+        templates={templates}
+        loading={loading}
+        canSubmit={canSubmit}
+        onTemplateChange={onTemplateChange}
+      />
     </form>
   );
 }

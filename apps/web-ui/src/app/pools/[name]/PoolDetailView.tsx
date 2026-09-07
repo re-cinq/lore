@@ -16,6 +16,63 @@ export interface PoolDetailViewProps {
   entries: PoolEntryRow[];
 }
 
+/** A pool name in the URL that no pool matches — a deleted pool, or a typo. */
+function PoolNotFound({ poolName }: { poolName: string }) {
+  return (
+    <div>
+      <div className="breadcrumb">
+        <Link href="/pools">Pools</Link> / {poolName}
+      </div>
+      <h1>Pool Not Found</h1>
+      <div className="empty-state">
+        <p>No pool named &quot;{poolName}&quot; exists.</p>
+      </div>
+    </div>
+  );
+}
+
+function PoolEntriesTable({
+  entries,
+}: {
+  entries: PoolDetailViewProps["entries"];
+}) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Value</th>
+          <th>Agent</th>
+          <th>Version</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map((e) => (
+          <tr key={e.id}>
+            <td>
+              <strong>{e.key}</strong>
+            </td>
+            <PoolValueCell value={e.value} />
+            <td title={e.agent_id}>{displayAgentId(e.agent_id)}</td>
+            <td>v{e.version}</td>
+            <td>
+              <TimeAgo date={e.created_at} />
+            </td>
+          </tr>
+        ))}
+        {entries.length === 0 && (
+          <tr>
+            <td colSpan={5} className={styles.emptyCell}>
+              No entries in this pool
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
 export default function PoolDetailView({
   poolName,
   found,
@@ -24,17 +81,7 @@ export default function PoolDetailView({
   entries,
 }: PoolDetailViewProps) {
   if (!found) {
-    return (
-      <div>
-        <div className="breadcrumb">
-          <Link href="/pools">Pools</Link> / {poolName}
-        </div>
-        <h1>Pool Not Found</h1>
-        <div className="empty-state">
-          <p>No pool named &quot;{poolName}&quot; exists.</p>
-        </div>
-      </div>
-    );
+    return <PoolNotFound poolName={poolName} />;
   }
 
   return (
@@ -48,39 +95,7 @@ export default function PoolDetailView({
         <TimeAgo date={createdAt} inline /> · {entries.length} entr
         {entries.length !== 1 ? "ies" : "y"}
       </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Key</th>
-            <th>Value</th>
-            <th>Agent</th>
-            <th>Version</th>
-            <th>Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => (
-            <tr key={e.id}>
-              <td>
-                <strong>{e.key}</strong>
-              </td>
-              <PoolValueCell value={e.value} />
-              <td title={e.agent_id}>{displayAgentId(e.agent_id)}</td>
-              <td>v{e.version}</td>
-              <td>
-                <TimeAgo date={e.created_at} />
-              </td>
-            </tr>
-          ))}
-          {entries.length === 0 && (
-            <tr>
-              <td colSpan={5} className={styles.emptyCell}>
-                No entries in this pool
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <PoolEntriesTable entries={entries} />
     </div>
   );
 }

@@ -61,12 +61,13 @@ function PagerCell({
 }
 
 /** Infinite-scroll events pager: first page server-side, appends on sentinel scroll, pauses on failure. */
-export default function InfiniteEvents({
-  owner,
-  repo,
-  initialOffset,
-  hasMore,
-}: InfiniteEventsProps) {
+/** Loads the next page when the sentinel row scrolls into view. The observer DISCONNECTS on the first intersection and is rebuilt by the effect: an observer left attached would fire again for the same row while the fetch is still in flight. A failure stops the loop rather than retrying forever — the reader retries, which also clears the flag that re-arms this effect. */
+function useInfiniteEvents(
+  owner: string,
+  repo: string,
+  initialOffset: number,
+  hasMore: boolean,
+) {
   const [events, setEvents] = useState<RepoEvent[]>([]);
   const [offset, setOffset] = useState(initialOffset);
   const [more, setMore] = useState(hasMore);
@@ -116,6 +117,18 @@ export default function InfiniteEvents({
 
     return () => observer.disconnect();
   }, [owner, repo, offset, more, loading, failed]);
+
+  return { events, more, loading, failed, setFailed, sentinel };
+}
+
+export default function InfiniteEvents({
+  owner,
+  repo,
+  initialOffset,
+  hasMore,
+}: InfiniteEventsProps) {
+  const { events, more, loading, failed, setFailed, sentinel } =
+    useInfiniteEvents(owner, repo, initialOffset, hasMore);
 
   return (
     <>
