@@ -89,19 +89,7 @@ function showsLiveGraphBelow(
   return phase.kind === "planning" || phase.kind === "writing-spec";
 }
 
-export default function FeatureDetailView({
-  owner,
-  repo,
-  feature,
-  timeoutMinutes,
-  decomposition,
-  definition = null,
-  run = null,
-  refine,
-  onCreateSpecFile,
-  split,
-  del,
-}: {
+interface FeatureDetailViewProps {
   owner: string;
   repo: string;
   feature: FeatureWithIterations;
@@ -116,7 +104,21 @@ export default function FeatureDetailView({
   onCreateSpecFile: (userAnswers: SectionAnswers) => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
   del: () => Promise<void>;
-}) {
+}
+
+export default function FeatureDetailView({
+  owner,
+  repo,
+  feature,
+  timeoutMinutes,
+  decomposition,
+  definition = null,
+  run = null,
+  refine,
+  onCreateSpecFile,
+  split,
+  del,
+}: FeatureDetailViewProps) {
   const [pending, startTransition] = useTransition();
   const onCreateDraft = (title: string, prompt: string) =>
     startTransition(() => split(title, prompt));

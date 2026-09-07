@@ -224,14 +224,7 @@ function FormActions({
 }
 
 /** Agent create/edit form; org editing forks to project agent (upserts via saveAgent). */
-export default function AgentForm({
-  repo,
-  agent,
-  action,
-  isNew,
-  defaultImage,
-  orgScope = false,
-}: {
+interface AgentFormProps {
   repo: string;
   agent: AgentDefinition | null;
   action: AgentFormAction;
@@ -240,7 +233,16 @@ export default function AgentForm({
   defaultImage?: string;
   /** Org-default editing hides image+approval (API refuses org image change). */
   orgScope?: boolean;
-}) {
+}
+
+export default function AgentForm({
+  repo,
+  agent,
+  action,
+  isNew,
+  defaultImage,
+  orgScope = false,
+}: AgentFormProps) {
   const [state, formAction] = useActionState(action, {});
   const values = agentFormValues(agent, isNew);
   const [modelSel, setModelSel] = useState(values.initialSelection);

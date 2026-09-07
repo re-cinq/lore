@@ -24,16 +24,7 @@ import type {
   SectionAnswers,
 } from "@/lib/feature-types";
 
-export default function PlanningWizard({
-  owner,
-  repo,
-  feature,
-  timeoutMinutes,
-  refine,
-  onFinalize,
-  onCreateDraft,
-  settledView,
-}: {
+interface PlanningWizardProps {
   owner: string;
   repo: string;
   feature: FeatureWithIterations;
@@ -46,7 +37,18 @@ export default function PlanningWizard({
   onCreateDraft: (title: string, prompt: string) => void;
   /** Parent owns it for decomposition rows; wizard decides when based on line state. */
   settledView: ReactNode;
-}) {
+}
+
+export default function PlanningWizard({
+  owner,
+  repo,
+  feature,
+  timeoutMinutes,
+  refine,
+  onFinalize,
+  onCreateDraft,
+  settledView,
+}: PlanningWizardProps) {
   const { data: poll, refresh: fetchLatest } = useSeededPoll(
     owner,
     repo,

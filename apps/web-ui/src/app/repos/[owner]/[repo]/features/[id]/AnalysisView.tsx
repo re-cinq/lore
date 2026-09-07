@@ -82,20 +82,7 @@ function RoundActions({
 }
 
 /** What the author acts on between rounds: the analysis, the answer form, and the two ways forward. A failed latest round shows its banner ABOVE the preserved sections, so a fix-and-retry never costs the analysis. */
-export function AnalysisView({
-  iteration,
-  failed,
-  gap,
-  failureReason,
-  answers,
-  run,
-  pending,
-  feedback,
-  handlers,
-  rounds,
-  continueFrom,
-  rewinding,
-}: {
+interface AnalysisViewProps {
   iteration: number;
   failed: boolean;
   gap: Parameters<typeof GapSections>[0]["gap"] | null | undefined;
@@ -114,7 +101,22 @@ export function AnalysisView({
   rounds: ReturnType<typeof rewindOptions>;
   continueFrom: number | undefined;
   rewinding: boolean;
-}) {
+}
+
+export function AnalysisView({
+  iteration,
+  failed,
+  gap,
+  failureReason,
+  answers,
+  run,
+  pending,
+  feedback,
+  handlers,
+  rounds,
+  continueFrom,
+  rewinding,
+}: AnalysisViewProps) {
   const {
     onChangeFeedback,
     onCreateDraft,
