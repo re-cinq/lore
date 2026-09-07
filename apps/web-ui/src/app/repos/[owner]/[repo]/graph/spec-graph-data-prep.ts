@@ -97,6 +97,52 @@ function seedFeatureTrees(
   return seed;
 }
 
+/** Everything the feature trees did not place. A node no tree reached is spiralled near the centre; a small disconnected component is pushed to a rim OUTSIDE the main graph's extent, so it reads as separate rather than as a stray part of the whole. */
+function placeStrayAndSmallComponents(
+  graph: SpecGraph,
+  seed: Map<string, { x: number; y: number }>,
+  viewportCenter: { x: number; y: number },
+): Set<string> {
+  // Unreached nodes: seed as spiral near center with LOCAL counter to bound radius.
+  const components = connectedComponents(
+    graph.nodes.map((n) => n.id),
+    graph.links,
+  );
+  const smallComponents = components.filter(
+    (c) => c.length < SMALL_COMPONENT_MAX && !c.some((id) => seed.has(id)),
+  );
+  const smallIds = new Set(smallComponents.flat());
+
+  seedStrayNodes(graph.nodes, seed, smallIds, viewportCenter);
+
+  // Add small components last on rim beyond main graph extent, so they ring the outside.
+  const mainExtent = computeMainExtent(seed, viewportCenter);
+
+  applyRimTargets(
+    seed,
+    rimTargets(smallComponents, viewportCenter, mainExtent + RIM_MARGIN),
+  );
+
+  return smallIds;
+}
+
+/** The containment tree cross-spec edges route THROUGH, so a link between two specs bends via their shared parent rather than cutting across the canvas. Returns the forest because the seeding needs it to lay each feature out as a tree. */
+function bundleThroughHierarchy(
+  graph: SpecGraph,
+  links: SimLink[],
+): ReturnType<typeof withOwnershipForest> {
+  // Bundling forest: containment tree + tree-home for each leaf so cross-spec edges route through hierarchy.
+  const forest = withOwnershipForest(
+    buildContainmentForest(graph.links, CONTAINMENT_KINDS),
+    graph.links,
+    OWNERSHIP_KINDS,
+  );
+
+  withBundleControlIds(links, forest, CONTAINMENT_KINDS);
+
+  return forest;
+}
+
 export function prepareGraphLayout(
   graph: SpecGraph,
   repo: string,
@@ -121,14 +167,7 @@ export function prepareGraphLayout(
     LEAF_CANVAS_TYPES,
   );
 
-  // Bundling forest: containment tree + tree-home for each leaf so cross-spec edges route through hierarchy.
-  const forest = withOwnershipForest(
-    buildContainmentForest(graph.links, CONTAINMENT_KINDS),
-    graph.links,
-    OWNERSHIP_KINDS,
-  );
-
-  withBundleControlIds(links, forest, CONTAINMENT_KINDS);
+  const forest = bundleThroughHierarchy(graph, links);
 
   const storageKey = `lore.graph:${repo}`;
   const { savedExpanded, restoredFromStorage } = tryRestoreGraphState(
@@ -141,25 +180,7 @@ export function prepareGraphLayout(
   const viewportCenter = { x: width / 2, y: height / 2 };
   const seed = seedFeatureTrees(graph, forest, boundR, viewportCenter);
 
-  // Unreached nodes: seed as spiral near center with LOCAL counter to bound radius.
-  const components = connectedComponents(
-    graph.nodes.map((n) => n.id),
-    graph.links,
-  );
-  const smallComponents = components.filter(
-    (c) => c.length < SMALL_COMPONENT_MAX && !c.some((id) => seed.has(id)),
-  );
-  const smallIds = new Set(smallComponents.flat());
-
-  seedStrayNodes(graph.nodes, seed, smallIds, viewportCenter);
-
-  // Add small components last on rim beyond main graph extent, so they ring the outside.
-  const mainExtent = computeMainExtent(seed, viewportCenter);
-
-  applyRimTargets(
-    seed,
-    rimTargets(smallComponents, viewportCenter, mainExtent + RIM_MARGIN),
-  );
+  const smallIds = placeStrayAndSmallComponents(graph, seed, viewportCenter);
 
   const seedOf = (d: SimNode) => seed.get(d.id) ?? viewportCenter;
 

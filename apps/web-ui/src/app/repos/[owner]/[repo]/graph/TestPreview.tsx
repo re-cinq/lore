@@ -5,17 +5,8 @@ import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 
 /** Fetches test source slice and renders as highlighted code; language auto-detected via fence. */
-export default function TestPreview({
-  repo,
-  path,
-  start,
-  end,
-}: {
-  repo: string;
-  path: string;
-  start: number;
-  end?: number;
-}) {
+/** The lines this test occupies, fetched from the repo. `cancelled` guards the setState rather than aborting the request: the popover unmounts as soon as the pointer leaves, and a half-finished fetch is cheaper to ignore than to tear down. */
+function useFileSlice(repo: string, path: string, start: number, end?: number) {
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -48,6 +39,22 @@ export default function TestPreview({
       cancelled = true;
     };
   }, [repo, path, start, end]);
+
+  return { text, error };
+}
+
+export default function TestPreview({
+  repo,
+  path,
+  start,
+  end,
+}: {
+  repo: string;
+  path: string;
+  start: number;
+  end?: number;
+}) {
+  const { text, error } = useFileSlice(repo, path, start, end);
 
   if (error) {
     return (

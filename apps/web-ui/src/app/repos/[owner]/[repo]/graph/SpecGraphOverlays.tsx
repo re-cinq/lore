@@ -155,6 +155,48 @@ function SelectedNodeTestPreview({
   );
 }
 
+const CARD_STYLE: React.CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: "50%",
+  transform: "translate(-50%, 28px)",
+  maxWidth: 420,
+  maxHeight: 320,
+  overflow: "auto",
+  padding: 12,
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  background: "var(--bg-surface)",
+  color: "var(--text)",
+  boxShadow: "var(--shadow-lg)",
+  fontSize: "var(--fs-sm)",
+};
+
+/** Where this node can be opened: its source, and anything the graph knows it relates to. External links open in a new tab so the graph keeps its layout — which is dragged by hand and worth not losing. */
+function NodeLinks({
+  selected,
+  repo,
+}: {
+  selected: SpecGraphNode;
+  repo: string;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 12 }}>
+      {nodeLinks(selected, repo).map((l) => (
+        <a
+          key={l.href}
+          href={l.href}
+          target={l.external ? "_blank" : undefined}
+          rel={l.external ? "noreferrer" : undefined}
+          style={{ color: "var(--accent)" }}
+        >
+          {l.label} →
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export function SelectedNodeCard({
   selected,
   repo,
@@ -165,24 +207,7 @@ export function SelectedNodeCard({
   onClose: () => void;
 }) {
   return (
-    <div
-      style={{
-        position: "absolute",
-        left: "50%",
-        top: "50%",
-        transform: "translate(-50%, 28px)",
-        maxWidth: 420,
-        maxHeight: 320,
-        overflow: "auto",
-        padding: 12,
-        borderRadius: 8,
-        border: "1px solid var(--border)",
-        background: "var(--bg-surface)",
-        color: "var(--text)",
-        boxShadow: "var(--shadow-lg)",
-        fontSize: "var(--fs-sm)",
-      }}
-    >
+    <div style={CARD_STYLE}>
       <SelectedNodeHeader selected={selected} onClose={onClose} />
       {selected.label && (
         <div style={{ fontWeight: 600, marginBottom: 4 }}>{selected.label}</div>
@@ -202,19 +227,7 @@ export function SelectedNodeCard({
       )}
       <SelectedNodePathLine selected={selected} />
       <SelectedNodeTestPreview selected={selected} repo={repo} />
-      <div style={{ display: "flex", gap: 12 }}>
-        {nodeLinks(selected, repo).map((l) => (
-          <a
-            key={l.href}
-            href={l.href}
-            target={l.external ? "_blank" : undefined}
-            rel={l.external ? "noreferrer" : undefined}
-            style={{ color: "var(--accent)" }}
-          >
-            {l.label} →
-          </a>
-        ))}
-      </div>
+      <NodeLinks selected={selected} repo={repo} />
     </div>
   );
 }
