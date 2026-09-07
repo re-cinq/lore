@@ -92,8 +92,7 @@ function startHeartbeat(opts: {
   running: () => boolean;
 }): void {
   void runHeartbeatLoop({
-    beat: () =>
-      heartbeatOnce({ apiUrl: opts.apiUrl, identity: opts.identity }),
+    beat: () => heartbeatOnce({ apiUrl: opts.apiUrl, identity: opts.identity }),
     reRegister: opts.reRegister,
     sleep,
     intervalMs: heartbeatIntervalMs(opts.env),
@@ -104,7 +103,9 @@ function startHeartbeat(opts: {
 }
 
 /** Bounded so a catalog that never syncs cannot hold the agent idle: a claim on a missing stationRef fails visibly and is handed back, which is a better failure than claiming nothing at all. */
-async function awaitFirstCatalogSync(firstSync: Promise<unknown>): Promise<void> {
+async function awaitFirstCatalogSync(
+  firstSync: Promise<unknown>,
+): Promise<void> {
   await Promise.race([
     firstSync,
     sleep(FIRST_SYNC_TIMEOUT_MS).then(() => {

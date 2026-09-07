@@ -12,9 +12,8 @@ async function localManifest(): Promise<{
     >
   >;
 }> {
-  const { loadTestCommandManifest } = await import(
-    "../../work/spec-trace/spec-trace-tools.js"
-  );
+  const { loadTestCommandManifest } =
+    await import("../../work/spec-trace/spec-trace-tools.js");
   const { getRepoRoot } = await import("../../work/pipeline/runner.local.js");
   const root = getRepoRoot() || process.cwd();
 
@@ -23,9 +22,8 @@ async function localManifest(): Promise<{
 
 const listTests = async (): Promise<ReturnType<typeof textResult>> => {
   try {
-    const { listTestsTool } = await import(
-      "../../work/spec-trace/spec-trace-tools.js"
-    );
+    const { listTestsTool } =
+      await import("../../work/spec-trace/spec-trace-tools.js");
     const { root, manifest } = await localManifest();
 
     return textResult(await listTestsTool(process.env, manifest, root));
@@ -40,14 +38,11 @@ const runTest = async ({
   selector: string;
 }): Promise<ReturnType<typeof textResult>> => {
   try {
-    const { runTestTool } = await import(
-      "../../work/spec-trace/spec-trace-tools.js"
-    );
+    const { runTestTool } =
+      await import("../../work/spec-trace/spec-trace-tools.js");
     const { root, manifest } = await localManifest();
 
-    return textResult(
-      await runTestTool(process.env, manifest, selector, root),
-    );
+    return textResult(await runTestTool(process.env, manifest, selector, root));
   } catch (err) {
     return textResult(`Error: ${errorMessage(err)}`);
   }

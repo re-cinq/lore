@@ -110,9 +110,8 @@ const resumePlanningRun: MergeStepDeps["resumePlanning"] = async (
   repo,
   prNumber,
 ) => {
-  const { resumeDecomposition, eventReport } = await import(
-    "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js"
-  );
+  const { resumeDecomposition, eventReport } =
+    await import("@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js");
 
   await resumeDecomposition(
     { repo, prNumber },

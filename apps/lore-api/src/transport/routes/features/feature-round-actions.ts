@@ -109,7 +109,10 @@ export async function acceptPlan(
     `cannot finalize a feature in '${feature.status}' state`,
   );
 
-  const { runId, parked } = await findParkedAuthorNode(project.assemblyRuns, id);
+  const { runId, parked } = await findParkedAuthorNode(
+    project.assemblyRuns,
+    id,
+  );
 
   enforceTrue(
     parked,
