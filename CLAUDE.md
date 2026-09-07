@@ -144,7 +144,7 @@ status pill — a stale header misreports the org's backlog.
 - `libs/shared/src/work/repo-validation/repo-validation.ts` — deterministic validation (lint/typecheck detection for Node/Go/Python/Rust)
 - `apps/lore-api/src/work/repo/repo-validation-cli.ts` — CLI wrapper for validation in K8s Job pods
 - `scripts/slack-app-manifest.yaml` — Slack app manifest for /lore slash command
-- `apps/floor/src/work/lib/episode-writer.ts` — shared episode writer with Haiku-driven auto-curation
+- `libs/shared/src/work/episode-writer.ts` — shared episode writer with Haiku-driven auto-curation
 - `libs/shared/src/outbound/llm/prompt-cache.ts` — `getCacheControl(jobName)` (ephemeral + optional `ttl: "1h"`), `computeCachePrefixHash` (djb2 over system + tool schemas), `analyzeCacheBreak` (in-memory per-job tracker classifying hit / first-call / prompt-changed / ttl-expired)
 - `apps/floor/src/work/memory/memory-lifecycle/memory-lifecycle.ts` — importance decay (eviction) + fact consolidation (pattern extraction)
 - `libs/server-core/src/outbound/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
