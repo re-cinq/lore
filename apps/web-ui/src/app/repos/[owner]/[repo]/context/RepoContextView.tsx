@@ -41,20 +41,10 @@ function emptyMessage(q?: string, type?: string): string {
 }
 
 /** Presentational view for repo's ingested context; container runs queries and hands view-model down. */
-export default function RepoContextView({
-  owner,
-  repo,
-  type,
-  q,
-  types,
-  chunks,
-  hasMore = false,
-}: RepoContextViewProps) {
-  const base = `/repos/${owner}/${repo}/context`;
-  const fullName = `${owner}/${repo}`;
-
+/** What context IS, for a reader who has not met the term. Kept beside the list rather than in a doc, because the question arises exactly here. */
+function ContextHeader() {
   return (
-    <div>
+    <>
       <div className={styles.header}>
         <h2 className={styles.title}>Context</h2>
         <HelpPopover label="How context is used">
@@ -83,6 +73,25 @@ export default function RepoContextView({
         Conventions, ADRs, specs, and code ingested from this repo that agents
         use as context.
       </p>
+    </>
+  );
+}
+
+export default function RepoContextView({
+  owner,
+  repo,
+  type,
+  q,
+  types,
+  chunks,
+  hasMore = false,
+}: RepoContextViewProps) {
+  const base = `/repos/${owner}/${repo}/context`;
+  const fullName = `${owner}/${repo}`;
+
+  return (
+    <div>
+      <ContextHeader />
 
       <ContextFilters basePath={base} types={types} activeType={type} q={q} />
 

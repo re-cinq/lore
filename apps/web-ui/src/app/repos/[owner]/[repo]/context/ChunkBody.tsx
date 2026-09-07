@@ -93,17 +93,8 @@ export interface ChunkBodyProps {
 }
 
 /** Render ingested chunk: prose→ReactMarkdown with GitHub links, code→highlight.js. */
-export default function ChunkBody({
-  content,
-  contentType,
-  filePath,
-  repo,
-  branch = "main",
-  metadata,
-  preview = false,
-}: ChunkBodyProps) {
-  const isCode = contentType === CODE_TYPE;
-
+/** Rewrites a chunk's links against the repo they were written in: a relative path becomes a blob URL on this branch, and anything leaving the site opens in a new tab with `noopener`. */
+function useResolvedLinks(repo: string, branch: string) {
   const mdComponents = useMemo(
     () => ({
       a(props: React.ComponentPropsWithoutRef<"a"> & { node?: unknown }) {
@@ -127,6 +118,21 @@ export default function ChunkBody({
     [repo, branch],
   );
 
+  return mdComponents;
+}
+
+export default function ChunkBody({
+  content,
+  contentType,
+  filePath,
+  repo,
+  branch = "main",
+  metadata,
+  preview = false,
+}: ChunkBodyProps) {
+  const isCode = contentType === CODE_TYPE;
+
+  const mdComponents = useResolvedLinks(repo, branch);
   const markdown = markdownFor(isCode, content, filePath);
   const rehypePlugins = rehypePluginsFor(isCode);
   const headerLabel = chunkHeader(contentType, metadata);
