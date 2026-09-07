@@ -101,27 +101,9 @@ function taskStatsRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
-function agentActivityRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/agent-activity",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(AgentActivityQuery) },
-      },
-      AgentActivitySchema,
-      { name: "AgentActivity", description: "Per-agent activity roll-up" },
-    ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { repo } = request.query as unknown as AgentActivityQuery;
-
-      // The union is the point: an agent that only wrote memories never appears in pipeline.tasks; the cost aggregate stays SQL-side rather than shipping the whole pipeline history to Node per row.
-      const { rows } = await pool.query(
-        `WITH task_agents AS (
+/** The FULL OUTER JOIN is the point: an agent that only wrote memories never appears in pipeline.tasks, and one that only ran tasks never appears in memory.memories. The cost aggregate stays SQL-side rather than shipping the whole pipeline history to Node per row. */
+function agentActivitySql(repo: string | undefined): string {
+  return `WITH task_agents AS (
            SELECT t.agent_id,
                   count(DISTINCT t.id)::int              as task_count,
                   COALESCE(SUM(lc.cost_usd), 0)::float   as cost_usd,
@@ -153,7 +135,29 @@ function agentActivityRoute(getPool: () => Pool | null): ServerRoute {
                 GREATEST(ta.last_task_at, ma.last_memory_at) as last_active
            FROM task_agents ta
            FULL OUTER JOIN mem_agents ma ON ta.agent_id = ma.agent_id
-          ORDER BY last_active DESC NULLS LAST`,
+          ORDER BY last_active DESC NULLS LAST`;
+}
+
+function agentActivityRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/agent-activity",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(AgentActivityQuery) },
+      },
+      AgentActivitySchema,
+      { name: "AgentActivity", description: "Per-agent activity roll-up" },
+    ),
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const { repo } = request.query as unknown as AgentActivityQuery;
+
+      const { rows } = await pool.query(
+        agentActivitySql(repo),
         repo ? [repo] : [],
       );
 

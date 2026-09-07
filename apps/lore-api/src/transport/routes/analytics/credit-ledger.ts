@@ -52,41 +52,27 @@ const CreditEntrySchema = z.object({
   actor: z.string(),
 });
 
-export function creditLedgerRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/spend/credits",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(CreditEntryBody) },
-      },
-      CreditEntrySchema,
-      {
-        name: "CreditEntryRecorded",
-        status: 201,
-        description: "The balance entry that was recorded",
-        errors: [400],
-      },
-    ),
-    handler: async (request, h) => {
-      const pool = getPool();
+const CREDIT_LEDGER_OPTIONS = zodResponse(
+  {
+    ...bearerScope("write"),
+    validate: { payload: zodValidate(CreditEntryBody) },
+  },
+  CreditEntrySchema,
+  {
+    name: "CreditEntryRecorded",
+    status: 201,
+    description: "The balance entry that was recorded",
+    errors: [400],
+  },
+);
 
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const {
-        amount_usd,
-        effective_date,
-        effective_time,
-        kind,
-        note,
-        recorded_by,
-      } = request.payload as z.infer<typeof CreditEntryBody>;
-
-      try {
-        // Day and time compose in Postgres, not here; midnight default counts the whole day rather than silently skipping already-spent money.
-        const { rows } = await pool.query(
-          `INSERT INTO pipeline.credit_ledger
+/** Day and time compose in POSTGRES, not here: the midnight default counts the whole day rather than silently skipping money already spent on it. */
+async function insertCreditEntry(
+  pool: Pool,
+  entry: z.infer<typeof CreditEntryBody>,
+): Promise<Record<string, unknown>> {
+  const { rows } = await pool.query(
+    `INSERT INTO pipeline.credit_ledger
              (effective_at, amount_usd, kind, note, actor)
            VALUES (
              COALESCE($1::date, current_date)
@@ -96,17 +82,36 @@ export function creditLedgerRoute(getPool: () => Pool | null): ServerRoute {
              to_char(effective_at AT TIME ZONE 'UTC',
                'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS effective_at,
              amount_usd::float8, kind, note, actor`,
-          [
-            effective_date ?? null,
-            effective_time ?? null,
-            amount_usd,
-            kind,
-            note,
-            recorded_by,
-          ],
+    [
+      entry.effective_date ?? null,
+      entry.effective_time ?? null,
+      entry.amount_usd,
+      entry.kind,
+      entry.note,
+      entry.recorded_by,
+    ],
+  );
+
+  return rows[0];
+}
+
+export function creditLedgerRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/spend/credits",
+    options: CREDIT_LEDGER_OPTIONS,
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+      try {
+        const entry = await insertCreditEntry(
+          pool,
+          request.payload as z.infer<typeof CreditEntryBody>,
         );
 
-        return h.response(rows[0]).code(201);
+        return h.response(entry).code(201);
       } catch (err) {
         // Table arrives with migration 0045; an undeployed cluster should say the figure is unrecordable, not that the request is malformed.
         enforceTrue(
