@@ -72,15 +72,18 @@ const SIMILARITY_THRESHOLD = parseFloat(
 );
 
 // Finds existing valid facts semantically similar to a new fact and invalidates them (valid_to, invalidated_by); fail-open — on any error the new fact is still inserted.
-async function invalidateContradictions(
+interface ContradictingFact {
+  id: string;
+  similarity: number;
+}
+
+async function findContradicting(
   pool: PgPool,
   newFactId: string,
   embeddingStr: string,
-  agentId: string | null,
-): Promise<number> {
-  try {
-    const { rows } = await pool.query(
-      `SELECT id, fact_text, 1 - (embedding <=> $1::vector) AS similarity
+): Promise<ContradictingFact[]> {
+  const { rows } = await pool.query(
+    `SELECT id, fact_text, 1 - (embedding <=> $1::vector) AS similarity
        FROM memory.facts f
        WHERE f.valid_to IS NULL
          AND f.id != $2
@@ -88,49 +91,81 @@ async function invalidateContradictions(
          AND 1 - (f.embedding <=> $1::vector) >= $3
        ORDER BY similarity DESC
        LIMIT 5`,
-      [embeddingStr, newFactId, SIMILARITY_THRESHOLD],
-    );
+    [embeddingStr, newFactId, SIMILARITY_THRESHOLD],
+  );
+
+  return rows.map((r) => ({
+    id: r.id as string,
+    similarity: r.similarity as number,
+  }));
+}
+
+/** The conflict is recorded BEFORE the fact is invalidated, so a crash between the two leaves evidence of the disagreement rather than a silently retired fact. */
+async function invalidateFact(
+  pool: PgPool,
+  newFactId: string,
+  contradicted: ContradictingFact,
+): Promise<void> {
+  await pool
+    .query(
+      `INSERT INTO memory.fact_conflicts (old_fact_id, new_fact_id, similarity)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+      [contradicted.id, newFactId, contradicted.similarity],
+    )
+    .catch(() => {});
+
+  await pool.query(
+    `UPDATE memory.facts
+         SET valid_to = now(), invalidated_by = $1
+         WHERE id = $2 AND valid_to IS NULL`,
+    [newFactId, contradicted.id],
+  );
+}
+
+async function auditInvalidation(
+  pool: PgPool,
+  agentId: string,
+  newFactId: string,
+  invalidated: ContradictingFact[],
+): Promise<void> {
+  await pool
+    .query(
+      `INSERT INTO memory.audit_log (agent_id, operation, metadata)
+         VALUES ($1, 'fact_invalidation', $2)`,
+      [
+        agentId,
+        JSON.stringify({
+          new_fact_id: newFactId,
+          invalidated: invalidated.map((r) => ({
+            id: r.id,
+            similarity: r.similarity,
+          })),
+        }),
+      ],
+    )
+    .catch(() => {});
+}
+
+async function invalidateContradictions(
+  pool: PgPool,
+  newFactId: string,
+  embeddingStr: string,
+  agentId: string | null,
+): Promise<number> {
+  try {
+    const rows = await findContradicting(pool, newFactId, embeddingStr);
 
     if (rows.length === 0) {
       return 0;
     }
 
     for (const row of rows) {
-      // Record the conflict before invalidating
-      await pool
-        .query(
-          `INSERT INTO memory.fact_conflicts (old_fact_id, new_fact_id, similarity)
-         VALUES ($1, $2, $3)
-         ON CONFLICT DO NOTHING`,
-          [row.id, newFactId, row.similarity],
-        )
-        .catch(() => {});
-
-      await pool.query(
-        `UPDATE memory.facts
-         SET valid_to = now(), invalidated_by = $1
-         WHERE id = $2 AND valid_to IS NULL`,
-        [newFactId, row.id],
-      );
+      await invalidateFact(pool, newFactId, row);
     }
 
     if (agentId) {
-      await pool
-        .query(
-          `INSERT INTO memory.audit_log (agent_id, operation, metadata)
-         VALUES ($1, 'fact_invalidation', $2)`,
-          [
-            agentId,
-            JSON.stringify({
-              new_fact_id: newFactId,
-              invalidated: rows.map((r) => ({
-                id: r.id as string,
-                similarity: r.similarity as number,
-              })),
-            }),
-          ],
-        )
-        .catch(() => {});
+      await auditInvalidation(pool, agentId, newFactId, rows);
     }
 
     return rows.length;

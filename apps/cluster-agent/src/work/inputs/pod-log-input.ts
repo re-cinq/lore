@@ -50,6 +50,68 @@ interface NamespaceHandle {
   namespace: string;
 }
 
+/** Accumulates a pod's log stream into batches. Owns the three pieces of state the stream, the idle timer and the finish path all touch — the pending batch, the sequence number, and the partial line held back until its newline arrives. */
+class PodLogBatcher {
+  private batch: PendingBatch = emptyBatch();
+  private seq = 0;
+  private carry = "";
+
+  constructor(
+    private readonly target: PodLogTarget,
+    private readonly emit: Emit,
+  ) {}
+
+  private async send(lines: string | null): Promise<void> {
+    if (lines !== null) {
+      this.seq++;
+      // Awaited so a full queue slows the READER of this stream rather than accumulating unsent chunks here.
+      await this.emit({
+        kind: "event",
+        event: podLogEvent(this.target, this.seq, lines),
+      });
+    }
+  }
+
+  /** Flushes that cannot be awaited are logged rather than left to reject — this process installs no unhandled-rejection handler. */
+  private sendDetached(lines: string | null, why: string): void {
+    void this.send(lines).catch((err) =>
+      console.error(
+        `[cluster-agent] pod-log flush failed for ${this.target.podName} (${why}):`,
+        errorMessage(err),
+      ),
+    );
+  }
+
+  async consume(chunk: string): Promise<void> {
+    const parts = (this.carry + chunk).split("\n");
+
+    // The last part is whatever arrived without a newline — hold it until the rest of the line does.
+    this.carry = parts.pop() ?? "";
+
+    for (const line of parts) {
+      const step = addLine(this.batch, line, LIMITS);
+
+      this.batch = step.batch;
+      await this.send(step.flushed);
+    }
+  }
+
+  flushIdle(): void {
+    const step = drain(this.batch);
+
+    this.batch = step.batch;
+    this.sendDetached(step.flushed, "idle");
+  }
+
+  flushFinal(why: string): void {
+    const step = drainAtEnd(this.batch, this.carry);
+
+    this.carry = "";
+    this.batch = step.batch;
+    this.sendDetached(step.flushed, why);
+  }
+}
+
 export class PodLogInput implements EventInput {
   readonly name = "pod-logs";
   private running = false;
@@ -150,34 +212,13 @@ export class PodLogInput implements EventInput {
     containerName: string,
     emit: Emit,
   ): void {
-    let batch: PendingBatch = emptyBatch();
-    let seq = 0;
-    let carry = "";
-
-    const send = async (lines: string | null): Promise<void> => {
-      if (lines !== null) {
-        seq++;
-        // Awaited so a full queue slows the READER of this stream rather than accumulating unsent chunks here.
-        await emit({ kind: "event", event: podLogEvent(target, seq, lines) });
-      }
-    };
+    const batcher = new PodLogBatcher(target, emit);
 
     const sink = new Writable({
       write: (chunk: Buffer, _enc, done) => {
-        const text = carry + chunk.toString("utf8");
-        const parts = text.split("\n");
-
-        // The last part is whatever arrived without a newline — hold it until the rest of the line does.
-        carry = parts.pop() ?? "";
-
         void (async () => {
           try {
-            for (const line of parts) {
-              const step = addLine(batch, line, LIMITS);
-
-              batch = step.batch;
-              await send(step.flushed);
-            }
+            await batcher.consume(chunk.toString("utf8"));
             done();
           } catch (err) {
             // `done` MUST run on every path — a write callback that never resolves stalls the Writable for good, indistinguishable from a quiet pod.
@@ -187,34 +228,13 @@ export class PodLogInput implements EventInput {
       },
     });
 
-    const timer = setInterval(() => {
-      const step = drain(batch);
-
-      batch = step.batch;
-      // Caught here as on the final flush — an idle flush that rejects is an unhandled rejection this process installs no handler for.
-      void send(step.flushed).catch((err) =>
-        console.error(
-          `[cluster-agent] idle pod-log flush failed for ${target.podName}:`,
-          errorMessage(err),
-        ),
-      );
-    }, IDLE_FLUSH_MS);
+    const timer = setInterval(() => batcher.flushIdle(), IDLE_FLUSH_MS);
 
     const abort = new AbortController();
 
     // A pod finishing is the ordinary case — without this the idle timer keeps draining a dead batch forever and the follower entry never leaves the map.
     const finish = (why: string) => {
-      const step = drainAtEnd(batch, carry);
-
-      carry = "";
-
-      batch = step.batch;
-      void send(step.flushed).catch((err) =>
-        console.error(
-          `[cluster-agent] final pod-log flush failed for ${target.podName} (${why}):`,
-          errorMessage(err),
-        ),
-      );
+      batcher.flushFinal(why);
       clearInterval(timer);
       this.followers.delete(target.agentCrName);
     };
