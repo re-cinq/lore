@@ -122,6 +122,29 @@ const resumePlanningRun: MergeStepDeps["resumePlanning"] = async (
   );
 };
 
+/** The GitHub side of a merge: the spec's status row and the Issue that tracked the work. Both read `row` for fields the step contract deliberately does not carry. */
+function repoPorts(
+  row: () => PipelineTask | null,
+): Pick<MergeStepDeps, "flipSpecStatus" | "commentAndCloseIssue"> {
+  return {
+    flipSpecStatus: async (task) => {
+      await maybeFlipSpecStatus(
+        await projectFor(task.target_repo),
+        toFlipSpecStatusTask(row(), new Date().toISOString()),
+      );
+    },
+    commentAndCloseIssue: async (task) => {
+      const issues = (await projectFor(task.target_repo)).issues;
+
+      await issues.comment(
+        task.issue_number as number,
+        `PR #${task.pr_number} merged.`,
+      );
+      await issues.close(task.issue_number as number, "completed");
+    },
+  };
+}
+
 function productionDeps(): MergeStepDeps {
   // Cache the whole row to hand to helpers rather than widening the step contract.
   let row: PipelineTask | null = null;
@@ -136,21 +159,7 @@ function productionDeps(): MergeStepDeps {
     recordEvent: async (id, from, to) => {
       await taskStore().recordEvent(id, from, to, { merged_by: "merge-line" });
     },
-    flipSpecStatus: async (task) => {
-      await maybeFlipSpecStatus(
-        await projectFor(task.target_repo),
-        toFlipSpecStatusTask(row, new Date().toISOString()),
-      );
-    },
-    commentAndCloseIssue: async (task) => {
-      const issues = (await projectFor(task.target_repo)).issues;
-
-      await issues.comment(
-        task.issue_number as number,
-        `PR #${task.pr_number} merged.`,
-      );
-      await issues.close(task.issue_number as number, "completed");
-    },
+    ...repoPorts(() => row),
     recordOutcome: recordMergeOutcome,
     curate: curateMergeEpisode,
     applyOutcomeFeedback: (id, kind) => applyOutcomeFeedback(id, kind),

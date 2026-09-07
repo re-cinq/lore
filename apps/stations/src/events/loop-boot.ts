@@ -58,16 +58,8 @@ async function subscribeWithRetry(
   }
 }
 
-export async function startStationDrain(
-  deps: StationDrainDeps,
-  intervalMs = 1000,
-  handlers: Map<string, EventHandler> = buildStationHandlers(),
-  retry: SubscribeRetry = { attempts: 10, delayMs: 1000 },
-): Promise<NodeJS.Timeout> {
-  // Awaited before the loop — fan-out reads the subscription set at insert time, so an earlier event is delivered to nobody.
-  await subscribeWithRetry(deps, retry);
-
-  // After registering, to repair events published before this boot's subscription existed (no delivery row was ever created for them); swallowed on purpose since a drainer that can't repair should still drain.
+/** Repairs events published before this boot's subscription existed — fan-out creates delivery rows at insert time, so those events have none and nobody is waiting to claim them. Failure is swallowed: a drainer that cannot repair should still drain. */
+async function repairMissedDeliveries(deps: StationDrainDeps): Promise<void> {
   try {
     const repaired = await deps.reconcileDeliveries(RECONCILE_WINDOW_MINUTES);
 
@@ -81,6 +73,18 @@ export async function startStationDrain(
       `[stations] boot reconcile failed (${(err as Error).message}) — draining anyway`,
     );
   }
+}
+
+export async function startStationDrain(
+  deps: StationDrainDeps,
+  intervalMs = 1000,
+  handlers: Map<string, EventHandler> = buildStationHandlers(),
+  retry: SubscribeRetry = { attempts: 10, delayMs: 1000 },
+): Promise<NodeJS.Timeout> {
+  // Awaited before the loop — fan-out reads the subscription set at insert time, so an earlier event is delivered to nobody.
+  await subscribeWithRetry(deps, retry);
+
+  await repairMissedDeliveries(deps);
 
   return startEventLoop(
     {

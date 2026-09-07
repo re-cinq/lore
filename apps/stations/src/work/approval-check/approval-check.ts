@@ -4,6 +4,29 @@ import type { StationHost } from "../lib/station.js";
 
 const WAITING_LABEL = "awaiting-approval";
 
+/** Promotes one task if its issue carries the label. The transition is the real work — the label removal and the comment are best-effort, because a failure there must not make the next sweep approve the task a second time. */
+async function promoteIfApproved(
+  deps: StationHost,
+  task: { id: string; target_repo: string; issue_number: number },
+  label: string,
+): Promise<boolean> {
+  const repo = await deps.repoFor(task.target_repo);
+
+  if (!(await repo.labelsOn(task.issue_number)).includes(label)) {
+    return false;
+  }
+
+  await repo.approve(task.id);
+  await repo.removeLabel(task.issue_number, WAITING_LABEL).catch(() => {});
+  await repo
+    .comment(task.issue_number, "Task approved. Agent will pick it up shortly.")
+    .catch(() => {});
+
+  console.log(`[station] approval-check: task ${task.id} approved`);
+
+  return true;
+}
+
 export async function runApprovalCheck(deps: StationHost): Promise<string> {
   const tasks = await deps.awaitingApproval();
 
@@ -18,24 +41,9 @@ export async function runApprovalCheck(deps: StationHost): Promise<string> {
   for (const task of tasks) {
     // Per task, so one unreachable repo cannot stall every other repo's queue.
     try {
-      const repo = await deps.repoFor(task.target_repo);
-
-      if (!(await repo.labelsOn(task.issue_number)).includes(label)) {
-        continue;
+      if (await promoteIfApproved(deps, task, label)) {
+        approved++;
       }
-
-      await repo.approve(task.id);
-      // Best-effort tidy-up: the transition above is the real work, and a failed label removal must not re-run it next sweep.
-      await repo.removeLabel(task.issue_number, WAITING_LABEL).catch(() => {});
-      await repo
-        .comment(
-          task.issue_number,
-          "Task approved. Agent will pick it up shortly.",
-        )
-        .catch(() => {});
-
-      approved++;
-      console.log(`[station] approval-check: task ${task.id} approved`);
     } catch (err) {
       console.error(
         `[station] approval-check: error checking task ${task.id}:`,

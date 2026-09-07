@@ -72,6 +72,45 @@ async function bigQueryCall<T>(
   return (await res.json()) as T;
 }
 
+/** The export table BigQuery is currently writing into. Naming is console-side and versioned, so the newest match wins rather than a fixed name; no match means the export was never enabled, which is a person's job, not a failure. */
+async function findBillingTable(
+  project: string,
+  dataset: string,
+  token: string,
+): Promise<string | null> {
+  const tables = await bigQueryCall<{
+    tables?: Array<{ tableReference?: { tableId?: string } }>;
+  }>(`/projects/${project}/datasets/${dataset}/tables?maxResults=1000`, token);
+
+  return pickBillingTable(
+    (tables.tables ?? [])
+      .map((t) => t.tableReference?.tableId)
+      .filter((id): id is string => !!id),
+  );
+}
+
+/** Rolls the export up per day and service over the trailing window. `maxResults` is generous because a truncated page would under-report spend silently — the one failure this job must not have. */
+async function queryBillingRows(
+  table: { project: string; dataset: string; tableId: string },
+  token: string,
+): Promise<ReturnType<typeof parseBillingQueryResponse>> {
+  const response = await bigQueryCall(
+    `/projects/${table.project}/queries`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        query: buildBillingQuery(table, billingWindowStart(new Date())),
+        useLegacySql: false,
+        timeoutMs: 30_000,
+        maxResults: 10_000,
+      }),
+    },
+  );
+
+  return parseBillingQueryResponse(response);
+}
+
 // The daily pull: finds the export table, rolls it up per day/service over the trailing window, upserts. Skips (never fails) on states only a person can change (env not configured, or console-side export not yet producing a table) — /spend degrades to the estimate either way.
 export async function gcpCostSyncJob(
   costs: GcpCostPort,
@@ -85,32 +124,13 @@ export async function gcpCostSyncJob(
   }
 
   const token = await fetchAccessToken();
-  const tables = await bigQueryCall<{
-    tables?: Array<{ tableReference?: { tableId?: string } }>;
-  }>(`/projects/${project}/datasets/${dataset}/tables?maxResults=1000`, token);
-  const tableId = pickBillingTable(
-    (tables.tables ?? [])
-      .map((t) => t.tableReference?.tableId)
-      .filter((id): id is string => !!id),
-  );
+  const tableId = await findBillingTable(project, dataset, token);
 
   if (!tableId) {
     return `no billing export table in ${project}.${dataset} yet; enable the Cloud Billing export in the console`;
   }
 
-  const response = await bigQueryCall(`/projects/${project}/queries`, token, {
-    method: "POST",
-    body: JSON.stringify({
-      query: buildBillingQuery(
-        { project, dataset, tableId },
-        billingWindowStart(new Date()),
-      ),
-      useLegacySql: false,
-      timeoutMs: 30_000,
-      maxResults: 10_000,
-    }),
-  });
-  const rows = parseBillingQueryResponse(response);
+  const rows = await queryBillingRows({ project, dataset, tableId }, token);
 
   await Promise.all(rows.map((row) => costs.upsertGcpDaily(row)));
 

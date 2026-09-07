@@ -26,6 +26,36 @@ function escalationInputFrom(
   };
 }
 
+/** The three surfaces an escalation reaches, all through the same Project facade. Their failure modes differ on purpose: the Issue is the step's product, the audit entry is the durable record the dark-factory console reads, and the notification is best-effort — a Slack outage must not fail a step whose whole job is telling a human, but it must still be attempted. */
+function escalationPorts(
+  input: StationInput,
+): Parameters<typeof runEscalationStep>[2] {
+  return {
+    escalationInput: escalationInputFrom(input),
+    createIssue: async (repo, title, body) =>
+      (await projectFor(repo)).issues.create(title, body, [
+        "needs-human-help",
+        "lore-managed",
+      ]),
+    writeAudit: async (entry) => {
+      await (await projectFor(input.repo)).audit.write(entry as never);
+    },
+    notify: async (message: string) => {
+      await (
+        await projectFor(input.repo)
+      ).notify
+        .notify("escalation", message)
+        .catch((err: Error) =>
+          console.warn(
+            `[escalation] notify failed for ${input.repo}:`,
+            err.message,
+          ),
+        );
+    },
+    params: input.params,
+  };
+}
+
 export async function runEscalationStepNode(
   input: StationInput,
 ): Promise<NodeResult> {
@@ -41,30 +71,5 @@ export async function runEscalationStepNode(
     };
   }
 
-  return runEscalationStep(step, taskId, {
-    escalationInput: escalationInputFrom(input),
-    createIssue: async (repo, title, body) =>
-      (await projectFor(repo)).issues.create(title, body, [
-        "needs-human-help",
-        "lore-managed",
-      ]),
-    // pipeline.audit_log, through the same facade the Issue goes through — the dark-factory console reads `escalation_issued` from there, and it's the durable half of this step.
-    writeAudit: async (entry) => {
-      await (await projectFor(input.repo)).audit.write(entry as never);
-    },
-    // Best-effort but REAL: the audit entry above is the durable record so a Slack outage must not fail the step (the send is caught), but a station whose whole job is telling a human must actually try.
-    notify: async (message: string) => {
-      await (
-        await projectFor(input.repo)
-      ).notify
-        .notify("escalation", message)
-        .catch((err: Error) =>
-          console.warn(
-            `[escalation] notify failed for ${input.repo}:`,
-            err.message,
-          ),
-        );
-    },
-    params: input.params,
-  });
+  return runEscalationStep(step, taskId, escalationPorts(input));
 }

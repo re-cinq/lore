@@ -29,6 +29,29 @@ export {
   maybeFlipSpecStatus,
 } from "./spec-status-flip.js";
 
+/** Reads the merged tasks.md and files its spec-tasks as one group. The read is off the default branch, not the PR's: the PR is merged by the time this runs, so main is where the file now lives. */
+async function syncSpecTasks(repo: string, specSlug: string): Promise<void> {
+  const tasksPath = `specs/${specSlug}/tasks.md`;
+  const content = await projectFor(repo).then((p) => p.repo.read(tasksPath));
+
+  if (!content) {
+    console.log(`[job] merge-check: no tasks.md at ${tasksPath}`);
+
+    return;
+  }
+  const withDeps = inferPhaseDependencies(parseTasks(content));
+  const taskGroupId = crypto.randomUUID();
+  const { created } = await syncTasksToDb(
+    getPool(),
+    { repo, specSlug, taskGroupId },
+    withDeps,
+  );
+
+  console.log(
+    `[job] merge-check: synced ${created}/${withDeps.length} spec-tasks for ${specSlug} (group ${taskGroupId})`,
+  );
+}
+
 /** Fallback: sync spec-tasks when feature-request PR merges but webhook missed. */
 export async function syncSpecTasksFromMerge(task: {
   id: string;
@@ -50,29 +73,7 @@ export async function syncSpecTasksFromMerge(task: {
     return;
   }
 
-  // Read tasks.md from main branch (PR is merged, content is on main)
-  const tasksPath = `specs/${specSlug}/tasks.md`;
-  const content = await projectFor(task.target_repo).then((p) =>
-    p.repo.read(tasksPath),
-  );
-
-  if (!content) {
-    console.log(`[job] merge-check: no tasks.md at ${tasksPath}`);
-
-    return;
-  }
-
-  const withDeps = inferPhaseDependencies(parseTasks(content));
-  const taskGroupId = crypto.randomUUID();
-  const { created } = await syncTasksToDb(
-    getPool(),
-    { repo: task.target_repo, specSlug, taskGroupId },
-    withDeps,
-  );
-
-  console.log(
-    `[job] merge-check: synced ${created}/${withDeps.length} spec-tasks for ${specSlug} (group ${taskGroupId})`,
-  );
+  await syncSpecTasks(task.target_repo, specSlug);
 }
 
 /** Extracts owner/repo and PR number from a github.com pull URL, or null when the URL is not one. */
@@ -163,16 +164,14 @@ async function checkMergeableTask(
   return "unchanged";
 }
 
-export async function mergeCheckJob(): Promise<string> {
-  const repos = await settings().pendingOnboardingRepos();
-
-  if (repos.length === 0) {
-    console.log("[job] merge-check: no pending repos");
-  }
-
+/** Onboarding PRs. Each repo is caught on its own — one repo whose PR cannot be read must not stop the sweep, because the next repo's merge is what unblocks its ingestion. */
+async function sweepOnboardingRepos(
+  repos: Awaited<
+    ReturnType<ReturnType<typeof settings>["pendingOnboardingRepos"]>
+  >,
+): Promise<number> {
   let mergedCount = 0;
-
-  const bumpRepoOutcome: Record<OnboardingOutcome, () => void> = {
+  const bump: Record<OnboardingOutcome, () => void> = {
     merged: () => mergedCount++,
     closed: () => {},
     invalid: () => {},
@@ -181,7 +180,7 @@ export async function mergeCheckJob(): Promise<string> {
 
   for (const repo of repos) {
     try {
-      bumpRepoOutcome[await checkOnboardingRepo(repo)]();
+      bump[await checkOnboardingRepo(repo)]();
     } catch (err) {
       console.error(
         `[job] merge-check: error checking ${repo.full_name}:`,
@@ -190,27 +189,43 @@ export async function mergeCheckJob(): Promise<string> {
     }
   }
 
-  // Also check pipeline tasks with PRs that might have been merged
-  const tasks = await pipeline().taskQueue.mergeableTasks();
+  return mergedCount;
+}
 
-  let tasksMerged = 0;
-  let tasksClosed = 0;
-
-  const bumpTaskOutcome: Record<MergeableOutcome, () => void> = {
-    merged: () => tasksMerged++,
-    closed: () => tasksClosed++,
+/** Task PRs. The safety net for a missed `pull_request.closed` webhook — deliveries are lossy, and a merged task nobody noticed never boosts the memory that contributed to it. */
+async function sweepMergeableTasks(
+  tasks: MergeableTask[],
+): Promise<{ merged: number; closed: number }> {
+  let merged = 0;
+  let closed = 0;
+  const bump: Record<MergeableOutcome, () => void> = {
+    merged: () => merged++,
+    closed: () => closed++,
     unchanged: () => {},
   };
 
   for (const task of tasks) {
     try {
-      bumpTaskOutcome[await checkMergeableTask(task)]();
+      bump[await checkMergeableTask(task)]();
     } catch (err) {
       console.error(`[job] merge-check: error checking task ${task.id}:`, err);
     }
   }
 
-  return `Checked ${repos.length} repos (${mergedCount} merged), ${tasks.length} tasks (${tasksMerged} merged, ${tasksClosed} rejected)`;
+  return { merged, closed };
+}
+
+export async function mergeCheckJob(): Promise<string> {
+  const repos = await settings().pendingOnboardingRepos();
+
+  if (repos.length === 0) {
+    console.log("[job] merge-check: no pending repos");
+  }
+  const mergedCount = await sweepOnboardingRepos(repos);
+  const tasks = await pipeline().taskQueue.mergeableTasks();
+  const taskCounts = await sweepMergeableTasks(tasks);
+
+  return `Checked ${repos.length} repos (${mergedCount} merged), ${tasks.length} tasks (${taskCounts.merged} merged, ${taskCounts.closed} rejected)`;
 }
 
 /** A merged task: mark merged, close Issue, boost memory, promote trust. */
