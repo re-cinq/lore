@@ -13,6 +13,94 @@ import {
 import { groupSpecSummaries, type SpecSummaryInput } from "@/lib/spec-grouping";
 import { type SpecStatusFilter, type SpecStatusInfo } from "@/lib/spec-status";
 
+/** A spec's status is read from its `spec.md` where there is one, falling back to whatever file the group leads with — a folder of fragments still has a status, it just is not on a file with that name. */
+function visibleSpecs(
+  specs: SpecSummaryInput[],
+  statuses: Record<string, SpecStatusInfo>,
+  view: { filter: SpecStatusFilter; query: string; order: DocSortOrder },
+) {
+  const groups = groupSpecSummaries(specs);
+  const statusOf = (group: { key: string; files: { filePath: string }[] }) =>
+    statuses[`${group.key}/spec.md`] ?? statuses[group.files[0]?.filePath];
+  const { counts, visible } = filterDocCards(groups, statusOf, view.filter, {
+    query: view.query,
+    textOf: (group) => `${group.title} ${group.description} ${group.key}`,
+  });
+
+  return {
+    counts,
+    visible,
+    ordered: sortDocCards(visible, view.order, statusOf),
+    statusOf,
+    groupCount: groups.length,
+  };
+}
+
+/** One spec folder. Each file's label drops the folder prefix, so a group of fragments reads as its parts rather than repeating the path. */
+function SpecGroupCard({
+  group,
+  status,
+  owner,
+  repo,
+}: {
+  group: ReturnType<typeof groupSpecSummaries>[number];
+  status: SpecStatusInfo | undefined;
+  owner: string;
+  repo: string;
+}) {
+  return (
+    <SpecCard
+      title={group.title}
+      description={group.description}
+      status={status}
+      coverage={group.coverage}
+      files={group.files.map((file) => ({
+        label: file.filePath.startsWith(`${group.key}/`)
+          ? file.filePath.slice(group.key.length + 1)
+          : file.filePath,
+        href: `/repos/${owner}/${repo}/specs/${encodeURIComponent(file.filePath)}`,
+      }))}
+    />
+  );
+}
+
+/** Not an error state: specs reach the graph through CI, so an empty list means nothing has been pushed since the workflow was installed. */
+function NoSpecsYet() {
+  return (
+    <p className="muted">
+      No specs in the graph yet. Specs are projected automatically by CI on
+      every push to <code>main</code> — push a<code>specs/</code> change (or
+      re-run the <strong>lore-ingest</strong> workflow), then refresh.
+    </p>
+  );
+}
+
+function SpecCards({
+  groups,
+  statusOf,
+  owner,
+  repo,
+}: {
+  groups: ReturnType<typeof visibleSpecs>["ordered"];
+  statusOf: ReturnType<typeof visibleSpecs>["statusOf"];
+  owner: string;
+  repo: string;
+}) {
+  return (
+    <>
+      {groups.map((group) => (
+        <SpecGroupCard
+          key={group.key}
+          group={group}
+          status={statusOf(group)}
+          owner={owner}
+          repo={repo}
+        />
+      ))}
+    </>
+  );
+}
+
 export default function SpecListView({
   owner,
   repo,
@@ -29,22 +117,13 @@ export default function SpecListView({
   const [order, setOrder] = useState<DocSortOrder>("path");
 
   if (specs.length === 0) {
-    return (
-      <p className="muted">
-        No specs in the graph yet. Specs are projected automatically by CI on
-        every push to <code>main</code> — push a<code>specs/</code> change (or
-        re-run the <strong>lore-ingest</strong> workflow), then refresh.
-      </p>
-    );
+    return <NoSpecsYet />;
   }
-  const groups = groupSpecSummaries(specs);
-  const statusOf = (group: { key: string; files: { filePath: string }[] }) =>
-    statuses[`${group.key}/spec.md`] ?? statuses[group.files[0]?.filePath];
-  const { counts, visible } = filterDocCards(groups, statusOf, filter, {
-    query,
-    textOf: (group) => `${group.title} ${group.description} ${group.key}`,
-  });
-  const ordered = sortDocCards(visible, order, statusOf);
+  const { counts, visible, ordered, statusOf, groupCount } = visibleSpecs(
+    specs,
+    statuses,
+    { filter, query, order },
+  );
 
   return (
     <div>
@@ -56,28 +135,19 @@ export default function SpecListView({
       />
       <SpecStatusChips
         counts={counts}
-        total={groups.length}
+        total={groupCount}
         active={filter}
         onChange={setFilter}
       />
-      {ordered.map((group) => (
-        <SpecCard
-          key={group.key}
-          title={group.title}
-          description={group.description}
-          status={statusOf(group)}
-          coverage={group.coverage}
-          files={group.files.map((file) => ({
-            label: file.filePath.startsWith(`${group.key}/`)
-              ? file.filePath.slice(group.key.length + 1)
-              : file.filePath,
-            href: `/repos/${owner}/${repo}/specs/${encodeURIComponent(file.filePath)}`,
-          }))}
-        />
-      ))}
-      {visible.length === 0 && (
+      <SpecCards
+        groups={ordered}
+        statusOf={statusOf}
+        owner={owner}
+        repo={repo}
+      />
+      {visible.length === 0 ? (
         <p className="muted">No specs match this status filter.</p>
-      )}
+      ) : null}
     </div>
   );
 }
