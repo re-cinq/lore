@@ -16,6 +16,36 @@ export function decideTaskReopen(taskStatus: string): "running" | null {
 }
 
 /** Reopens the settled task behind a fork that just started; safe to call for every fork — task-less rows, already-open tasks, and losing racers all no-op. */
+/** Flips a settled task back to running for a fork's rerun, and records the transition. CAS-guarded on the status we read: another delivery may have moved the task since, and losing that race means somebody else already owns it. `failure_reason` is cleared with the flip — a running task should not wear the source attempt's failure text. */
+async function reopen(
+  assemblyRunId: string,
+  taskId: string,
+  deps: { tasks: SettleTaskDeps["tasks"] },
+): Promise<void> {
+  const task = await deps.tasks.getById(taskId);
+
+  if (!task) {
+    return;
+  }
+  const previousStatus = task.status;
+  const reopenTo = decideTaskReopen(previousStatus);
+
+  if (!reopenTo) {
+    return;
+  }
+  const won = await deps.tasks.setStatusIf(task.id, previousStatus, reopenTo, {
+    failure_reason: null,
+  });
+
+  if (!won) {
+    return;
+  }
+  await deps.tasks.recordEvent(task.id, previousStatus, reopenTo, {
+    assembly_run_id: assemblyRunId,
+    reason: "fork-rerun",
+  });
+}
+
 export async function reopenTaskForFork(
   row: { id: string; taskId: string | null },
   deps: { tasks: SettleTaskDeps["tasks"] },
@@ -25,34 +55,7 @@ export async function reopenTaskForFork(
   }
 
   try {
-    const task = await deps.tasks.getById(row.taskId);
-
-    if (!task) {
-      return;
-    }
-    const previousStatus = task.status;
-    const reopenTo = decideTaskReopen(previousStatus);
-
-    if (!reopenTo) {
-      return;
-    }
-    // failure_reason cleared with the flip — a running task shouldn't wear the source attempt's failure text.
-    const won = await deps.tasks.setStatusIf(
-      task.id,
-      previousStatus,
-      reopenTo,
-      {
-        failure_reason: null,
-      },
-    );
-
-    if (!won) {
-      return;
-    }
-    await deps.tasks.recordEvent(task.id, previousStatus, reopenTo, {
-      assembly_run_id: row.id,
-      reason: "fork-rerun",
-    });
+    await reopen(row.id, row.taskId, deps);
   } catch (err) {
     console.error(
       `[reopen-task] fork ${row.id} → task ${row.taskId}: ${(err as Error).message}`,

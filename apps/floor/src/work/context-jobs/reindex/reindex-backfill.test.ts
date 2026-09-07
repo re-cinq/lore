@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryChunks } from "@re-cinq/lore-shared/project/chunks/chunks-memory.js";
-import { backfillUningestedFiles, BACKFILL_FILES_PER_RUN } from "./reindex.js";
+import {
+  backfillUningestedFiles,
+  BACKFILL_FILES_PER_RUN,
+} from "./reindex-sweeps.js";
 
 const REPO = "octo/repo";
 const SCHEMA = "platform";

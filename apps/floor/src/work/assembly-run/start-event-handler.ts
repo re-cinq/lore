@@ -69,50 +69,64 @@ async function closeUnknownDefinitionRun(
   }
 }
 
+/** The three fields a start event carries. A missing run id throws rather than routing: without it there is no row to fail, so a silently-dropped event would leave a queued run nobody ever walks. */
+function readStartEvent(params: Record<string, unknown>): {
+  assemblyLineId: string;
+  blueprintName: string;
+  taskId: string | null;
+} {
+  const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
+
+  enforceTrue(
+    isValidAssemblyLineId(assemblyLineId),
+    Error,
+    "assembly_run.start event params missing assemblyRunId",
+  );
+
+  return {
+    assemblyLineId,
+    blueprintName: String(params.blueprintName ?? ""),
+    taskId: typeof params.taskId === "string" ? params.taskId : null,
+  };
+}
+
+/** The three ways a start event routes: a known blueprint walks its graph, a task type without one runs as a single Agent CR, and neither leaves nothing to run — that last case closes the row rather than retrying, since no retry produces a definition that does not exist. */
+async function routeStart(
+  event: {
+    assemblyLineId: string;
+    blueprintName: string;
+    taskId: string | null;
+    resumedFrom: unknown;
+  },
+  deps: StartEventHandlerDeps,
+): Promise<void> {
+  const { assemblyLineId, blueprintName, taskId } = event;
+  const definitions = await deps.definitions();
+  const definition = definitions.get(blueprintName);
+
+  if (definition) {
+    return startResolvedBlueprint({ ...event, taskId, definition }, deps);
+  }
+
+  if (taskId) {
+    return markSingleCrRun(assemblyLineId, blueprintName, taskId, deps);
+  }
+
+  return closeUnknownDefinitionRun(
+    assemblyLineId,
+    `no assembly line defined for task type "${blueprintName}"`,
+    deps,
+  );
+}
+
 export function createStartEventHandler(
   deps: StartEventHandlerDeps,
 ): EventHandler {
   return async (params) => {
-    const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
+    // Branch/args/description live in the ROW; the event carries only identity + routing (the old definitionName fallback was deleted 2026-08-18, #1272).
+    const event = readStartEvent(params);
 
-    enforceTrue(
-      isValidAssemblyLineId(assemblyLineId),
-      Error,
-      "assembly_run.start event params missing assemblyRunId",
-    );
-    // Branch/args/description in row; event only needs identity + routing (old definitionName fallback deleted 2026-08-18 #1272).
-    const blueprintName = String(params.blueprintName ?? "");
-    const taskId = typeof params.taskId === "string" ? params.taskId : null;
-
-    const definitions = await deps.definitions();
-    const definition = definitions.get(blueprintName);
-
-    if (definition) {
-      await startResolvedBlueprint(
-        {
-          assemblyLineId,
-          blueprintName,
-          taskId,
-          resumedFrom: params.resumedFrom,
-          definition,
-        },
-        deps,
-      );
-
-      return;
-    }
-
-    if (taskId) {
-      await markSingleCrRun(assemblyLineId, blueprintName, taskId, deps);
-
-      return;
-    }
-
-    await closeUnknownDefinitionRun(
-      assemblyLineId,
-      `no assembly line defined for task type "${blueprintName}"`,
-      deps,
-    );
+    await routeStart({ ...event, resumedFrom: params.resumedFrom }, deps);
   };
 }
 

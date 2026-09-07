@@ -54,16 +54,13 @@ export class AgentCrStationBackend implements StationBackend {
     this.repoSettings = deps.repoSettings;
   }
 
-  async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
-    if (shouldUseAssemblyLine(spec.taskType, this.assemblyLineNames)) {
-      return this.assemblyLine.launch(spec);
-    }
-
-    // Total coverage: single-CR tasks get a per-attempt run row too, so pipeline.assembly_runs is the complete execution history — a crash-recovery re-dispatch reuses the run it already opened, else it mints a phantom second row for one execution.
+  /** The run row this attempt belongs to. Single-CR tasks get one too, so pipeline.assembly_runs is the COMPLETE execution history — and an OPEN row is reused rather than replaced, because a crash-recovery re-dispatch would otherwise mint a phantom second run for one execution. */
+  private async runForTask(spec: LoreTaskSpec): Promise<string> {
     const open = (await this.assemblyRuns.listForTask(spec.taskId)).find(
       (row) => OPEN_STATUSES.includes(row.status),
     );
-    const assemblyRunId =
+
+    return (
       open?.id ??
       (await this.assemblyRuns.start({
         blueprintName: spec.taskType,
@@ -71,9 +68,17 @@ export class AgentCrStationBackend implements StationBackend {
         branch: spec.branch,
         taskId: spec.taskId,
         args: { description: spec.description },
-      }));
+      }))
+    );
+  }
 
-    // The name the row records and the name the spec carries are the same value on purpose — a spelling drift wouldn't fail to compile, it would just never correlate, reading as a run nobody ever launched.
+  async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
+    if (shouldUseAssemblyLine(spec.taskType, this.assemblyLineNames)) {
+      return this.assemblyLine.launch(spec);
+    }
+
+    const assemblyRunId = await this.runForTask(spec);
+    // The name the row records and the name the spec carries are the same value on purpose — a spelling drift would not fail to compile, it would just never correlate, reading as a run nobody ever launched.
     const name = agentCrName(spec.taskId);
     // One call, not an insert plus an arm: ensureStationRun's unique key is what makes a re-dispatch converge, keeping the spec it was armed with rather than overwriting a pod already being built from the first.
     const { created } = await this.assemblyRuns.ensureStationRun({

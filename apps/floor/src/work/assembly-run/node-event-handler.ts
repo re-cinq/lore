@@ -80,6 +80,37 @@ async function resolveRawStatus(
   );
 }
 
+/** What happens once a node's terminal status is known: artifacts are merged into the run's args FIRST, because the artifact sink is a separate racing HTTP post and the next station would otherwise miss an arg its predecessor already produced (a re-merge is a no-op). */
+async function settleTerminalNode(
+  event: { nodeId: string; iteration?: number },
+  target: NonNullable<Awaited<ReturnType<typeof resolveEventTarget>>>,
+  rawStatus: AgentNodeStatus,
+  deps: NodeEventDeps,
+): Promise<void> {
+  const status = normalizeAgentStatus(rawStatus);
+  const result = await deliverTerminalArtifacts(
+    target.row,
+    target.node,
+    rawStatus,
+    deps,
+  );
+
+  await alertOnFailure(target, result, status, deps);
+  tripGateOnAccountOutage(result, deps);
+
+  await finishNodeTerminal(
+    {
+      row: target.row,
+      node: target.node,
+      nodeId: event.nodeId,
+      iteration: event.iteration,
+      result,
+      output: status.output,
+    },
+    deps,
+  );
+}
+
 export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
   return async (params) => {
     const event = readNodeEvent(params);
@@ -93,29 +124,8 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     if (!rawStatus) {
       return;
     }
-    const status = normalizeAgentStatus(rawStatus);
-    // Merged BEFORE the walk moves — the artifact sink is a separate racing HTTP post, so without this the next station could miss an arg its predecessor already produced (a re-merge is a no-op).
-    const result = await deliverTerminalArtifacts(
-      target.row,
-      target.node,
-      rawStatus,
-      deps,
-    );
 
-    await alertOnFailure(target, result, status, deps);
-    tripGateOnAccountOutage(result, deps);
-
-    await finishNodeTerminal(
-      {
-        row: target.row,
-        node: target.node,
-        nodeId: event.nodeId,
-        iteration: event.iteration,
-        result,
-        output: status.output,
-      },
-      deps,
-    );
+    await settleTerminalNode(event, target, rawStatus, deps);
   };
 }
 

@@ -1,3 +1,4 @@
+import type { Project } from "@re-cinq/lore-shared";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../outbound/project-boot.js";
@@ -56,28 +57,24 @@ async function sampleDirEntries(
 }
 
 /** Fetches contextual information about a repo: top-level tree, key config files, and a sample of source files from well-known directories. */
-export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
-  const [owner, repo] = fullName.split("/");
-
-  enforceTrue(
-    owner && repo,
-    Error,
-    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
-  );
-  const project = await projectFor(fullName);
-
-  // 1. Fetch top-level tree
-  let tree: string[] = [];
-
+/** The repo's top-level shape. A repo we cannot list is still worth describing from its key files, so a failure here is a log line and an empty tree. */
+async function readTree(project: Project, fullName: string): Promise<string[]> {
   try {
-    tree = await project.repo.list("");
+    return await project.repo.list("");
   } catch (err) {
     console.error(
       `[floor] Failed to fetch tree for ${fullName}: ${errorMessage(err)}`,
     );
-  }
 
-  // 2. Fetch key files in parallel (skip missing)
+    return [];
+  }
+}
+
+/** The files that describe a repo's conventions. Fetched together and missing ones skipped — most repos have only some of them, and an absent CLAUDE.md is the normal case this context exists to fix. */
+async function readKeyFiles(
+  project: Project,
+  fullName: string,
+): Promise<Record<string, string>> {
   const files: Record<string, string> = {};
 
   await Promise.all(
@@ -96,7 +93,14 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
     }),
   );
 
-  // 3. Sample up to 3 source files from well-known directories
+  return files;
+}
+
+/** Up to three source files, so the model sees how this repo actually writes code rather than only how it documents itself. Directories are tried in order and the walk stops at three. */
+async function readSamples(
+  project: Project,
+  fullName: string,
+): Promise<Record<string, string>> {
   const samples: Record<string, string> = {};
 
   for (const dir of SAMPLE_DIRS) {
@@ -117,6 +121,24 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
     await sampleDirEntries(project, fullName, { dir, entries }, samples);
   }
+
+  return samples;
+}
+
+export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
+  const [owner, repo] = fullName.split("/");
+
+  enforceTrue(
+    owner && repo,
+    Error,
+    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
+  );
+  const project = await projectFor(fullName);
+  const [tree, files, samples] = await Promise.all([
+    readTree(project, fullName),
+    readKeyFiles(project, fullName),
+    readSamples(project, fullName),
+  ]);
 
   return { tree, files, samples };
 }

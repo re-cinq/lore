@@ -1,11 +1,12 @@
+import {
+  healStaleChunkerFiles,
+  backfillUningestedFiles,
+  type IndexedRepo,
+} from "./reindex-sweeps.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { chunks, settings } from "../../../outbound/queues.js";
 import { writeAuditLog } from "../../../outbound/audit.js";
-import {
-  classifyFile,
-  CHUNKER_VERSION,
-  type ChunksPort,
-} from "@re-cinq/lore-shared";
+import { classifyFile } from "@re-cinq/lore-shared";
 import { verifyRepoChunks } from "./verify.js";
 import {
   adoptLegacyOrgSharedChunks,
@@ -26,7 +27,6 @@ const SEED_PREFIXES = ["adrs/", "specs/", ".specify/"];
 const AUDIT_PRUNED_PATHS_CAP = 500;
 
 /** Per-repo, per-run cap on chunker-upgrade heal sweep to spread re-embed across nights. */
-const HEAL_FILES_PER_RUN = 200;
 
 /** Per-repo, per-run cap on never-ingested backfill sweep (mirrors HEAL_FILES_PER_RUN). */
 export const BACKFILL_FILES_PER_RUN = 200;
@@ -45,100 +45,7 @@ export function selectSeedFiles(treePaths: string[]): string[] {
 
 /** Re-ingest code files pre-dating CHUNKER_VERSION; delete chunks for reclassified files. */
 
-/** The repo a sweep walks and the team schema its chunks live in. */
-export interface IndexedRepo {
-  schema: string;
-  repo: string;
-}
-
-export async function healStaleChunkerFiles(
-  port: Pick<ChunksPort, "staleChunkerFiles" | "deleteChunksForFile">,
-  { schema, repo }: IndexedRepo,
-  alreadyProcessed: Set<string>,
-  ingest: (filePath: string) => Promise<boolean>,
-): Promise<number> {
-  const staleFiles = (
-    await port.staleChunkerFiles(
-      schema,
-      repo,
-      CHUNKER_VERSION,
-      HEAL_FILES_PER_RUN,
-    )
-  ).filter((filePath) => !alreadyProcessed.has(filePath));
-
-  let healed = 0;
-
-  for (const filePath of staleFiles) {
-    try {
-      if (await ingest(filePath)) {
-        healed++;
-        continue;
-      }
-      await port.deleteChunksForFile(schema, filePath, repo);
-      console.log(
-        `[job] Heal pruned chunks of unclassifiable ${repo}:${filePath}`,
-      );
-    } catch (err) {
-      console.error(
-        `[job] Heal error ${repo}:${filePath}: ${errorMessage(err)}`,
-      );
-    }
-  }
-
-  if (healed > 0) {
-    console.log(
-      `[job] Healed ${healed} pre-v${CHUNKER_VERSION}-chunker files for ${repo}`,
-    );
-  }
-
-  return healed;
-}
-
 // ── Never-ingested backfill sweep ───────────────────────────────────
-
-/** Ingest tree files absent from chunks (issue #999: seed is docs-only, changed-file post-onboarding). */
-export async function backfillUningestedFiles(
-  port: Pick<ChunksPort, "chunkedFilePaths">,
-  { schema, repo }: IndexedRepo,
-  {
-    treePaths,
-    alreadyProcessed,
-  }: { treePaths: string[]; alreadyProcessed: Set<string> },
-  ingest: (filePath: string) => Promise<boolean>,
-): Promise<number> {
-  const chunked = new Set(await port.chunkedFilePaths(schema, repo));
-  const missing = treePaths
-    .filter(
-      (path) =>
-        classifyFile(path) !== null &&
-        !chunked.has(path) &&
-        !alreadyProcessed.has(path),
-    )
-    .sort()
-    .slice(0, BACKFILL_FILES_PER_RUN);
-
-  let backfilled = 0;
-
-  for (const filePath of missing) {
-    try {
-      if (await ingest(filePath)) {
-        backfilled++;
-      }
-    } catch (err) {
-      console.error(
-        `[job] Backfill error ${repo}:${filePath}: ${errorMessage(err)}`,
-      );
-    }
-  }
-
-  if (backfilled > 0) {
-    console.log(
-      `[job] Backfilled ${backfilled} never-ingested files for ${repo}`,
-    );
-  }
-
-  return backfilled;
-}
 
 // ── Main job ─────────────────────────────────────────────────────────
 
@@ -193,6 +100,41 @@ async function ingestChangedFiles(
   return ingestRepoFiles(filePaths, fullName, schema);
 }
 
+/** The three passes that run after the incremental one, in the order their failures matter: heal re-ingests files chunked by an older chunker (#995), verification prunes chunks whose file is gone, and backfill picks up files never ingested at all (#999). The tree is fetched at most ONCE across them and only if a pass actually needs it. */
+async function runSweeps(
+  target: IndexedRepo,
+  pass: {
+    treePaths: string[] | null;
+    processed: Set<string>;
+    ingest: (filePath: string) => Promise<boolean>;
+  },
+): Promise<number> {
+  const { repo } = target;
+  const { processed, ingest } = pass;
+  // Fetched at most once, and only if a pass actually needs it — the tree is a full repo listing.
+  const memo: { paths: string[] | null } = { paths: pass.treePaths };
+  const tree = async (): Promise<string[]> =>
+    (memo.paths ??= await getTree(repo));
+
+  let healed = await sweep(repo, "Chunker heal sweep", () =>
+    healStaleChunkerFiles(chunks(), target, processed, ingest),
+  );
+
+  await sweep(repo, "Verification pass", async () =>
+    verifyChunks(target, await tree()),
+  );
+  healed += await sweep(repo, "Backfill sweep", async () =>
+    backfillUningestedFiles(
+      chunks(),
+      target,
+      { treePaths: await tree(), alreadyProcessed: processed },
+      ingest,
+    ),
+  );
+
+  return healed;
+}
+
 /** One repo's reindex, or null when it has no usable schema. Every sweep below is independently fail-soft: a repo keeps whatever the earlier passes ingested. */
 async function reindexRepo(repo: {
   full_name: string;
@@ -208,34 +150,14 @@ async function reindexRepo(repo: {
   const hasChunks = (await chunks().countChunks(schema, repo.full_name)) > 0;
   const lastIngestedAt = hasChunks ? repo.last_ingested_at : null;
   const selection = await selectFilesToIngest(repo.full_name, lastIngestedAt);
-  let treePaths = selection.treePaths;
+  const treePaths = selection.treePaths;
   const filePaths = selection.filePaths;
   const ingest = (filePath: string) =>
     ingestFile(filePath, repo.full_name, schema);
   let fileCount = await ingestChangedFiles(filePaths, repo.full_name, schema);
   const processed = new Set(filePaths);
 
-  // Chunker-upgrade heal: re-ingest code files for fix in issue #995.
-  fileCount += await sweep(repo.full_name, "Chunker heal sweep", () =>
-    healStaleChunkerFiles(chunks(), target, processed, ingest),
-  );
-  // Verification pass: re-stamp chunks and prune orphans of deleted files.
-  await sweep(repo.full_name, "Verification pass", async () => {
-    treePaths ??= await getTree(repo.full_name);
-
-    return await verifyChunks(target, treePaths);
-  });
-  // Backfill sweep: ingest never-ingested files (issue #999).
-  fileCount += await sweep(repo.full_name, "Backfill sweep", async () => {
-    treePaths ??= await getTree(repo.full_name);
-
-    return await backfillUningestedFiles(
-      chunks(),
-      target,
-      { treePaths, alreadyProcessed: processed },
-      ingest,
-    );
-  });
+  fileCount += await runSweeps(target, { treePaths, processed, ingest });
   await settings().markIngested(repo.full_name);
 
   return fileCount;
@@ -256,6 +178,29 @@ export async function sweep(
   }
 }
 
+/** Records what a prune removed. The path list is CAPPED and says so: a repo-wide prune can delete thousands of files, and an audit row nobody can load is worse than a truncated one. */
+async function auditPrune(
+  target: { schema: string; repo: string },
+  pruned: number,
+  prunedFiles: string[],
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "reindex_prune",
+    repo: target.repo,
+    payload: {
+      schema: target.schema,
+      pruned_rows: pruned,
+      file_count: prunedFiles.length,
+      file_paths: prunedFiles.slice(0, AUDIT_PRUNED_PATHS_CAP),
+      truncated: prunedFiles.length > AUDIT_PRUNED_PATHS_CAP,
+    },
+  }).catch((err) =>
+    console.error(
+      `[job] reindex_prune audit failed for ${target.repo}: ${errorMessage(err)}`,
+    ),
+  );
+}
+
 /** Re-stamp what is still there and prune what is not, recording a pruned sweep in the audit log. */
 async function verifyChunks(
   target: { schema: string; repo: string },
@@ -272,28 +217,40 @@ async function verifyChunks(
     `[job] Verified ${target.repo}: ${touched} chunks re-stamped, ${pruned} orphaned chunks pruned`,
   );
 
-  if (pruned === 0) {
-    return;
+  if (pruned > 0) {
+    await auditPrune(target, pruned, prunedFiles);
   }
-  await writeAuditLog({
-    event_type: "reindex_prune",
-    repo: target.repo,
-    payload: {
-      schema: target.schema,
-      pruned_rows: pruned,
-      file_count: prunedFiles.length,
-      file_paths: prunedFiles.slice(0, AUDIT_PRUNED_PATHS_CAP),
-      truncated: prunedFiles.length > AUDIT_PRUNED_PATHS_CAP,
-    },
-  }).catch((err) =>
-    console.error(
-      `[job] Prune audit write failed for ${target.repo}: ${errorMessage(err)}`,
-    ),
-  );
 }
 
 function lastIngestedLabel(date: Date | null): string {
   return date?.toISOString() ?? "never";
+}
+
+/** One repo's pass, with its failure contained: a repo whose GitHub read or schema lookup fails must not stop the nightly job for every repo behind it. Null means nothing was indexed — no schema, or a failure. */
+async function reindexOneRepo(
+  repo: Parameters<typeof reindexRepo>[0],
+): Promise<number | null> {
+  console.log(
+    `[job] Reindexing ${repo.full_name} (last ingested: ${lastIngestedLabel(repo.last_ingested_at)})`,
+  );
+
+  try {
+    const fileCount = await reindexRepo(repo);
+
+    if (fileCount !== null) {
+      console.log(
+        `[job] Finished ${repo.full_name}: ${fileCount} files reindexed`,
+      );
+    }
+
+    return fileCount;
+  } catch (err) {
+    console.error(
+      `[job] Error reindexing ${repo.full_name}: ${errorMessage(err)}`,
+    );
+
+    return null;
+  }
 }
 
 export async function reindexJob(): Promise<string> {
@@ -309,25 +266,11 @@ export async function reindexJob(): Promise<string> {
   let totalRepos = 0;
 
   for (const repo of repos) {
-    console.log(
-      `[job] Reindexing ${repo.full_name} (last ingested: ${lastIngestedLabel(repo.last_ingested_at)})`,
-    );
+    const fileCount = await reindexOneRepo(repo);
 
-    try {
-      const fileCount = await reindexRepo(repo);
-
-      if (fileCount === null) {
-        continue;
-      }
+    if (fileCount !== null) {
       totalFiles += fileCount;
       totalRepos++;
-      console.log(
-        `[job] Finished ${repo.full_name}: ${fileCount} files reindexed`,
-      );
-    } catch (err) {
-      console.error(
-        `[job] Error reindexing ${repo.full_name}: ${errorMessage(err)}`,
-      );
     }
   }
   const summary = `Reindexed ${totalFiles} files across ${totalRepos} repos`;

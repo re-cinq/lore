@@ -73,59 +73,68 @@ interface EvalDecisionInput {
   version: string;
 }
 
-async function applyEvalDecision(
-  input: EvalDecisionInput,
-): Promise<"promoted" | "rejected" | "unchanged"> {
+/** Records this build as the production baseline. Only a build that beat the previous score by the threshold gets here — a tie promotes nothing, because an equal score is not evidence the new context is better. */
+async function promote(input: EvalDecisionInput): Promise<"promoted"> {
+  const { namespace, currentScore, prevScore, version } = input;
+
+  await contextCore().insert({
+    version,
+    namespace,
+    evalScore: currentScore,
+    status: "production",
+  });
+  console.log(
+    `[job] context-core: PROMOTED ${namespace} ${version} (${(prevScore * 100).toFixed(1)}% → ${(currentScore * 100).toFixed(1)}%)`,
+  );
+
+  return "promoted";
+}
+
+/** Records the regression AND files a gap-fill task. The row alone would be a number nobody reads; the task is what puts the regression in front of someone. */
+async function reject(input: EvalDecisionInput): Promise<"rejected"> {
   const { namespace, currentScore, prevScore, delta, version } = input;
 
-  if (delta >= IMPROVEMENT_THRESHOLD) {
-    // Promote: mark as new production baseline
-    await contextCore().insert({
-      version,
-      namespace,
-      evalScore: currentScore,
-      status: "production",
-    });
-
-    console.log(
-      `[job] context-core: PROMOTED ${namespace} ${version} (${(prevScore * 100).toFixed(1)}% → ${(currentScore * 100).toFixed(1)}%)`,
-    );
-
-    return "promoted";
-  }
-
-  if (!(delta < -REGRESSION_THRESHOLD)) {
-    // No significant change
-    await contextCore().insert({
-      version,
-      namespace,
-      evalScore: currentScore,
-      status: "no-change",
-    });
-
-    return "unchanged";
-  }
-
-  // Reject: log regression and create alert task
   await contextCore().insert({
     version,
     namespace,
     evalScore: currentScore,
     status: "rejected-regression",
   });
-
   await taskStore().create({
     description: `Context quality regression: ${namespace} dropped from ${(prevScore * 100).toFixed(1)}% to ${(currentScore * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
     taskType: "gap-fill",
     targetRepo: namespace,
     createdBy: "context-core-builder",
   });
-
   console.log(
     `[job] context-core: REJECTED ${namespace} ${version} — regression of ${(delta * 100).toFixed(1)}%`,
   );
 
   return "rejected";
+}
+
+/** A build inside the noise band is still RECORDED, as `no-change` — the row is what makes a slow drift visible across weeks that no single run would show. */
+async function recordNoChange(input: EvalDecisionInput): Promise<"unchanged"> {
+  await contextCore().insert({
+    version: input.version,
+    namespace: input.namespace,
+    evalScore: input.currentScore,
+    status: "no-change",
+  });
+
+  return "unchanged";
+}
+
+async function applyEvalDecision(
+  input: EvalDecisionInput,
+): Promise<"promoted" | "rejected" | "unchanged"> {
+  if (input.delta >= IMPROVEMENT_THRESHOLD) {
+    return promote(input);
+  }
+
+  return input.delta < -REGRESSION_THRESHOLD
+    ? reject(input)
+    : recordNoChange(input);
 }
 
 async function evaluateNamespace(

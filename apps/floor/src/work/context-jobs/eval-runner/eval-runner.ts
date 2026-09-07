@@ -15,27 +15,33 @@ interface EvalResult {
 }
 
 /** Runs one team's PromptFoo config; logs and returns null for a crashed run or one with no usable stats. */
+/** Says why an eval produced no score. A crash and a missing config are both "no result", but only the first is a problem — logging them the same way trained people to ignore the line. */
+function reportUnusableEval(
+  team: string,
+  result: Extract<Awaited<ReturnType<typeof runPromptfooEval>>, { ok: false }>,
+): void {
+  if (result.reason === "exec-failed") {
+    console.error(
+      `[job] eval-runner: eval failed for team ${team}:`,
+      result.error,
+    );
+
+    return;
+  }
+  console.error(
+    `[job] eval-runner: no usable stats for team ${team} (${result.reason})`,
+  );
+}
+
 async function runTeamEval(team: string): Promise<EvalResult | null> {
   const configPath = join(EVALS_DIR, team, "promptfooconfig.yaml");
   const evalResult = await runPromptfooEval({ configPath });
 
-  if (!evalResult.ok && evalResult.reason === "exec-failed") {
-    console.error(
-      `[job] eval-runner: eval failed for team ${team}:`,
-      evalResult.error,
-    );
-
-    return null;
-  }
-
   if (!evalResult.ok) {
-    console.error(
-      `[job] eval-runner: no usable stats for team ${team} (${evalResult.reason})`,
-    );
+    reportUnusableEval(team, evalResult);
 
     return null;
   }
-
   const stats = evalResult.stats;
   const total = stats.total ?? 0;
   const passed = stats.passes ?? 0;

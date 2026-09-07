@@ -95,6 +95,26 @@ async function resolveVisitModel(
 }
 
 /** A review visit that failed on an exhausted LLM budget must not block the PR — an empty account is an operator problem, not the author's — so post an APPROVE saying loudly that no review happened (deduped by the same per-visit marker as a real review) and record the visit as success. */
+/** The audit row for an approval nobody's model actually produced — without it the PR shows a green review with no run behind it, and the reason (a dry account) is only in the body text. */
+async function auditBudgetSkip(
+  row: AssemblyRunRecord,
+  prNumber: number,
+  ports: ReviewPorts,
+): Promise<void> {
+  await writeAuditLog(
+    {
+      event_type: "review_budget_skip",
+      repo: row.repo,
+      payload: {
+        pr_number: prNumber,
+        assembly_run_id: row.id,
+        model: ports.model ?? null,
+      },
+    },
+    ports.audit,
+  );
+}
+
 export async function postBudgetSkipReview(
   row: AssemblyRunRecord,
   node: RunGraphNode,
@@ -116,20 +136,44 @@ export async function postBudgetSkipReview(
     body: withReviewMarker(budgetSkipBody(ports.model), marker),
     comments: [],
   });
-  await writeAuditLog(
-    {
-      event_type: "review_budget_skip",
-      repo: row.repo,
-      payload: {
-        pr_number: prNumber,
-        assembly_run_id: row.id,
-        model: ports.model ?? null,
-      },
-    },
-    ports.audit,
-  );
+  await auditBudgetSkip(row, prNumber, ports);
 
   return "posted";
+}
+
+/** Out of budget: approve-with-notice and finish as SUCCESS. A retry cannot help — only a topup can — so failing the node would spend the run's remaining iterations re-hitting the same wall. Returns false when this is not a credit failure, or the node is not one that reviews. */
+async function handledAsBudgetSkip(
+  input: NodeTerminalInput,
+  model: string | undefined,
+  deps: AdvanceDeps,
+): Promise<boolean> {
+  if (
+    input.result.outcome !== "failed" ||
+    input.result.failureClass !== "anthropic-credit"
+  ) {
+    return false;
+  }
+  const posted = await postBudgetSkipReview(input.row, input.node, {
+    iteration: input.iteration,
+    model,
+  });
+
+  if (posted === "not_applicable") {
+    return false;
+  }
+
+  await finishNodeAndAdvance(
+    {
+      assemblyLineId: input.row.id,
+      nodeId: input.nodeId,
+      iteration: input.iteration,
+      result: { outcome: "success" },
+    },
+    deps,
+  );
+  await publishCheck(input.row.id, deps);
+
+  return true;
 }
 
 /** Post the review, record the outcome + advance, then publish the PR check. */
@@ -139,29 +183,9 @@ export async function finishNodeTerminal(
 ): Promise<void> {
   const model = await resolveVisitModel(input, deps);
 
-  // Out of budget: approve-with-notice (retry budget cannot help, only account topup).
-  if (
-    input.result.outcome === "failed" &&
-    input.result.failureClass === "anthropic-credit" &&
-    (await postBudgetSkipReview(input.row, input.node, {
-      iteration: input.iteration,
-      model,
-    })) !== "not_applicable"
-  ) {
-    await finishNodeAndAdvance(
-      {
-        assemblyLineId: input.row.id,
-        nodeId: input.nodeId,
-        iteration: input.iteration,
-        result: { outcome: "success" },
-      },
-      deps,
-    );
-    await publishCheck(input.row.id, deps);
-
+  if (await handledAsBudgetSkip(input, model, deps)) {
     return;
   }
-
   const post = await postReviewFromNode(input.row, input.node, input.output, {
     iteration: input.iteration,
     model,

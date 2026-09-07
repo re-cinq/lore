@@ -177,6 +177,29 @@ async function ensurePr(input: EnsurePrInput): Promise<PullRef> {
 }
 
 /** Ensure PR on branch, record on line; stamp before feature transition (safer if transition fails). */
+/** Moves the feature to `pr-open`. Warned rather than thrown: the PR exists and its args are recorded by this point, so a rejected transition (a feature already past this state, say) must not undo a run that succeeded. */
+async function markFeaturePrOpen(
+  feature: Awaited<ReturnType<typeof loadFeature>>,
+  pr: { url: string; number: number },
+  ports: SpecPrPorts,
+): Promise<void> {
+  if (!feature) {
+    return;
+  }
+
+  try {
+    await ports.features.transitionStatus(feature.id, "pr-open", {
+      spec_pr_url: pr.url,
+      spec_pr_number: pr.number,
+      spec_path: `specs/${feature.slug}/spec.md`,
+    });
+  } catch (err) {
+    console.warn(
+      `[spec-pr] feature ${feature.id} not moved to pr-open: ${(err as Error).message}`,
+    );
+  }
+}
+
 export async function stampLinePr(
   row: AssemblyRunRecord,
   ports: SpecPrPorts,
@@ -199,21 +222,7 @@ export async function stampLinePr(
     pr_url: pr.url,
   });
 
-  if (!feature) {
-    return;
-  }
-
-  try {
-    await ports.features.transitionStatus(feature.id, "pr-open", {
-      spec_pr_url: pr.url,
-      spec_pr_number: pr.number,
-      spec_path: `specs/${feature.slug}/spec.md`,
-    });
-  } catch (err) {
-    console.warn(
-      `[spec-pr] feature ${feature.id} not moved to pr-open: ${(err as Error).message}`,
-    );
-  }
+  await markFeaturePrOpen(feature, pr, ports);
 }
 
 function issueNumberArg(args: Record<string, unknown>): number | null {

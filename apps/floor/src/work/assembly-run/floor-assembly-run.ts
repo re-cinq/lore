@@ -184,14 +184,25 @@ const STATION_PARAM_FIELDS = [
 ] as const;
 
 /** Pure: the Agent dispatch spec for one STATION node — the whole node input rides one JSON parameter (`{station_input}`); Station defaults to `def-<type>`. */
+/** The pod's argv payload. Built through the shared writer rather than an object literal: the shape is a contract with the station image (apps/stations), and a stray key on one side used to fail every run. */
+function stationInput(node: RunGraphNode, task: FloorAssemblyRunTask): string {
+  return serializeStationInput({
+    assembly_run_id: task.assemblyLineId,
+    node_id: node.id,
+    node_type: node.type,
+    repo: task.targetRepo,
+    branch: cloneRef(task),
+    task_id: task.taskId,
+    params: stationNodeParams(node, task),
+  });
+}
+
 export function nodeStationSpec(
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
   iteration = 1,
   stationRunId?: string,
 ): LoreTaskSpec {
-  const params = stationNodeParams(node, task);
-
   return {
     taskId: task.taskId,
     taskType: task.taskType,
@@ -203,17 +214,6 @@ export function nodeStationSpec(
     extraLabels: nodeLabels(node, task, iteration, stationRunId),
     stationRef: node.station ?? builtinStationName(node.type),
     clone: CLONING_STATION_TYPES.has(node.type),
-    parameters: {
-      // Via the shared writer, not an object literal: the shape is a contract with the pod image (apps/stations); a stray key on one side used to fail every run.
-      station_input: serializeStationInput({
-        assembly_run_id: task.assemblyLineId,
-        node_id: node.id,
-        node_type: node.type,
-        repo: task.targetRepo,
-        branch: cloneRef(task),
-        task_id: task.taskId,
-        params,
-      }),
-    },
+    parameters: { station_input: stationInput(node, task) },
   };
 }

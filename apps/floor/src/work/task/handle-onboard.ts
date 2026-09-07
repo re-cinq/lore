@@ -91,14 +91,21 @@ async function configureAndAudit(input: {
   return { configFailures, workflowsPermissionDenied };
 }
 
-export async function handleOnboard({
-  task,
-  targetRepo,
-  branchName,
-  model,
-  issueNumber,
-}: TaskHandlerInput): Promise<void> {
-  const project = await projectFor(targetRepo);
+/** The five facts every step of an onboarding needs. Threaded rather than re-listed: each step used to declare the same parameter block, and they drifted. */
+interface OnboardingRun {
+  project: Awaited<ReturnType<typeof projectFor>>;
+  targetRepo: string;
+  branchName: string;
+  task: TaskHandlerInput["task"];
+  issueNumber: TaskHandlerInput["issueNumber"];
+}
+
+/** Generates the onboarding files onto a fresh branch and applies the repo-level configuration. Returns what landed and what did not: an onboarding PR is worth opening even when some of it failed, as long as it says so. */
+async function prepareOnboarding(
+  run: OnboardingRun,
+  model: string | undefined,
+): Promise<{ committed: string[]; attention: string }> {
+  const { project, targetRepo, branchName, task } = run;
   const { contextStr, existingFiles, toGenerate } =
     await planOnboarding(targetRepo);
 
@@ -113,48 +120,48 @@ export async function handleOnboard({
     model,
     toGenerate,
   });
-
   const { configFailures, workflowsPermissionDenied } = await configureAndAudit(
     { project, targetRepo, task, failures },
   );
 
-  const pr = await openOnboardingPr({
-    project,
-    branchName,
-    targetRepo,
-    task,
-    issueNumber,
+  return {
     committed,
+    // Everything that went wrong reaches the PR body, so the human reading it sees the gaps rather than discovering them later.
     attention: onboardAttentionSection(
       failures,
       configFailures,
       workflowsPermissionDenied,
     ),
-  });
+  };
+}
 
-  await recordOnboardingPr({
-    project,
+export async function handleOnboard({
+  task,
+  targetRepo,
+  branchName,
+  model,
+  issueNumber,
+}: TaskHandlerInput): Promise<void> {
+  const run: OnboardingRun = {
+    project: await projectFor(targetRepo),
     targetRepo,
     branchName,
     task,
     issueNumber,
-    committed,
-    pr,
-  });
+  };
+  const { committed, attention } = await prepareOnboarding(run, model);
+  const pr = await openOnboardingPr({ ...run, committed, attention });
+
+  await recordOnboardingPr(run, committed, pr);
 }
 
 /** Everything that follows the PR existing: the Issue link, the repo record, the dispatch labels, the task status, and the episode. */
-async function recordOnboardingPr(input: {
-  project: Awaited<ReturnType<typeof projectFor>>;
-  targetRepo: string;
-  branchName: string;
-  task: TaskHandlerInput["task"];
-  issueNumber: TaskHandlerInput["issueNumber"];
-  committed: string[];
-  pr: { url: string; number: number };
-}): Promise<void> {
-  const { project, targetRepo, branchName, task, issueNumber, committed, pr } =
-    input;
+async function recordOnboardingPr(
+  run: OnboardingRun,
+  committed: string[],
+  pr: { url: string; number: number },
+): Promise<void> {
+  const { project, targetRepo, branchName, task, issueNumber } = run;
 
   await linkPrToIssue(targetRepo, issueNumber, pr.url);
 

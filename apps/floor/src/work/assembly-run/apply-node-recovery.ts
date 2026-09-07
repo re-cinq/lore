@@ -70,6 +70,23 @@ async function alertOnFailedOutcome(
 }
 
 /** A dropped event lands here instead — same review/check, artifacts, and alerts the event path would have delivered, or the account-dry alarm depends on which door the event came through (#1456). */
+/** A failure is reported twice on purpose: to a human, and to the dispatch gate. The gate matters most for a CREDIT failure — every subsequent node would fail identically, so tripping it parks the runs instead of burning them. */
+async function reportFailure(
+  what: {
+    row: AssemblyRunRecord;
+    node: RunGraphNode;
+    status: ReturnType<typeof normalizeAgentStatus>;
+  },
+  result: Awaited<ReturnType<typeof deliverTerminalArtifacts>>,
+  deps: AssemblyLineReaperDeps,
+): Promise<void> {
+  await alertOnFailedOutcome(what, result, deps);
+
+  if (result.failureClass) {
+    deps.llmGate?.trip(result.failureClass, result.failureDetail);
+  }
+}
+
 async function settleResolvedNode(
   params: {
     row: AssemblyRunRecord;
@@ -88,12 +105,7 @@ async function settleResolvedNode(
     deps,
   );
 
-  await alertOnFailedOutcome({ row, node, status }, result, deps);
-
-  if (result.failureClass) {
-    deps.llmGate?.trip(result.failureClass, result.failureDetail);
-  }
-
+  await reportFailure({ row, node, status }, result, deps);
   await finishNodeTerminal(
     {
       row,
@@ -172,6 +184,40 @@ async function applyTimeoutRecovery(
 }
 
 /** Carries out one recovery verdict. Every branch ends the node or puts its row back on the shelf; nothing here decides, it only acts. */
+/** Nothing ever ran, so this fails as `unclaimed` rather than `infra` — the class is what makes the walk refuse a retry. The detail names the TAGS: a line stalled on missing `gpu` capacity must say so instead of reporting a generic timeout. */
+async function failUnclaimed(
+  found: OpenNodeContext,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  const { row, openNode } = found;
+
+  await failOpenNode(found, ctx, {
+    outcome: "failed",
+    failureClass: "unclaimed",
+    failureDetail: ctx.whyUnclaimed(openNode.requiredTags),
+  });
+  console.warn(
+    `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} sat queued past ${ctx.queueWaitMs / MINUTE_MS}m unclaimed`,
+  );
+
+  return "queue-timeout";
+}
+
+/** A crash between claim and CR create: the SAME row resets to `queued` so another claim takes it. The armed dispatch spec rides that row, so nothing has to rebuild it. */
+async function requeueUnstarted(
+  found: OpenNodeContext,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  const { row, openNode } = found;
+
+  await ctx.deps.assemblyRuns.requeueStationRun(openNode.id);
+  console.warn(
+    `[assembly-run-reaper] requeued node ${openNode.nodeId} of ${row.id} — its claim produced no CR within the startup grace`,
+  );
+
+  return "requeued";
+}
+
 export async function applyRecovery(
   recovery: ReturnType<typeof decideNodeRecovery>,
   found: OpenNodeContext,
@@ -193,18 +239,7 @@ export async function applyRecovery(
   }
 
   if (recovery.kind === "queue-timeout") {
-    await failOpenNode(found, ctx, {
-      outcome: "failed",
-      // `unclaimed`, not `infra`: nothing ran, so this class is what makes the walk refuse the retry.
-      failureClass: "unclaimed",
-      // Naming the tags is the point: a line stalled on missing `gpu` capacity must say so, not report a generic timeout.
-      failureDetail: ctx.whyUnclaimed(openNode.requiredTags),
-    });
-    console.warn(
-      `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} sat queued past ${ctx.queueWaitMs / MINUTE_MS}m unclaimed`,
-    );
-
-    return "queue-timeout";
+    return await failUnclaimed(found, ctx);
   }
 
   if (recovery.kind === "requeue-offline") {
@@ -212,16 +247,38 @@ export async function applyRecovery(
   }
 
   if (recovery.kind === "requeue") {
-    // Crash between claim and CR create: reset the SAME row to `queued` so another claim takes it — the armed dispatch spec rides the row, no second builder.
-    await ctx.deps.assemblyRuns.requeueStationRun(openNode.id);
-    console.warn(
-      `[assembly-run-reaper] requeued node ${openNode.nodeId} of ${row.id} — its claim produced no CR within the startup grace`,
-    );
-
-    return "requeued";
+    return await requeueUnstarted(found, ctx);
   }
 
   return null;
+}
+
+/** The live facts a recovery decision needs. CR status is NEVER read for a row this Floor cannot see — a satellite's CR reads back null here, and null means requeue, which would double-launch work that is still running. The budget is resolved once, so the failure message names the budget actually applied rather than the global default. */
+async function readNodeState(
+  found: {
+    node: RunGraphNode;
+    openNode: StationRunRecord;
+  },
+  ctx: ReapContext,
+): Promise<{
+  crVisible: boolean;
+  status: Awaited<ReturnType<ReapContext["deps"]["readAgentStatus"]>> | null;
+  budgetMinutes: number | undefined;
+}> {
+  const { node, openNode } = found;
+  const crVisible = agentCrVisible(openNode, ctx.centralClusterAgentId);
+
+  return {
+    crVisible,
+    status:
+      crVisible && openNode.agentCrName
+        ? await ctx.deps.readAgentStatus(openNode.agentCrName)
+        : null,
+    budgetMinutes: nodeTimeoutMinutes({
+      yaml: node.timeout_minutes,
+      manifest: stationBudgetFor(node.type),
+    }),
+  };
 }
 
 /** Reads the node's live state — CR status, claimant health, applicable budget — and applies whatever `decideNodeRecovery` makes of it. */
@@ -234,17 +291,7 @@ export async function recoverOpenNode(
   ctx: ReapContext,
 ): Promise<ReapOutcome> {
   const { row, node, openNode } = found;
-  const crVisible = agentCrVisible(openNode, ctx.centralClusterAgentId);
-  // Never read CR status for a row this Floor cannot see — a satellite's CR read answers null, which would requeue (double-launch) work it's running.
-  const status =
-    crVisible && openNode.agentCrName
-      ? await ctx.deps.readAgentStatus(openNode.agentCrName)
-      : null;
-  // The station's own budget (not the global sixty) when the YAML is silent, resolved ONCE so the failure message names the budget actually applied.
-  const budgetMinutes = nodeTimeoutMinutes({
-    yaml: node.timeout_minutes,
-    manifest: stationBudgetFor(node.type),
-  });
+  const { crVisible, status, budgetMinutes } = await readNodeState(found, ctx);
   const recovery = decideNodeRecovery({
     claimantOffline:
       openNode.clusterAgentId !== null &&

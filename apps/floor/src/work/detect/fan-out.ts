@@ -52,6 +52,25 @@ export async function chunkSchemas(q: QueryFn = query): Promise<string[]> {
 }
 
 /** UNION ALL over chunk schemas; activeOnly filters to activity window ($1 in days). */
+/** Only repos whose CODE moved recently, not merely those that HAVE specs — a detect line over a dormant repo spends a pod to find nothing changed. */
+const ACTIVITY_GATE = `
+  HAVING bool_or(content_type = 'spec')
+    AND bool_or(content_type = 'code' AND ingested_at > now() - ($1 || ' days')::interval)`;
+
+/** One SELECT per team schema, unioned. Schema-per-team isolation means there is no single chunks table to read, and the names are regex-checked by the caller before they reach this string. */
+function schemaUnion(schemas: string[], activeOnly: boolean): string {
+  const chunkFilter = activeOnly
+    ? `content_type IN ('spec', 'code')`
+    : `content_type = 'spec'`;
+
+  return schemas
+    .map(
+      (s) =>
+        `SELECT repo, content_type, ingested_at FROM ${s}.chunks WHERE ${chunkFilter}`,
+    )
+    .join("\n    UNION ALL\n    ");
+}
+
 export function specReposSql(
   schemas: string[],
   opts: { activeOnly: boolean },
@@ -64,20 +83,8 @@ export function specReposSql(
     "specReposSql needs at least one valid chunk schema",
   );
 
-  const chunkFilter = opts.activeOnly
-    ? `content_type IN ('spec', 'code')`
-    : `content_type = 'spec'`;
-  const union = safeSchemas
-    .map(
-      (s) =>
-        `SELECT repo, content_type, ingested_at FROM ${s}.chunks WHERE ${chunkFilter}`,
-    )
-    .join("\n    UNION ALL\n    ");
-  const activityGate = opts.activeOnly
-    ? `
-  HAVING bool_or(content_type = 'spec')
-    AND bool_or(content_type = 'code' AND ingested_at > now() - ($1 || ' days')::interval)`
-    : "";
+  const union = schemaUnion(safeSchemas, opts.activeOnly);
+  const activityGate = opts.activeOnly ? ACTIVITY_GATE : "";
 
   return `
   SELECT repo FROM (
@@ -134,6 +141,51 @@ async function resolveTargetRepos(
 }
 
 /** Starts (or joins) the detect run for one repo; never throws for a "superseded" join, only for a genuine `assembly_line.start` failure. */
+/** Starts the line and keeps its job_run honest: a throw mid-loop would ORPHAN the job_run — nothing reaps those — so it is failed before the error is rethrown, and the retry settles cleanly. */
+async function startUnderJobRun(
+  blueprintName: string,
+  repo: string,
+  jobRunId: string,
+  deps: DetectFanOutDeps,
+): Promise<string> {
+  try {
+    return await deps.assemblyRuns.start({
+      blueprintName,
+      repo,
+      branch: detectBranchName(blueprintName, repo),
+      subjectKey: detectSubject(blueprintName, repo),
+      args: { job_run_id: jobRunId },
+    });
+  } catch (err) {
+    await deps.jobRuns
+      .fail(jobRunId, `assembly_line.start failed: ${(err as Error).message}`)
+      .catch(() => {});
+    throw err;
+  }
+}
+
+/** Two ticks can both read "nothing in flight" — the loser's start() then JOINS the winner's run rather than creating a second one, and a job_run_id that is not ours is exactly that join. Its job_run is closed here, because otherwise it stays open forever with no run behind it. */
+async function joinedAnotherTick(
+  line: { blueprintName: string; repo: string; id: string; jobRunId: string },
+  deps: DetectFanOutDeps,
+): Promise<boolean> {
+  const { blueprintName, repo, id, jobRunId } = line;
+  const startedRun = await deps.assemblyRuns.getById(id);
+
+  if (!startedRun || startedRun.args.job_run_id === jobRunId) {
+    return false;
+  }
+
+  await deps.jobRuns
+    .fail(jobRunId, `superseded — ${repo} is already running as ${id}`)
+    .catch(() => {});
+  console.log(
+    `[detect] ${blueprintName}: ${repo} joined ${id}; job_run ${jobRunId} closed`,
+  );
+
+  return true;
+}
+
 async function processDetectRepo(
   blueprintName: string,
   repo: string,
@@ -154,36 +206,9 @@ async function processDetectRepo(
     return;
   }
   const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
+  const id = await startUnderJobRun(blueprintName, repo, jobRunId, deps);
 
-  // start() throwing mid-loop would orphan the job_run (no reaper) — fail it before rethrowing so the retry settles cleanly.
-  let id: string;
-
-  try {
-    id = await deps.assemblyRuns.start({
-      blueprintName,
-      repo,
-      branch: detectBranchName(blueprintName, repo),
-      subjectKey: detectSubject(blueprintName, repo),
-      args: { job_run_id: jobRunId },
-    });
-  } catch (err) {
-    await deps.jobRuns
-      .fail(jobRunId, `assembly_line.start failed: ${(err as Error).message}`)
-      .catch(() => {});
-    throw err;
-  }
-
-  // The race: two ticks can both read "nothing in flight"; the loser's start() JOINS the winner's run — a job_run_id mismatch IS the join.
-  const startedRun = await deps.assemblyRuns.getById(id);
-
-  if (startedRun && startedRun.args.job_run_id !== jobRunId) {
-    await deps.jobRuns
-      .fail(jobRunId, `superseded — ${repo} is already running as ${id}`)
-      .catch(() => {});
-    console.log(
-      `[detect] ${blueprintName}: ${repo} joined ${id}; job_run ${jobRunId} closed`,
-    );
-
+  if (await joinedAnotherTick({ blueprintName, repo, id, jobRunId }, deps)) {
     return;
   }
 

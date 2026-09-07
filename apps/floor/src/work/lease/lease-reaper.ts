@@ -15,6 +15,30 @@ export interface LeaseReaperDeps {
 }
 
 /** Reaper job: deletes leases whose expiry is more than 5 minutes past (grace absorbs clock skew between the supervisor pod and the database), emitting one `lease_expired` audit entry per row; scheduled at 60s tick by the agent's job runner. */
+/** One audit row per reaped lease, naming the PREVIOUS holder: a lease that expired is a run that stopped reporting, and the holder is the only pointer back to which one. */
+async function auditExpiries(
+  expired: Awaited<ReturnType<LeaseReaperDeps["leases"]["reapExpired"]>>,
+  deps: LeaseReaperDeps,
+): Promise<void> {
+  for (const lease of expired) {
+    await writeAuditLog(
+      {
+        event_type: "lease_expired",
+        task_id: lease.task_id,
+        payload: {
+          branch_name: lease.branch_name,
+          previous_holder: lease.holder,
+          expired_at:
+            lease.expires_at instanceof Date
+              ? lease.expires_at.toISOString()
+              : String(lease.expires_at),
+        },
+      },
+      deps.audit,
+    );
+  }
+}
+
 export async function leaseReaperJob(
   deps: LeaseReaperDeps = {
     leases: pipeline().leases,
@@ -27,24 +51,7 @@ export async function leaseReaperJob(
       const cutoff = new Date(now.getTime() - GRACE_MS);
       const expired = await deps.leases.reapExpired(cutoff);
 
-      for (const lease of expired) {
-        await writeAuditLog(
-          {
-            event_type: "lease_expired",
-            task_id: lease.task_id,
-            payload: {
-              branch_name: lease.branch_name,
-              previous_holder: lease.holder,
-              expired_at:
-                lease.expires_at instanceof Date
-                  ? lease.expires_at.toISOString()
-                  : String(lease.expires_at),
-            },
-          },
-          deps.audit,
-        );
-      }
-
+      await auditExpiries(expired, deps);
       span.setAttribute("expired_count", expired.length);
 
       if (expired.length > 0) {

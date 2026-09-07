@@ -1,3 +1,4 @@
+import type { Span } from "@opentelemetry/api";
 import { trace } from "@opentelemetry/api";
 import {
   allPathsMatch,
@@ -75,37 +76,47 @@ interface AutoMergeGuard {
 }
 
 /** Deferral guards in priority order — the first one that fails wins, exactly like the original if-chain. */
-function autoMergeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
+/** Guards about the PR's REVIEW state: is anyone still looking at it, and did they object. A review in flight defers rather than fails — the answer is coming. */
+function reviewGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
+  return [
+    { failed: inputs.reviewInFlight, outcome: "deferred:review_in_flight" },
+    { failed: inputs.humanChangesRequested, outcome: "deferred:human_review" },
+    {
+      failed: inputs.autoMerge.require_bot_approval && !inputs.botApproved,
+      outcome: "deferred:bot_changes_requested",
+    },
+  ];
+}
+
+/** Guards about the CHANGE itself: what it touches, and whether this repo is trusted that far. A zero-file PR would pass the path allowlist vacuously and then 422 on GitHub's own merge call, so it is refused here where the audit log can say why. */
+function changeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
   const minTrust = TRUST_ORDER[inputs.autoMerge.min_trust] ?? 1;
   const actualTrust = inputs.trustLevel
     ? (TRUST_ORDER[inputs.trustLevel] ?? 0)
     : 0;
 
   return [
-    { failed: !inputs.darkFactoryEnabled, outcome: "deferred:dark_mode_off" },
-    // A zero-file PR would technically pass the path-allowlist check (vacuous truth) but GitHub's merge call would then 422 on an empty diff — surface the real reason in the audit log instead.
     {
       failed: inputs.changedPaths.length === 0,
       outcome: "deferred:no_changes",
-    },
-    { failed: inputs.reviewInFlight, outcome: "deferred:review_in_flight" },
-    {
-      failed: inputs.humanChangesRequested,
-      outcome: "deferred:human_review",
     },
     {
       failed: inputs.autoMerge.require_green_ci && !inputs.ciSucceeded,
       outcome: "deferred:ci_failed",
     },
     {
-      failed: inputs.autoMerge.require_bot_approval && !inputs.botApproved,
-      outcome: "deferred:bot_changes_requested",
-    },
-    {
       failed: !allPathsMatch(inputs.changedPaths, inputs.autoMerge.paths),
       outcome: "deferred:path_outside_allowlist",
     },
     { failed: actualTrust < minTrust, outcome: "deferred:trust_too_low" },
+  ];
+}
+
+function autoMergeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
+  return [
+    { failed: !inputs.darkFactoryEnabled, outcome: "deferred:dark_mode_off" },
+    ...changeGuards(inputs),
+    ...reviewGuards(inputs),
   ];
 }
 
@@ -155,6 +166,33 @@ async function decideAndMerge(
   }
 }
 
+/** The rule trace on the span. Every input that could have deferred the merge is attached, so a "why did this not merge" question is answerable from the trace alone rather than by re-reading the PR. */
+function recordDecision(span: Span, decision: AutoMergeDecision): void {
+  span.setAttribute("decision", decision.outcome);
+  span.setAttribute("path_match_count", decision.rule.path_match_count);
+  span.setAttribute("trust_level", decision.rule.trust_level ?? "unknown");
+  span.setAttribute("ci_status", decision.rule.ci_status);
+  span.setAttribute("bot_review_state", decision.rule.bot_review_state);
+}
+
+/** The durable half of the same record. Traces expire; `pipeline.audit_log` is what the dark-factory rollback runbook queries months later. */
+async function auditDecision(
+  inputs: AutoMergeJobInputs,
+  decision: AutoMergeDecision,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "auto_merge_decision",
+    task_id: inputs.taskId,
+    repo: inputs.repo,
+    payload: {
+      pr_number: inputs.prNumber,
+      outcome: decision.outcome,
+      rule: decision.rule,
+      decided_at: new Date().toISOString(),
+    },
+  });
+}
+
 export async function evaluateAndMerge(
   inputs: AutoMergeJobInputs,
 ): Promise<AutoMergeDecision> {
@@ -168,26 +206,8 @@ export async function evaluateAndMerge(
       try {
         const decision = await decideAndMerge(inputs);
 
-        span.setAttribute("decision", decision.outcome);
-        span.setAttribute("path_match_count", decision.rule.path_match_count);
-        span.setAttribute(
-          "trust_level",
-          decision.rule.trust_level ?? "unknown",
-        );
-        span.setAttribute("ci_status", decision.rule.ci_status);
-        span.setAttribute("bot_review_state", decision.rule.bot_review_state);
-
-        await writeAuditLog({
-          event_type: "auto_merge_decision",
-          task_id: inputs.taskId,
-          repo: inputs.repo,
-          payload: {
-            pr_number: inputs.prNumber,
-            outcome: decision.outcome,
-            rule: decision.rule,
-            decided_at: new Date().toISOString(),
-          },
-        });
+        recordDecision(span, decision);
+        await auditDecision(inputs, decision);
 
         return decision;
       } finally {

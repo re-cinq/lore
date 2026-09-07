@@ -120,35 +120,24 @@ function promptOverride(
 }
 
 /** Everything the Agent CR is dispatched with. */
-function agentRunSpec(input: ClaudeCodeTaskInput): AgentRunOpts {
-  const {
-    task,
-    branchName,
-    model,
-    repoOverrides,
-    darkFactory,
-    image,
-    agentDef,
-  } = input;
-  const fullPrompt = agentPrompt(
-    promptOverride(agentDef),
-    task.description,
-    buildPrompt(task.task_type, task.description),
-  );
+/** The context-bundle fields, threaded onto the run so a line's `continues.key: args.feature_id` resolves — the assembly-line engine itself never learns what a feature is. Each is spread conditionally: an explicitly-undefined key is not the same as an absent one to the recipe renderer. */
+function bundleFields(task: ClaudeCodeTaskInput["task"]) {
   const { featureId, roundFeedback, resumeFromTask, lineArgs } =
     contextBundleFields(task);
 
   return {
-    mode: "cluster",
-    taskType: task.task_type,
-    // Threaded so `continues.key: args.feature_id` resolves — the assembly-line engine never learns what a feature is.
     ...optionalStringField("featureId", featureId),
     ...optionalStringField("roundFeedback", roundFeedback),
     ...optionalStringField("resumeFromTask", resumeFromTask),
     ...optionalLineArgs(lineArgs),
-    description: task.description,
-    prompt: fullPrompt,
-    branch: branchName,
+  };
+}
+
+/** The knobs a repo can turn: model, timeout, image, and the dark-factory block. The default model is named here rather than in a recipe, so a task type with no agent-definition row still dispatches. */
+function runSettings(input: ClaudeCodeTaskInput) {
+  const { task, model, repoOverrides, darkFactory, image, agentDef } = input;
+
+  return {
     model: model || "claude-sonnet-4-6",
     timeoutMinutes: resolveTimeoutMinutes(
       agentDef,
@@ -157,6 +146,25 @@ function agentRunSpec(input: ClaudeCodeTaskInput): AgentRunOpts {
     ),
     ...optionalImage(image),
     ...optionalDarkFactory(darkFactory),
+  };
+}
+
+function agentRunSpec(input: ClaudeCodeTaskInput): AgentRunOpts {
+  const { task, branchName, agentDef } = input;
+
+  return {
+    mode: "cluster",
+    taskType: task.task_type,
+    ...bundleFields(task),
+    description: task.description,
+    // The recipe's own prompt wins over the built-in one; the task description is appended either way, since a recipe describes the JOB and the task says which instance of it.
+    prompt: agentPrompt(
+      promptOverride(agentDef),
+      task.description,
+      buildPrompt(task.task_type, task.description),
+    ),
+    branch: branchName,
+    ...runSettings(input),
   };
 }
 

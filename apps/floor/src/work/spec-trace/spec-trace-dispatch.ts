@@ -62,12 +62,12 @@ function routedResult(
 }
 
 /** Payload kinds (test-report/coverage): the pod fetches the body back by reference (FR3/FR6), never inline. */
-async function dispatchPayloadKind(
+/** What a payload dispatch cannot proceed without. The inline projector was retired (specs/ingest-station FR6), so a missing `startLine` means there is nothing to run it on; and the pod fetches the body BY REFERENCE (FR3), so a missing event id leaves it with nothing to fetch. */
+function enforcePayloadDispatchable(
   repo: string,
   kind: string,
-  payload: unknown,
   deps: SpecTraceDispatchDeps,
-): Promise<{ logLine: string; audit: AuditLogEntry }> {
+): void {
   enforceTrue(
     PAYLOAD_KINDS.has(kind),
     Error,
@@ -83,6 +83,16 @@ async function dispatchPayloadKind(
     Error,
     `spec-trace payload kind "${kind}" for ${repo} requires the scheduling eventId — the pod fetches the body by reference (FR3)`,
   );
+}
+
+async function dispatchPayloadKind(
+  repo: string,
+  kind: string,
+  payload: unknown,
+  deps: SpecTraceDispatchDeps,
+): Promise<{ logLine: string; audit: AuditLogEntry }> {
+  enforcePayloadDispatchable(repo, kind, deps);
+
   const p = (payload ?? {}) as RepoReadPayload;
   const ref = p.commit || p.branch || "main";
   // Lease key carries the scheduling event's id — each POSTed chunk is DISTINCT data (specs/ingest-station), so chunks never share a lease.
@@ -136,19 +146,14 @@ async function dispatchRepoReadKind(
 }
 
 /** A force pass with no glob re-projects EVERY file — one pod would blow the station deadline, so self-chunk one child event per top-level directory. */
-async function dispatchForceChunk(
+/** Splits a forced reprojection into one event per directory and emits them. The dedupe key carries the ref and the glob, so a re-forced commit collapses onto the same events instead of projecting the repo twice. Returns how many were emitted. */
+async function emitChunkEvents(
   repo: string,
   kind: string,
-  p: RepoReadPayload,
+  ref: string | undefined,
   deps: SpecTraceDispatchDeps,
-): Promise<{ logLine: string; audit: AuditLogEntry }> {
-  enforceTrue(
-    deps.insertEvent !== undefined,
-    Error,
-    "self-chunking a force projection requires the insertEvent dep",
-  );
+): Promise<number> {
   const project = await deps.projectFor(repo);
-  const ref = p.commit || p.branch || undefined;
   const globs = chunkGlobsForKind(kind, await project.repo.tree(ref));
 
   for (const glob of globs) {
@@ -163,7 +168,24 @@ async function dispatchForceChunk(
       },
     });
   }
-  const message = `force chunked into ${globs.length} per-directory event(s)`;
+
+  return globs.length;
+}
+
+async function dispatchForceChunk(
+  repo: string,
+  kind: string,
+  p: RepoReadPayload,
+  deps: SpecTraceDispatchDeps,
+): Promise<{ logLine: string; audit: AuditLogEntry }> {
+  enforceTrue(
+    deps.insertEvent !== undefined,
+    Error,
+    "self-chunking a force projection requires the insertEvent dep",
+  );
+  const ref = p.commit || p.branch || undefined;
+  const globs = await emitChunkEvents(repo, kind, ref, deps);
+  const message = `force chunked into ${globs} per-directory event(s)`;
 
   return {
     logLine: `[floor] spec-trace ${kind} ${repo}: ${message}`,

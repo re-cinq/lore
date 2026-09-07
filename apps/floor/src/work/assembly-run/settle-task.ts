@@ -175,6 +175,38 @@ async function applySettlement(
 }
 
 /** Settle the task behind a line that just reached a terminal state. Safe for every line (task-less, already-settled, losing racers all no-op); never throws — a settle failure must not poison finishLine. */
+/** Resolves what this outcome means for the task and applies it. `previousStatus` is captured BEFORE the write: the CAS mutates the very object being held, so reading it afterwards would report the new status as the transition's own origin. */
+async function settle(
+  row: {
+    id: string;
+    taskId: string | null;
+    repo: string;
+    args?: Record<string, unknown>;
+  },
+  outcome: string,
+  reason: string | undefined,
+  deps: SettleTaskDeps,
+): Promise<void> {
+  const task = row.taskId ? await deps.tasks.getById(row.taskId) : null;
+
+  if (!task) {
+    return;
+  }
+  const previousStatus = task.status;
+  const settlement = await resolveSettlement(
+    { task, previousStatus, outcome, reason },
+    deps,
+  );
+
+  if (!settlement) {
+    return;
+  }
+  await applySettlement(
+    { task, previousStatus, settlement, row, outcome },
+    deps,
+  );
+}
+
 export async function settleTaskForLine(
   row: {
     id: string;
@@ -192,25 +224,7 @@ export async function settleTaskForLine(
   }
 
   try {
-    const task = await deps.tasks.getById(row.taskId);
-
-    if (!task) {
-      return;
-    }
-    // Captured before the write: the CAS mutates the very object we're holding, so reading afterwards would report the new status as the transition's origin.
-    const previousStatus = task.status;
-    const settlement = await resolveSettlement(
-      { task, previousStatus, outcome, reason },
-      deps,
-    );
-
-    if (!settlement) {
-      return;
-    }
-    await applySettlement(
-      { task, previousStatus, settlement, row, outcome },
-      deps,
-    );
+    await settle(row, outcome, reason, deps);
   } catch (err) {
     console.error(
       `[settle-task] line ${row.id} → task ${row.taskId}: ${(err as Error).message}`,

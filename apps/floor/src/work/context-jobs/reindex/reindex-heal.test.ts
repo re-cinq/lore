@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryChunks } from "@re-cinq/lore-shared/project/chunks/chunks-memory.js";
-import { healStaleChunkerFiles } from "./reindex.js";
+import { healStaleChunkerFiles } from "./reindex-sweeps.js";
 
 const REPO = "octo/repo";
 const SCHEMA = "platform";

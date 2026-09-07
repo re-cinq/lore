@@ -11,6 +11,21 @@ export interface ShutdownSteps {
 }
 
 /** A shutdown function safe to wire to several signals. Every step is best-effort — a shutdown that cannot complete must still terminate — and it runs once however many signals arrive (SIGTERM then SIGKILL, or a Ctrl-C mid-drain, must not restart the sequence). */
+/** Drains the in-memory queue, reporting what did not make it. Never throws: the process is already going down, and the reconcile cron is what re-emits an undelivered event — losing the exit path would be worse than losing the event. */
+async function drainEvents(steps: ShutdownSteps): Promise<void> {
+  const undrained = await steps.flushEvents?.().catch((err) => {
+    console.warn(`[floor] event drain failed: ${(err as Error).message}`);
+
+    return 0;
+  });
+
+  if (undrained) {
+    console.error(
+      `[floor] exiting with ${undrained} undelivered event(s) — the reconcile cron is what re-emits them`,
+    );
+  }
+}
+
 export function createShutdown(
   steps: ShutdownSteps,
 ): (signal: string) => Promise<void> {
@@ -25,17 +40,7 @@ export function createShutdown(
         .catch((err) =>
           console.warn(`[floor] stop failed: ${(err as Error).message}`),
         );
-      const undrained = await steps.flushEvents?.().catch((err) => {
-        console.warn(`[floor] event drain failed: ${(err as Error).message}`);
-
-        return 0;
-      });
-
-      if (undrained) {
-        console.error(
-          `[floor] exiting with ${undrained} undelivered event(s) — the reconcile cron is what re-emits them`,
-        );
-      }
+      await drainEvents(steps);
       await steps
         .flushTelemetry()
         .catch((err) =>

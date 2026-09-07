@@ -33,21 +33,8 @@ import type {
 // GitHub caps payloads at 25 MB; bound generously to support large push deliveries.
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
 
-export function buildServer(opts: {
-  getJobStatus: () => unknown;
-  port?: number;
-  podLogSource?: PodLogSource;
-  podLogArchive?: PodLogArchive;
-}): Hapi.Server {
-  const server = Hapi.server({
-    port: opts.port ?? 0,
-    host: "0.0.0.0",
-    routes: { payload: { maxBytes: MAX_BODY_BYTES } },
-  });
-
-  registerRequestTracing(server);
-  registerBearerAuth(server);
-  // Error logging (#1319): error channel fires only for 500s; join request.info.id to link span.
+/** The error channel fires only for 500s (#1319). `request.info.id` is logged so the line joins the span the tracing plugin opened for the same request — without it a stack trace has no request to belong to. */
+function logServerErrors(server: Hapi.Server): void {
   server.events.on({ name: "request", channels: "error" }, (request, event) => {
     const err = event.error;
     const detail = err instanceof Error ? (err.stack ?? err.message) : `${err}`;
@@ -56,9 +43,16 @@ export function buildServer(opts: {
       `[http] ${request.method.toUpperCase()} ${request.path} 500 (${request.info.id}): ${detail}`,
     );
   });
-  server.route([
+}
+
+/** Everything the Floor serves. Cluster-agent tokens open the telemetry sink, which is what lets a satellite report cost and run-viz events without holding the bus secret. */
+function floorRoutes(opts: {
+  getJobStatus: () => unknown;
+  podLogSource?: PodLogSource;
+  podLogArchive?: PodLogArchive;
+}): Hapi.ServerRoute[] {
+  return [
     healthRoute(opts.getJobStatus),
-    // Cluster-agent tokens open telemetry sink; satellites report cost + run-viz without bus secret.
     agentEventsRoute({
       findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
     }),
@@ -77,7 +71,25 @@ export function buildServer(opts: {
     ciIngestRoute,
     ciTestsRoute,
     reviewStartRoute,
-  ]);
+  ];
+}
+
+export function buildServer(opts: {
+  getJobStatus: () => unknown;
+  port?: number;
+  podLogSource?: PodLogSource;
+  podLogArchive?: PodLogArchive;
+}): Hapi.Server {
+  const server = Hapi.server({
+    port: opts.port ?? 0,
+    host: "0.0.0.0",
+    routes: { payload: { maxBytes: MAX_BODY_BYTES } },
+  });
+
+  registerRequestTracing(server);
+  registerBearerAuth(server);
+  logServerErrors(server);
+  server.route(floorRoutes(opts));
 
   return server;
 }

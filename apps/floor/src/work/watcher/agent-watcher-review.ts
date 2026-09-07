@@ -135,6 +135,25 @@ async function startFixTask(
   return fixTaskId;
 }
 
+/** Tells the Issue thread that a fix is already in flight, so a human reading it does not start the same work. Swallowed on failure: the fix task exists either way, and this is a courtesy. */
+async function noteFixOnIssue(
+  parent: PipelineTask,
+  iteration: number,
+): Promise<void> {
+  if (!parent.issue_number) {
+    return;
+  }
+
+  await projectFor(parent.target_repo)
+    .then((p) =>
+      p.issues.comment(
+        parent.issue_number!,
+        `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`,
+      ),
+    )
+    .catch(() => {});
+}
+
 async function requestReviewFix(
   taskId: string,
   branch: string,
@@ -154,16 +173,7 @@ async function requestReviewFix(
     feedback,
   });
 
-  if (parent.issue_number) {
-    await projectFor(parent.target_repo)
-      .then((p) =>
-        p.issues.comment(
-          parent.issue_number!,
-          `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`,
-        ),
-      )
-      .catch(() => {});
-  }
+  await noteFixOnIssue(parent, iteration);
   await taskStore().setStatus(taskId, "completed");
   console.log(
     `[agent-watcher] Review changes requested, created fix task ${fixTaskId} (iteration ${iteration})`,

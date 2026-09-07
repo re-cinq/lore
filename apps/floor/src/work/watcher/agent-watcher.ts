@@ -21,6 +21,31 @@ import { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
 export { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
 
 /** Closes a single-CR task's open run rows from the task's post-handler status; `phase` disambiguates a Failed-but-still-`running` task so it closes `failed`, not `completed`. */
+/** Closes a run and every station row still open under it. The station rows matter: left open they show as executing forever and the reaper keeps taking an interest in a run that is over. `failureClass` is `unknown` rather than invented — it is a closed taxonomy that drives retry and dispatch gating, and a made-up value would route real decisions. */
+async function closeRunRows(
+  runId: string,
+  outcome: Parameters<ReturnType<typeof pipeline>["assemblyRuns"]["finish"]>[1],
+  failureReason?: string,
+): Promise<void> {
+  const nodes = await pipeline().assemblyRuns.listStationRuns(runId);
+
+  await Promise.all(
+    nodes
+      .filter((node) => node.outcome === null)
+      .map((node) =>
+        pipeline().assemblyRuns.finishStationRunOnce(
+          node.id,
+          stationOutcomeForRunOutcome(outcome),
+          undefined,
+          failureReason
+            ? { failureClass: "unknown", failureDetail: failureReason }
+            : undefined,
+        ),
+      ),
+  );
+  await pipeline().assemblyRuns.finish(runId, outcome, failureReason);
+}
+
 async function finishSingleCrRunRows(
   taskId: string,
   phase: string | undefined,
@@ -38,27 +63,7 @@ async function finishSingleCrRunRows(
   const outcome = runOutcomeFromTaskStatus(task?.status ?? "completed", phase);
 
   await Promise.all(
-    open.map(async (row) => {
-      // Close the station-run row too, else it shows executing forever and the reaper stays interested.
-      const nodes = await pipeline().assemblyRuns.listStationRuns(row.id);
-
-      await Promise.all(
-        nodes
-          .filter((node) => node.outcome === null)
-          .map((node) =>
-            pipeline().assemblyRuns.finishStationRunOnce(
-              node.id,
-              stationOutcomeForRunOutcome(outcome),
-              undefined,
-              // `unknown`, not invented: failureClass is the closed taxonomy driving retry/dispatch gating.
-              failureReason
-                ? { failureClass: "unknown", failureDetail: failureReason }
-                : undefined,
-            ),
-          ),
-      );
-      await pipeline().assemblyRuns.finish(row.id, outcome, failureReason);
-    }),
+    open.map((row) => closeRunRows(row.id, outcome, failureReason)),
   );
 }
 

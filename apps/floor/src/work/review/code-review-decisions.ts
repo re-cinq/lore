@@ -94,45 +94,55 @@ function replyDescription(
 }
 
 /** Route a triaged comment; pure for unit-testability; ignore yields null. */
+type TriageRoute = { definition: string; args: Record<string, unknown> } | null;
+
+/** A fresh review pass over the whole PR — the comment asked for the work to be redone, not discussed. */
+function reviewRoute(ctx: CommentContext): TriageRoute {
+  return {
+    definition: "code-review",
+    args: {
+      pr_number: ctx.pr_number,
+      head_sha: ctx.head_sha,
+      mode: "review",
+      actor: ctx.actor,
+      description: reviewDescription(ctx.repo, ctx.pr_number, ctx.branch),
+    },
+  };
+}
+
+/** A reply on one thread. `intent` carries whether the line should ANSWER the comment or COMMIT a change for it — the same definition does both, and picking per reply is what keeps a question from becoming a commit. */
+function replyRoute(
+  action: "address" | "answer",
+  ctx: CommentContext,
+): TriageRoute {
+  return {
+    definition: "code-review-reply",
+    args: {
+      pr_number: ctx.pr_number,
+      head_sha: ctx.head_sha,
+      comment_id: ctx.comment_id,
+      in_reply_to_id: ctx.in_reply_to_id,
+      comment_body: ctx.comment_body,
+      mode: "reply",
+      intent: action,
+      actor: ctx.actor,
+      description: replyDescription(action, ctx),
+    },
+  };
+}
+
 export function routeTriagedComment(
   action: TriageAction,
   ctx: CommentContext,
-): { definition: string; args: Record<string, unknown> } | null {
-  const thread = {
-    pr_number: ctx.pr_number,
-    head_sha: ctx.head_sha,
-    comment_id: ctx.comment_id,
-    in_reply_to_id: ctx.in_reply_to_id,
-    comment_body: ctx.comment_body,
-  };
-
+): TriageRoute {
   if (action === "review") {
-    return {
-      definition: "code-review",
-      args: {
-        pr_number: ctx.pr_number,
-        head_sha: ctx.head_sha,
-        mode: "review",
-        actor: ctx.actor,
-        description: reviewDescription(ctx.repo, ctx.pr_number, ctx.branch),
-      },
-    };
+    return reviewRoute(ctx);
   }
 
-  if (action === "address" || action === "answer") {
-    return {
-      definition: "code-review-reply",
-      args: {
-        ...thread,
-        mode: "reply",
-        intent: action,
-        actor: ctx.actor,
-        description: replyDescription(action, ctx),
-      },
-    };
-  }
-
-  return null;
+  // `ignore` falls through to null: not every comment is work.
+  return action === "address" || action === "answer"
+    ? replyRoute(action, ctx)
+    : null;
 }
 
 /** Review feedback: body plus inline comments with ids for thread targeting. */
