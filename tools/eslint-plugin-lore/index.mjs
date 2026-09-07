@@ -13,6 +13,7 @@ import noIoInView from "./rules/no-io-in-view.mjs";
 import noSqlInWebUi from "./rules/no-sql-in-web-ui.mjs";
 import noRowTypesOutsideModels from "./rules/no-row-types-outside-models.mjs";
 import requireSpecLink from "./rules/require-spec-link.mjs";
+import noDeadMdLinks from "./rules/no-dead-md-links.mjs";
 import requireStatementLinks from "./rules/require-statement-links.mjs";
 import requireIntroParagraph from "./rules/require-intro-paragraph.mjs";
 import requireStatusMatchesCoverage from "./rules/require-status-matches-coverage.mjs";
@@ -55,6 +56,7 @@ export default {
     "no-sql-in-web-ui": noSqlInWebUi,
     "no-row-types-outside-models": noRowTypesOutsideModels,
     "require-spec-link": requireSpecLink,
+    "no-dead-md-links": noDeadMdLinks,
     "require-statement-links": requireStatementLinks,
     "require-intro-paragraph": requireIntroParagraph,
     "require-status-matches-coverage": requireStatusMatchesCoverage,

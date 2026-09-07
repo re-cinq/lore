@@ -362,4 +362,24 @@ export default tseslint.config(
       "lore/require-status-matches-coverage": "error",
     },
   },
+  // Every markdown link to a repo file, wherever docs live. `require-spec-link`
+  // resolves the validated-by form from the TEST's side — whether each test is
+  // linked — and nothing asks whether each link lands. A rename sweep rewrites a
+  // dead link as faithfully as a live one, which is how two stale references
+  // survived the tier migration. Queue measured at 84; warn until drained.
+  {
+    files: [
+      "specs/**/*.md",
+      "adrs/**/*.md",
+      "docs/**/*.md",
+      "runbooks/**/*.md",
+      "apps/*/README.md",
+      "libs/*/README.md",
+      "CLAUDE.md",
+    ],
+    ignores: ["tools/eslint-plugin-lore/rules/fixtures/**"],
+    language: "markdown/gfm",
+    plugins: { markdown, lore },
+    rules: { "lore/no-dead-md-links": "warn" },
+  },
 );

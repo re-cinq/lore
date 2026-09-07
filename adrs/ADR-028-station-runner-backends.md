@@ -57,7 +57,7 @@ pod. Prod must keep working unchanged on its K8s cluster.
   mounted `~/.claude`. Secrets pass by-reference (`-e NAME`) so they stay out of
   `argv`/`ps`. `buildDockerRunArgs` is a pure, unit-tested function.
 - **Completion without a watcher (local):** `finalizeStationRun`
-  ([finalize-station-run.ts](../apps/floor/src/application/task-processing/finalize-station-run.ts))
+  ([finalize-station-run.ts](../apps/floor/src/work/task/finalize-station-run.ts))
   runs inline off the container exit — opens the PR for the pushed branch / flips
   a finalized feature to `pr-open`. feature-planning self-POSTs its `GapResult`
   (CHANGES=0), so it needs no finalize step. The K8s path keeps using the watcher.

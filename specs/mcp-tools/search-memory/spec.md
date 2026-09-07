@@ -101,10 +101,10 @@ A single MCP text content block. Pretty-printed JSON array of
 
 ## Acceptance Criteria
 
-1. A `pool` argument is resolved to a pool id by name before any search runs. ([validated by `memory-search.test.ts:29`](libs/server-core/src/features/memory/memory-search.test.ts#L29))
+1. A `pool` argument is resolved to a pool id by name before any search runs. ([validated by `memory-search.test.ts:29`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L29))
 
 2. When the named pool does not exist, search short-circuits to an empty
-   result. ([validated by `memory-search.test.ts:19`](libs/server-core/src/features/memory/memory-search.test.ts#L19))
+   result. ([validated by `memory-search.test.ts:19`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L19))
 
 3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/domain/memory-ranking.test.ts#L11))
 

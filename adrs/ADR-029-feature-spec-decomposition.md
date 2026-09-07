@@ -83,7 +83,7 @@ A task pipeline already exists: `spec-task` rows in `pipeline.tasks` (with
 the implementation pipeline under the per-repo trust gate. Today those rows are
 created only from a hand-authored `specs/<slug>/tasks.md` parsed on merge
 ([syncTasksToDb](../libs/shared/src/domain/tasks.ts),
-[merge-check.ts](../apps/stations/src/stations/merge-check/merge-check.ts)),
+[merge-check.ts](../apps/stations/src/work/merge-check/merge-check.ts)),
 and only for the legacy one-shot `feature-request` task type. The interactive
 planning flow produces no `tasks.md`, so it feeds nothing.
 
