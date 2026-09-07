@@ -4,6 +4,68 @@ import { usd, num, day } from "./spend-format";
 import { CostTable } from "./CostTable";
 
 /** What the two vendors actually billed. Each half renders only once that vendor has synced — an absent section means "never synced", not "spent nothing". */
+/** Anthropic's own invoice, shown only where the billing export is wired up — an unavailable export is a deployment fact, not an empty month. */
+function AnthropicBilled({ billed }: { billed: SpendWindow["billed"] }) {
+  if (!billed.available) {
+    return null;
+  }
+
+  return (
+    <>
+      <CostTable
+        title="Anthropic Billed by Model"
+        columns={["Model", "Billed Cost", "Input Tokens", "Output Tokens"]}
+        rows={billed.by_model}
+        rowKey={(r) => r.model || "(non-token)"}
+        monoColumns={[2, 3]}
+        cells={(r) => [
+          <span className="badge" key="model">
+            {r.model || "(non-token)"}
+          </span>,
+          usd(r.cost_usd),
+          num(r.input_tokens),
+          num(r.output_tokens),
+        ]}
+      />
+
+      <CostTable
+        title="Anthropic Daily Billed"
+        columns={["Date", "Billed Cost"]}
+        rows={billed.daily}
+        rowKey={(r) => r.bucket_date}
+        cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
+      />
+    </>
+  );
+}
+
+/** The same for GCP: what the cloud invoice says, when that export exists. */
+function GcpBilled({ gcp }: { gcp: SpendWindow["gcp"] }) {
+  if (!gcp.available) {
+    return null;
+  }
+
+  return (
+    <>
+      <CostTable
+        title="GCP Billed by Service"
+        columns={["Service", "Billed Cost"]}
+        rows={gcp.by_service}
+        rowKey={(r) => r.service}
+        cells={(r) => [r.service, usd(r.cost_usd)]}
+      />
+
+      <CostTable
+        title="GCP Daily Billed"
+        columns={["Date", "Billed Cost"]}
+        rows={gcp.daily}
+        rowKey={(r) => r.bucket_date}
+        cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
+      />
+    </>
+  );
+}
+
 export function BilledBreakdowns({
   billed,
   gcp,
@@ -13,69 +75,19 @@ export function BilledBreakdowns({
 }) {
   return (
     <>
-      {billed.available && (
-        <>
-          <CostTable
-            title="Anthropic Billed by Model"
-            columns={["Model", "Billed Cost", "Input Tokens", "Output Tokens"]}
-            rows={billed.by_model}
-            rowKey={(r) => r.model || "(non-token)"}
-            monoColumns={[2, 3]}
-            cells={(r) => [
-              <span className="badge" key="model">
-                {r.model || "(non-token)"}
-              </span>,
-              usd(r.cost_usd),
-              num(r.input_tokens),
-              num(r.output_tokens),
-            ]}
-          />
-
-          <CostTable
-            title="Anthropic Daily Billed"
-            columns={["Date", "Billed Cost"]}
-            rows={billed.daily}
-            rowKey={(r) => r.bucket_date}
-            cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
-          />
-        </>
-      )}
-
-      {gcp.available && (
-        <>
-          <CostTable
-            title="GCP Billed by Service"
-            columns={["Service", "Billed Cost"]}
-            rows={gcp.by_service}
-            rowKey={(r) => r.service}
-            cells={(r) => [r.service, usd(r.cost_usd)]}
-          />
-
-          <CostTable
-            title="GCP Daily Billed"
-            columns={["Date", "Billed Cost"]}
-            rows={gcp.daily}
-            rowKey={(r) => r.bucket_date}
-            cells={(r) => [day(r.bucket_date), usd(r.cost_usd)]}
-          />
-        </>
-      )}
+      <AnthropicBilled billed={billed} />
+      <GcpBilled gcp={gcp} />
     </>
   );
 }
 
 /** Pods burning money right now, and the hours already spent in the interval. */
-export function ComputeBreakdowns({
-  compute,
-  gcpAvailable,
-}: {
-  compute: SpendWindow["compute"];
-  gcpAvailable: boolean;
-}) {
+/** What is burning money right now, as opposed to the interval totals below it. */
+function LivePods({ pods }: { pods: SpendWindow["compute"]["live_pods"] }) {
   return (
     <>
       <h2>Pods Running Now</h2>
-      {compute.live_pods.length === 0 ? (
+      {pods.length === 0 ? (
         <p className="meta">No run pods are live right now.</p>
       ) : (
         <table>
@@ -88,7 +100,7 @@ export function ComputeBreakdowns({
             </tr>
           </thead>
           <tbody>
-            {compute.live_pods.map((pod) => (
+            {pods.map((pod) => (
               <tr key={pod.name}>
                 <td>{pod.name}</td>
                 <td>
@@ -103,6 +115,20 @@ export function ComputeBreakdowns({
           </tbody>
         </table>
       )}
+    </>
+  );
+}
+
+export function ComputeBreakdowns({
+  compute,
+  gcpAvailable,
+}: {
+  compute: SpendWindow["compute"];
+  gcpAvailable: boolean;
+}) {
+  return (
+    <>
+      <LivePods pods={compute.live_pods} />
 
       <CostTable
         title="Pod-Hours in Interval"

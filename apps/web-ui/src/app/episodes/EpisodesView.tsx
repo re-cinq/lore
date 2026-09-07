@@ -25,6 +25,79 @@ export interface EpisodesViewProps {
 }
 
 /** Episode browser view; pure render with pagination from container. */
+function EpisodeTable({
+  episodes,
+}: {
+  episodes: EpisodesViewProps["episodes"];
+}) {
+  return (
+    <DataTable
+      columns={["Time", "Agent", "Source", "Ref", "Facts", "Content"]}
+      rows={episodes}
+      rowKey={(e) => e.id}
+      empty={
+        <span className={styles.emptyCell}>
+          No episodes yet. Use the <code>write_episode</code> MCP tool to ingest
+          text.
+        </span>
+      }
+      cells={(e) => [
+        <TimeAgo date={e.created_at} key="time" />,
+        <span title={e.agent_id} key="agent">
+          {displayAgentId(e.agent_id)}
+        </span>,
+        <span className={`op-badge op-${e.source}`} key="source">
+          {formatEnumLabel(e.source)}
+        </span>,
+        e.ref || "—",
+        e.fact_count,
+        <pre className={styles.contentPre} key="content">
+          {e.content_preview}
+          {e.content_preview.length >= 300 ? "..." : ""}
+        </pre>,
+      ]}
+    />
+  );
+}
+
+/** Both arrows stay ANCHORS and are styled disabled rather than removed, so the control keeps its position between the first page and the rest. */
+function EpisodePager({
+  offset,
+  pageSize,
+  totalCount,
+  pageUrl,
+}: {
+  offset: number;
+  pageSize: number;
+  totalCount: number;
+  pageUrl: (offset: number) => string;
+}) {
+  if (totalCount <= pageSize) {
+    return null;
+  }
+
+  return (
+    <div className="pagination">
+      <a
+        href={pageUrl(offset - pageSize)}
+        className={offset > 0 ? "" : "disabled"}
+      >
+        &larr; Previous
+      </a>
+      <span className="page-info">
+        {offset + 1}&ndash;{Math.min(offset + pageSize, totalCount)} of{" "}
+        {totalCount}
+      </span>
+      <a
+        href={pageUrl(offset + pageSize)}
+        className={offset + pageSize < totalCount ? "" : "disabled"}
+      >
+        Next &rarr;
+      </a>
+    </div>
+  );
+}
+
 export default function EpisodesView({
   source,
   offset,
@@ -54,52 +127,13 @@ export default function EpisodesView({
         <button type="submit">Filter</button>
       </form>
       <p className={`meta ${styles.count}`}>{totalCount} episodes</p>
-      <DataTable
-        columns={["Time", "Agent", "Source", "Ref", "Facts", "Content"]}
-        rows={episodes}
-        rowKey={(e) => e.id}
-        empty={
-          <span className={styles.emptyCell}>
-            No episodes yet. Use the <code>write_episode</code> MCP tool to
-            ingest text.
-          </span>
-        }
-        cells={(e) => [
-          <TimeAgo date={e.created_at} key="time" />,
-          <span title={e.agent_id} key="agent">
-            {displayAgentId(e.agent_id)}
-          </span>,
-          <span className={`op-badge op-${e.source}`} key="source">
-            {formatEnumLabel(e.source)}
-          </span>,
-          e.ref || "—",
-          e.fact_count,
-          <pre className={styles.contentPre} key="content">
-            {e.content_preview}
-            {e.content_preview.length >= 300 ? "..." : ""}
-          </pre>,
-        ]}
+      <EpisodeTable episodes={episodes} />
+      <EpisodePager
+        offset={offset}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        pageUrl={pageUrl}
       />
-      {totalCount > pageSize && (
-        <div className="pagination">
-          <a
-            href={pageUrl(offset - pageSize)}
-            className={offset > 0 ? "" : "disabled"}
-          >
-            &larr; Previous
-          </a>
-          <span className="page-info">
-            {offset + 1}&ndash;{Math.min(offset + pageSize, totalCount)} of{" "}
-            {totalCount}
-          </span>
-          <a
-            href={pageUrl(offset + pageSize)}
-            className={offset + pageSize < totalCount ? "" : "disabled"}
-          >
-            Next &rarr;
-          </a>
-        </div>
-      )}
     </div>
   );
 }

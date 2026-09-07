@@ -30,6 +30,32 @@ export interface Incident {
   url?: string;
 }
 
+/** Reciprocal Rank Fusion over two independent legs — nearest-neighbour and keyword — joined FULL OUTER so a chunk that only one leg finds still scores. The 60 is RRF's usual damping: it stops a single leg's top hit from dominating a chunk both legs rank moderately. */
+function hybridSql(schema: string): string {
+  return `WITH vec AS (
+         SELECT id, content, file_path, content_type, ingested_at,
+                ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
+         FROM ${schema}.chunks
+         WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
+         LIMIT 20
+       ),
+       kw AS (
+         SELECT id, content, file_path, content_type, ingested_at,
+                ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $4)) DESC) AS r
+         FROM ${schema}.chunks
+         WHERE repo = $1 AND content_type = ANY($3)
+           AND search_tsv @@ websearch_to_tsquery('english', $4)
+         LIMIT 20
+       )
+       SELECT COALESCE(v.content, k.content) AS content,
+              COALESCE(v.file_path, k.file_path) AS file_path,
+              COALESCE(v.content_type, k.content_type) AS content_type,
+              COALESCE(v.ingested_at, k.ingested_at) AS ingested_at,
+              (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score
+       FROM vec v FULL OUTER JOIN kw k ON v.id = k.id
+       ORDER BY score DESC LIMIT $5`;
+}
+
 export async function hybridChunkItems(
   pool: PgPool,
   query: string,
@@ -56,31 +82,13 @@ export async function hybridChunkItems(
 
   if (embedding) {
     const embStr = `[${embedding.join(",")}]`;
-    const { rows } = await pool.query<ChunkSearchHit>(
-      `WITH vec AS (
-         SELECT id, content, file_path, content_type, ingested_at,
-                ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
-         FROM ${schema}.chunks
-         WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
-         LIMIT 20
-       ),
-       kw AS (
-         SELECT id, content, file_path, content_type, ingested_at,
-                ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $4)) DESC) AS r
-         FROM ${schema}.chunks
-         WHERE repo = $1 AND content_type = ANY($3)
-           AND search_tsv @@ websearch_to_tsquery('english', $4)
-         LIMIT 20
-       )
-       SELECT COALESCE(v.content, k.content) AS content,
-              COALESCE(v.file_path, k.file_path) AS file_path,
-              COALESCE(v.content_type, k.content_type) AS content_type,
-              COALESCE(v.ingested_at, k.ingested_at) AS ingested_at,
-              (COALESCE(1.0 / (60 + v.r), 0) + COALESCE(1.0 / (60 + k.r), 0)) AS score
-       FROM vec v FULL OUTER JOIN kw k ON v.id = k.id
-       ORDER BY score DESC LIMIT $5`,
-      [repo, embStr, contentTypes, keywordQuery, limit],
-    );
+    const { rows } = await pool.query<ChunkSearchHit>(hybridSql(schema), [
+      repo,
+      embStr,
+      contentTypes,
+      keywordQuery,
+      limit,
+    ]);
 
     return mapRows(rows);
   }

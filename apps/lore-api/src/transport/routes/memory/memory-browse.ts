@@ -37,6 +37,65 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
   ];
 }
 
+const GRAPH_STATS_SQL = `
+        SELECT
+          (SELECT count(*)::int FROM memory.entities) as entity_count,
+          (SELECT count(*)::int FROM memory.edges WHERE valid_to IS NULL) as active_edge_count,
+          (SELECT count(*)::int FROM memory.edges WHERE valid_to IS NOT NULL) as invalidated_edge_count
+      `;
+
+const ENTITY_TYPES_SQL = `
+        SELECT entity_type, count(*)::int as cnt
+          FROM memory.entities
+         GROUP BY entity_type
+         ORDER BY cnt DESC
+      `;
+
+function readEntities(
+  pool: Pool,
+  type: string | undefined,
+): Promise<{ rows: Record<string, unknown>[] }> {
+  return pool.query(
+    `SELECT en.id, en.name, en.entity_type, en.repo, en.updated_at,
+                (SELECT count(*)::int FROM memory.edges e
+                  WHERE (e.source_id = en.id OR e.target_id = en.id)
+                    AND e.valid_to IS NULL) as edge_count
+           FROM memory.entities en
+           ${type ? "WHERE en.entity_type = $1" : ""}
+          ORDER BY en.updated_at DESC
+          LIMIT 50`,
+    type ? [type] : [],
+  );
+}
+
+/** Only a SELECTED entity has edges to show — unselected, this is the explorer's costliest query, so it is not run at all. */
+async function readEdgesFor(
+  pool: Pool,
+  entity: string | undefined,
+  showInvalid: boolean | undefined,
+): Promise<Record<string, unknown>[]> {
+  if (!entity) {
+    return [];
+  }
+  const { rows } = await pool.query(
+    `SELECT s.name as source_name, s.entity_type as source_type,
+                      e.relation_type, t.name as target_name, t.entity_type as target_type,
+                      e.valid_from, e.valid_to,
+                      CASE WHEN ep.id IS NOT NULL THEN 'episode' ELSE 'memory' END as source_label
+                 FROM memory.edges e
+                 JOIN memory.entities s ON s.id = e.source_id
+                 JOIN memory.entities t ON t.id = e.target_id
+                 LEFT JOIN memory.episodes ep ON ep.id = e.source_episode_id
+                WHERE (LOWER(s.name) = LOWER($1) OR LOWER(t.name) = LOWER($1))
+                  ${showInvalid ? "" : "AND e.valid_to IS NULL"}
+                ORDER BY e.valid_from DESC
+                LIMIT 50`,
+    [entity],
+  );
+
+  return rows;
+}
+
 function graphBrowseRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -59,56 +118,15 @@ function graphBrowseRoute(getPool: () => Pool | null): ServerRoute {
       const { entity, type, show_invalid } =
         request.query as unknown as GraphBrowseQuery;
 
-      const { rows: statRows } = await pool.query(`
-        SELECT
-          (SELECT count(*)::int FROM memory.entities) as entity_count,
-          (SELECT count(*)::int FROM memory.edges WHERE valid_to IS NULL) as active_edge_count,
-          (SELECT count(*)::int FROM memory.edges WHERE valid_to IS NOT NULL) as invalidated_edge_count
-      `);
-      const { rows: entityTypes } = await pool.query(`
-        SELECT entity_type, count(*)::int as cnt
-          FROM memory.entities
-         GROUP BY entity_type
-         ORDER BY cnt DESC
-      `);
-      const { rows: entities } = await pool.query(
-        `SELECT en.id, en.name, en.entity_type, en.repo, en.updated_at,
-                (SELECT count(*)::int FROM memory.edges e
-                  WHERE (e.source_id = en.id OR e.target_id = en.id)
-                    AND e.valid_to IS NULL) as edge_count
-           FROM memory.entities en
-           ${type ? "WHERE en.entity_type = $1" : ""}
-          ORDER BY en.updated_at DESC
-          LIMIT 50`,
-        type ? [type] : [],
-      );
-
-      // Only a selected entity has edges to show — else it's the explorer's costliest query.
-      const edges = entity
-        ? (
-            await pool.query(
-              `SELECT s.name as source_name, s.entity_type as source_type,
-                      e.relation_type, t.name as target_name, t.entity_type as target_type,
-                      e.valid_from, e.valid_to,
-                      CASE WHEN ep.id IS NOT NULL THEN 'episode' ELSE 'memory' END as source_label
-                 FROM memory.edges e
-                 JOIN memory.entities s ON s.id = e.source_id
-                 JOIN memory.entities t ON t.id = e.target_id
-                 LEFT JOIN memory.episodes ep ON ep.id = e.source_episode_id
-                WHERE (LOWER(s.name) = LOWER($1) OR LOWER(t.name) = LOWER($1))
-                  ${show_invalid ? "" : "AND e.valid_to IS NULL"}
-                ORDER BY e.valid_from DESC
-                LIMIT 50`,
-              [entity],
-            )
-          ).rows
-        : [];
+      const { rows: statRows } = await pool.query(GRAPH_STATS_SQL);
+      const { rows: entityTypes } = await pool.query(ENTITY_TYPES_SQL);
+      const { rows: entities } = await readEntities(pool, type);
 
       return h.response({
         stats: statRows[0] ?? {},
         entity_types: entityTypes,
         entities,
-        edges,
+        edges: await readEdgesFor(pool, entity, show_invalid),
       });
     },
   };

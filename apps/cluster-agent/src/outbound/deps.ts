@@ -32,6 +32,71 @@ export function kubeTokenProvisioner(): KubeTokenProvisioner {
   return provisionerSingleton;
 }
 
+type AgentsApi = ClusterDeps["agents"];
+
+const getAgentCr: AgentsApi["get"] = async (name) => {
+  try {
+    return (await customObjectsApi().getNamespacedCustomObject({
+      group: GROUP,
+      version: VERSION,
+      namespace: agentsNamespace(),
+      plural: PLURAL,
+      name,
+    })) as never;
+  } catch (err) {
+    // Only a 404 means "no such CR" — laundering an RBAC denial or 5xx into found:false is how the Floor's missing delete verb stayed invisible for 40 days.
+    enforceTrue(isNotFound(err), Error, describeK8sError("get", name, err));
+
+    return null;
+  }
+};
+
+const listAgentCrs: AgentsApi["list"] = async (opts) => {
+  const page = (await customObjectsApi().listNamespacedCustomObject({
+    group: GROUP,
+    version: VERSION,
+    namespace: agentsNamespace(),
+    plural: PLURAL,
+    limit: opts.limit,
+    _continue: opts.continue,
+    ...(opts.labelSelector ? { labelSelector: opts.labelSelector } : {}),
+  })) as {
+    items?: never[];
+    metadata?: { continue?: string; _continue?: string };
+  };
+
+  return {
+    items: page.items ?? [],
+    continueToken: page.metadata?._continue ?? page.metadata?.continue,
+  };
+};
+
+const removeAgentCr: AgentsApi["remove"] = async (name) => {
+  await customObjectsApi()
+    .deleteNamespacedCustomObject({
+      group: GROUP,
+      version: VERSION,
+      namespace: agentsNamespace(),
+      plural: PLURAL,
+      name,
+    })
+    .catch((err) => {
+      // A delete that lost a race is a success — the CR is gone either way; the caller swallows prune failures by design, so this log is the only visibility.
+      enforceTrue(
+        isNotFound(err),
+        Error,
+        describeK8sError("delete", name, err),
+      );
+    });
+};
+
+/** The Agent-CR surface: the only place this process reads or removes Agent custom resources. */
+const agentsFacade: AgentsApi = {
+  get: getAgentCr,
+  list: listAgentCrs,
+  remove: removeAgentCr,
+};
+
 export function clusterDeps(): ClusterDeps {
   if (singleton) {
     return singleton;
@@ -41,65 +106,7 @@ export function clusterDeps(): ClusterDeps {
   const tokens = kubeTokenProvisioner();
 
   singleton = {
-    agents: {
-      get: async (name) => {
-        try {
-          return (await customObjectsApi().getNamespacedCustomObject({
-            group: GROUP,
-            version: VERSION,
-            namespace: agentsNamespace(),
-            plural: PLURAL,
-            name,
-          })) as never;
-        } catch (err) {
-          // Only a 404 means "no such CR" — laundering an RBAC denial or 5xx into found:false is how the Floor's missing delete verb stayed invisible for 40 days.
-          enforceTrue(
-            isNotFound(err),
-            Error,
-            describeK8sError("get", name, err),
-          );
-
-          return null;
-        }
-      },
-      list: async (opts) => {
-        const page = (await customObjectsApi().listNamespacedCustomObject({
-          group: GROUP,
-          version: VERSION,
-          namespace: agentsNamespace(),
-          plural: PLURAL,
-          limit: opts.limit,
-          _continue: opts.continue,
-          ...(opts.labelSelector ? { labelSelector: opts.labelSelector } : {}),
-        })) as {
-          items?: never[];
-          metadata?: { continue?: string; _continue?: string };
-        };
-
-        return {
-          items: page.items ?? [],
-          continueToken: page.metadata?._continue ?? page.metadata?.continue,
-        };
-      },
-      remove: async (name) => {
-        await customObjectsApi()
-          .deleteNamespacedCustomObject({
-            group: GROUP,
-            version: VERSION,
-            namespace: agentsNamespace(),
-            plural: PLURAL,
-            name,
-          })
-          .catch((err) => {
-            // A delete that lost a race is a success — the CR is gone either way; the caller swallows prune failures by design, so this log is the only visibility.
-            enforceTrue(
-              isNotFound(err),
-              Error,
-              describeK8sError("delete", name, err),
-            );
-          });
-      },
-    },
+    agents: agentsFacade,
     pods: {
       agentInfo: (name) => pods.agentInfo(name),
       podsForJob: (job) => pods.podsForJob(job),

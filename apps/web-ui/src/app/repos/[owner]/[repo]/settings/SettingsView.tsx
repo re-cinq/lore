@@ -96,6 +96,33 @@ function selectFieldDefaults(settings: RepoSettingsShape) {
 }
 
 /** Routing and trust: who owns the repo, what it is allowed to run, and how much of it happens without asking. */
+/** Not more text boxes: trust level decides which task types this repo accepts at all, and auto-review decides whether a PR is reviewed without anyone asking. */
+function RunPolicyFields({
+  trustLevel,
+  autoReview,
+}: {
+  trustLevel: string;
+  autoReview: string;
+}) {
+  return (
+    <>
+      <label>Trust Level</label>
+      <select name="trust_level" defaultValue={trustLevel}>
+        <option value="docs">Docs only (gap-fill, runbook)</option>
+        <option value="tests">Tests (+ review)</option>
+        <option value="implementation">Implementation (default)</option>
+        <option value="full">Full (all task types)</option>
+      </select>
+
+      <label>Auto-review PRs</label>
+      <select name="auto_review" defaultValue={autoReview}>
+        <option value="no">No</option>
+        <option value="yes">Yes</option>
+      </select>
+    </>
+  );
+}
+
 function GeneralFields({
   team,
   settings,
@@ -143,19 +170,7 @@ function GeneralFields({
         placeholder="lore (default)"
       />
 
-      <label>Trust Level</label>
-      <select name="trust_level" defaultValue={trustLevel}>
-        <option value="docs">Docs only (gap-fill, runbook)</option>
-        <option value="tests">Tests (+ review)</option>
-        <option value="implementation">Implementation (default)</option>
-        <option value="full">Full (all task types)</option>
-      </select>
-
-      <label>Auto-review PRs</label>
-      <select name="auto_review" defaultValue={autoReview}>
-        <option value="no">No</option>
-        <option value="yes">Yes</option>
-      </select>
+      <RunPolicyFields trustLevel={trustLevel} autoReview={autoReview} />
     </>
   );
 }

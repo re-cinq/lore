@@ -111,6 +111,46 @@ async function saveContextRefs(
     .catch(() => {});
 }
 
+interface ResolvedTaskFields {
+  taskType: string;
+  createdBy: string;
+  priority: string;
+}
+
+/** The insert itself. The statement differs by whether a task group was named, so the SQL and its params are built together — a mismatched pair would bind the group id into the wrong column. */
+async function insertTaskRow(
+  pool: PgPool,
+  input: CreateTaskInput,
+  resolved: ResolvedTaskFields,
+): Promise<{
+  id: string;
+  status: string;
+  priority: string;
+  created_at: string;
+}> {
+  const result = await pool.query<{
+    id: string;
+    status: string;
+    priority: string;
+    created_at: string;
+  }>(
+    buildInsertTaskSql(Boolean(input.taskGroupId)),
+    buildInsertTaskParams({
+      description: input.description,
+      taskType: resolved.taskType,
+      repo: input.targetRepo,
+      createdBy: resolved.createdBy,
+      contextJson: input.contextBundle
+        ? JSON.stringify(input.contextBundle)
+        : null,
+      priority: resolved.priority,
+      taskGroupId: input.taskGroupId,
+    }),
+  );
+
+  return result.rows[0];
+}
+
 export async function createTask(
   pool: PgPool,
   input: CreateTaskInput,
@@ -130,26 +170,11 @@ export async function createTask(
   }
 
   const resolvedPriority = resolvePriority(input.priority);
-  const contextJson = input.contextBundle
-    ? JSON.stringify(input.contextBundle)
-    : null;
-  const insertSql = buildInsertTaskSql(Boolean(input.taskGroupId));
-  const insertParams = buildInsertTaskParams({
-    description: input.description,
+  const task = await insertTaskRow(pool, input, {
     taskType,
-    repo,
     createdBy,
-    contextJson,
     priority: resolvedPriority,
-    taskGroupId: input.taskGroupId,
   });
-  const result = await pool.query<{
-    id: string;
-    status: string;
-    priority: string;
-    created_at: string;
-  }>(insertSql, insertParams);
-  const task = result.rows[0];
 
   await saveContextRefs(pool, task.id, input.contextRefs);
   await recordEvent(

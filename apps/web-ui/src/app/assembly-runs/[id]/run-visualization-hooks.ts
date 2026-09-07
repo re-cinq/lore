@@ -45,6 +45,18 @@ export function useNowTicker(live: boolean): string {
 }
 
 /** The graph the page draws: which nodes ran, what each was told, and — while scrubbing — the replayed view instead, since a verdict must not show before the cursor reaches the event that produced it. */
+interface RunGraphInput {
+  nodes: readonly AssemblyRunNode[];
+  definition: AssemblyLineDefinition | null;
+  runStatus: string;
+  runIsLive: boolean;
+  selectedNodeId: string | null;
+  showOutcomes: boolean;
+  replayActive: boolean;
+  nodeStates: Readonly<Record<string, NodeRunState>>;
+  takenEdges: RunData["taken"];
+}
+
 export function useRunGraph({
   nodes,
   definition,
@@ -55,17 +67,7 @@ export function useRunGraph({
   replayActive,
   nodeStates,
   takenEdges,
-}: {
-  nodes: readonly AssemblyRunNode[];
-  definition: AssemblyLineDefinition | null;
-  runStatus: string;
-  runIsLive: boolean;
-  selectedNodeId: string | null;
-  showOutcomes: boolean;
-  replayActive: boolean;
-  nodeStates: Readonly<Record<string, NodeRunState>>;
-  takenEdges: RunData["taken"];
-}) {
+}: RunGraphInput) {
   const hasRunData = computeHasRunData(nodes.length, nodeStates);
   const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
   // Fork source for "retry this node" — null hides the button (live run, unvisited node, entry node, or an unnameable prefix; see retry-resume.ts).
@@ -108,6 +110,16 @@ export function useRunGraph({
 }
 
 /** Scrubbing a finished run. A terminal run renders state AS OF the cursor by folding history through the SAME reducer live mode uses, based on the all-idle state — never the visit-row seed, which would show verdicts the cursor has not reached. */
+interface ReplayInput {
+  runIsLive: boolean;
+  runStatus: string;
+  definition: AssemblyLineDefinition | null;
+  historyEvents: RunStreamEvent[];
+  liveState: ReturnType<typeof initialRunState>;
+  replayCursor: number | null;
+  setReplayCursor: (cursor: number | null) => void;
+}
+
 export function useReplay({
   runIsLive,
   runStatus,
@@ -116,15 +128,7 @@ export function useReplay({
   liveState,
   replayCursor,
   setReplayCursor,
-}: {
-  runIsLive: boolean;
-  runStatus: string;
-  definition: AssemblyLineDefinition | null;
-  historyEvents: RunStreamEvent[];
-  liveState: ReturnType<typeof initialRunState>;
-  replayCursor: number | null;
-  setReplayCursor: (cursor: number | null) => void;
-}) {
+}: ReplayInput) {
   const replayState = useMemo(
     () =>
       replayTo(

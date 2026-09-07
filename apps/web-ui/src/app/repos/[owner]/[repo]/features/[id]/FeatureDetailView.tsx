@@ -89,19 +89,7 @@ function showsLiveGraphBelow(
   return phase.kind === "planning" || phase.kind === "writing-spec";
 }
 
-export default function FeatureDetailView({
-  owner,
-  repo,
-  feature,
-  timeoutMinutes,
-  decomposition,
-  definition = null,
-  run = null,
-  refine,
-  onCreateSpecFile,
-  split,
-  del,
-}: {
+interface FeatureDetailViewProps {
   owner: string;
   repo: string;
   feature: FeatureWithIterations;
@@ -116,7 +104,56 @@ export default function FeatureDetailView({
   onCreateSpecFile: (userAnswers: SectionAnswers) => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
   del: () => Promise<void>;
+}
+
+function FeatureHeader({
+  feature,
+  base,
+}: {
+  feature: FeatureDetailViewProps["feature"];
+  base: string;
 }) {
+  return (
+    <div className={styles.header}>
+      <div className={styles.titleRow}>
+        <h2 className={styles.title}>{feature.title}</h2>
+        <StatusBadge status={feature.status} />
+      </div>
+      <div className={styles.links}>
+        <Link href={`${base}/graph`} className="meta">
+          View in graph →
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/** What the author asked for, kept open by default: every later round is a response to it. */
+function OriginalPrompt({ prompt }: { prompt: string | null }) {
+  if (!prompt) {
+    return null;
+  }
+
+  return (
+    <CollapsibleCard title="Your prompt" defaultOpen>
+      <p className={styles.prompt}>{prompt}</p>
+    </CollapsibleCard>
+  );
+}
+
+export default function FeatureDetailView({
+  owner,
+  repo,
+  feature,
+  timeoutMinutes,
+  decomposition,
+  definition = null,
+  run = null,
+  refine,
+  onCreateSpecFile,
+  split,
+  del,
+}: FeatureDetailViewProps) {
   const [pending, startTransition] = useTransition();
   const onCreateDraft = (title: string, prompt: string) =>
     startTransition(() => split(title, prompt));
@@ -125,17 +162,7 @@ export default function FeatureDetailView({
 
   return (
     <div>
-      <div className={styles.header}>
-        <div className={styles.titleRow}>
-          <h2 className={styles.title}>{feature.title}</h2>
-          <StatusBadge status={feature.status} />
-        </div>
-        <div className={styles.links}>
-          <Link href={`${base}/graph`} className="meta">
-            View in graph →
-          </Link>
-        </div>
-      </div>
+      <FeatureHeader feature={feature} base={base} />
 
       {liveGraphBelow ? null : (
         <FeatureAssemblyLine
@@ -145,11 +172,7 @@ export default function FeatureDetailView({
         />
       )}
 
-      {feature.original_prompt && (
-        <CollapsibleCard title="Your prompt" defaultOpen>
-          <p className={styles.prompt}>{feature.original_prompt}</p>
-        </CollapsibleCard>
-      )}
+      <OriginalPrompt prompt={feature.original_prompt} />
 
       <LifecycleBody
         owner={owner}

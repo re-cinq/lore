@@ -131,19 +131,19 @@ export default tseslint.config(
       "max-params": ["error", { max: 4 }],
       "lore/max-comment-lines": ["error", { max: 1 }],
       "lore/no-vague-names": "error",
-      // Enforced at 100 as of 2026-09-04: a RATCHET, not the target. 100 is
-      // the strictest bound the repo currently meets, so it is the strictest
-      // one that can be red without blocking unrelated work; the target is
-      // still 20. A rule carries ONE severity, so nothing between 20 and 100
-      // is reported any more — to see what is left against the target, set
-      // `max` to 20 here and run eslint, then put it back. Lower it for real
-      // as that queue drains (it was ~1,400 functions on 2026-09-04). Three
-      // functions carry an inline disable with the reason they are not split
-      // (a d3 canvas renderer, a test harness whose closures share state, and
-      // a composition root).
+      // Enforced at 50 as of 2026-09-07: still a RATCHET, not the target. 50 is
+      // the strictest bound the repo currently meets, so it is the strictest one
+      // that can be red without blocking unrelated work; the target is still 20.
+      // A rule carries ONE severity, so nothing between 20 and 50 is reported any
+      // more — to see what is left against the target, set `max` to 20 here and
+      // run eslint, then put it back. Lower it for real as that queue drains (the
+      // 100 → 50 step was 134 functions, drained 2026-09-07; the 20 queue is
+      // unmeasured). Three functions carry an inline disable with the reason they
+      // are not split (a d3 canvas renderer, a test harness whose closures share
+      // state, and a composition root).
       "max-lines-per-function": [
         "error",
-        { max: 100, skipBlankLines: true, skipComments: true },
+        { max: 50, skipBlankLines: true, skipComments: true },
       ],
       complexity: ["error", 6],
       // A module that needs 300 lines to state its job is usually holding more

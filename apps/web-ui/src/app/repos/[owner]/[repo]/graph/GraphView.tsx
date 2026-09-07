@@ -25,6 +25,43 @@ const BTN: React.CSSProperties = {
 };
 
 /** Toolbar + graph container with search/reset; reset clears persisted layout and re-runs layout effect. */
+/** Search and reset. Reset clears the SAVED layout as well as the query — a graph someone has dragged into a shape keeps that shape across visits, so resetting the search alone would leave it looking untouched. */
+function GraphToolbar({
+  query,
+  onQueryChange,
+  onReset,
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  onReset: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 12,
+        alignItems: "flex-start",
+        justifyContent: "flex-end",
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input
+          type="text"
+          placeholder="Search nodes…"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          style={SEARCH_INPUT}
+          aria-label="Search nodes"
+        />
+        <button style={BTN} onClick={onReset}>
+          Reset
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function GraphView({
   owner,
   repo,
@@ -57,29 +94,7 @@ export default function GraphView({
         minHeight: 0,
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          alignItems: "flex-start",
-          justifyContent: "flex-end",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="text"
-            placeholder="Search nodes…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={SEARCH_INPUT}
-            aria-label="Search nodes"
-          />
-          <button style={BTN} onClick={reset}>
-            Reset
-          </button>
-        </div>
-      </div>
+      <GraphToolbar query={query} onQueryChange={setQuery} onReset={reset} />
       <SpecGraphD3
         graph={graph}
         repo={repoId}

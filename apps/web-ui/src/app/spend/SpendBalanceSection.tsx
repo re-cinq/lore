@@ -33,6 +33,44 @@ function BudgetOutlookNote({ budget }: { budget: NonNullable<BudgetRow> }) {
 }
 
 /** What is left of the recorded credits. Not interval-scoped: money persists, so this subtracts spend since the anchor from the amount on record. */
+/** The recorded balance, or an em dash. Deliberately NOT $0.00 when nothing has been recorded: an unrecorded balance is not an exhausted one, and Anthropic publishes usage and cost but no credit figure, so the starting number has to be entered by hand once. */
+function BalanceCard({ budget }: { budget: SpendWindow["budget"] }) {
+  if (!budget) {
+    return (
+      <div className={`spec-card ${styles.balanceCard}`}>
+        <div className="meta">Credits remaining</div>
+        <div className={styles.figure}>—</div>
+        <div className={`meta ${styles.subnote}`}>
+          No balance recorded yet. Anthropic publishes usage and cost but not a
+          credit balance, so the starting figure has to be entered once.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`spec-card ${styles.balanceCard}`}>
+      <div className="meta">Credits remaining</div>
+      <div
+        className={
+          budget.remaining_usd < 0 ? styles.figureOver : styles.figureInfo
+        }
+      >
+        {usd(budget.remaining_usd)}
+      </div>
+      {/* Clock only if the anchor carries one; a day-recorded entry does not show 00:00. */}
+      <div className={`meta ${styles.subnote}`}>
+        {usd(budget.ledger_total_usd)} recorded − {usd(budget.spent_since_usd)}{" "}
+        spent since {day(anchorDay(budget.anchored_at))}
+        {anchorTime(budget.anchored_at)
+          ? `, ${anchorTime(budget.anchored_at)} UTC`
+          : ""}
+      </div>
+      <BudgetOutlookNote budget={budget} />
+    </div>
+  );
+}
+
 export function BalanceSection({
   budget,
   hasClusterSpend,
@@ -47,39 +85,7 @@ export function BalanceSection({
       {/* Balance: not scoped to interval (money persists); subtract spend from recorded amount */}
       <h2>Balance</h2>
       <div className={styles.cards}>
-        {budget ? (
-          <div className={`spec-card ${styles.balanceCard}`}>
-            <div className="meta">Credits remaining</div>
-            <div
-              className={
-                budget.remaining_usd < 0 ? styles.figureOver : styles.figureInfo
-              }
-            >
-              {usd(budget.remaining_usd)}
-            </div>
-            {/* Clock only if anchor carries it; day-recorded entries don't show 00:00 */}
-            <div className={`meta ${styles.subnote}`}>
-              {usd(budget.ledger_total_usd)} recorded −{" "}
-              {usd(budget.spent_since_usd)} spent since{" "}
-              {day(anchorDay(budget.anchored_at))}
-              {anchorTime(budget.anchored_at)
-                ? `, ${anchorTime(budget.anchored_at)} UTC`
-                : ""}
-            </div>
-            <BudgetOutlookNote budget={budget} />
-          </div>
-        ) : (
-          <div className={`spec-card ${styles.balanceCard}`}>
-            <div className="meta">Credits remaining</div>
-            {/* No $0.00: unrecorded balance ≠ exhausted; use em dash */}
-            <div className={styles.figure}>—</div>
-            <div className={`meta ${styles.subnote}`}>
-              No balance recorded yet. Anthropic publishes usage and cost but
-              not a credit balance, so the starting figure has to be entered
-              once.
-            </div>
-          </div>
-        )}
+        <BalanceCard budget={budget} />
       </div>
       {hasClusterSpend && (
         <p className={`meta ${styles.subnote}`}>

@@ -94,11 +94,22 @@ import { featuresRoutes } from "./routes/features/features.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 
-export function routeList(getPool: () => Pool | null): ServerRoute[] {
+type PoolGetter = () => Pool | null;
+
+/** The service describing and serving itself: health, model status, the binary, and the OpenAPI docs. */
+function platformRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     healthzRoute(getPool),
     llmStatusRoute(getPool),
     distRoute(),
+    openApiJsonRoute(getPool, routeList),
+    docsRoute(getPool, routeList),
+  ];
+}
+
+/** A repo and what Lore knows about it: its record, its settings, and the context and graph read off it. */
+function repoRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     repoStatusRoute(getPool),
     reposRoute(getPool),
     repoRecordRoute(),
@@ -108,6 +119,14 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     contextRoute(getPool),
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
+    onboardRoute(getPool),
+    ...darkFactoryRoute(getPool),
+  ];
+}
+
+/** Pipeline tasks and the assembly runs that execute them. */
+function taskRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     getTaskRoute(),
     listTasksRoute(),
     timelineRoute(getPool),
@@ -127,23 +146,48 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     specTasksCompleteRoute(getPool),
     taskLogsPostRoute(),
     taskTurnsPostRoute(getPool),
+    ...featuresRoutes(getPool),
+    ...implementationLoopRoutes(getPool),
+  ];
+}
+
+/** Agent memory: entries, episodes, and the session summaries facts are extracted from. */
+function memoryRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     memoryRoute(getPool),
     ...memoryBrowseRoutes(getPool),
     episodeRoute(getPool),
     sessionSummaryRoute(getPool),
+  ];
+}
+
+/** Everything that writes knowledge in, plus the embedding call the writes depend on. */
+function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     ingestRoute(getPool),
     ingestGraphRoute(getPool),
     ingestStateRoute(getPool),
     ingestDeltaRoute(getPool),
     eventPayloadRoute(getPool),
     embedRoute(),
-    onboardRoute(getPool),
+  ];
+}
+
+/** Inbound from other systems, and the credentials that gate them. */
+function webhookRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     slackWebhookRoute(getPool),
     incidentWebhookRoute(getPool),
     webhookStatusRoute(),
     webhookEnsureRoute(),
     webhookSecretRoute(),
     ...tokensRoute(getPool),
+  ];
+}
+
+/** The pull-only dispatch surface: a cluster agent registers, claims, heartbeats and releases through here. */
+function clusterAgentRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     clusterAgentRegisterRoute(getPool),
     clusterAgentClaimRoute(getPool),
     clusterAgentCatalogEventsRoute(getPool),
@@ -153,15 +197,26 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     clusterAgentHeartbeatRoute(getPool),
     clusterAgentReleaseRoute(getPool),
     clusterAgentListRoute(getPool),
-    ...darkFactoryRoute(getPool),
+    clusterAgentCatalogStatusRoute(getPool),
+  ];
+}
+
+/** The recipes a run resolves by name, read and edited here. */
+function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     agentsGetRoute(getPool),
     agentDefinitionUsageRoute(getPool),
-    clusterAgentCatalogStatusRoute(getPool),
     orgAgentDefinitionsRoute(getPool),
     orgAgentDefinitionUpdateRoute(getPool),
     agentsPostRoute(getPool),
     agentsPutRoute(getPool),
     agentsDeleteRoute(getPool),
+  ];
+}
+
+/** What the platform cost and what it did. */
+function analyticsRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     usageRoute(getPool),
     analyticsRoute(getPool),
     ...activityRoutes(getPool),
@@ -169,6 +224,12 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     creditLedgerRoute(getPool),
     analyticsOverviewRoute(getPool),
     agentStatsRoute(getPool),
+  ];
+}
+
+/** The spec-traceability graph: impact, documents, and the chunks behind them. */
+function traceRoutes(): ServerRoute[] {
+  return [
     impactRoute(),
     impactBaseRoute(),
     traceRoute(),
@@ -176,9 +237,21 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     ...stationDataRoutes(),
     traceAdrsRoute(),
     traceSpecsRoute(),
-    openApiJsonRoute(getPool, routeList),
-    docsRoute(getPool, routeList),
-    ...featuresRoutes(getPool),
-    ...implementationLoopRoutes(getPool),
+  ];
+}
+
+/** Every route the API serves, grouped by the thing it acts on. */
+export function routeList(getPool: PoolGetter): ServerRoute[] {
+  return [
+    ...platformRoutes(getPool),
+    ...repoRoutes(getPool),
+    ...taskRoutes(getPool),
+    ...memoryRoutes(getPool),
+    ...ingestRoutes(getPool),
+    ...webhookRoutes(getPool),
+    ...clusterAgentRoutes(getPool),
+    ...agentDefinitionRoutes(getPool),
+    ...analyticsRoutes(getPool),
+    ...traceRoutes(),
   ];
 }

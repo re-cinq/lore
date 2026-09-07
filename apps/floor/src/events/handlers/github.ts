@@ -79,18 +79,20 @@ function resolveIssueDispatch(repoSettings: unknown): IssueDispatchSettings {
 }
 
 /** issues.labeled dispatch: a configured label on an Issue creates a pipeline task. */
-export const issuesLabeled: EventHandler = async (params) => {
-  const { repo, label, issue } = params as {
-    repo: string;
-    label: string;
-    issue: {
-      number: number;
-      title: string;
-      body: string;
-      html_url: string;
-      labels: string[];
-    };
+type IssuesLabeledParams = {
+  repo: string;
+  label: string;
+  issue: {
+    number: number;
+    title: string;
+    body: string;
+    html_url: string;
+    labels: string[];
   };
+};
+
+export const issuesLabeled: EventHandler = async (params) => {
+  const { repo, label, issue } = params as IssuesLabeledParams;
   const repoSettings = await settings().rawSettings(repo);
   const { dispatchLabel, dispatchDefaultType } =
     resolveIssueDispatch(repoSettings);

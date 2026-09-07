@@ -27,6 +27,53 @@ export interface AgentDetailViewProps {
   memories: MemoryViewRow[];
 }
 
+/** One memory, collapsed. Its version history and extracted facts appear only when there are any — a heading over an empty list reads as data that failed to load. */
+function MemoryCard({
+  memory: m,
+}: {
+  memory: AgentDetailViewProps["memories"][number];
+}) {
+  return (
+    <details key={m.id} className="memory-card">
+      <summary>
+        <strong>{m.key}</strong>
+        <span className="meta">
+          v{m.version} · {new Date(m.created_at).toLocaleString()}
+        </span>
+        {m.has_facts && <span className="badge">facts</span>}
+        {m.ttl_seconds && <span className="badge">TTL: {m.ttl_seconds}s</span>}
+      </summary>
+      <div className="memory-detail">
+        <h4>Current Value</h4>
+        <pre>{m.value}</pre>
+        {m.versions.length > 1 && (
+          <>
+            <h4>Version History ({m.versions.length})</h4>
+            {m.versions.map((v) => (
+              <div key={v.version} className="version">
+                <span>
+                  v{v.version} — {new Date(v.created_at).toLocaleString()}
+                </span>
+                <pre>{v.value}</pre>
+              </div>
+            ))}
+          </>
+        )}
+        {m.facts.length > 0 && (
+          <>
+            <h4>Extracted Facts ({m.facts.length})</h4>
+            <ul>
+              {m.facts.map((f, i) => (
+                <li key={i}>{f.fact_text}</li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export default function AgentDetailView({
   agentId,
   memoryCount,
@@ -38,45 +85,7 @@ export default function AgentDetailView({
       <p>{memoryCount} memories</p>
       <div className="memory-list">
         {memories.map((m) => (
-          <details key={m.id} className="memory-card">
-            <summary>
-              <strong>{m.key}</strong>
-              <span className="meta">
-                v{m.version} · {new Date(m.created_at).toLocaleString()}
-              </span>
-              {m.has_facts && <span className="badge">facts</span>}
-              {m.ttl_seconds && (
-                <span className="badge">TTL: {m.ttl_seconds}s</span>
-              )}
-            </summary>
-            <div className="memory-detail">
-              <h4>Current Value</h4>
-              <pre>{m.value}</pre>
-              {m.versions.length > 1 && (
-                <>
-                  <h4>Version History ({m.versions.length})</h4>
-                  {m.versions.map((v) => (
-                    <div key={v.version} className="version">
-                      <span>
-                        v{v.version} — {new Date(v.created_at).toLocaleString()}
-                      </span>
-                      <pre>{v.value}</pre>
-                    </div>
-                  ))}
-                </>
-              )}
-              {m.facts.length > 0 && (
-                <>
-                  <h4>Extracted Facts ({m.facts.length})</h4>
-                  <ul>
-                    {m.facts.map((f, i) => (
-                      <li key={i}>{f.fact_text}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-          </details>
+          <MemoryCard key={m.id} memory={m} />
         ))}
       </div>
     </div>

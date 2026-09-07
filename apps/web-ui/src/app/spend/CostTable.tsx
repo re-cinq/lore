@@ -25,6 +25,16 @@ export function EmptyRow({
 }
 
 /** Twelve breakdowns of the same spend differ only in their columns, so they are one table that takes them. `empty` is the message for no rows; omit it where an absent breakdown means the vendor never synced rather than spent nothing. */
+interface CostTableProps<T> {
+  title: string;
+  columns: string[];
+  rows: readonly T[];
+  rowKey: (row: T) => string;
+  cells: (row: T) => ReactNode[];
+  monoColumns?: number[];
+  empty?: string;
+}
+
 export function CostTable<T>({
   title,
   columns,
@@ -33,15 +43,7 @@ export function CostTable<T>({
   cells,
   monoColumns = [],
   empty = "No data",
-}: {
-  title: string;
-  columns: string[];
-  rows: readonly T[];
-  rowKey: (row: T) => string;
-  cells: (row: T) => ReactNode[];
-  monoColumns?: number[];
-  empty?: string;
-}) {
+}: CostTableProps<T>) {
   return (
     <>
       <h2>{title}</h2>

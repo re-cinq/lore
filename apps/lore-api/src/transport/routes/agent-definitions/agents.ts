@@ -154,6 +154,51 @@ export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+/** A bad body and a refused ceremony are both ANSWERS, not exceptions — each carries its own status, so only an unexpected failure reaches the route's catch. */
+async function createAgentDefinition(
+  pool: Pool,
+  request: Request,
+  repo: string,
+): Promise<{ code: number; body: object }> {
+  const project = await projectFor(repo);
+
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
+  const body = request.payload ?? {};
+  let create: ReturnType<typeof parseAgentInput>;
+
+  try {
+    create = parseAgentInput(body);
+  } catch (err) {
+    return {
+      code: 400,
+      body: { error: "invalid_agent", issues: issuesOf(err) },
+    };
+  }
+
+  const { gate, ceremony } = await resolveCeremony(
+    request,
+    repo,
+    imageFieldTouched(create),
+  );
+
+  if (gate && !gate.ok) {
+    return { code: gate.code, body: gate.body };
+  }
+
+  const { pod_resources, ...fields } = create;
+  const def = await project.agentDefs.create(
+    await createFieldsWithPodResources(
+      project.agentDefs,
+      fields,
+      pod_resources,
+    ),
+  );
+
+  await audit(pool, repo, "agent_created", { name: def.name, ceremony });
+
+  return { code: 200, body: { ok: true, agent: def, ceremony } };
+}
+
 export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -170,45 +215,9 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
       const repo = repoOf(request.params);
 
       try {
-        const project = await projectFor(repo);
+        const result = await createAgentDefinition(pool, request, repo);
 
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
-        const body = request.payload ?? {};
-        let create: ReturnType<typeof parseAgentInput>;
-
-        try {
-          create = parseAgentInput(body);
-        } catch (err) {
-          return h
-            .response({ error: "invalid_agent", issues: issuesOf(err) })
-            .code(400);
-        }
-
-        const { gate, ceremony } = await resolveCeremony(
-          request,
-          repo,
-          imageFieldTouched(create),
-        );
-
-        if (gate && !gate.ok) {
-          return h.response(gate.body).code(gate.code);
-        }
-
-        const { pod_resources, ...fields } = create;
-        const finalFields = await createFieldsWithPodResources(
-          project.agentDefs,
-          fields,
-          pod_resources,
-        );
-
-        const def = await project.agentDefs.create(finalFields);
-
-        await audit(pool, repo, "agent_created", {
-          name: def.name,
-          ceremony,
-        });
-
-        return h.response({ ok: true, agent: def, ceremony });
+        return h.response(result.body).code(result.code);
       } catch (err) {
         console.error("[agents] route failed:", err);
 
@@ -216,6 +225,50 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
       }
     },
   };
+}
+
+/** Same shape as the create path: a bad patch and a refused ceremony are answers with their own status, not exceptions. */
+async function updateAgentDefinition(
+  pool: Pool,
+  request: Request,
+  target: { repo: string; name: string },
+): Promise<{ code: number; body: object }> {
+  const { repo, name } = target;
+  const project = await projectFor(repo);
+
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
+  const body = request.payload ?? {};
+  let patch: ReturnType<typeof parseAgentPatch>;
+
+  try {
+    patch = parseAgentPatch(body);
+  } catch (err) {
+    return {
+      code: 400,
+      body: { error: "invalid_agent", issues: issuesOf(err) },
+    };
+  }
+
+  const { gate, ceremony } = await resolveCeremony(
+    request,
+    repo,
+    imageFieldTouched(patch),
+  );
+
+  if (gate && !gate.ok) {
+    return { code: gate.code, body: gate.body };
+  }
+
+  const { pod_resources, ...fields } = patch;
+  const def = await project.agentDefs.update(
+    name,
+    fields,
+    await resolvePodResourcesUpdate(project.agentDefs, name, pod_resources),
+  );
+
+  await audit(pool, repo, "agent_updated", { name, ceremony });
+
+  return { code: 200, body: { ok: true, agent: def, ceremony } };
 }
 
 export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
@@ -235,45 +288,12 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
       const name = request.params.name;
 
       try {
-        const project = await projectFor(repo);
-
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
-        const body = request.payload ?? {};
-        let patch: ReturnType<typeof parseAgentPatch>;
-
-        try {
-          patch = parseAgentPatch(body);
-        } catch (err) {
-          return h
-            .response({ error: "invalid_agent", issues: issuesOf(err) })
-            .code(400);
-        }
-
-        const { gate, ceremony } = await resolveCeremony(
-          request,
+        const result = await updateAgentDefinition(pool, request, {
           repo,
-          imageFieldTouched(patch),
-        );
-
-        if (gate && !gate.ok) {
-          return h.response(gate.body).code(gate.code);
-        }
-
-        const { pod_resources, ...fields } = patch;
-        const podResources = await resolvePodResourcesUpdate(
-          project.agentDefs,
           name,
-          pod_resources,
-        );
-
-        const def = await project.agentDefs.update(name, fields, podResources);
-
-        await audit(pool, repo, "agent_updated", {
-          name,
-          ceremony,
         });
 
-        return h.response({ ok: true, agent: def, ceremony });
+        return h.response(result.body).code(result.code);
       } catch (err) {
         console.error("[agents] route failed:", err);
 

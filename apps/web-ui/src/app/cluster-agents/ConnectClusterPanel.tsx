@@ -22,25 +22,48 @@ export function buildConnectCommand(
   ].join("\n");
 }
 
+/** The registration token is not configured, which is a deployment state rather than a failure — the panel says what to set rather than hiding. */
+function InstallUnavailable({ reason }: { reason?: string | null }) {
+  return (
+    <details className="connect-cluster">
+      <summary>Connect a cluster</summary>
+      <Alert variant="secondary">
+        Not available: {reason ?? "install info is not configured"}. Set{" "}
+        <code>cluster_agent_registration_token</code> in{" "}
+        <code>secrets.tfvars</code> and apply, then redeploy lore-api.
+      </Alert>
+    </details>
+  );
+}
+
+/** `navigator.clipboard` is typed as always present but is undefined in insecure contexts and older browsers, so the call is optional and a failure simply leaves the command on screen to copy by hand. */
+function CopyCommandButton({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        // lib.dom types navigator.clipboard as always present; insecure contexts/older browsers leave it undefined at runtime.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        void navigator.clipboard?.writeText(command);
+        setCopied(true);
+      }}
+    >
+      {copied ? "Copied" : "Copy command"}
+    </button>
+  );
+}
+
 /** Cluster connect panel: renders copy-paste install command with token embedded (#1572). */
 export default function ConnectClusterPanel({
   install,
 }: ConnectClusterPanelProps) {
   const [name, setName] = useState("my-cluster");
   const [tags, setTags] = useState("node:agent,node:validate");
-  const [copied, setCopied] = useState(false);
 
   if (!install.available) {
-    return (
-      <details className="connect-cluster">
-        <summary>Connect a cluster</summary>
-        <Alert variant="secondary">
-          Not available: {install.reason ?? "install info is not configured"}.
-          Set <code>cluster_agent_registration_token</code> in{" "}
-          <code>secrets.tfvars</code> and apply, then redeploy lore-api.
-        </Alert>
-      </details>
-    );
+    return <InstallUnavailable reason={install.reason} />;
   }
 
   const command = buildConnectCommand(install, name, tags);
@@ -75,17 +98,7 @@ export default function ConnectClusterPanel({
       <pre>
         <code>{command}</code>
       </pre>
-      <button
-        type="button"
-        onClick={() => {
-          // lib.dom types navigator.clipboard as always present; insecure contexts/older browsers leave it undefined at runtime.
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-          void navigator.clipboard?.writeText(command);
-          setCopied(true);
-        }}
-      >
-        {copied ? "Copied" : "Copy command"}
-      </button>
+      <CopyCommandButton command={command} />
     </details>
   );
 }

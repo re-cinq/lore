@@ -15,7 +15,72 @@ import {
   toMemorySummary,
   extractMemoryRows,
   extractTotalCount,
+  type MemoryRow,
 } from "./dgraph-memory-queries.js";
+
+type MemoryWriteInput = {
+  key: string;
+  value: string;
+  agentId: string;
+  ttl?: number;
+  embedding?: number[];
+  repo?: string;
+};
+
+/** An update touches only what changes — value, version, embedding. The identity fields written on the first version are never rewritten, so a later write cannot move a memory to another agent or key. */
+async function bumpMemoryVersion(
+  txn: Parameters<Parameters<typeof withTxn>[1]>[0],
+  existing: MemoryRow,
+  input: MemoryWriteInput,
+  createdAt: string,
+): Promise<WriteResult> {
+  const nextVersion = existing.version + 1;
+
+  await txn.mutate({
+    setJson: {
+      uid: existing.uid,
+      "Memory.value": input.value,
+      "Memory.version": nextVersion,
+      ...embeddingField(input.embedding),
+    },
+    commitNow: true,
+  });
+
+  return {
+    key: input.key,
+    version: nextVersion,
+    agent_id: input.agentId,
+    created_at: createdAt,
+  };
+}
+
+async function insertFirstMemoryVersion(
+  txn: Parameters<Parameters<typeof withTxn>[1]>[0],
+  input: MemoryWriteInput,
+  createdAt: string,
+): Promise<WriteResult> {
+  await txn.mutate({
+    setJson: {
+      "dgraph.type": "Memory",
+      "Memory.xid": randomUUID(),
+      "Memory.agent_id": input.agentId,
+      "Memory.key": input.key,
+      "Memory.value": input.value,
+      "Memory.version": 1,
+      "Memory.is_deleted": false,
+      "Memory.created_at": createdAt,
+      ...embeddingField(input.embedding),
+    },
+    commitNow: true,
+  });
+
+  return {
+    key: input.key,
+    version: 1,
+    agent_id: input.agentId,
+    created_at: createdAt,
+  };
+}
 
 export async function writeMemory(
   client: DgraphClientPort,
@@ -39,47 +104,10 @@ export async function writeMemory(
     );
 
     if (existing) {
-      const nextVersion = existing.version + 1;
-
-      await txn.mutate({
-        setJson: {
-          uid: existing.uid,
-          "Memory.value": input.value,
-          "Memory.version": nextVersion,
-          ...embeddingField(input.embedding),
-        },
-        commitNow: true,
-      });
-
-      return {
-        key: input.key,
-        version: nextVersion,
-        agent_id: input.agentId,
-        created_at: createdAt,
-      };
+      return await bumpMemoryVersion(txn, existing, input, createdAt);
     }
 
-    await txn.mutate({
-      setJson: {
-        "dgraph.type": "Memory",
-        "Memory.xid": randomUUID(),
-        "Memory.agent_id": input.agentId,
-        "Memory.key": input.key,
-        "Memory.value": input.value,
-        "Memory.version": 1,
-        "Memory.is_deleted": false,
-        "Memory.created_at": createdAt,
-        ...embeddingField(input.embedding),
-      },
-      commitNow: true,
-    });
-
-    return {
-      key: input.key,
-      version: 1,
-      agent_id: input.agentId,
-      created_at: createdAt,
-    };
+    return await insertFirstMemoryVersion(txn, input, createdAt);
   });
 }
 

@@ -96,29 +96,75 @@ const TurnsRelayedSchema = z.object({
   skipped: z.number(),
 });
 
+type RelayResult = { forwarded: number; skipped: number } | { error: string };
+
+/** Forwards a local runner's turns to the Floor's sink. The task id keys everything the sink writes, so an unknown id is REFUSED rather than stored uncorrelated. */
+async function relayTurns(
+  pool: Pool,
+  taskId: string,
+  body: { raw: string; offset: number | null },
+  floor: { url: string; token: string },
+): Promise<RelayResult> {
+  const { rows } = await pool.query(
+    `SELECT id FROM pipeline.tasks WHERE id = $1`,
+    [taskId],
+  );
+
+  enforceTrue(rows.length !== 0, apiError(404), `task not found: ${taskId}`);
+
+  const lines = body.raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const relayable = keyedRelayableLines(taskId, lines, body.offset);
+  const skipped = lines.length - relayable.length;
+
+  if (relayable.length === 0) {
+    return { forwarded: 0, skipped };
+  }
+
+  const upstream = await fetch(`${floor.url}/api/agent-events`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${floor.token}`,
+      "Content-Type": "application/x-ndjson",
+    },
+    body: relayable
+      .map(({ line, key }) => wrapTaskEnvelope(taskId, line, key))
+      .join("\n"),
+  });
+
+  return upstream.ok
+    ? { forwarded: relayable.length, skipped }
+    : { error: `floor relay failed: ${upstream.status}` };
+}
+
+const TURNS_ROUTE_OPTIONS = zodResponse(
+  {
+    ...bearerScope("write"),
+    validate: { params: zodValidate(TaskTurnsParams) },
+    payload: { parse: false },
+    app: {
+      rawBody: {
+        contentType: "application/x-ndjson",
+        description:
+          "Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.",
+      },
+    },
+  },
+  TurnsRelayedSchema,
+  {
+    name: "TurnsRelayed",
+    description: "Turns accepted from a local runner",
+  },
+);
+
 export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/task-turns/{taskId}",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { params: zodValidate(TaskTurnsParams) },
-        payload: { parse: false },
-        app: {
-          rawBody: {
-            contentType: "application/x-ndjson",
-            description:
-              "Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.",
-          },
-        },
-      },
-      TurnsRelayedSchema,
-      {
-        name: "TurnsRelayed",
-        description: "Turns accepted from a local runner",
-      },
-    ),
+    options: TURNS_ROUTE_OPTIONS,
     handler: async (request, h) => {
       const { taskId } = request.params as z.infer<typeof TaskTurnsParams>;
       const floorUrl = process.env.LORE_AGENT_URL;
@@ -135,49 +181,19 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       try {
-        // The task id keys everything the sink writes — an unknown id is refused rather than stored uncorrelated.
-        const { rows } = await pool.query(
-          `SELECT id FROM pipeline.tasks WHERE id = $1`,
-          [taskId],
-        );
-
-        enforceTrue(
-          rows.length !== 0,
-          apiError(404),
-          `task not found: ${taskId}`,
-        );
-
-        const lines = rawBody(request)
-          .split("\n")
-          .map((line) => line.trim())
-          .filter(Boolean);
-        const offset = parseTurnOffset(request.headers["x-turn-offset"]);
-        const relayable = keyedRelayableLines(taskId, lines, offset);
-        const skipped = lines.length - relayable.length;
-
-        if (relayable.length === 0) {
-          return h.response({ forwarded: 0, skipped });
-        }
-
-        const upstream = await fetch(`${floorUrl}/api/agent-events`, {
-          signal: AbortSignal.timeout(30_000),
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${internalToken}`,
-            "Content-Type": "application/x-ndjson",
+        const relayed = await relayTurns(
+          pool,
+          taskId,
+          {
+            raw: rawBody(request),
+            offset: parseTurnOffset(request.headers["x-turn-offset"]),
           },
-          body: relayable
-            .map(({ line, key }) => wrapTaskEnvelope(taskId, line, key))
-            .join("\n"),
-        });
+          { url: floorUrl, token: internalToken },
+        );
 
-        if (!upstream.ok) {
-          return h
-            .response({ error: `floor relay failed: ${upstream.status}` })
-            .code(502);
-        }
-
-        return h.response({ forwarded: relayable.length, skipped });
+        return "error" in relayed
+          ? h.response({ error: relayed.error }).code(502)
+          : h.response(relayed);
       } catch (err) {
         // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);

@@ -250,6 +250,57 @@ function RunsSection({ runs }: { runs: TaskRunRow[] }) {
   );
 }
 
+/** Everything true of the task itself, above the panels that report on its run. */
+function TaskSummaryCard({ task }: { task: TaskDetailViewProps["task"] }) {
+  return (
+    <div className="spec-card">
+      <p>
+        <strong>Type:</strong> <span className="badge">{task.task_type}</span>
+      </p>
+      <p>
+        <strong>Status:</strong>{" "}
+        <span className={`op-badge op-${task.status}`}>
+          {formatEnumLabel(task.status)}
+        </span>
+      </p>
+      <p>
+        <strong>Priority:</strong> <PriorityBadge priority={task.priority} />
+      </p>
+      <p>
+        <strong>Repo:</strong> {task.target_repo}
+      </p>
+      <p>
+        <strong>Description:</strong>{" "}
+        <Linkified text={task.description} repo={task.target_repo} />
+      </p>
+      <AgentRow agentId={task.agent_id} />
+      <PrLinkRow prUrl={task.pr_url} />
+      <PrStatusSection
+        taskId={task.id}
+        prUrl={task.pr_url}
+        prNumber={task.pr_number}
+      />
+      <FailureRow failureReason={task.failure_reason} repo={task.target_repo} />
+      <ReviewIterationsRow reviewIteration={task.review_iteration} />
+      <p>
+        <strong>Created by:</strong> {task.created_by}
+      </p>
+      <p className="meta">
+        Created: <TimeAgo date={task.created_at} inline /> · Updated:{" "}
+        <TimeAgo date={task.updated_at} inline />
+      </p>
+      <div className={styles.actions}>
+        <RunNowAction
+          taskId={task.id}
+          status={task.status}
+          priority={task.priority}
+        />
+        <CancelAction taskId={task.id} status={task.status} />
+      </div>
+    </div>
+  );
+}
+
 export default function TaskDetailView({
   task,
   failedEvent,
@@ -260,56 +311,7 @@ export default function TaskDetailView({
     <TaskRefreshProvider taskId={task.id} taskStatus={task.status} runs={runs}>
       <div>
         <h1>Task: {task.description.substring(0, 80)}</h1>
-        <div className="spec-card">
-          <p>
-            <strong>Type:</strong>{" "}
-            <span className="badge">{task.task_type}</span>
-          </p>
-          <p>
-            <strong>Status:</strong>{" "}
-            <span className={`op-badge op-${task.status}`}>
-              {formatEnumLabel(task.status)}
-            </span>
-          </p>
-          <p>
-            <strong>Priority:</strong>{" "}
-            <PriorityBadge priority={task.priority} />
-          </p>
-          <p>
-            <strong>Repo:</strong> {task.target_repo}
-          </p>
-          <p>
-            <strong>Description:</strong>{" "}
-            <Linkified text={task.description} repo={task.target_repo} />
-          </p>
-          <AgentRow agentId={task.agent_id} />
-          <PrLinkRow prUrl={task.pr_url} />
-          <PrStatusSection
-            taskId={task.id}
-            prUrl={task.pr_url}
-            prNumber={task.pr_number}
-          />
-          <FailureRow
-            failureReason={task.failure_reason}
-            repo={task.target_repo}
-          />
-          <ReviewIterationsRow reviewIteration={task.review_iteration} />
-          <p>
-            <strong>Created by:</strong> {task.created_by}
-          </p>
-          <p className="meta">
-            Created: <TimeAgo date={task.created_at} inline /> · Updated:{" "}
-            <TimeAgo date={task.updated_at} inline />
-          </p>
-          <div className={styles.actions}>
-            <RunNowAction
-              taskId={task.id}
-              status={task.status}
-              priority={task.priority}
-            />
-            <CancelAction taskId={task.id} status={task.status} />
-          </div>
-        </div>
+        <TaskSummaryCard task={task} />
 
         <TaskFailurePanel
           status={task.status}

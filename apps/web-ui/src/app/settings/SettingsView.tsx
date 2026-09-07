@@ -99,6 +99,23 @@ function PlatformStats({
   );
 }
 
+/** Its own form, not another button beside Save: regenerating invalidates every existing token at once, so it must not ride a submit someone meant as a save. */
+function RegenerateTokenForm({
+  regenerateToken,
+}: Pick<SettingsViewProps, "regenerateToken">) {
+  return (
+    <form action={regenerateToken} className={styles.regenerateForm}>
+      <button type="submit" className={`danger ${styles.regenerateButton}`}>
+        Regenerate Token
+      </button>
+      <span className={`meta ${styles.regenerateNote}`}>
+        Warning: invalidates all existing tokens. You&apos;ll need to update all
+        repos and developer installs.
+      </span>
+    </form>
+  );
+}
+
 function PlatformConfigForm({
   apiUrl,
   ingestToken,
@@ -141,20 +158,54 @@ function PlatformConfigForm({
         </div>
       </form>
 
-      <form action={regenerateToken} className={styles.regenerateForm}>
-        <button type="submit" className={`danger ${styles.regenerateButton}`}>
-          Regenerate Token
-        </button>
-        <span className={`meta ${styles.regenerateNote}`}>
-          Warning: invalidates all existing tokens. You&apos;ll need to update
-          all repos and developer installs.
-        </span>
-      </form>
+      <RegenerateTokenForm regenerateToken={regenerateToken} />
     </>
   );
 }
 
 /** The gate that makes a human add a label before an agent picks a task up, plus the two ways around it: per-task-type and per-repo. */
+/** The two ways around the gate, and they pull in OPPOSITE directions: auto-approved task types skip it even when approval is required globally, while the listed repos always require it even when approval is off. */
+function GateExemptions({
+  autoApprove,
+  repoLines,
+}: {
+  autoApprove: string[];
+  repoLines: SettingsViewProps["repoLines"];
+}) {
+  return (
+    <>
+      <label className={styles.labelSpaced}>
+        Auto-approve Task Types (comma-separated)
+      </label>
+      <input
+        name="auto_approve"
+        defaultValue={autoApprove.join(", ")}
+        placeholder="general, gap-fill"
+      />
+      <p className={`meta ${styles.fieldNote}`}>
+        These task types skip the approval gate and are processed immediately,
+        even when approval is required globally.
+      </p>
+
+      <label className={styles.labelSpaced}>
+        Repos Requiring Approval (one per line, owner/repo)
+      </label>
+      <textarea
+        name="approval_repos"
+        defaultValue={repoLines}
+        rows={4}
+        placeholder={"re-cinq/production-app\nre-cinq/billing-service"}
+        className={styles.reposTextarea}
+      />
+      <p className={`meta ${styles.fieldNote}`}>
+        Per-repo overrides. Tasks targeting these repos always require approval,
+        regardless of the global setting. Leave empty to use only the global
+        toggle.
+      </p>
+    </>
+  );
+}
+
 function ApprovalGatesForm({
   approvalConfig,
   repoLines,
@@ -191,34 +242,10 @@ function ApprovalGatesForm({
           label every minute.
         </p>
 
-        <label className={styles.labelSpaced}>
-          Auto-approve Task Types (comma-separated)
-        </label>
-        <input
-          name="auto_approve"
-          defaultValue={approvalConfig.auto_approve.join(", ")}
-          placeholder="general, gap-fill"
+        <GateExemptions
+          autoApprove={approvalConfig.auto_approve}
+          repoLines={repoLines}
         />
-        <p className={`meta ${styles.fieldNote}`}>
-          These task types skip the approval gate and are processed immediately,
-          even when approval is required globally.
-        </p>
-
-        <label className={styles.labelSpaced}>
-          Repos Requiring Approval (one per line, owner/repo)
-        </label>
-        <textarea
-          name="approval_repos"
-          defaultValue={repoLines}
-          rows={4}
-          placeholder={"re-cinq/production-app\nre-cinq/billing-service"}
-          className={styles.reposTextarea}
-        />
-        <p className={`meta ${styles.fieldNote}`}>
-          Per-repo overrides. Tasks targeting these repos always require
-          approval, regardless of the global setting. Leave empty to use only
-          the global toggle.
-        </p>
 
         <div className={styles.actions}>
           <button type="submit">Save Approval Config</button>

@@ -36,6 +36,94 @@ export function formatElapsed(ms: number): string {
 }
 
 /** Clusters view: pure render with offline audit fallback to raw id (FR7). */
+/** What each registered cluster can run and whether it is alive. Restart is offered only for the platform's own cluster — a satellite is not ours to bounce. */
+function ClusterRoster({
+  agents,
+  togglePaused,
+  restart,
+}: Pick<ClusterAgentsViewProps, "agents" | "togglePaused" | "restart">) {
+  return agents.length === 0 ? (
+    <EmptyState
+      title="No clusters registered"
+      description="A cluster-agent joins this roster when it registers against the Lore API."
+    />
+  ) : (
+    <DataTable
+      columns={["Name", "Tags", "Status", "Last seen", "Running claims", ""]}
+      rows={agents}
+      rowKey={(agent) => agent.id}
+      cells={(agent) => [
+        agent.name,
+        <ClusterTags tags={agent.tags} key="tags" />,
+        <ClusterStatus
+          status={agent.status}
+          paused={agent.paused}
+          key="status"
+        />,
+        <TimeAgo date={agent.last_seen_at} key="seen" />,
+        agent.running_claims > 0 ? (
+          <Link
+            href={`/assembly-runs?cluster_agent_id=${agent.id}`}
+            key="claims"
+          >
+            {agent.running_claims}
+          </Link>
+        ) : (
+          agent.running_claims
+        ),
+        // BOUND via .bind() — an inline arrow would not serialize to a client component.
+        <span key="actions">
+          <PauseClusterButton
+            paused={agent.paused}
+            toggle={togglePaused.bind(null, agent.id)}
+          />
+          {agent.name === CENTRAL_CLUSTER_AGENT_NAME && (
+            <RestartClusterButton restart={restart.bind(null, agent.id)} />
+          )}
+        </span>,
+      ]}
+    />
+  );
+}
+
+/** A row appears when the reaper marks a cluster offline and requeues a station run it held, so a flapping cluster is visible as repetition here. */
+function OfflineEventsTable({
+  events,
+  nameById,
+}: {
+  events: ClusterAgentsViewProps["offlineEvents"];
+  nameById: Map<string, string>;
+}) {
+  return events.length === 0 ? (
+    <Alert variant="secondary">No offline events recorded.</Alert>
+  ) : (
+    <DataTable
+      columns={["Time", "Cluster", "Node", "Assembly run", "Held for"]}
+      rows={events}
+      rowKey={(event, index) =>
+        `${event.created_at}-${event.station_run_id ?? index}`
+      }
+      cells={(event) => [
+        <TimeAgo date={event.created_at} key="time" />,
+        event.cluster_agent_id
+          ? (nameById.get(event.cluster_agent_id) ?? event.cluster_agent_id)
+          : "—",
+        event.node_id ?? "—",
+        event.assembly_run_id ? (
+          <Link href={`/assembly-runs/${event.assembly_run_id}`} key="run">
+            {event.assembly_run_id.slice(0, 8)}
+          </Link>
+        ) : (
+          "—"
+        ),
+        event.elapsed_since_claim_ms === null
+          ? "—"
+          : formatElapsed(event.elapsed_since_claim_ms),
+      ]}
+    />
+  );
+}
+
 export default function ClusterAgentsView({
   agents,
   offlineEvents,
@@ -53,89 +141,17 @@ export default function ClusterAgentsView({
         alive, and how many station runs it currently holds.
       </p>
       {installInfo && <ConnectClusterPanel install={installInfo} />}
-      {agents.length === 0 ? (
-        <EmptyState
-          title="No clusters registered"
-          description="A cluster-agent joins this roster when it registers against the Lore API."
-        />
-      ) : (
-        <DataTable
-          columns={[
-            "Name",
-            "Tags",
-            "Status",
-            "Last seen",
-            "Running claims",
-            "",
-          ]}
-          rows={agents}
-          rowKey={(agent) => agent.id}
-          cells={(agent) => [
-            agent.name,
-            <ClusterTags tags={agent.tags} key="tags" />,
-            <ClusterStatus
-              status={agent.status}
-              paused={agent.paused}
-              key="status"
-            />,
-            <TimeAgo date={agent.last_seen_at} key="seen" />,
-            agent.running_claims > 0 ? (
-              <Link
-                href={`/assembly-runs?cluster_agent_id=${agent.id}`}
-                key="claims"
-              >
-                {agent.running_claims}
-              </Link>
-            ) : (
-              agent.running_claims
-            ),
-            // BOUND via .bind() — an inline arrow would not serialize to a client component.
-            <span key="actions">
-              <PauseClusterButton
-                paused={agent.paused}
-                toggle={togglePaused.bind(null, agent.id)}
-              />
-              {agent.name === CENTRAL_CLUSTER_AGENT_NAME && (
-                <RestartClusterButton restart={restart.bind(null, agent.id)} />
-              )}
-            </span>,
-          ]}
-        />
-      )}
-
+      <ClusterRoster
+        agents={agents}
+        togglePaused={togglePaused}
+        restart={restart}
+      />
       <h2>Recent offline events</h2>
       <p className="meta">
         A row appears when the reaper marks a cluster offline and requeues a
         station run it held — a flapping cluster shows up here.
       </p>
-      {offlineEvents.length === 0 ? (
-        <Alert variant="secondary">No offline events recorded.</Alert>
-      ) : (
-        <DataTable
-          columns={["Time", "Cluster", "Node", "Assembly run", "Held for"]}
-          rows={offlineEvents}
-          rowKey={(event, index) =>
-            `${event.created_at}-${event.station_run_id ?? index}`
-          }
-          cells={(event) => [
-            <TimeAgo date={event.created_at} key="time" />,
-            event.cluster_agent_id
-              ? (nameById.get(event.cluster_agent_id) ?? event.cluster_agent_id)
-              : "—",
-            event.node_id ?? "—",
-            event.assembly_run_id ? (
-              <Link href={`/assembly-runs/${event.assembly_run_id}`} key="run">
-                {event.assembly_run_id.slice(0, 8)}
-              </Link>
-            ) : (
-              "—"
-            ),
-            event.elapsed_since_claim_ms === null
-              ? "—"
-              : formatElapsed(event.elapsed_since_claim_ms),
-          ]}
-        />
-      )}
+      <OfflineEventsTable events={offlineEvents} nameById={nameById} />
     </div>
   );
 }

@@ -101,20 +101,13 @@ async function fetchReviewComments(parent: PipelineTask) {
     .catch(() => []);
 }
 
-async function requestReviewFix(
-  taskId: string,
-  branch: string,
+/** The fix runs on the PARENT's branch, not a new one: the PR already exists, and the loop is meant to push onto it rather than open a second. */
+async function startFixTask(
   parent: PipelineTask,
-  iteration: number,
-): Promise<void> {
-  const comments = await fetchReviewComments(parent);
-  const feedback =
-    formatReviewFeedback(comments) ||
-    "The agent review requested changes. Read the review comments on the PR and address them.";
-  const fixDescription = buildReviewFixDescription({
-    prNumber: parent.pr_number ?? null,
-    iteration,
-  });
+  branch: string,
+  work: { fixDescription: string; feedback: string },
+): Promise<string> {
+  const { fixDescription, feedback } = work;
   const fixTaskId = (await pipeline().taskQueue.insertTask({
     description: fixDescription,
     taskType: "implementation",
@@ -137,6 +130,28 @@ async function requestReviewFix(
     branch: parent.target_branch || branch,
     model: "claude-sonnet-4-6",
     timeoutMinutes: 30,
+  });
+
+  return fixTaskId;
+}
+
+async function requestReviewFix(
+  taskId: string,
+  branch: string,
+  parent: PipelineTask,
+  iteration: number,
+): Promise<void> {
+  const comments = await fetchReviewComments(parent);
+  const feedback =
+    formatReviewFeedback(comments) ||
+    "The agent review requested changes. Read the review comments on the PR and address them.";
+  const fixDescription = buildReviewFixDescription({
+    prNumber: parent.pr_number ?? null,
+    iteration,
+  });
+  const fixTaskId = await startFixTask(parent, branch, {
+    fixDescription,
+    feedback,
   });
 
   if (parent.issue_number) {

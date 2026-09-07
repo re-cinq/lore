@@ -49,6 +49,113 @@ function resolveEnabled(settings: Record<string, unknown> | null): boolean {
   return loop?.enabled === true;
 }
 
+type OpenIssues = Parameters<typeof taskTicket>[1];
+type NodeRows = Parameters<typeof taskTicket>[3];
+
+interface BacklogState {
+  enabled: boolean;
+  taskRows: LoopTaskRow[];
+  openIssues: OpenIssues;
+  currentRunId: string | null;
+  runByTask: Map<string, Parameters<typeof taskTicket>[2] & object>;
+  nodeRows: NodeRows;
+}
+
+/** Everything the view needs, read in one place: the toggle, the loop's task rows, the repo's open issues, and the run each task belongs to. */
+async function loadBacklogState(
+  pool: Pool,
+  repo: string,
+): Promise<BacklogState> {
+  const { rows } = await pool.query<{
+    settings: Record<string, unknown> | null;
+  }>("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
+
+  enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
+
+  // 2x the display cap: filtering out the open rows must still leave a full recent list.
+  const { rows: taskRows } = await pool.query<LoopTaskRow>(
+    `SELECT ${selectList(LOOP_TASK_COLUMNS)}
+           FROM pipeline.tasks
+          WHERE target_repo = $1 AND task_type = 'implementation-loop'
+          ORDER BY created_at DESC
+          LIMIT ${RECENT_LIMIT * 2}`,
+    [repo],
+  );
+  const project = await projectFor(repo);
+  const openIssues = await project.issues.list({ state: "open" });
+  const { rows: runRows } = await pool.query<{ id: string }>(
+    `SELECT id FROM pipeline.assembly_runs
+          WHERE repo = $1 AND subject_key = 'backlog'
+            AND status IN ('queued', 'running')
+          ORDER BY created_at DESC LIMIT 1`,
+    [repo],
+  );
+  const { taskRuns, nodeRows } = await fetchRunContext(
+    pool,
+    taskRows.map((t) => t.id),
+  );
+
+  return {
+    enabled: resolveEnabled(rows[0].settings),
+    taskRows,
+    openIssues,
+    currentRunId: runRows[0]?.id ?? null,
+    runByTask: new Map(taskRuns.map((r) => [r.task_id, r])),
+    nodeRows,
+  };
+}
+
+/** Splits the loop's tasks into the one being worked, the queue behind it, and what it recently finished. */
+function projectBacklog(state: BacklogState): {
+  current: Ticket | null;
+  next: unknown[];
+  recent: Ticket[];
+} {
+  const { taskRows, openIssues, runByTask, nodeRows } = state;
+  const currentRow = taskRows.find((t) =>
+    (OPEN_TASK_STATES as readonly string[]).includes(t.status),
+  );
+  // Mirror the driver's eligibility guard: an issue whose task isn't failed/cancelled is already being worked or addressed — showing it as "next up" duplicated it into next and recent at once.
+  const guardedIssues = new Set(
+    taskRows
+      .filter((t) => !["failed", "cancelled"].includes(t.status))
+      .map((t) => t.issue_number),
+  );
+
+  return {
+    current: currentRow
+      ? taskTicket(
+          currentRow,
+          openIssues,
+          runByTask.get(currentRow.id),
+          nodeRows,
+        )
+      : null,
+    next: orderBacklog(openIssues)
+      .filter((i) => !guardedIssues.has(i.number))
+      .map((i) => ({
+        issue_number: i.number,
+        issue_url: i.url ?? null,
+        title: i.title,
+        priority: priorityOf(i),
+        pr_url: null,
+        state: "queued",
+        created_at: i.createdAt ? new Date(i.createdAt).toISOString() : null,
+        error: null,
+        run_id: null,
+        pipeline: null,
+      })),
+    recent: taskRows
+      .filter((t) => t !== currentRow)
+      .filter(
+        (t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status),
+      )
+      .slice(0, RECENT_LIMIT)
+      .map((t) => taskTicket(t, openIssues, runByTask.get(t.id), nodeRows))
+      .filter((t): t is Ticket => t !== null),
+  };
+}
+
 function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -63,80 +170,13 @@ function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
 
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
       const repo = repoOf(request.params);
-      const { rows } = await pool.query<{
-        settings: Record<string, unknown> | null;
-      }>("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
-
-      enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
-      const enabled = resolveEnabled(rows[0].settings);
-      // 2x the display cap: filtering out the open rows must still leave a full recent list.
-      const { rows: taskRows } = await pool.query<LoopTaskRow>(
-        `SELECT ${selectList(LOOP_TASK_COLUMNS)}
-           FROM pipeline.tasks
-          WHERE target_repo = $1 AND task_type = 'implementation-loop'
-          ORDER BY created_at DESC
-          LIMIT ${RECENT_LIMIT * 2}`,
-        [repo],
-      );
-      const project = await projectFor(repo);
-      const openIssues = await project.issues.list({ state: "open" });
-      const { rows: runRows } = await pool.query<{ id: string }>(
-        `SELECT id FROM pipeline.assembly_runs
-          WHERE repo = $1 AND subject_key = 'backlog'
-            AND status IN ('queued', 'running')
-          ORDER BY created_at DESC LIMIT 1`,
-        [repo],
-      );
-      const taskIds = taskRows.map((t) => t.id);
-      const { taskRuns, nodeRows } = await fetchRunContext(pool, taskIds);
-      const runByTask = new Map(taskRuns.map((r) => [r.task_id, r]));
-      const currentRow = taskRows.find((t) =>
-        (OPEN_TASK_STATES as readonly string[]).includes(t.status),
-      );
-      const current = currentRow
-        ? taskTicket(
-            currentRow,
-            openIssues,
-            runByTask.get(currentRow.id),
-            nodeRows,
-          )
-        : null;
-      // Mirror the driver's eligibility guard: an issue whose task isn't failed/cancelled is already being worked or addressed — showing it as "next up" duplicated it into next and recent at once.
-      const guardedIssues = new Set(
-        taskRows
-          .filter((t) => !["failed", "cancelled"].includes(t.status))
-          .map((t) => t.issue_number),
-      );
-      const next = orderBacklog(openIssues)
-        .filter((i) => !guardedIssues.has(i.number))
-        .map((i) => ({
-          issue_number: i.number,
-          issue_url: i.url ?? null,
-          title: i.title,
-          priority: priorityOf(i),
-          pr_url: null,
-          state: "queued",
-          created_at: i.createdAt ? new Date(i.createdAt).toISOString() : null,
-          error: null,
-          run_id: null,
-          pipeline: null,
-        }));
-      const recent = taskRows
-        .filter((t) => t !== currentRow)
-        .filter(
-          (t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status),
-        )
-        .slice(0, RECENT_LIMIT)
-        .map((t) => taskTicket(t, openIssues, runByTask.get(t.id), nodeRows))
-        .filter((t): t is Ticket => t !== null);
+      const state = await loadBacklogState(pool, repo);
 
       return h
         .response({
-          enabled,
-          current,
-          current_run_id: runRows[0]?.id ?? null,
-          next,
-          recent,
+          enabled: state.enabled,
+          current_run_id: state.currentRunId,
+          ...projectBacklog(state),
         })
         .code(200);
     },

@@ -71,6 +71,57 @@ export function toFlipSpecStatusTask(
   } as MergeableTask;
 }
 
+const recordMergeOutcome: MergeStepDeps["recordOutcome"] = async (task) => {
+  const stats = await (
+    await projectFor(task.target_repo)
+  ).pulls.getStats(task.pr_number);
+
+  await settings().bumpOutcomeStats(
+    task.target_repo,
+    stats.files_changed,
+    hoursBetween(stats.created_at, stats.merged_at) ?? 0,
+  );
+};
+
+const curateMergeEpisode: MergeStepDeps["curate"] = async (task) => {
+  const stats = await (
+    await projectFor(task.target_repo)
+  ).pulls.getStats(task.pr_number);
+
+  await writeEpisodeWithCuration(
+    { memory: memoryLifecycle() },
+    {
+      content: [
+        `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.`,
+        `Files changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}`,
+        `Review comments: ${stats.comments}`,
+        `Time to merge: ${hoursBetween(stats.created_at, stats.merged_at)}h`,
+        `Description: ${task.description.substring(0, 200)}`,
+      ].join("\n"),
+      source: "ci",
+      ref: `${task.target_repo}/${task.id}`,
+      agentId: "merge-line",
+      taskId: task.id,
+    },
+  );
+};
+
+const resumePlanningRun: MergeStepDeps["resumePlanning"] = async (
+  repo,
+  prNumber,
+) => {
+  const { resumeDecomposition, eventReport } =
+    await import("@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js");
+
+  await resumeDecomposition(
+    { repo, prNumber },
+    {
+      assemblyRuns: pipeline().assemblyRuns,
+      report: eventReport(eventReporter()),
+    },
+  );
+};
+
 function productionDeps(): MergeStepDeps {
   // Cache the whole row to hand to helpers rather than widening the step contract.
   let row: PipelineTask | null = null;
@@ -100,39 +151,8 @@ function productionDeps(): MergeStepDeps {
       );
       await issues.close(task.issue_number as number, "completed");
     },
-    recordOutcome: async (task) => {
-      const stats = await (
-        await projectFor(task.target_repo)
-      ).pulls.getStats(task.pr_number);
-
-      await settings().bumpOutcomeStats(
-        task.target_repo,
-        stats.files_changed,
-        hoursBetween(stats.created_at, stats.merged_at) ?? 0,
-      );
-    },
-    curate: async (task) => {
-      const stats = await (
-        await projectFor(task.target_repo)
-      ).pulls.getStats(task.pr_number);
-
-      await writeEpisodeWithCuration(
-        { memory: memoryLifecycle() },
-        {
-          content: [
-            `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.`,
-            `Files changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}`,
-            `Review comments: ${stats.comments}`,
-            `Time to merge: ${hoursBetween(stats.created_at, stats.merged_at)}h`,
-            `Description: ${task.description.substring(0, 200)}`,
-          ].join("\n"),
-          source: "ci",
-          ref: `${task.target_repo}/${task.id}`,
-          agentId: "merge-line",
-          taskId: task.id,
-        },
-      );
-    },
+    recordOutcome: recordMergeOutcome,
+    curate: curateMergeEpisode,
     applyOutcomeFeedback: (id, kind) => applyOutcomeFeedback(id, kind),
     promoteTrust,
     syncSpecTasks: (task) =>
@@ -140,20 +160,7 @@ function productionDeps(): MergeStepDeps {
         ...task,
         target_branch: row?.target_branch ?? null,
       } as Parameters<typeof syncSpecTasksFromMerge>[0]),
-    resumePlanning: async (repo, prNumber) => {
-      const { resumeDecomposition } =
-        await import("@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js");
-      const { eventReport } =
-        await import("@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js");
-
-      await resumeDecomposition(
-        { repo, prNumber },
-        {
-          assemblyRuns: pipeline().assemblyRuns,
-          report: eventReport(eventReporter()),
-        },
-      );
-    },
+    resumePlanning: resumePlanningRun,
   };
 }
 

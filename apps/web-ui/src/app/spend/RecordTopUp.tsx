@@ -49,6 +49,27 @@ function TopUpStatus({ state }: { state: RecordTopUpState | null }) {
   );
 }
 
+/** ONE fact — when the money landed — split across two controls so they share a row. Both blank counts from the start of today, which the note states as a consequence rather than as a default, since "now" would be ambiguous for a top-up recorded after the fact. */
+function LandedFields() {
+  return (
+    <>
+      <div className={styles.fieldRow}>
+        <div>
+          <label htmlFor="effective_date">Date it landed</label>
+          <input id="effective_date" name="effective_date" type="date" />
+        </div>
+        <div>
+          <label htmlFor="effective_time">Time it landed</label>
+          <input id="effective_time" name="effective_time" type="time" />
+        </div>
+      </div>
+      <p className={`meta ${styles.subnote}`}>
+        Leave both blank to count from the start of today.
+      </p>
+    </>
+  );
+}
+
 export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
   const [state, formAction] = useActionState(recordAction, null);
   const copy = topUpCopy(first);
@@ -71,21 +92,7 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
           autoComplete="off"
         />
 
-        {/* "Defaults to today": label states consequence not default, to avoid ambiguity with "now" */}
-        {/* One fact ("when money landed") split across two controls to share a row */}
-        <div className={styles.fieldRow}>
-          <div>
-            <label htmlFor="effective_date">Date it landed</label>
-            <input id="effective_date" name="effective_date" type="date" />
-          </div>
-          <div>
-            <label htmlFor="effective_time">Time it landed</label>
-            <input id="effective_time" name="effective_time" type="time" />
-          </div>
-        </div>
-        <p className={`meta ${styles.subnote}`}>
-          Leave both blank to count from the start of today.
-        </p>
+        <LandedFields />
 
         <label htmlFor="note">
           Note <span className="meta">— optional</span>

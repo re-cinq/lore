@@ -75,6 +75,37 @@ export interface RunHistory {
 }
 
 /** Runs once per run; a rejection degrades to the seeded graph plus an Offline chip rather than an unhandled rejection or a blank page. */
+/** Reads every page of the run's history, dispatching each row as it arrives so the reducer folds them in order. `isCancelled` is checked between pages: a run change must not let the previous run's later pages land in the new run's state. */
+async function loadAllPages(
+  runId: string,
+  dispatch: (event: RunStreamEvent) => void,
+  isCancelled: () => boolean,
+): Promise<{ ok: boolean; collected: RunStreamEvent[] }> {
+  let cursor = "0";
+  const collected: RunStreamEvent[] = [];
+
+  for (;;) {
+    const page = await fetchPage(runId, cursor);
+
+    if (isCancelled()) {
+      return { ok: true, collected };
+    }
+
+    if (!page.ok) {
+      return { ok: false, collected };
+    }
+    collected.push(...dispatchParsedRows(page.rows, dispatch));
+    const next = nextPageCursor(identifiedRows(page.rows));
+
+    if (next === null) {
+      break;
+    }
+    cursor = next;
+  }
+
+  return { ok: true, collected };
+}
+
 export function useRunHistory(
   runId: string,
   dispatch: (event: RunStreamEvent) => void,
@@ -87,38 +118,13 @@ export function useRunHistory(
   useEffect(() => {
     let cancelled = false;
 
-    async function loadAllPages(): Promise<{
-      ok: boolean;
-      collected: RunStreamEvent[];
-    }> {
-      let cursor = "0";
-      const collected: RunStreamEvent[] = [];
-
-      for (;;) {
-        const page = await fetchPage(runId, cursor);
-
-        if (cancelled) {
-          return { ok: true, collected };
-        }
-
-        if (!page.ok) {
-          return { ok: false, collected };
-        }
-        collected.push(...dispatchParsedRows(page.rows, dispatch));
-        const next = nextPageCursor(identifiedRows(page.rows));
-
-        if (next === null) {
-          break;
-        }
-        cursor = next;
-      }
-
-      return { ok: true, collected };
-    }
-
     async function foldHistory() {
       try {
-        const { ok, collected } = await loadAllPages();
+        const { ok, collected } = await loadAllPages(
+          runId,
+          dispatch,
+          () => cancelled,
+        );
 
         if (cancelled) {
           return;

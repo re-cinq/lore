@@ -95,6 +95,45 @@ function scheduleSessionExtraction(
   ).catch(() => {});
 }
 
+/** Writes the session as an episode and starts fact extraction. Two outcomes are not errors: an empty session is skipped, and a content hash already stored is a duplicate — the Stop hook fires more than once per session. */
+async function ingestSession(
+  pool: Pool | null,
+  payload: SessionSummaryBody,
+): Promise<{ status: string; reason?: string; episode_id?: string }> {
+  const { session_log, repo, agent_id } = payload;
+  const summary = summaryText(session_log);
+
+  if (isEmptySummary(summary)) {
+    return { status: "skipped", reason: "empty session" };
+  }
+
+  const content = sessionContent(repo, summary);
+  const agent = agent_id || "session-hook";
+  const scopedRepo = repo || null;
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  const episodeId = await insertSessionEpisode(pool, {
+    agent,
+    content,
+    contentHash: createHash("sha256").update(content).digest("hex"),
+    repo: scopedRepo,
+  });
+
+  if (episodeId === undefined) {
+    return { status: "duplicate" };
+  }
+
+  scheduleSessionExtraction(pool, {
+    episodeId,
+    content,
+    agent,
+    repo: scopedRepo,
+  });
+
+  return { status: "ok", episode_id: episodeId };
+}
+
 export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -114,40 +153,9 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
       const pool = getPool();
 
       try {
-        const { session_log, repo, agent_id } =
-          request.payload as SessionSummaryBody;
-        const summary = summaryText(session_log);
-
-        if (isEmptySummary(summary)) {
-          return h.response({ status: "skipped", reason: "empty session" });
-        }
-
-        const content = sessionContent(repo, summary);
-        const agent = agent_id || "session-hook";
-        const scopedRepo = repo || null;
-        const contentHash = createHash("sha256").update(content).digest("hex");
-
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-        const episodeId = await insertSessionEpisode(pool, {
-          agent,
-          content,
-          contentHash,
-          repo: scopedRepo,
-        });
-
-        if (episodeId === undefined) {
-          return h.response({ status: "duplicate" });
-        }
-
-        scheduleSessionExtraction(pool, {
-          episodeId,
-          content,
-          agent,
-          repo: scopedRepo,
-        });
-
-        return h.response({ status: "ok", episode_id: episodeId });
+        return h.response(
+          await ingestSession(pool, request.payload as SessionSummaryBody),
+        );
       } catch (err) {
         // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);

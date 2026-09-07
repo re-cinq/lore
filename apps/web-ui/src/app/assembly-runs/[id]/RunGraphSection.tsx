@@ -99,16 +99,7 @@ export function ReplayControlsSlot({
 }
 
 /** The run as a picture: the connection chip, the graph itself, the definition/run toggle, and the scrubber for a finished run. */
-export function RunGraphSection({
-  chipState,
-  graph,
-  definition,
-  onSelectNode,
-  hasRunData,
-  showOutcomes,
-  onToggleOutcomes,
-  replay,
-}: {
+interface RunGraphSectionProps {
   chipState: Parameters<typeof connectionLabel>[0];
   graph: Parameters<typeof RunGraphView>[0]["graph"];
   definition: AssemblyLineDefinition | null;
@@ -124,7 +115,18 @@ export function RunGraphSection({
     onCursorChange: (cursor: number) => void;
     onBackToLive: () => void;
   };
-}) {
+}
+
+export function RunGraphSection({
+  chipState,
+  graph,
+  definition,
+  onSelectNode,
+  hasRunData,
+  showOutcomes,
+  onToggleOutcomes,
+  replay,
+}: RunGraphSectionProps) {
   return (
     <>
       <div className={styles.header}>

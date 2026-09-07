@@ -127,6 +127,53 @@ function leaseFromRow(row: { holder: string; expires_at: string }): {
   };
 }
 
+/** Two of the three outcomes are not errors: a task with no branch yet has no timeline to read, and a deleted branch is a merged or abandoned one. Only GitHub failing is a 500. */
+async function taskTimeline(
+  pool: Pool,
+  taskId: string,
+): Promise<Record<string, unknown>> {
+  const task = await readTaskRow(pool, taskId);
+
+  enforceTrue(task, apiError(404), "task_not_found");
+  const base = {
+    task_id: taskId,
+    branch_name: task.target_branch,
+    repo: task.target_repo,
+    pr_number: task.pr_number,
+    pr_url: task.pr_url,
+  };
+
+  if (!task.target_repo || !task.target_branch) {
+    return {
+      ...base,
+      pr_state: null,
+      commits: [],
+      current_stage: null,
+      pending: "no_branch",
+    };
+  }
+  const history = await readBranchHistory(
+    task.target_repo,
+    task.target_branch,
+    task.pr_number,
+  );
+
+  if (history === "branch-deleted") {
+    return { ...base, pr_state: null, commits: [], branch_deleted: true };
+  }
+
+  enforceTrue(history !== "github-error", apiError(500), "github_api");
+  const commits = buildTimeline(history.commits, task.created_at);
+
+  return {
+    ...base,
+    pr_state: history.prState,
+    commits,
+    current_stage: commits.at(-1)?.stage ?? null,
+    lease: await readLease(pool, task.target_branch),
+  };
+}
+
 export function timelineRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -140,53 +187,8 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
       const pool = getPool();
 
       enforceTrue(pool, apiError(503), "database unavailable");
-      const taskId = request.params.id;
-      const task = await readTaskRow(pool, taskId);
 
-      enforceTrue(task, apiError(404), "task_not_found");
-      const base = {
-        task_id: taskId,
-        branch_name: task.target_branch,
-        repo: task.target_repo,
-        pr_number: task.pr_number,
-        pr_url: task.pr_url,
-      };
-
-      // A task with no branch has no timeline to read — that is pending work, not an error.
-      if (!task.target_repo || !task.target_branch) {
-        return h.response({
-          ...base,
-          pr_state: null,
-          commits: [],
-          current_stage: null,
-          pending: "no_branch",
-        });
-      }
-      const history = await readBranchHistory(
-        task.target_repo,
-        task.target_branch,
-        task.pr_number,
-      );
-
-      if (history === "branch-deleted") {
-        return h.response({
-          ...base,
-          pr_state: null,
-          commits: [],
-          branch_deleted: true,
-        });
-      }
-
-      enforceTrue(history !== "github-error", apiError(500), "github_api");
-      const commits = buildTimeline(history.commits, task.created_at);
-
-      return h.response({
-        ...base,
-        pr_state: history.prState,
-        commits,
-        current_stage: commits.at(-1)?.stage ?? null,
-        lease: await readLease(pool, task.target_branch),
-      });
+      return h.response(await taskTimeline(pool, request.params.id));
     },
   };
 }

@@ -8,6 +8,33 @@ export interface AssemblyRunCreateViewProps {
 }
 
 // Pure render — page.tsx resolves the repo list; the only mutation (Create Task) is passed in as createTaskAction and fired via the form.
+/** A picker once repos are onboarded, a free-text field before that — the first task on a fresh install has nothing to pick from, and typing the repo is how it gets created. */
+function TargetRepoField({
+  repos,
+}: {
+  repos: AssemblyRunCreateViewProps["onboardedRepos"];
+}) {
+  if (repos.length === 0) {
+    return (
+      <input
+        name="target_repo"
+        defaultValue="re-cinq/lore"
+        placeholder="owner/repo"
+      />
+    );
+  }
+
+  return (
+    <select name="target_repo">
+      {repos.map((r) => (
+        <option key={r.full_name} value={r.full_name}>
+          {r.full_name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export default function AssemblyRunCreateView({
   onboardedRepos,
   createTaskAction,
@@ -35,21 +62,7 @@ export default function AssemblyRunCreateView({
         />
 
         <label>Target Repository</label>
-        {onboardedRepos.length > 0 ? (
-          <select name="target_repo">
-            {onboardedRepos.map((r) => (
-              <option key={r.full_name} value={r.full_name}>
-                {r.full_name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input
-            name="target_repo"
-            defaultValue="re-cinq/lore"
-            placeholder="owner/repo"
-          />
-        )}
+        <TargetRepoField repos={onboardedRepos} />
 
         <label className={styles.priorityLabel}>
           <input type="checkbox" name="priority" value="immediate" />

@@ -202,6 +202,46 @@ async function applyDocDelta(
   return { projected, deleted };
 }
 
+const INGEST_DELTA_OPTIONS = zodResponse(
+  {
+    ...bearerScope("write"),
+    validate: { payload: zodValidate(IngestDeltaBody) },
+  },
+  IngestDeltaResultSchema,
+  {
+    name: "IngestDeltaResult",
+    description: "What one incremental ingest delta changed in the graph",
+    errors: [400, 409],
+  },
+);
+
+/** Every reason to refuse a delta BEFORE projecting any of it. The stale-base check is the race detection: two CI runs diffing the same base would each project against a commit the other has moved past, so the loser must re-fetch and re-diff. */
+async function assertDeltaAcceptable(
+  pool: Pool,
+  deps: IngestDeltaDeps,
+  repo: string,
+  body: IngestDeltaBody,
+): Promise<void> {
+  enforceTrue(
+    INGEST_DELTA_KINDS.has(body.kind),
+    apiError(400),
+    `unknown kind "${body.kind}" — expected one of ${[...INGEST_DELTA_KINDS].join(", ")}`,
+  );
+  enforceTrue(
+    deps.dgraph(),
+    apiError(503),
+    "no graph store configured — LORE_DGRAPH_HTTP is unset on this deployment",
+  );
+
+  const current = await storedCommit(pool, repo, body.kind);
+
+  enforceTrue(
+    current === body.base_commit,
+    apiError(409, { current }),
+    `stale base ${body.base_commit ?? "(none)"} — the stored commit has moved; re-fetch ingest-state and re-diff`,
+  );
+}
+
 export function ingestDeltaRoute(
   getPool: () => Pool | null,
   deps: IngestDeltaDeps = defaultDeps(),
@@ -209,18 +249,7 @@ export function ingestDeltaRoute(
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/ingest",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(IngestDeltaBody) },
-      },
-      IngestDeltaResultSchema,
-      {
-        name: "IngestDeltaResult",
-        description: "What one incremental ingest delta changed in the graph",
-        errors: [400, 409],
-      },
-    ),
+    options: INGEST_DELTA_OPTIONS,
     handler: async (request, h) => {
       const pool = getPool();
 
@@ -228,25 +257,8 @@ export function ingestDeltaRoute(
       const body = request.payload as IngestDeltaBody;
       const repo = `${request.params.owner}/${request.params.repo}`;
 
-      enforceTrue(
-        INGEST_DELTA_KINDS.has(body.kind),
-        apiError(400),
-        `unknown kind "${body.kind}" — expected one of ${[...INGEST_DELTA_KINDS].join(", ")}`,
-      );
-      enforceTrue(
-        deps.dgraph(),
-        apiError(503),
-        "no graph store configured — LORE_DGRAPH_HTTP is unset on this deployment",
-      );
+      await assertDeltaAcceptable(pool, deps, repo, body);
 
-      // Refuse a stale base before projecting: this is the race detection, and CI must re-fetch and re-diff.
-      const current = await storedCommit(pool, repo, body.kind);
-
-      enforceTrue(
-        current === body.base_commit,
-        apiError(409, { current }),
-        `stale base ${body.base_commit ?? "(none)"} — the stored commit has moved; re-fetch ingest-state and re-diff`,
-      );
       const counts = await applyDelta(deps, repo, body);
       const answer = (state: "pending-chunks" | "unrecorded" | "advanced") => ({
         kind: body.kind,

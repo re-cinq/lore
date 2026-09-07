@@ -185,7 +185,11 @@ function validateOutcomesCovered(
   }
 }
 
-function detectCycles(wf: AssemblyLine, source: string): void {
+const WHITE = 0;
+const GRAY = 1;
+const BLACK = 2;
+
+function outgoingEdges(wf: AssemblyLine): Map<string, AssemblyLineEdge[]> {
   const adj = new Map<string, AssemblyLineEdge[]>();
 
   for (const n of wf.nodes) {
@@ -196,19 +200,17 @@ function detectCycles(wf: AssemblyLine, source: string): void {
     adj.get(e.from)!.push(e);
   }
 
-  const WHITE = 0;
-  const GRAY = 1;
-  const BLACK = 2;
-  const color = new Map<string, number>();
+  return adj;
+}
 
+/** Exists so two AGENTS cannot argue indefinitely; a back-edge with a human station at EITHER end is exempt since a person gates every pass — a cycle between two agents is still bounded. */
+function backEdgeBoundedGuard(
+  wf: AssemblyLine,
+  source: string,
+): (e: AssemblyLineEdge) => void {
   const typeOf = new Map(wf.nodes.map((n) => [n.id, n.type]));
 
-  for (const n of wf.nodes) {
-    color.set(n.id, WHITE);
-  }
-
-  // Exists so two AGENTS cannot argue indefinitely; a back-edge with a human station at EITHER end is exempt since a person gates every pass — a cycle between two agents is still bounded.
-  const assertBackEdgeBounded = (e: AssemblyLineEdge): void => {
+  return (e) => {
     const humanGated =
       isHumanStation(typeOf.get(e.from)) || isHumanStation(typeOf.get(e.to));
 
@@ -219,6 +221,16 @@ function detectCycles(wf: AssemblyLine, source: string): void {
       );
     }
   };
+}
+
+function detectCycles(wf: AssemblyLine, source: string): void {
+  const adj = outgoingEdges(wf);
+  const assertBackEdgeBounded = backEdgeBoundedGuard(wf, source);
+  const color = new Map<string, number>();
+
+  for (const n of wf.nodes) {
+    color.set(n.id, WHITE);
+  }
 
   // Iterative DFS with an explicit stack (symmetric with the BFS above) so deeply-nested hand-authored YAML can't blow the call stack.
   const walkDfsFrom = (startId: string): void => {

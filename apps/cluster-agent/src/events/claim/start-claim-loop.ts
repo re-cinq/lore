@@ -50,7 +50,73 @@ const sleep = (ms: number): Promise<void> =>
 /** How long the claim loop's start waits on the first catalog sync — long enough for a snapshot, short enough a wedged API can't block claiming forever. */
 const FIRST_SYNC_TIMEOUT_MS = 120_000;
 
-async function runRegistrant(opts: {
+/** Registers, and hands back the identity as a GETTER rather than a value: a 401 rotates it mid-run, and every loop must read the current one rather than the one it captured at startup. */
+async function establishIdentity(opts: {
+  config: RegistrationConfig;
+  store: IdentityStore;
+  publishTelemetryCredential: (id: ClusterAgentIdentity) => Promise<void>;
+}): Promise<{
+  identity: () => ClusterAgentIdentity;
+  reRegister: () => Promise<ClusterAgentIdentity | null>;
+}> {
+  const { config, store, publishTelemetryCredential } = opts;
+  let current: ClusterAgentIdentity = await registerWithBackoff({
+    config,
+    store,
+    sleep,
+    publishTelemetryCredential,
+  });
+
+  console.log(
+    `[cluster-agent] registered as ${config.name} (${current.id}), tags [${config.tags.join(", ")}] — claim loop starting`,
+  );
+
+  const reRegister = singleFlightReRegister({
+    config,
+    store,
+    publishTelemetryCredential,
+    adopt: (rotated) => {
+      current = rotated;
+    },
+  });
+
+  return { identity: () => current, reRegister };
+}
+
+/** The heartbeat rides BESIDE the claim loop, not inside it — an agent busy executing a long claim must still look alive. Detached deliberately: a crashed heartbeat is logged, never allowed to take the claim loop down with it. */
+function startHeartbeat(opts: {
+  env: NodeJS.ProcessEnv;
+  apiUrl: string;
+  identity: () => ClusterAgentIdentity;
+  reRegister: () => Promise<ClusterAgentIdentity | null>;
+  running: () => boolean;
+}): void {
+  void runHeartbeatLoop({
+    beat: () => heartbeatOnce({ apiUrl: opts.apiUrl, identity: opts.identity }),
+    reRegister: opts.reRegister,
+    sleep,
+    intervalMs: heartbeatIntervalMs(opts.env),
+    running: opts.running,
+  }).catch((err) => {
+    console.error("[cluster-agent] heartbeat loop crashed:", err);
+  });
+}
+
+/** Bounded so a catalog that never syncs cannot hold the agent idle: a claim on a missing stationRef fails visibly and is handed back, which is a better failure than claiming nothing at all. */
+async function awaitFirstCatalogSync(
+  firstSync: Promise<unknown>,
+): Promise<void> {
+  await Promise.race([
+    firstSync,
+    sleep(FIRST_SYNC_TIMEOUT_MS).then(() => {
+      console.warn(
+        "[cluster-agent] first catalog sync has not completed — starting the claim loop anyway; a claim on a missing stationRef fails visibly and is handed back",
+      );
+    }),
+  ]);
+}
+
+interface RegistrantOpts {
   env: NodeJS.ProcessEnv;
   config: RegistrationConfig;
   store: IdentityStore;
@@ -61,7 +127,9 @@ async function runRegistrant(opts: {
   onReRegister: (reRegister: () => Promise<unknown>) => void;
   /** Stops both loops; a shutdown flips it before the queue drains. */
   running: () => boolean;
-}): Promise<void> {
+}
+
+async function runRegistrant(opts: RegistrantOpts): Promise<void> {
   const {
     env,
     config,
@@ -71,24 +139,10 @@ async function runRegistrant(opts: {
     onReRegister,
     running,
   } = opts;
-  let identity: ClusterAgentIdentity = await registerWithBackoff({
-    config,
-    store,
-    sleep,
-    publishTelemetryCredential,
-  });
-
-  console.log(
-    `[cluster-agent] registered as ${config.name} (${identity.id}), tags [${config.tags.join(", ")}] — claim loop starting`,
-  );
-
-  const reRegister = singleFlightReRegister({
+  const { identity, reRegister } = await establishIdentity({
     config,
     store,
     publishTelemetryCredential,
-    adopt: (rotated) => {
-      identity = rotated;
-    },
   });
 
   onReRegister(reRegister);
@@ -96,37 +150,26 @@ async function runRegistrant(opts: {
   const firstSync = startCatalogSync({
     env,
     config,
-    identity: () => identity,
+    identity,
     reRegister,
     running,
   });
 
-  // The heartbeat rides beside the claim loop, not inside it — an agent busy executing a long claim must still look alive.
-  void runHeartbeatLoop({
-    beat: () =>
-      heartbeatOnce({ apiUrl: config.apiUrl, identity: () => identity }),
+  startHeartbeat({
+    env,
+    apiUrl: config.apiUrl,
+    identity,
     reRegister,
-    sleep,
-    intervalMs: heartbeatIntervalMs(env),
     running,
-  }).catch((err) => {
-    console.error("[cluster-agent] heartbeat loop crashed:", err);
   });
 
-  await Promise.race([
-    firstSync,
-    sleep(FIRST_SYNC_TIMEOUT_MS).then(() => {
-      console.warn(
-        "[cluster-agent] first catalog sync has not completed — starting the claim loop anyway; a claim on a missing stationRef fails visibly and is handed back",
-      );
-    }),
-  ]);
+  await awaitFirstCatalogSync(firstSync);
 
   await runClaimLoop({
     claim: () =>
       claimOnce({
         apiUrl: config.apiUrl,
-        identity: () => identity,
+        identity,
         launch: (spec) => backend.launch(spec),
       }),
     reRegister,

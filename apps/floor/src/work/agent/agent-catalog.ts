@@ -70,6 +70,32 @@ const GIT_IDENTITY = [
   { name: "GIT_COMMITTER_EMAIL", value: "lore-agent@re-cinq.com" },
 ];
 
+/** What a run's pod is given: credentials, a git identity, a scoped live Lore MCP, and its skills. */
+function agentResources(
+  cfg: AgentCatalogConfig,
+): NonNullable<AgentDefinition["spec"]>["resources"] {
+  return {
+    secrets: AGENT_SECRETS,
+    // Every agent pod must commit with an identity — a pod has no ambient git config and would otherwise fail "Author identity unknown". Same identity the Floor's GitCli defaults to.
+    env: GIT_IDENTITY,
+    // Scoped, live Lore MCP via the shared HTTP gateway (server-mode=agent → no pipeline/local tools); see ADR-030.
+    mcp_servers: [
+      {
+        name: "lore",
+        transport: "http",
+        url: MCP_URL_SENTINEL,
+        headers_secret: "lore-mcp-auth",
+      },
+    ],
+    // Registry-agnostic (ADR-030): fetches `<source>/<name>.tar.gz` + settings.json, empty source ⇒ inert. A recipe's own skills APPEND to lore-context rather than replace it, so it can't lose the skill that makes `lore_assemble_context` automatic.
+    skills: [
+      "lore-context",
+      ...(cfg.skills ?? []).filter((name) => name !== "lore-context"),
+    ],
+    skills_source: SKILLS_SOURCE_SENTINEL,
+  };
+}
+
 export function buildAgentDefinition(
   taskType: string,
   cfg: AgentCatalogConfig,
@@ -92,26 +118,7 @@ export function buildAgentDefinition(
       prompt: `${cfg.prompt_template.trimEnd()}\n\n{context}`,
       permission_mode: "bypass",
       max_turns: AGENT_MAX_TURNS,
-      // Scoped, live Lore MCP via the shared HTTP gateway (server-mode=agent → no pipeline/local tools); see ADR-030.
-      resources: {
-        secrets: AGENT_SECRETS,
-        // Every agent pod must commit with an identity — a pod has no ambient git config and would otherwise fail "Author identity unknown". Same identity the Floor's GitCli defaults to.
-        env: GIT_IDENTITY,
-        mcp_servers: [
-          {
-            name: "lore",
-            transport: "http",
-            url: MCP_URL_SENTINEL,
-            headers_secret: "lore-mcp-auth",
-          },
-        ],
-        // Registry-agnostic (ADR-030): fetches `<source>/<name>.tar.gz` + settings.json, empty source ⇒ inert. A recipe's own skills APPEND to lore-context rather than replace it, so it can't lose the skill that makes `lore_assemble_context` automatic.
-        skills: [
-          "lore-context",
-          ...(cfg.skills ?? []).filter((name) => name !== "lore-context"),
-        ],
-        skills_source: SKILLS_SOURCE_SENTINEL,
-      },
+      resources: agentResources(cfg),
       // Defense-in-depth — an agent must never spawn more pipeline work from inside a run; recipe-declared denies (e.g. #1160) append after.
       disallowed_tools: [
         "mcp__lore__lore_create_pipeline_task",
@@ -280,6 +287,30 @@ export function buildCatalog(
 }
 
 /** The ai-agents-helm `files/catalog-seed.yaml` body, applied SERVER-SIDE by the `catalog-seed` pre-upgrade hook rather than as a template — Helm diffs rendered manifests and never reads live state, so a pruned object (#1301) stays pruned through later no-op deploys (#1468). */
+/** Wraps the parts of a recipe a cluster may not be able to satisfy in `{{- if }}` guards. Each one exists because the UNGUARDED form fails hard rather than degrading: an empty-url MCP entry, a skills list with no source (the init reports SUCCESS and the container then dies on the missing settings.json), a telemetry sink a satellite has no credential for, and a `{context}` slot that only means anything where an MCP exists. */
+function applyHelmGuards(body: string): string {
+  return body
+    .replace(
+      /^( *)mcp_servers:\n((?:\1 .*\n)*)/gm,
+      (_m, indent: string, entries: string) =>
+        `{{- if .Values.loreMcpUrl }}\n${indent}mcp_servers:\n${entries}{{- end }}\n`,
+    )
+    .replace(
+      /^( *)skills:\n((?:\1 .*\n)*)\1skills_source: (.*)\n/gm,
+      (_m, indent: string, entries: string, source: string) =>
+        `{{- if .Values.loreSkillsUrl }}\n${indent}skills:\n${entries}${indent}skills_source: ${source}\n{{- end }}\n`,
+    )
+    .replace(
+      /^( *)- type: http\n\1 {2}url: .*\n\1 {2}headers_secret: agent-events-auth\n/gm,
+      (match) => `{{- if .Values.agentEventsUrl }}\n${match}{{- end }}\n`,
+    )
+    .replace(
+      /^( *)\{context\}\n/gm,
+      (_m, indent: string) =>
+        `{{- if .Values.loreMcpUrl }}\n${indent}{context}\n{{- end }}\n`,
+    );
+}
+
 export function catalogChartYaml(
   taskTypes: Record<string, AgentCatalogConfig>,
   stationTypes: Record<string, StationCatalogConfig> = {},
@@ -306,34 +337,7 @@ export function catalogChartYaml(
   );
   const body = `${header}---\n${docs.join("---\n")}`;
 
-  // Guard the mcp_servers block behind .Values.loreMcpUrl: unset (default, pre-gateway clusters), the block is omitted so no CRD carries an empty-`url` MCP entry.
-  const guarded = body.replace(
-    /^( *)mcp_servers:\n((?:\1 .*\n)*)/gm,
-    (_m, indent: string, entries: string) =>
-      `{{- if .Values.loreMcpUrl }}\n${indent}mcp_servers:\n${entries}{{- end }}\n`,
-  );
-
-  // Same guard for skills: `skills: [...]` beside `skills_source: null` is not inert — the init fetches nothing, reports SUCCESS, and the container dies on the missing settings.json.
-  const skillsGuarded = guarded.replace(
-    /^( *)skills:\n((?:\1 .*\n)*)\1skills_source: (.*)\n/gm,
-    (_m, indent: string, entries: string, source: string) =>
-      `{{- if .Values.loreSkillsUrl }}\n${indent}skills:\n${entries}${indent}skills_source: ${source}\n{{- end }}\n`,
-  );
-
-  // Guard the http telemetry sink behind .Values.agentEventsUrl: a satellite cluster has no bus-wide credential for it (ADR-024/FR5) and leaves the URL unset, so an unguarded sink is a hard CreateContainerConfigError on every satellite pod (found live, 2026-08-26).
-  const sinksGuarded = skillsGuarded.replace(
-    /^( *)- type: http\n\1 {2}url: .*\n\1 {2}headers_secret: agent-events-auth\n/gm,
-    (match) => `{{- if .Values.agentEventsUrl }}\n${match}{{- end }}\n`,
-  );
-
-  // {context} fills with an instruction to call lore_assemble_context, only true where the pod has a Lore MCP; guarded on the same value as the mcp_servers block so the two cannot drift apart (#1629).
-  const contextGuarded = sinksGuarded.replace(
-    /^( *)\{context\}\n/gm,
-    (_m, indent: string) =>
-      `{{- if .Values.loreMcpUrl }}\n${indent}{context}\n{{- end }}\n`,
-  );
-
-  return contextGuarded
+  return applyHelmGuards(body)
     .replaceAll(LLM_SECRET_SENTINEL, "{{ .Values.agentLlmSecretKey }}")
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")

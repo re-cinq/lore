@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import styles from "./GraphView.module.css";
 import type { components } from "@/lib/api/schema";
 import DataTable from "@/components/DataTable";
@@ -134,6 +135,36 @@ function EntityTable({
 }
 
 /** An invalidated edge is history, not noise — it stays available behind the toggle so a contradiction can be read after the fact. */
+/** One relationship row. An invalidated edge keeps its dates and is styled rather than hidden — that a relationship USED to hold is part of what the graph records. */
+function edgeCells(e: GraphViewProps["edges"][number]): ReactNode[] {
+  return [
+    <span key="source">
+      <strong>{e.source_name}</strong>{" "}
+      <span className="meta">({e.source_type})</span>
+    </span>,
+    <span className="op-badge" key="rel">
+      {e.relation_type}
+    </span>,
+    <span key="target">
+      <strong>{e.target_name}</strong>{" "}
+      <span className="meta">({e.target_type})</span>
+    </span>,
+    new Date(e.valid_from).toLocaleDateString(),
+    e.valid_to ? (
+      <span className="op-badge op-delete" key="status">
+        invalidated {new Date(e.valid_to).toLocaleDateString()}
+      </span>
+    ) : (
+      <span className="op-badge op-write" key="status">
+        active
+      </span>
+    ),
+    <span className="meta" key="from">
+      {e.source_label}
+    </span>,
+  ];
+}
+
 function EdgeTable({
   entity,
   edges,
@@ -156,32 +187,7 @@ function EdgeTable({
         rowKey={(_e, i) => String(i)}
         rowClass={(e) => (e.valid_to ? styles.invalidatedRow : undefined)}
         empty="No relationships found for this entity."
-        cells={(e) => [
-          <span key="source">
-            <strong>{e.source_name}</strong>{" "}
-            <span className="meta">({e.source_type})</span>
-          </span>,
-          <span className="op-badge" key="rel">
-            {e.relation_type}
-          </span>,
-          <span key="target">
-            <strong>{e.target_name}</strong>{" "}
-            <span className="meta">({e.target_type})</span>
-          </span>,
-          new Date(e.valid_from).toLocaleDateString(),
-          e.valid_to ? (
-            <span className="op-badge op-delete" key="status">
-              invalidated {new Date(e.valid_to).toLocaleDateString()}
-            </span>
-          ) : (
-            <span className="op-badge op-write" key="status">
-              active
-            </span>
-          ),
-          <span className="meta" key="from">
-            {e.source_label}
-          </span>,
-        ]}
+        cells={edgeCells}
       />
     </>
   );

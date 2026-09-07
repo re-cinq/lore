@@ -5,6 +5,37 @@ import Icon from "@/components/Icon";
 import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
 
 /** Reports how many PRs opened and, critically, why any repo failed — "opened 0 PRs" with no reason is how a missing App permission stayed invisible. */
+/** What the button says, in the order the states actually occur: working, then the outcome, then the invitation. The outcome keeps the failure count beside the success count, so a partial run does not read as a clean one. */
+function buttonText({
+  pending,
+  done,
+  label,
+  count,
+}: {
+  pending: boolean;
+  done: FixWorkflowResult | null;
+  label: string;
+  count: number;
+}) {
+  if (pending) {
+    return "opening PRs…";
+  }
+
+  if (done !== null) {
+    const opened = `opened ${done.opened} PR${done.opened === 1 ? "" : "s"}`;
+
+    return done.failed.length === 0
+      ? opened
+      : `${opened}, ${done.failed.length} failed`;
+  }
+
+  return (
+    <>
+      <Icon name="warning" size={13} inline /> {label} ({count})
+    </>
+  );
+}
+
 export function FixWorkflowButton({
   repos,
   action,
@@ -23,30 +54,6 @@ export function FixWorkflowButton({
     return null;
   }
 
-  const doneLabel = (result: FixWorkflowResult) => {
-    const opened = `opened ${result.opened} PR${result.opened === 1 ? "" : "s"}`;
-
-    return result.failed.length === 0
-      ? opened
-      : `${opened}, ${result.failed.length} failed`;
-  };
-
-  const renderButtonText = () => {
-    if (pending) {
-      return "opening PRs…";
-    }
-
-    if (done !== null) {
-      return doneLabel(done);
-    }
-
-    return (
-      <>
-        <Icon name="warning" size={13} inline /> {label} ({repos.length})
-      </>
-    );
-  };
-
   return (
     <button
       type="button"
@@ -62,7 +69,7 @@ export function FixWorkflowButton({
           : title
       }
     >
-      {renderButtonText()}
+      {buttonText({ pending, done, label, count: repos.length })}
     </button>
   );
 }

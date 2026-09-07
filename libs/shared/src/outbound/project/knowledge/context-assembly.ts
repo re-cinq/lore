@@ -222,6 +222,36 @@ export interface AssembleOptions {
   dgraph?: DgraphClientPort | null;
 }
 
+/** Never below 2000 tokens: a budget small enough to fit nothing still costs a request, and an agent that receives an empty block cannot tell it from a repo with no context at all. */
+function assemblyBudget(templateName: string, maxTokens?: number): number {
+  return Math.max(resolveEffectiveMax(templateName, maxTokens), 2000);
+}
+
+/** The XML-tagged text an agent receives, plus the per-section token counts. An assembly that found NOTHING still returns the freshness warning on its own — silence would read as "your context is fine" rather than "there is none". */
+function composeAssembled(
+  request: { query: string; templateName: string; minTokens: number },
+  serialized: Parameters<typeof serializeContext>[1],
+  freshness: { warning: string },
+): AssembledResult {
+  const body = serializeContext(
+    {
+      query: request.query,
+      template: request.templateName,
+      budget: request.minTokens,
+    },
+    serialized,
+  );
+
+  return {
+    text: serialized.length > 0 ? freshness.warning + body : freshness.warning,
+    sections: serialized.map((s) => ({
+      header: s.header,
+      tokens: s.documents.reduce((sum, i) => sum + i.tokens, 0),
+      truncated: s.truncated,
+    })),
+  };
+}
+
 export async function assembleContext(
   pool: PgPool,
   query: string,
@@ -238,19 +268,13 @@ export async function assembleContext(
 ): Promise<AssembledResult> {
   const startedAt = Date.now();
   const template = getTemplate(templateName);
-  const minTokens = Math.max(
-    resolveEffectiveMax(templateName, maxTokens),
-    2000,
-  );
+  const minTokens = assemblyBudget(templateName, maxTokens);
   const freshness = await resolveFreshness(pool, repo);
 
-  // cross_repo is only consulted when explicitly requested.
-  const activeSections = template.sections.filter(
-    (s) => s.source !== "cross_repo" || crossRepo,
-  );
   const timings: Record<string, number> = {};
   const fetched = await fetchAllSections(
-    activeSections,
+    // cross_repo is only consulted when explicitly requested.
+    template.sections.filter((s) => s.source !== "cross_repo" || crossRepo),
     { pool, dgraph, query, repo, agentId },
     timings,
   );
@@ -259,19 +283,11 @@ export async function assembleContext(
     ? await collectAssembledRefs(pool, query, agentId)
     : emptyAssembledRefs;
 
-  // Build the final XML-tagged text.
-  const body = serializeContext(
-    { query, template: templateName, budget: minTokens },
+  const result = composeAssembled(
+    { query, templateName, minTokens },
     serialized,
+    freshness,
   );
-  const text =
-    serialized.length > 0 ? freshness.warning + body : freshness.warning;
-  const sections = serialized.map((s) => ({
-    header: s.header,
-    tokens: s.documents.reduce((sum, i) => sum + i.tokens, 0),
-    truncated: s.truncated,
-  }));
-  const result: AssembledResult = { text, sections };
 
   if (debug) {
     result.trace = buildAssemblyTrace({
@@ -281,7 +297,7 @@ export async function assembleContext(
       crossRepo,
       template,
       traceSections,
-      sections,
+      sections: result.sections,
       freshness,
       startedAt,
       timings,

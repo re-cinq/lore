@@ -113,6 +113,87 @@ function newSession(
 }
 
 // Serves MCP over Streamable HTTP so headless agent pods reach the same toolset the stdio adapter exposes: one shared gateway, per-session servers.
+/** An error escaping a handler still owes the client a reply — but only if nothing has been written yet, since a streamed response cannot be turned back into an error. A 500 carries the raw error; anything else is already a message meant for the caller. */
+function reportUnhandled(res: ServerResponse, err: unknown): void {
+  if (res.headersSent) {
+    return;
+  }
+  const status = statusOf(err);
+
+  jsonRpcError(
+    res,
+    status,
+    status === 500 ? `gateway error: ${String(err)}` : (err as Error).message,
+  );
+}
+
+/** What every /mcp handler needs: the live sessions and the gateway's own options. Grouped so the handlers stay module-level functions rather than closures inside the server factory. */
+interface McpContext {
+  sessions: Map<string, StreamableHTTPServerTransport>;
+  opts: HttpGatewayOptions;
+}
+
+/** POST /mcp — an existing session's message, or an initialize minting one. */
+async function handleMcpPost(
+  ctx: McpContext,
+  req: IncomingMessage,
+  res: ServerResponse,
+  sessionId: string | undefined,
+): Promise<void> {
+  const body = await readJsonBody(req);
+  let transport = sessionId ? ctx.sessions.get(sessionId) : undefined;
+
+  if (!transport && !isInitializeRequest(body)) {
+    jsonRpcError(res, 400, "No valid session — send initialize first");
+
+    return;
+  }
+
+  if (!transport) {
+    transport = newSession(ctx.opts, ctx.sessions);
+  }
+  await transport.handleRequest(req, res, body);
+}
+
+/** GET/DELETE /mcp — stream or teardown on an already-minted session. */
+async function handleMcpSession(
+  sessions: McpContext["sessions"],
+  req: IncomingMessage,
+  res: ServerResponse,
+  sessionId: string | undefined,
+): Promise<void> {
+  const transport = sessionId ? sessions.get(sessionId) : undefined;
+
+  if (!transport) {
+    jsonRpcError(res, 400, "Unknown or missing session");
+
+    return;
+  }
+  await transport.handleRequest(req, res);
+}
+
+/** POST mints or resumes a session; GET/DELETE require an already-minted one; anything else 405s. */
+async function routeMcp(
+  ctx: McpContext,
+  req: IncomingMessage,
+  res: ServerResponse,
+  sessionId: string | undefined,
+): Promise<void> {
+  if (req.method === "POST") {
+    await handleMcpPost(ctx, req, res, sessionId);
+
+    return;
+  }
+
+  if (req.method === "GET" || req.method === "DELETE") {
+    await handleMcpSession(ctx.sessions, req, res, sessionId);
+
+    return;
+  }
+
+  res.writeHead(405).end();
+}
+
 export function startHttpGateway(opts: HttpGatewayOptions): Server {
   const sessions = new Map<string, StreamableHTTPServerTransport>();
   // The agent-skills bundle baked into this gateway image; the subsystem init fetches it over /skills, not part of MCP.
@@ -123,39 +204,10 @@ export function startHttpGateway(opts: HttpGatewayOptions): Server {
     !opts.authToken || req.headers.authorization === `Bearer ${opts.authToken}`;
 
   const server = createServer((req, res) => {
-    void handle(req, res).catch((err: unknown) => {
-      if (!res.headersSent) {
-        const status = statusOf(err);
-        const message =
-          status === 500
-            ? `gateway error: ${String(err)}`
-            : (err as Error).message;
-
-        jsonRpcError(res, status, message);
-      }
-    });
+    void handle(req, res).catch((err: unknown) => reportUnhandled(res, err));
   });
 
-  // POST mints or resumes a session; GET/DELETE require an already-minted one; anything else 405s.
-  async function routeMcp(
-    req: IncomingMessage,
-    res: ServerResponse,
-    sessionId: string | undefined,
-  ): Promise<void> {
-    if (req.method === "POST") {
-      await handleMcpPost(req, res, sessionId);
-
-      return;
-    }
-
-    if (req.method === "GET" || req.method === "DELETE") {
-      await handleMcpSession(req, res, sessionId);
-
-      return;
-    }
-
-    res.writeHead(405).end();
-  }
+  const mcp: McpContext = { sessions, opts };
 
   async function handle(
     req: IncomingMessage,
@@ -187,47 +239,11 @@ export function startHttpGateway(opts: HttpGatewayOptions): Server {
     }
 
     await routeMcp(
+      mcp,
       req,
       res,
       req.headers["mcp-session-id"] as string | undefined,
     );
-  }
-
-  /** POST /mcp — an existing session's message, or an initialize minting one. */
-  async function handleMcpPost(
-    req: IncomingMessage,
-    res: ServerResponse,
-    sessionId: string | undefined,
-  ): Promise<void> {
-    const body = await readJsonBody(req);
-    let transport = sessionId ? sessions.get(sessionId) : undefined;
-
-    if (!transport && !isInitializeRequest(body)) {
-      jsonRpcError(res, 400, "No valid session — send initialize first");
-
-      return;
-    }
-
-    if (!transport) {
-      transport = newSession(opts, sessions);
-    }
-    await transport.handleRequest(req, res, body);
-  }
-
-  /** GET/DELETE /mcp — stream or teardown on an already-minted session. */
-  async function handleMcpSession(
-    req: IncomingMessage,
-    res: ServerResponse,
-    sessionId: string | undefined,
-  ): Promise<void> {
-    const transport = sessionId ? sessions.get(sessionId) : undefined;
-
-    if (!transport) {
-      jsonRpcError(res, 400, "Unknown or missing session");
-
-      return;
-    }
-    await transport.handleRequest(req, res);
   }
 
   server.listen(opts.port, () => {

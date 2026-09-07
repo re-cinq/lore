@@ -114,32 +114,12 @@ async function upsertSpecNode(
   });
 }
 
-export async function projectSpecFile(
-  { repo, filePath, content }: SourceDocument,
-  dgraph: DgraphClientPort,
-  { embed = getQueryEmbedding, force = false }: ProjectionOptions = {},
-): Promise<{ projected: boolean }> {
-  const contentHash = sha256(content);
-
-  const specXid = `${repo}|${filePath}`;
-
-  if (await isSpecUnchanged(dgraph, specXid, force, contentHash)) {
-    return { projected: false };
-  }
-
-  const title = extractTitle(content);
-  const featureUid = await projectFeature(dgraph, repo, filePath);
-  const specUid = await upsertSpecNode(dgraph, repo, filePath, {
-    title,
-    featureUid,
-  });
-
-  // Clear the hash now, persist only after every child write succeeds — otherwise a mid-file death leaves the file permanently skipped with partial children.
-  await deletePredicate(dgraph, specUid, "Spec.content_hash");
-
-  await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
-
-  const context: ProjectionContext = { dgraph, repo, filePath, specUid, embed };
+/** Everything that hangs off a spec: its sections, statements, acceptance criteria and code blocks — each followed by a prune, so a statement deleted from the markdown does not linger in the graph as a validated claim. */
+async function projectSpecChildren(
+  context: ProjectionContext,
+  content: string,
+): Promise<void> {
+  const { repo, filePath } = context;
   const segments = segmentStatements(content);
   const introOrdinals = buildIntroOrdinals(segments);
   const acSegments = segments.filter((segment) =>
@@ -188,6 +168,42 @@ export async function projectSpecFile(
   );
 
   await projectBlocks(context, content);
+}
+
+export async function projectSpecFile(
+  { repo, filePath, content }: SourceDocument,
+  dgraph: DgraphClientPort,
+  { embed = getQueryEmbedding, force = false }: ProjectionOptions = {},
+): Promise<{ projected: boolean }> {
+  const contentHash = sha256(content);
+
+  const specXid = `${repo}|${filePath}`;
+
+  if (await isSpecUnchanged(dgraph, specXid, force, contentHash)) {
+    return { projected: false };
+  }
+
+  const title = extractTitle(content);
+  const featureUid = await projectFeature(dgraph, repo, filePath);
+  const specUid = await upsertSpecNode(dgraph, repo, filePath, {
+    title,
+    featureUid,
+  });
+
+  // Clear the hash now, persist only after every child write succeeds — otherwise a mid-file death leaves the file permanently skipped with partial children.
+  await deletePredicate(dgraph, specUid, "Spec.content_hash");
+
+  await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
+
+  const context: ProjectionContext = {
+    dgraph,
+    repo,
+    filePath,
+    specUid,
+    embed,
+  };
+
+  await projectSpecChildren(context, content);
 
   await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
     "Spec.content_hash": contentHash,

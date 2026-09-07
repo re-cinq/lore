@@ -39,6 +39,57 @@ export function Bar({ used, total }: { used: number; total: number }) {
 }
 
 /** Per-section card: budget, status, documents with provenance (expandable). */
+/** What actually went into this section, collapsed by default: a reader opens it to answer "why did the agent see THIS", which is a question about one section at a time. */
+function ContributingDocs({
+  documents,
+  owner,
+  repo,
+}: {
+  documents: TraceSection["items"];
+  owner: string;
+  repo: string;
+}) {
+  if (documents.length === 0) {
+    return null;
+  }
+
+  return (
+    <details className={styles.docs}>
+      <summary className={`meta ${styles.docsSummary}`}>
+        {documents.length} contributing document
+        {documents.length === 1 ? "" : "s"}
+      </summary>
+      <ul className={styles.docList}>
+        {documents.map((document, i) => (
+          <li key={i} className={styles.docItem}>
+            {document.content_type && (
+              <span className={badgeClassForType(document.content_type)}>
+                {labelForType(document.content_type)}
+              </span>
+            )}
+            {document.source_path ? (
+              <a
+                href={`/repos/${owner}/${repo}/context/${encodeURIComponent(document.source_path)}`}
+              >
+                {document.source_path}
+              </a>
+            ) : (
+              <span className="meta">{document.text.slice(0, 60)}…</span>
+            )}
+            <span className="meta">{document.tokens} tok</span>
+            {typeof document.score === "number" && (
+              <span className="meta">rel {document.score.toFixed(2)}</span>
+            )}
+            {document.ingested_at && (
+              <span className="meta">{document.ingested_at.slice(0, 10)}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 export function TraceCard({
   owner,
   repo,
@@ -67,43 +118,7 @@ export function TraceCard({
           <Bar used={section.finalTokens} total={section.allocatedBudget} />
         </div>
       )}
-      {section.items.length > 0 && (
-        <details className={styles.docs}>
-          <summary className={`meta ${styles.docsSummary}`}>
-            {section.items.length} contributing document
-            {section.items.length === 1 ? "" : "s"}
-          </summary>
-          <ul className={styles.docList}>
-            {section.items.map((document, i) => (
-              <li key={i} className={styles.docItem}>
-                {document.content_type && (
-                  <span className={badgeClassForType(document.content_type)}>
-                    {labelForType(document.content_type)}
-                  </span>
-                )}
-                {document.source_path ? (
-                  <a
-                    href={`/repos/${owner}/${repo}/context/${encodeURIComponent(document.source_path)}`}
-                  >
-                    {document.source_path}
-                  </a>
-                ) : (
-                  <span className="meta">{document.text.slice(0, 60)}…</span>
-                )}
-                <span className="meta">{document.tokens} tok</span>
-                {typeof document.score === "number" && (
-                  <span className="meta">rel {document.score.toFixed(2)}</span>
-                )}
-                {document.ingested_at && (
-                  <span className="meta">
-                    {document.ingested_at.slice(0, 10)}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+      <ContributingDocs documents={section.items} owner={owner} repo={repo} />
     </div>
   );
 }

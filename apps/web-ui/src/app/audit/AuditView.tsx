@@ -27,6 +27,40 @@ export interface AuditViewProps {
 }
 
 /** Audit log view: pure render; rebuilds pagination URLs from props. */
+/** The empty state distinguishes "nothing matches these filters" from "nothing recorded yet", so a filter that hides everything does not read as an empty audit trail. */
+function AuditTable({
+  entries,
+  agent,
+  op,
+  total,
+}: {
+  entries: AuditViewProps["entries"];
+  agent: AuditViewProps["agent"];
+  op: AuditViewProps["op"];
+  total: number;
+}) {
+  return (
+    <DataTable
+      columns={["Time", "Agent", "Operation", "Key", "Pool", "Details"]}
+      rows={entries}
+      rowKey={(e) => e.id}
+      empty={<AuditEmptyState filtered={!!(agent || op || total > 0)} />}
+      cells={(e) => [
+        <TimeAgo date={e.created_at} key="time" />,
+        <span title={e.agent_id} key="agent">
+          {displayAgentId(e.agent_id)}
+        </span>,
+        <span className={`op-badge op-${e.operation}`} key="op">
+          {formatEnumLabel(e.operation)}
+        </span>,
+        e.memory_key || "—",
+        e.pool_name || "—",
+        e.metadata ? <MetadataDetails metadata={e.metadata} key="meta" /> : "—",
+      ]}
+    />
+  );
+}
+
 export default function AuditView({
   entries,
   totalCount,
@@ -50,28 +84,7 @@ export default function AuditView({
       </p>
       <AuditFilters agent={agent} op={op} operations={operations} />
       <p className={`meta ${styles.count}`}>{totalCount} total entries</p>
-      <DataTable
-        columns={["Time", "Agent", "Operation", "Key", "Pool", "Details"]}
-        rows={entries}
-        rowKey={(e) => e.id}
-        empty={<AuditEmptyState filtered={!!(agent || op || totalCount > 0)} />}
-        cells={(e) => [
-          <TimeAgo date={e.created_at} key="time" />,
-          <span title={e.agent_id} key="agent">
-            {displayAgentId(e.agent_id)}
-          </span>,
-          <span className={`op-badge op-${e.operation}`} key="op">
-            {formatEnumLabel(e.operation)}
-          </span>,
-          e.memory_key || "—",
-          e.pool_name || "—",
-          e.metadata ? (
-            <MetadataDetails metadata={e.metadata} key="meta" />
-          ) : (
-            "—"
-          ),
-        ]}
-      />
+      <AuditTable entries={entries} agent={agent} op={op} total={totalCount} />
       <div className="pagination">
         <Link
           href={pageUrl(offset - pageSize)}

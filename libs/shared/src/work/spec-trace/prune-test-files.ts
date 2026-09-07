@@ -114,6 +114,40 @@ async function queryFileSubtree(
 }
 
 /** Deletes the graph subtree of each named test file; a file with no graph presence is a no-op, so a re-driven or overlapping prune converges. */
+type FileSubtree = NonNullable<Awaited<ReturnType<typeof queryFileSubtree>>>;
+
+/** Everything a pruned test file takes with it: its chunks, suites and coverage rows, AND every edge pointing at them — a Statement left claiming `validated_by` a deleted chunk would still read as coverage. The Repo back-edges go too, or the repo keeps a list of uids that resolve to nothing. */
+function deleteNquadsFor(target: FileSubtree): string[] {
+  const deletes = [
+    ...target.chunkUids.map((uid) => `<${uid}> * * .`),
+    ...target.suiteUids.map((uid) => `<${uid}> * * .`),
+    ...target.coverageUids.map((uid) => `<${uid}> * * .`),
+    ...target.statementEdges.map(
+      ([owner, chunk]) => `<${owner}> <Statement.validated_by> <${chunk}> .`,
+    ),
+    ...target.criterionEdges.map(
+      ([owner, chunk]) =>
+        `<${owner}> <AcceptanceCriterion.validated_by> <${chunk}> .`,
+    ),
+  ];
+
+  if (target.rootUid) {
+    deletes.push(
+      ...target.chunkUids.map(
+        (uid) => `<${target.rootUid}> <Repo.test_chunks> <${uid}> .`,
+      ),
+      ...target.suiteUids.map(
+        (uid) => `<${target.rootUid}> <Repo.test_suites> <${uid}> .`,
+      ),
+      ...target.coverageUids.map(
+        (uid) => `<${target.rootUid}> <Repo.coverage> <${uid}> .`,
+      ),
+    );
+  }
+
+  return deletes;
+}
+
 export async function pruneTestFiles(
   dgraph: DgraphClientPort,
   repo: string,
@@ -148,32 +182,8 @@ export async function pruneTestFiles(
     if (!target) {
       continue;
     }
-    const deletes = [
-      ...target.chunkUids.map((uid) => `<${uid}> * * .`),
-      ...target.suiteUids.map((uid) => `<${uid}> * * .`),
-      ...target.coverageUids.map((uid) => `<${uid}> * * .`),
-      ...target.statementEdges.map(
-        ([owner, chunk]) => `<${owner}> <Statement.validated_by> <${chunk}> .`,
-      ),
-      ...target.criterionEdges.map(
-        ([owner, chunk]) =>
-          `<${owner}> <AcceptanceCriterion.validated_by> <${chunk}> .`,
-      ),
-    ];
+    const deletes = deleteNquadsFor(target);
 
-    if (target.rootUid) {
-      deletes.push(
-        ...target.chunkUids.map(
-          (uid) => `<${target.rootUid}> <Repo.test_chunks> <${uid}> .`,
-        ),
-        ...target.suiteUids.map(
-          (uid) => `<${target.rootUid}> <Repo.test_suites> <${uid}> .`,
-        ),
-        ...target.coverageUids.map(
-          (uid) => `<${target.rootUid}> <Repo.coverage> <${uid}> .`,
-        ),
-      );
-    }
     await withTxn(dgraph, (txn) =>
       txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true }),
     );

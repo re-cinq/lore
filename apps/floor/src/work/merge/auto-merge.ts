@@ -131,6 +131,30 @@ export interface AutoMergeJobInputs {
 }
 
 // End-to-end auto-merge job: evaluates the policy, writes an `auto_merge_decision` audit entry, and merges when the outcome is `merged`; a GitHub API failure during merge degrades to `deferred:api_failure` (R3) — the audit still writes, the PR stays open for a human.
+/** A merge the rules ALLOWED but the API refused is not an approval that stands — it becomes `deferred:api_failure`, so the audit log records that nothing merged rather than that the gate passed. */
+async function decideAndMerge(
+  inputs: AutoMergeJobInputs,
+): Promise<AutoMergeDecision> {
+  const decision = evaluateAutoMerge(inputs.policy);
+
+  if (decision.outcome !== "merged") {
+    return decision;
+  }
+
+  try {
+    await mergeWithBackoff({ repo: inputs.repo, prNumber: inputs.prNumber });
+
+    return decision;
+  } catch (err) {
+    console.warn(
+      `[auto-merge] PR ${inputs.repo}#${inputs.prNumber} merge failed:`,
+      (err as Error).message,
+    );
+
+    return { outcome: "deferred:api_failure", rule: decision.rule };
+  }
+}
+
 export async function evaluateAndMerge(
   inputs: AutoMergeJobInputs,
 ): Promise<AutoMergeDecision> {
@@ -142,25 +166,7 @@ export async function evaluateAndMerge(
       span.setAttribute("task_id", inputs.taskId);
 
       try {
-        let decision = evaluateAutoMerge(inputs.policy);
-
-        if (decision.outcome === "merged") {
-          try {
-            await mergeWithBackoff({
-              repo: inputs.repo,
-              prNumber: inputs.prNumber,
-            });
-          } catch (err) {
-            console.warn(
-              `[auto-merge] PR ${inputs.repo}#${inputs.prNumber} merge failed:`,
-              (err as Error).message,
-            );
-            decision = {
-              outcome: "deferred:api_failure",
-              rule: decision.rule,
-            };
-          }
-        }
+        const decision = await decideAndMerge(inputs);
 
         span.setAttribute("decision", decision.outcome);
         span.setAttribute("path_match_count", decision.rule.path_match_count);

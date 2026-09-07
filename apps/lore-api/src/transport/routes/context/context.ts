@@ -85,6 +85,32 @@ const AssembledContextSchema = z.object({
   trace: z.unknown().optional(),
 });
 
+/** Assembles against a query. The Dgraph client is optional — null when LORE_DGRAPH_HTTP is unset, which is the ordinary case outside the central cluster. */
+async function assembleForQuery(
+  pool: Pool,
+  query: string,
+  opts: {
+    repo?: string;
+    template?: string;
+    maxTokens?: number;
+    agentId?: string;
+    debug?: boolean;
+    crossRepoRequested: boolean;
+  },
+): Promise<Awaited<ReturnType<typeof assembleContext>>> {
+  const repo = opts.repo || undefined;
+
+  return await assembleContext(pool, query, {
+    templateName: opts.template,
+    maxTokens: opts.maxTokens,
+    repo,
+    agentId: opts.agentId,
+    crossRepo: await resolveCrossRepo(pool, repo, opts.crossRepoRequested),
+    debug: opts.debug,
+    dgraph: createDgraphClient(process.env),
+  });
+}
+
 export function contextRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -110,28 +136,19 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
       } = request.query as unknown as ContextQuery;
 
       try {
+        // Without a query there is nothing to assemble AGAINST — the repo's stored context is returned as-is.
         if (!(query && pool)) {
           return h.response({
             text: await joinedTextOrNull(pool, repo, maxTokens),
           });
         }
-
-        const repoOrUndefined = repo || undefined;
-        // Dgraph is optional; null when LORE_DGRAPH_HTTP is unset.
-        const dgraph = createDgraphClient(process.env);
-        const crossRepo = await resolveCrossRepo(
-          pool,
-          repoOrUndefined,
-          crossRepoRequested,
-        );
-        const result = await assembleContext(pool, query, {
-          templateName: template,
+        const result = await assembleForQuery(pool, query, {
+          repo,
+          template,
           maxTokens,
-          repo: repoOrUndefined,
           agentId,
-          crossRepo,
           debug,
-          dgraph,
+          crossRepoRequested,
         });
 
         return h.response({

@@ -24,16 +24,7 @@ import type {
   SectionAnswers,
 } from "@/lib/feature-types";
 
-export default function PlanningWizard({
-  owner,
-  repo,
-  feature,
-  timeoutMinutes,
-  refine,
-  onFinalize,
-  onCreateDraft,
-  settledView,
-}: {
+interface PlanningWizardProps {
   owner: string;
   repo: string;
   feature: FeatureWithIterations;
@@ -46,20 +37,30 @@ export default function PlanningWizard({
   onCreateDraft: (title: string, prompt: string) => void;
   /** Parent owns it for decomposition rows; wizard decides when based on line state. */
   settledView: ReactNode;
-}) {
-  const { data: poll, refresh: fetchLatest } = useSeededPoll(
-    owner,
-    repo,
-    feature,
-  );
+}
+
+/** What the author is composing: their answers, which round they are continuing from, and whether a submit is in flight. None of it comes from the server, so a poll landing mid-edit does not disturb it. `continueFrom` undefined means continue from the latest round. */
+function useRoundDraft() {
   const [feedback, setFeedback] = useState<FeedbackState>(emptyFeedback());
-  /** Undefined = continue from latest. */
   const [continueFrom, setContinueFrom] = useState<number | undefined>();
   const [pending, startTransition] = useTransition();
   const [finalizing, setFinalizing] = useState(false);
 
+  return {
+    feedback,
+    setFeedback,
+    continueFrom,
+    setContinueFrom,
+    pending,
+    startTransition,
+    finalizing,
+    setFinalizing,
+  };
+}
+
+/** Where the planning line has got to. `phase` is ONE value rather than five booleans: the line says which node is working, and the round's own rows are consulted only for legacy features that predate it. */
+function useRoundStatus(poll: ReturnType<typeof useSeededPoll>["data"]) {
   const latest = poll.latestIteration;
-  // One value instead of five booleans; line says which node works; round's rows only for legacy features with no line.
   const phase = featurePhaseOf({
     run: poll.run,
     feature: poll.feature,
@@ -74,6 +75,30 @@ export default function PlanningWizard({
 
   useRefreshWhenRoundLands(latestReady, latestIterationOrNull);
 
+  return { latest, phase, latestReady, failed, iteration, latestCreatedAt };
+}
+
+/** The wizard's whole state: where the planning line is, what the author has typed, and the two submits. Kept together because each depends on the last — the phase is read from the poll, the round metadata from the phase, and the submits close over the feedback the author is editing. */
+function usePlanningRound({
+  owner,
+  repo,
+  feature,
+  refine,
+  onFinalize,
+}: Pick<
+  PlanningWizardProps,
+  "owner" | "repo" | "feature" | "refine" | "onFinalize"
+>) {
+  const { data: poll, refresh: fetchLatest } = useSeededPoll(
+    owner,
+    repo,
+    feature,
+  );
+  const draft = useRoundDraft();
+  const { feedback, continueFrom, finalizing } = draft;
+
+  const status = useRoundStatus(poll);
+
   // Server-rendered feature refreshed when round lands; poll carries only latest iteration, not history.
   const rounds = rewindOptions(feature.iterations);
   const rewinding = isRewind(rounds, continueFrom);
@@ -84,22 +109,51 @@ export default function PlanningWizard({
     feedback,
     continueFrom,
     fetchLatest,
-    startTransition,
-    setFeedback,
-    setContinueFrom,
-    setFinalizing,
+    startTransition: draft.startTransition,
+    setFeedback: draft.setFeedback,
+    setContinueFrom: draft.setContinueFrom,
+    setFinalizing: draft.setFinalizing,
   });
 
   useRefreshWhenPlanningEnds(finalizing, poll.feature.status);
 
-  const phaseCard = phaseView({
-    phase,
+  return {
+    ...draft,
+    ...status,
     poll,
+    rounds,
+    rewinding,
+    submitRefine,
+    submitCreateSpecFile,
+  };
+}
+
+export default function PlanningWizard({
+  owner,
+  repo,
+  feature,
+  timeoutMinutes,
+  refine,
+  onFinalize,
+  onCreateDraft,
+  settledView,
+}: PlanningWizardProps) {
+  const round = usePlanningRound({
+    owner,
+    repo,
+    feature,
+    refine,
+    onFinalize,
+  });
+
+  const phaseCard = phaseView({
+    phase: round.phase,
+    poll: round.poll,
     settledView,
-    iteration,
+    iteration: round.iteration,
     timeoutMinutes,
-    finalizing,
-    latestCreatedAt,
+    finalizing: round.finalizing,
+    latestCreatedAt: round.latestCreatedAt,
   });
 
   if (phaseCard) {
@@ -108,24 +162,13 @@ export default function PlanningWizard({
 
   return (
     <AnalysisView
-      {...analysisProps({
-        poll,
-        latest,
-        latestReady,
-        iteration,
-        failed,
-        pending,
-        feedback,
-        rounds,
-        continueFrom,
-        rewinding,
-      })}
+      {...analysisProps(round)}
       handlers={{
-        onChangeFeedback: setFeedback,
+        onChangeFeedback: round.setFeedback,
         onCreateDraft,
-        onRefine: submitRefine,
-        onCreateSpecPr: submitCreateSpecFile,
-        onContinueFrom: setContinueFrom,
+        onRefine: round.submitRefine,
+        onCreateSpecPr: round.submitCreateSpecFile,
+        onContinueFrom: round.setContinueFrom,
       }}
     />
   );

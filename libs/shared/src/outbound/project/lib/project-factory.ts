@@ -75,15 +75,17 @@ function resolveProjectOptions(options: ProjectOptions): {
   };
 }
 
-export async function createProject(
-  fullName: string,
-  pgPool: PgPool,
-  dgraphClient: DgraphClientPort,
-  options: ProjectOptions = {},
-): Promise<Project> {
-  const { env, providers } = resolveProjectOptions(options);
-  const ports = new Map<string, unknown>();
+interface StoredPortDeps {
+  pgPool: PgPool;
+  dgraphClient: DgraphClientPort;
+  providers: ReturnType<typeof resolveProjectOptions>["providers"];
+}
 
+/** The ports this deployment's own stores answer: memory, tasks, chunks, runs, knowledge. `pipeline.*` tables are org-wide, so a caller that already built that bundle passes it in and every repo shares those adapters; the fallback keeps tests and bootstrap callers working as before. */
+async function registerStoredPorts(
+  ports: Map<string, unknown>,
+  { pgPool, dgraphClient, providers }: StoredPortDeps,
+): Promise<void> {
   const { MemoryStoreBridge } =
     await import("../memory/memory-store-bridge.js");
   const { selectMemoryStore } = await import("../../memory-store.js");
@@ -118,6 +120,22 @@ export async function createProject(
     ),
   );
 
+  const { DgraphTrace } = await import("../trace/trace-dgraph.js");
+
+  ports.set("trace", new DgraphTrace(dgraphClient));
+}
+
+interface OutsidePortDeps {
+  pgPool: PgPool;
+  env: NodeJS.ProcessEnv;
+  providers: ReturnType<typeof resolveProjectOptions>["providers"];
+}
+
+/** The ports that reach OUTSIDE this process: GitHub, Slack, git, the test runner, the agent runner. Settings sits here rather than with the stores because it reads the repo through GitHub as well as the database. */
+async function registerOutsidePorts(
+  ports: Map<string, unknown>,
+  { pgPool, env, providers }: OutsidePortDeps,
+): Promise<void> {
   const { PlatformGitHub } = await import("./platform-github.js");
   const github = new PlatformGitHub(env);
 
@@ -144,10 +162,6 @@ export async function createProject(
 
   ports.set("tests", new ExecTestRunner());
 
-  const { DgraphTrace } = await import("../trace/trace-dgraph.js");
-
-  ports.set("trace", new DgraphTrace(dgraphClient));
-
   const { AgentRunner } = await import("../agents/agent-runner.js");
 
   ports.set(
@@ -171,7 +185,19 @@ export async function createProject(
   const { PgFeatures } = await import("../features/features-pg.js");
 
   ports.set("features", new PgFeatures(pgPool));
+}
 
+export async function createProject(
+  fullName: string,
+  pgPool: PgPool,
+  dgraphClient: DgraphClientPort,
+  options: ProjectOptions = {},
+): Promise<Project> {
+  const { env, providers } = resolveProjectOptions(options);
+  const ports = new Map<string, unknown>();
+
+  await registerStoredPorts(ports, { pgPool, dgraphClient, providers });
+  await registerOutsidePorts(ports, { pgPool, env, providers });
   ports.set("leases", await leasesForEnv(env, pgPool, providers));
 
   return new Project(fullName, ports, env);

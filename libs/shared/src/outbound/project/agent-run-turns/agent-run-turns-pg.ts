@@ -57,20 +57,7 @@ function toBatchRow(row: AgentRunTurnInsert): Record<string, unknown> {
 }
 
 /** Postgres-backed {@link AgentRunTurnsRepository}. Batch as ONE jsonb parameter via jsonb_to_recordset (varies row count, agent-controlled text never in statement). Envelope as TEXT cast in statement (no roundtrip). Correlation via LEFT JOIN LATERAL for resilience. */
-export class PgAgentRunTurns implements AgentRunTurnsRepository {
-  constructor(private readonly pool: PgPool) {}
-
-  async insertBatch(
-    rows: readonly AgentRunTurnInsert[],
-  ): Promise<AgentRunTurnRow[]> {
-    if (rows.length === 0) {
-      return [];
-    }
-
-    const batch = rows.map(toBatchRow);
-
-    const { rows: inserted } = await this.pool.query<AgentRunTurnDbRow>(
-      `INSERT INTO pipeline.agent_run_turns (
+const AGENT_RUN_TURN_INSERT_SQL = `INSERT INTO pipeline.agent_run_turns (
          task_id, agent_cr_name, assembly_line_id, station_run_id, node_id,
          iteration, event_type, envelope, dedup_key
        )
@@ -115,7 +102,22 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
        -- on ANY future unique index on this table would be swallowed here
        -- and mis-attributed to turn_deduped.
        ON CONFLICT DO NOTHING
-       RETURNING *`,
+       RETURNING *`;
+
+export class PgAgentRunTurns implements AgentRunTurnsRepository {
+  constructor(private readonly pool: PgPool) {}
+
+  async insertBatch(
+    rows: readonly AgentRunTurnInsert[],
+  ): Promise<AgentRunTurnRow[]> {
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const batch = rows.map(toBatchRow);
+
+    const { rows: inserted } = await this.pool.query<AgentRunTurnDbRow>(
+      AGENT_RUN_TURN_INSERT_SQL,
       [JSON.stringify(batch)],
     );
 
