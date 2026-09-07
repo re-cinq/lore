@@ -1,16 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { PassThrough } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 import { handleSkillsRequest } from "./skills-registry.js";
 
-const skillsRoot = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../agent-skills",
-);
+const skillsRoot = resolve(import.meta.dirname, "../../agent-skills");
 
 const TASK_TYPES_PATH = "../../../../scripts/task-types.yaml";
 
@@ -117,10 +113,7 @@ describe("handleSkillsRequest", () => {
 
   it("serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)", async () => {
     const recipes = parse(
-      await readFile(
-        resolve(dirname(fileURLToPath(import.meta.url)), TASK_TYPES_PATH),
-        "utf8",
-      ),
+      await readFile(resolve(import.meta.dirname, TASK_TYPES_PATH), "utf8"),
     ) as { task_types?: Record<string, { skills?: string[] }> };
 
     const declared = [

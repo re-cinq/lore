@@ -1,9 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
-const srcDir = dirname(fileURLToPath(import.meta.url));
+const srcDir = import.meta.dirname;
 
 describe("public barrel (index.ts)", () => {
   it("re-exports every non-test, non-declaration module in src/, vacuously passing when run against the .ts-less compiled dist/", () => {

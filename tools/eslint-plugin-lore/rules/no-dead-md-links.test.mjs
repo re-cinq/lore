@@ -68,6 +68,12 @@ ruleTester.run("no-dead-md-links", rule, {
       errors: [{ messageId: "dead" }],
     },
     {
+      name: "a path that climbs OUT of the repo is dead inside it — in a worktree it would otherwise find the parent checkout",
+      code: `See [escaped](${"../".repeat(40)}etc/hosts).`,
+      filename: "specs/x/spec.md",
+      errors: [{ messageId: "dead" }],
+    },
+    {
       name: "an anchor does not rescue a missing file",
       code: `See [the handler](${GONE}#L12).`,
       filename: "specs/x/spec.md",

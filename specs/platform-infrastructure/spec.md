@@ -81,7 +81,7 @@ record for assertion. ([validated by `context-core.test.ts:23`](libs/shared/src/
 
 `PgResearch.recordAttempt` inserts into `pipeline.research_attempts` in
 `cluster_id, namespace, approach, content, eval_score, delta` parameter order,
-and the `InMemoryResearch` double retains every recorded attempt for assertion. ([validated by `research.test.ts:33`](libs/shared/src/outbound/project/research/research.test.ts#L33), [`research.test.ts:51`](libs/shared/src/outbound/project/research/research.test.ts#L51))
+and the `InMemoryResearch` double retains every recorded attempt for assertion.
 
 ### Route plumbing
 

@@ -366,7 +366,8 @@ export default tseslint.config(
   // resolves the validated-by form from the TEST's side — whether each test is
   // linked — and nothing asks whether each link lands. A rename sweep rewrites a
   // dead link as faithfully as a live one, which is how two stale references
-  // survived the tier migration. Queue measured at 84; warn until drained.
+  // survived the tier migration. The queue is drained, so this errors: a link
+  // that no longer lands is a defect, not a backlog item.
   {
     files: [
       "specs/**/*.md",
@@ -380,6 +381,6 @@ export default tseslint.config(
     ignores: ["tools/eslint-plugin-lore/rules/fixtures/**"],
     language: "markdown/gfm",
     plugins: { markdown, lore },
-    rules: { "lore/no-dead-md-links": "warn" },
+    rules: { "lore/no-dead-md-links": "error" },
   },
 );

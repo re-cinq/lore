@@ -33,10 +33,18 @@ function note(where, what) {
  * "checked and fine" must not read the same, which is the whole reason the
  * eslint canary exists.
  */
+// `,?` before the close: prettier puts a trailing comma on a multi-line call, and
+// without it three files here read as unparseable when they were merely wrapped.
+// `__DIRVAR__` is substituted per file — see the binding below.
 const DIRNAME_CALL =
-  /\b(?:resolve|join)\(\s*import\.meta\.dirname\s*((?:,\s*"[^"]*")+)\s*\)/g;
-const URL_CALL = /new URL\(\s*"([^"]+)"\s*,\s*import\.meta\.url\s*\)/g;
+  /\b(?:resolve|join)\(\s*(?:__DIRVAR__)\s*((?:,\s*"[^"]*")+)\s*,?\s*\)/g;
+const URL_CALL = /new URL\(\s*"([^"]+)"\s*,\s*import\.meta\.url\s*,?\s*\)/g;
+// A file may bind the directory once and reuse it, which is better style than
+// repeating the expression — so follow the binding rather than demand it back.
+const DIR_BINDING = /(?:const|let)\s+(\w+)\s*=\s*import\.meta\.dirname\s*;/;
 const COMPUTES_PATH = /import\.meta\.(?:dirname|url)|fileURLToPath/;
+// `createRequire(import.meta.url)` resolves a MODULE, not a file: no path here.
+const NOT_A_PATH = /createRequire\(\s*import\.meta\.url\s*\)/;
 
 function checkRuntimePaths(file) {
   const rel = file.slice(ROOT.length + 1);
@@ -46,10 +54,24 @@ function checkRuntimePaths(file) {
     return { checked: 0, unchecked: false };
   }
 
+  // A file whose only use is module resolution has nothing to verify.
+  if (NOT_A_PATH.test(text) && !/import\.meta\.dirname/.test(text)) {
+    return { checked: 0, unchecked: false };
+  }
+
   const here = dirname(file);
   let checked = 0;
 
-  for (const m of text.matchAll(DIRNAME_CALL)) {
+  const bound = text.match(DIR_BINDING)?.[1];
+  const dirCall = new RegExp(
+    DIRNAME_CALL.source.replace(
+      "__DIRVAR__",
+      bound ?? "import\\.meta\\.dirname",
+    ),
+    "g",
+  );
+
+  for (const m of text.matchAll(dirCall)) {
     const parts = [...m[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]);
     const target = resolve(here, ...parts);
 
@@ -76,7 +98,12 @@ function checkRuntimePaths(file) {
     }
   }
 
-  return { checked, unchecked: checked === 0 };
+  // A file that only enumerates its own directory declares no path: there is no
+  // literal segment to get wrong. Only a file that COMPOSES a path in a form
+  // this cannot follow is a real gap.
+  const composesLiteral = /(?:join|resolve)\([^)]*"[^"]*"/.test(text);
+
+  return { checked, unchecked: checked === 0 && composesLiteral };
 }
 
 /** A tsconfig `paths` alias into a workspace's src BYPASSES its export map.
