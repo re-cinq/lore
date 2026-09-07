@@ -235,6 +235,39 @@ interface AgentFormProps {
   orgScope?: boolean;
 }
 
+/** How long a run may take and what it is told to do. Both fall back to the INHERITED value when left blank — the placeholder says so, because an empty field here means "use the org default", not "no timeout" or "no prompt". */
+function RunLimitsFields({
+  timeoutMinutes,
+  prompt,
+  promptPlaceholder,
+}: {
+  timeoutMinutes: string | number | undefined;
+  prompt: string | undefined;
+  promptPlaceholder: string | undefined;
+}) {
+  return (
+    <>
+      <label>Timeout (minutes)</label>
+      <input
+        name="timeout_minutes"
+        type="number"
+        min={1}
+        max={1440}
+        defaultValue={timeoutMinutes}
+        placeholder="(inherit)"
+      />
+
+      <label>Prompt</label>
+      <textarea
+        name="prompt"
+        rows={6}
+        defaultValue={prompt}
+        placeholder={promptPlaceholder}
+      />
+    </>
+  );
+}
+
 export default function AgentForm({
   repo,
   agent,
@@ -272,22 +305,10 @@ export default function AgentForm({
         customModel={values.customModel}
       />
 
-      <label>Timeout (minutes)</label>
-      <input
-        name="timeout_minutes"
-        type="number"
-        min={1}
-        max={1440}
-        defaultValue={values.timeoutMinutes}
-        placeholder="(inherit)"
-      />
-
-      <label>Prompt</label>
-      <textarea
-        name="prompt"
-        rows={6}
-        defaultValue={values.prompt}
-        placeholder={values.promptPlaceholder}
+      <RunLimitsFields
+        timeoutMinutes={values.timeoutMinutes}
+        prompt={values.prompt}
+        promptPlaceholder={values.promptPlaceholder}
       />
 
       <PodResourceFields podResources={values.podResources} />

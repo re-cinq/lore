@@ -12,6 +12,43 @@ import type { components } from "@/lib/api/schema";
 type RepoAgentQueryRow =
   components["schemas"]["AgentActivity"]["agents"][number];
 
+/** The recipes each task type runs FROM — config, not a run — which is the distinction the Sessions section below it depends on. Org defaults are shown already overlaid with this repo's overrides, so what is listed is what a dispatch will actually resolve. */
+async function DefinitionsSection({
+  owner,
+  repo,
+  agents,
+  usage,
+}: {
+  owner: string;
+  repo: string;
+  agents: Awaited<ReturnType<typeof listAgents>>;
+  usage: Awaited<ReturnType<typeof fetchAgentUsage>>;
+}) {
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHead}>
+        <div className={styles.headingGroup}>
+          <h2 className={styles.sectionTitle}>Agent definitions</h2>
+          <span className="count-pill">{agents.length}</span>
+        </div>
+        <Link href={`/repos/${owner}/${repo}/agents/new`}>
+          <button>+ New definition</button>
+        </Link>
+      </div>
+      <p className={styles.sectionDesc}>
+        The model, timeout, prompt and execution image each task type runs from
+        — config, not a run. Org defaults overlaid with this repo&apos;s
+        overrides.
+      </p>
+      <AgentList
+        base={`/repos/${owner}/${repo}`}
+        agents={agents}
+        usage={usage}
+      />
+    </section>
+  );
+}
+
 export default async function RepoAgents({
   params,
 }: {
@@ -38,27 +75,12 @@ export default async function RepoAgents({
 
   return (
     <div>
-      <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <div className={styles.headingGroup}>
-            <h2 className={styles.sectionTitle}>Agent definitions</h2>
-            <span className="count-pill">{agents.length}</span>
-          </div>
-          <Link href={`/repos/${owner}/${repo}/agents/new`}>
-            <button>+ New definition</button>
-          </Link>
-        </div>
-        <p className={styles.sectionDesc}>
-          The model, timeout, prompt and execution image each task type runs
-          from — config, not a run. Org defaults overlaid with this repo&apos;s
-          overrides.
-        </p>
-        <AgentList
-          base={`/repos/${owner}/${repo}`}
-          agents={agents}
-          usage={usage}
-        />
-      </section>
+      <DefinitionsSection
+        owner={owner}
+        repo={repo}
+        agents={agents}
+        usage={usage}
+      />
 
       <section className={styles.section}>
         <div className={styles.sectionHead}>

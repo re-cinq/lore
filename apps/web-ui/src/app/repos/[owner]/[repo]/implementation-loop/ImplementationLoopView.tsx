@@ -51,6 +51,24 @@ export function timeAgo(iso: string | null, now: Date = new Date()): string {
 }
 
 /** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */
+/** How a ticket enters the loop and what it does with it. Kept beside the queues because the priority label IS the whole opt-in, and a reader looking at an empty backlog needs to know that before anything appears. */
+function LoopExplainer() {
+  return (
+    <p className={`meta ${styles.howTo}`}>
+      Label an open issue with exactly one of <code>priority:high</code>,{" "}
+      <code>priority:medium</code>, or <code>priority:low</code> to queue it —
+      the label is the whole opt-in. While the loop is enabled it picks the
+      highest-priority ticket (oldest first on ties), implements it test-first,
+      opens a pull request, and waits until that PR is green with every review
+      thread resolved before picking the next. It never merges — a human does
+      that, whenever they like. A ticket that gets stuck is labelled{" "}
+      <code>lore:blocked</code> with a comment saying why; remove the label to
+      re-queue it. An issue carrying two priority labels is skipped until a
+      human settles the ambiguity.
+    </p>
+  );
+}
+
 export default function ImplementationLoopView({
   loop,
   toggle,
@@ -76,18 +94,7 @@ export default function ImplementationLoopView({
         </button>
       </div>
 
-      <p className={`meta ${styles.howTo}`}>
-        Label an open issue with exactly one of <code>priority:high</code>,{" "}
-        <code>priority:medium</code>, or <code>priority:low</code> to queue it —
-        the label is the whole opt-in. While the loop is enabled it picks the
-        highest-priority ticket (oldest first on ties), implements it
-        test-first, opens a pull request, and waits until that PR is green with
-        every review thread resolved before picking the next. It never merges —
-        a human does that, whenever they like. A ticket that gets stuck is
-        labelled <code>lore:blocked</code> with a comment saying why; remove the
-        label to re-queue it. An issue carrying two priority labels is skipped
-        until a human settles the ambiguity.
-      </p>
+      <LoopExplainer />
 
       <section className={styles.section}>
         <h2>Current</h2>

@@ -161,7 +161,6 @@ class RunEventSession {
         this.pageSize,
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- teardown() can flip `closed` during the await above (stream error, overflow); TS's linear CFA can't see that.
       if (this.closed) {
         return;
       }

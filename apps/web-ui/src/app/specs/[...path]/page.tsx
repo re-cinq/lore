@@ -9,14 +9,8 @@ import { toStatementInfo } from "@/lib/trace-statement-info";
 import SpecDocument from "@/app/repos/[owner]/[repo]/specs/[...path]/SpecDocument";
 import styles from "./page.module.scss";
 
-export default async function SpecDetailPage({
-  params,
-}: {
-  params: Promise<{ path: string[] }>;
-}) {
-  const { path } = await params;
-  const filePath = path.map(decodeURIComponent).join("/");
-
+/** Every repo that holds this path, with its own text and statements. The same spec path can exist in several repos, and a repo whose source will not load is DROPPED rather than rendered empty — an empty frame reads as a spec with no content. */
+async function fetchSpecAcrossRepos(filePath: string) {
   // Query graph: repos holding this spec path, render each as framed document
   const repos = (await fetchAllSpecs())
     .filter((s) => s.filePath === filePath)
@@ -45,6 +39,19 @@ export default async function SpecDetailPage({
       statements: ReturnType<typeof toStatementInfo>;
     } => !!entry.source,
   );
+
+  return docs;
+}
+
+export default async function SpecDetailPage({
+  params,
+}: {
+  params: Promise<{ path: string[] }>;
+}) {
+  const { path } = await params;
+  const filePath = path.map(decodeURIComponent).join("/");
+
+  const docs = await fetchSpecAcrossRepos(filePath);
 
   return (
     <div>

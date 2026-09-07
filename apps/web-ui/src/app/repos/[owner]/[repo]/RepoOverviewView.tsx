@@ -91,6 +91,49 @@ export default function RepoOverviewView({
 }
 
 /** The repo's dark-factory posture at a glance: whether it is on, how far it is trusted, and what the last seven days produced. */
+/** The week's dark-factory figures. Auto-merges are toned as success and escalations as danger only when NON-ZERO, so a quiet week reads as quiet rather than as good or bad news. */
+function DarkFactoryStats({
+  darkFactoryEnabled,
+  trustLevel,
+  darkTasksWeek,
+  autoMergedWeek,
+  escalationsWeek,
+}: Pick<
+  RepoOverviewViewProps,
+  | "darkFactoryEnabled"
+  | "trustLevel"
+  | "darkTasksWeek"
+  | "autoMergedWeek"
+  | "escalationsWeek"
+>) {
+  return (
+    <div className={styles.stats}>
+      <Stat
+        label="Mode"
+        value={
+          darkFactoryEnabled ? (
+            <span className={styles.success}>Enabled</span>
+          ) : (
+            <span className="meta">Off (legacy)</span>
+          )
+        }
+      />
+      <Stat label="Trust" value={trustLevel} />
+      <Stat label="Tasks (7d)" value={darkTasksWeek} />
+      <Stat
+        label="Auto-merged (7d)"
+        value={autoMergedWeek}
+        tone={autoMergedWeek > 0 ? styles.success : undefined}
+      />
+      <Stat
+        label="Escalations (7d)"
+        value={escalationsWeek}
+        tone={escalationsWeek > 0 ? styles.danger : undefined}
+      />
+    </div>
+  );
+}
+
 function DarkFactoryCard({
   owner,
   repo,
@@ -117,30 +160,13 @@ function DarkFactoryCard({
           configure →
         </Link>
       </div>
-      <div className={styles.stats}>
-        <Stat
-          label="Mode"
-          value={
-            darkFactoryEnabled ? (
-              <span className={styles.success}>Enabled</span>
-            ) : (
-              <span className="meta">Off (legacy)</span>
-            )
-          }
-        />
-        <Stat label="Trust" value={trustLevel} />
-        <Stat label="Tasks (7d)" value={darkTasksWeek} />
-        <Stat
-          label="Auto-merged (7d)"
-          value={autoMergedWeek}
-          tone={autoMergedWeek > 0 ? styles.success : undefined}
-        />
-        <Stat
-          label="Escalations (7d)"
-          value={escalationsWeek}
-          tone={escalationsWeek > 0 ? styles.danger : undefined}
-        />
-      </div>
+      <DarkFactoryStats
+        darkFactoryEnabled={darkFactoryEnabled}
+        trustLevel={trustLevel}
+        darkTasksWeek={darkTasksWeek}
+        autoMergedWeek={autoMergedWeek}
+        escalationsWeek={escalationsWeek}
+      />
     </div>
   );
 }
