@@ -132,10 +132,8 @@ async function walkAllTurns(
   }
 }
 
-export default function FullTranscriptPanel({
-  runId,
-  nodeId,
-}: FullTranscriptPanelProps) {
+/** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload; unmount is the only cancellation, because a re-closed panel still wants the data it asked for. */
+function useTranscriptWalk(runId: string) {
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<AgentRunTurn[] | null>(null);
   const [capped, setCapped] = useState(false);
@@ -182,6 +180,11 @@ export default function FullTranscriptPanel({
     void load();
   }, [open, runId]);
 
+  return { open, setOpen, turns, capped, error, showRaw, setShowRaw };
+}
+
+/** This node's turns, grouped into the conversation segments the list renders. */
+function useNodeSegments(turns: AgentRunTurn[] | null, nodeId: string) {
   const nodeTurns = useMemo(
     () => (turns === null ? [] : turnsForNode(turns, nodeId)),
     [turns, nodeId],
@@ -194,6 +197,18 @@ export default function FullTranscriptPanel({
       })),
     [nodeTurns],
   );
+
+  return { nodeTurns, nodeSegments };
+}
+
+export default function FullTranscriptPanel({
+  runId,
+  nodeId,
+}: FullTranscriptPanelProps) {
+  const { open, setOpen, turns, capped, error, showRaw, setShowRaw } =
+    useTranscriptWalk(runId);
+
+  const { nodeTurns, nodeSegments } = useNodeSegments(turns, nodeId);
 
   const displayInput: TranscriptDisplayInput = {
     error,
