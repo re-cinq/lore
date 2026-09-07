@@ -276,7 +276,10 @@ function checkInvocations(file, pkgDirs) {
   // own output — checkManifest already reports that package as skipped, and the
   // two checks must agree about what "not built" means.
   const owner = pkgDirs.find((d) => file.startsWith(d + "/"));
-  if (owner && !existsSync(join(owner, "dist"))) return;
+
+  if (owner && !existsSync(join(owner, "dist"))) {
+    return;
+  }
 
   for (const m of text.matchAll(COMPILED_PATH)) {
     const distPath = m[1];
