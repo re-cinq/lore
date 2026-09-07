@@ -543,16 +543,10 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
       symbolName: null,
     });
 
-    await dgraphClient.newTxn().mutate({
-      setJson: {
-        uid: "_:stmt",
-        "dgraph.type": "Statement",
-        "Statement.xid": statementXid,
-        "Statement.ordinal": 7,
-        "Statement.text": "The widget emits a click.",
-        "Statement.implemented_by": [{ uid: ccUid }],
-      },
-      commitNow: true,
+    await seedSpecNode({
+      xid: statementXid,
+      text: "The widget emits a click.",
+      codeChunkUid: ccUid,
     });
 
     await driftCheckFile(
