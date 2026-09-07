@@ -15,7 +15,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { dirname, resolve, isAbsolute } from "node:path";
+import { dirname, resolve } from "node:path";
 
 /** A link we can check: repo-relative, not a URL, not a bare fragment. */
 function isRepoPath(url) {
@@ -46,14 +46,22 @@ export default {
         const url = node.url ?? "";
         if (!isRepoPath(url)) return;
 
-        // Strip the #Lnn anchor; only the file part is a filesystem question.
-        const target = url.split("#")[0];
+        // Strip a ?query and a #Lnn anchor; only the file part is a filesystem question.
+        const target = url.split(/[?#]/)[0];
         if (!target) return;
+
+        // A leading slash is markdown for the REPO root, not the filesystem root.
+        if (target.startsWith("/")) {
+          if (existsSync(resolve(cwd, target.slice(1)))) return;
+          context.report({ node, messageId: "dead", data: { target } });
+
+          return;
+        }
 
         // Specs write validated-by targets from the repo root and prose links
         // relative to the document, so either resolving is a live link.
-        const fromDoc = isAbsolute(target) ? target : resolve(docDir, target);
-        if (existsSync(fromDoc) || existsSync(resolve(cwd, target))) return;
+        if (existsSync(resolve(docDir, target))) return;
+        if (existsSync(resolve(cwd, target))) return;
 
         context.report({ node, messageId: "dead", data: { target } });
       },

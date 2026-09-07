@@ -39,6 +39,16 @@ ruleTester.run("no-dead-md-links", rule, {
       filename: "specs/x/spec.md",
     },
     {
+      name: "a leading slash means the repo root, not the filesystem root",
+      code: `See [the manifest](/${REAL}).`,
+      filename: "specs/x/spec.md",
+    },
+    {
+      name: "a ?query is stripped like an anchor — GitHub's ?plain=1 is not part of the path",
+      code: `See [the manifest](${REAL}?plain=1).`,
+      filename: "specs/x/spec.md",
+    },
+    {
       name: "a fenced example is code too",
       code: ["```md", `[gone](${GONE})`, "```"].join("\n"),
       filename: "specs/x/spec.md",
@@ -48,6 +58,12 @@ ruleTester.run("no-dead-md-links", rule, {
     {
       name: "a link to a file that does not exist",
       code: `See [the handler](${GONE}).`,
+      filename: "specs/x/spec.md",
+      errors: [{ messageId: "dead" }],
+    },
+    {
+      name: "a repo-root link to a missing file still reports",
+      code: `See [the handler](/${GONE}).`,
       filename: "specs/x/spec.md",
       errors: [{ messageId: "dead" }],
     },
