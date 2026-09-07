@@ -98,6 +98,61 @@ async function dispatchForNode(
   );
 }
 
+/** The node to launch, or nothing when the gate is holding this run. An UNKNOWN node id throws (the definition and the persisted walk disagree, which no retry fixes); a blocked dispatch only parks, and is logged because this path returns void — the caller cannot otherwise tell "parked" from "advanced". */
+function launchableNode(
+  runGraph: { name: string; nodes: RunGraphNode[] },
+  nodeId: string,
+  assemblyRun: AssemblyRunRecord,
+  deps: AdvanceDeps,
+): RunGraphNode | undefined {
+  const node = runGraph.nodes.find((n) => n.id === nodeId);
+
+  enforceTrue(
+    node,
+    Error,
+    `AssemblyLine ${runGraph.name}: unknown node "${nodeId}"`,
+  );
+
+  if (isAgentDispatchBlocked(node, deps)) {
+    console.log(
+      `[llm-dispatch-gate] parked ${assemblyRun.id} at node "${node.id}" — agent dispatch is blocked`,
+    );
+
+    return undefined;
+  }
+
+  return node;
+}
+
+/** Launches the node the transition names. Split from the decision above so the walk reads as "what is next" then "run it" — the two failed for different reasons and were previously one function. */
+async function launchTransition(
+  step: {
+    node: RunGraphNode;
+    assemblyRun: AssemblyRunRecord;
+    visits: NodeVisit[];
+    iteration: number;
+    nodeId: string;
+  },
+  deps: AdvanceDeps,
+): Promise<void> {
+  const { node, assemblyRun, visits, iteration, nodeId } = step;
+  const task = taskFromAssemblyRun(assemblyRun);
+  const dispatch = await dispatchForNode(
+    { node, task, assemblyRun, nodeId, iteration, visits },
+    deps,
+  );
+
+  await launchNode({
+    node,
+    task,
+    dispatch,
+    visits,
+    assemblyRun,
+    iteration,
+    deps,
+  });
+}
+
 export async function advanceLine(
   assemblyLineId: string,
   deps: AdvanceDeps,
@@ -116,42 +171,20 @@ export async function advanceLine(
 
     return;
   }
-  const node = runGraph.nodes.find((n) => n.id === transition.nodeId);
+  const node = launchableNode(runGraph, transition.nodeId, assemblyRun, deps);
 
-  enforceTrue(
-    node,
-    Error,
-    `AssemblyLine ${runGraph.name}: unknown node "${transition.nodeId}"`,
-  );
-
-  if (isAgentDispatchBlocked(node, deps)) {
-    // Logged because parking is otherwise INVISIBLE: this returns void, so the caller cannot distinguish "parked" from "advanced".
-    console.log(
-      `[llm-dispatch-gate] parked ${assemblyRun.id} at node "${node.id}" — agent dispatch is blocked`,
-    );
-
+  if (!node) {
     return;
   }
-  const task = taskFromAssemblyRun(assemblyRun);
-  const dispatch = await dispatchForNode(
+
+  await launchTransition(
     {
       node,
-      task,
       assemblyRun,
-      nodeId: transition.nodeId,
-      iteration: transition.iteration,
       visits,
+      iteration: transition.iteration,
+      nodeId: transition.nodeId,
     },
     deps,
   );
-
-  await launchNode({
-    node,
-    task,
-    dispatch,
-    visits,
-    assemblyRun,
-    iteration: transition.iteration,
-    deps,
-  });
 }

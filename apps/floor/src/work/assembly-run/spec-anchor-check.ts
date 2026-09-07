@@ -60,6 +60,25 @@ function lineAt(lines: string[], line: number): string | undefined {
 }
 
 /** Classifies one `#Lnn` match, or null if it resolves cleanly. */
+/** Why a line that RESOLVES is still not a valid anchor. Blank and comment lines count as rot because a link pointing at either one no longer names the code it was written about — the file drifted under the anchor without deleting it. */
+function lineRot(
+  resolved: { path: string; lines: string[] },
+  line: number,
+): RottenAnchor["reason"] | null {
+  const targetLine = lineAt(resolved.lines, line);
+
+  if (targetLine === undefined) {
+    return "line out of range";
+  }
+  const trimmed = targetLine.trim();
+
+  if (trimmed.length === 0) {
+    return "blank line";
+  }
+
+  return commentReason(resolved.path, trimmed) ? "comment line" : null;
+}
+
 function anchorAt(
   specPath: string,
   target: string,
@@ -79,24 +98,10 @@ function anchorAt(
       reason: "missing file",
     };
   }
-  const targetLine = lineAt(resolved.lines, line);
+  const reason = lineRot(resolved, line);
 
-  if (targetLine === undefined) {
-    return {
-      specPath,
-      target: resolved.path,
-      line,
-      reason: "line out of range",
-    };
-  }
-  const trimmed = targetLine.trim();
-
-  if (trimmed.length === 0) {
-    return { specPath, target: resolved.path, line, reason: "blank line" };
-  }
-
-  if (commentReason(resolved.path, trimmed)) {
-    return { specPath, target: resolved.path, line, reason: "comment line" };
+  if (reason) {
+    return { specPath, target: resolved.path, line, reason };
   }
 
   return null;

@@ -1,3 +1,4 @@
+import type { Project } from "@re-cinq/lore-shared";
 import type { IssueRef } from "@re-cinq/lore-shared";
 import { orderBacklog } from "@re-cinq/lore-shared";
 import {
@@ -183,6 +184,24 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   await dispatchLoopTask({ repo, picked, branch, resume }, deps);
 }
 
+/** What the tick reads from GitHub. `branchExists` is passed straight through: `decideBranchResume` reads an undefined answer as "unknown" and starts fresh, which is the safe direction — resuming a branch that is not there produces an empty PR. */
+function repoPorts(projectFor: (repo: string) => Promise<Project>) {
+  return {
+    listIssues: async (repo: string) =>
+      (await projectFor(repo)).issues.list({ state: "open" }),
+    branchExists: async (repo: string, branch: string) =>
+      (await projectFor(repo)).repo.branchExists(branch),
+    openPrForBranch: async (repo: string, branch: string) => {
+      const open = await (await projectFor(repo)).pulls.list();
+      const forBranch = open.find((pr) => pr.branch === branch);
+
+      return forBranch
+        ? { number: forBranch.number, url: forBranch.url }
+        : null;
+    },
+  };
+}
+
 /** Production wiring for the `cron.implementation_loop.tick` handler. */
 export const implementationLoopTick: EventHandler = async (params) => {
   const [{ pipeline, settings, taskStore }, { projectFor }] = await Promise.all(
@@ -200,21 +219,9 @@ export const implementationLoopTick: EventHandler = async (params) => {
       pipeline().assemblyRuns.findOpenBySubject(repo, key),
     activeTaskByIssue: (repo, issueNumber) =>
       pipeline().taskQueue.activeTaskByIssue(repo, issueNumber),
-    listIssues: async (repo) =>
-      (await projectFor(repo)).issues.list({ state: "open" }),
     createTask: (input) => taskStore().create(input),
     setTaskColumns: (taskId, columns) =>
       pipeline().taskQueue.setColumns(taskId, columns),
-    // Passed straight through — decideBranchResume reads undefined as "unknown" and starts fresh.
-    branchExists: async (repo, branch) =>
-      (await projectFor(repo)).repo.branchExists(branch),
-    openPrForBranch: async (repo, branch) => {
-      const open = await (await projectFor(repo)).pulls.list();
-      const forBranch = open.find((pr) => pr.branch === branch);
-
-      return forBranch
-        ? { number: forBranch.number, url: forBranch.url }
-        : null;
-    },
+    ...repoPorts(projectFor),
   })(params);
 };

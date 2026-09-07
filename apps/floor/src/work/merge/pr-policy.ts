@@ -80,6 +80,32 @@ const DEFAULT_PR_CHECK_STATE: PrCheckState = {
 };
 
 /** Reads changed files, CI conclusion, and the trusted bot's + any human's review decisions; defers (via `DEFAULT_PR_CHECK_STATE`) rather than throws, so a lookup failure never blocks the rest of the policy read. */
+/** At least ONE passing check is required: `every` over an empty array is vacuously true, which would let auto-merge fire before CI has reported anything at all. */
+function ciIsGreen(checkRuns: { conclusion: string | null }[]): boolean {
+  return (
+    checkRuns.length > 0 &&
+    checkRuns.every(
+      (c) => c.conclusion === "success" || c.conclusion === "skipped",
+    )
+  );
+}
+
+/** The bot's LATEST decision, not "has it ever approved" — `id` is monotonic by submission, so a stale early APPROVED cannot linger past a later CHANGES_REQUESTED. */
+function botHasApproved(
+  reviews: { user: string; state: string; id: number }[],
+  botLogin: string,
+): boolean {
+  const decisions = reviews
+    .filter(
+      (r) =>
+        r.user === botLogin &&
+        (r.state === "APPROVED" || r.state === "CHANGES_REQUESTED"),
+    )
+    .sort((a, b) => a.id - b.id);
+
+  return decisions.at(-1)?.state === "APPROVED";
+}
+
 async function readPrCheckState(
   deps: PrPolicyDeps,
   row: TaskPrInfo,
@@ -95,26 +121,10 @@ async function readPrCheckState(
       pulls.listReviews(row.pr_number!),
     ]);
 
-    // Require at least one passing check — vacuous truth on an empty array would let auto-merge fire before CI has reported.
-    const ciSucceeded =
-      checkRuns.length > 0 &&
-      checkRuns.every(
-        (c) => c.conclusion === "success" || c.conclusion === "skipped",
-      );
-
-    // Take the bot's LATEST decision (monotonic `id` orders by submission), not "any past approval" — a stale early APPROVED must not linger past a later REQUEST_CHANGES.
-    const botDecisions = reviews
-      .filter(
-        (r) =>
-          r.user === botLogin &&
-          (r.state === "APPROVED" || r.state === "CHANGES_REQUESTED"),
-      )
-      .sort((a, b) => a.id - b.id);
-
     return {
       changedPaths: files,
-      ciSucceeded,
-      botApproved: botDecisions.at(-1)?.state === "APPROVED",
+      ciSucceeded: ciIsGreen(checkRuns),
+      botApproved: botHasApproved(reviews, botLogin),
       humanChangesRequested: reviews.some(
         (r) => r.state === "CHANGES_REQUESTED" && !r.user.endsWith("[bot]"),
       ),
@@ -156,6 +166,20 @@ function hasResolvedPr(
 }
 
 /** Look up everything `evaluateAndMerge` needs by task id; defaults assume CI hasn't passed and the bot hasn't approved, since flipping to `true` would let auto-merge fire on a brand-new PR with no check_runs/reviews yet. */
+/** Everything OBSERVED about the PR, as opposed to what policy asks of it. The bot login is overridable via LORE_REVIEW_BOT_LOGIN and must stay specific: without it any bot's APPROVED review — Dependabot, Renovate — would satisfy `require_bot_approval`. */
+async function observePr(
+  deps: PrPolicyDeps,
+  row: TaskPrInfo & { pr_number: number; target_repo: string },
+): Promise<PrCheckState & { reviewInFlight: boolean; trustLevel: TrustLevel }> {
+  const botLogin = process.env.LORE_REVIEW_BOT_LOGIN ?? "lore-agent[bot]";
+
+  return {
+    ...(await readPrCheckState(deps, row, botLogin)),
+    reviewInFlight: await readReviewInFlight(row.target_repo, row.pr_number),
+    trustLevel: (await readTrustLevel(deps.repos, row.target_repo)) ?? "docs",
+  };
+}
+
 export async function resolvePrForTaskFromDb(
   taskId: string,
   darkFactorySettings: ResolvedDarkFactorySettings,
@@ -171,15 +195,7 @@ export async function resolvePrForTaskFromDb(
     return null;
   }
 
-  // Trusted bot login, overridable via LORE_REVIEW_BOT_LOGIN — without it, any bot's APPROVED review (Dependabot, Renovate, etc.) would satisfy require_bot_approval.
-  const botLogin = process.env.LORE_REVIEW_BOT_LOGIN ?? "lore-agent[bot]";
-  const checkState = await readPrCheckState(deps, row, botLogin);
-  const reviewInFlight = await readReviewInFlight(
-    row.target_repo,
-    row.pr_number,
-  );
-  const trustLevel =
-    (await readTrustLevel(deps.repos, row.target_repo)) ?? "docs";
+  const observed = await observePr(deps, row);
 
   return {
     repo: row.target_repo,
@@ -193,9 +209,7 @@ export async function resolvePrForTaskFromDb(
         require_bot_approval:
           darkFactorySettings.auto_merge.require_bot_approval,
       },
-      trustLevel,
-      ...checkState,
-      reviewInFlight,
+      ...observed,
     },
   };
 }

@@ -57,9 +57,8 @@ async function reconcileBootDeliveries(): Promise<void> {
   }
 }
 
-async function main(): Promise<void> {
-  console.log("[floor] Lore Floor Service starting...");
-
+/** Everything that must exist before this Floor can answer anything. GitHub is absent on purpose: it is reached through the project facade, which builds its adapter from env on demand. */
+async function bootRuntime(): Promise<void> {
   await initOtel();
 
   initPool();
@@ -76,6 +75,39 @@ async function main(): Promise<void> {
   if (recovered > 0) {
     console.log(`[floor] Recovered ${recovered} stale tasks`);
   }
+}
+
+/** Layers 1 and 2: what this Floor subscribes to, the loop that drains it, and the cron emitters that feed it. Order is load-bearing — the subscription set is read at INSERT time, so an event published before this call is delivered to nobody, and the boot reconcile after it is a REPAIR rather than a precondition, which is why its failure never stops the loop. */
+async function startEventPlane(): Promise<void> {
+  const registry = buildRegistry();
+
+  // Derived from the registry, so the Floor never subscribes to what it cannot handle.
+  await subscribe([...registry.keys()].map((eventName) => ({ eventName })));
+  await reconcileBootDeliveries();
+
+  // The store is passed in: the stations service drains its own deliveries through this same loop, so the loop cannot reach for one process's store.
+  startEventLoop({
+    resolve: (name) => resolve(registry, name),
+    claim: claimBatch,
+    markDone,
+    markFailed,
+    markDead,
+  });
+  startEventReaper();
+
+  // Heavy batch jobs stay K8s CronJob pods (the ADR-019 carve-out) and are NOT emitted here.
+  for (const { name, schedule } of CRON_EMITTERS) {
+    registerCronEmitter(name, schedule);
+  }
+
+  void startScheduler();
+  void startWorker();
+}
+
+async function main(): Promise<void> {
+  console.log("[floor] Lore Floor Service starting...");
+
+  await bootRuntime();
 
   const port = parseInt(process.env.PORT || "8080", 10);
   // Awaited: the stop function is half of the shutdown contract — a fire-and-forgotten start left a late failure with nowhere to surface.
@@ -97,34 +129,7 @@ async function main(): Promise<void> {
   // Nothing below may run twice — SKIP LOCKED just SPLITS the stream between two Floors, so a stale instance quietly handles events. Deliberately AFTER the health server and signal handlers so a Floor waiting its turn stays healthy under the liveness probe.
   await awaitSoleFloor();
 
-  // ── Layer 2: the drain loop + reaper over this Floor's deliveries ──
-  const registry = buildRegistry();
-
-  // BEFORE the loop, and awaited: fan-out reads the subscription set at INSERT time, and deriving it from the registry means the Floor never subscribes to what it can't handle.
-  await subscribe([...registry.keys()].map((eventName) => ({ eventName })));
-
-  // AFTER registering: repairs delivery rows for events captured while unsubscribed (a new name, or before first boot) — a repair, not a precondition, so failure here never stops the loop.
-  await reconcileBootDeliveries();
-
-  // The store is passed in: the stations service drains its own deliveries through the same loop, so the loop cannot reach for one process's store.
-  startEventLoop({
-    resolve: (name) => resolve(registry, name),
-    claim: claimBatch,
-    markDone,
-    markFailed,
-    markDead,
-  });
-  startEventReaper();
-
-  // ── Layer 1: the k8s Agent-CR watch (emits kubernetes.agent.* events) ──
-
-  // Layer 1: cron emitters, single-sourced in cron-emitters.ts; heavy batch jobs stay K8s CronJob pods (ADR-019 carve-out), NOT emitted here.
-  for (const { name, schedule } of CRON_EMITTERS) {
-    registerCronEmitter(name, schedule);
-  }
-
-  void startScheduler();
-  void startWorker();
+  await startEventPlane();
 
   console.log("[floor] Lore Floor Service ready");
 }

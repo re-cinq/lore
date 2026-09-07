@@ -117,6 +117,29 @@ export function legacyAssemblyLineReadRoute(
 }
 
 /** GET /api/assembly-line-definitions — the catalog: every line and, per node, the Station it will run on. */
+/** One definition as the catalog serves it. There is no RUN here, so nodes carry their template `route` rather than resolved args — the catalog answers "what would this line do", not "what did it do". */
+function catalogEntry(definition: AssemblyLine) {
+  return {
+    name: definition.name,
+    description: definition.description,
+    entry: definition.entry,
+    exit: definition.exit,
+    nodes: definition.nodes.map((node) => {
+      const station = resolveNodeStation(node, definition.name);
+
+      return {
+        id: node.id,
+        type: node.type,
+        promptRef: node.prompt_ref ?? null,
+        route: node.route ?? null,
+        station: station.station,
+        stationInherited: station.inherited,
+      };
+    }),
+    edges: definition.edges,
+  };
+}
+
 export function assemblyLineCatalogRoute(
   load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
 ): ServerRoute {
@@ -124,31 +147,8 @@ export function assemblyLineCatalogRoute(
     method: "GET",
     path: "/api/assembly-line-definitions",
     options: { auth: "ingest-token" },
-    handler: async () => {
-      const definitions = await load();
-
-      return {
-        definitions: [...definitions.values()].map((definition) => ({
-          name: definition.name,
-          description: definition.description,
-          entry: definition.entry,
-          exit: definition.exit,
-          nodes: definition.nodes.map((node) => {
-            const station = resolveNodeStation(node, definition.name);
-
-            return {
-              id: node.id,
-              type: node.type,
-              promptRef: node.prompt_ref ?? null,
-              // The catalog has no run, so no args: the TEMPLATE is the answer here.
-              route: node.route ?? null,
-              station: station.station,
-              stationInherited: station.inherited,
-            };
-          }),
-          edges: definition.edges,
-        })),
-      };
-    },
+    handler: async () => ({
+      definitions: [...(await load()).values()].map(catalogEntry),
+    }),
   };
 }

@@ -21,20 +21,14 @@ function shouldRequeueTransientInfra(
   return isTransientInfraFailure(reason) && infraRetries < MAX_INFRA_RETRIES;
 }
 
-async function recordTaskFailure(
+/** Who hears about a failure: the Issue, the notification channels, and memory. The episode is deliberately not awaited — curation calls a model, and a failed task must settle at the speed of the queue rather than the speed of Haiku. */
+async function announceFailure(
   ctx: AgentContext,
   failedTask: PipelineTask,
-  { reason, taskUrl }: { reason: string; taskUrl: string | undefined },
+  reason: string,
 ): Promise<void> {
   const { taskId, taskType, targetRepo, description, output } = ctx;
 
-  await taskStore().setStatus(taskId, "failed", {
-    failure_reason: reason,
-    log_url: taskUrl,
-  });
-  await taskStore().recordEvent(taskId, "running", "failed", {
-    error: reason,
-  });
   await commentFailureOnIssue(
     failedTask.target_repo,
     failedTask.issue_number ?? null,
@@ -59,20 +53,12 @@ async function recordTaskFailure(
   console.log(`[agent-watcher] Task ${taskId} failed: ${reason}`);
 }
 
-/** Bounded re-queue of a transient-infra failure, carrying the retry count forward and keeping the Issue thread. */
-interface TransientInfraFailure {
-  reason: string;
-  taskUrl: string | undefined;
-  infraRetries: number;
-}
-
-async function requeueTransientInfraFailure(
+async function recordTaskFailure(
   ctx: AgentContext,
   failedTask: PipelineTask,
-  { reason, taskUrl, infraRetries }: TransientInfraFailure,
+  { reason, taskUrl }: { reason: string; taskUrl: string | undefined },
 ): Promise<void> {
-  const { taskId, taskType, targetRepo, description } = ctx;
-  const bundle = failedTask.context_bundle ?? {};
+  const { taskId } = ctx;
 
   await taskStore().setStatus(taskId, "failed", {
     failure_reason: reason,
@@ -80,9 +66,24 @@ async function requeueTransientInfraFailure(
   });
   await taskStore().recordEvent(taskId, "running", "failed", {
     error: reason,
-    transient_infra: true,
-    infra_retry: infraRetries + 1,
   });
+  await announceFailure(ctx, failedTask, reason);
+}
+
+/** Bounded re-queue of a transient-infra failure, carrying the retry count forward and keeping the Issue thread. */
+interface TransientInfraFailure {
+  reason: string;
+  taskUrl: string | undefined;
+  infraRetries: number;
+}
+
+/** Files the replacement attempt. The retry count rides in the context bundle so the NEXT failure can see how many attempts this work has already had, and the Issue number is copied across so the retry keeps reporting into the same thread rather than opening a second one. */
+async function fileRetry(
+  ctx: AgentContext,
+  failedTask: PipelineTask,
+  infraRetries: number,
+): Promise<void> {
+  const { taskId, taskType, targetRepo, description } = ctx;
   const requeuedId = await pipeline().taskQueue.insertTask({
     description,
     taskType,
@@ -90,7 +91,7 @@ async function requeueTransientInfraFailure(
     targetRepo,
     createdBy: failedTask.created_by,
     contextBundle: {
-      ...bundle,
+      ...(failedTask.context_bundle ?? {}),
       infra_retry_count: infraRetries + 1,
       retry_of: taskId,
     },
@@ -101,6 +102,25 @@ async function requeueTransientInfraFailure(
       issue_number: failedTask.issue_number,
     });
   }
+}
+
+async function requeueTransientInfraFailure(
+  ctx: AgentContext,
+  failedTask: PipelineTask,
+  { reason, taskUrl, infraRetries }: TransientInfraFailure,
+): Promise<void> {
+  const { taskId } = ctx;
+
+  await taskStore().setStatus(taskId, "failed", {
+    failure_reason: reason,
+    log_url: taskUrl,
+  });
+  await taskStore().recordEvent(taskId, "running", "failed", {
+    error: reason,
+    transient_infra: true,
+    infra_retry: infraRetries + 1,
+  });
+  await fileRetry(ctx, failedTask, infraRetries);
   console.log(
     `[agent-watcher] Task ${taskId} transient infra failure (${reason}) — re-queued ${infraRetries + 1}/${MAX_INFRA_RETRIES}`,
   );

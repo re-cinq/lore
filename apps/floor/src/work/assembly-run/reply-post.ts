@@ -103,6 +103,30 @@ async function resolveThreadSafely(
 }
 
 // Resolve the thread a reply just landed in, best-effort (FR5): only on `address` intent (an `answer` leaves the human's thread open on purpose), joining the REST reply's comment id to GraphQL's databaseId via findThreadForComment; never fails the post that already succeeded.
+/** Records both halves of the attempt — resolved and failed-to-resolve — under the same key set, so an unresolved thread is visible as a decision rather than as silence. */
+function threadResolveAudit(
+  row: AssemblyRunRecord,
+  target: { prNumber: number; inReplyTo: number },
+  ports: ReplyPorts,
+): ThreadResolveAudit {
+  return (payload, resolved) =>
+    writeAuditLog(
+      {
+        event_type: resolved
+          ? "review_thread_resolved"
+          : "review_thread_resolve_failed",
+        repo: row.repo,
+        payload: {
+          pr_number: target.prNumber,
+          assembly_run_id: row.id,
+          in_reply_to_id: target.inReplyTo,
+          ...payload,
+        },
+      },
+      ports.audit,
+    );
+}
+
 async function resolveRepliedThread(
   row: AssemblyRunRecord,
   pulls: ReplyPoster,
@@ -118,22 +142,7 @@ async function resolveRepliedThread(
   if (!listReviewThreads || !resolveReviewThread) {
     return;
   }
-  const audit: ThreadResolveAudit = (payload, resolved) =>
-    writeAuditLog(
-      {
-        event_type: resolved
-          ? "review_thread_resolved"
-          : "review_thread_resolve_failed",
-        repo: row.repo,
-        payload: {
-          pr_number: prNumber,
-          assembly_run_id: row.id,
-          in_reply_to_id: inReplyTo,
-          ...payload,
-        },
-      },
-      ports.audit,
-    );
+  const audit = threadResolveAudit(row, { prNumber, inReplyTo }, ports);
   const thread = await findRepliedThread(
     listReviewThreads,
     prNumber,

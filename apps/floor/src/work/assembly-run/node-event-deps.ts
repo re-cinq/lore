@@ -1,5 +1,6 @@
 // The production dependency wiring for NodeEventDeps: composes the real assembly-runs, prompt, PR, and alert adapters, plus the comment-triage router and rotten-anchor check both terminal doors share.
 
+import { codeReviewOnCommentTriaged } from "../review/code-review-handlers.js";
 import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { clusterAgent } from "../../outbound/queues.js";
 import { notifyLineFailure } from "./notify-failure.js";
@@ -8,10 +9,7 @@ import type { RottenAnchorReportInput } from "./spec-anchor-check.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { llmDispatchGate } from "./llm-dispatch-gate.js";
-import {
-  codeReviewOnCommentTriaged,
-  type CommentContext,
-} from "../review/code-review.js";
+import { type CommentContext } from "../review/code-review.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";

@@ -131,6 +131,37 @@ async function embedAndStoreChunk(
   );
 }
 
+/** Replaces a file's chunks. The DELETE comes first and is not conditional: a file that shrank would otherwise keep the chunks of the paragraphs it no longer has, and those answer searches forever. Chunking is AST-based for code and heading-based for docs — `contentType` is what picks. */
+async function rechunkFile(
+  target: {
+    filePath: string;
+    fullName: string;
+    schema: string;
+    contentType: string;
+  },
+  content: string,
+): Promise<void> {
+  const { filePath, fullName, schema, contentType } = target;
+
+  await chunks().deleteChunksForFile(schema, filePath, fullName);
+
+  for (const chunk of await chunkFile(content, filePath, contentType)) {
+    const chunkId = await chunks().insertChunk(schema, {
+      content: chunk.content,
+      contentType,
+      team: schema,
+      repo: fullName,
+      filePath,
+      metadata: buildIngestedChunkMetadata(chunk, {
+        filePath,
+        ingestedBy: "reindex-job",
+      }),
+    });
+
+    await embedAndStoreChunk(schema, filePath, chunk, chunkId);
+  }
+}
+
 export async function ingestFile(
   filePath: string,
   fullName: string,
@@ -156,27 +187,7 @@ export async function ingestFile(
     return true;
   }
 
-  // Delete existing chunks for this file
-  await chunks().deleteChunksForFile(schema, filePath, fullName);
-
-  // Chunk the file using AST-based chunking (code) or heading-based (docs)
-  const fileChunks = await chunkFile(content, filePath, contentType);
-
-  for (const chunk of fileChunks) {
-    const chunkId = await chunks().insertChunk(schema, {
-      content: chunk.content,
-      contentType,
-      team: schema,
-      repo: fullName,
-      filePath,
-      metadata: buildIngestedChunkMetadata(chunk, {
-        filePath,
-        ingestedBy: "reindex-job",
-      }),
-    });
-
-    await embedAndStoreChunk(schema, filePath, chunk, chunkId);
-  }
+  await rechunkFile({ filePath, fullName, schema, contentType }, content);
 
   return true;
 }

@@ -91,6 +91,38 @@ type IssuesLabeledParams = {
   };
 };
 
+/** Files the task an Issue dispatched, and marks the Issue as ours. The two GitHub writes are `allSettled`: the task exists by then, so a failed comment or label must not look like a failed dispatch. */
+async function fileIssueTask(
+  repo: string,
+  issue: IssuesLabeledParams["issue"],
+  taskType: string,
+  issues: Awaited<ReturnType<typeof projectFor>>["issues"],
+): Promise<void> {
+  const task = await taskStore().create({
+    description: `${issue.title}\n\n${issue.body}`.trim(),
+    taskType,
+    targetRepo: repo,
+    createdBy: "github-webhook",
+    contextBundle: {
+      github_issue_number: issue.number,
+      github_issue_url: issue.html_url,
+      github_issue_body: issue.body,
+    },
+  });
+
+  await pipeline().taskQueue.setColumns(task.task_id, {
+    issue_number: issue.number,
+    issue_url: issue.html_url,
+  });
+  await Promise.allSettled([
+    issues.comment(
+      issue.number,
+      `Lore agent is working on this. Task: \`${task.task_id}\``,
+    ),
+    issues.addLabel(issue.number, "lore-managed"),
+  ]);
+}
+
 export const issuesLabeled: EventHandler = async (params) => {
   const { repo, label, issue } = params as IssuesLabeledParams;
   const repoSettings = await settings().rawSettings(repo);
@@ -119,30 +151,7 @@ export const issuesLabeled: EventHandler = async (params) => {
     return;
   }
 
-  const description = `${issue.title}\n\n${issue.body}`.trim();
-  const task = await taskStore().create({
-    description,
-    taskType,
-    targetRepo: repo,
-    createdBy: "github-webhook",
-    contextBundle: {
-      github_issue_number: issue.number,
-      github_issue_url: issue.html_url,
-      github_issue_body: issue.body,
-    },
-  });
-
-  await pipeline().taskQueue.setColumns(task.task_id, {
-    issue_number: issue.number,
-    issue_url: issue.html_url,
-  });
-  await Promise.allSettled([
-    issues.comment(
-      issue.number,
-      `Lore agent is working on this. Task: \`${task.task_id}\``,
-    ),
-    issues.addLabel(issue.number, "lore-managed"),
-  ]);
+  await fileIssueTask(repo, issue, taskType, issues);
 };
 
 /** pull_request closed+merged: wake the line waiting for that PR. Previously unreachable — a feature-planning task's null `pr_number` (the push node stamps only the LINE's args) meant a merged spec PR decomposed on no deployment; this reads the merge directly, needing no task row, and still targets a NODE so a line sharing the PR but not waiting on it is passed over. */
@@ -174,6 +183,31 @@ function mergedSpecSlug(
   return specSlugFromBranch(branch);
 }
 
+/** Reads tasks.md AT THE MERGE COMMIT and files its spec-tasks as one group. The commit matters: reading the branch would race a branch already deleted, and reading HEAD would pick up whatever merged after. */
+async function syncMergedTasks(
+  repo: string,
+  specSlug: string,
+  mergeCommitSha: string | null,
+): Promise<string | null> {
+  const tasksContent = await (
+    await projectFor(repo)
+  ).repo.read(`specs/${specSlug}/tasks.md`, mergeCommitSha ?? undefined);
+
+  if (!tasksContent) {
+    return null;
+  }
+  const taskGroupId = randomUUID();
+
+  // syncTasksToDb is a shared, multi-app helper that takes the pool directly.
+  await syncTasksToDb(
+    getPool(),
+    { repo, specSlug, taskGroupId },
+    inferPhaseDependencies(parseTasks(tasksContent)),
+  );
+
+  return taskGroupId;
+}
+
 /** pull_request closed+merged: a merged spec PR → sync its tasks.md into spec-tasks. */
 export const specPrMerge: EventHandler = async (params) => {
   const { repo, branch, merged, merge_commit_sha, labels } = params as {
@@ -194,19 +228,11 @@ export const specPrMerge: EventHandler = async (params) => {
     return;
   } // already synced
 
-  const tasksContent = await (
-    await projectFor(repo)
-  ).repo.read(`specs/${specSlug}/tasks.md`, merge_commit_sha ?? undefined);
+  const taskGroupId = await syncMergedTasks(repo, specSlug, merge_commit_sha);
 
-  if (!tasksContent) {
+  if (!taskGroupId) {
     return;
   }
-
-  const withDeps = inferPhaseDependencies(parseTasks(tasksContent));
-  const taskGroupId = randomUUID();
-
-  // syncTasksToDb is a shared, multi-app helper that takes the pool directly.
-  await syncTasksToDb(getPool(), { repo, specSlug, taskGroupId }, withDeps);
 
   await pipeline()
     .taskQueue.markFeatureRequestMergedOnBranch(repo, branch)

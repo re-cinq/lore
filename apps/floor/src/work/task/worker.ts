@@ -251,6 +251,25 @@ async function handleProcessTaskFailure(
   console.error(`[floor] Task ${task.id} failed: ${failureReason}`);
 }
 
+/** Plans the task and hands it to its handler. The GitHub check happens AFTER planning and before dispatch: planning is free, but a run that reaches the end with no way to open a PR has spent a pod for nothing. */
+async function dispatchTask(input: {
+  task: PipelineTask;
+  targetRepo: string;
+  issueNumber: number | null;
+  project: Project;
+  isFeaturePlanningType: boolean;
+}): Promise<void> {
+  const { task, targetRepo, project } = input;
+  const plan = await resolveTaskPlan(task, targetRepo, project);
+
+  enforceTrue(
+    project.repo.isConfigured(),
+    Error,
+    "GitHub App not configured — cannot create PR",
+  );
+  await dispatchByTaskType(routeTask(task.task_type), { ...input, ...plan });
+}
+
 async function processTask(task: PipelineTask): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
   const targetRepo = task.target_repo || "re-cinq/lore";
@@ -273,20 +292,12 @@ async function processTask(task: PipelineTask): Promise<void> {
   await claimTask(task, agentId, project, issueNumber);
 
   try {
-    const plan = await resolveTaskPlan(task, targetRepo, project);
-
-    enforceTrue(
-      project.repo.isConfigured(),
-      Error,
-      "GitHub App not configured — cannot create PR",
-    );
-    await dispatchByTaskType(routeTask(task.task_type), {
+    await dispatchTask({
       task,
       targetRepo,
       issueNumber,
       project,
       isFeaturePlanningType,
-      ...plan,
     });
   } catch (err) {
     await handleProcessTaskFailure(task, project, issueNumber, err);

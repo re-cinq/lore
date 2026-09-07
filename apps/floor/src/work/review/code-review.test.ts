@@ -1,6 +1,6 @@
+import { createCodeReviewHandlers } from "./code-review-handlers.js";
 import { describe, it, expect } from "vitest";
 import {
-  createCodeReviewHandlers,
   isBotActor,
   isReviewRequest,
   routeTriagedComment,

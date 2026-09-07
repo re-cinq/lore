@@ -1,5 +1,6 @@
 // Dispatch-time resolution of node `continues` declaration: resume id and save id pair (save always NEW).
 
+import type { ConversationThread } from "@re-cinq/lore-shared/project/conversations/conversations-port.js";
 import { randomUUID } from "node:crypto";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
@@ -92,6 +93,35 @@ function priorConversationId(
   return prior?.conversationId ?? "";
 }
 
+/** Picks the conversation to continue and reserves the id this run will save as. Two rules ride here: the run NEVER continues its own execution — (line, iteration) is excluded, or a re-dispatch would resume itself — and the new id is reserved in ADVANCE, so the pod is told what to save as rather than choosing a path the Floor would then have to discover. */
+async function pinConversation(
+  thread: ConversationThread,
+  task: FloorAssemblyRunTask,
+  iteration: number,
+  deps: ResolveConversationDeps,
+): Promise<LoreTaskSpec["conversation"]> {
+  const from = await rewindTarget(task, deps);
+  const prior = await deps.conversations.latestFor(thread, {
+    exclude: { assemblyLineId: task.assemblyLineId, iteration },
+    ...(from ? { from } : {}),
+  });
+  const pin = newConversationId(deps);
+
+  await deps.conversations.reserve({
+    thread,
+    conversationId: pin,
+    assemblyLineId: task.assemblyLineId,
+    iteration,
+  });
+
+  return {
+    source: deps.registryUrl,
+    id: priorConversationId(prior),
+    pin,
+    headersSecret: deps.headersSecret,
+  };
+}
+
 export async function resolveConversation(
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
@@ -115,26 +145,5 @@ export async function resolveConversation(
     return undefined;
   }
 
-  const from = await rewindTarget(task, deps);
-  // Never continue THIS EXECUTION's own: exclude (line, iteration) so re-dispatch doesn't resume itself.
-  const prior = await deps.conversations.latestFor(resolved.thread, {
-    exclude: { assemblyLineId: task.assemblyLineId, iteration },
-    ...(from ? { from } : {}),
-  });
-  const pin = newConversationId(deps);
-
-  // Reserved in advance: pod is TOLD what to save as, keeping path deterministic.
-  await deps.conversations.reserve({
-    thread: resolved.thread,
-    conversationId: pin,
-    assemblyLineId: task.assemblyLineId,
-    iteration,
-  });
-
-  return {
-    source: deps.registryUrl,
-    id: priorConversationId(prior),
-    pin,
-    headersSecret: deps.headersSecret,
-  };
+  return pinConversation(resolved.thread, task, iteration, deps);
 }

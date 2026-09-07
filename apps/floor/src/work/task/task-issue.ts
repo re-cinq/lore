@@ -1,5 +1,6 @@
 // The GitHub Issue lifecycle around a pipeline task: create-or-reuse, the approval-gate park, and the failure comment.
 
+import type { IssueRef } from "@re-cinq/lore-shared";
 import type { PipelineTask } from "@re-cinq/lore-shared";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
@@ -45,30 +46,40 @@ function shouldSkipIssue(
 }
 
 /** File the Issue this task reports against. Non-fatal: a GitHub App without permission costs the task its Issue, not its run. */
+/** Opens the Issue with its generated copy. `feature-request` is labeled `spec` rather than by its type — the label is what the merge hooks and the spec-PR handlers key on, and it names the artifact, not the request that asked for it. */
+async function openIssue(
+  task: PipelineTask,
+  targetRepo: string,
+  project: Project,
+): Promise<IssueRef> {
+  const copy = await generateArtifactCopy({
+    kind: "issue",
+    taskType: task.task_type,
+    description: task.description,
+    repo: targetRepo,
+  });
+  const issueBody = linkifyMarkdown(copy.body, {
+    repo: targetRepo,
+    uiUrl: process.env.LORE_UI_URL,
+  });
+
+  return project.issues.create(
+    copy.title,
+    composeIssueBody(issueBody, task, process.env.LORE_UI_URL),
+    [
+      "lore-managed",
+      task.task_type === "feature-request" ? "spec" : task.task_type,
+    ],
+  );
+}
+
 async function createTaskIssue(
   task: PipelineTask,
   targetRepo: string,
   project: Project,
 ): Promise<number | null> {
   try {
-    const copy = await generateArtifactCopy({
-      kind: "issue",
-      taskType: task.task_type,
-      description: task.description,
-      repo: targetRepo,
-    });
-    const issueBody = linkifyMarkdown(copy.body, {
-      repo: targetRepo,
-      uiUrl: process.env.LORE_UI_URL,
-    });
-    const issue = await project.issues.create(
-      copy.title,
-      composeIssueBody(issueBody, task, process.env.LORE_UI_URL),
-      [
-        "lore-managed",
-        task.task_type === "feature-request" ? "spec" : task.task_type,
-      ],
-    );
+    const issue = await openIssue(task, targetRepo, project);
 
     await pipeline().taskQueue.setColumns(task.id, {
       issue_number: issue.number,

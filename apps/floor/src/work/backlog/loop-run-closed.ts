@@ -1,3 +1,4 @@
+import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import { LORE_BLOCKED_LABEL } from "@re-cinq/lore-shared";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
@@ -140,6 +141,21 @@ async function markIssueBlocked(
 }
 
 /** Production hook for finishLine's onRunClosed seam. */
+/** QUEUED rather than inserted: `onRunClosed` swallows what this throws, so a router blip used to lose the tick until the cron emitter next came round. The proxy retries it instead. */
+function queueLoopTick(
+  repo: string,
+  eventProxy: () => EventProxy,
+): Promise<void> {
+  return eventProxy().emit({
+    kind: "event",
+    event: {
+      eventName: "cron.implementation_loop.tick",
+      source: "internal",
+      params: { repo },
+    },
+  });
+}
+
 export async function loopRunClosed(
   run: ClosedLoopRun,
   outcome: string,
@@ -165,15 +181,6 @@ export async function loopRunClosed(
       (await projectFor(repo)).issues.addLabel(issueNumber, label),
     comment: async (repo, issueNumber, body) =>
       (await projectFor(repo)).issues.comment(issueNumber, body),
-    // Queued, not inserted: `onRunClosed` swallows what this throws, so a router blip used to lose the tick until the cron emitter came round — the proxy retries it instead.
-    emitTick: (repo) =>
-      eventProxy().emit({
-        kind: "event",
-        event: {
-          eventName: "cron.implementation_loop.tick",
-          source: "internal",
-          params: { repo },
-        },
-      }),
+    emitTick: (repo) => queueLoopTick(repo, eventProxy),
   });
 }

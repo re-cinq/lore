@@ -1,161 +1,44 @@
+import {
+  countAnomaly,
+  recordAgentCosts,
+  writeCostDegradedAudit,
+} from "./agent-events-cost.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 // POST /api/agent-events — ai-agent-subsystem (ADR-031 D8) run-output NDJSON; terminal `result` line feeds pipeline.llm_calls (uncorrelated/failed rows surfaced via metric+audit_log, not dropped, #945), and auth is dual (bus-wide LORE_AGENT_INTERNAL_TOKEN or a satellite's per-agent token, FR5 of specs/running-stations-in-any-k8s-cluster) checked inside the handler since a hapi strategy can only hold one expected token.
 
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceRegistryOrSharedToken } from "@re-cinq/lore-shared/http/registry-or-shared-token.js";
 import type { RegistryOrSharedTokenDeps } from "@re-cinq/lore-shared/http/registry-or-shared-token.js";
-import { metrics } from "@opentelemetry/api";
-import { pipeline, usage, taskStore } from "../../../outbound/queues.js";
+import { pipeline, taskStore } from "../../../outbound/queues.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { deliverPlanningResults } from "../../../work/agent/planning-result.js";
 import { deliverArtifact } from "../../../work/agent/artifact-args.js";
 import {
   parseAgentSink,
-  type LlmCallRow,
   type AgentFileEvent,
 } from "../../../work/agent/agent-events.js";
 import { agentEventBus } from "../../../work/agent/agent-event-bus.js";
 import { MAX_RUN_TURNS_PER_BATCH } from "../../../work/agent/agent-run-turns.js";
-import { writeAuditLog } from "../../../outbound/audit.js";
 import { rawBody } from "../raw-body.js";
 import type {
   AgentRunEventInsert,
   AgentRunTurnInsert,
 } from "@re-cinq/lore-shared";
-import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
-import type {
-  LlmCallRecord,
-  LlmCallResult,
-} from "@re-cinq/lore-shared/project/usage/usage-port.js";
 
 // Low-cardinality anomaly kinds; a union so a typo fails to compile.
-type AnomalyKind =
-  | "cost_uncorrelated"
-  | "cost_failed"
-  | "run_events_failed"
-  | "run_turns_failed"
-  | "turn_dropped_redaction"
-  | "turn_dropped_cap"
-  | "turn_deduped";
 
 // Counts ingest anomalies so a silent problem shows on a dashboard; no-op until the OTEL SDK is registered (otel-init), so free in tests.
-const anomalyCounter = metrics
-  .getMeter("lore-floor")
-  .createCounter("lore.agent_events.anomalies", {
-    description:
-      "Agent-events ingest anomalies: uncorrelated/failed cost rows, viz/turn failures",
-  });
-
-function countAnomaly(kind: AnomalyKind, n = 1): void {
-  if (n > 0) {
-    anomalyCounter.add(n, { kind });
-  }
-}
 
 // Above this body size, run-viz + turn transcript are skipped (cost accounting still recorded) to keep a pathological report from OOM-ing the single (replicaCount: 1) Floor replica — the pod's stdout in Cloud Logging is the sole remaining copy of an oversized stream (#1109).
 const MAX_VIZ_BODY_BYTES = 8 * 1024 * 1024;
 
 // How a batch of cost rows landed: persisted count, plus the two anomaly classes the sink used to swallow silently. `firstIssue` seeds the audit row.
-export interface CostIngestSummary {
-  recorded: number;
-  uncorrelated: number;
-  failed: number;
-  firstTaskId?: string;
-  firstIssue?: string;
-}
-
-type SettledCostRow =
-  | { row: LlmCallRow; result: LlmCallResult }
-  | { row: LlmCallRow; err: unknown };
-
-function applySuccessfulCostRow(
-  summary: CostIngestSummary,
-  entry: { row: LlmCallRow; result: LlmCallResult },
-): void {
-  summary.recorded++;
-
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- UsagePort.logLlmCall's contract says it always resolves a result, but a test double (and any future adapter) can resolve undefined.
-  if (entry.result?.correlated === false) {
-    summary.uncorrelated++;
-    summary.firstIssue ??= `uncorrelated id ${entry.row.taskId}`;
-  }
-}
-
-function applyFailedCostRow(
-  summary: CostIngestSummary,
-  entry: { row: LlmCallRow; err: unknown },
-): void {
-  summary.failed++;
-  const msg = errorMessage(entry.err);
-
-  summary.firstIssue ??= `insert failed for ${entry.row.taskId}: ${msg}`;
-  console.warn(
-    `[floor] llm_calls insert failed for ${entry.row.taskId}: ${msg}`,
-  );
-}
 
 // Folds one settled insert into the running summary; the failed/uncorrelated split this hides is why recordAgentCosts stays a plain loop over it.
-function applySettledCostRow(
-  summary: CostIngestSummary,
-  entry: SettledCostRow,
-): void {
-  summary.firstTaskId ??= entry.row.taskId;
-
-  if (!("err" in entry)) {
-    applySuccessfulCostRow(summary, entry);
-
-    return;
-  }
-
-  applyFailedCostRow(summary, entry);
-}
 
 // Persist one cost row per agent run: an unmatched id stores uncorrelated (counted, not dropped), and a genuine insert error is skipped rather than failing the batch — both feed the metric + audit summary (#945).
-async function recordAgentCosts(
-  rows: readonly LlmCallRow[],
-  logCall: (r: LlmCallRecord) => Promise<LlmCallResult> = (r) =>
-    usage().logLlmCall(r),
-): Promise<CostIngestSummary> {
-  const s: CostIngestSummary = { recorded: 0, uncorrelated: 0, failed: 0 };
-
-  // Inserts run in parallel (relay holds the request open across a serial chain otherwise), but the fold below stays sequential over Promise.all's index-ordered results so firstTaskId/firstIssue name the first row, not whichever settled first.
-  const settled = await Promise.all(
-    rows.map(async (row): Promise<SettledCostRow> => {
-      try {
-        return { row, result: await logCall({ ...row, jobName: "agent" }) };
-      } catch (err) {
-        return { row, err };
-      }
-    }),
-  );
-
-  for (const entry of settled) {
-    applySettledCostRow(s, entry);
-  }
-
-  countAnomaly("cost_uncorrelated", s.uncorrelated);
-  countAnomaly("cost_failed", s.failed);
-
-  return s;
-}
 
 // The audit_log row for a degraded cost batch, or null when everything correlated cleanly; pure (the route does the write), mirrors the review_post_degraded audit shape (#942).
-export function costDegradedAudit(s: CostIngestSummary): AuditLogEntry | null {
-  if (s.uncorrelated === 0 && s.failed === 0) {
-    return null;
-  }
-
-  return {
-    event_type: "agent_events_cost_degraded",
-    task_id: s.firstTaskId ?? null,
-    payload: {
-      recorded: s.recorded,
-      uncorrelated: s.uncorrelated,
-      failed: s.failed,
-      first_issue: s.firstIssue ?? null,
-    },
-  };
-}
 
 // Persist the per-tool-call run-viz projection and fan it out (#876); publish strictly AFTER insert resolves so a live subscriber never sees an id `listSince` can't replay on reconnect — the SSE catch-up's correctness argument. Skip-not-fail: a viz persistence failure must never 500 the cost sink.
 async function recordRunEvents(
@@ -263,19 +146,6 @@ function reportTurnAnomalies(turnsDropped: number, turnsCapped: number): void {
 }
 
 // A failed audit write must not 500 the endpoint — a degraded batch still succeeds (FR5.6); losing the audit row beats dropping the whole ingest.
-async function writeCostDegradedAudit(cost: CostIngestSummary): Promise<void> {
-  const audit = costDegradedAudit(cost);
-
-  if (!audit) {
-    return;
-  }
-
-  await writeAuditLog(audit).catch((err) =>
-    console.warn(
-      `[floor] cost-degraded audit write skipped: ${errorMessage(err)}`,
-    ),
-  );
-}
 
 export interface AgentEventsRouteDeps {
   // The registry lookup that lets a satellite's own token in; absent means only the bus-wide token opens the door (pre-satellite behavior).
@@ -306,18 +176,42 @@ async function ingestAgentSink(rawNdjson: string): Promise<{
   return {
     events: costRows.length,
     recorded: cost.recorded,
-    attributes: {
-      "agent_events.count": costRows.length,
-      "agent_events.recorded": cost.recorded,
-      "agent_events.uncorrelated": cost.uncorrelated,
-      "agent_events.failed": cost.failed,
-      "agent_events.viz_rows": vizRows,
-      "agent_events.planning_rounds": planningRounds,
-      "agent_events.turn_rows": turnRows,
-      "agent_events.turns_dropped": turnsDropped,
-      "agent_events.turns_capped": turnsCapped,
-      "agent_events.oversized": oversized,
-    },
+    attributes: sinkAttributes(cost, {
+      events: costRows.length,
+      vizRows,
+      planningRounds,
+      turnRows,
+      turnsDropped,
+      turnsCapped,
+      oversized,
+    }),
+  };
+}
+
+/** The span attributes for one sink POST. Every count is carried, including the DROPPED and CAPPED ones — a run whose telemetry silently thinned out is exactly what these exist to make visible. */
+function sinkAttributes(
+  cost: { recorded: number; uncorrelated: number; failed: number },
+  counts: {
+    events: number;
+    vizRows: number;
+    planningRounds: number;
+    turnRows: number;
+    turnsDropped: number;
+    turnsCapped: number;
+    oversized: boolean;
+  },
+): Record<string, number | boolean> {
+  return {
+    "agent_events.count": counts.events,
+    "agent_events.recorded": cost.recorded,
+    "agent_events.uncorrelated": cost.uncorrelated,
+    "agent_events.failed": cost.failed,
+    "agent_events.viz_rows": counts.vizRows,
+    "agent_events.planning_rounds": counts.planningRounds,
+    "agent_events.turn_rows": counts.turnRows,
+    "agent_events.turns_dropped": counts.turnsDropped,
+    "agent_events.turns_capped": counts.turnsCapped,
+    "agent_events.oversized": counts.oversized,
   };
 }
 

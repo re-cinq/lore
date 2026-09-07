@@ -85,6 +85,30 @@ async function uploadLogsBestEffort(
   }
 }
 
+/** What a one-shot job pod needs before its handler runs. GitHub and repo access are deliberately absent: jobs reach those through the project facade, which builds its adapter from env on demand, so there is nothing to wire at startup. */
+function bootJobRuntime(): void {
+  initPool();
+  wireProject();
+  Llm.configure({ usage: usage() });
+}
+
+/** Closes a successful run: the captured console goes to storage first, so the completed row can point at logs that already exist rather than at an upload that may still fail. */
+async function settleSuccess(run: {
+  jobName: string;
+  runId: string;
+  buffer: string[];
+  summary: string;
+  start: number;
+}): Promise<void> {
+  const { jobName, runId, buffer, summary, start } = run;
+  const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
+
+  await completeJobRun(runId, summary, { logPath });
+  console.log(
+    `[job-runner] ${jobName} completed in ${Date.now() - start}ms: ${summary}`,
+  );
+}
+
 export async function runJobByName(jobName: string): Promise<number> {
   const handler = resolveJob(jobName);
 
@@ -96,10 +120,7 @@ export async function runJobByName(jobName: string): Promise<number> {
     return 2;
   }
 
-  initPool();
-  wireProject();
-  Llm.configure({ usage: usage() });
-  // Jobs reach GitHub/repo via the project facade, which builds its adapter from env on demand — no startup wiring needed.
+  bootJobRuntime();
 
   const runId = await startJobRun(jobName);
   const buffer: string[] = [];
@@ -109,13 +130,9 @@ export async function runJobByName(jobName: string): Promise<number> {
 
   try {
     const summary = await handler();
-    const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
 
-    await completeJobRun(runId, summary, { logPath });
+    await settleSuccess({ jobName, runId, buffer, summary, start });
     restoreConsole(originalConsole);
-    console.log(
-      `[job-runner] ${jobName} completed in ${Date.now() - start}ms: ${summary}`,
-    );
 
     return 0;
   } catch (err) {

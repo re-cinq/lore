@@ -118,11 +118,22 @@ async function dispatchSpecTask(
   await insertEvent(task.id, "pending", "running", {
     claimed_by: "spec-task-executor",
   });
+
+  return runClaimed(task, runningByGroup, defaults);
+}
+
+/** Runs a task this executor has already claimed. A dispatch failure RELEASES the claim back to `pending`: the row is claimed but nothing is running, and only a release lets the next tick try again. */
+async function runClaimed(
+  task: ReadySpecTask,
+  runningByGroup: Map<string, number>,
+  defaults: AgentDispatchDefaults,
+): Promise<boolean> {
   const brief = specTaskBrief(task);
 
   try {
     const result = await runSpecTaskAgent(task, brief, defaults);
 
+    // An existing CR means another dispatcher won; the claim stays with it, not with us.
     if (!result.started) {
       console.log(
         `[spec-task-executor] Agent CR for ${task.id} already exists, skipping`,

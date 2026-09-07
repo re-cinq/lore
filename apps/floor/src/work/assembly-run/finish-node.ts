@@ -79,6 +79,22 @@ function nextNodeTypeAfter(
 }
 
 /** Flips the PR out of draft when the finished step hands off to the human wait; never fails the run — a draft PR is recoverable, discarding finished work is not. */
+/** Whether this node finishing leaves the PR ready for a human. The NEXT node's type is what decides it: a run heading into another agent pass is not done, however well this node went. */
+async function shouldMarkReady(
+  assemblyRun: AssemblyRunRecord,
+  nodeId: string,
+  result: NodeResult,
+  deps: AdvanceDeps,
+): Promise<boolean> {
+  const graph = await resolveRunGraph(assemblyRun, deps.definitions);
+
+  return decideMarkReady({
+    outcome: result.outcome,
+    nextNodeType: nextNodeTypeAfter(graph, nodeId, result.outcome),
+    args: assemblyRun.args,
+  });
+}
+
 async function maybeMarkPrReady(
   assemblyLineId: string,
   nodeId: string,
@@ -95,16 +111,7 @@ async function maybeMarkPrReady(
   }
 
   try {
-    const graph = await resolveRunGraph(assemblyRun, deps.definitions);
-    const nextNodeType = nextNodeTypeAfter(graph, nodeId, result.outcome);
-
-    if (
-      !decideMarkReady({
-        outcome: result.outcome,
-        nextNodeType,
-        args: assemblyRun.args,
-      })
-    ) {
+    if (!(await shouldMarkReady(assemblyRun, nodeId, result, deps))) {
       return;
     }
 
@@ -175,7 +182,8 @@ async function maybeStampPr(
 }
 
 /** Record one node's terminal outcome (CAS — first writer decides) and advance the line; `iteration` targets the exact revisit whose CR fired so a late duplicate event can't overwrite the current one. */
-export async function finishNodeAndAdvance(
+/** Closes exactly one open row for this node, and says whether THIS delivery is the one that closed it. A missing target or a lost CAS both mean another delivery got there first — its follow-up has already fired, and firing again would re-route a result that was just routed. */
+async function closeNodeRow(
   input: {
     assemblyLineId: string;
     nodeId: string;
@@ -183,7 +191,7 @@ export async function finishNodeAndAdvance(
     result: NodeResult;
   },
   deps: AdvanceDeps,
-): Promise<void> {
+): Promise<boolean> {
   const nodes = await deps.assemblyRuns.listStationRuns(input.assemblyLineId);
   const forNode = nodes.filter((n) => n.nodeId === input.nodeId);
   const target =
@@ -193,8 +201,7 @@ export async function finishNodeAndAdvance(
         )
       : forNode.filter((n) => n.outcome === null).at(-1);
 
-  // `false`/undefined target both mean another delivery already closed this node — its follow-up ALREADY fired, so firing it again would re-route a result that was just routed.
-  const closedHere =
+  return (
     target !== undefined &&
     (await deps.assemblyRuns.finishStationRunOnce(
       target.id,
@@ -204,24 +211,27 @@ export async function finishNodeAndAdvance(
         failureClass: input.result.failureClass,
         failureDetail: input.result.failureDetail,
       },
-    ));
+    ))
+  );
+}
 
-  // Once-only effects are CAS-gated; the walk is not — advanceLine re-derives its step from the node rows, so re-running it recovers a delivery that closed the node then died before advancing.
-  if (closedHere) {
-    await maybeStampPr(input.assemblyLineId, input.nodeId, input.result, deps);
-    await maybeMarkPrReady(
-      input.assemblyLineId,
-      input.nodeId,
-      input.result,
-      deps,
-    );
-    await reactToNodeFinished(
-      input.assemblyLineId,
-      input.nodeId,
-      input.result,
-      deps,
-    );
+export async function finishNodeAndAdvance(
+  input: {
+    assemblyLineId: string;
+    nodeId: string;
+    iteration?: number;
+    result: NodeResult;
+  },
+  deps: AdvanceDeps,
+): Promise<void> {
+  const { assemblyLineId, nodeId, result } = input;
+
+  // Once-only effects are CAS-gated; the walk is NOT — advanceLine re-derives its step from the node rows, so re-running it recovers a delivery that closed the node then died before advancing.
+  if (await closeNodeRow(input, deps)) {
+    await maybeStampPr(assemblyLineId, nodeId, result, deps);
+    await maybeMarkPrReady(assemblyLineId, nodeId, result, deps);
+    await reactToNodeFinished(assemblyLineId, nodeId, result, deps);
   }
 
-  await advanceLine(input.assemblyLineId, deps);
+  await advanceLine(assemblyLineId, deps);
 }

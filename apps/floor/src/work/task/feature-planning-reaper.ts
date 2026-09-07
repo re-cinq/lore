@@ -62,25 +62,50 @@ async function tryRecoverFromTranscript(
   });
 }
 
+/** What this stalled round needs. "Still active" is asked of the RUN, not the clock: a round whose run is open is working, however long it has been, and only a round nobody is running can be recovered from underneath. */
+async function decideRecovery(
+  feature: FeatureWithIterations,
+  ctx: RoundContext,
+  now: number,
+): Promise<ReturnType<typeof decidePlanningRecovery>> {
+  const { latest, latestRun, runOpen } = ctx;
+
+  return decidePlanningRecovery({
+    iterations: feature.iterations,
+    featureStatus: feature.status,
+    isActive: await roundStillActive(latest, latestRun !== undefined, runOpen),
+    nowMs: now,
+    runOpen,
+  });
+}
+
+/** Applies a transition the round produced but nobody recorded — the gap result is already in the row, so this is replaying a write that was lost, not deciding anything new. */
+async function applyMissedTransition(
+  project: Project,
+  feature: FeatureWithIterations,
+  gap: NonNullable<RoundContext["latest"]>["gap_result"],
+  row: Candidate,
+): Promise<void> {
+  await project.features.transitionStatus(
+    feature.id,
+    decideFeatureStatus(gap!),
+    {
+      draft_spec_md: gap!.draft_spec_markdown,
+    },
+  );
+  console.log(
+    `[feature-planning-reaper] applied missed transition for ${row.repo}/${row.id}`,
+  );
+}
+
 async function applyPlanningRecoveryAction(
   project: Project,
   feature: FeatureWithIterations,
   ctx: RoundContext,
   { row, now }: { row: Candidate; now: number },
 ): Promise<Partial<ReaperTally>> {
-  const { latest, latestRun, runOpen } = ctx;
-  const isActive = await roundStillActive(
-    latest,
-    latestRun !== undefined,
-    runOpen,
-  );
-  const action = decidePlanningRecovery({
-    iterations: feature.iterations,
-    featureStatus: feature.status,
-    isActive,
-    nowMs: now,
-    runOpen,
-  });
+  const { latest } = ctx;
+  const action = await decideRecovery(feature, ctx, now);
 
   if (action.kind === "orphan") {
     await recoverOrphan(project, feature, action.iteration);
@@ -94,18 +119,8 @@ async function applyPlanningRecoveryAction(
   if (action.kind !== "transition") {
     return {};
   }
-  const gap = latest!.gap_result!;
 
-  await project.features.transitionStatus(
-    feature.id,
-    decideFeatureStatus(gap),
-    {
-      draft_spec_md: gap.draft_spec_markdown,
-    },
-  );
-  console.log(
-    `[feature-planning-reaper] applied missed transition for ${row.repo}/${row.id}`,
-  );
+  await applyMissedTransition(project, feature, latest!.gap_result!, row);
 
   return { transitioned: 1 };
 }
@@ -242,12 +257,11 @@ const RECOVERY_TURN_PAGE = 200;
 const RECOVERY_TURN_PAGES_MAX = 25;
 
 /** Re-apply a lost round result from the run transcript (#1298): the terminal `Write` of `result.json` holds the full GapResult; returns false when none was produced. `agentCrName` scopes the scan to THIS round's pod (#1302) — unscoped (null) would replay a previous round's result on a multi-round run. */
-async function recoverArtifact(
-  project: Project,
-  featureId: string,
-  latest: { iteration: number },
-  { runId, agentCrName }: { runId: string; agentCrName: string | null },
-): Promise<boolean> {
+/** The run's transcript envelopes, paged and CAPPED: recovery reads a whole run, and an unbounded walk over a long one would hold every turn in memory to find one artifact. Filtered by CR name when there is one, because a run may hold turns from more than one attempt. */
+async function readRunEnvelopes(
+  runId: string,
+  agentCrName: string | null,
+): Promise<unknown[]> {
   const envelopes: unknown[] = [];
   let cursor = "0";
 
@@ -271,7 +285,19 @@ async function recoverArtifact(
     cursor = turns[turns.length - 1].id;
   }
 
-  const payload = gapResultFromTurns(envelopes, "result.json");
+  return envelopes;
+}
+
+async function recoverArtifact(
+  project: Project,
+  featureId: string,
+  latest: { iteration: number },
+  { runId, agentCrName }: { runId: string; agentCrName: string | null },
+): Promise<boolean> {
+  const payload = gapResultFromTurns(
+    await readRunEnvelopes(runId, agentCrName),
+    "result.json",
+  );
 
   if (payload === null) {
     return false;

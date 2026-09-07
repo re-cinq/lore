@@ -1,6 +1,10 @@
 // Catalog seed generator (ADR-031, #698): maps task-types.yaml recipes to AgentDefinition + Station CRs, one Station per task type named by type. Pure + deterministic; file IO lives in the gen-catalog CLI.
 
-import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
+import type {
+  AgentDefinition,
+  Station,
+  OutputSpec,
+} from "@re-cinq/agent-contracts";
 import { stringify } from "yaml";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { AGENT_MAX_TURNS } from "@re-cinq/lore-shared";
@@ -96,6 +100,27 @@ function agentResources(
   };
 }
 
+/** D8 (#687): stream NDJSON run output to the Floor's /api/agent-events sink for cost accounting. A watched file is raised as a `kind:"file"` event on that same sink when the agent exits — the only way an artifact leaves the pod (ai-agent-subsystem#188). */
+function agentOutput(cfg: AgentCatalogConfig): OutputSpec {
+  return {
+    sinks: [
+      { type: "stdout" },
+      {
+        type: "http",
+        url: EVENTS_URL_SENTINEL,
+        headers_secret: "agent-events-auth",
+      },
+    ],
+    ...(cfg.watch ? { watch: [cfg.watch] } : {}),
+  };
+}
+
+/** Declared EXPLICITLY on every pod template: Autopilot caps an undeclared pod at 1Gi, and a large-diff review run was being evicted mid-run after billing (#1287/#1288). Stations get the same ephemeral storage as agents because ingest and validate clone the repo too. */
+const POD_RESOURCES = {
+  requests: { cpu: "250m", memory: "512Mi", "ephemeral-storage": "2Gi" },
+  limits: { cpu: "1", memory: "1Gi", "ephemeral-storage": "4Gi" },
+};
+
 export function buildAgentDefinition(
   taskType: string,
   cfg: AgentCatalogConfig,
@@ -124,19 +149,7 @@ export function buildAgentDefinition(
         "mcp__lore__lore_create_pipeline_task",
         ...(cfg.disallowed_tools ?? []),
       ],
-      // D8 (#687): stream NDJSON run output to the Floor's /api/agent-events sink for cost accounting.
-      output: {
-        sinks: [
-          { type: "stdout" },
-          {
-            type: "http",
-            url: EVENTS_URL_SENTINEL,
-            headers_secret: "agent-events-auth",
-          },
-        ],
-        // A file deliverable is raised as a `kind:"file"` event on the sink above once the agent exits — the only way the artifact leaves the pod (ai-agent-subsystem#188).
-        ...(cfg.watch ? { watch: [cfg.watch] } : {}),
-      },
+      output: agentOutput(cfg),
     },
   };
 }
@@ -161,24 +174,29 @@ export function buildStation(
               ...(cfg.repo_workdir === false
                 ? {}
                 : { workingDir: REPO_WORKDIR }),
-              // Explicit: Autopilot caps an undeclared pod at 1Gi and a large-diff review run gets EVICTED mid-run after billing (#1287/#1288, same class as #1160).
-              resources: {
-                requests: {
-                  cpu: "250m",
-                  memory: "512Mi",
-                  "ephemeral-storage": "2Gi",
-                },
-                limits: {
-                  cpu: "1",
-                  memory: "1Gi",
-                  "ephemeral-storage": "4Gi",
-                },
-              },
+              resources: POD_RESOURCES,
             },
           ],
         },
       },
     },
+  };
+}
+
+/** A Station pod-template env block is OVERWRITTEN by the controller and silently lost (learned live, 2026-07-17), so the API base URL and ingest token ship through resources.env on every recipe; per-station cfg.env appends after. The model credential is added ONLY where the station calls a model — a deterministic station carrying one fails invisibly instead. */
+function stationResources(cfg: StationCatalogConfig) {
+  return {
+    env: [
+      { name: "LORE_API_URL", value: API_URL_SENTINEL },
+      ...Object.entries(cfg.env ?? {}).map(([name, value]) => ({
+        name,
+        value,
+      })),
+    ],
+    secrets: [
+      { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
+      ...(cfg.needs_model ? AGENT_SECRETS : []),
+    ],
   };
 }
 
@@ -206,21 +224,7 @@ export function buildStationDefinition(
       max_turns: 1,
       tool_config: { command: cfg.command },
       output: OUTPUT_SINKS,
-      // A Station pod-template env block is OVERWRITTEN by the controller and silently lost (learned live, 2026-07-17), so the API base URL + ingest token ship via resources.env on every recipe; per-station cfg.env appends after.
-      resources: {
-        env: [
-          { name: "LORE_API_URL", value: API_URL_SENTINEL },
-          ...Object.entries(cfg.env ?? {}).map(([name, value]) => ({
-            name,
-            value,
-          })),
-        ],
-        // A model credential only where the station actually calls a model — a deterministic station omitting it fails invisibly otherwise.
-        secrets: [
-          { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
-          ...(cfg.needs_model ? AGENT_SECRETS : []),
-        ],
-      },
+      resources: stationResources(cfg),
     },
   };
 }
@@ -247,19 +251,7 @@ export function buildStationStation(
             {
               name: "agent",
               image: STATION_IMAGE_SENTINEL,
-              // Same explicit ephemeral-storage as the agent template: ingest/validate stations clone the repo too, and Autopilot's 1Gi undeclared default is the eviction line.
-              resources: {
-                requests: {
-                  cpu: "250m",
-                  memory: "512Mi",
-                  "ephemeral-storage": "2Gi",
-                },
-                limits: {
-                  cpu: "1",
-                  memory: "1Gi",
-                  "ephemeral-storage": "4Gi",
-                },
-              },
+              resources: POD_RESOURCES,
             },
           ],
         },
@@ -311,6 +303,34 @@ function applyHelmGuards(body: string): string {
     );
 }
 
+/** One CR as YAML. `resource-policy: keep` because a helm uninstall must not take the recipes with it, and block scalars are LITERAL (`|`) rather than folded (`>-`) — folding would rewrap a prompt's indented JSON and code blocks, silently changing the recipe the pod runs. */
+function renderCr(cr: AgentDefinition | Station): string {
+  return stringify(
+    {
+      ...cr,
+      metadata: {
+        ...cr.metadata,
+        namespace: NAMESPACE_SENTINEL,
+        annotations: { "helm.sh/resource-policy": "keep" },
+      },
+    },
+    { blockQuote: "literal" },
+  );
+}
+
+/** Turns the sentinels back into Helm value references. They exist because the catalog is BUILT as valid YAML first — templating `{{ ... }}` straight into it would not parse, and a mis-quoted template only fails at deploy time. */
+function substituteHelmValues(body: string): string {
+  return applyHelmGuards(body)
+    .replaceAll(LLM_SECRET_SENTINEL, "{{ .Values.agentLlmSecretKey }}")
+    .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
+    .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")
+    .replaceAll(SKILLS_SOURCE_SENTINEL, "{{ .Values.loreSkillsUrl }}")
+    .replaceAll(API_URL_SENTINEL, "{{ .Values.loreApiUrl }}")
+    .replaceAll(GKE_DGRAPH_URL, "{{ .Values.dgraphUrl }}")
+    .replaceAll(NAMESPACE_SENTINEL, "{{ .Values.namespace }}")
+    .replaceAll(STATION_IMAGE_SENTINEL, "{{ .Values.stationImage }}");
+}
+
 export function catalogChartYaml(
   taskTypes: Record<string, AgentCatalogConfig>,
   stationTypes: Record<string, StationCatalogConfig> = {},
@@ -321,29 +341,7 @@ export function catalogChartYaml(
     "# applied server-side by the catalog-seed pre-upgrade hook (templates/catalog-seed-job.yaml),\n" +
     "# which runs AFTER the CRD hook so a lagging schema cannot prune these fields (#1468).\n" +
     "# .Values.seedCatalog gates the hook, not this file.\n";
-  const docs = buildCatalog(taskTypes, stationTypes).map((cr) =>
-    stringify(
-      {
-        ...cr,
-        metadata: {
-          ...cr.metadata,
-          namespace: NAMESPACE_SENTINEL,
-          annotations: { "helm.sh/resource-policy": "keep" },
-        },
-      },
-      // Literal (`|`), never folded (`>-`): folding would rewrap a prompt's indented JSON/code blocks, silently changing the recipe the pod runs.
-      { blockQuote: "literal" },
-    ),
-  );
-  const body = `${header}---\n${docs.join("---\n")}`;
+  const docs = buildCatalog(taskTypes, stationTypes).map(renderCr);
 
-  return applyHelmGuards(body)
-    .replaceAll(LLM_SECRET_SENTINEL, "{{ .Values.agentLlmSecretKey }}")
-    .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
-    .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")
-    .replaceAll(SKILLS_SOURCE_SENTINEL, "{{ .Values.loreSkillsUrl }}")
-    .replaceAll(API_URL_SENTINEL, "{{ .Values.loreApiUrl }}")
-    .replaceAll(GKE_DGRAPH_URL, "{{ .Values.dgraphUrl }}")
-    .replaceAll(NAMESPACE_SENTINEL, "{{ .Values.namespace }}")
-    .replaceAll(STATION_IMAGE_SENTINEL, "{{ .Values.stationImage }}");
+  return substituteHelmValues(`${header}---\n${docs.join("---\n")}`);
 }

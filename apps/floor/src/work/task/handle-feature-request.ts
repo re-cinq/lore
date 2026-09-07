@@ -1,3 +1,4 @@
+import { specFilePrompts } from "./feature-request-prompts.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { Llm } from "@re-cinq/lore-shared";
@@ -120,16 +121,49 @@ async function recordSpecPr(input: {
   ).catch(() => {});
 }
 
-export async function handleFeatureRequest({
-  task,
-  targetRepo,
-  branchName,
-  model,
-  issueNumber,
-}: TaskHandlerInput): Promise<void> {
-  const project = await projectFor(targetRepo);
+/** Opens the PR, then records it against the task. Kept together and in this order: a spec PR with no task row is invisible to every later step, while a row pointing at a PR that failed to open would strand the task. */
+async function publishSpecPr(
+  where: {
+    project: Awaited<ReturnType<typeof projectFor>>;
+    targetRepo: string;
+    branchName: string;
+    featureSlug: string;
+  },
+  what: {
+    task: TaskHandlerInput["task"];
+    issueNumber: number | null;
+    pmIntent: string;
+    committed: string[];
+  },
+): Promise<{ url: string }> {
+  const pr = await openSpecPr({
+    project: where.project,
+    branchName: where.branchName,
+    featureSlug: where.featureSlug,
+    ...what,
+  });
 
-  const pmIntent = task.description;
+  await recordSpecPr({
+    targetRepo: where.targetRepo,
+    branchName: where.branchName,
+    ...what,
+    pr,
+  });
+
+  return pr;
+}
+
+/** Plans the artifacts, creates the branch, and commits what the model wrote. An empty branch is a failure rather than an empty feature — the PR would ask a human to review nothing. */
+async function buildSpecBranch(
+  where: {
+    project: Awaited<ReturnType<typeof projectFor>>;
+    targetRepo: string;
+    branchName: string;
+    pmIntent: string;
+  },
+  run: { model: string | undefined; taskId: string },
+): Promise<{ featureSlug: string; committed: string[] }> {
+  const { project, targetRepo, branchName, pmIntent } = where;
   const { contextStr, featureSlug, specFiles } = await planSpecGeneration(
     targetRepo,
     pmIntent,
@@ -141,8 +175,8 @@ export async function handleFeatureRequest({
     project,
     branchName,
     contextStr,
-    model,
-    taskId: task.id,
+    model: run.model,
+    taskId: run.taskId,
   });
 
   enforceTrue(
@@ -150,25 +184,28 @@ export async function handleFeatureRequest({
     Error,
     "Failed to generate any spec artifacts",
   );
-  const pr = await openSpecPr({
-    project,
-    branchName,
-    featureSlug,
-    pmIntent,
-    committed,
-    task,
-    issueNumber,
-  });
 
-  await recordSpecPr({
-    targetRepo,
-    branchName,
-    task,
-    issueNumber,
-    pmIntent,
-    committed,
-    pr,
-  });
+  return { featureSlug, committed };
+}
+
+export async function handleFeatureRequest({
+  task,
+  targetRepo,
+  branchName,
+  model,
+  issueNumber,
+}: TaskHandlerInput): Promise<void> {
+  const project = await projectFor(targetRepo);
+  const pmIntent = task.description;
+  const { featureSlug, committed } = await buildSpecBranch(
+    { project, targetRepo, branchName, pmIntent },
+    { model, taskId: task.id },
+  );
+
+  const pr = await publishSpecPr(
+    { project, targetRepo, branchName, featureSlug },
+    { task, issueNumber, pmIntent, committed },
+  );
 
   console.log(
     `[floor] Task ${task.id} → PR ${pr.url} (${committed.length} spec artifacts)`,
@@ -191,43 +228,57 @@ async function specFormatExample(targetRepo: string): Promise<string> {
 }
 
 /** Generate each artifact and commit it; a file the model declines to write is skipped, and one failure does not cost the others. */
+/** Everything a spec artifact needs to reach the branch: where it goes, and what the model is told. */
+interface SpecCommitContext {
+  project: Awaited<ReturnType<typeof projectFor>>;
+  branchName: string;
+  contextStr: string;
+  model: string | undefined;
+  taskId: string;
+}
+
+/** Generates one artifact and commits it. Returns false when the model declines to write the file — an optional artifact (a feature with no data-model change) is a real answer, not a failure. */
+async function commitOneSpec(
+  file: { path: string; prompt: string },
+  ctx: SpecCommitContext,
+): Promise<boolean> {
+  const text = await generateSpecFileContent(
+    file,
+    ctx.contextStr,
+    ctx.model,
+    ctx.taskId,
+  );
+
+  if (text === null) {
+    console.log(`[floor] Feature request: skipping ${file.path} (not needed)`);
+
+    return false;
+  }
+  await ctx.project.repo.commitFile(
+    ctx.branchName,
+    file.path,
+    text,
+    `lore: add ${file.path}`,
+  );
+  console.log(
+    `[floor] Feature request: committed ${file.path} (${text.length} chars)`,
+  );
+
+  return true;
+}
+
+/** Generate each artifact and commit it; one failure does not cost the others — a spec.md is worth opening a PR for even when the data-model generation failed. */
 async function commitGeneratedSpecs(
   files: { path: string; prompt: string }[],
-  ctx: {
-    project: Awaited<ReturnType<typeof projectFor>>;
-    branchName: string;
-    contextStr: string;
-    model: string | undefined;
-    taskId: string;
-  },
+  ctx: SpecCommitContext,
 ): Promise<string[]> {
   const committed: string[] = [];
 
   for (const file of files) {
     try {
-      const text = await generateSpecFileContent(
-        file,
-        ctx.contextStr,
-        ctx.model,
-        ctx.taskId,
-      );
-
-      if (text === null) {
-        console.log(
-          `[floor] Feature request: skipping ${file.path} (not needed)`,
-        );
-        continue;
+      if (await commitOneSpec(file, ctx)) {
+        committed.push(file.path);
       }
-      await ctx.project.repo.commitFile(
-        ctx.branchName,
-        file.path,
-        text,
-        `lore: add ${file.path}`,
-      );
-      committed.push(file.path);
-      console.log(
-        `[floor] Feature request: committed ${file.path} (${text.length} chars)`,
-      );
     } catch (err) {
       console.error(
         `[floor] Feature request: failed ${file.path}: ${errorMessage(err)}`,
@@ -239,63 +290,3 @@ async function commitGeneratedSpecs(
 }
 
 /** The three artifacts a feature request becomes, and what each one asks for. */
-function specFilePrompts(
-  pmIntent: string,
-  existingSpecExample: string,
-): { path: string; prompt: string }[] {
-  const featureSlug = slugify(pmIntent);
-
-  return [
-    {
-      path: `specs/${featureSlug}/spec.md`,
-      prompt: `Write a feature specification for the following product request.
-
-The PM said: "${pmIntent}"
-
-Write a proper engineering spec with these sections:
-- Problem Statement (what problem does this solve for users?)
-- Vision (what does the end state look like?)
-- User Scenarios & Acceptance Criteria (concrete flows with testable criteria)
-- Functional Requirements (numbered, testable)
-- Non-Functional Requirements (performance, security if relevant)
-- Out of Scope (what this does NOT include)
-- Key Entities (data model implications)
-- Success Criteria (measurable outcomes)
-- Assumptions
-
-Match the conventions and style of this repository. Be specific to the actual tech stack and architecture described in CLAUDE.md.${existingSpecExample}`,
-    },
-    {
-      path: `specs/${featureSlug}/data-model.md`,
-      prompt: `Based on this feature request, define the data model changes needed.
-
-The PM said: "${pmIntent}"
-
-If the feature requires new tables, fields, or relationships, document them with:
-- Table name, fields, types, constraints
-- Relationships to existing entities
-- Migration notes
-
-If no data model changes are needed, respond with just "SKIP".
-
-Look at the existing schema in CLAUDE.md and any existing data models for conventions.`,
-    },
-    {
-      path: `specs/${featureSlug}/tasks.md`,
-      prompt: `Create a task breakdown for implementing this feature.
-
-The PM said: "${pmIntent}"
-
-Generate tasks in checklist format:
-- [ ] T001 [P] Description with file path
-- [ ] T002 Description with file path
-
-Organize into phases:
-- Phase 1: Setup (project scaffolding, dependencies)
-- Phase 2: Core (main implementation)
-- Phase 3: Integration (wiring, testing, polish)
-
-Mark parallelizable tasks with [P]. Include file paths based on the actual project structure visible in the repo context. Each task must be specific enough for an engineer (or AI agent) to execute without additional context.`,
-    },
-  ];
-}

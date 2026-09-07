@@ -1,5 +1,11 @@
 /** The event registry (layer 2 → layer 3): maps a fully-qualified event_name to exactly one handler; a producer emitting an unregistered name dead-letters with "no handler". */
 
+import {
+  codeReviewOnTrigger,
+  codeReviewOnComment,
+  codeReviewOnReviewSubmitted,
+  codeReviewOnClose,
+} from "../../work/review/code-review-handlers.js";
 import type { EventHandler } from "../../domain/event-types.js";
 import * as github from "../handlers/github.js";
 import * as internal from "../handlers/internal.js";
@@ -18,12 +24,7 @@ import {
   podLogAppended,
   telemetryPrune,
 } from "../../work/station/pod-log-handler.js";
-import {
-  codeReviewOnTrigger,
-  codeReviewOnComment,
-  codeReviewOnReviewSubmitted,
-  codeReviewOnClose,
-} from "../../work/review/code-review.js";
+import {} from "../../work/review/code-review.js";
 
 /** Compose one primary handler with best-effort secondaries under one event name; the primary's throw propagates (retry/dead-letter unchanged), a secondary's is logged and swallowed. */
 export function withExtra(
@@ -44,16 +45,17 @@ export function withExtra(
   };
 }
 
-export function buildRegistry(): Map<string, EventHandler> {
-  return new Map<string, EventHandler>([
-    // ── GitHub (layer 1: floor webhook ingress) ──
+type Entry = [string, EventHandler];
+
+/** Layer 1's webhook ingress. `withExtra` rides a second handler alongside the first so neither can break the other — a spec-task sync must not be lost because a parked line failed to wake, or vice versa. */
+function githubEntries(): Entry[] {
+  return [
     ["github.pull_request.opened", codeReviewOnTrigger],
     ["github.pull_request.synchronize", codeReviewOnTrigger],
     ["github.pull_request.reopened", codeReviewOnTrigger],
     ["github.pull_request.ready_for_review", codeReviewOnTrigger],
     [
       "github.pull_request.closed",
-      // specPrResumeLine wakes a line parked on `merged`; rides as EXTRA so it can't break the spec-task sync, or vice versa.
       withExtra(github.specPrMerge, github.specPrResumeLine, codeReviewOnClose),
     ],
     [
@@ -65,29 +67,37 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["github.check_suite.completed", github.autoMerge],
     ["github.issue_comment.created", codeReviewOnComment],
     ["github.issues.labeled", github.issuesLabeled],
+  ];
+}
 
-    // ── Internal (mcp-server post-ingest) ──
+/** mcp-server's post-ingest triggers, plus the assembly-run family. The run events go through their CONSTANTS, so the entries track whatever the writers emit; the pre-rename `assembly_line.*` spellings were deleted in #1272 — a frozen wire value is written literal (FR6.44), the constant beside it is what moves. */
+function internalEntries(): Entry[] {
+  return [
     ["internal.ingest.spec_trace", internal.specTrace],
     ["internal.repo.team_changed", internal.repoTeamChanged],
     // FR5 (specs/ingest-station): post-ingest validate rides the SAME detect tick as the weekly cron; params.repo narrows it, core runs in a station pod.
     ["internal.ingest.spec_coverage_validate", detect.specCoverageValidateTick],
-
-    // ── Assembly lines (project.assemblyRuns.start() inserts row + event atomically; through the constant so the entry tracks whatever the writers emit) ──
     [RUN_START_EVENT, assemblyLineStart],
     // A HUMAN station's worker reporting in (planning wizard or spec-PR webhook): same two steps as a terminal CR.
     [RUN_RESUME_EVENT, assemblyLineResume],
-    // Pre-rename `assembly_line.*` entries deleted 2026-08-18 (#1272): a frozen wire value is spelled LITERAL (FR6.44), the constant beside it is what moves.
+  ];
+}
 
-    // ── Kubernetes (the Agent-CR watch emits on terminal phase) ──
+/** What the Agent-CR watch reports. Pod stdout is persisted here because the live read and the Cloud Logging fallback are both central-only — a satellite's run has no other log path. */
+function kubernetesEntries(): Entry[] {
+  return [
     ["kubernetes.agent.succeeded", kubernetes.agentSucceeded],
     ["kubernetes.agent.failed", kubernetes.agentFailed],
     // Assembly-line node CRs (labeled): the event-driven walk's transitions.
     ["kubernetes.agent_node.succeeded", agentNodeTerminal],
     ["kubernetes.agent_node.failed", agentNodeTerminal],
-    // Run-pod stdout, batched by the cluster-agent; persisted because the live read + Cloud Logging fallback are both central-only, so a satellite's run has no other log path.
     ["kubernetes.pod_log.appended", podLogAppended],
+  ];
+}
 
-    // ── Cron (in-process scheduler emits the tick; loop runs it) ──
+/** The in-process scheduler's ticks. The last four fan out: one tick starts one per-repo assembly line each, rather than doing the detection work in the handler. */
+function cronEntries(): Entry[] {
+  return [
     ["cron.merge_check.tick", cron.mergeCheck],
     ["cron.implementation_loop.tick", implementationLoopTick],
     ["cron.pr_ready_check.tick", cron.prReadyCheck],
@@ -101,12 +111,19 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["cron.agent_watcher_reconcile.tick", cron.agentWatcherReconcile],
     ["cron.lease_reaper.tick", cron.leaseReaper],
     ["cron.events_prune.tick", cron.eventsPrune],
-
-    // ── Detection fan-out (tick → one per-repo assembly-line start each) ──
     ["cron.gap_detection.tick", detect.gapDetectionTick],
     ["cron.spec_drift.tick", detect.specDriftTick],
     ["cron.spec_coverage_backfill.tick", cron.specCoverageBackfill],
     ["cron.spec_coverage_validate.tick", detect.specCoverageValidateTick],
+  ];
+}
+
+export function buildRegistry(): Map<string, EventHandler> {
+  return new Map<string, EventHandler>([
+    ...githubEntries(),
+    ...internalEntries(),
+    ...kubernetesEntries(),
+    ...cronEntries(),
   ]);
 }
 

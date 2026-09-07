@@ -65,6 +65,33 @@ export const featurePlanningReaper = fromJob(featurePlanningReaperJob);
 export const leaseReaper = fromJob(() => leaseReaperJob());
 
 /** Liveness bound: resolve dropped node events, requeue orphans, time out stuck nodes. */
+/** The reaper's own reads. `offlineClusterAgents` performs FR4's sweep in one step — flip the silent agents to offline, then answer with who is offline — because the requeue that follows must act on the set the flip just produced, not on a snapshot taken before it. */
+type AuditEntry = { event_type: string; payload: Record<string, unknown> };
+
+function reaperPorts(
+  taskStore: typeof import("../../outbound/queues.js").taskStore,
+  clusterAgents: typeof import("../../outbound/queues.js").clusterAgents,
+  centralClusterAgentName: () => string,
+  writeAuditLog: (entry: AuditEntry) => Promise<void>,
+) {
+  return {
+    taskStatus: async (taskId: string) =>
+      (await taskStore().getById(taskId))?.status ?? null,
+    offlineClusterAgents: async (cutoff: Date) => {
+      await clusterAgents().markOffline(cutoff);
+      const all = await clusterAgents().list();
+
+      return new Set(
+        all.filter((a) => a.status === "offline").map((a) => a.id),
+      );
+    },
+    audit: (entry: AuditEntry) => writeAuditLog(entry),
+    listClusterAgents: () => clusterAgents().list(),
+    centralClusterAgentId: async () =>
+      (await clusterAgents().findByName(centralClusterAgentName()))?.id ?? null,
+  };
+}
+
 export const assemblyLineReaper: EventHandler = async () => {
   const [
     { assemblyLineReaperJob, centralClusterAgentName },
@@ -78,21 +105,12 @@ export const assemblyLineReaper: EventHandler = async () => {
   const { writeAuditLog } = await import("../../outbound/audit.js");
   const summary = await assemblyLineReaperJob({
     ...(await productionNodeEventDeps()),
-    taskStatus: async (taskId) =>
-      (await taskStore().getById(taskId))?.status ?? null,
-    // FR4's offline sweep: flip the silent, then requeue what the dead held.
-    offlineClusterAgents: async (cutoff) => {
-      await clusterAgents().markOffline(cutoff);
-      const all = await clusterAgents().list();
-
-      return new Set(
-        all.filter((a) => a.status === "offline").map((a) => a.id),
-      );
-    },
-    audit: (entry) => writeAuditLog(entry),
-    listClusterAgents: () => clusterAgents().list(),
-    centralClusterAgentId: async () =>
-      (await clusterAgents().findByName(centralClusterAgentName()))?.id ?? null,
+    ...reaperPorts(
+      taskStore,
+      clusterAgents,
+      centralClusterAgentName,
+      writeAuditLog,
+    ),
   });
 
   if (

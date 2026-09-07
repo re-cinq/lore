@@ -101,19 +101,13 @@ async function resolveOrCreateIssueNumber(
   return createNoChangeIssue(target, logsRef);
 }
 
-async function recordNoChangeCompletion(
+/** A no-change run is still worth remembering: the episode records that this task type asked for work already done, which is what stops the same request being filed again. The notification only fires when there is an Issue to point at. */
+async function announceNoChange(
   ctx: AgentContext,
-  taskUrl: ReturnType<typeof taskPageUrl>,
   targetRepo: string,
   issueNumber: number | null,
 ): Promise<void> {
   const { taskId, taskType, description, output } = ctx;
-
-  await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
-  await taskStore().recordEvent(taskId, "running", "completed", {
-    no_changes: true,
-    issue_number: issueNumber,
-  });
 
   if (issueNumber) {
     await notifyTaskUpdate(
@@ -134,6 +128,23 @@ async function recordNoChangeCompletion(
   console.log(
     `[agent-watcher] Task ${taskId} completed → issue #${issueNumber || "none"}`,
   );
+}
+
+async function recordNoChangeCompletion(
+  ctx: AgentContext,
+  taskUrl: ReturnType<typeof taskPageUrl>,
+  targetRepo: string,
+  issueNumber: number | null,
+): Promise<void> {
+  const { taskId } = ctx;
+
+  await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
+  await taskStore().recordEvent(taskId, "running", "completed", {
+    no_changes: true,
+    issue_number: issueNumber,
+  });
+
+  await announceNoChange(ctx, targetRepo, issueNumber);
 }
 
 /** Closes out a succeeded no-changes task, routing the result through its GitHub Issue. */
