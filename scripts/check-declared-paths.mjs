@@ -272,6 +272,12 @@ function checkInvocations(file, pkgDirs) {
   const text = readFileSync(file, "utf8");
   const rel = file.slice(ROOT.length + 1);
 
+  // A file inside a package that was never built cannot be checked against its
+  // own output — checkManifest already reports that package as skipped, and the
+  // two checks must agree about what "not built" means.
+  const owner = pkgDirs.find((d) => file.startsWith(d + "/"));
+  if (owner && !existsSync(join(owner, "dist"))) return;
+
   for (const m of text.matchAll(COMPILED_PATH)) {
     const distPath = m[1];
     // The command does not say which package it runs in, so accept it if ANY
@@ -361,7 +367,10 @@ const scanned = ["infra", "charts", "apps", "libs", ".github", "scripts"]
   .flatMap((d) => walk(d))
   // package.json is excluded: checkManifest already reads those fields, and it
   // knows to skip a package that was never built.
-  .filter((f) => /Dockerfile|\.(ya?ml|sh|json)$/.test(f))
+  // `.mjs`/`.js` included since #1826: a script that IMPORTS compiled output is
+  // exactly as path-fragile as a chart that runs it, and list-tests.mjs took the
+  // spec-traceability ingest down for three days because nothing looked here.
+  .filter((f) => /Dockerfile|\.(ya?ml|sh|json|mjs|cjs|js)$/.test(f))
   .filter(
     (f) => !f.endsWith("package.json") && !f.endsWith("package-lock.json"),
   );
