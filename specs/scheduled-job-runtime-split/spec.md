@@ -271,7 +271,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 - **FR9.3 — `memory_ttl` is the first job to move.** Its 14 lines around one
   `expireMemories()` call, and the CronJob pod built from the Floor's image that
   ran them, are deleted; the schedule is unchanged. The registry in
-  ``maintenance.ts`` is where the remaining data jobs land as they follow.
+  `maintenance.ts` is where the remaining data jobs land as they follow.
 
 - **FR10 — The chart's job names and the dispatch map may not drift.** Every
   `cronJobs[].job` in `floor-helm/values.yaml` MUST resolve in the runner's

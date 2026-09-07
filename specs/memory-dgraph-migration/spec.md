@@ -50,7 +50,7 @@ vector workload to a graph DB with no vectors would be a mistake; Dgraph
 Move the `memory` schema to **Dgraph** behind a `MemoryStore` interface
 seam, mirroring the existing backend-interface pattern
 ([`lease-backends.ts`](libs/shared/src/outbound/project/leases/lease-backends.ts)
-`LeaseBackend`, ``platform.ts``
+`LeaseBackend`, `platform.ts`
 `CodePlatform`). Postgres stays for everything else — `pipeline.*`,
 `lore.*`, and the per-team `{schema}.chunks` repo-context tables. Only
 the `memory` schema moves.

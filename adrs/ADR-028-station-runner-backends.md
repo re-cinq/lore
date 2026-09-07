@@ -51,7 +51,7 @@ pod. Prod must keep working unchanged on its K8s cluster.
   StationBackend` (launch → existing `createLoreTask`). **Prod is byte-identical.**
 - **Docker adapter** (`docker-station.ts`):
   `docker run --network host` the same image, env from the shared
-  ``stationPlainEnv`` (so the two
+  `stationPlainEnv` (so the two
   backends can't drift), `GITHUB_TOKEN` minted in-process via
   `GitHubPlatform.getInstallationToken()`, LLM cred via `ANTHROPIC_API_KEY` or a
   mounted `~/.claude`. Secrets pass by-reference (`-e NAME`) so they stay out of
