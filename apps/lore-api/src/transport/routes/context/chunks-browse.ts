@@ -2,20 +2,10 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../http/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
-import { z } from "zod";
-import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
-import {
-  ChunkSchema,
-  CHUNK_COLUMNS,
-} from "@re-cinq/lore-shared/models/chunk.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import {
-  clampedLimit,
-  offsetParam,
-  DB_UNAVAILABLE,
-} from "../common-schemas.js";
+import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { buildChunkUnionQuery } from "../../../work/chunks/chunk-union.js";
 import {
   SCHEMA_RE,
@@ -28,22 +18,14 @@ import { memoizeWithTtl } from "../../../work/chunks/ttl-memo.js";
 
 const SCHEMA_CATALOG_TTL_MS = 30_000;
 
-const ChunksQuery = z.object({
-  repo: z.string().max(200).optional(),
-  type: z.string().max(80).optional(),
-  q: z.string().max(500).optional(),
-  limit: clampedLimit.default(50),
-  offset: offsetParam,
-});
-
-type ChunksQuery = z.infer<typeof ChunksQuery>;
-
-const ByPathQuery = z.object({
-  path: z.string().min(1).max(500),
-  repo: z.string().max(200).optional(),
-});
-
-type ByPathQuery = z.infer<typeof ByPathQuery>;
+import {
+  ByPathQuery,
+  ChunkByPathSchema,
+  ChunkListSchema,
+  ChunkSummarySchema,
+  ChunkTypeListSchema,
+  ChunksQuery,
+} from "./chunks-browse-schemas.js";
 
 /** Schemas that actually hold a `chunks` table, read from the catalog. */
 function schemaReaders(pool: Pool) {
@@ -87,44 +69,6 @@ function schemaReaders(pool: Pool) {
   return { getChunkSchemas, repoSchema };
 }
 
-/** Chunk browse read model: content preview + rank are computed, rest derived from schema. */
-const ChunkBrowseSchema = wireSchema(
-  ChunkSchema.pick({
-    id: true,
-    filePath: true,
-    contentType: true,
-    repo: true,
-    metadata: true,
-    content: true,
-    ingestedAt: true,
-  }),
-  CHUNK_COLUMNS,
-).extend({
-  /** `ts_rank` against the search query; 0 when the caller passed none. */
-  rank: z.number().optional(),
-});
-
-const ChunkListSchema = z.object({ chunks: z.array(ChunkBrowseSchema) });
-
-const ChunkByPathSchema = z.object({
-  chunks: z.array(
-    z.object({
-      id: z.string(),
-      content_type: z.string().nullable(),
-      content: z.string(),
-      metadata: z.record(z.unknown()).nullable(),
-      repo: z.string().nullable(),
-    }),
-  ),
-});
-
-const ChunkTypeListSchema = z.object({ types: z.array(z.string()) });
-
-const ChunkSummarySchema = z.object({
-  count: z.number(),
-  convention_files: z.array(z.string()),
-});
-
 export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     listChunksRoute(getPool),
@@ -132,6 +76,53 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     chunkSummaryRoute(getPool),
     chunksByPathRoute(getPool),
   ];
+}
+
+/** One repo's chunks read from its own schema — no union needed, so this path skips the cross-schema query entirely. */
+async function readRepoChunks(
+  pool: Pool,
+  schema: string,
+  page: {
+    repo: string;
+    type?: string;
+    q?: string;
+    orderBy: string;
+    pageSize: number;
+    offset: number;
+  },
+): Promise<Record<string, unknown>[]> {
+  const { rows } = await pool.query(
+    `SELECT id, file_path, content_type, repo, metadata,
+                  substring(content, 1, 300) as content, ingested_at,
+                  CASE WHEN $3::text IS NULL THEN 0
+                       ELSE ts_rank(search_tsv, websearch_to_tsquery('english', $3)) END as rank
+             FROM ${schema}.chunks
+            WHERE repo = $1
+              AND ($2::text IS NULL OR content_type = $2)
+              AND ($3::text IS NULL OR search_tsv @@ websearch_to_tsquery('english', $3))
+            ORDER BY ${page.orderBy}
+            LIMIT ${page.pageSize} OFFSET ${page.offset}`,
+    [page.repo, page.type || null, page.q || null],
+  );
+
+  return rows;
+}
+
+/** Every team schema at once, for a browse with no repo selected. A deployment with no chunk schemas yet returns nothing rather than failing. */
+async function readUnionChunks(
+  pool: Pool,
+  schemas: string[],
+  select: Parameters<typeof buildChunkUnionQuery>[1],
+  page: { orderBy: string; limit: number },
+): Promise<Record<string, unknown>[]> {
+  const union = buildChunkUnionQuery(schemas, select, [], page);
+
+  if (union === null) {
+    return [];
+  }
+  const { rows } = await pool.query(union.sql, union.params);
+
+  return rows;
 }
 
 function listChunksRoute(getPool: () => Pool | null): ServerRoute {
@@ -170,35 +161,24 @@ function listChunksRoute(getPool: () => Pool | null): ServerRoute {
       const orderBy = q ? "rank DESC, id DESC" : "ingested_at DESC, id DESC";
 
       if (repo) {
-        const schema = await repoSchema(repo);
-        const { rows } = await pool.query(
-          `SELECT id, file_path, content_type, repo, metadata,
-                  substring(content, 1, 300) as content, ingested_at,
-                  CASE WHEN $3::text IS NULL THEN 0
-                       ELSE ts_rank(search_tsv, websearch_to_tsquery('english', $3)) END as rank
-             FROM ${schema}.chunks
-            WHERE repo = $1
-              AND ($2::text IS NULL OR content_type = $2)
-              AND ($3::text IS NULL OR search_tsv @@ websearch_to_tsquery('english', $3))
-            ORDER BY ${orderBy}
-            LIMIT ${pageSize} OFFSET ${offset}`,
-          [repo, type || null, q || null],
-        );
+        const rows = await readRepoChunks(pool, await repoSchema(repo), {
+          repo,
+          type,
+          q,
+          orderBy,
+          pageSize,
+          offset,
+        });
 
         return h.response({ chunks: rows });
       }
 
-      const union = buildChunkUnionQuery(await getChunkSchemas(), select, [], {
-        orderBy,
-        limit: pageSize,
+      return h.response({
+        chunks: await readUnionChunks(pool, await getChunkSchemas(), select, {
+          orderBy,
+          limit: pageSize,
+        }),
       });
-
-      if (union === null) {
-        return h.response({ chunks: [] });
-      }
-      const { rows } = await pool.query(union.sql, union.params);
-
-      return h.response({ chunks: rows });
     },
   };
 }
