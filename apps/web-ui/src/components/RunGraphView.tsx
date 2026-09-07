@@ -26,20 +26,11 @@ export interface RunGraphViewProps {
 }
 
 // The mode-selected workflow graph. Pure render of a VisibleGraph.
-export default function RunGraphView({
-  graph,
-  definition,
-  onSelectNode,
-  heading = "Graph",
-}: RunGraphViewProps) {
-  if (graph.nodes.length === 0) {
-    return (
-      <p className={styles.empty}>
-        No assembly-line graph to show for this run.
-      </p>
-    );
-  }
-
+/** Everything geometric: where each node sits, how big the canvas has to be, and the lookups that let the drawing match a laid-out node back to its model. A node with no outgoing edge is terminal, which is read from the EDGES rather than from the node, because a definition does not mark its own ends. */
+function layoutRunGraph(
+  graph: RunGraphViewProps["graph"],
+  definition: RunGraphViewProps["definition"],
+) {
   const nodeHeight = nodeHeightFor(graph);
   const layout = layoutAssemblyLine(toLayoutDefinition(graph, definition), {
     nodeWidth: NODE_WIDTH,
@@ -54,6 +45,61 @@ export default function RunGraphView({
   );
   const nodesWithOutgoing = new Set(graph.edges.map((edge) => edge.from));
 
+  return {
+    layout,
+    view,
+    nodeHeight,
+    titleId,
+    nodeById,
+    edgeByPair,
+    nodesWithOutgoing,
+  };
+}
+
+/** A laid-out edge carries only its geometry, so its tone and whether the run took it are looked up from the model by endpoint pair. An edge with no model draws neutral rather than disappearing — the shape of the definition is worth showing even where the run has not reached it. */
+function GraphEdges({
+  edges,
+  edgeByPair,
+}: {
+  edges: ReturnType<typeof layoutAssemblyLine>["edges"];
+  edgeByPair: Map<string, RunGraphViewProps["graph"]["edges"][number]>;
+}) {
+  return (
+    <>
+      {edges.map((edge) => {
+        const model = edgeByPair.get(edgeMapKey(edge.from, edge.to));
+
+        return (
+          <GraphEdge
+            key={edgeMapKey(edge.from, edge.to)}
+            edge={edge}
+            tone={model?.tone ?? "neutral"}
+            taken={model?.taken}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+export default function RunGraphView({
+  graph,
+  definition,
+  onSelectNode,
+  heading = "Graph",
+}: RunGraphViewProps) {
+  if (graph.nodes.length === 0) {
+    return (
+      <p className={styles.empty}>
+        No assembly-line graph to show for this run.
+      </p>
+    );
+  }
+
+  const laid = layoutRunGraph(graph, definition);
+  const { layout, view, nodeHeight, titleId, nodeById, edgeByPair } = laid;
+  const nodesWithOutgoing = laid.nodesWithOutgoing;
+
   return (
     <section className={styles.panel}>
       {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
@@ -67,18 +113,7 @@ export default function RunGraphView({
         <title id={titleId}>{`Workflow graph (${graph.mode})`}</title>
         <ArrowMarkerDefs />
 
-        {layout.edges.map((edge) => {
-          const model = edgeByPair.get(edgeMapKey(edge.from, edge.to));
-
-          return (
-            <GraphEdge
-              key={edgeMapKey(edge.from, edge.to)}
-              edge={edge}
-              tone={model?.tone ?? "neutral"}
-              taken={model?.taken}
-            />
-          );
-        })}
+        <GraphEdges edges={layout.edges} edgeByPair={edgeByPair} />
 
         {layout.nodes.map((node) => (
           <GraphNode

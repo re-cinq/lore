@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import HelpPopover from "@/components/HelpPopover";
 import { EmptyState } from "@/components/EmptyState";
 import { formatCost, truncate, displayCreatedBy } from "@/lib/task-presenter";
@@ -98,6 +98,36 @@ function TaskAgentsToggle({
 }
 
 /** Shared sessions/agents table for `/agents` and the per-repo Agents tab; pure presentation, the container tags each row's `kind` via `classifyAgent`. */
+/** One agent's row. The "why" cell is present only when some agent HAS a reason — a column of dashes says less than no column. */
+function agentCells(
+  a: AgentsTableProps["agents"][number],
+  hasWhy: boolean,
+): ReactNode[] {
+  return [
+    <AgentLink agentId={a.agent_id} key="agent" />,
+    <span className="badge" key="kind">
+      {KIND_LABEL[a.kind]}
+    </span>,
+    <span className="meta" key="by">
+      {displayCreatedBy(a.created_by)}
+    </span>,
+    ...(hasWhy
+      ? [
+          <span key="why">
+            {a.reason_type && <span className="badge">{a.reason_type}</span>}{" "}
+            <span className="meta">{truncate(a.reason, 50)}</span>
+          </span>,
+        ]
+      : []),
+    a.task_count,
+    formatCost(a.cost_usd),
+    a.memory_count,
+    <span className="meta" key="active">
+      {a.last_active ? new Date(a.last_active).toLocaleString() : "—"}
+    </span>,
+  ];
+}
+
 export default function AgentsTable({
   agents,
   intro,
@@ -127,31 +157,7 @@ export default function AgentsTable({
             description="Agents appear as developers use the Lore MCP server. Per-task run agents stay behind the audit toggle."
           />
         }
-        cells={(a) => [
-          <AgentLink agentId={a.agent_id} key="agent" />,
-          <span className="badge" key="kind">
-            {KIND_LABEL[a.kind]}
-          </span>,
-          <span className="meta" key="by">
-            {displayCreatedBy(a.created_by)}
-          </span>,
-          ...(hasWhy
-            ? [
-                <span key="why">
-                  {a.reason_type && (
-                    <span className="badge">{a.reason_type}</span>
-                  )}{" "}
-                  <span className="meta">{truncate(a.reason, 50)}</span>
-                </span>,
-              ]
-            : []),
-          a.task_count,
-          formatCost(a.cost_usd),
-          a.memory_count,
-          <span className="meta" key="active">
-            {a.last_active ? new Date(a.last_active).toLocaleString() : "—"}
-          </span>,
-        ]}
+        cells={(a) => agentCells(a, hasWhy)}
       />
     </div>
   );

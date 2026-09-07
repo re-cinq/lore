@@ -100,6 +100,56 @@ function nodeInteraction(
   };
 }
 
+/** What the box says, in precedence order: a run badge when this visit has an outcome, else the outcomes the definition declares, else the plain name. A node cannot show both — the badge IS the run's answer, and listing the possibilities beside it would read as though they were still open. */
+function NodeBody({
+  badge,
+  outcomes,
+  title,
+  node,
+  top,
+  leftEdge,
+  isTerminal,
+}: {
+  badge: ReturnType<typeof computeBadge>;
+  outcomes: readonly string[];
+  title: string;
+  node: GraphNodeProps["node"];
+  top: number;
+  leftEdge: number;
+  isTerminal: boolean;
+}) {
+  if (badge) {
+    return (
+      <NodeRunBadge
+        title={title}
+        badge={badge}
+        leftEdge={leftEdge}
+        centerY={node.y}
+      />
+    );
+  }
+
+  if (outcomes.length > 0) {
+    return (
+      <NodeOutcomeList
+        title={title}
+        outcomes={outcomes}
+        leftEdge={leftEdge}
+        top={top}
+      />
+    );
+  }
+
+  return (
+    <NodePlainLabel
+      title={title}
+      centerX={node.x}
+      centerY={node.y}
+      isTerminal={isTerminal}
+    />
+  );
+}
+
 export default function GraphNode({
   node,
   model,
@@ -114,39 +164,6 @@ export default function GraphNode({
   const leftEdge = node.x - NODE_WIDTH / 2;
   const title = titleCase(node.id);
   const interaction = nodeInteraction(node.id, onSelect);
-
-  function body() {
-    if (badge) {
-      return (
-        <NodeRunBadge
-          title={title}
-          badge={badge}
-          leftEdge={leftEdge}
-          centerY={node.y}
-        />
-      );
-    }
-
-    if (outcomes.length > 0) {
-      return (
-        <NodeOutcomeList
-          title={title}
-          outcomes={outcomes}
-          leftEdge={leftEdge}
-          top={top}
-        />
-      );
-    }
-
-    return (
-      <NodePlainLabel
-        title={title}
-        centerX={node.x}
-        centerY={node.y}
-        isTerminal={isTerminal}
-      />
-    );
-  }
 
   return (
     <g
@@ -167,7 +184,15 @@ export default function GraphNode({
         height={height}
         rx={10}
       />
-      {body()}
+      <NodeBody
+        badge={badge}
+        outcomes={outcomes}
+        title={title}
+        node={node}
+        top={top}
+        leftEdge={leftEdge}
+        isTerminal={isTerminal}
+      />
     </g>
   );
 }
