@@ -166,9 +166,7 @@ async function checkMergeableTask(
 
 /** Onboarding PRs. Each repo is caught on its own — one repo whose PR cannot be read must not stop the sweep, because the next repo's merge is what unblocks its ingestion. */
 async function sweepOnboardingRepos(
-  repos: Awaited<
-    ReturnType<ReturnType<typeof settings>["pendingOnboardingRepos"]>
-  >,
+  repos: PendingOnboardingRepo[],
 ): Promise<number> {
   let mergedCount = 0;
   const bump: Record<OnboardingOutcome, () => void> = {

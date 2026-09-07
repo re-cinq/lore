@@ -178,7 +178,6 @@ export async function prReadyCheckSweep(
   return summarizeSweep(runs.length, tally);
 }
 
-/** Production entry — the manifest's run. Deps bound to the stations kernel. */
 /** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */
 /** Memoizes a per-repo read for the length of one sweep. The PROMISE is cached, not its value, so two PRs of the same repo asked concurrently still make one call. */
 function perRepo<T>(
@@ -269,6 +268,7 @@ function runReads(
   };
 }
 
+/** Production entry — the manifest's run. Deps bound to the stations kernel. */
 export async function prReadyCheckJob(): Promise<string> {
   const { pipeline, eventProxy } = await import("../../outbound/queues.js");
   const { queuedReporter } =
