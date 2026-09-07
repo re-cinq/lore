@@ -182,6 +182,15 @@ jobs:
           # the eslint-rules entry below documents.
           - name: scripts
             test: find scripts -name '*.test.mjs' -print0 | xargs -0 node --test
+          # Lockfile guard for the TypeScript 7 platform binaries. npm's lockfile
+          # rewrite drops the nested optional binaries of every platform but the
+          # writing machine's (npm/cli#4828); #1500 did that on Linux and every
+          # fresh Mac checkout lost `tsc` for two weeks while CI stayed green.
+          # Pure JSON read of package.json + package-lock.json, no build, so it
+          # fails the regenerating PR itself, on the runner that cannot
+          # otherwise notice.
+          - name: lockfile-platform-binaries
+            test: node scripts/check-lockfile-platform-binaries.mjs
           # The lint rules' OWN tests. Every rule in tools/eslint-plugin-lore has a
           # RuleTester suite, and until now nothing ran them — so a rule could start
           # over-reporting, stop reporting, or crash on an edge-case AST and nothing
