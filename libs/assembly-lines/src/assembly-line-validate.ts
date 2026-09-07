@@ -223,17 +223,14 @@ function backEdgeBoundedGuard(
   };
 }
 
-function detectCycles(wf: AssemblyLine, source: string): void {
-  const adj = outgoingEdges(wf);
-  const assertBackEdgeBounded = backEdgeBoundedGuard(wf, source);
-  const color = new Map<string, number>();
-
-  for (const n of wf.nodes) {
-    color.set(n.id, WHITE);
-  }
-
-  // Iterative DFS with an explicit stack (symmetric with the BFS above) so deeply-nested hand-authored YAML can't blow the call stack.
-  const walkDfsFrom = (startId: string): void => {
+/** Iterative DFS with an explicit stack (symmetric with the BFS above) so deeply-nested hand-authored YAML cannot blow the call stack. A GRAY target is a back-edge — the node is still on the stack — which is the only place the iteration bound is checked. */
+// eslint-disable-next-line max-lines-per-function -- one iterative traversal: the stack discipline and the three colour transitions are a single algorithm, and cutting it in half to save a line would hide where a back-edge is detected
+function dfsWalker(
+  adj: Map<string, AssemblyLineEdge[]>,
+  color: Map<string, number>,
+  assertBackEdgeBounded: (e: AssemblyLineEdge) => void,
+): (startId: string) => void {
+  return (startId) => {
     const stack: Array<{ id: string; edgeIndex: number }> = [
       { id: startId, edgeIndex: 0 },
     ];
@@ -263,6 +260,18 @@ function detectCycles(wf: AssemblyLine, source: string): void {
       }
     }
   };
+}
+
+function detectCycles(wf: AssemblyLine, source: string): void {
+  const adj = outgoingEdges(wf);
+  const assertBackEdgeBounded = backEdgeBoundedGuard(wf, source);
+  const color = new Map<string, number>();
+
+  for (const n of wf.nodes) {
+    color.set(n.id, WHITE);
+  }
+
+  const walkDfsFrom = dfsWalker(adj, color, assertBackEdgeBounded);
 
   for (const start of wf.nodes) {
     if (color.get(start.id) !== WHITE) {

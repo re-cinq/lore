@@ -244,36 +244,43 @@ export interface ClaimLoopDeps {
   onOutcome?: (outcome: ClaimOutcome) => void;
 }
 
+/** What each claim outcome means, and the one that needs action: an unauthorized claim means the per-agent token was rotated elsewhere, so this agent re-registers rather than looping on a credential it no longer holds. `already-running` is deliberately not an error — the CR exists, and its terminal event or the reaper settles the visit. */
+async function reportOutcome(
+  outcome: ClaimOutcome,
+  log: (message: string) => void,
+  deps: ClaimLoopDeps,
+): Promise<void> {
+  if (outcome.kind === "claimed") {
+    log(
+      `[cluster-agent] claimed station run ${outcome.stationRunId} → Agent CR ${outcome.crName}`,
+    );
+  }
+
+  if (outcome.kind === "already-running") {
+    log(
+      `[cluster-agent] station run ${outcome.stationRunId} claimed, but Agent CR ${outcome.crName} already exists — no new pod launched; the CR's terminal event or the reaper will settle the visit`,
+    );
+  }
+
+  if (outcome.kind === "error") {
+    log(`[cluster-agent] ${outcome.message}`);
+  }
+
+  if (outcome.kind === "unauthorized") {
+    log(
+      "[cluster-agent] claim unauthorized — per-agent token rotated elsewhere; re-registering",
+    );
+    await deps.reRegister();
+  }
+  deps.onOutcome?.(outcome);
+}
+
 export async function runClaimLoop(deps: ClaimLoopDeps): Promise<void> {
   const log = deps.log ?? ((message: string): void => console.log(message));
 
   await runPollLoop<ClaimOutcome>({
     tick: deps.claim,
-    onOutcome: async (outcome) => {
-      if (outcome.kind === "claimed") {
-        log(
-          `[cluster-agent] claimed station run ${outcome.stationRunId} → Agent CR ${outcome.crName}`,
-        );
-      }
-
-      if (outcome.kind === "already-running") {
-        log(
-          `[cluster-agent] station run ${outcome.stationRunId} claimed, but Agent CR ${outcome.crName} already exists — no new pod launched; the CR's terminal event or the reaper will settle the visit`,
-        );
-      }
-
-      if (outcome.kind === "error") {
-        log(`[cluster-agent] ${outcome.message}`);
-      }
-
-      if (outcome.kind === "unauthorized") {
-        log(
-          "[cluster-agent] claim unauthorized — per-agent token rotated elsewhere; re-registering",
-        );
-        await deps.reRegister();
-      }
-      deps.onOutcome?.(outcome);
-    },
+    onOutcome: (outcome) => reportOutcome(outcome, log, deps),
     isIdle: (outcome) => outcome.kind === "empty",
     delayFor: (outcome, idleTicks) =>
       nextClaimDelay(

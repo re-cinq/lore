@@ -235,23 +235,21 @@ function logSyncedOutcome(
   }
 }
 
-export async function runCatalogSyncLoop(
-  deps: CatalogSyncLoopDeps,
-): Promise<void> {
+/** The loop's position in the catalog stream. `resync` stays true until one sync actually LANDS — synced or empty — so a failed first poll does not eat the boot resync, and later polls tail from the acked cursor. An unauthorized outcome re-registers without advancing anything. */
+function syncCursor(deps: CatalogSyncLoopDeps) {
   let ack: string | undefined;
   let first = true;
-  // True until one sync actually LANDS (synced or empty), so a failed first poll does not eat the boot resync.
   let resync = true;
 
-  await runPollLoop<CatalogSyncOutcome>({
-    tick: async () => {
+  return {
+    tick: async (): Promise<CatalogSyncOutcome> => {
       const result = await deps.sync(ack, resync);
 
       ack = result.ack;
 
       return result.outcome;
     },
-    onOutcome: async (outcome) => {
+    absorb: async (outcome: CatalogSyncOutcome): Promise<void> => {
       if (outcome.kind === "unauthorized") {
         await deps.reRegister();
 
@@ -267,8 +265,6 @@ export async function runCatalogSyncLoop(
       if (outcome.kind === "synced") {
         logSyncedOutcome(outcome);
       }
-
-      // Reached only for synced/empty — resync landed, so later polls tail from the acked cursor.
       resync = false;
 
       if (first) {
@@ -276,6 +272,17 @@ export async function runCatalogSyncLoop(
         deps.onFirstSync?.();
       }
     },
+  };
+}
+
+export async function runCatalogSyncLoop(
+  deps: CatalogSyncLoopDeps,
+): Promise<void> {
+  const cursor = syncCursor(deps);
+
+  await runPollLoop<CatalogSyncOutcome>({
+    tick: () => cursor.tick(),
+    onOutcome: (outcome) => cursor.absorb(outcome),
     delayFor: (outcome, idleTicks) =>
       nextSyncDelay(deps.baseDelayMs, idleTicks, outcome.kind),
     isIdle: (outcome) => outcome.kind === "empty",

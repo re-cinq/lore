@@ -1,5 +1,6 @@
 // Per-task token provisioning IO (ADR-031 D6, #697) — orchestrates mint→PATCH→materialise-triple via three injected ports; pure transforms live in per-task-token.ts, this is the IO shell.
 
+import { isConflict } from "../lib/k8s-errors.js";
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import {
   agentsNamespace,
@@ -8,7 +9,6 @@ import {
 } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { TokenProvisioner } from "@re-cinq/lore-shared";
-import { isConflict, isNotFound } from "../lib/k8s-errors.js";
 import {
   tokenSecretKey,
   perTaskName,
@@ -17,13 +17,7 @@ import {
   perTaskStation,
 } from "@re-cinq/lore-shared";
 
-import {
-  GROUP,
-  VERSION,
-  AGENT_DEFINITION_PLURAL as DEF_PLURAL,
-  STATION_PLURAL,
-} from "../domain/crd.js";
-import { coreApi, customObjectsApi } from "./kube-clients.js";
+import { coreApi } from "./kube-clients.js";
 
 /** Mints a short-lived git token for a repo. */
 export interface TokenMinter {
@@ -51,6 +45,34 @@ export interface TokenCleanup {
   cleanup(taskId: string): Promise<void>;
 }
 
+/** Reclaims the same triple `cleanup(taskId)` does, but WARNS per failure — unlike cleanup's silent allSettled, a token stranded here is a live credential nobody will ever use. */
+async function reclaimProvision(
+  ports: {
+    secretName: string;
+    secrets: { deleteKey: (secret: string, key: string) => Promise<void> };
+    catalog: {
+      deleteStation: (name: string) => Promise<void>;
+      deleteAgentDefinition: (name: string) => Promise<void>;
+    };
+  },
+  ref: { key: string; name: string },
+): Promise<void> {
+  const reclaim: Array<[string, Promise<void>]> = [
+    [ref.key, ports.secrets.deleteKey(ports.secretName, ref.key)],
+    [ref.name, ports.catalog.deleteStation(ref.name)],
+    [ref.name, ports.catalog.deleteAgentDefinition(ref.name)],
+  ];
+  const settled = await Promise.allSettled(reclaim.map(([, p]) => p));
+
+  settled.forEach((result, i) => {
+    if (result.status === "rejected") {
+      console.warn(
+        `[cluster-agent] could not reclaim ${reclaim[i][0]} after a failed provision: ${errorMessage(result.reason)}`,
+      );
+    }
+  });
+}
+
 export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
   constructor(
     private readonly minter: TokenMinter,
@@ -59,6 +81,37 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
     private readonly secretName = process.env.LORE_AGENT_SECRETS_NAME ??
       "agent-secrets",
   ) {}
+
+  /** Station FIRST, the same invariant applyCatalogPair holds: writing the AgentDefinition last means it is never visible pointing at a Station that does not exist yet. */
+  private async writePair(input: {
+    catalogStation: Parameters<typeof perTaskStation>[0];
+    catalogDef: Parameters<typeof injectRepoToken>[0];
+    spec: LoreTaskSpec;
+    key: string;
+    name: string;
+  }): Promise<void> {
+    const { catalogStation, catalogDef, spec, key, name } = input;
+
+    await this.catalog.applyStation(
+      perTaskStation(catalogStation, name, name, spec.taskId),
+    );
+    await this.catalog.applyAgentDefinition(
+      injectRepoToken(catalogDef, spec, key, name),
+    );
+  }
+
+  /** Mints the run's repo token into `agent-secrets` and returns the key it landed under. */
+  private async mintToken(spec: LoreTaskSpec): Promise<string> {
+    const key = tokenSecretKey(spec.taskId);
+
+    await this.secrets.setKey(
+      this.secretName,
+      key,
+      await this.minter.mint(spec.targetRepo),
+    );
+
+    return key;
+  }
 
   async provision(spec: LoreTaskSpec): Promise<string | undefined> {
     const lookup = catalogLookupName(spec);
@@ -72,40 +125,22 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
       return undefined;
     }
 
-    const key = tokenSecretKey(spec.taskId);
-
-    await this.secrets.setKey(
-      this.secretName,
-      key,
-      await this.minter.mint(spec.targetRepo),
-    );
-
+    const key = await this.mintToken(spec);
     const name = perTaskName(spec.taskId);
 
     try {
-      // Station first, same invariant as applyCatalogPair — writing the AgentDefinition last means it is never visible pointing at a missing Station.
-      await this.catalog.applyStation(
-        perTaskStation(catalogStation, name, name, spec.taskId),
-      );
-      await this.catalog.applyAgentDefinition(
-        injectRepoToken(catalogDef, spec, key, name),
-      );
-    } catch (err) {
-      // Reclaims the same triple `cleanup(taskId)` does, but warns per failure — unlike cleanup's silent allSettled, a stuck token here is a live credential nobody uses.
-      const reclaim: Array<[string, Promise<void>]> = [
-        [key, this.secrets.deleteKey(this.secretName, key)],
-        [name, this.catalog.deleteStation(name)],
-        [name, this.catalog.deleteAgentDefinition(name)],
-      ];
-      const settled = await Promise.allSettled(reclaim.map(([, p]) => p));
+      await this.writePair({ catalogStation, catalogDef, spec, key, name });
 
-      settled.forEach((result, i) => {
-        if (result.status === "rejected") {
-          console.warn(
-            `[cluster-agent] could not reclaim ${reclaim[i][0]} after a failed provision: ${errorMessage(result.reason)}`,
-          );
-        }
-      });
+      return name;
+    } catch (err) {
+      await reclaimProvision(
+        {
+          secretName: this.secretName,
+          secrets: this.secrets,
+          catalog: this.catalog,
+        },
+        { key, name },
+      );
       throw err;
     }
 
@@ -209,113 +244,6 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
         if (isConflict(err) && attempt < 4) {
           continue;
         }
-        throw err;
-      }
-    }
-  }
-}
-
-export class KubeCatalogApi implements CatalogApi {
-  constructor(private readonly namespace = agentsNamespace()) {}
-
-  getAgentDefinition(name: string): Promise<AgentDefinition | null> {
-    return this.get<AgentDefinition>(DEF_PLURAL, name);
-  }
-  getStation(name: string): Promise<Station | null> {
-    return this.get<Station>(STATION_PLURAL, name);
-  }
-  applyAgentDefinition(def: AgentDefinition): Promise<void> {
-    return this.apply(DEF_PLURAL, def.metadata?.name ?? "", def);
-  }
-  applyStation(station: Station): Promise<void> {
-    return this.apply(STATION_PLURAL, station.metadata?.name ?? "", station);
-  }
-  deleteAgentDefinition(name: string): Promise<void> {
-    return this.del(DEF_PLURAL, name);
-  }
-  deleteStation(name: string): Promise<void> {
-    return this.del(STATION_PLURAL, name);
-  }
-
-  private async get<T>(plural: string, name: string): Promise<T | null> {
-    const api = customObjectsApi();
-
-    try {
-      return (await api.getNamespacedCustomObject({
-        group: GROUP,
-        version: VERSION,
-        namespace: this.namespace,
-        plural,
-        name,
-      })) as T;
-    } catch (err) {
-      if (isNotFound(err)) {
-        return null;
-      }
-      throw err;
-    }
-  }
-
-  // Create, or replace (carrying the live resourceVersion) when it already exists.
-  private async apply(
-    plural: string,
-    name: string,
-    body: object,
-  ): Promise<void> {
-    const api = customObjectsApi();
-
-    try {
-      await api.createNamespacedCustomObject({
-        group: GROUP,
-        version: VERSION,
-        namespace: this.namespace,
-        plural,
-        body,
-      });
-    } catch (err) {
-      if (!isConflict(err)) {
-        throw err;
-      }
-      const current = (await api.getNamespacedCustomObject({
-        group: GROUP,
-        version: VERSION,
-        namespace: this.namespace,
-        plural,
-        name,
-      })) as { metadata?: { resourceVersion?: string } };
-      const meta =
-        (body as { metadata?: Record<string, unknown> }).metadata ?? {};
-
-      await api.replaceNamespacedCustomObject({
-        group: GROUP,
-        version: VERSION,
-        namespace: this.namespace,
-        plural,
-        name,
-        body: {
-          ...body,
-          metadata: {
-            ...meta,
-            resourceVersion: current.metadata?.resourceVersion,
-          },
-        },
-      });
-    }
-  }
-
-  private async del(plural: string, name: string): Promise<void> {
-    const api = customObjectsApi();
-
-    try {
-      await api.deleteNamespacedCustomObject({
-        group: GROUP,
-        version: VERSION,
-        namespace: this.namespace,
-        plural,
-        name,
-      });
-    } catch (err) {
-      if (!isNotFound(err)) {
         throw err;
       }
     }

@@ -27,6 +27,26 @@ export interface PrunePlan {
 const isTerminal = (phase?: string): boolean =>
   phase === "Succeeded" || phase === "Failed";
 
+/** Whether a per-task recipe can go. Keyed on what SURVIVES this tick, not on what is being deleted — #1613 was the reverse, and a run whose recipe went missing died in one second. The age gate closes a second window: a clone is written BEFORE the CR that names it, so "nothing references it" is briefly true mid-dispatch. */
+function orphanTest(
+  input: PruneInput,
+  doomedAgents: string[],
+  expired: (createdAt: Date) => boolean,
+): (recipe: PrunableRecipe) => boolean {
+  const doomed = new Set(doomedAgents);
+  const stillReferenced = new Set(
+    input.agents
+      .filter((candidate) => !doomed.has(candidate.name))
+      .map((candidate) => candidate.stationRef)
+      .filter((ref): ref is string => ref !== undefined),
+  );
+
+  return (recipe) =>
+    recipe.name.startsWith(PER_TASK_PREFIX) &&
+    expired(recipe.createdAt) &&
+    !stillReferenced.has(recipe.name);
+}
+
 export function decidePrune(input: PruneInput): PrunePlan {
   const expired = (createdAt: Date): boolean =>
     input.now.getTime() - createdAt.getTime() > input.ttlMs;
@@ -39,20 +59,7 @@ export function decidePrune(input: PruneInput): PrunePlan {
     .slice(0, input.maxPerTick)
     .map((candidate) => candidate.name);
 
-  // What SURVIVES this tick is what may still be run from — #1613 showed the reverse: a run whose recipe went missing died in one second.
-  const doomed = new Set(agents);
-  const stillReferenced = new Set(
-    input.agents
-      .filter((candidate) => !doomed.has(candidate.name))
-      .map((candidate) => candidate.stationRef)
-      .filter((ref): ref is string => ref !== undefined),
-  );
-
-  const orphaned = (recipe: PrunableRecipe): boolean =>
-    recipe.name.startsWith(PER_TASK_PREFIX) &&
-    // The clone is written BEFORE the CR that names it, so "nothing references it" is briefly true mid-dispatch — the age gate closes that window.
-    expired(recipe.createdAt) &&
-    !stillReferenced.has(recipe.name);
+  const orphaned = orphanTest(input, agents, expired);
 
   return {
     agents,

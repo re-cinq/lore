@@ -58,27 +58,34 @@ export class KubeIdentityStore implements IdentityStore {
 }
 
 /** The CoreV1Api shell — the only part that touches the cluster. */
+/** The Secret's data, base64-decoded. A missing Secret is null rather than a throw: an agent that has never registered has none yet, which is the ordinary first-boot state. */
+async function readSecret(
+  core: ReturnType<typeof coreApi>,
+  namespace: string,
+  name: string,
+): Promise<Record<string, string> | null> {
+  try {
+    const secret = await core.readNamespacedSecret({ name, namespace });
+    const decoded: Record<string, string> = {};
+
+    for (const [key, value] of Object.entries(secret.data ?? {})) {
+      decoded[key] = Buffer.from(value, "base64").toString("utf8");
+    }
+
+    return decoded;
+  } catch (err) {
+    if (isNotFound(err)) {
+      return null;
+    }
+    throw err;
+  }
+}
+
 export function kubeIdentitySecretsApi(namespace: string): IdentitySecretsApi {
   const core = coreApi();
 
   return {
-    async read(name) {
-      try {
-        const secret = await core.readNamespacedSecret({ name, namespace });
-        const decoded: Record<string, string> = {};
-
-        for (const [key, value] of Object.entries(secret.data ?? {})) {
-          decoded[key] = Buffer.from(value, "base64").toString("utf8");
-        }
-
-        return decoded;
-      } catch (err) {
-        if (isNotFound(err)) {
-          return null;
-        }
-        throw err;
-      }
-    },
+    read: (name) => readSecret(core, namespace, name),
     async create(name, stringData) {
       await core.createNamespacedSecret({
         namespace,

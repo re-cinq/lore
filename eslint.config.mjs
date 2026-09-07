@@ -131,19 +131,19 @@ export default tseslint.config(
       "max-params": ["error", { max: 4 }],
       "lore/max-comment-lines": ["error", { max: 1 }],
       "lore/no-vague-names": "error",
-      // Enforced at 50 as of 2026-09-07: still a RATCHET, not the target. 50 is
-      // the strictest bound the repo currently meets, so it is the strictest one
-      // that can be red without blocking unrelated work; the target is still 20.
-      // A rule carries ONE severity, so nothing between 20 and 50 is reported any
-      // more — to see what is left against the target, set `max` to 20 here and
-      // run eslint, then put it back. Lower it for real as that queue drains (the
-      // 100 → 50 step was 134 functions, drained 2026-09-07; the 20 queue is
-      // unmeasured). Three functions carry an inline disable with the reason they
-      // are not split (a d3 canvas renderer, a test harness whose closures share
-      // state, and a composition root).
+      // 30 by default, with the packages still draining held at 50 in the
+      // override below — a RATCHET per package rather than one for the whole
+      // repo, because 50 → 30 is 619 functions and a single global step can only
+      // move when every package is ready at once. Each PR empties one package's
+      // queue and deletes it from that override; when the list is empty this is
+      // simply 30. A rule carries ONE severity, so nothing under the applicable
+      // bound is reported — to see what is left against a lower target, set `max`
+      // here and run eslint, then put it back. Inline disables carry the reason
+      // they are not split (an iterative graph walk, a d3 canvas renderer, a test
+      // harness whose closures share state, and a composition root).
       "max-lines-per-function": [
         "error",
-        { max: 50, skipBlankLines: true, skipComments: true },
+        { max: 30, skipBlankLines: true, skipComments: true },
       ],
       complexity: ["error", 6],
       // A module that needs 300 lines to state its job is usually holding more
@@ -316,6 +316,27 @@ export default tseslint.config(
   // Tests run syntactically (some live outside their package's tsconfig, e.g.
   // lore-station excludes *.test.ts) and may lean on `any` for doubles. Keep the
   // custom + syntactic rules on; drop the type-aware ones.
+  {
+    // Draining toward 30, one package per PR (100 → 50 landed 2026-09-07). These
+    // stay red at 50 meanwhile: a package is removed from this list in the same
+    // PR that empties its queue, so no bound is ever unenforced.
+    files: [
+      "apps/web-ui/**/*.{ts,tsx}",
+      "apps/lore-api/**/*.ts",
+      "apps/floor/**/*.ts",
+      "apps/mcp-server/**/*.ts",
+      "apps/stations/**/*.ts",
+      "libs/shared/**/*.ts",
+      "libs/server-core/**/*.ts",
+    ],
+    rules: {
+      "max-lines-per-function": [
+        "error",
+        { max: 50, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+
   {
     files: ["**/*.test.{ts,tsx}"],
     languageOptions: {

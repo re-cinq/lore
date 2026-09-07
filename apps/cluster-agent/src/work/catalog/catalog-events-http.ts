@@ -88,6 +88,34 @@ export async function fetchCatalogBatch(
 }
 
 /** POST the batch's verdicts. Never throws: visibility must not cost delivery. */
+/** The status POST itself. A refusal is WARNED, never thrown: a cluster whose verdicts do not land looks stale until the next batch, which is better than a sync loop that stops because reporting failed. */
+function postStatus(
+  fetchFn: typeof fetch,
+  deps: CatalogSyncTickDeps,
+  auth: { id: string; token: string },
+  reports: CatalogApplyReport[],
+): Promise<Response> {
+  return fetchFn(
+    `${deps.apiUrl}/api/cluster-agents/${auth.id}/catalog-status`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${auth.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        reports: reports.map((r) => ({
+          name: r.name,
+          project_id: r.projectId,
+          state: r.state,
+          reason: r.reason,
+        })),
+      }),
+      signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
+    },
+  );
+}
+
 export async function reportStatus(
   deps: CatalogSyncTickDeps,
   reports: CatalogApplyReport[],
@@ -99,25 +127,7 @@ export async function reportStatus(
   const { id, token } = deps.identity();
 
   try {
-    const res = await fetchFn(
-      `${deps.apiUrl}/api/cluster-agents/${id}/catalog-status`,
-      {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          reports: reports.map((r) => ({
-            name: r.name,
-            project_id: r.projectId,
-            state: r.state,
-            reason: r.reason,
-          })),
-        }),
-        signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
-      },
-    );
+    const res = await postStatus(fetchFn, deps, { id, token }, reports);
 
     if (!res.ok) {
       console.warn(

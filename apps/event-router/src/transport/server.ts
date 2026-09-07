@@ -10,14 +10,8 @@ import { pipeline, deliveries, clusterAgents } from "../outbound/queues.js";
 // GitHub allows 25 MB; hapi default 1 MB would reject large push deliveries.
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
 
-export function buildServer(opts: { port?: number } = {}): Hapi.Server {
-  const server = Hapi.server({
-    port: opts.port ?? 0,
-    host: "0.0.0.0",
-    routes: { payload: { maxBytes: MAX_BODY_BYTES } },
-  });
-
-  // Log handler/auth errors: throws become anonymous 500s (#1319), channel fires for 500 + error.
+/** A throw inside a handler or auth strategy becomes an anonymous 500 (#1319); this is the only place the stack is recorded, and the `error` channel fires for both. */
+function logRequestErrors(server: Hapi.Server): void {
   server.events.on({ name: "request", channels: "error" }, (request, event) => {
     const err = event.error;
     const detail = err instanceof Error ? (err.stack ?? err.message) : `${err}`;
@@ -26,6 +20,16 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
       `[http] ${request.method.toUpperCase()} ${request.path} 500 (${request.info.id}): ${detail}`,
     );
   });
+}
+
+export function buildServer(opts: { port?: number } = {}): Hapi.Server {
+  const server = Hapi.server({
+    port: opts.port ?? 0,
+    host: "0.0.0.0",
+    routes: { payload: { maxBytes: MAX_BODY_BYTES } },
+  });
+
+  logRequestErrors(server);
 
   server.route([
     eventsRoute({

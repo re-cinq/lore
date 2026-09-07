@@ -112,6 +112,55 @@ class PodLogBatcher {
   }
 }
 
+/** A Writable that hands each chunk to the batcher. `done` MUST run on every path — a write callback that never resolves stalls the Writable for good, which is indistinguishable from a quiet pod. */
+function batchingSink(batcher: PodLogBatcher): Writable {
+  return new Writable({
+    write: (chunk: Buffer, _enc, done) => {
+      void (async () => {
+        try {
+          await batcher.consume(chunk.toString("utf8"));
+          done();
+        } catch (err) {
+          done(err instanceof Error ? err : new Error(String(err)));
+        }
+      })();
+    },
+  });
+}
+
+/** Opens the stream and wires the abort. A stop that landed while the request was still opening is honoured explicitly — the listener alone would never fire for an abort that already happened. */
+function attachStream(
+  { kc, namespace }: NamespaceHandle,
+  target: PodLogTarget,
+  containerName: string,
+  wiring: {
+    sink: Writable;
+    abort: AbortController;
+    finish: (why: string) => void;
+  },
+): void {
+  const { sink, abort, finish } = wiring;
+
+  void new Log(kc)
+    .log(namespace, target.podName, containerName, sink, { follow: true })
+    .then((controller) => {
+      // Honors a stop that landed while the request was still opening — the listener below would never fire for an abort that already happened.
+      if (abort.signal.aborted) {
+        controller.abort();
+
+        return;
+      }
+      abort.signal.addEventListener("abort", () => controller.abort());
+    })
+    .catch((err) => {
+      console.error(
+        `[cluster-agent] pod-log stream failed for ${target.podName}:`,
+        errorMessage(err),
+      );
+      finish("stream could not be opened");
+    });
+}
+
 export class PodLogInput implements EventInput {
   readonly name = "pod-logs";
   private running = false;
@@ -214,19 +263,7 @@ export class PodLogInput implements EventInput {
   ): void {
     const batcher = new PodLogBatcher(target, emit);
 
-    const sink = new Writable({
-      write: (chunk: Buffer, _enc, done) => {
-        void (async () => {
-          try {
-            await batcher.consume(chunk.toString("utf8"));
-            done();
-          } catch (err) {
-            // `done` MUST run on every path — a write callback that never resolves stalls the Writable for good, indistinguishable from a quiet pod.
-            done(err instanceof Error ? err : new Error(String(err)));
-          }
-        })();
-      },
-    });
+    const sink = batchingSink(batcher);
 
     const timer = setInterval(() => batcher.flushIdle(), IDLE_FLUSH_MS);
 
@@ -246,23 +283,10 @@ export class PodLogInput implements EventInput {
 
     this.followers.set(target.agentCrName, { abort, timer });
 
-    void new Log(kc)
-      .log(namespace, target.podName, containerName, sink, { follow: true })
-      .then((controller) => {
-        // Honors a stop that landed while the request was still opening — the listener below would never fire for an abort that already happened.
-        if (abort.signal.aborted) {
-          controller.abort();
-
-          return;
-        }
-        abort.signal.addEventListener("abort", () => controller.abort());
-      })
-      .catch((err) => {
-        console.error(
-          `[cluster-agent] pod-log stream failed for ${target.podName}:`,
-          errorMessage(err),
-        );
-        finish("stream could not be opened");
-      });
+    attachStream({ kc, namespace }, target, containerName, {
+      sink,
+      abort,
+      finish,
+    });
   }
 }

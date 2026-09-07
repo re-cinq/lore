@@ -47,6 +47,30 @@ export type PruneOutcome =
   | { kind: "error"; message: string };
 
 /** One sweep. Never throws — every failure shape is an outcome the loop logs. */
+/** Agents FIRST, then their clones: a clone deleted while its CR still stands would leave a run describing a missing recipe. Every delete goes THROUGH the port rather than as a bare method reference, since an unbound call loses `this`. */
+async function applyPlan(
+  plan: ReturnType<typeof decidePrune>,
+  deps: PruneDeps,
+): Promise<{ agents: number; stations: number; definitions: number }> {
+  return {
+    agents: await deleteEach(
+      plan.agents,
+      (name) => deps.cluster.deleteAgent(name),
+      deps,
+    ),
+    stations: await deleteEach(
+      plan.stations,
+      (name) => deps.cluster.deleteStation(name),
+      deps,
+    ),
+    definitions: await deleteEach(
+      plan.definitions,
+      (name) => deps.cluster.deleteDefinition(name),
+      deps,
+    ),
+  };
+}
+
 export async function pruneOnce(deps: PruneDeps): Promise<PruneOutcome> {
   try {
     const [agents, stations, definitions] = await Promise.all([
@@ -63,24 +87,7 @@ export async function pruneOnce(deps: PruneDeps): Promise<PruneOutcome> {
       maxPerTick: deps.maxPerTick ?? DEFAULT_MAX_PER_TICK,
     });
 
-    // Agents FIRST, then their clones — a clone deleted while its CR still stands would leave a run describing a missing recipe. CALLED THROUGH the port, never as a bare method reference (an unbound call loses `this`).
-    const deleted = {
-      agents: await deleteEach(
-        plan.agents,
-        (name) => deps.cluster.deleteAgent(name),
-        deps,
-      ),
-      stations: await deleteEach(
-        plan.stations,
-        (name) => deps.cluster.deleteStation(name),
-        deps,
-      ),
-      definitions: await deleteEach(
-        plan.definitions,
-        (name) => deps.cluster.deleteDefinition(name),
-        deps,
-      ),
-    };
+    const deleted = await applyPlan(plan, deps);
 
     if (deleted.agents + deleted.stations + deleted.definitions === 0) {
       return { kind: "nothing" };
