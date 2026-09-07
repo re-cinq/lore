@@ -74,6 +74,26 @@ function removeWorktreeAt(repoRoot: string, worktreePath: string): void {
 }
 
 // Spawns a local task in a git worktree with a background Claude Code process and returns immediately; the agent starts cold and assembles its own context via the MCP server.
+/** The existence check is the idempotency guard: a second spawn for the same task must fail loudly rather than attach to a worktree another run is already using. */
+function addWorktree(opts: {
+  repoRoot: string;
+  worktreePath: string;
+  branch: string;
+  taskId: string;
+}): void {
+  enforceTrue(
+    !fs.existsSync(opts.worktreePath),
+    Error,
+    `Worktree already exists for task ${opts.taskId}`,
+  );
+
+  execSync(`git worktree add "${opts.worktreePath}" -b "${opts.branch}"`, {
+    cwd: opts.repoRoot,
+    stdio: "pipe",
+    timeout: 30000,
+  });
+}
+
 export async function spawnLocalTask(opts: {
   taskId: string;
   prompt: string;
@@ -100,18 +120,7 @@ export async function spawnLocalTask(opts: {
   const worktreePath = path.join(WORKTREES_DIR, taskId);
   const logFile = path.join(LOGS_DIR, `${taskId}.log`);
 
-  // Bail if worktree already exists (idempotency)
-  enforceTrue(
-    !fs.existsSync(worktreePath),
-    Error,
-    `Worktree already exists for task ${taskId}`,
-  );
-
-  execSync(`git worktree add "${worktreePath}" -b "${branch}"`, {
-    cwd: repoRoot,
-    stdio: "pipe",
-    timeout: 30000,
-  });
+  addWorktree({ repoRoot, worktreePath, branch, taskId });
 
   const pid = spawnRun(
     worktreePath,

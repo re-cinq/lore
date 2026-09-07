@@ -3,30 +3,63 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { textResult } from "./deps.js";
 
+/** Both tools run the repo's OWN manifest commands, so both resolve the checkout root first — the manifest is read relative to it, and the commands run in it. */
+async function localManifest(): Promise<{
+  root: string;
+  manifest: Awaited<
+    ReturnType<
+      typeof import("../../work/spec-trace/spec-trace-tools.js").loadTestCommandManifest
+    >
+  >;
+}> {
+  const { loadTestCommandManifest } = await import(
+    "../../work/spec-trace/spec-trace-tools.js"
+  );
+  const { getRepoRoot } = await import("../../work/pipeline/runner.local.js");
+  const root = getRepoRoot() || process.cwd();
+
+  return { root, manifest: loadTestCommandManifest(root) };
+}
+
+const listTests = async (): Promise<ReturnType<typeof textResult>> => {
+  try {
+    const { listTestsTool } = await import(
+      "../../work/spec-trace/spec-trace-tools.js"
+    );
+    const { root, manifest } = await localManifest();
+
+    return textResult(await listTestsTool(process.env, manifest, root));
+  } catch (err) {
+    return textResult(`Error: ${errorMessage(err)}`);
+  }
+};
+
+const runTest = async ({
+  selector,
+}: {
+  selector: string;
+}): Promise<ReturnType<typeof textResult>> => {
+  try {
+    const { runTestTool } = await import(
+      "../../work/spec-trace/spec-trace-tools.js"
+    );
+    const { root, manifest } = await localManifest();
+
+    return textResult(
+      await runTestTool(process.env, manifest, selector, root),
+    );
+  } catch (err) {
+    return textResult(`Error: ${errorMessage(err)}`);
+  }
+};
+
 export function registerSpecTraceLocalTools(server: McpServer) {
   server.tool(
     "lore_list_tests",
     `Runs the repo's .lore/test-commands.yml 'list' command and returns a JSON array of test descriptors {id, name, file, startLine?, endLine?, suite?, spec?}; 'id' is the selector to pass to lore_run_test. Use to discover available tests before running one. Instead: to run a test and see coverage use lore_run_test; to read built-graph coverage without executing use lore-query-trace.
 Trusted-sandbox only — executes a shell command in your local checkout. The shared cluster server refuses and returns "Test commands run only in a trusted sandbox — run in CI or locally."`,
     {},
-    async () => {
-      try {
-        const { listTestsTool, loadTestCommandManifest } =
-          await import("../../work/spec-trace/spec-trace-tools.js");
-        const { getRepoRoot } =
-          await import("../../work/pipeline/runner.local.js");
-        const root = getRepoRoot() || process.cwd();
-        const text = await listTestsTool(
-          process.env,
-          loadTestCommandManifest(root),
-          root,
-        );
-
-        return textResult(text);
-      } catch (err) {
-        return textResult(`Error: ${errorMessage(err)}`);
-      }
-    },
+    listTests,
   );
 
   server.tool(
@@ -40,24 +73,6 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
           "Runner-native test id from lore_list_tests output; substituted into the manifest's run command at the {selector} placeholder. Format is runner-specific, e.g. 'tests/test_api.py::TestAuth::test_login' (pytest) or 'src/auth.test.ts > logs in' (vitest).",
         ),
     },
-    async ({ selector }) => {
-      try {
-        const { runTestTool, loadTestCommandManifest } =
-          await import("../../work/spec-trace/spec-trace-tools.js");
-        const { getRepoRoot } =
-          await import("../../work/pipeline/runner.local.js");
-        const root = getRepoRoot() || process.cwd();
-        const text = await runTestTool(
-          process.env,
-          loadTestCommandManifest(root),
-          selector,
-          root,
-        );
-
-        return textResult(text);
-      } catch (err) {
-        return textResult(`Error: ${errorMessage(err)}`);
-      }
-    },
+    runTest,
   );
 }

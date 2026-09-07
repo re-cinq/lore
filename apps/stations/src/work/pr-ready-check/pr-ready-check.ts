@@ -162,17 +162,20 @@ export async function prReadyCheckSweep(
 }
 
 /** Production entry — the manifest's run. Deps bound to the stations kernel. */
-export async function prReadyCheckJob(): Promise<string> {
-  const { pipeline, eventProxy } = await import("../../outbound/queues.js");
-  const { queuedReporter } =
-    await import("@re-cinq/lore-shared/project/events/event-proxy.js");
-  const { projectFor } = await import("../../outbound/project-boot.js");
-  const { reportToParkedNode } =
-    await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
-  const OPEN = ["queued", "running"] as const;
-  // One Project per repo per sweep; avoid rebuilding the same repo facade three times for three PR reads
-  const projects = new Map<string, ReturnType<typeof projectFor>>();
-  const projectOf = (repo: string) => {
+/** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */
+function sweepRepoCache<
+  P extends {
+    pulls: { ciConclusion(ref: string): Promise<string> };
+    repo: { defaultBranch(): Promise<string> };
+  },
+>(
+  projectFor: (repo: string) => Promise<P>,
+): {
+  projectOf: (repo: string) => Promise<P>;
+  hasCiHistory: (repo: string) => Promise<boolean>;
+} {
+  const projects = new Map<string, Promise<P>>();
+  const projectOf = (repo: string): Promise<P> => {
     const cached = projects.get(repo) ?? projectFor(repo);
 
     projects.set(repo, cached);
@@ -189,6 +192,28 @@ export async function prReadyCheckJob(): Promise<string> {
     );
   };
 
+  return {
+    projectOf,
+    hasCiHistory: (repo) => {
+      const cached = ciHistory.get(repo) ?? readCiHistory(repo);
+
+      ciHistory.set(repo, cached);
+
+      return cached;
+    },
+  };
+}
+
+export async function prReadyCheckJob(): Promise<string> {
+  const { pipeline, eventProxy } = await import("../../outbound/queues.js");
+  const { queuedReporter } =
+    await import("@re-cinq/lore-shared/project/events/event-proxy.js");
+  const { projectFor } = await import("../../outbound/project-boot.js");
+  const { reportToParkedNode } =
+    await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
+  const OPEN = ["queued", "running"] as const;
+  const { projectOf, hasCiHistory } = sweepRepoCache(projectFor);
+
   return prReadyCheckSweep({
     listOpenLoopRuns: () =>
       pipeline().assemblyRuns.list({
@@ -200,14 +225,7 @@ export async function prReadyCheckJob(): Promise<string> {
       (await (await projectOf(repo)).pulls.get(number))?.headSha ?? null,
     ciConclusion: async (repo, ref) =>
       (await projectOf(repo)).pulls.ciConclusion(ref),
-    // Memoised per repo: this is a REPO fact; asking once per PR saves GitHub reads
-    hasCiHistory: (repo) => {
-      const cached = ciHistory.get(repo) ?? readCiHistory(repo);
-
-      ciHistory.set(repo, cached);
-
-      return cached;
-    },
+    hasCiHistory,
     listReviewThreads: async (repo, number) =>
       (await projectOf(repo)).pulls.listReviewThreads(number),
     countOpenReviewRuns: async (repo, number) =>
