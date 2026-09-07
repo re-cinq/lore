@@ -4,13 +4,43 @@ import { usd, num, day } from "./spend-format";
 import { CostTable, EmptyRow } from "./CostTable";
 
 /** The null bucket is spend on the home account; every other row is a registered cluster running on its own credential. */
+/** A labelled group of clusters. The null bucket is home-account spend and the rest are registered clusters; both render the same way, so the only difference is the filter the caller applies and the subhead. Renders nothing when the group is empty, so an absent bucket leaves no orphan heading. */
+function ClusterRows({
+  label,
+  rows,
+}: {
+  label: string;
+  rows: SpendWindow["llm"]["by_cluster"];
+}) {
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <tr>
+        <td colSpan={3} className={styles.subhead}>
+          {label}
+        </td>
+      </tr>
+      {rows.map((r) => (
+        <tr key={r.cluster ?? "no-cluster"}>
+          <td>
+            <span className="badge">{r.cluster ?? "(no cluster)"}</span>
+          </td>
+          <td>{num(r.calls)}</td>
+          <td>{usd(r.cost_usd)}</td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
 function ClusterBreakdown({
   byCluster,
 }: {
   byCluster: SpendWindow["llm"]["by_cluster"];
 }) {
-  const llm = { by_cluster: byCluster };
-
   return (
     <>
       <h2>Cost by Cluster</h2>
@@ -23,45 +53,16 @@ function ClusterBreakdown({
           </tr>
         </thead>
         <tbody>
-          {/* Null bucket: home account spend; rest: registered clusters */}
-          {llm.by_cluster.some((r) => r.cluster === null) && (
-            <tr>
-              <td colSpan={3} className={styles.subhead}>
-                No cluster
-              </td>
-            </tr>
-          )}
-          {llm.by_cluster
-            .filter((r) => r.cluster === null)
-            .map((r) => (
-              <tr key="no-cluster">
-                <td>
-                  <span className="badge">(no cluster)</span>
-                </td>
-                <td>{num(r.calls)}</td>
-                <td>{usd(r.cost_usd)}</td>
-              </tr>
-            ))}
-          {llm.by_cluster.some((r) => r.cluster !== null) && (
-            <tr>
-              <td colSpan={3} className={styles.subhead}>
-                Clusters
-              </td>
-            </tr>
-          )}
-          {llm.by_cluster
-            .filter((r) => r.cluster !== null)
-            .map((r) => (
-              <tr key={r.cluster}>
-                <td>
-                  <span className="badge">{r.cluster}</span>
-                </td>
-                <td>{num(r.calls)}</td>
-                <td>{usd(r.cost_usd)}</td>
-              </tr>
-            ))}
+          <ClusterRows
+            label="No cluster"
+            rows={byCluster.filter((r) => r.cluster === null)}
+          />
+          <ClusterRows
+            label="Clusters"
+            rows={byCluster.filter((r) => r.cluster !== null)}
+          />
           <EmptyRow
-            when={llm.by_cluster.length === 0}
+            when={byCluster.length === 0}
             colSpan={3}
             message="No cluster-attributed spend"
           />
@@ -121,6 +122,38 @@ function LlmBreakdownsBySlice({ llm }: { llm: SpendWindow["llm"] }) {
   );
 }
 
+/** The note belongs WITH this table: only Anthropic spend draws the recorded balance, so a deployment using another vendor would otherwise read its balance as wrong. */
+function VendorCosts({
+  byVendor,
+}: {
+  byVendor: SpendWindow["llm"]["by_vendor"];
+}) {
+  return (
+    <>
+      <CostTable
+        title="Cost by Vendor"
+        columns={["Vendor", "Calls", "Cost"]}
+        rows={byVendor}
+        rowKey={(r) => r.vendor}
+        cells={(r) => [
+          <span className="badge" key="vendor">
+            {r.vendor}
+          </span>,
+          num(r.calls),
+          usd(r.cost_usd),
+        ]}
+      />
+      {/* Only Anthropic draws recorded credits; others bill their own vendor */}
+      {byVendor.some((r) => r.vendor !== "anthropic") && (
+        <p className={`meta ${styles.subnote}`}>
+          Only Anthropic spend draws the balance above — other vendors bill
+          their own account.
+        </p>
+      )}
+    </>
+  );
+}
+
 /** Every cut of what Lore metered itself: by line, vendor, model, kind, day, repo, task type and cluster. */
 export function LlmBreakdowns({ llm }: { llm: SpendWindow["llm"] }) {
   return (
@@ -139,26 +172,7 @@ export function LlmBreakdowns({ llm }: { llm: SpendWindow["llm"] }) {
         ]}
       />
 
-      <CostTable
-        title="Cost by Vendor"
-        columns={["Vendor", "Calls", "Cost"]}
-        rows={llm.by_vendor}
-        rowKey={(r) => r.vendor}
-        cells={(r) => [
-          <span className="badge" key="vendor">
-            {r.vendor}
-          </span>,
-          num(r.calls),
-          usd(r.cost_usd),
-        ]}
-      />
-      {/* Only Anthropic draws recorded credits; others bill their own vendor */}
-      {llm.by_vendor.some((r) => r.vendor !== "anthropic") && (
-        <p className={`meta ${styles.subnote}`}>
-          Only Anthropic spend draws the balance above — other vendors bill
-          their own account.
-        </p>
-      )}
+      <VendorCosts byVendor={llm.by_vendor} />
 
       <CostTable
         title="Cost by Model"
