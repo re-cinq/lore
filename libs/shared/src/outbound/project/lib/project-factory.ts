@@ -3,6 +3,7 @@ import type { PgPool, DgraphClientPort } from "../../memory-store.js";
 import type { ProjectProviders } from "./providers.js";
 import type { PipelineRepositories } from "../pipeline/pipeline-repositories.js";
 import type { LeasePool } from "../leases/lease-backends.js";
+import type { AssemblyRunsPort } from "../assembly-runs/assembly-runs-port.js";
 import { Project } from "./project.js";
 
 // Agent definitions port, three-way seam by environment: DB present -> PgAgentDefs, API only -> AgentDefsHttp, neither -> AgentDefsYaml.
@@ -86,43 +87,44 @@ async function registerStoredPorts(
   ports: Map<string, unknown>,
   { pgPool, dgraphClient, providers }: StoredPortDeps,
 ): Promise<void> {
-  const { MemoryStoreBridge } =
-    await import("../memory/memory-store-bridge.js");
-  const { selectMemoryStore } = await import("../../memory-store.js");
+  // Imported together rather than one before each `set`: they are loaded lazily to keep the lean MCP install free of pg/dgraph, and that laziness is about the MODULE graph, not the order the ports go into the map.
+  const [bridge, store, tasks, chunks, runs, trace] = await Promise.all([
+    import("../memory/memory-store-bridge.js"),
+    import("../../memory-store.js"),
+    import("../tasks/task-store-pg.js"),
+    import("../chunks/chunks-pg.js"),
+    import("../assembly-runs/assembly-runs-pg.js"),
+    import("../trace/trace-dgraph.js"),
+  ]);
 
   ports.set(
     "memory",
-    new MemoryStoreBridge(selectMemoryStore({ pgPool, dgraph: dgraphClient })),
+    new bridge.MemoryStoreBridge(
+      store.selectMemoryStore({ pgPool, dgraph: dgraphClient }),
+    ),
   );
+  ports.set("tasks", new tasks.PgTaskStore(pgPool));
+  ports.set("chunks", new chunks.PgChunks(pgPool));
+  ports.set("trace", new trace.DgraphTrace(dgraphClient));
+  registerPipelinePorts(ports, providers.pipeline, {
+    assemblyRuns: new runs.PgAssemblyRuns(pgPool),
+  });
+}
 
-  const { PgTaskStore } = await import("../tasks/task-store-pg.js");
-
-  ports.set("tasks", new PgTaskStore(pgPool));
-
-  const { PgChunks } = await import("../chunks/chunks-pg.js");
-
-  ports.set("chunks", new PgChunks(pgPool));
-
-  // pipeline.* tables are org-wide — a caller that already built the bundle passes it in so every repo shares those adapters; the fallback keeps tests/bootstrap callers working as before.
-  if (providers.pipeline) {
-    ports.set("pipeline", providers.pipeline);
+/** The org-wide `pipeline.*` adapters. A caller that already built the bundle passes it in so every repo shares those adapters; the per-repo defaults keep tests and bootstrap callers working as before. */
+function registerPipelinePorts(
+  ports: Map<string, unknown>,
+  pipeline: StoredPortDeps["providers"]["pipeline"],
+  defaults: { assemblyRuns: AssemblyRunsPort },
+): void {
+  if (pipeline) {
+    ports.set("pipeline", pipeline);
   }
-
-  const { PgAssemblyRuns } =
-    await import("../assembly-runs/assembly-runs-pg.js");
 
   ports.set(
     "assemblyRuns",
-    fromPipelineOrDefault(
-      providers.pipeline,
-      "assemblyRuns",
-      new PgAssemblyRuns(pgPool),
-    ),
+    fromPipelineOrDefault(pipeline, "assemblyRuns", defaults.assemblyRuns),
   );
-
-  const { DgraphTrace } = await import("../trace/trace-dgraph.js");
-
-  ports.set("trace", new DgraphTrace(dgraphClient));
 }
 
 interface OutsidePortDeps {
@@ -131,60 +133,68 @@ interface OutsidePortDeps {
   providers: ReturnType<typeof resolveProjectOptions>["providers"];
 }
 
+/** One adapter answers both the read and the write side: fetching a PR and commenting on it go through the same installation token. */
+async function gitHubPort(env: NodeJS.ProcessEnv) {
+  const { PlatformGitHub } = await import("./platform-github.js");
+
+  return new PlatformGitHub(env);
+}
+
 /** The ports that reach OUTSIDE this process: GitHub, Slack, git, the test runner, the agent runner. Settings sits here rather than with the stores because it reads the repo through GitHub as well as the database. */
 async function registerOutsidePorts(
   ports: Map<string, unknown>,
   { pgPool, env, providers }: OutsidePortDeps,
 ): Promise<void> {
-  const { PlatformGitHub } = await import("./platform-github.js");
-  const github = new PlatformGitHub(env);
+  const github = await gitHubPort(env);
+  const [settings, notify, knowledge, git, tests, agents] = await Promise.all([
+    import("../settings/settings-pg.js"),
+    import("../notify/notify-slack.js"),
+    import("../knowledge/knowledge-pg.js"),
+    import("../workspace/git-cli.js"),
+    import("../test-runner/test-runner-exec.js"),
+    import("../agents/agent-runner.js"),
+  ]);
 
   ports.set("github", github);
   ports.set("pulls", github);
-
-  const { PgSettings } = await import("../settings/settings-pg.js");
-
-  ports.set("settings", new PgSettings(pgPool, github));
-
-  const { NotifySlack } = await import("../notify/notify-slack.js");
-
-  ports.set("notify", new NotifySlack(pgPool, env));
-
-  const { PgKnowledge } = await import("../knowledge/knowledge-pg.js");
-
-  ports.set("knowledge", new PgKnowledge(pgPool));
-
-  const { GitCli } = await import("../workspace/git-cli.js");
-
-  ports.set("git", new GitCli(env));
-
-  const { ExecTestRunner } = await import("../test-runner/test-runner-exec.js");
-
-  ports.set("tests", new ExecTestRunner());
-
-  const { AgentRunner } = await import("../agents/agent-runner.js");
-
+  ports.set("settings", new settings.PgSettings(pgPool, github));
+  ports.set("notify", new notify.NotifySlack(pgPool, env));
+  ports.set("knowledge", new knowledge.PgKnowledge(pgPool));
+  ports.set("git", new git.GitCli(env));
+  ports.set("tests", new tests.ExecTestRunner());
   ports.set(
     "agentRunner",
-    new AgentRunner(env, { station: providers.station, llm: providers.llm }),
+    new agents.AgentRunner(env, {
+      station: providers.station,
+      llm: providers.llm,
+    }),
   );
+
+  await registerLedgerPorts(ports, { pgPool, env, providers });
+}
+
+/** What the platform records about itself: who ran, what it cost, what it audited, which features it is tracking. */
+async function registerLedgerPorts(
+  ports: Map<string, unknown>,
+  { pgPool, env, providers }: OutsidePortDeps,
+): Promise<void> {
+  const [audit, usage, features] = await Promise.all([
+    import("../audit/audit-pg.js"),
+    import("../usage/usage-pg.js"),
+    import("../features/features-pg.js"),
+  ]);
 
   ports.set("agentDefs", await agentDefsForEnv(env, pgPool));
-
-  const { PgAudit } = await import("../audit/audit-pg.js");
-
   ports.set(
     "audit",
-    fromPipelineOrDefault(providers.pipeline, "audit", new PgAudit(pgPool)),
+    fromPipelineOrDefault(
+      providers.pipeline,
+      "audit",
+      new audit.PgAudit(pgPool),
+    ),
   );
-
-  const { PgUsage } = await import("../usage/usage-pg.js");
-
-  ports.set("usage", new PgUsage(pgPool));
-
-  const { PgFeatures } = await import("../features/features-pg.js");
-
-  ports.set("features", new PgFeatures(pgPool));
+  ports.set("usage", new usage.PgUsage(pgPool));
+  ports.set("features", new features.PgFeatures(pgPool));
 }
 
 export async function createProject(

@@ -22,6 +22,28 @@ function declareVars(vars: Record<string, string>): string {
     .join(", ");
 }
 
+/** Every uid the named node types hold for this repo, in one query — one round trip keeps the cleanup fast enough to run after each test. */
+async function findRepoNodeUids(
+  txn: ReturnType<dgraph.DgraphClient["newTxn"]>,
+  nodeTypes: RepoNodeType[],
+  vars: Record<string, string>,
+): Promise<string[]> {
+  const query = `query nodes(${declareVars(vars)}) {\n${nodeTypes
+    .map((nodeType) => `  ${queryLine(nodeType)}`)
+    .join("\n")}\n}`;
+  const res = await txn.queryWithVars(
+    query,
+    Object.fromEntries(
+      Object.entries(vars).map(([name, value]) => [`$${name}`, value]),
+    ),
+  );
+  const written = res.data as Record<string, { uid: string }[] | undefined>;
+
+  return nodeTypes
+    .flatMap((nodeType) => written[nodeType.alias] ?? [])
+    .map((node) => node.uid);
+}
+
 /** Builds the per-suite `deleteRepoNodes` cleanup closure, parameterised by which node types to sweep. */
 export function makeDeleteRepoNodes(
   dgraphClient: dgraph.DgraphClient,
@@ -35,17 +57,7 @@ export function makeDeleteRepoNodes(
     const txn = dgraphClient.newTxn();
 
     try {
-      const query = `query nodes(${declareVars(vars)}) {\n${nodeTypes
-        .map((nodeType) => `  ${queryLine(nodeType)}`)
-        .join("\n")}\n}`;
-      const queryVars = Object.fromEntries(
-        Object.entries(vars).map(([name, value]) => [`$${name}`, value]),
-      );
-      const res = await txn.queryWithVars(query, queryVars);
-      const written = res.data as Record<string, { uid: string }[] | undefined>;
-      const uids = nodeTypes
-        .flatMap((nodeType) => written[nodeType.alias] ?? [])
-        .map((node) => node.uid);
+      const uids = await findRepoNodeUids(txn, nodeTypes, vars);
 
       if (uids.length) {
         await txn.mutate({

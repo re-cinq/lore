@@ -84,15 +84,12 @@ export interface LinkPredicates {
   implementedBy: string;
 }
 
-/** Projects a text's inline links onto an owner node's TestChunk/CodeChunk edges, REPLACING them (not set-union) so re-projection can't leave stale refs; dropped chunks are orphan-GC'd. */
-export async function projectLinkEdges(
+/** The test chunks this text links to. A test's xid is FILE-scoped rather than line-scoped: a test keeps its identity when the file above it grows, and re-anchoring on every shifted line would churn the graph for no change in meaning. */
+async function projectTestLinks(
   context: ProjectionContext,
-  ownerUid: string,
   text: string,
-  predicates: LinkPredicates,
-): Promise<void> {
-  const { dgraph } = context;
-  const validatedBy = await projectLinkedChunks(context, text, {
+): Promise<string[]> {
+  const refs = await projectLinkedChunks(context, text, {
     parse: parseTestLinksInStatement,
     nodeType: "TestChunk",
     buildXid: fileScopedXid,
@@ -101,15 +98,35 @@ export async function projectLinkEdges(
       "TestChunk.link_label": link.label,
     }),
   });
-  const implementedBy = await projectLinkedChunks(context, text, {
+
+  return refs.map((ref) => ref.uid);
+}
+
+/** The code chunks this text links to, keyed by LINE range — a code link names a span, and a span that moves is a different span. */
+async function projectCodeLinks(
+  context: ProjectionContext,
+  text: string,
+): Promise<string[]> {
+  const refs = await projectLinkedChunks(context, text, {
     parse: parseCodeLinksInStatement,
     nodeType: "CodeChunk",
     buildXid: lineScopedXid,
   });
 
+  return refs.map((ref) => ref.uid);
+}
+
+/** Projects a text's inline links onto an owner node's TestChunk/CodeChunk edges, REPLACING them (not set-union) so re-projection can't leave stale refs; dropped chunks are orphan-GC'd. */
+export async function projectLinkEdges(
+  context: ProjectionContext,
+  ownerUid: string,
+  text: string,
+  predicates: LinkPredicates,
+): Promise<void> {
+  const { dgraph } = context;
   const previousLinks = await readLinkTargets(dgraph, ownerUid, predicates);
-  const newValidated = validatedBy.map((ref) => ref.uid);
-  const newImplemented = implementedBy.map((ref) => ref.uid);
+  const newValidated = await projectTestLinks(context, text);
+  const newImplemented = await projectCodeLinks(context, text);
 
   await replaceEdge(dgraph, ownerUid, predicates.validatedBy, newValidated);
   await replaceEdge(dgraph, ownerUid, predicates.implementedBy, newImplemented);

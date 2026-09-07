@@ -99,6 +99,35 @@ function groupByFamily(events: EventRow[]): Map<string, EventRow[]> {
   return byFamily;
 }
 
+/** One serial family's events, strictly in order, with the family slot held for the duration. The slot is released on a deadline as well as on completion: a handler that never returns would otherwise keep its whole family unclaimable forever, and the reaper's retry is a better outcome than a permanently stalled queue. */
+async function drainFamily(
+  family: string,
+  events: EventRow[],
+  deps: LoopDeps,
+  logTransitionFailure: (ev: EventRow) => (reason: unknown) => void,
+): Promise<void> {
+  const deadlineMs = deps.serialDeadlineMs ?? SERIAL_DEADLINE_MS;
+
+  busyFamilies.add(family);
+
+  try {
+    for (const ev of events) {
+      const outcome = await Promise.race([
+        handleOne(ev, deps).catch(logTransitionFailure(ev)),
+        releaseAfter(deadlineMs),
+      ]);
+
+      if (outcome === "deadline") {
+        console.error(
+          `[events] serial handler for ${ev.event_name} (${ev.id}) exceeded ${deadlineMs}ms — releasing the family slot to its reaped retry`,
+        );
+      }
+    }
+  } finally {
+    busyFamilies.delete(family);
+  }
+}
+
 export async function drainOnce(deps: LoopDeps): Promise<number> {
   const serialFamilies = deps.serialFamilies ?? SERIAL_FAMILIES;
   const batch = await deps.claim(deps.batchSize ?? 20, [...busyFamilies]);
@@ -121,28 +150,9 @@ export async function drainOnce(deps: LoopDeps): Promise<number> {
   const serialByFamily = groupByFamily(
     batch.filter((ev) => serialFamilies.has(ev.event_name)),
   );
-
-  const deadlineMs = deps.serialDeadlineMs ?? SERIAL_DEADLINE_MS;
-  const serial = [...serialByFamily.entries()].map(async ([family, events]) => {
-    busyFamilies.add(family);
-
-    try {
-      for (const ev of events) {
-        const outcome = await Promise.race([
-          handleOne(ev, deps).catch(logTransitionFailure(ev)),
-          releaseAfter(deadlineMs),
-        ]);
-
-        if (outcome === "deadline") {
-          console.error(
-            `[events] serial handler for ${ev.event_name} (${ev.id}) exceeded ${deadlineMs}ms — releasing the family slot to its reaped retry`,
-          );
-        }
-      }
-    } finally {
-      busyFamilies.delete(family);
-    }
-  });
+  const serial = [...serialByFamily.entries()].map(([family, events]) =>
+    drainFamily(family, events, deps, logTransitionFailure),
+  );
 
   await Promise.all([...parallel, ...serial]);
 

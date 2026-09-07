@@ -24,25 +24,19 @@ const PHASE_RE = /^##\s+Phase\s+(\d+)/i;
 const FILE_PATH_RE = /\|\s*`?([^`\s]+)`?\s*$/;
 
 /** Parses one trimmed task-list line into a `ParsedTask` for `phase`, or null when the line isn't a task row. */
-function parseTaskLine(trimmed: string, phase: number): ParsedTask | null {
-  const taskMatch = trimmed.match(TASK_RE);
-
-  if (!taskMatch) {
-    return null;
-  }
-
-  const completed = taskMatch[1] === "x";
-  const specTaskId = taskMatch[2];
-  let rest = trimmed.slice(taskMatch[0].length);
-
-  // Check for [P] marker
+/** The three optional markers a task line carries — `[P]`, `[DEPENDS ON: …]`, and a trailing `| path` — stripped in that order so what remains is the description alone. Each is removed as it is read: leaving a marker in would put it in the task's own text, where the executor would read it as instructions. */
+function readMarkers(afterId: string): {
+  rest: string;
+  parallelizable: boolean;
+  dependsOn: string[];
+  filePath: string | undefined;
+} {
+  let rest = afterId;
   const parallelizable = PARALLEL_RE.test(rest);
 
   if (parallelizable) {
     rest = rest.replace(PARALLEL_RE, "");
   }
-
-  // Check for [DEPENDS ON: ...] marker
   const depsMatch = rest.match(DEPENDS_RE);
   const dependsOn: string[] = [];
 
@@ -55,15 +49,29 @@ function parseTaskLine(trimmed: string, phase: number): ParsedTask | null {
     );
     rest = rest.replace(DEPENDS_RE, "").trim();
   }
-
-  // Check for | file_path suffix
-  let filePath: string | undefined;
   const fileMatch = rest.match(FILE_PATH_RE);
+  let filePath: string | undefined;
 
   if (fileMatch) {
     filePath = fileMatch[1];
     rest = rest.replace(FILE_PATH_RE, "").trim();
   }
+
+  return { rest, parallelizable, dependsOn, filePath };
+}
+
+function parseTaskLine(trimmed: string, phase: number): ParsedTask | null {
+  const taskMatch = trimmed.match(TASK_RE);
+
+  if (!taskMatch) {
+    return null;
+  }
+
+  const completed = taskMatch[1] === "x";
+  const specTaskId = taskMatch[2];
+  const { rest, parallelizable, dependsOn, filePath } = readMarkers(
+    trimmed.slice(taskMatch[0].length),
+  );
 
   return {
     specTaskId,
@@ -215,57 +223,104 @@ export interface SpecTaskSource {
   taskGroupId?: string;
 }
 
-export async function syncTasksToDb(
+/** Upserts one spec-task, keyed on its spec-task id WITHIN its spec — the ids restart per spec, so the slug is part of the key or two specs' T001 collide. Returns whether a row was created, which is what "N new" in the sync summary counts. */
+/** The existing row for this spec-task, if the sync has run before. */
+async function findSpecTask(
+  pool: PgPool,
+  repo: string,
+  specSlug: string,
+  specTaskId: string,
+): Promise<string | undefined> {
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id, status FROM pipeline.tasks
+       WHERE target_repo = $1
+         AND task_type = 'spec-task'
+         AND context_bundle->>'spec_task_id' = $2
+         AND context_bundle->>'spec_slug' = $3`,
+    [repo, specTaskId, specSlug],
+  );
+
+  return rows[0]?.id;
+}
+
+/** Two INSERTs rather than a nullable column: `task_group_id` is what ties a multi-repo feature together, and writing an explicit NULL into it would make an ungrouped task look like a group of one. */
+async function insertSpecTask(
+  pool: PgPool,
+  where: { repo: string; taskGroupId: string | undefined },
+  row: { title: string; status: string; metadata: object },
+): Promise<void> {
+  const sql = where.taskGroupId
+    ? `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by, task_group_id)
+         VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks', $5)`
+    : `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by)
+         VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks')`;
+
+  await pool.query(sql, [
+    row.title,
+    where.repo,
+    row.status,
+    JSON.stringify(row.metadata),
+    ...(where.taskGroupId ? [where.taskGroupId] : []),
+  ]);
+}
+
+/** What a spec-task carries in its context bundle. `depends_on` and `phase` are stored rather than re-derived: the executor reads them to decide readiness, and re-parsing tasks.md at dispatch would let a since-edited file change what a queued task depends on. */
+function taskMetadata(task: ParsedTask, specSlug: string) {
+  return {
+    spec_task_id: task.specTaskId,
+    depends_on: task.dependsOn,
+    spec_slug: specSlug,
+    parallelizable: task.parallelizable,
+    phase: task.phase,
+    file_path: task.filePath,
+  };
+}
+
+async function upsertSpecTask(
   pool: PgPool,
   { repo, specSlug, taskGroupId }: SpecTaskSource,
+  task: ParsedTask,
+): Promise<boolean> {
+  const title = `${task.specTaskId}: ${task.description}`;
+  const metadata = taskMetadata(task, specSlug);
+  const status = task.completed ? "completed" : "pending";
+  const existingId = await findSpecTask(pool, repo, specSlug, task.specTaskId);
+
+  if (existingId) {
+    await pool.query(
+      `UPDATE pipeline.tasks
+         SET description = $1, context_bundle = $2, status = $3, updated_at = now()
+         WHERE id = $4`,
+      [title, JSON.stringify(metadata), status, existingId],
+    );
+
+    return false;
+  }
+
+  await insertSpecTask(
+    pool,
+    { repo, taskGroupId },
+    {
+      title,
+      status,
+      metadata,
+    },
+  );
+
+  return true;
+}
+
+export async function syncTasksToDb(
+  pool: PgPool,
+  source: SpecTaskSource,
   tasks: ParsedTask[],
 ): Promise<{ synced: number; created: number }> {
   let created = 0;
 
   for (const task of tasks) {
-    const title = `${task.specTaskId}: ${task.description}`;
-    const metadata = {
-      spec_task_id: task.specTaskId,
-      depends_on: task.dependsOn,
-      spec_slug: specSlug,
-      parallelizable: task.parallelizable,
-      phase: task.phase,
-      file_path: task.filePath,
-    };
-    const status = task.completed ? "completed" : "pending";
-
-    const { rows: existing } = await pool.query<{ id: string; status: string }>(
-      `SELECT id, status FROM pipeline.tasks
-       WHERE target_repo = $1
-         AND task_type = 'spec-task'
-         AND context_bundle->>'spec_task_id' = $2
-         AND context_bundle->>'spec_slug' = $3`,
-      [repo, task.specTaskId, specSlug],
-    );
-
-    if (existing.length > 0) {
-      await pool.query(
-        `UPDATE pipeline.tasks
-         SET description = $1, context_bundle = $2, status = $3, updated_at = now()
-         WHERE id = $4`,
-        [title, JSON.stringify(metadata), status, existing[0].id],
-      );
-      continue;
+    if (await upsertSpecTask(pool, source, task)) {
+      created++;
     }
-    const insertSql = taskGroupId
-      ? `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by, task_group_id)
-         VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks', $5)`
-      : `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by)
-         VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks')`;
-
-    await pool.query(insertSql, [
-      title,
-      repo,
-      status,
-      JSON.stringify(metadata),
-      ...(taskGroupId ? [taskGroupId] : []),
-    ]);
-    created++;
   }
 
   return { synced: tasks.length, created };

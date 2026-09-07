@@ -52,14 +52,8 @@ function correlatedResult(rows: { correlated: boolean }[]): boolean {
   return rows[0]?.correlated ?? false;
 }
 
-/** Postgres UsagePort; single INSERT into pipeline.llm_calls. */
-export class PgUsage implements UsagePort {
-  constructor(private readonly pool: PgPool) {}
-
-  async logLlmCall(record: LlmCallRecord): Promise<LlmCallResult> {
-    // Correlate at write time from Agent CR; null CR → uncorrelated (#943,#945,#947).
-    const { rows } = await this.pool.query<{ correlated: boolean }>(
-      `INSERT INTO pipeline.llm_calls
+/** Correlates the call at write time from its Agent CR name; a null CR leaves the row uncorrelated rather than dropping it (#943, #945, #947). */
+const LOG_CALL_SQL = `INSERT INTO pipeline.llm_calls
          (task_id, assembly_line_id, station_run_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error)
        -- A carried identity ($11/$12) is STATED by the producer and wins over both
        -- guesses — the CR-name lateral and the given-id fallback. Whole, on one
@@ -83,7 +77,15 @@ export class PgUsage implements UsagePort {
             ORDER BY n.id DESC
             LIMIT 1
          ) node ON true
-       RETURNING (task_id IS NOT NULL OR assembly_line_id IS NOT NULL) AS correlated`,
+       RETURNING (task_id IS NOT NULL OR assembly_line_id IS NOT NULL) AS correlated`;
+
+/** Postgres UsagePort; single INSERT into pipeline.llm_calls. */
+export class PgUsage implements UsagePort {
+  constructor(private readonly pool: PgPool) {}
+
+  async logLlmCall(record: LlmCallRecord): Promise<LlmCallResult> {
+    const { rows } = await this.pool.query<{ correlated: boolean }>(
+      LOG_CALL_SQL,
       queryParams(record),
     );
 

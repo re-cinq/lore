@@ -144,37 +144,33 @@ export async function createBranch(
     ref: `heads/${base}`,
   });
 
-  try {
-    await ok.rest.git.createRef({
+  const create = () =>
+    ok.rest.git.createRef({
       owner,
       repo: name,
       ref: `refs/heads/${branch}`,
       sha: ref.object.sha,
     });
+
+  try {
+    await create();
   } catch (err) {
+    // 422 means the branch is already there. A retry of the same task must start from base again, so the old ref is deleted rather than reused — resuming on top of a half-finished attempt is how a run inherits work it never did.
     if ((err as { status?: number }).status !== 422) {
       throw err;
     }
     await ok.rest.git.deleteRef({ owner, repo: name, ref: `heads/${branch}` });
-    await ok.rest.git.createRef({
-      owner,
-      repo: name,
-      ref: `refs/heads/${branch}`,
-      sha: ref.object.sha,
-    });
+    await create();
   }
 }
 
-export async function commitFile(
+/** The sha of the file as it already exists, from the first of `refs` that has it. GitHub rejects an update that does not name the blob being replaced, and main is checked after the branch so a file that exists upstream but not yet on the branch is still an UPDATE rather than a create that 422s. */
+async function existingBlobSha(
   ok: Octokit,
-  repo: string,
-  branch: string,
-  { path, content, message }: FileChange,
-): Promise<void> {
-  const [owner, name] = split(repo);
-  let sha: string | undefined;
-
-  for (const ref of [branch, "main"]) {
+  { owner, name, path }: { owner: string; name: string; path: string },
+  refs: string[],
+): Promise<string | undefined> {
+  for (const ref of refs) {
     try {
       const { data: existing } = await ok.rest.repos.getContent({
         owner,
@@ -184,13 +180,28 @@ export async function commitFile(
       });
 
       if (!Array.isArray(existing) && "sha" in existing) {
-        sha = existing.sha;
-        break;
+        return existing.sha;
       }
     } catch {
       /* not found on this ref */
     }
   }
+
+  return undefined;
+}
+
+export async function commitFile(
+  ok: Octokit,
+  repo: string,
+  branch: string,
+  { path, content, message }: FileChange,
+): Promise<void> {
+  const [owner, name] = split(repo);
+  const sha = await existingBlobSha(ok, { owner, name, path }, [
+    branch,
+    "main",
+  ]);
+
   await ok.rest.repos.createOrUpdateFileContents({
     owner,
     repo: name,

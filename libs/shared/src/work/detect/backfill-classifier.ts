@@ -70,6 +70,47 @@ function classificationFromLLM(
   ];
 }
 
+/** The classification prompt. Statements are enumerated by ORDINAL so the answer can be matched back without relying on the model echoing the text, and each carries its enclosing heading — "the response is empty" means something different under Errors than under Background. The bias toward "testable" is deliberate: a false "untestable" hides a real coverage gap, while a false "testable" only produces a suggestion a human declines. */
+function classifierPrompt(specPath: string, batch: Statement[]): string {
+  const formatted = batch
+    .map(
+      (s) =>
+        `[${s.ordinal}] (under "${s.enclosingHeading ?? "<intro>"}") ${s.text}`,
+    )
+    .join("\n");
+
+  return `Classify each enumerated statement as either a NORMATIVE TESTABLE REQUIREMENT (something that could be validated by an automated test) or NARRATIVE (intro / vision / background / clarification / open-question / limitation / rationale).
+
+Bias toward "testable" — if you're unsure, return "testable". A false "untestable" hides a real coverage gap.
+
+For "untestable", pick the closest category from: intro, vision, background, clarification, open-question, limitation, rationale.
+
+SPEC: ${specPath}
+
+STATEMENTS:
+${formatted}`;
+}
+
+/** Asks the model, through a TOOL rather than free text: the schema is what makes an answer parseable per ordinal instead of prose somebody has to interpret. */
+async function askClassifier(
+  specPath: string,
+  batch: Statement[],
+): Promise<LLMClassification[]> {
+  const llm = await Llm.instance.completeWithTool<{
+    classifications?: LLMClassification[];
+  }>({
+    prompt: classifierPrompt(specPath, batch),
+    systemPrompt:
+      "You classify spec statements as testable requirements or narrative prose. Bias toward testable when unsure.",
+    toolName: "classify_statements",
+    toolDescription: "Classify each statement as testable or untestable",
+    toolSchema: CLASSIFIER_TOOL_SCHEMA,
+    jobName: "spec_coverage_backfill",
+  });
+
+  return llm.parsed.classifications || [];
+}
+
 async function classifyLLM(
   specPath: string,
   unclassified: Statement[],
@@ -81,42 +122,14 @@ async function classifyLLM(
   }
 
   const batch = unclassified.slice(0, CLASSIFIER_BATCH_LIMIT);
-  const formatted = batch
-    .map(
-      (s) =>
-        `[${s.ordinal}] (under "${s.enclosingHeading ?? "<intro>"}") ${s.text}`,
-    )
-    .join("\n");
 
   try {
-    const llm = await Llm.instance.completeWithTool<{
-      classifications?: LLMClassification[];
-    }>({
-      prompt: `Classify each enumerated statement as either a NORMATIVE TESTABLE REQUIREMENT (something that could be validated by an automated test) or NARRATIVE (intro / vision / background / clarification / open-question / limitation / rationale).
-
-Bias toward "testable" — if you're unsure, return "testable". A false "untestable" hides a real coverage gap.
-
-For "untestable", pick the closest category from: intro, vision, background, clarification, open-question, limitation, rationale.
-
-SPEC: ${specPath}
-
-STATEMENTS:
-${formatted}`,
-      systemPrompt:
-        "You classify spec statements as testable requirements or narrative prose. Bias toward testable when unsure.",
-      toolName: "classify_statements",
-      toolDescription: "Classify each statement as testable or untestable",
-      toolSchema: CLASSIFIER_TOOL_SCHEMA,
-      jobName: "spec_coverage_backfill",
-    });
-
-    for (const c of llm.parsed.classifications || []) {
+    for (const c of await askClassifier(specPath, batch)) {
       const entry = classificationFromLLM(c);
 
-      if (!entry) {
-        continue;
+      if (entry) {
+        result.set(entry[0], entry[1]);
       }
-      result.set(entry[0], entry[1]);
     }
   } catch (err) {
     console.warn(
@@ -126,6 +139,19 @@ ${formatted}`,
   }
 
   return result;
+}
+
+/** A statement the model did not classify defaults to TESTABLE, and so does one it failed to answer for at all — the same bias the prompt asks for. `matchedBySection` is false because the heuristic did not decide this one; only a section match sets it. */
+function resolveClassification(
+  decision: ResolvedClassification | undefined,
+): Classification {
+  return decision && decision.testability === "untestable"
+    ? {
+        testability: "untestable",
+        category: decision.category,
+        matchedBySection: false,
+      }
+    : { testability: "testable", category: null, matchedBySection: false };
 }
 
 export async function classifyAllStatements(
@@ -148,22 +174,7 @@ export async function classifyAllStatements(
   const llm = await classifyLLM(specPath, unclassified);
 
   for (const s of unclassified) {
-    const decision = llm.get(s.ordinal);
-
-    const classification: Classification =
-      decision && decision.testability === "untestable"
-        ? {
-            testability: "untestable",
-            category: decision.category,
-            matchedBySection: false,
-          }
-        : {
-            testability: "testable",
-            category: null,
-            matchedBySection: false,
-          };
-
-    out.set(s.ordinal, classification);
+    out.set(s.ordinal, resolveClassification(llm.get(s.ordinal)));
   }
 
   return out;

@@ -25,45 +25,52 @@ interface HttpConfig {
   fetchImpl: typeof fetch;
 }
 
+/** A station pod holds no database and no App credentials (D7), so every read and write it makes is one of these two calls against the repo-scoped API. */
 function makeHttp(cfg: HttpConfig) {
-  const headers = (): Record<string, string> => {
-    const h: Record<string, string> = { "content-type": "application/json" };
-
-    if (cfg.token) {
-      h["authorization"] = `Bearer ${cfg.token}`;
-    }
-
-    return h;
-  };
+  const headers = requestHeaders(cfg);
   const base = `${cfg.baseUrl}/api/repos/${cfg.repo}`;
 
   return {
     async get<T>(path: string, query: Record<string, string> = {}): Promise<T> {
       const qs = new URLSearchParams(query).toString();
-      const res = await cfg.fetchImpl(`${base}${path}${qs ? `?${qs}` : ""}`, {
-        headers: headers(),
-      });
 
-      if (!res.ok) {
-        throw new Error(`GET ${path} failed: ${res.status}`);
-      }
-
-      return (await res.json()) as T;
+      return unwrap(
+        cfg.fetchImpl(`${base}${path}${qs ? `?${qs}` : ""}`, { headers }),
+        `GET ${path}`,
+      );
     },
     async post<T>(path: string, body: unknown): Promise<T> {
-      const res = await cfg.fetchImpl(`${base}${path}`, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        throw new Error(`POST ${path} failed: ${res.status}`);
-      }
-
-      return (await res.json()) as T;
+      return unwrap(
+        cfg.fetchImpl(`${base}${path}`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        }),
+        `POST ${path}`,
+      );
     },
   };
+}
+
+function requestHeaders(cfg: HttpConfig): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    ...(cfg.token ? { authorization: `Bearer ${cfg.token}` } : {}),
+  };
+}
+
+/** The parsed body, or a throw naming the call that failed. The status alone is what the caller gets — a station's failures surface as pod logs, and a bare `404` there says nothing about which read produced it. */
+async function unwrap<T>(
+  pending: Promise<Response>,
+  label: string,
+): Promise<T> {
+  const res = await pending;
+
+  if (!res.ok) {
+    throw new Error(`${label} failed: ${res.status}`);
+  }
+
+  return (await res.json()) as T;
 }
 
 type Http = ReturnType<typeof makeHttp>;

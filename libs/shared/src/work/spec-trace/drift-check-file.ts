@@ -226,6 +226,18 @@ interface DriftCheckContext {
   drifted: DriftedStatement[];
 }
 
+function rot(ctx: DriftCheckContext) {
+  return { reason: ctx.linkRotReason };
+}
+
+/** The embedding rides along as the SEVERITY source: how far the code moved in vector space decides whether this was a rename or a rewrite, and only the latter is worth putting in front of a human. */
+function moved(chunk: GraphCodeChunk, replacement: NewCodeChunk) {
+  return {
+    reason: `code-content-changed (${driftSymbolLabel(chunk, replacement)})`,
+    severitySource: replacement.embedding,
+  };
+}
+
 /** Reconciles one graph chunk against its (possibly absent) re-ingested replacement; returns whether it was first-sight baselined. */
 async function processChunkDrift(
   dgraph: DgraphClientPort,
@@ -233,37 +245,29 @@ async function processChunkDrift(
   replacement: NewCodeChunk | undefined,
   ctx: DriftCheckContext,
 ): Promise<boolean> {
+  // The chunk's code is GONE: that is link rot, not drift — nothing changed, the target stopped existing.
   if (!replacement) {
-    await driftChunkStatements(
-      dgraph,
-      chunk,
-      { reason: ctx.linkRotReason },
-      ctx.drifted,
-    );
+    await driftChunkStatements(dgraph, chunk, rot(ctx), ctx.drifted);
 
     return false;
   }
-
   const storedHash = chunk["CodeChunk.content_hash"];
 
   if (storedHash === replacement.contentHash) {
     return false;
   }
 
-  const isFirstSight = storedHash === undefined;
-
   await updateChunkHash(dgraph, chunk.uid, replacement.contentHash);
 
-  if (isFirstSight) {
+  // No stored hash means this chunk is being hashed for the FIRST time. Recording it as drift would flag every chunk in the repo the first time the checker sees it.
+  if (storedHash === undefined) {
     return true;
   }
-
-  const driftReason = `code-content-changed (${driftSymbolLabel(chunk, replacement)})`;
 
   await driftChunkStatements(
     dgraph,
     chunk,
-    { reason: driftReason, severitySource: replacement.embedding },
+    moved(chunk, replacement),
     ctx.drifted,
   );
 

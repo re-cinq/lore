@@ -13,11 +13,12 @@ type StatementVerification = {
   implemented?: Array<{ "CodeChunk.file_path"?: string }>;
 };
 
-export async function verifyCoverageLink(
+/** The statement's tests and implementation, one hop each. Reads both sides in one query because the verdict is about their OVERLAP — whether a test that claims the statement actually executes the code implementing it. */
+async function readVerification(
   dgraph: DgraphClientPort,
   statementXid: string,
-): Promise<"execution-verified" | "link-unproven" | "untested"> {
-  const statement = await withTxn(dgraph, async (txn) => {
+): Promise<StatementVerification> {
+  return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($sx: string){
         stmt(func: eq(Statement.xid, $sx)){
@@ -30,6 +31,13 @@ export async function verifyCoverageLink(
 
     return (res.data.stmt?.[0] ?? {}) as StatementVerification;
   });
+}
+
+export async function verifyCoverageLink(
+  dgraph: DgraphClientPort,
+  statementXid: string,
+): Promise<"execution-verified" | "link-unproven" | "untested"> {
+  const statement = await readVerification(dgraph, statementXid);
 
   const validatingTests = statement.validated_by ?? [];
 

@@ -2,6 +2,21 @@ import { enforceTrue } from "../../../lib/enforce.js";
 import { enforceSchema, type ChunkRow } from "./chunk-row-memory.js";
 
 /** The reindex-job maintenance surface of InMemoryChunks — which files a repo's reindex-job chunks own, aging them out, pruning them, and migrating legacy org_shared rows onto a team schema. Reads/writes the SAME `rows` array `InMemoryChunks` owns (via `host`, since several of these reassign the array wholesale rather than mutate in place). */
+/** Moves one legacy row into the team schema. `ingested_by` is stamped only where it was ABSENT and the type is one the reindex job owns — a chunk written by another ingester keeps its provenance, or the heal sweep would later treat it as its own to re-chunk. */
+function adoptRow(row: ChunkRow, schema: string): void {
+  const adopt =
+    row.metadata.ingested_by == null &&
+    ["doc", "code", "adr", "spec"].includes(row.contentType);
+
+  row.schema = schema;
+  row.team = schema;
+  row.metadata = {
+    ...row.metadata,
+    migrated_from: "org_shared",
+    ...(adopt ? { ingested_by: "reindex-job" } : {}),
+  };
+}
+
 export class ReindexChunkStore {
   constructor(private readonly host: { rows: ChunkRow[] }) {}
 
@@ -122,6 +137,18 @@ export class ReindexChunkStore {
     return before - this.host.rows.length;
   }
 
+  /** What the target already holds, read BEFORE anything moves. Postgres evaluates every dedupe probe against pre-statement state, so a file split across several chunks must move wholesale — probing live state would let its own first chunk dedupe away the rest. */
+  private snapshotTarget(schema: string, repo: string) {
+    const target = this.host.rows.filter(
+      (row) => row.schema === schema && row.repo === repo,
+    );
+
+    return {
+      files: new Set(target.map((row) => row.filePath)),
+      ids: new Set(target.map((row) => row.id)),
+    };
+  }
+
   async relocateLegacyChunks(
     schema: string,
     repo: string,
@@ -132,36 +159,7 @@ export class ReindexChunkStore {
       Error,
       "relocateLegacyChunks target must not be org_shared",
     );
-    // Snapshot target before moving anything — Pg's dedupe probes all see pre-statement state, so a multi-chunk file moves wholesale rather than deduping against its own first chunk.
-    const target = this.host.rows.filter(
-      (row) => row.schema === schema && row.repo === repo,
-    );
-    const targetFiles = new Set(target.map((row) => row.filePath));
-    const targetIds = new Set(target.map((row) => row.id));
-    const legacy = this.host.rows.filter(
-      (row) => row.schema === "org_shared" && row.repo === repo,
-    );
-    const dropIds = new Set<string>();
-    let moved = 0;
-
-    for (const row of legacy) {
-      if (targetFiles.has(row.filePath) || targetIds.has(row.id)) {
-        dropIds.add(row.id);
-        continue;
-      }
-      const adopt =
-        row.metadata.ingested_by == null &&
-        ["doc", "code", "adr", "spec"].includes(row.contentType);
-
-      row.schema = schema;
-      row.team = schema;
-      row.metadata = {
-        ...row.metadata,
-        migrated_from: "org_shared",
-        ...(adopt ? { ingested_by: "reindex-job" } : {}),
-      };
-      moved++;
-    }
+    const { moved, dropIds } = this.adoptLegacyRows(schema, repo);
 
     this.host.rows = this.host.rows.filter(
       (row) =>
@@ -173,5 +171,25 @@ export class ReindexChunkStore {
     );
 
     return { moved, dropped: moved + dropIds.size };
+  }
+
+  /** Moves each legacy row the target does not already hold, and collects the ids of those it does. A row skipped because the target has a newer copy is still dropped — the two ids are counted separately so the caller can report what moved against what merely went away. */
+  private adoptLegacyRows(schema: string, repo: string) {
+    const already = this.snapshotTarget(schema, repo);
+    const dropIds = new Set<string>();
+    let moved = 0;
+
+    for (const row of this.host.rows.filter(
+      (row) => row.schema === "org_shared" && row.repo === repo,
+    )) {
+      if (already.files.has(row.filePath) || already.ids.has(row.id)) {
+        dropIds.add(row.id);
+        continue;
+      }
+      adoptRow(row, schema);
+      moved++;
+    }
+
+    return { moved, dropIds };
   }
 }

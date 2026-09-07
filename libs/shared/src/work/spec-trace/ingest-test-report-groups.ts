@@ -154,6 +154,24 @@ function addDescriptorToSentenceGroups(
 }
 
 /** Writes a sentence-resolved group onto its existing node by uid, same violated/violation_reason handling as {@link writeStatementGroup}. */
+/** The write for one group: the tests that validate the statement, and whether any of them failed. The reason is included ONLY on failure — an empty reason beside `violated: false` reads as a violation nobody could name. */
+function groupMutation(group: SentenceGroup, failed: boolean) {
+  return {
+    uid: group.uid,
+    [`${group.nodeType}.validated_by`]: group.validatingChunkUids.map(
+      (uid) => ({
+        uid,
+      }),
+    ),
+    [`${group.nodeType}.violated`]: failed,
+    ...(failed
+      ? {
+          [`${group.nodeType}.violation_reason`]: `validating test failed: ${group.failingTestNames.join(", ")}`,
+        }
+      : {}),
+  };
+}
+
 export async function writeSentenceGroup(
   dgraph: DgraphClientPort,
   group: SentenceGroup,
@@ -161,23 +179,10 @@ export async function writeSentenceGroup(
   const failed = group.failingTestNames.length > 0;
 
   await withTxn(dgraph, (txn) =>
-    txn.mutate({
-      setJson: {
-        uid: group.uid,
-        [`${group.nodeType}.validated_by`]: group.validatingChunkUids.map(
-          (uid) => ({ uid }),
-        ),
-        [`${group.nodeType}.violated`]: failed,
-        ...(failed
-          ? {
-              [`${group.nodeType}.violation_reason`]: `validating test failed: ${group.failingTestNames.join(", ")}`,
-            }
-          : {}),
-      },
-      commitNow: true,
-    }),
+    txn.mutate({ setJson: groupMutation(group, failed), commitNow: true }),
   );
 
+  // Setting `violated: false` does not remove a reason written by an earlier run — the predicate has to be deleted, or a statement that went green keeps explaining why it was red.
   if (!failed) {
     await deletePredicate(
       dgraph,

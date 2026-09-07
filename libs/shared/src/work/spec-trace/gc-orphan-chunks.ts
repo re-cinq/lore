@@ -33,6 +33,40 @@ export interface OrphanSweep {
   excludeOwners?: Set<string>;
 }
 
+/** Whether anything still points at this node, ignoring the owners the caller is dropping. FAIL SAFE: an owner edge whose uid cannot be read counts as an owner — only an identified uid may be discounted, so an unreadable answer keeps the node rather than deleting something still in use. A `[uid]` edge arrives as an array and a single-cardinality one as a bare object; both mean owned. */
+async function hasOtherOwner(
+  dgraph: DgraphClientPort,
+  uid: string,
+  ownerEdges: readonly string[],
+  excludeOwnerUids: Set<string>,
+): Promise<boolean> {
+  return withTxn(dgraph, async (txn) => {
+    const blocks = ownerEdges
+      .map((edge, index) => `owner${index}: ${edge} { uid }`)
+      .join("\n");
+    const res = await txn.queryWithVars(
+      `query q($uid: string) { node(func: uid($uid)) { ${blocks} } }`,
+      { $uid: uid },
+    );
+    const node = (res.data.node?.[0] ?? {}) as Record<string, unknown>;
+    const isCountedOwner = (value: unknown): boolean => {
+      if (value == null) {
+        return false;
+      }
+
+      if (typeof value !== "object" || !("uid" in value)) {
+        return true;
+      }
+
+      return !excludeOwnerUids.has(String(value.uid));
+    };
+    const isOwned = (value: unknown): boolean =>
+      Array.isArray(value) ? value.some(isCountedOwner) : isCountedOwner(value);
+
+    return ownerEdges.some((_, index) => isOwned(node[`owner${index}`]));
+  });
+}
+
 export async function gcOrphanChunks(
   dgraph: DgraphClientPort,
   nodeType: GcNodeType,
@@ -44,35 +78,12 @@ export async function gcOrphanChunks(
   const ownerEdges = CHUNK_OWNER_EDGES[nodeType];
 
   for (const uid of dropped) {
-    const stillOwned = await withTxn(dgraph, async (txn) => {
-      const blocks = ownerEdges
-        .map((edge, index) => `owner${index}: ${edge} { uid }`)
-        .join("\n");
-      const res = await txn.queryWithVars(
-        `query q($uid: string) { node(func: uid($uid)) { ${blocks} } }`,
-        { $uid: uid },
-      );
-      // A `[uid]` edge is array; single-cardinality `uid` edge is bare object; either means owned.
-      const node = (res.data.node?.[0] ?? {}) as Record<string, unknown>;
-      const isCountedOwner = (value: unknown): boolean => {
-        if (value == null) {
-          return false;
-        }
-
-        if (typeof value !== "object" || !("uid" in value)) {
-          // Fail safe: unreadable uid still counts; only identified uids may be discounted.
-          return true;
-        }
-
-        return !excludeOwnerUids.has(String(value.uid));
-      };
-      const isOwned = (value: unknown): boolean =>
-        Array.isArray(value)
-          ? value.some(isCountedOwner)
-          : isCountedOwner(value);
-
-      return ownerEdges.some((_, index) => isOwned(node[`owner${index}`]));
-    });
+    const stillOwned = await hasOtherOwner(
+      dgraph,
+      uid,
+      ownerEdges,
+      excludeOwnerUids,
+    );
 
     if (!stillOwned) {
       await withTxn(dgraph, (txn) =>

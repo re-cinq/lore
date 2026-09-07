@@ -30,9 +30,9 @@ export interface EscalateInput {
   failingPhaseOutput?: string;
 }
 
-/** Renders the Issue body a human reads (branch, commit log, diagnostic, failing output, contributing refs) per FR3.8; pure — which surfaces it reaches is the escalation line's business. */
-export function renderEscalationBody(input: EscalateInput): string {
-  const lines: string[] = [
+/** Identity and diagnosis. The branch and its commit log are LINKED rather than described: the first thing a human does with an escalation is look at what the agent actually left behind. */
+function header(input: EscalateInput): string[] {
+  return [
     `## Lore Pipeline Escalation`,
     ``,
     `**Task ID:** \`${input.taskId}\``,
@@ -44,33 +44,40 @@ export function renderEscalationBody(input: EscalateInput): string {
     ``,
     input.diagnostic,
   ];
+}
 
-  if (input.failingPhaseOutput) {
-    lines.push(
-      ``,
-      `### Failing phase output`,
-      ``,
-      "```",
-      input.failingPhaseOutput,
-      "```",
-    );
+function failingOutput(output: string | undefined): string[] {
+  return output
+    ? [``, `### Failing phase output`, ``, "```", output, "```"]
+    : [];
+}
+
+/** The context that fed the run. Listed so a human can tell a bad answer from a bad question — an escalation caused by a stale convention is fixed in the knowledge base, not in the code. */
+function contributingContext(
+  refs: EscalateInput["contributingRefs"],
+): string[] {
+  if (!refs || refs.length === 0) {
+    return [];
   }
 
-  if (input.contributingRefs && input.contributingRefs.length > 0) {
-    lines.push(``, `### Contributing context`, ``);
+  return [
+    ``,
+    `### Contributing context`,
+    ``,
+    ...refs.map(
+      (ref) => `- ${ref.type} \`${ref.id}\`${ref.text ? `: ${ref.text}` : ""}`,
+    ),
+  ];
+}
 
-    for (const ref of input.contributingRefs) {
-      lines.push(
-        `- ${ref.type} \`${ref.id}\`${ref.text ? `: ${ref.text}` : ""}`,
-      );
-    }
-  }
-
-  lines.push(
+/** Renders the Issue body a human reads (branch, commit log, diagnostic, failing output, contributing refs) per FR3.8; pure — which surfaces it reaches is the escalation line's business. */
+export function renderEscalationBody(input: EscalateInput): string {
+  return [
+    ...header(input),
+    ...failingOutput(input.failingPhaseOutput),
+    ...contributingContext(input.contributingRefs),
     ``,
     `---`,
     `*Issued by [Lore](https://github.com/re-cinq/lore). Inspect the branch to see partial work.*`,
-  );
-
-  return lines.join("\n");
+  ].join("\n");
 }

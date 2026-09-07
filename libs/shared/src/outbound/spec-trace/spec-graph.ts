@@ -43,6 +43,15 @@ export interface PersistentFeatureNode {
   status: string;
 }
 
+/** What a persistent Feature row contributes to a graph node — the same three fields whether it enriches a computed node or stands alone. */
+function enrichment(feature: PersistentFeatureNode) {
+  return {
+    label: feature.title,
+    status: feature.status,
+    featureId: feature.id,
+  };
+}
+
 // Persistent Feature rows win (ADR-027): enrich a matching computed node, or inject a standalone node for a draft with no spec yet. Pure.
 export function mergePersistentFeatures(
   graph: SpecGraph,
@@ -51,39 +60,26 @@ export function mergePersistentFeatures(
   const byPath = new Map(features.map((f) => [f.path, f]));
   const matched = new Set<string>();
   const nodes = graph.nodes.map((node) => {
-    if (node.type !== "Feature" || !node.path) {
-      return node;
-    }
-    const feature = byPath.get(node.path);
+    const feature =
+      node.type === "Feature" && node.path ? byPath.get(node.path) : undefined;
 
     if (!feature) {
       return node;
     }
     matched.add(feature.path);
 
-    return {
-      ...node,
-      label: feature.title,
-      status: feature.status,
-      featureId: feature.id,
-    };
+    return { ...node, ...enrichment(feature) };
   });
-
-  for (const feature of features) {
-    if (matched.has(feature.path)) {
-      continue;
-    }
-    nodes.push({
+  const standalone: SpecGraphNode[] = features
+    .filter((feature) => !matched.has(feature.path))
+    .map((feature) => ({
       id: `feature:${feature.id}`,
       type: "Feature",
-      label: feature.title,
       path: feature.path,
-      status: feature.status,
-      featureId: feature.id,
-    });
-  }
+      ...enrichment(feature),
+    }));
 
-  return { nodes, links: graph.links };
+  return { nodes: [...nodes, ...standalone], links: graph.links };
 }
 export interface SpecGraphLink {
   source: string;

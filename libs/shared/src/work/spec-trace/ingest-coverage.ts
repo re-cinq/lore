@@ -94,6 +94,56 @@ async function linkTestChunkCoverage(
   );
 }
 
+/** One test's coverage: its node, the files it covers, and the edges between. The previous targets are read BEFORE the replace so the ones this run dropped can be garbage-collected — a File node no coverage owns any more is invisible from the graph's entry point but still occupies it. Everything is also hung off the Repo root for the same reason: a node reachable from nothing is a node nobody can query. */
+/** Points this coverage at the files it now covers, and garbage-collects the ones it dropped. The previous targets are read BEFORE the replace: after it, there is no record of what this coverage used to own, and a File node nothing points at is unreachable from the graph's entry point while still occupying it. */
+async function replaceCovers(
+  dgraph: DgraphClientPort,
+  repo: string,
+  coverageUid: string,
+  record: { covered: CoveredChunk[] },
+): Promise<string[]> {
+  const previousCovers = await readCoversUids(dgraph, coverageUid);
+  const fileTargets = await upsertCoveredFiles(dgraph, repo, record.covered);
+  const fileUids = fileTargets.map((t) => t.uid);
+
+  await replaceEdgeWithFacets(
+    dgraph,
+    coverageUid,
+    "Coverage.covers",
+    fileTargets,
+  );
+  await gcOrphanChunks(dgraph, "File", {
+    previous: previousCovers,
+    current: fileUids,
+  });
+
+  return fileUids;
+}
+
+async function ingestOneCoverage(
+  dgraph: DgraphClientPort,
+  meta: { repo: string; tool: string; commit: string },
+  record: { testFile: string; testName: string; covered: CoveredChunk[] },
+): Promise<number> {
+  const xid = `${meta.repo}|${record.testFile}|${record.testName}`;
+  const coverageUid = await upsertByXid(dgraph, "Coverage", xid, {
+    "Coverage.repo": meta.repo,
+    "Coverage.tool": meta.tool,
+    "Coverage.commit": meta.commit,
+  });
+  const fileUids = await replaceCovers(dgraph, meta.repo, coverageUid, record);
+
+  await upsertByXid(dgraph, "Repo", meta.repo, {
+    "Repo.coverage": [{ uid: coverageUid }],
+    ...(fileUids.length
+      ? { "Repo.files": fileUids.map((uid) => ({ uid })) }
+      : {}),
+  });
+  await linkTestChunkCoverage(dgraph, meta.repo, record, coverageUid);
+
+  return fileUids.length;
+}
+
 export async function ingestCoverageReport(
   dgraph: DgraphClientPort,
   meta: { repo: string; tool: string; commit: string },
@@ -106,42 +156,7 @@ export async function ingestCoverageReport(
   let coversEdges = 0;
 
   for (const record of records) {
-    const xid = `${meta.repo}|${record.testFile}|${record.testName}`;
-    const coverageUid = await upsertByXid(dgraph, "Coverage", xid, {
-      "Coverage.repo": meta.repo,
-      "Coverage.tool": meta.tool,
-      "Coverage.commit": meta.commit,
-    });
-    const previousCovers = await readCoversUids(dgraph, coverageUid);
-    const fileTargets = await upsertCoveredFiles(
-      dgraph,
-      meta.repo,
-      record.covered,
-    );
-    const fileUids = fileTargets.map((t) => t.uid);
-
-    await replaceEdgeWithFacets(
-      dgraph,
-      coverageUid,
-      "Coverage.covers",
-      fileTargets,
-    );
-    // GC File nodes this coverage dropped if no other coverage owns them.
-    await gcOrphanChunks(dgraph, "File", {
-      previous: previousCovers,
-      current: fileUids,
-    });
-    coversEdges += fileUids.length;
-
-    // Connect Coverage and Files to Repo root to prevent orphaning from graph entry point.
-    await upsertByXid(dgraph, "Repo", meta.repo, {
-      "Repo.coverage": [{ uid: coverageUid }],
-      ...(fileUids.length
-        ? { "Repo.files": fileUids.map((uid) => ({ uid })) }
-        : {}),
-    });
-
-    await linkTestChunkCoverage(dgraph, meta.repo, record, coverageUid);
+    coversEdges += await ingestOneCoverage(dgraph, meta, record);
   }
 
   // Ranges expressed in this commit's line numbering; stamp once per report for pre-merge query alignment.

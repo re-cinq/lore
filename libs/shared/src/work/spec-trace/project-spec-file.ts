@@ -115,6 +115,51 @@ async function upsertSpecNode(
 }
 
 /** Everything that hangs off a spec: its sections, statements, acceptance criteria and code blocks — each followed by a prune, so a statement deleted from the markdown does not linger in the graph as a validated claim. */
+/** Sections and statements, then the orphans neither of them claimed. The prune is by XID and runs AFTER the projection, so a statement that moved ordinal is re-anchored rather than deleted and recreated — recreating it would drop the test links pointing at it. */
+/** Removes statements and sections this projection did not produce. Both prunes run AFTER the upserts and match by XID, so a statement that only moved ordinal is re-anchored rather than deleted — deleting it would take the test links pointing at it with it. */
+async function pruneStatementOrphans(
+  context: ProjectionContext,
+  kept: { statementOrdinals: number[]; sectionCount: number },
+): Promise<void> {
+  const { repo, filePath } = context;
+
+  await pruneOrphans(
+    context,
+    "Statement",
+    new Set(kept.statementOrdinals.map((o) => `${repo}|${filePath}|${o}`)),
+  );
+  await pruneOrphans(
+    context,
+    "Section",
+    new Set(
+      Array.from(
+        { length: kept.sectionCount },
+        (_, ordinal) => `${repo}|${filePath}|${ordinal}`,
+      ),
+    ),
+    "Spec.sections",
+  );
+}
+
+async function projectStatementLayer(
+  context: ProjectionContext,
+  statementSegments: ReturnType<typeof segmentStatements>,
+  introOrdinals: ReturnType<typeof buildIntroOrdinals>,
+): Promise<void> {
+  const sectionUidByHeading = await projectSections(context, statementSegments);
+
+  await projectStatements(
+    context,
+    statementSegments,
+    introOrdinals,
+    sectionUidByHeading,
+  );
+  await pruneStatementOrphans(context, {
+    statementOrdinals: statementSegments.map((segment) => segment.ordinal),
+    sectionCount: sectionUidByHeading.size,
+  });
+}
+
 async function projectSpecChildren(
   context: ProjectionContext,
   content: string,
@@ -129,33 +174,9 @@ async function projectSpecChildren(
     (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
   );
 
-  const sectionUidByHeading = await projectSections(context, statementSegments);
-
-  await projectStatements(
-    context,
-    statementSegments,
-    introOrdinals,
-    sectionUidByHeading,
-  );
-
-  const validStatementXids = new Set(
-    statementSegments.map(
-      (segment) => `${repo}|${filePath}|${segment.ordinal}`,
-    ),
-  );
-
-  await pruneOrphans(context, "Statement", validStatementXids);
-
-  const validSectionXids = new Set(
-    Array.from(
-      { length: sectionUidByHeading.size },
-      (_, ordinal) => `${repo}|${filePath}|${ordinal}`,
-    ),
-  );
-
-  await pruneOrphans(context, "Section", validSectionXids, "Spec.sections");
-
+  await projectStatementLayer(context, statementSegments, introOrdinals);
   await projectAcceptanceCriteria(context, acSegments);
+
   const validAcXids = new Set(
     acSegments.map((segment) => `${repo}|${filePath}|ac|${segment.ordinal}`),
   );
@@ -168,6 +189,22 @@ async function projectSpecChildren(
   );
 
   await projectBlocks(context, content);
+}
+
+/** The Spec node itself, hung off its feature and its repo, with the content hash CLEARED. The hash is written back only after every child write succeeds — a projection that dies mid-file must look unprojected next run, or the file stays permanently skipped with half its statements missing. */
+async function projectSpecNode(
+  dgraph: DgraphClientPort,
+  { repo, filePath, content }: SourceDocument,
+): Promise<string> {
+  const specUid = await upsertSpecNode(dgraph, repo, filePath, {
+    title: extractTitle(content),
+    featureUid: await projectFeature(dgraph, repo, filePath),
+  });
+
+  await deletePredicate(dgraph, specUid, "Spec.content_hash");
+  await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
+
+  return specUid;
 }
 
 export async function projectSpecFile(
@@ -183,25 +220,8 @@ export async function projectSpecFile(
     return { projected: false };
   }
 
-  const title = extractTitle(content);
-  const featureUid = await projectFeature(dgraph, repo, filePath);
-  const specUid = await upsertSpecNode(dgraph, repo, filePath, {
-    title,
-    featureUid,
-  });
-
-  // Clear the hash now, persist only after every child write succeeds — otherwise a mid-file death leaves the file permanently skipped with partial children.
-  await deletePredicate(dgraph, specUid, "Spec.content_hash");
-
-  await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
-
-  const context: ProjectionContext = {
-    dgraph,
-    repo,
-    filePath,
-    specUid,
-    embed,
-  };
+  const specUid = await projectSpecNode(dgraph, { repo, filePath, content });
+  const context: ProjectionContext = { dgraph, repo, filePath, specUid, embed };
 
   await projectSpecChildren(context, content);
 

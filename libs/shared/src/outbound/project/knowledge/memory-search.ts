@@ -127,6 +127,25 @@ async function applyGraphAugment(
   return augmentWithGraphNeighbors(pool, results, limit);
 }
 
+/** The four search legs merged into one ranked list. Reciprocal rank fusion is what lets a vector hit and a keyword hit be compared at all — the legs score on incompatible scales, but their RANKS are commensurable. Diversification then caps how much of the result one session can occupy, so a single chatty run cannot crowd out everything else. */
+async function rankedHits(
+  pool: PgPool,
+  query: string,
+  scope: SearchScope,
+  limit: number,
+): Promise<MemorySearchResult[]> {
+  const [[vectorMemories, vectorFacts], [keywordMemories, keywordFacts]] =
+    await Promise.all([
+      vectorSearchBoth(pool, query, scope),
+      keywordSearchBoth(pool, query, scope),
+    ]);
+
+  return diversify(
+    rrfMerge([vectorMemories, vectorFacts, keywordMemories, keywordFacts]),
+    limit,
+  );
+}
+
 export async function searchMemories(
   pool: PgPool,
   query: string,
@@ -146,22 +165,7 @@ export async function searchMemories(
   }
   const scope: SearchScope = { agent, poolId, includeInvalidated };
 
-  const [[vectorMemories, vectorFacts], [keywordMemories, keywordFacts]] =
-    await Promise.all([
-      vectorSearchBoth(pool, query, scope),
-      keywordSearchBoth(pool, query, scope),
-    ]);
-
-  // Merge via RRF: lists arrive pre-ranked (SQL ROW_NUMBER), rrfMerge combines them.
-  const merged = rrfMerge([
-    vectorMemories,
-    vectorFacts,
-    keywordMemories,
-    keywordFacts,
-  ]);
-
-  // Sort by score and diversify to prevent one session dominating results.
-  let results: MemorySearchResult[] = diversify(merged, limit);
+  let results = await rankedHits(pool, query, scope, limit);
 
   results = await applyGraphAugment(pool, results, limit, graphAugmentEnabled);
 
@@ -182,47 +186,44 @@ export async function searchMemories(
 
 // ── Retrieval strengthening ─────────────────────────────────────────
 
-export async function strengthenRetrievals(
-  pool: PgPool,
-  results: MemorySearchResult[],
-): Promise<void> {
-  const factIds = results
-    .filter((r) => (r.source === "fact" || r.source === "episode") && r.id)
-    .map((r) => r.id!);
-  const memoryIds = results
-    .filter((r) => r.source === "memory" && r.id)
-    .map((r) => r.id!);
-
-  const ops: Promise<unknown>[] = [];
-
-  if (factIds.length > 0) {
-    ops.push(
-      pool.query(
-        `UPDATE memory.facts
+/** Retrieval is evidence a fact is still in use, so it extends the half-life and revives a `stale` fact to `observed` — a fact somebody just read is by definition not forgotten. */
+const STRENGTHEN_FACTS_SQL = `UPDATE memory.facts
        SET retrieval_count = retrieval_count + 1,
            last_retrieved_at = now(),
            half_life_days = LEAST(COALESCE(half_life_days, 30) + 2, 365),
            confidence = CASE WHEN confidence = 'stale' THEN 'observed' ELSE confidence END
-       WHERE id = ANY($1)`,
-        [factIds],
-      ),
-    );
-  }
+       WHERE id = ANY($1)`;
 
-  if (memoryIds.length > 0) {
-    ops.push(
-      pool.query(
-        `UPDATE memory.memories
+/** Memories start with a longer default half-life (60 days) than facts and carry no confidence tier, so there is nothing to revive. */
+const STRENGTHEN_MEMORIES_SQL = `UPDATE memory.memories
        SET retrieval_count = retrieval_count + 1,
            last_retrieved_at = now(),
            half_life_days = LEAST(COALESCE(half_life_days, 60) + 2, 365)
-       WHERE id = ANY($1)`,
-        [memoryIds],
-      ),
-    );
-  }
+       WHERE id = ANY($1)`;
 
-  await Promise.all(ops);
+function idsOf(
+  results: MemorySearchResult[],
+  matches: (r: MemorySearchResult) => boolean,
+): string[] {
+  return results.flatMap((r) => (matches(r) && r.id ? [r.id] : []));
+}
+
+export async function strengthenRetrievals(
+  pool: PgPool,
+  results: MemorySearchResult[],
+): Promise<void> {
+  const factIds = idsOf(
+    results,
+    (r) => r.source === "fact" || r.source === "episode",
+  );
+  const memoryIds = idsOf(results, (r) => r.source === "memory");
+
+  await Promise.all([
+    factIds.length > 0 ? pool.query(STRENGTHEN_FACTS_SQL, [factIds]) : null,
+    memoryIds.length > 0
+      ? pool.query(STRENGTHEN_MEMORIES_SQL, [memoryIds])
+      : null,
+  ]);
 }
 
 /** The id of the named shared pool, or null when no such pool exists. */

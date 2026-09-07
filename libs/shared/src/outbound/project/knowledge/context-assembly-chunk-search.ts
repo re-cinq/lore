@@ -56,6 +56,28 @@ function hybridSql(schema: string): string {
        ORDER BY score DESC LIMIT $5`;
 }
 
+/** Search hits as context items, with scores normalized across the batch. Normalization matters because the two legs score on different scales — a raw vector distance beside a ts_rank would let one source crowd out the other regardless of relevance. */
+function toItems(rows: ChunkSearchHit[], contentTypes: string[]): SourceItem[] {
+  return normalizeScores(
+    rows.map((r) =>
+      mkItem(r.content, {
+        source_path: r.file_path,
+        content_type: r.content_type ?? contentTypes[0],
+        score: toScore(r.score),
+        ingested_at: toIso(r.ingested_at),
+      }),
+    ),
+  );
+}
+
+function keywordOnlySql(schema: string): string {
+  return `SELECT content, file_path, content_type, ingested_at,
+            ts_rank(search_tsv, websearch_to_tsquery('english', $2)) AS score
+     FROM ${schema}.chunks
+     WHERE repo = $1 AND content_type = ANY($3)
+     ORDER BY score DESC NULLS LAST, ingested_at DESC LIMIT $4`;
+}
+
 export async function hybridChunkItems(
   pool: PgPool,
   query: string,
@@ -68,40 +90,26 @@ export async function hybridChunkItems(
   ]);
   // Keyword leg searches distinctive terms (OR'd) rather than the whole paragraph, which would AND every filler word.
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
-  const mapRows = (rows: ChunkSearchHit[]): SourceItem[] =>
-    normalizeScores(
-      rows.map((r) =>
-        mkItem(r.content, {
-          source_path: r.file_path,
-          content_type: r.content_type ?? contentTypes[0],
-          score: toScore(r.score),
-          ingested_at: toIso(r.ingested_at),
-        }),
-      ),
-    );
 
   if (embedding) {
-    const embStr = `[${embedding.join(",")}]`;
     const { rows } = await pool.query<ChunkSearchHit>(hybridSql(schema), [
       repo,
-      embStr,
+      `[${embedding.join(",")}]`,
       contentTypes,
       keywordQuery,
       limit,
     ]);
 
-    return mapRows(rows);
+    return toItems(rows, contentTypes);
   }
 
-  // Keyword-only fallback (no embedding available).
-  const { rows } = await pool.query<ChunkSearchHit>(
-    `SELECT content, file_path, content_type, ingested_at,
-            ts_rank(search_tsv, websearch_to_tsquery('english', $2)) AS score
-     FROM ${schema}.chunks
-     WHERE repo = $1 AND content_type = ANY($3)
-     ORDER BY score DESC NULLS LAST, ingested_at DESC LIMIT $4`,
-    [repo, keywordQuery, contentTypes, limit],
-  );
+  // Keyword-only fallback: with no embedding the vector leg has nothing to compare against, so ranking falls back to text relevance alone.
+  const { rows } = await pool.query<ChunkSearchHit>(keywordOnlySql(schema), [
+    repo,
+    keywordQuery,
+    contentTypes,
+    limit,
+  ]);
 
-  return mapRows(rows);
+  return toItems(rows, contentTypes);
 }

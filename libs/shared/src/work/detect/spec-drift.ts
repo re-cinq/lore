@@ -2,16 +2,16 @@ import { extractAssertions } from "../spec-judge-llm.js";
 import type { SpecChunkRow } from "../../outbound/project/chunks/chunks-port.js";
 import type { Project } from "../../outbound/project/lib/project.js";
 import {
+  MAX_DRIFT_TASKS_PER_REPO_RUN,
+  createDriftTask,
+  graphTaskCopy,
+  heuristicTaskCopy,
+} from "./spec-drift-filing.js";
+import {
   isAssertionSource,
-  shouldSkipDrift,
   decideGraphDrift,
   decideHeuristicDrift,
-  type DriftedStatement,
-  type HeuristicDriftDecision,
 } from "./spec-drift-rules.js";
-
-/** Cap on drift tasks filed per repo run — one repo must never dump a whole batch. */
-const MAX_DRIFT_TASKS_PER_REPO_RUN = 3;
 
 export interface SpecDriftOptions {
   /** The repo this run covers, one assembly-line run per repo via the jobs/detect fan-out. */
@@ -143,6 +143,22 @@ async function processSpecDrift(
 }
 
 /** Spec Drift Detection Job (one repo per run, weekly via `cron.spec_drift.tick`): graph-primary drift detection per spec, falling back to LLM-assertion/symbol-membership heuristics, then files a gap-fill task per drifted spec (stable-key dedup, per-run cap). */
+/** What every spec in this run is checked against. The symbol set is built ONCE and lowercased for membership tests — a spec naming a function that no longer exists is the heuristic's whole signal, and doing that lookup per spec would re-read the repo's symbols for each one. `graphEnabled` decides which detector is authoritative: with no LORE_DGRAPH_HTTP every spec falls back to the heuristic. */
+async function driftContext(
+  project: Project,
+  repo: string,
+): Promise<SpecDriftContext> {
+  const codeChunks = await project.chunks.codeSymbols();
+
+  return {
+    project,
+    repo,
+    knownSymbols: new Set(codeChunks.map((c) => c.symbolName.toLowerCase())),
+    activeIssues: await fetchActiveIssues(project),
+    graphEnabled: !!process.env.LORE_DGRAPH_HTTP,
+  };
+}
+
 export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
   const repo = opts.repoFilter;
   const project = opts.project;
@@ -154,17 +170,6 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
     return "No specs found";
   }
 
-  // All code chunks for the repo with symbol metadata, for fast membership checks.
-  const codeChunks = await project.chunks.codeSymbols();
-  const knownSymbols = new Set(
-    codeChunks.map((c) => c.symbolName.toLowerCase()),
-  );
-
-  const activeIssues = await fetchActiveIssues(project);
-
-  // Graph-primary detection is authoritative when populated; without LORE_DGRAPH_HTTP every spec falls back to the heuristic.
-  const graphEnabled = !!process.env.LORE_DGRAPH_HTTP;
-
   const state: DriftRunState = {
     totalChecked: 0,
     totalDrift: 0,
@@ -172,13 +177,7 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
     filed: 0,
     deferred: 0,
   };
-  const ctx: SpecDriftContext = {
-    project,
-    repo,
-    knownSymbols,
-    activeIssues,
-    graphEnabled,
-  };
+  const ctx = await driftContext(project, repo);
 
   for (const spec of specs) {
     await processSpecDrift(ctx, spec, state);
@@ -195,12 +194,12 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
   return summary;
 }
 
-interface DriftTaskCopy {
+export interface DriftTaskCopy {
   title: string;
   bundle: Record<string, unknown>;
 }
 
-type FileOutcome = "filed" | "skipped" | "deferred";
+export type FileOutcome = "filed" | "skipped" | "deferred";
 
 /** Act on a graph-primary drift verdict; true when the graph was authoritative so the heuristic must be skipped. */
 async function applyGraphDrift(
@@ -250,104 +249,4 @@ async function fetchActiveIssues(
   } catch {
     return null;
   }
-}
-
-/** Issue copy + context bundle for a graph-detected drift; drifted statements ride in the bundle and issue-body.ts renders the body from them. */
-function graphTaskCopy(
-  specPath: string,
-  statements: DriftedStatement[],
-): DriftTaskCopy {
-  const shown = statements.slice(0, 20);
-
-  return {
-    title: `Spec drift: ${specPath} (${statements.length} statement${statements.length === 1 ? "" : "s"})`,
-    bundle: {
-      spec_path: specPath,
-      source: "graph",
-      remediation: "update-spec",
-      statement_count: statements.length,
-      drifted_statements: shown,
-    },
-  };
-}
-
-/** Issue copy + context bundle for a heuristic-detected drift (symbol membership). */
-function heuristicTaskCopy(
-  specPath: string,
-  decision: HeuristicDriftDecision,
-): DriftTaskCopy {
-  const pct = (decision.divergence * 100).toFixed(0);
-
-  return {
-    title: `Spec drift: ${specPath} (${pct}% divergence)`,
-    bundle: {
-      spec_path: specPath,
-      source: "heuristic",
-      remediation: "update-spec",
-      scored: decision.scored,
-      missing_count: decision.missing.length,
-      divergence: decision.divergence,
-      missing_symbols: decision.missing.slice(0, 20),
-    },
-  };
-}
-
-/** The per-run filing state every drift task is weighed against. */
-interface DriftFiling {
-  atCap: boolean;
-  activeIssues: Set<number> | null;
-}
-
-async function createDriftTask(
-  project: Project,
-  { repo, path: specPath }: { repo: string; path: string },
-  copy: DriftTaskCopy,
-  { atCap, activeIssues }: DriftFiling,
-): Promise<FileOutcome> {
-  // Dedup on the stable spec_path key (not the LLM-reworded title): skip when in flight or within cooldown.
-  const existing = await project.tasks.driftTasksForSpec("gap-fill", specPath);
-
-  if (shouldSkipDrift(existing, new Date())) {
-    console.log(
-      `[job] spec-drift: skipping ${repo}:${specPath} — ${existing.length} existing task(s), in flight or within cooldown`,
-    );
-
-    return "skipped";
-  }
-
-  if (
-    activeIssues &&
-    existing.some(
-      (e) => e.issue_number !== null && activeIssues.has(e.issue_number),
-    )
-  ) {
-    console.log(
-      `[job] spec-drift: skipping ${repo}:${specPath} — an open issue already tracks it`,
-    );
-
-    return "skipped";
-  }
-
-  // Cap is the last gate, after dedup: only specs that would genuinely be filed count against the per-run budget.
-  if (atCap) {
-    console.log(
-      `[job] spec-drift: deferring ${repo}:${specPath} — ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap reached`,
-    );
-
-    return "deferred";
-  }
-
-  await project.tasks.create({
-    description: copy.title,
-    taskType: "gap-fill",
-    targetRepo: repo,
-    createdBy: "spec-drift",
-    contextBundle: copy.bundle,
-  });
-
-  console.log(
-    `[job] spec-drift: created gap-fill task for ${repo}:${specPath} (${copy.bundle.source})`,
-  );
-
-  return "filed";
 }

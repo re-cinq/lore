@@ -295,36 +295,13 @@ export function classifyByHeuristic(
   statement: Statement,
   introOrdinals: Set<number>,
 ): Classification {
-  if (introOrdinals.has(statement.ordinal)) {
-    return {
-      testability: "untestable",
-      category: "intro",
-      matchedBySection: true,
-    };
-  }
-
-  const contentCategory = matchRuleCategory(CONTENT_RULES, statement.text);
-
-  if (contentCategory) {
-    return {
-      testability: "untestable",
-      category: contentCategory,
-      matchedBySection: true,
-    };
-  }
-
   const heading = statement.enclosingHeading;
-  const sectionCategory = heading
-    ? matchRuleCategory(SECTION_RULES, heading)
-    : null;
+  const category = introOrdinals.has(statement.ordinal)
+    ? "intro"
+    : (matchRuleCategory(CONTENT_RULES, statement.text) ??
+      (heading ? matchRuleCategory(SECTION_RULES, heading) : null));
 
-  if (sectionCategory) {
-    return {
-      testability: "untestable",
-      category: sectionCategory,
-      matchedBySection: true,
-    };
-  }
-
-  return { testability: "testable", category: null, matchedBySection: false };
+  return category
+    ? { testability: "untestable", category, matchedBySection: true }
+    : { testability: "testable", category: null, matchedBySection: false };
 }
