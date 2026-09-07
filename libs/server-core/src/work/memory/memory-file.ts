@@ -59,6 +59,19 @@ function nextVersionFor(existing: MemoryRecord | undefined): number {
   return 1;
 }
 
+/** History is append-only: the record above is last-write-wins, so the only way to see what a memory used to say is this list. */
+function appendVersion(
+  versions: Record<string, VersionRecord[]>,
+  key: string,
+  entry: VersionRecord,
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- read from disk JSON; this key may genuinely be absent
+  if (!versions[key]) {
+    versions[key] = [];
+  }
+  versions[key].push(entry);
+}
+
 export function writeMemoryFile(
   key: string,
   value: string,
@@ -79,7 +92,6 @@ export function writeMemoryFile(
 
   const nextVersion = nextVersionFor(memories[key]);
 
-  // Update memory record (last-write-wins)
   memories[key] = {
     value,
     version: nextVersion,
@@ -88,13 +100,7 @@ export function writeMemoryFile(
     is_deleted: false,
     expires_at: expiresAt,
   };
-
-  // Append version history
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- versions is Record<string, VersionRecord[]> read from disk JSON; this key may genuinely be absent
-  if (!versions[key]) {
-    versions[key] = [];
-  }
-  versions[key].push({
+  appendVersion(versions, key, {
     version: nextVersion,
     value,
     created_at: now,

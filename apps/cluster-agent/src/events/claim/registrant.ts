@@ -1,5 +1,6 @@
 // What a REGISTERED agent does; how a process becomes one is start-claim-loop.ts.
 
+import { KubeCatalogApi } from "../../outbound/kube-catalog-api.js";
 import { AgentCrBackend } from "@re-cinq/lore-shared/cluster/agent-backend.js";
 import { claimIntervalMs, claimOnce, runClaimLoop } from "./claim-loop.js";
 import {
@@ -10,7 +11,6 @@ import {
   type CatalogTarget,
 } from "../../work/catalog/catalog-sync-loop.js";
 import { clusterDeps } from "../../outbound/deps.js";
-import { KubeCatalogApi } from "../../outbound/kube-token-provisioner.js";
 import {
   heartbeatIntervalMs,
   heartbeatOnce,

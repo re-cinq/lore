@@ -1,5 +1,6 @@
 // Binding the routes to the real Kubernetes clients. Lazy + memoized: constructing a client loads a kubeconfig, and `buildServer` must describe the service without a cluster present.
 
+import { KubeCatalogApi } from "./kube-catalog-api.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { agentsNamespace } from "@re-cinq/lore-shared";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
@@ -8,7 +9,6 @@ import {
   KubeTokenProvisioner,
   GithubTokenMinter,
   KubeSecretKeyWriter,
-  KubeCatalogApi,
 } from "./kube-token-provisioner.js";
 import type { ClusterDeps } from "../domain/cluster-deps.js";
 import { isNotFound, describeK8sError } from "../lib/k8s-errors.js";
