@@ -82,10 +82,12 @@ async function resolveMemoryUid(
   });
 }
 
-export async function backfillMemoryToDgraph(deps: {
+interface BackfillDeps {
   pgPool: PgPool;
   dgraph: DgraphClientPort;
-}): Promise<BackfillReport> {
+}
+
+async function migrateMemories(deps: BackfillDeps): Promise<number> {
   const { rows: memories } = await deps.pgPool.query<{
     id: string;
     agent_id: string;
@@ -96,7 +98,8 @@ export async function backfillMemoryToDgraph(deps: {
   }>(
     "SELECT id, agent_id, key, value, version, embedding FROM memory.memories",
   );
-  const memoryCount = await migratePass(
+
+  return await migratePass(
     deps.dgraph,
     memories,
     "Memory.xid",
@@ -110,30 +113,38 @@ export async function backfillMemoryToDgraph(deps: {
       ...embeddingField(row.embedding),
     }),
   );
+}
 
+/** A fact's owning memory must already be in the graph — an orphaned fact is written without the edge rather than dropped, so the text survives even when its memory did not migrate. */
+async function migrateFacts(deps: BackfillDeps): Promise<number> {
   const { rows: facts } = await deps.pgPool.query<{
     id: string;
     memory_id: string | null;
     fact_text: string;
     valid_from: string;
   }>("SELECT id, memory_id, fact_text, valid_from FROM memory.facts");
-  const factCount = await migratePass(
-    deps.dgraph,
-    facts,
-    "Fact.xid",
-    async (fact) => {
-      const memoryUid = fact.memory_id
-        ? await resolveMemoryUid(deps.dgraph, fact.memory_id)
-        : undefined;
 
-      return {
-        "dgraph.type": "Fact",
-        "Fact.xid": fact.id,
-        "Fact.text": fact.fact_text,
-        ...(memoryUid ? { "Fact.memory": { uid: memoryUid } } : {}),
-      };
-    },
-  );
+  return await migratePass(deps.dgraph, facts, "Fact.xid", async (fact) => {
+    const memoryUid = fact.memory_id
+      ? await resolveMemoryUid(deps.dgraph, fact.memory_id)
+      : undefined;
+
+    return {
+      "dgraph.type": "Fact",
+      "Fact.xid": fact.id,
+      "Fact.text": fact.fact_text,
+      ...(memoryUid ? { "Fact.memory": { uid: memoryUid } } : {}),
+    };
+  });
+}
+
+export async function backfillMemoryToDgraph(deps: {
+  pgPool: PgPool;
+  dgraph: DgraphClientPort;
+}): Promise<BackfillReport> {
+  // Memories FIRST: a fact resolves its owning memory's uid, so the reverse order attaches every fact to nothing.
+  const memoryCount = await migrateMemories(deps);
+  const factCount = await migrateFacts(deps);
 
   return { memories: memoryCount, facts: factCount };
 }

@@ -95,19 +95,9 @@ export async function pruneChunksForFiles(
   return rows.length;
 }
 
-export async function relocateLegacyChunks(
-  pool: PgPool,
-  schema: string,
-  repo: string,
-): Promise<{ moved: number; dropped: number }> {
-  enforceSchema(schema);
-  enforceTrue(
-    schema !== "org_shared",
-    Error,
-    "relocateLegacyChunks target must not be org_shared",
-  );
-  const { rows } = await pool.query(
-    `WITH moved AS (
+/** Move-then-delete in ONE statement so a chunk is never in both schemas or neither. A row already present in the target is not moved but IS dropped from org_shared — the target copy is the newer one, and leaving the legacy row would keep serving it. */
+function relocateSql(schema: string): string {
+  return `WITH moved AS (
        INSERT INTO ${schema}.chunks
          (id, content, embedding, content_type, team, repo, file_path,
           author, ingested_at, metadata)
@@ -142,9 +132,21 @@ export async function relocateLegacyChunks(
        RETURNING id
      )
      SELECT (SELECT count(*) FROM moved)::text AS moved,
-            (SELECT count(*) FROM dropped)::text AS dropped`,
-    [repo, schema],
+            (SELECT count(*) FROM dropped)::text AS dropped`;
+}
+
+export async function relocateLegacyChunks(
+  pool: PgPool,
+  schema: string,
+  repo: string,
+): Promise<{ moved: number; dropped: number }> {
+  enforceSchema(schema);
+  enforceTrue(
+    schema !== "org_shared",
+    Error,
+    "relocateLegacyChunks target must not be org_shared",
   );
+  const { rows } = await pool.query(relocateSql(schema), [repo, schema]);
 
   return {
     moved: Number(rows[0]?.moved || 0),
