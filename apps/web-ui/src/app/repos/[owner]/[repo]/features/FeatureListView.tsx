@@ -6,6 +6,52 @@ import StatusBadge from "./StatusBadge";
 import styles from "./FeatureListView.module.scss";
 import type { FeatureRow } from "@/lib/feature-types";
 
+/** The features, or an invitation to plan one. The empty state names the control by its label so a first-time reader knows where to start. */
+function FeatureGrid({
+  features,
+  base,
+}: {
+  features: FeatureRow[];
+  base: string;
+}) {
+  if (features.length === 0) {
+    return (
+      <div className="spec-card">
+        <Alert variant="secondary">
+          No features yet. Click <strong>+ Feature</strong> to plan one from a
+          prompt.
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.grid}>
+      {features.map((f) => (
+        <Link
+          key={f.id}
+          href={`${base}/${f.id}`}
+          className={`spec-card ${styles.card}`}
+        >
+          <div className={styles.cardHeader}>
+            <h3 className={styles.cardTitle}>{f.title}</h3>
+            <StatusBadge status={f.status} />
+          </div>
+          <p className={`meta ${styles.excerpt}`}>
+            {f.original_prompt.slice(0, 160)}
+            {f.original_prompt.length > 160 ? "…" : ""}
+          </p>
+          {f.parent_feature_id && (
+            <p className={`meta ${styles.lineage}`}>
+              ↳ split from a parent feature
+            </p>
+          )}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export default function FeatureListView({
   owner,
   repo,
@@ -29,38 +75,7 @@ export default function FeatureListView({
         </Link>
       </div>
 
-      {features.length === 0 ? (
-        <div className="spec-card">
-          <Alert variant="secondary">
-            No features yet. Click <strong>+ Feature</strong> to plan one from a
-            prompt.
-          </Alert>
-        </div>
-      ) : (
-        <div className={styles.grid}>
-          {features.map((f) => (
-            <Link
-              key={f.id}
-              href={`${base}/${f.id}`}
-              className={`spec-card ${styles.card}`}
-            >
-              <div className={styles.cardHeader}>
-                <h3 className={styles.cardTitle}>{f.title}</h3>
-                <StatusBadge status={f.status} />
-              </div>
-              <p className={`meta ${styles.excerpt}`}>
-                {f.original_prompt.slice(0, 160)}
-                {f.original_prompt.length > 160 ? "…" : ""}
-              </p>
-              {f.parent_feature_id && (
-                <p className={`meta ${styles.lineage}`}>
-                  ↳ split from a parent feature
-                </p>
-              )}
-            </Link>
-          ))}
-        </div>
-      )}
+      <FeatureGrid features={features} base={base} />
     </div>
   );
 }

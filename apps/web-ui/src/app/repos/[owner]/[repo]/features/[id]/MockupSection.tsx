@@ -130,6 +130,34 @@ function MockupFrame({
   );
 }
 
+/** The markup this figure may safely render. Mermaid output skips DOMPurify because purifying would strip its foreignObject — it is protected instead by mermaid's own securityLevel:"strict" plus the sandboxed frame, while AUTHOR markup is always purified. Empty until the browser takes over: the server renders with no `sanitize`, and useSyncExternalStore resolves that disagreement without a hydration mismatch. */
+function useMockupMarkup(mockup: GapMockup, index: number) {
+  const mermaidSvg = useMermaidSvg(mockup, index);
+  const isMermaid = mockup.format === "mermaid";
+  const isHtml = mockup.format === "html";
+  const isBrowser = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+
+  if (!isBrowser) {
+    return { mermaidSvg, isMermaid, clean: "" };
+  }
+
+  return {
+    mermaidSvg,
+    isMermaid,
+    clean: isMermaid
+      ? (mermaidSvg ?? "")
+      : sanitizeMockupMarkup(
+          DOMPurify,
+          mockup.markup,
+          isHtml ? MOCKUP_HTML_CONFIG : MOCKUP_SVG_CONFIG,
+        ),
+  };
+}
+
 function MockupFigure({
   mockup,
   index,
@@ -139,32 +167,7 @@ function MockupFigure({
   index: number;
   stylesheet?: string;
 }) {
-  const mermaidSvg = useMermaidSvg(mockup, index);
-  const isMermaid = mockup.format === "mermaid";
-  const isHtml = mockup.format === "html";
-  // Server renders with no `sanitize` on DOMPurify; useSyncExternalStore handles the disagreement without hydration mismatch.
-  const isBrowser = useSyncExternalStore(
-    subscribeNever,
-    () => true,
-    () => false,
-  );
-  // Mermaid-rendered SVG: no DOMPurify (would strip foreignObject); two boundaries are mermaid's securityLevel:"strict" + sandbox; author markup still purified.
-  const cleanMarkup = () => {
-    if (!isBrowser) {
-      return "";
-    }
-
-    if (isMermaid) {
-      return mermaidSvg ?? "";
-    }
-
-    return sanitizeMockupMarkup(
-      DOMPurify,
-      mockup.markup,
-      isHtml ? MOCKUP_HTML_CONFIG : MOCKUP_SVG_CONFIG,
-    );
-  };
-  const clean = cleanMarkup();
+  const { mermaidSvg, isMermaid, clean } = useMockupMarkup(mockup, index);
   const href = `data:text/plain;charset=utf-8,${encodeURIComponent(mockup.markup)}`;
 
   return (

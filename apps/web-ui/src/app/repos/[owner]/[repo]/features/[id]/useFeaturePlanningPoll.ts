@@ -10,6 +10,28 @@ import { graphIsCacheable, mergeRunGraph } from "@/lib/run-graph-cache";
 const POLL_MS = 4000;
 
 /** Poll while wizard is on screen; failed polls keep last good payload; run graph fetched once per run via named request. */
+/** One poll read. The run's graph is large and unchanging, so a cacheable one is named in the query and the server may leave it out of the response — the caller merges its held copy back in. */
+async function fetchPoll(
+  target: { owner: string; repo: string; featureId: string },
+  cached: FeatureRunPayload | null,
+): Promise<
+  ReturnType<typeof toApiResult<FeaturePollPayload>> extends Promise<infer R>
+    ? R
+    : never
+> {
+  const query =
+    cached && graphIsCacheable(cached)
+      ? `?graph=${encodeURIComponent(cached.id)}`
+      : "";
+
+  return await toApiResult<FeaturePollPayload>(
+    await fetch(
+      `/api/repos/${target.owner}/${target.repo}/features/${target.featureId}${query}`,
+      { signal: AbortSignal.timeout(15_000), cache: "no-store" },
+    ),
+  );
+}
+
 export function useFeaturePlanningPoll({
   owner,
   repo,
@@ -34,17 +56,7 @@ export function useFeaturePlanningPoll({
   }, [payload.run]);
 
   const refresh = useCallback(async (): Promise<FeaturePollPayload | null> => {
-    const cached = held.current;
-    const query =
-      cached && graphIsCacheable(cached)
-        ? `?graph=${encodeURIComponent(cached.id)}`
-        : "";
-    const result = await toApiResult<FeaturePollPayload>(
-      await fetch(`/api/repos/${owner}/${repo}/features/${featureId}${query}`, {
-        signal: AbortSignal.timeout(15_000),
-        cache: "no-store",
-      }),
-    );
+    const result = await fetchPoll({ owner, repo, featureId }, held.current);
 
     if (result.status !== "ok") {
       return null;
