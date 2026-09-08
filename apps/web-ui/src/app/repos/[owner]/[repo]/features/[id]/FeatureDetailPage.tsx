@@ -21,6 +21,48 @@ import {
 } from "./actions";
 import { decompositionRows, planningTimeoutOf } from "./page-input";
 
+/** The four server actions the view can invoke, each pre-bound to this feature. Bound here rather than passed the ids: a client component cannot construct a server action, and handing it the ids would mean trusting the client to say which feature it is acting on. */
+function featureActions(fullName: string, id: string) {
+  return {
+    refine: refineFeatureAction.bind(null, fullName, id),
+    onCreateSpecFile: handleCreateSpecFile.bind(null, fullName, id),
+    split: splitFeatureAction.bind(null, fullName, id),
+    del: deleteFeatureAction.bind(null, fullName, id),
+  };
+}
+
+function FeatureNotFound() {
+  return (
+    <div className="spec-card">
+      <Alert variant="secondary">Feature not found.</Alert>
+    </div>
+  );
+}
+
+/** Everything the detail view reads besides the feature itself. The platform LLM status is fetched alongside because it OUTRANKS feature state: when the platform is down, a stalled feature is a symptom rather than the story. */
+async function resolveFeatureView(fullName: string, id: string) {
+  const [decomp, agents, definition, status, platform] = await Promise.all([
+    getFeatureDecomposition(fullName, id),
+    listAgents(fullName),
+    getAssemblyLineDefinition("feature-planning"),
+    getFeatureStatus(fullName, id),
+    getPlatformLlmStatus(),
+  ]);
+
+  return {
+    // The story/task tree a merged spec decomposed into (ADR-029), if any.
+    decomposition: groupDecomposition(decompositionRows(decomp)),
+    planningTimeoutMinutes: planningTimeoutOf(agents),
+    definition,
+    platform,
+    // Which line the feature is on; lore-api resolves it, and the id comes from the status endpoint.
+    run:
+      status.status === "ok"
+        ? await fetchFeatureRunById(runIdOf(status.data))
+        : null,
+  };
+}
+
 export default async function FeatureDetailPage({
   params,
 }: {
@@ -30,50 +72,25 @@ export default async function FeatureDetailPage({
   const fullName = `${owner}/${repo}`;
 
   const result = await getFeature(fullName, id);
-  const feature = result.status === "ok" ? result.data : null;
 
-  if (!feature) {
-    return (
-      <div className="spec-card">
-        <Alert variant="secondary">Feature not found.</Alert>
-      </div>
-    );
+  if (result.status !== "ok") {
+    return <FeatureNotFound />;
   }
-  const full: FeatureWithIterations = feature;
-
-  // The story/task tree a merged spec decomposed into (ADR-029), if any.
-  const decomp = await getFeatureDecomposition(fullName, id);
-  const decomposition = groupDecomposition(decompositionRows(decomp));
-
-  const planningTimeoutMinutes = planningTimeoutOf(await listAgents(fullName));
-
-  const definition = await getAssemblyLineDefinition("feature-planning");
-
-  // Which line the feature is on, resolved by lore-api; the id comes from status endpoint.
-  const status = await getFeatureStatus(fullName, id);
-  const run =
-    status.status === "ok"
-      ? await fetchFeatureRunById(runIdOf(status.data))
-      : null;
-
-  // Platform status above feature state: when it fires, the feature's state is a symptom.
-  const platform = await getPlatformLlmStatus();
+  const full: FeatureWithIterations = result.data;
+  const view = await resolveFeatureView(fullName, id);
 
   return (
     <>
-      <PlatformOutageBanner status={platform} />
+      <PlatformOutageBanner status={view.platform} />
       <FeatureDetailView
-        definition={definition}
-        run={run}
+        definition={view.definition}
+        run={view.run}
         owner={owner}
         repo={repo}
         feature={full}
-        timeoutMinutes={planningTimeoutMinutes}
-        decomposition={decomposition}
-        refine={refineFeatureAction.bind(null, fullName, id)}
-        onCreateSpecFile={handleCreateSpecFile.bind(null, fullName, id)}
-        split={splitFeatureAction.bind(null, fullName, id)}
-        del={deleteFeatureAction.bind(null, fullName, id)}
+        timeoutMinutes={view.planningTimeoutMinutes}
+        decomposition={view.decomposition}
+        {...featureActions(fullName, id)}
       />
     </>
   );

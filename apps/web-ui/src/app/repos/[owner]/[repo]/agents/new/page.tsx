@@ -10,6 +10,37 @@ import {
 import { DEFAULT_EXECUTION_IMAGE } from "@/lib/dark-factory-resolve";
 import AgentForm from "../AgentForm";
 
+/** Creates the definition, redirecting to the list on success. `isUpdate` is false, so a name that already exists is rejected by the API rather than silently overwriting the definition behind it. */
+async function createDefinition(
+  fullName: string,
+  formData: FormData,
+): Promise<AgentFormState> {
+  const { name, def, approvalPr } = parseAgentForm(formData);
+
+  if (!name) {
+    return { error: "name required" };
+  }
+  const saved = await saveAgent(fullName, def, false, approvalPr);
+
+  if (saved.status === "ok") {
+    redirect(`/repos/${fullName}/agents`);
+  }
+
+  return saveResultToState(saved);
+}
+
+function NewAgentHeader({ fullName }: { fullName: string }) {
+  return (
+    <>
+      <div className="breadcrumb">
+        <Link href={`/repos/${fullName}/agents`}>Agents</Link> /{" "}
+        <strong>New agent definition</strong>
+      </div>
+      <h1>New agent definition</h1>
+    </>
+  );
+}
+
 export default async function NewAgent({
   params,
 }: {
@@ -23,27 +54,13 @@ export default async function NewAgent({
     formData: FormData,
   ): Promise<AgentFormState> {
     "use server";
-    const { name, def, approvalPr } = parseAgentForm(formData);
 
-    if (!name) {
-      return { error: "name required" };
-    }
-    const r = await saveAgent(fullName, def, false, approvalPr);
-
-    if (r.status === "ok") {
-      redirect(`/repos/${fullName}/agents`);
-    }
-
-    return saveResultToState(r);
+    return await createDefinition(fullName, formData);
   }
 
   return (
     <div>
-      <div className="breadcrumb">
-        <Link href={`/repos/${fullName}/agents`}>Agents</Link> /{" "}
-        <strong>New agent definition</strong>
-      </div>
-      <h1>New agent definition</h1>
+      <NewAgentHeader fullName={fullName} />
       <AgentForm
         repo={fullName}
         agent={null}

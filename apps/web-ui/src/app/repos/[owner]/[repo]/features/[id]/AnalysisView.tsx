@@ -35,46 +35,56 @@ function RewindPicker({
   );
 }
 
-/** The two ways forward from an analysis, and the picker that decides which round the next one continues from. */
-function RoundActions({
-  pending,
-  rounds,
-  continueFrom,
-  onRefine,
-  onCreateSpecPr,
-  onContinueFrom,
-}: {
+interface RoundActionsProps {
   pending: boolean;
   rounds: ReturnType<typeof rewindOptions>;
   continueFrom: number | undefined;
   onRefine: () => void;
   onCreateSpecPr: () => void;
   onContinueFrom: (iteration: number) => void;
+}
+
+/** The way OUT of the refine loop. Deliberately a plain button beside the refine action: creating the spec PR ends planning, and it should not look like one more iteration. */
+function CreateSpecPrButton({
+  disabled,
+  onClick,
+}: {
+  disabled: boolean;
+  onClick: () => void;
 }) {
+  return (
+    <button
+      type="button"
+      className="button"
+      disabled={disabled}
+      onClick={onClick}
+    >
+      Create the spec PR
+    </button>
+  );
+}
+
+/** The two ways forward from an analysis, and the picker that decides which round the next one continues from. */
+function RoundActions(props: RoundActionsProps) {
+  const { pending, rounds, continueFrom } = props;
+
   return (
     <div className={styles.actions}>
       <SubmitButton
         type="button"
         pending={pending}
         pendingLabel="Working…"
-        onClick={onRefine}
+        onClick={props.onRefine}
       >
         Refine again
       </SubmitButton>
-      <button
-        type="button"
-        className="button"
-        disabled={pending}
-        onClick={onCreateSpecPr}
-      >
-        Create the spec PR
-      </button>
+      <CreateSpecPrButton disabled={pending} onClick={props.onCreateSpecPr} />
       {rounds.length > 1 && (
         <RewindPicker
           rounds={rounds}
           continueFrom={continueFrom}
           disabled={pending}
-          onChange={onContinueFrom}
+          onChange={props.onContinueFrom}
         />
       )}
     </div>
@@ -135,24 +145,19 @@ function RewindNote({
   );
 }
 
-/** The analysis itself: what the round found, what the author can say back, and what a rewind would do. Separate from AnalysisView, which decides WHETHER there is an analysis to show at all. */
-function AnalysisBody({
-  failureBlock,
-  gap,
-  feedback,
-  handlers,
-  pending,
-  rounds,
-  continueFrom,
-  rewinding,
-}: Pick<
+type AnalysisBodyProps = Pick<
   AnalysisViewProps,
   "feedback" | "handlers" | "pending" | "rounds" | "continueFrom" | "rewinding"
 > & {
-  // Non-optional here: the caller only renders this once it HAS an analysis.
+  /** Non-optional here: the caller only renders this once it HAS an analysis. */
   gap: NonNullable<AnalysisViewProps["gap"]>;
   failureBlock: React.ReactNode;
-}) {
+};
+
+/** The analysis itself: what the round found, what the author can say back, and what a rewind would do. Separate from AnalysisView, which decides WHETHER there is an analysis to show at all. */
+function AnalysisBody(props: AnalysisBodyProps) {
+  const { failureBlock, gap, feedback, handlers } = props;
+
   return (
     <div>
       {failureBlock ? (
@@ -165,58 +170,40 @@ function AnalysisBody({
         onCreateDraft={handlers.onCreateDraft}
       />
       <RoundActions
-        pending={pending}
-        rounds={rounds}
-        continueFrom={continueFrom}
+        pending={props.pending}
+        rounds={props.rounds}
+        continueFrom={props.continueFrom}
         onRefine={handlers.onRefine}
         onCreateSpecPr={handlers.onCreateSpecPr}
         onContinueFrom={handlers.onContinueFrom}
       />
-      <RewindNote show={rewinding} continueFrom={continueFrom} />
+      <RewindNote show={props.rewinding} continueFrom={props.continueFrom} />
     </div>
   );
 }
 
-export function AnalysisView({
-  iteration,
-  failed,
-  gap,
-  failureReason,
-  answers,
-  run,
-  pending,
-  feedback,
-  handlers,
-  rounds,
-  continueFrom,
-  rewinding,
-}: AnalysisViewProps) {
-  const { onRefine } = handlers;
-  const failureBlock = failed ? (
-    <FailureBlock
-      iteration={iteration}
-      failureReason={failureReason}
-      answers={answers}
-      run={run}
-      pending={pending}
-      onRetry={onRefine}
-    />
-  ) : null;
+export function AnalysisView(props: AnalysisViewProps) {
+  const { gap } = props;
+  const failureBlock = props.failed ? <RoundFailure {...props} /> : null;
 
+  // A failed round with no analysis still has something to say; a round that produced neither is simply not done.
   if (!gap) {
     return failureBlock ?? <NoAnalysisYet />;
   }
 
+  return <AnalysisBody {...props} gap={gap} failureBlock={failureBlock} />;
+}
+
+/** The failure block for a round that did not finish, wired to retry through the same handler a refine uses. */
+function RoundFailure(props: AnalysisViewProps) {
   return (
-    <AnalysisBody
-      failureBlock={failureBlock}
-      gap={gap}
-      feedback={feedback}
-      handlers={handlers}
-      pending={pending}
-      rounds={rounds}
-      continueFrom={continueFrom}
-      rewinding={rewinding}
+    <FailureBlock
+      iteration={props.iteration}
+      failureReason={props.failureReason}
+      answers={props.answers}
+      run={props.run}
+      pending={props.pending}
+      onRetry={props.handlers.onRefine}
     />
   );
 }

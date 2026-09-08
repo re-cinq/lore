@@ -24,7 +24,21 @@ const BTN: React.CSSProperties = {
   fontSize: "var(--fs-sm)",
 };
 
-/** Toolbar + graph container with search/reset; reset clears persisted layout and re-runs layout effect. */
+const TOOLBAR_ROW = {
+  display: "flex",
+  gap: 12,
+  alignItems: "flex-start",
+  justifyContent: "flex-end",
+  flexWrap: "wrap",
+} as const;
+
+const GRAPH_COLUMN = {
+  display: "flex",
+  flexDirection: "column",
+  flex: 1,
+  minHeight: 0,
+} as const;
+
 /** Search and reset. Reset clears the SAVED layout as well as the query — a graph someone has dragged into a shape keeps that shape across visits, so resetting the search alone would leave it looking untouched. */
 function GraphToolbar({
   query,
@@ -36,15 +50,7 @@ function GraphToolbar({
   onReset: () => void;
 }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: 12,
-        alignItems: "flex-start",
-        justifyContent: "flex-end",
-        flexWrap: "wrap",
-      }}
-    >
+    <div style={TOOLBAR_ROW}>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input
           type="text"
@@ -62,6 +68,16 @@ function GraphToolbar({
   );
 }
 
+/** Forgets the dragged-into-place layout for this repo. Storage being unavailable is not a failure worth surfacing — the reset signal alone still re-settles the graph, which is what the reader asked for. */
+function clearSavedLayout(repoId: string): void {
+  try {
+    localStorage.removeItem(`lore.graph:${repoId}`);
+  } catch {
+    // storage unavailable — the signal bump alone still re-settles the layout
+  }
+}
+
+/** Toolbar + graph container with search/reset; reset clears persisted layout and re-runs layout effect. */
 export default function GraphView({
   owner,
   repo,
@@ -76,24 +92,13 @@ export default function GraphView({
   const repoId = `${owner}/${repo}`;
 
   function reset() {
-    try {
-      localStorage.removeItem(`lore.graph:${repoId}`);
-    } catch {
-      // storage unavailable — the signal bump alone still re-settles the layout
-    }
+    clearSavedLayout(repoId);
     setQuery("");
     setResetSignal((n) => n + 1);
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        minHeight: 0,
-      }}
-    >
+    <div style={GRAPH_COLUMN}>
       <GraphToolbar query={query} onQueryChange={setQuery} onReset={reset} />
       <SpecGraphD3
         graph={graph}

@@ -42,23 +42,33 @@ function renderSectionArcs(
     .attr("stroke", "var(--bg-surface)")
     .attr("stroke-width", 1)
     .style("cursor", "pointer")
-    .on("click", (event: PointerEvent, s) => {
+    .call((sel) => wireSectionHandlers(sel, exp, c));
+}
+
+/** Selecting a section clears `selectedIdRef` — a section is not a graph NODE, so leaving the previous node's id set would keep highlighting it behind the newly selected arc. */
+function wireSectionHandlers(
+  sel: d3.Selection<SVGPathElement, SectionArc, SVGGElement, unknown>,
+  exp: ExpandData,
+  c: GraphController,
+): void {
+  sel
+    .on("click", (event: PointerEvent, section) => {
       event.stopPropagation();
       c.selectedIdRef.current = null;
       c.setSelected({
-        id: s.uid,
+        id: section.uid,
         type: "Section",
-        label: s.heading,
+        label: section.heading,
         path: exp.specPath,
       });
     })
-    .on("mouseenter mousemove", (event: PointerEvent, s) => {
-      const [px, py] = d3.pointer(event, c.el);
+    .on("mouseenter mousemove", (event: PointerEvent, section) => {
+      const [pointerX, pointerY] = d3.pointer(event, c.el);
 
       c.setHover({
-        text: `${s.heading} — ${s.tested}/${s.total} tested`,
-        x: px,
-        y: py,
+        text: `${section.heading} — ${section.tested}/${section.total} tested`,
+        x: pointerX,
+        y: pointerY,
       });
     })
     .on("mouseleave", () => c.setHover(null));

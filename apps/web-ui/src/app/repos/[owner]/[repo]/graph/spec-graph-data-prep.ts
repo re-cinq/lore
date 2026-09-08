@@ -51,46 +51,64 @@ export interface PreparedGraphLayout {
   restoredFromStorage: boolean;
 }
 
+/** The radius of the largest tree, floored at 120. Trees are built at the ORIGIN first so they can be measured; the ring is then sized to fit the widest one, which is what keeps two features from overlapping. */
+function widestTree(localTrees: Map<string, Point>[]): number {
+  let treeRadius = 120;
+
+  localTrees.forEach((tree) => {
+    tree.forEach((point) => {
+      treeRadius = Math.max(treeRadius, Math.hypot(point.x, point.y));
+    });
+  });
+
+  return treeRadius;
+}
+
+/** Where one feature's tree sits. A lone feature takes the centre rather than a point on a ring of one — a single tree pushed off-centre reads as though something else were missing. */
+function ringSlot(
+  index: number,
+  count: number,
+  ringR: number,
+  viewportCenter: Point,
+): Point {
+  if (count <= 1) {
+    return viewportCenter;
+  }
+  const angle = (2 * Math.PI * index) / count;
+
+  return {
+    x: viewportCenter.x + ringR * Math.cos(angle),
+    y: viewportCenter.y + ringR * Math.sin(angle),
+  };
+}
+
 function seedFeatureTrees(
   graph: SpecGraph,
   forest: Map<string, string>,
   boundR: number,
   viewportCenter: Point,
 ): Map<string, Point> {
-  const childrenOf = buildChildrenMap(forest);
   const featureIds = graph.nodes
     .filter((n) => n.type === "Feature")
     .map((n) => n.id);
-  // Build each feature tree at origin to measure radius, then place on ring to prevent overlap.
   const localTrees = featureIds.map((id) =>
-    radialTree(id, childrenOf, { center: { x: 0, y: 0 }, ringGap: RING_GAP }),
+    radialTree(id, buildChildrenMap(forest), {
+      center: { x: 0, y: 0 },
+      ringGap: RING_GAP,
+    }),
   );
-  let treeRadius = 120;
-
-  localTrees.forEach((tree) => {
-    tree.forEach((p) => {
-      treeRadius = Math.max(treeRadius, Math.hypot(p.x, p.y));
-    });
-  });
   const ringR = featureRingRadius(
     featureIds.length,
-    treeRadius,
+    widestTree(localTrees),
     boundR * FEATURE_SPREAD,
   );
   const seed = new Map<string, Point>();
 
-  featureIds.forEach((id, i) => {
-    const a = (2 * Math.PI * i) / featureIds.length;
-    const center =
-      featureIds.length <= 1
-        ? viewportCenter
-        : {
-            x: viewportCenter.x + ringR * Math.cos(a),
-            y: viewportCenter.y + ringR * Math.sin(a),
-          };
+  featureIds.forEach((id, index) => {
+    const center = ringSlot(index, featureIds.length, ringR, viewportCenter);
 
-    for (const [nodeId, p] of localTrees[i]) {
-      seed.set(nodeId, { x: center.x + p.x, y: center.y + p.y });
+    for (const [nodeId, point] of localTrees[index]) {
+      seed.set(nodeId, { x: center.x + point.x, y: center.y + point.y });
     }
   });
 
@@ -143,64 +161,91 @@ function bundleThroughHierarchy(
   return forest;
 }
 
+/** Per-node degree, which the anti-crowding forces read on every tick. Computed once from the link list rather than counted per lookup — the simulation asks for this thousands of times a second. */
+function degreeLookup(graph: SpecGraph) {
+  const degree = nodeDegrees(graph.links);
+
+  return (node: string | number | SimNode) => degree.get(idOf(node)) ?? 1;
+}
+
+/** Every node's starting position: one radial tree per feature, then whatever those trees did not reach. Starting positions matter more than they look — a force simulation seeded at random settles somewhere different every load, and the graph would appear to rearrange itself between visits. */
+function seedPositions(
+  graph: SpecGraph,
+  {
+    forest,
+    boundR,
+    viewportCenter,
+  }: { forest: Map<string, string>; boundR: number; viewportCenter: Point },
+) {
+  const seed = seedFeatureTrees(graph, forest, boundR, viewportCenter);
+
+  return {
+    seed,
+    smallIds: placeStrayAndSmallComponents(graph, seed, viewportCenter),
+  };
+}
+
 export function prepareGraphLayout(
   graph: SpecGraph,
   repo: string,
   width: number,
   height: number,
 ): PreparedGraphLayout {
+  const base = graphWorkingCopy(graph, repo);
+
+  return { ...base, ...placeGraph(graph, base, { width, height }) };
+}
+
+/** The mutable copy the simulation runs on, plus everything derived from the graph alone. Copies, not the caller's arrays: the simulation writes x/y onto every node on every tick. */
+function graphWorkingCopy(graph: SpecGraph, repo: string) {
   const nodes: SimNode[] = graph.nodes.map((n) => ({ ...n }));
   const links: SimLink[] = graph.links.map((l) => ({
     source: l.source,
     target: l.target,
     kind: l.kind,
   }));
-  // Per-node degree feeds anti-crowding rules in force setup; computed once from link list.
-  const degree = nodeDegrees(graph.links);
-  const degOf = (node: string | number | SimNode) =>
-    degree.get(idOf(node)) ?? 1;
-
-  // Aggregation: collapse single-owner canvas leaves into per-parent badges (applied when zoomed out).
+  // Collapse single-owner canvas leaves into per-parent badges, applied when zoomed out.
   const { hidden: aggHidden, badges: aggBadges } = aggregateLeaves(
     graph.nodes,
     graph.links,
     LEAF_CANVAS_TYPES,
   );
-
-  const forest = bundleThroughHierarchy(graph, links);
-
   const storageKey = `lore.graph:${repo}`;
-  const { savedExpanded, restoredFromStorage } = tryRestoreGraphState(
-    storageKey,
-    nodes,
-  );
-
-  // Radial-tree-per-feature layout: invert forest into children lists, ring small components outside.
-  const boundR = boundingRadius(graph.nodes.length, graph.links.length);
-  const viewportCenter = { x: width / 2, y: height / 2 };
-  const seed = seedFeatureTrees(graph, forest, boundR, viewportCenter);
-
-  const smallIds = placeStrayAndSmallComponents(graph, seed, viewportCenter);
-
-  const seedOf = (d: SimNode) => seed.get(d.id) ?? viewportCenter;
-
-  if (!restoredFromStorage) {
-    seedInitialPositions(nodes, seed, viewportCenter);
-  }
 
   return {
     nodes,
     links,
-    degOf,
-    forest,
+    degOf: degreeLookup(graph),
+    forest: bundleThroughHierarchy(graph, links),
     aggHidden,
     aggBadges,
+    storageKey,
+    ...tryRestoreGraphState(storageKey, nodes),
+  };
+}
+
+/** Where everything starts. Seeding matters more than it looks: a force simulation started at random settles somewhere different each load, so the graph would appear to rearrange itself between visits. A restored session keeps its own positions — re-seeding would discard where the reader left it. */
+function placeGraph(
+  graph: SpecGraph,
+  base: ReturnType<typeof graphWorkingCopy>,
+  { width, height }: { width: number; height: number },
+) {
+  const boundR = boundingRadius(graph.nodes.length, graph.links.length);
+  const viewportCenter = { x: width / 2, y: height / 2 };
+  const { seed, smallIds } = seedPositions(graph, {
+    forest: base.forest,
     boundR,
     viewportCenter,
-    seedOf,
+  });
+
+  if (!base.restoredFromStorage) {
+    seedInitialPositions(base.nodes, seed, viewportCenter);
+  }
+
+  return {
+    boundR,
+    viewportCenter,
     smallIds,
-    storageKey,
-    savedExpanded,
-    restoredFromStorage,
+    seedOf: (d: SimNode) => seed.get(d.id) ?? viewportCenter,
   };
 }

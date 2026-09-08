@@ -11,6 +11,7 @@ import {
   isSpokeableLeafType,
   hasSingleOwner,
   HIT_SLOP,
+  type SimNode,
 } from "./spec-graph-visual";
 import { visibleLeaf } from "./spec-graph-canvas-draw";
 import type { ExpandData } from "./spec-graph-ring-layout";
@@ -70,6 +71,47 @@ export function wireBackgroundClick(
   });
 }
 
+/** Hard-places a node on the ring at a given angle, and stops it dead. Zeroing velocity matters as much as the position: a node the simulation is still carrying would drift straight back off the spoke. */
+function pinAt(
+  node: SimNode | undefined,
+  {
+    cx,
+    cy,
+    radius,
+    mid,
+  }: { cx: number; cy: number; radius: number; mid: number },
+): void {
+  if (!node) {
+    return;
+  }
+
+  node.x = cx + radius * Math.sin(mid);
+  node.y = cy - radius * Math.cos(mid);
+  node.vx = 0;
+  node.vy = 0;
+}
+
+/** The neighbour to spoke, or nothing. Three exclusions, each for its own reason: an already-pinned or expanded node has its own place; an ADR is an anchor the spacing force owns and is never spoked; and a chunk owned by several statements would be pulled toward all of them, so it floats rather than picking one. */
+function spokeableLeaf(
+  c: GraphController,
+  neighbourId: string,
+): SimNode | undefined {
+  if (c.ringPinned.has(neighbourId) || c.expanded.has(neighbourId)) {
+    return undefined;
+  }
+  const leaf = c.nodeById.get(neighbourId);
+
+  if (
+    !leaf ||
+    !isSpokeableLeafType(leaf) ||
+    !hasSingleOwner(neighbourId, c.adj)
+  ) {
+    return undefined;
+  }
+
+  return leaf;
+}
+
 // Pin statements on outer ring, fan related nodes radially outward: short spokes never chords.
 function placeStatementSpokes(
   c: GraphController,
@@ -77,39 +119,29 @@ function placeStatementSpokes(
   cx: number,
   cy: number,
 ): void {
-  exp.statements.forEach((s) => {
-    const n = c.nodeById.get(s.uid);
+  exp.statements.forEach((statement) => {
+    pinAt(c.nodeById.get(statement.uid), {
+      cx,
+      cy,
+      radius: exp.outerMid,
+      mid: statement.mid,
+    });
+    let placed = 0;
 
-    if (n) {
-      n.x = cx + exp.outerMid * Math.sin(s.mid);
-      n.y = cy - exp.outerMid * Math.cos(s.mid);
-      n.vx = 0;
-      n.vy = 0;
-    }
-    let k = 0;
+    c.adj.get(statement.uid)?.forEach((neighbourId) => {
+      const leaf = spokeableLeaf(c, neighbourId);
 
-    c.adj.get(s.uid)?.forEach((nb) => {
-      if (c.ringPinned.has(nb) || c.expanded.has(nb)) {
-        return;
-      }
-      const leaf = c.nodeById.get(nb);
-
-      // Only test/code chunks get spoked onto ring; ADRs are anchors (spacing force, never spoked).
-      if (!leaf || !isSpokeableLeafType(leaf)) {
+      if (!leaf) {
         return;
       }
 
-      // Only hard-place leaves with single owner (clean radial spokes); shared chunks float.
-      if (!hasSingleOwner(nb, c.adj)) {
-        return;
-      }
-      const r = exp.outerR1 + 32 + k * 34;
-
-      leaf.x = cx + r * Math.sin(s.mid);
-      leaf.y = cy - r * Math.cos(s.mid);
-      leaf.vx = 0;
-      leaf.vy = 0;
-      k += 1;
+      pinAt(leaf, {
+        cx,
+        cy,
+        radius: exp.outerR1 + 32 + placed * 34,
+        mid: statement.mid,
+      });
+      placed += 1;
     });
   });
 }

@@ -88,39 +88,63 @@ function statementArcsForSection(
   });
 }
 
-export function computeRing(specPath: string, ring: SpecRing): ExpandData {
-  const TWO_PI = Math.PI * 2;
-  const nSt = Math.max(ring.statements.length, 1);
-  // Grow the radius with statement count so each outer arc stays clickable.
-  const outerR0 = Math.max(64, Math.min(150, (nSt * 11) / TWO_PI));
+/** The four radii the ring is drawn between. The outer radius GROWS with statement count, clamped to 64–150: a spec with many statements needs each arc to stay wide enough to click, and one with few should not draw a ring larger than the node it surrounds. */
+function ringRadii(statementCount: number) {
+  const outerR0 = Math.max(
+    64,
+    Math.min(150, (Math.max(statementCount, 1) * 11) / (Math.PI * 2)),
+  );
   const innerR1 = outerR0 - 4;
-  const innerR0 = Math.max(RADIUS.Spec + 6, innerR1 - 16);
-  const outerR1 = outerR0 + 13;
-  const arc = d3.arc();
 
-  const span = new Map<string, { a0: number; a1: number }>();
+  return {
+    outerR0,
+    outerR1: outerR0 + 13,
+    innerR1,
+    innerR0: Math.max(RADIUS.Spec + 6, innerR1 - 16),
+  };
+}
+
+/** One inner arc per section, sized by how many statements it holds. The `+ 1.2` floor gives an empty section a visible slice — a heading that exists but has nothing under it is still something the reader should see. Records each section's angular span, which the statement arcs then subdivide. */
+function sectionArcs(
+  ringSections: RingSection[],
+  span: Map<string, { a0: number; a1: number }>,
+  arc: d3.Arc<unknown, d3.DefaultArcObject>,
+  { innerR0, innerR1 }: { innerR0: number; innerR1: number },
+): SectionArc[] {
   const pie = d3
     .pie<RingSection>()
     .sort(null)
-    .value((s) => s.total + 1.2)(ring.sections);
-  const sections: SectionArc[] = pie.map((p) => {
-    span.set(p.data.uid, { a0: p.startAngle, a1: p.endAngle });
+    .value((s) => s.total + 1.2)(ringSections);
+
+  return pie.map((slice) => {
+    span.set(slice.data.uid, { a0: slice.startAngle, a1: slice.endAngle });
 
     return {
-      uid: p.data.uid,
-      heading: p.data.heading,
-      total: p.data.total,
-      tested: p.data.tested,
+      uid: slice.data.uid,
+      heading: slice.data.heading,
+      total: slice.data.total,
+      tested: slice.data.tested,
       d:
         arc({
           innerRadius: innerR0,
           outerRadius: innerR1,
-          startAngle: p.startAngle,
-          endAngle: p.endAngle,
+          startAngle: slice.startAngle,
+          endAngle: slice.endAngle,
         }) ?? "",
     };
   });
+}
 
+export function computeRing(specPath: string, ring: SpecRing): ExpandData {
+  const { innerR0, innerR1, outerR0, outerR1 } = ringRadii(
+    ring.statements.length,
+  );
+  const arc = d3.arc();
+  const span = new Map<string, { a0: number; a1: number }>();
+  const sections = sectionArcs(ring.sections, span, arc, {
+    innerR0,
+    innerR1,
+  });
   const bySec = groupStatementsBySection(ring.statements);
   const statements: StatementArc[] = ring.sections.flatMap((sec) =>
     statementArcsForSection(sec, { span, bySec, arc, outerR0, outerR1 }),

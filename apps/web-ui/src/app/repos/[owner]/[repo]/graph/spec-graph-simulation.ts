@@ -54,6 +54,36 @@ function createSeparationForce(deps: SimulationDeps, nodes: SimNode[]) {
   };
 }
 
+/** Links pull their endpoints together, with d3's standard 1/min(degree) strength: a leaf is held firmly to its parent, while a link between two hubs stays loose so neither drags the other's subtree around. */
+function createLinkForce(deps: SimulationDeps) {
+  return d3
+    .forceLink<SimNode, SimLink>([])
+    .id((d) => d.id)
+    .distance((l) => linkDistance(l.kind))
+    .strength(
+      (l) =>
+        1 / Math.max(1, Math.min(deps.degOf(l.source), deps.degOf(l.target))),
+    );
+}
+
+/** Degree-scaled repulsion, softened. Capped at `boundR` so the central mass cannot fling peripheral nodes off the canvas — the seed positions and forceX/Y are what arrange the graph; this only nudges neighbours apart. */
+function chargeForce(deps: SimulationDeps) {
+  return d3
+    .forceManyBody<SimNode>()
+    .strength((d) => crowdedCharge(chargeBase(d.type), deps.degOf(d)))
+    .distanceMin(12)
+    .distanceMax(deps.boundR);
+}
+
+/** Collision radius grows with degree, so a well-connected node claims more room and its neighbours cannot pile on top of it. */
+function collideForce(deps: SimulationDeps) {
+  return d3
+    .forceCollide<SimNode>((d) =>
+      crowdedCollideRadius(radiusOf(d.type), deps.degOf(d)),
+    )
+    .strength(1);
+}
+
 export function createGraphSimulation(
   nodes: SimNode[],
   deps: SimulationDeps,
@@ -61,42 +91,17 @@ export function createGraphSimulation(
   sim: d3.Simulation<SimNode, undefined>;
   linkForce: d3.ForceLink<SimNode, SimLink>;
 } {
-  const linkForce = d3
-    .forceLink<SimNode, SimLink>([])
-    .id((d) => d.id)
-    .distance((l) => linkDistance(l.kind))
-    // d3's standard 1/min(degree): leaves held firm, hub-hub links loose.
-    .strength(
-      (l) =>
-        1 / Math.max(1, Math.min(deps.degOf(l.source), deps.degOf(l.target))),
-    );
+  const linkForce = createLinkForce(deps);
   const sim = d3
     .forceSimulation<SimNode>([])
-    // Heavier friction (0.7 vs 0.4 default) so forces settle without overshooting.
+    // Heavier friction (0.7 vs d3's 0.4 default) so the forces settle instead of overshooting and oscillating.
     .velocityDecay(0.7)
     .force("link", linkForce)
-    // Degree-scaled repulsion (softened): nudges neighbors apart; seed/forceX/Y arrange graph.
-    .force(
-      "charge",
-      d3
-        .forceManyBody<SimNode>()
-        .strength((d) => crowdedCharge(chargeBase(d.type), deps.degOf(d)))
-        .distanceMin(12)
-        // Localize repulsion to bound's range so central mass doesn't fling peripheral nodes.
-        .distanceMax(deps.boundR),
-    )
-    // Radial anchoring: forceX/Y pull each node to seeded position, hold circular shape.
+    .force("charge", chargeForce(deps))
+    // Radial anchoring: forceX/Y pull each node back to its seeded position, which is what holds the circular shape.
     .force("x", d3.forceX<SimNode>((d) => deps.seedOf(d).x).strength(0.22))
     .force("y", d3.forceY<SimNode>((d) => deps.seedOf(d).y).strength(0.22))
-    // Anti-crowding rule #3: degree-scaled collision radius prevents piling.
-    .force(
-      "collide",
-      d3
-        .forceCollide<SimNode>((d) =>
-          crowdedCollideRadius(radiusOf(d.type), deps.degOf(d)),
-        )
-        .strength(1),
-    )
+    .force("collide", collideForce(deps))
     // Spacing pass: anchors kept clear of each other & rings (resolveSpacing); others just off rings.
     .force("spacing", () =>
       applySpacingForce(
