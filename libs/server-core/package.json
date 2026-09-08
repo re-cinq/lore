@@ -36,7 +36,6 @@
   "dependencies": {
     "@re-cinq/lore-shared": "*",
     "@opentelemetry/api": "^1.9.0",
-    "glob": "^11.0.1",
     "yaml": "^2.7.0",
     "zod": "^3.24.2"
   },

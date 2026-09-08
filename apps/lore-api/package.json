@@ -32,7 +32,6 @@
     "@re-cinq/lore-assembly-lines": "*",
     "@re-cinq/lore-server-core": "*",
     "@re-cinq/lore-shared": "*",
-    "glob": "^11.0.1",
     "minimatch": "^10.2.6",
     "octokit": "^4.1.0",
     "pg": "^8.23.0",

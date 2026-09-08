@@ -1,4 +1,4 @@
-import cronParser from "cron-parser";
+import { CronExpressionParser } from "cron-parser";
 import { pipeline } from "../../../outbound/queues.js";
 import { startJobRun, completeJobRun, failJobRun } from "./job-run.js";
 
@@ -37,7 +37,7 @@ async function checkMissedRuns(): Promise<void> {
 
 /** True when the job's cron schedule has fired since `lastRun` (or it never ran). */
 function jobIsDue(cron: string, lastRun: Date | null): boolean {
-  const interval = cronParser.parseExpression(cron);
+  const interval = CronExpressionParser.parse(cron);
   const prev = interval.prev().toDate();
 
   return !lastRun || lastRun < prev;
@@ -109,7 +109,7 @@ export function getJobStatus(): Record<
 
   for (const job of jobs.values()) {
     try {
-      const interval = cronParser.parseExpression(job.cron);
+      const interval = CronExpressionParser.parse(job.cron);
       const nextRun = interval.next().toDate().toISOString();
 
       result[job.name] = {
