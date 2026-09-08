@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../http/api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 /** Serves portable lore-code-trace binary from strict allowlist; always matches deployed contract. */
 
 import { readFile } from "node:fs/promises";

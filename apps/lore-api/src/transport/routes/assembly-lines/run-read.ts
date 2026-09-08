@@ -1,6 +1,6 @@
 import { zodResponse } from "../../http/zod-response.js";
 import { z } from "zod";
-import { apiError } from "../../http/api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Request, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";

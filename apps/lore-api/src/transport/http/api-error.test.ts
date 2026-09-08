@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import Boom from "@hapi/boom";
-import { apiError, rethrowBoom } from "./api-error.js";
+import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 
 describe("apiError", () => {
   it("carries the status on a boom hapi renders", () => {

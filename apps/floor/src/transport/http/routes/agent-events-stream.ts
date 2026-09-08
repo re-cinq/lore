@@ -1,6 +1,6 @@
 /** GET /api/agent-events/stream/{assemblyRunId} — the stack's first SSE endpoint (FR2.x); subscribes BEFORE the first `listSince` and de-dupes on monotonic id for a lossless replay→live handoff. Backpressure is ours, not the bus's — past the high-water mark the stream ends and EventSource reconnects via `Last-Event-ID`. */
 
-import { apiError } from "../api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { PassThrough } from "node:stream";
 import { pipeline } from "../../../outbound/queues.js";
 import {

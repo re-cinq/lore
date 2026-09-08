@@ -1,7 +1,7 @@
 /** POST /api/review/start — the manual "Trigger review" entry (the UI twin of an `@lore review` comment); reuses `startReview` forced, bypassing the auto_review gate + first-review-only since a click is explicit intent. */
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { startReview } from "../../../work/review/code-review.js";

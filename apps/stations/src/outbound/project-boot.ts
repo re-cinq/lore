@@ -1,24 +1,15 @@
 // Per-repo Project composition for the stations service — deliberately thinner than the Floor's (no station backend, no assembly-line definitions): a service-endpoint station does WORK, it doesn't dispatch other stations; launching an Agent CR is cluster authority and stays on the Floor.
 
-import {
-  createProject,
-  createDgraphClient,
-  type Project,
-} from "@re-cinq/lore-shared";
+import { createGraphlessProject } from "@re-cinq/lore-shared/project/graphless-project.js";
+import type { Project } from "@re-cinq/lore-shared";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { pipelineRepositories } from "./queues.js";
 
-// Satisfies the type and throws loudly if a station unexpectedly reaches for the graph — no station here reads it today.
-const NO_OP_DGRAPH = {
-  newTxn() {
-    throw new Error("stations has no Dgraph client (LORE_DGRAPH_HTTP unset)");
-  },
-};
-
+// No station here reads the graph today, so an unset LORE_DGRAPH_HTTP throws loudly rather than composing a client.
 export function projectFor(repo: string): Promise<Project> {
-  const dgraph = createDgraphClient(process.env) ?? NO_OP_DGRAPH;
-
-  return createProject(repo, getPool(), dgraph, {
+  return createGraphlessProject(repo, {
+    pool: getPool(),
+    service: "stations",
     providers: { pipeline: pipelineRepositories() },
   });
 }

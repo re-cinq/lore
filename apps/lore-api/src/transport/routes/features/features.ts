@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import { latestReadyIteration } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { featureRunId } from "@re-cinq/lore-shared/project/features/planning-run.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../http/api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";

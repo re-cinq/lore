@@ -2,26 +2,18 @@ import "@re-cinq/lore-shared/http/hapi-params.js";
 /** HTTP server (hapi): front door to pipeline.events + drain consume endpoints + health probe. */
 
 import Hapi from "@hapi/hapi";
+import {
+  logRequestErrors,
+  startHapiServer,
+} from "@re-cinq/lore-shared/http/server-boot.js";
 import { eventsRoute } from "./routes/events.js";
 import { eventQueueRoutes } from "./routes/event-queue.js";
 import { eventDeliveryRoutes } from "./routes/event-deliveries.js";
-import { healthRoute } from "./routes/health.js";
+import { dbHealthRoute } from "@re-cinq/lore-shared/http/db-health-route.js";
 import { pipeline, deliveries, clusterAgents } from "../outbound/queues.js";
 
 // GitHub allows 25 MB; hapi default 1 MB would reject large push deliveries.
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
-
-/** A throw inside a handler or auth strategy becomes an anonymous 500 (#1319); this is the only place the stack is recorded, and the `error` channel fires for both. */
-function logRequestErrors(server: Hapi.Server): void {
-  server.events.on({ name: "request", channels: "error" }, (request, event) => {
-    const err = event.error;
-    const detail = err instanceof Error ? (err.stack ?? err.message) : `${err}`;
-
-    console.error(
-      `[http] ${request.method.toUpperCase()} ${request.path} 500 (${request.info.id}): ${detail}`,
-    );
-  });
-}
 
 // Every route this server serves. The repository accessors are THUNKS throughout: the pool does not exist at describe time, so binding them eagerly would build a server that cannot be constructed in a test.
 function allRoutes(): Hapi.ServerRoute[] {
@@ -40,7 +32,7 @@ function allRoutes(): Hapi.ServerRoute[] {
       deliveries: () => deliveries(),
       bearerToken: process.env.LORE_INGEST_TOKEN,
     }),
-    healthRoute(),
+    dbHealthRoute(),
   ];
 }
 
@@ -58,25 +50,10 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
   return server;
 }
 
-export async function startServer(port: number): Promise<() => Promise<void>> {
-  const server = buildServer({ port });
-
-  try {
-    await server.start();
-    console.log(`[event-router] listening on :${port} (/api/events, /healthz)`);
-
-    return () => server.stop();
-  } catch (err) {
-    const e = err as NodeJS.ErrnoException;
-
-    const failureLog =
-      e.code === "EADDRINUSE"
-        ? [
-            `[event-router] port ${port} already in use — another instance is running. Exiting.`,
-          ]
-        : ["[event-router] server error:", err];
-
-    console.error(...failureLog);
-    process.exit(1);
-  }
+export function startServer(port: number): Promise<() => Promise<void>> {
+  return startHapiServer(buildServer({ port }), {
+    label: "event-router",
+    port,
+    ready: `listening on :${port} (/api/events, /healthz)`,
+  });
 }

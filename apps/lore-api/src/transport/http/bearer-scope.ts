@@ -2,7 +2,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /** Bearer-token scope auth as a hapi scheme + strategy (ADR-033). */
 
 import Boom from "@hapi/boom";
-import { apiError } from "./api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type {
   Server,
   ServerAuthScheme,

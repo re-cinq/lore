@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../http/api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { z } from "zod";
 import { errorMessage } from "@re-cinq/lore-shared";
 // Webhook routes: GET/POST/secret for read/write/admin with graceful degradation.

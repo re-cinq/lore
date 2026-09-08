@@ -1,6 +1,6 @@
 /** Body helpers: re-export from shared (#1051) so route modules share one import path. */
 
-import { apiError } from "./api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 
 export { rawBody, rawBytes } from "@re-cinq/lore-shared/http/raw-body.js";
 

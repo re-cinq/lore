@@ -11,7 +11,7 @@ import {
   type StartPlanningDeps,
 } from "@re-cinq/lore-shared/project/features/start-planning.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../http/api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { bearerScope } from "../../http/bearer-scope.js";

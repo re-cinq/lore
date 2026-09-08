@@ -1,5 +1,9 @@
 // The cluster agent: the only process that talks to this cluster's Kubernetes API, holds no database. Answers requests AND pushes (the Agent-CR watch reports onward to the event-router over HTTP) through one shared EventProxy.
 
+import {
+  onTerminationSignals,
+  runEntrypoint,
+} from "@re-cinq/lore-shared/lib/process-entry.js";
 import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import { startServer } from "./transport/server.js";
@@ -164,11 +168,7 @@ async function main(): Promise<void> {
 
   const shutdown = makeShutdown(claimLoop, pruneLoop, stopServer, proxy);
 
-  process.on("SIGTERM", () => void shutdown("SIGTERM"));
-  process.on("SIGINT", () => void shutdown("SIGINT"));
+  onTerminationSignals(shutdown);
 }
 
-main().catch((err) => {
-  console.error("[cluster-agent] fatal:", err);
-  process.exit(1);
-});
+runEntrypoint("cluster-agent", main);

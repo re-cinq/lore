@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../http/api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 // Records money added to the Anthropic account (no balance-read endpoint exists); append-only, corrections are compensating negative rows, never updates.
 
 import type { ServerRoute } from "@hapi/hapi";

@@ -68,9 +68,12 @@ finish the job ADR-033 deferred.
    routes returned `{ error }` — two envelopes from one server. The web UI
    proxies those bodies verbatim to the browser
    (`app/api/assembly-runs/**`, `app/api/tasks/[id]/logs`), which reads `.error`
-   as the message, so a 404 reached the user as the words "Not Found". The Floor
-   now has its own `delivery/http/api-error.ts` — a deliberate second copy,
-   because `libs/shared` carries no hapi dependency by design (ADR-032).
+   as the message, so a 404 reached the user as the words "Not Found". The
+   Floor first answered with its own copy of the helper, on the reasoning that
+   `libs/shared` could hold no hapi dependency (ADR-032); the helper builds a
+   Boom, not a hapi server, and shared already depends on `@hapi/boom`, so the
+   copy was retired on 2026-09-08 and both servers import
+   `@re-cinq/lore-shared/http/api-error.js`.
 
 - A Floor refusal carries the status hapi renders ([validated by carries the status hapi renders](apps/floor/src/transport/http/api-error.test.ts#L6)).
 - Its payload is the `{ error }` envelope the web UI proxies ([validated by payload is the error envelope the web UI proxies, not boom's default](apps/floor/src/transport/http/api-error.test.ts#L13)).

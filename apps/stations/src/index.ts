@@ -1,5 +1,9 @@
 // The stations process: opens the pool, loads shared approval config, serves — schedules nothing itself (the Floor owns WHEN) but drains the bus for nodes whose station runs here.
 
+import {
+  onTerminationSignals,
+  runEntrypoint,
+} from "@re-cinq/lore-shared/lib/process-entry.js";
 import { loadApprovalConfig } from "@re-cinq/lore-shared";
 import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
@@ -66,11 +70,7 @@ async function main(): Promise<void> {
 
   const shutdown = shutdownHandler(drain, stopServer);
 
-  process.on("SIGTERM", () => void shutdown("SIGTERM"));
-  process.on("SIGINT", () => void shutdown("SIGINT"));
+  onTerminationSignals(shutdown);
 }
 
-main().catch((err) => {
-  console.error("[stations] fatal:", err);
-  process.exit(1);
-});
+runEntrypoint("stations", main);

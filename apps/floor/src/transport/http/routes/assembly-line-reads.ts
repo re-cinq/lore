@@ -1,6 +1,6 @@
 // Read access to assembly lines over HTTP. Lives on the FLOOR, not lore-api, because Station resolution needs the assembly-line definitions baked into the Floor's image (they fail to build in lore-api's lean container).
 
-import { apiError } from "../api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ServerRoute } from "@hapi/hapi";
 import {
