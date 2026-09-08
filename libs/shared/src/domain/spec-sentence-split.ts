@@ -80,42 +80,48 @@ function isSentenceBreak(
   return !(ch === "." && endsInAbbreviationOrInitial(buf));
 }
 
-export function splitSentences(text: string): string[] {
-  const flat = text.replace(/\s+/g, " ").trim();
+/** Where the next sentence resumes when the char at `i` closes `buf`, `flat.length` when it closes the text, or -1 when it is no break at all. */
+function breakPointAt(flat: string, buf: string, i: number): number {
+  const ch = flat[i];
 
-  if (!flat) {
-    return [];
+  if (!SENTENCE_ENDERS.has(ch)) {
+    return -1;
+  }
+  const j = indexOfNextNonSpace(flat, i + 1);
+
+  if (j >= flat.length) {
+    return flat.length;
   }
 
+  return isSentenceBreak(flat, buf, ch, j) ? j : -1;
+}
+
+function collectSentences(flat: string): string[] {
   const out: string[] = [];
   let buf = "";
 
   for (let i = 0; i < flat.length; i++) {
-    const ch = flat[i];
+    buf += flat[i];
+    const at = breakPointAt(flat, buf, i);
 
-    buf += ch;
-
-    if (!SENTENCE_ENDERS.has(ch)) {
+    if (at === -1) {
       continue;
     }
+    pushTrimmedNonEmpty(out, buf);
+    buf = "";
 
-    const j = indexOfNextNonSpace(flat, i + 1);
-
-    if (j >= flat.length) {
-      pushTrimmedNonEmpty(out, buf);
-      buf = "";
+    if (at >= flat.length) {
       break;
     }
-
-    if (!isSentenceBreak(flat, buf, ch, j)) {
-      continue;
-    }
-
-    out.push(buf.trim());
-    buf = "";
-    i = j - 1;
+    i = at - 1;
   }
   pushTrimmedNonEmpty(out, buf);
 
   return out;
+}
+
+export function splitSentences(text: string): string[] {
+  const flat = text.replace(/\s+/g, " ").trim();
+
+  return flat ? collectSentences(flat) : [];
 }

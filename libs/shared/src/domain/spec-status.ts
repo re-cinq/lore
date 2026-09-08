@@ -105,15 +105,26 @@ function pillLabel(raw: string): string {
   return (label || raw).slice(0, MAX_LABEL);
 }
 
+/** The doc's own status value, unlowercased: ADR frontmatter or the spec header table. */
+function docStatusValueRaw(content: string, kind: DocKind): string | null {
+  return kind === "adr"
+    ? adrFrontmatterStatusValueRaw(content)
+    : specTableStatusValueRaw(content);
+}
+
+/** Pill text: ADRs get their value sentence-cased, specs get the leading phrase. */
+function docPillLabel(raw: string, kind: DocKind): string {
+  return kind === "adr"
+    ? (raw.charAt(0).toUpperCase() + raw.slice(1)).slice(0, MAX_LABEL)
+    : pillLabel(raw);
+}
+
 /** Status + display label for the /specs and /adrs list pills; separate from `parseDocStatus` since the pill preserves the doc's own casing. */
 export function docStatusPill(
   content: string,
   kind: DocKind,
 ): DocStatusPill | null {
-  const raw =
-    kind === "adr"
-      ? adrFrontmatterStatusValueRaw(content)
-      : specTableStatusValueRaw(content);
+  const raw = docStatusValueRaw(content, kind);
 
   if (raw === null) {
     return null;
@@ -124,13 +135,7 @@ export function docStatusPill(
     return null;
   }
 
-  return {
-    status,
-    label:
-      kind === "adr"
-        ? (raw.charAt(0).toUpperCase() + raw.slice(1)).slice(0, MAX_LABEL)
-        : pillLabel(raw),
-  };
+  return { status, label: docPillLabel(raw, kind) };
 }
 
 /** Enforcement tier: rejected/retired skip; shipped/draft/in-progress/unknown warn. */
@@ -181,6 +186,21 @@ function rewriteStatusLine(line: string, label: string): string | null {
   return cells.join("|");
 }
 
+/** The lines with the FIRST status row rewritten to `label`, or null when no line is one. */
+function rewriteStatusLines(lines: string[], label: string): string[] | null {
+  for (let i = 0; i < lines.length; i++) {
+    const rewritten = rewriteStatusLine(lines[i], label);
+
+    if (rewritten === null) {
+      continue;
+    }
+
+    return [...lines.slice(0, i), rewritten, ...lines.slice(i + 1)];
+  }
+
+  return null;
+}
+
 /** Deterministically flips a spec's `| Status | <value> |` row to `label`; returns null when no status row exists or (unless `allowTerminal`) the value is already terminal (idempotent). */
 export function rewriteSpecStatusRow(
   content: string,
@@ -192,22 +212,14 @@ export function rewriteSpecStatusRow(
   if (rewriteBlocked(current, opts)) {
     return null;
   }
+  const rewritten = rewriteStatusLines(content.split(/\r?\n/), label);
 
-  const sep = content.includes("\r\n") ? "\r\n" : "\n";
-  const lines = content.split(/\r?\n/);
-
-  for (let i = 0; i < lines.length; i++) {
-    const rewritten = rewriteStatusLine(lines[i], label);
-
-    if (rewritten === null) {
-      continue;
-    }
-    lines[i] = rewritten;
-
-    return lines.join(sep);
+  if (rewritten === null) {
+    return null;
   }
+  const sep = content.includes("\r\n") ? "\r\n" : "\n";
 
-  return null;
+  return rewritten.join(sep);
 }
 
 /** ADR counterpart of `rewriteSpecStatusRow`: flips the YAML frontmatter `status:` value; null if no frontmatter/status key. No terminal-state bail — the caller (corpus reconciliation) decides what to skip. */

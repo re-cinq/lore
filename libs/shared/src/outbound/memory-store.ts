@@ -23,6 +23,26 @@ import type {
 import { PostgresMemoryStore } from "./postgres-memory-store.js";
 import { DgraphMemoryStore } from "./dgraph-memory-store.js";
 
+function dgraphStore(dgraph: unknown): MemoryStore {
+  enforceTrue(
+    dgraph,
+    Error,
+    "LORE_MEMORY_BACKEND=dgraph but no dgraph client provided",
+  );
+
+  return new DgraphMemoryStore(dgraph as DgraphClientPort);
+}
+
+function postgresStore(pgPool: unknown): MemoryStore {
+  enforceTrue(
+    pgPool,
+    Error,
+    "LORE_MEMORY_BACKEND=postgres but no pgPool client provided",
+  );
+
+  return new PostgresMemoryStore(pgPool as PgPool);
+}
+
 export function selectMemoryStore(clients: {
   pgPool?: unknown;
   dgraph?: unknown;
@@ -30,13 +50,7 @@ export function selectMemoryStore(clients: {
   const backend = process.env.LORE_MEMORY_BACKEND ?? "postgres";
 
   if (backend === "dgraph") {
-    enforceTrue(
-      clients.dgraph,
-      Error,
-      "LORE_MEMORY_BACKEND=dgraph but no dgraph client provided",
-    );
-
-    return new DgraphMemoryStore(clients.dgraph as DgraphClientPort);
+    return dgraphStore(clients.dgraph);
   }
 
   if (backend !== "postgres") {
@@ -44,13 +58,8 @@ export function selectMemoryStore(clients: {
       `Unknown LORE_MEMORY_BACKEND="${backend}" (valid: postgres, dgraph)`,
     );
   }
-  enforceTrue(
-    clients.pgPool,
-    Error,
-    "LORE_MEMORY_BACKEND=postgres but no pgPool client provided",
-  );
 
-  return new PostgresMemoryStore(clients.pgPool as PgPool);
+  return postgresStore(clients.pgPool);
 }
 
 // ── Singleton ────────────────────────────────────────────────────────

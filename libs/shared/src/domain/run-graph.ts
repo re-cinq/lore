@@ -61,26 +61,36 @@ export function resolveRoute(
   if (!route) {
     return null;
   }
+  const { resolved, missing } = substituteRouteArgs(route, args);
+
+  return missing ? null : resolved;
+}
+
+/** Substitutes every {args.<name>} in place, reporting whether any placeholder had no usable value. */
+function substituteRouteArgs(
+  route: string,
+  args: Record<string, unknown>,
+): { resolved: string; missing: boolean } {
   let missing = false;
   const resolved = route.replace(
     new RegExp(`\\{args\\.(${ARG_NAME})\\}`, "g"),
     (_, name) => {
-      const value = args[name];
-
-      // An empty string is a missing value wearing quotes — substituting it builds the exact half-built href the null contract prevents.
-      if (
-        (typeof value !== "string" && typeof value !== "number") ||
-        value === ""
-      ) {
+      if (!isUsableRouteArg(args[name])) {
         missing = true;
 
         return "";
       }
 
-      return String(value);
+      return String(args[name]);
     },
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- TS doesn't narrow across the replace() callback's mutation of `missing`
-  return missing ? null : resolved;
+  return { resolved, missing };
+}
+
+/** An empty string is a missing value wearing quotes — substituting it builds the exact half-built href the null contract prevents. */
+function isUsableRouteArg(value: unknown): boolean {
+  return (
+    (typeof value === "string" || typeof value === "number") && value !== ""
+  );
 }

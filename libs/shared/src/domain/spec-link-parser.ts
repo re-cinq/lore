@@ -46,6 +46,15 @@ function trimTrailingSpaceAndPeriod(s: string): number {
   return end;
 }
 
+// Paren depth after reading one more character backwards; 0 means this character is the matching open paren.
+function depthAfterScanningBack(c: string, depth: number): number {
+  if (c === ")") {
+    return depth + 1;
+  }
+
+  return c === "(" ? depth - 1 : depth;
+}
+
 // Walks backward counting paren depth (a naive `\(([^()]*)\)` regex fails since markdown links themselves contain `()`).
 function matchingOpenParen(
   s: string,
@@ -54,17 +63,7 @@ function matchingOpenParen(
   let depth = 1;
 
   for (let i = end - 2; i >= 0; i--) {
-    const c = s[i];
-
-    if (c === ")") {
-      depth++;
-      continue;
-    }
-
-    if (c !== "(") {
-      continue;
-    }
-    depth--;
+    depth = depthAfterScanningBack(s[i], depth);
 
     if (depth === 0) {
       return { open: i, innerStart: i + 1, innerEnd: end - 1 };

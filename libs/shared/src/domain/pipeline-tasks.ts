@@ -48,18 +48,38 @@ export async function listTasks(
   const limitIdx = params.push(limit);
   const offsetIdx = params.push(offset);
   const { rows } = await pool.query<TaskListRow>(
-    `SELECT id, description, task_type, status, target_repo, agent_id, pr_url, created_by, created_at, updated_at
-     FROM pipeline.tasks ${where}
-     ORDER BY created_at DESC
-     LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+    listTasksSql(where, limitIdx, offsetIdx),
     params,
   );
-  const { rows: countRows } = await pool.query(
+  const total = await countTasks(pool, where, status);
+
+  return { tasks: rows, total };
+}
+
+/** The page projection; LIMIT/OFFSET placeholder positions shift with the optional status filter, so they are passed in rather than hardcoded. */
+function listTasksSql(
+  where: string,
+  limitIdx: number,
+  offsetIdx: number,
+): string {
+  return `SELECT id, description, task_type, status, target_repo, agent_id, pr_url, created_by, created_at, updated_at
+     FROM pipeline.tasks ${where}
+     ORDER BY created_at DESC
+     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+}
+
+/** Total matching rows under the same WHERE clause, for the page's pagination. */
+async function countTasks(
+  pool: PgPool,
+  where: string,
+  status?: string,
+): Promise<number> {
+  const { rows } = await pool.query(
     `SELECT count(*)::int as total FROM pipeline.tasks ${where}`,
     status ? [status] : [],
   );
 
-  return { tasks: rows, total: countRows[0].total as number };
+  return rows[0].total as number;
 }
 
 // Status-column mutation (ALLOWED_TASK_COLUMNS/setTaskStatus/setTaskStatusIf) lives in pipeline-task-status.ts, re-exported for import-path back-compat.

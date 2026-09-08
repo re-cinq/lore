@@ -9,106 +9,10 @@ import type {
   WriteResult,
 } from "../domain/memory-store-types.js";
 
-interface UpsertInput {
-  key: string;
-  value: string;
-  agentId: string;
-  ttl?: number;
-  embedding?: number[];
-  repo?: string;
-}
-
-interface StoredValueMeta {
-  embedding: string | null;
-  ttlSeconds: number | null;
-}
-
-async function bumpExistingMemory(
-  db: Pick<PgPool, "query">,
-  head: { version: number; id: string },
-  input: UpsertInput,
-  meta: StoredValueMeta,
-): Promise<{ memoryId: string; version: number }> {
-  // Update: increment version
-  const version = head.version + 1;
-
-  await db.query(
-    `UPDATE memory.memories
-     SET value = $1, version = $2, embedding = $3,
-         ttl_seconds = $4, expires_at = now() + make_interval(secs => $5),
-         created_at = now()
-     WHERE id = $6`,
-    [
-      input.value,
-      version,
-      meta.embedding,
-      meta.ttlSeconds,
-      meta.ttlSeconds,
-      head.id,
-    ],
-  );
-
-  return { memoryId: head.id, version };
-}
-
-async function insertNewMemory(
-  db: Pick<PgPool, "query">,
-  input: UpsertInput,
-  meta: StoredValueMeta,
-): Promise<{ memoryId: string; version: number }> {
-  const result = await db.query<{ id: string }>(
-    `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
-     VALUES ($1, $2, $3, $4, 1, $5, now() + make_interval(secs => $6), $7)
-     RETURNING id, created_at`,
-    [
-      input.agentId,
-      input.key,
-      input.value,
-      meta.embedding,
-      meta.ttlSeconds,
-      meta.ttlSeconds,
-      input.repo || null,
-    ],
-  );
-
-  const { rows } = result;
-
-  return { memoryId: rows[0].id, version: 1 };
-}
-
-async function upsertMemoryWithVersion(
-  db: Pick<PgPool, "query">,
-  input: UpsertInput,
-): Promise<{ memoryId: string; version: number }> {
-  const embedding = input.embedding ? `[${input.embedding.join(",")}]` : null;
-  const ttlSeconds = input.ttl || null;
-
-  // Check if key already exists for this repo (or agent if no repo)
-  const lookupField = input.repo ? "repo" : "agent_id";
-  const lookupValue = input.repo || input.agentId;
-  const existing = await db.query<{ version: number; id: string }>(
-    `SELECT id, version FROM memory.memories
-     WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
-     ORDER BY version DESC LIMIT 1`,
-    [lookupValue, input.key],
-  );
-
-  const { memoryId, version } = existing.rows[0]
-    ? await bumpExistingMemory(db, existing.rows[0], input, {
-        embedding,
-        ttlSeconds,
-      })
-    : await insertNewMemory(db, input, { embedding, ttlSeconds });
-
-  // Always insert a version record
-  await db.query(
-    `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
-     VALUES ($1, $2, $3, $4)`,
-    [memoryId, version, input.value, embedding],
-  );
-
-  return { memoryId, version };
-}
+import {
+  upsertMemoryWithVersion,
+  type UpsertInput,
+} from "./postgres-memory-upsert.js";
 
 function isNumericVersion(version: string | number | undefined): boolean {
   return (
@@ -132,6 +36,24 @@ function listScope(
   }
 
   return { filter: "", params: [limit, offset] };
+}
+
+interface ListMemoriesOpts {
+  agentId?: string;
+  limit?: number;
+  offset?: number;
+  repo?: string;
+}
+
+/** The page read carries the scope filter and its own placeholder numbering, which shifts with the scope: an unscoped list has two params, a scoped one three. */
+function listMemoriesSql(filter: string, params: unknown[]): string {
+  return `SELECT key, agent_id, repo, version, created_at, ttl_seconds,
+              EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
+       FROM memory.memories m
+       WHERE ${filter} is_deleted = FALSE
+         AND (expires_at IS NULL OR expires_at > now())
+       ORDER BY created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`;
 }
 
 async function beginIfClient(client: MemoryTxClient | null): Promise<void> {
@@ -270,30 +192,18 @@ export class PostgresMemoryStore implements MemoryStore {
     return { key, deleted: true };
   }
 
-  async listMemories(opts: {
-    agentId?: string;
-    limit?: number;
-    offset?: number;
-    repo?: string;
-  }): Promise<{ memories: MemoryRecord[]; total: number }> {
+  async listMemories(
+    opts: ListMemoriesOpts,
+  ): Promise<{ memories: MemoryRecord[]; total: number }> {
     const { agentId, repo } = opts;
     const limit = opts.limit ?? 50;
     const offset = opts.offset ?? 0;
-
     // Scope by repo (preferred) or agent_id
     const { filter, params } = listScope(repo, agentId, limit, offset);
-
     const { rows } = await this.pool.query(
-      `SELECT key, agent_id, repo, version, created_at, ttl_seconds,
-              EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
-       FROM memory.memories m
-       WHERE ${filter} is_deleted = FALSE
-         AND (expires_at IS NULL OR expires_at > now())
-       ORDER BY created_at DESC
-       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      listMemoriesSql(filter, params),
       params,
     );
-
     const total = await this.countInScope(filter, repo || agentId);
 
     await this.auditLog(agentId || "org", "list", null);

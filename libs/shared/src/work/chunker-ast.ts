@@ -107,6 +107,24 @@ function declChunk(
   };
 }
 
+/** One chunk per declaration in source order, numbered from `startIndex`; each starts after the previous declaration ends. */
+function declChunks(
+  lines: string[],
+  decls: DeclInfo[],
+  startIndex: number,
+): Chunk[] {
+  const firstDeclStart = decls[0].startRow;
+  const chunks: Chunk[] = [];
+
+  for (let i = 0; i < decls.length; i++) {
+    const prevEnd = i > 0 ? decls[i - 1].endRow + 1 : firstDeclStart;
+
+    chunks.push(declChunk(lines, decls[i], prevEnd, startIndex + i));
+  }
+
+  return chunks;
+}
+
 export function chunkCodeAST(
   tree: Parser.Tree,
   content: string,
@@ -122,17 +140,8 @@ export function chunkCodeAST(
       end_line: lineCount(content),
     });
   }
-
-  const firstDeclStart = decls[0].startRow;
-  const preamble = preambleChunk(lines, firstDeclStart);
+  const preamble = preambleChunk(lines, decls[0].startRow);
   const chunks: Chunk[] = preamble ? [preamble] : [];
-  let chunkIndex = chunks.length;
 
-  for (let i = 0; i < decls.length; i++) {
-    const prevEnd = i > 0 ? decls[i - 1].endRow + 1 : firstDeclStart;
-
-    chunks.push(declChunk(lines, decls[i], prevEnd, chunkIndex++));
-  }
-
-  return chunks;
+  return [...chunks, ...declChunks(lines, decls, chunks.length)];
 }

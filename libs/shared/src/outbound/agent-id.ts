@@ -17,6 +17,17 @@ export function resolveAgentId(explicit?: string): string {
   }
 
   // 3. File-based (~/.lore/agent-id)
+  const stored = readStoredAgentId();
+
+  if (stored) {
+    return stored;
+  }
+
+  // 4. Generate and store
+  return generateAndStoreAgentId();
+}
+
+function readStoredAgentId(): string | null {
   try {
     if (existsSync(AGENT_ID_FILE)) {
       return readFileSync(AGENT_ID_FILE, "utf-8").trim();
@@ -25,7 +36,10 @@ export function resolveAgentId(explicit?: string): string {
     // best-effort: ignore and fall through
   }
 
-  // 4. Generate and store
+  return null;
+}
+
+function generateAndStoreAgentId(): string {
   const id = randomUUID();
 
   try {

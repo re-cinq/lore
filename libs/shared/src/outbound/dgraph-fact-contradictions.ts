@@ -20,6 +20,20 @@ function conflictRecord(
   };
 }
 
+/** Deactivating a fact is a TIME write too: `valid_to` closes it and `invalidated_by` names the fact that replaced it, so the old text stays readable as history. */
+function deactivateFact(
+  oldUid: unknown,
+  newUid: string | undefined,
+  now: string,
+): Record<string, unknown> {
+  return {
+    uid: oldUid,
+    "Fact.active": false,
+    "Fact.valid_to": now,
+    ...(newUid ? { "Fact.invalidated_by": { uid: newUid } } : {}),
+  };
+}
+
 /** The Fact-deactivate + FactConflict pair for one candidate, or empty when it's the new fact itself or not actually similar. */
 export function contradictionNodes(
   candidate: Record<string, unknown>,
@@ -39,12 +53,7 @@ export function contradictionNodes(
   }
 
   return [
-    {
-      uid: candidate.uid,
-      "Fact.active": false,
-      "Fact.valid_to": now,
-      ...(newUid ? { "Fact.invalidated_by": { uid: newUid } } : {}),
-    },
+    deactivateFact(candidate.uid, newUid, now),
     conflictRecord(candidate.uid, newUid, { similarity, now }),
   ];
 }

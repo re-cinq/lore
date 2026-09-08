@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
   DgraphClientPort,
+  DgraphTxn,
   MemoryRecord,
   WriteResult,
 } from "./memory-store.js";
@@ -27,9 +28,23 @@ type MemoryWriteInput = {
   repo?: string;
 };
 
+/** The caller-facing acknowledgement of a write, identical whichever version it was. */
+function writeResult(
+  input: MemoryWriteInput,
+  version: number,
+  createdAt: string,
+): WriteResult {
+  return {
+    key: input.key,
+    version,
+    agent_id: input.agentId,
+    created_at: createdAt,
+  };
+}
+
 /** An update touches only what changes — value, version, embedding. The identity fields written on the first version are never rewritten, so a later write cannot move a memory to another agent or key. */
 async function bumpMemoryVersion(
-  txn: Parameters<Parameters<typeof withTxn>[1]>[0],
+  txn: DgraphTxn,
   existing: MemoryRow,
   input: MemoryWriteInput,
   createdAt: string,
@@ -46,52 +61,42 @@ async function bumpMemoryVersion(
     commitNow: true,
   });
 
+  return writeResult(input, nextVersion, createdAt);
+}
+
+function newMemoryFields(
+  input: MemoryWriteInput,
+  createdAt: string,
+): Record<string, unknown> {
   return {
-    key: input.key,
-    version: nextVersion,
-    agent_id: input.agentId,
-    created_at: createdAt,
+    "dgraph.type": "Memory",
+    "Memory.xid": randomUUID(),
+    "Memory.agent_id": input.agentId,
+    "Memory.key": input.key,
+    "Memory.value": input.value,
+    "Memory.version": 1,
+    "Memory.is_deleted": false,
+    "Memory.created_at": createdAt,
+    ...embeddingField(input.embedding),
   };
 }
 
 async function insertFirstMemoryVersion(
-  txn: Parameters<Parameters<typeof withTxn>[1]>[0],
+  txn: DgraphTxn,
   input: MemoryWriteInput,
   createdAt: string,
 ): Promise<WriteResult> {
   await txn.mutate({
-    setJson: {
-      "dgraph.type": "Memory",
-      "Memory.xid": randomUUID(),
-      "Memory.agent_id": input.agentId,
-      "Memory.key": input.key,
-      "Memory.value": input.value,
-      "Memory.version": 1,
-      "Memory.is_deleted": false,
-      "Memory.created_at": createdAt,
-      ...embeddingField(input.embedding),
-    },
+    setJson: newMemoryFields(input, createdAt),
     commitNow: true,
   });
 
-  return {
-    key: input.key,
-    version: 1,
-    agent_id: input.agentId,
-    created_at: createdAt,
-  };
+  return writeResult(input, 1, createdAt);
 }
 
 export async function writeMemory(
   client: DgraphClientPort,
-  input: {
-    key: string;
-    value: string;
-    agentId: string;
-    ttl?: number;
-    embedding?: number[];
-    repo?: string;
-  },
+  input: MemoryWriteInput,
 ): Promise<WriteResult> {
   const createdAt = new Date().toISOString();
 
@@ -127,6 +132,14 @@ export async function readMemory(
   });
 }
 
+/** A delete is a flag, not a removal: the version history stays readable, and a later write picks up where it left off. */
+async function markDeleted(txn: DgraphTxn, uid: unknown): Promise<void> {
+  await txn.mutate({
+    setJson: { uid, "Memory.is_deleted": true },
+    commitNow: true,
+  });
+}
+
 export async function deleteMemory(
   client: DgraphClientPort,
   key: string,
@@ -141,28 +154,21 @@ export async function deleteMemory(
     );
 
     if (existing) {
-      await txn.mutate({
-        setJson: { uid: existing.uid, "Memory.is_deleted": true },
-        commitNow: true,
-      });
+      await markDeleted(txn, existing.uid);
     }
 
     return { key, deleted: true };
   });
 }
 
-export async function listMemories(
-  client: DgraphClientPort,
-  opts: {
-    agentId?: string;
-    limit?: number;
-    offset?: number;
-    repo?: string;
-  },
-): Promise<{ memories: MemoryRecord[]; total: number }> {
-  return withTxn(client, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query list($agent: string, $now: string, $first: int, $offset: int) {
+interface ListMemoriesOpts {
+  agentId?: string;
+  limit?: number;
+  offset?: number;
+  repo?: string;
+}
+
+const LIST_MEMORIES_QUERY = `query list($agent: string, $now: string, $first: int, $offset: int) {
         memories(func: eq(Memory.agent_id, $agent), first: $first, offset: $offset)
           @filter(${LIVE_FILTER}) {
           Memory.key Memory.agent_id Memory.version
@@ -170,7 +176,15 @@ export async function listMemories(
         total(func: eq(Memory.agent_id, $agent)) @filter(${LIVE_FILTER}) {
           count(uid)
         }
-      }`,
+      }`;
+
+export async function listMemories(
+  client: DgraphClientPort,
+  opts: ListMemoriesOpts,
+): Promise<{ memories: MemoryRecord[]; total: number }> {
+  return withTxn(client, async (txn) => {
+    const res = await txn.queryWithVars(
+      LIST_MEMORIES_QUERY,
       listMemoriesVars(opts),
     );
 

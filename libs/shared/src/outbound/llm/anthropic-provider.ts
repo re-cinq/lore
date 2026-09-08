@@ -11,11 +11,17 @@ import type {
   LlmToolRequest,
   LlmToolResult,
 } from "./llm-provider.js";
+import { analyzeCacheBreak, computeCachePrefixHash } from "./prompt-cache.js";
 import {
-  getCacheControl,
-  analyzeCacheBreak,
-  computeCachePrefixHash,
-} from "./prompt-cache.js";
+  completionParams,
+  toolCallParams,
+  toolsFor,
+} from "./anthropic-request.js";
+
+export {
+  buildCacheableSystem,
+  buildCacheableTools,
+} from "./anthropic-request.js";
 import {
   formatBreakLogTag,
   cachePrefixHash,
@@ -27,53 +33,10 @@ export { computeCost, type TokenUsage } from "./anthropic-pricing.js";
 import { extractUsage, computeCost } from "./anthropic-pricing.js";
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
-const DEFAULT_MAX_TOKENS = 8192;
 
-export function buildCacheableSystem(
-  systemPrompt: string,
-  jobName?: string,
-): Anthropic.TextBlockParam[] {
-  return [
-    {
-      type: "text",
-      text: systemPrompt,
-      cache_control: getCacheControl(jobName),
-    },
-  ];
-}
-
-export function buildCacheableTools(
-  toolName: string,
-  toolDescription: string,
-  toolSchema: Anthropic.Tool.InputSchema,
-  jobName?: string,
-): Anthropic.Tool[] {
-  return [
-    {
-      name: toolName,
-      description: toolDescription,
-      input_schema: toolSchema,
-      cache_control: getCacheControl(jobName),
-    },
-  ];
-}
-
-/** Resolves the model/maxTokens/system-param triple shared by every completion call. */
+/** Resolves the model shared by every completion call. */
 function resolveModel(req: { model?: string }, defaultModel: string): string {
   return req.model || defaultModel;
-}
-
-function resolveMaxTokens(req: { maxTokens?: number }): number {
-  return req.maxTokens || DEFAULT_MAX_TOKENS;
-}
-
-function systemParam(
-  systemPrompt: string | undefined,
-  jobName: string | undefined,
-): { system?: Anthropic.TextBlockParam[] } {
-  return systemPrompt
-    ? { system: buildCacheableSystem(systemPrompt, jobName) }
-    : {};
 }
 
 function firstTextBlock(response: Anthropic.Message): string {
@@ -137,14 +100,42 @@ function logCall({
   );
 }
 
-/** The single tool this request forces, built with a cache breakpoint of its own so a schema edit busts the tool cache without touching the system cache. */
-function toolsFor(req: LlmToolRequest) {
-  return buildCacheableTools(
-    req.toolName,
-    req.toolDescription,
-    req.toolSchema as Anthropic.Tool.InputSchema,
-    req.jobName,
-  );
+/** What one call already knows before its response lands: when it started and the prefix it was supposed to hit. */
+interface CallContext {
+  start: number;
+  prefixHash: ReturnType<typeof computeCachePrefixHash>;
+}
+
+function callOutcome(
+  usage: ReturnType<typeof extractUsage>,
+  costUsd: number,
+  durationMs: number,
+): LlmCallOutcome {
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    costUsd,
+    durationMs,
+  };
+}
+
+function failedCallPayload(
+  req: { taskId?: string; jobName?: string },
+  model: string,
+  durationMs: number,
+  message: string,
+): Parameters<UsagePort["logLlmCall"]>[0] {
+  return {
+    taskId: req.taskId || null,
+    jobName: req.jobName || null,
+    model,
+    inputTokens: 0,
+    outputTokens: 0,
+    costUsd: 0,
+    durationMs,
+    status: "failed",
+    error: message,
+  };
 }
 
 export class AnthropicProvider implements LlmProvider {
@@ -202,17 +193,7 @@ export class AnthropicProvider implements LlmProvider {
   ): Promise<void> {
     await this.recordUsage(
       req,
-      {
-        taskId: req.taskId || null,
-        jobName: req.jobName || null,
-        model,
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: 0,
-        durationMs,
-        status: "failed",
-        error: message,
-      },
+      failedCallPayload(req, model, durationMs, message),
       "failed-call",
     );
   }
@@ -222,21 +203,13 @@ export class AnthropicProvider implements LlmProvider {
     req: LlmCompleteRequest | LlmToolRequest,
     model: string,
     response: Anthropic.Message,
-    call: {
-      start: number;
-      prefixHash: ReturnType<typeof computeCachePrefixHash>;
-    },
+    call: CallContext,
   ): Promise<CallAccounting> {
     const durationMs = Date.now() - call.start;
     const usage = extractUsage(response);
     const costUsd = computeCost(model, usage);
 
-    await this.logCall(req, model, {
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-      costUsd,
-      durationMs,
-    });
+    await this.logCall(req, model, callOutcome(usage, costUsd, durationMs));
 
     return {
       usage,
@@ -268,67 +241,65 @@ export class AnthropicProvider implements LlmProvider {
 
   async complete(req: LlmCompleteRequest): Promise<LlmCompletion> {
     const model = resolveModel(req, this.model);
-    const maxTokens = resolveMaxTokens(req);
     const start = Date.now();
 
-    return this.recordingFailures(
-      req,
-      { model, start, kind: "call" },
-      async () => {
-        const prefixHash = computeCachePrefixHash(req.systemPrompt, undefined);
-        const response = await new Anthropic().messages.create({
-          model,
-          max_tokens: maxTokens,
-          ...systemParam(req.systemPrompt, req.jobName),
-          messages: [{ role: "user", content: req.prompt }],
-        });
-        const accounting = await this.account(req, model, response, {
-          start,
-          prefixHash,
-        });
+    return this.recordingFailures(req, { model, start, kind: "call" }, () =>
+      this.runCompletion(req, model, start),
+    );
+  }
 
-        logCall({ model, ...accounting });
+  private async runCompletion(
+    req: LlmCompleteRequest,
+    model: string,
+    start: number,
+  ): Promise<LlmCompletion> {
+    const prefixHash = computeCachePrefixHash(req.systemPrompt, undefined);
+    const messages = new Anthropic().messages;
+    const response = await messages.create(completionParams(req, model));
+    const accounting = await this.account(req, model, response, {
+      start,
+      prefixHash,
+    });
 
-        return withAccounting(
-          { text: firstTextBlock(response) },
-          model,
-          accounting,
-        );
-      },
+    logCall({ model, ...accounting });
+
+    return withAccounting(
+      { text: firstTextBlock(response) },
+      model,
+      accounting,
     );
   }
 
   async completeWithTool<T>(req: LlmToolRequest): Promise<LlmToolResult<T>> {
     const model = resolveModel(req, this.model);
-    const maxTokens = resolveMaxTokens(req);
     const start = Date.now();
 
     return this.recordingFailures(
       req,
       { model, start, kind: "tool call" },
-      async () => {
-        const tools = toolsFor(req);
-        const response = await new Anthropic().messages.create({
-          model,
-          max_tokens: maxTokens,
-          ...systemParam(req.systemPrompt, req.jobName),
-          messages: [{ role: "user", content: req.prompt }],
-          tools,
-          tool_choice: { type: "tool", name: req.toolName },
-        });
-        const accounting = await this.account(req, model, response, {
-          start,
-          prefixHash: cachePrefixHash(req.systemPrompt, tools),
-        });
+      () => this.runToolCall<T>(req, model, start),
+    );
+  }
 
-        logToolCall({ model, ...accounting });
+  private async runToolCall<T>(
+    req: LlmToolRequest,
+    model: string,
+    start: number,
+  ): Promise<LlmToolResult<T>> {
+    const tools = toolsFor(req);
+    const messages = new Anthropic().messages;
+    const response = await messages.create(toolCallParams(req, model, tools));
+    const accounting = await this.account(req, model, response, {
+      start,
+      prefixHash: cachePrefixHash(req.systemPrompt, tools),
+    });
 
-        return withAccounting(
-          { parsed: toolInput<T>(response) },
-          model,
-          accounting,
-        );
-      },
+    logToolCall({ model, ...accounting });
+
+    return withAccounting(
+      { parsed: toolInput<T>(response) },
+      model,
+      accounting,
     );
   }
 }

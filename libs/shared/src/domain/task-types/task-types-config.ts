@@ -102,6 +102,14 @@ export function parseTaskTypesFile(text: string): TaskTypesFile {
   } | null;
   const drift: string[] = [];
 
+  return { ...readSections(parsed, drift), drift };
+}
+
+/** Both sections read against one shared drift list, so a single report names every unreadable entry in the file. */
+function readSections(
+  parsed: { task_types?: unknown; stations?: unknown } | null,
+  drift: string[],
+): Pick<TaskTypesFile, "taskTypes" | "stations"> {
   return {
     taskTypes: readSection(
       "task_types",
@@ -115,7 +123,6 @@ export function parseTaskTypesFile(text: string): TaskTypesFile {
       StationConfigSchema,
       drift,
     ),
-    drift,
   };
 }
 

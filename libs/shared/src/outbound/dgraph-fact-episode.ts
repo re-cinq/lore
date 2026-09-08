@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { DgraphClientPort } from "./memory-store.js";
+import type { DgraphClientPort, DgraphTxn } from "./memory-store.js";
 import { embeddingField, newUid, toVectorLiteral } from "./dgraph-vector.js";
 import { withTxn } from "./dgraph-txn.js";
 import { contradictionNodes } from "./dgraph-fact-contradictions.js";
@@ -69,6 +69,25 @@ function factFields(input: FactInput, now: string): Record<string, unknown> {
   };
 }
 
+/** Writes the fact and hands back the uid dgraph assigned its blank node, which contradiction detection needs to point its FactConflict edges at. */
+async function insertFact(
+  txn: DgraphTxn,
+  input: FactInput,
+  seed: { xid: string; now: string },
+): Promise<string | undefined> {
+  const created = await txn.mutate({
+    setJson: {
+      uid: "_:newfact",
+      "dgraph.type": "Fact",
+      "Fact.xid": seed.xid,
+      ...factFields(input, seed.now),
+    },
+    commitNow: true,
+  });
+
+  return newUid(created, "newfact");
+}
+
 export async function persistFact(
   client: DgraphClientPort,
   input: FactInput,
@@ -77,20 +96,10 @@ export async function persistFact(
   const xid = randomUUID();
 
   return withTxn(client, async (txn) => {
-    const created = await txn.mutate({
-      setJson: {
-        uid: "_:newfact",
-        "dgraph.type": "Fact",
-        "Fact.xid": xid,
-        ...factFields(input, now),
-      },
-      commitNow: true,
-    });
+    const factUid = await insertFact(txn, input, { xid, now });
 
     // Contradiction detection is vector work, so a fact stored without an embedding simply cannot invalidate anything.
     if (input.embedding) {
-      const factUid = newUid(created, "newfact");
-
       await invalidateContradictions(client, input.agentId, input.embedding, {
         xid,
         uid: factUid,
@@ -126,6 +135,38 @@ function episodeFields(
   };
 }
 
+const FIND_EPISODE_QUERY = `query find($h: string) {
+        found(func: eq(Episode.content_hash, $h), first: 1) { uid Episode.xid }
+      }`;
+
+async function findEpisodeXid(
+  txn: DgraphTxn,
+  contentHash: string,
+): Promise<string | undefined> {
+  const res = await txn.queryWithVars(FIND_EPISODE_QUERY, { $h: contentHash });
+
+  return firstOf(res.data.found)?.["Episode.xid"] as string | undefined;
+}
+
+async function insertEpisode(
+  txn: DgraphTxn,
+  input: EpisodeInput,
+  contentHash: string,
+): Promise<string> {
+  const xid = randomUUID();
+
+  await txn.mutate({
+    setJson: {
+      "dgraph.type": "Episode",
+      "Episode.xid": xid,
+      ...episodeFields(input, contentHash),
+    },
+    commitNow: true,
+  });
+
+  return xid;
+}
+
 export async function writeEpisode(
   client: DgraphClientPort,
   input: EpisodeInput,
@@ -133,29 +174,12 @@ export async function writeEpisode(
   const contentHash = createHash("sha256").update(input.content).digest("hex");
 
   return withTxn(client, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query find($h: string) {
-        found(func: eq(Episode.content_hash, $h), first: 1) { uid Episode.xid }
-      }`,
-      { $h: contentHash },
-    );
-    const found = firstOf(res.data.found);
+    const existing = await findEpisodeXid(txn, contentHash);
 
-    if (found) {
-      return { id: found["Episode.xid"] as string };
+    if (existing) {
+      return { id: existing };
     }
 
-    const xid = randomUUID();
-
-    await txn.mutate({
-      setJson: {
-        "dgraph.type": "Episode",
-        "Episode.xid": xid,
-        ...episodeFields(input, contentHash),
-      },
-      commitNow: true,
-    });
-
-    return { id: xid };
+    return { id: await insertEpisode(txn, input, contentHash) };
   });
 }

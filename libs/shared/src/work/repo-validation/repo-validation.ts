@@ -106,6 +106,15 @@ interface StepDeps {
   exec: ValidationExec;
 }
 
+function skippedStepResult(name: string): StepResult {
+  return {
+    name,
+    passed: true,
+    output: "skipped (no matching files)",
+    durationMs: 0,
+  };
+}
+
 async function runStep(
   step: ValidationStep,
   { repoRoot, changedFiles, exec }: StepDeps,
@@ -114,12 +123,7 @@ async function runStep(
   const command = resolveStepCommand(step, changedFiles);
 
   if (command === undefined) {
-    return {
-      name: step.name,
-      passed: true,
-      output: "skipped (no matching files)",
-      durationMs: 0,
-    };
+    return skippedStepResult(step.name);
   }
   const { output, passed } = await exec(command, {
     cwd: repoRoot,

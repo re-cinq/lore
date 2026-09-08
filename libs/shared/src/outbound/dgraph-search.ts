@@ -11,16 +11,21 @@ import {
 } from "./dgraph-memory-queries.js";
 import { withTxn } from "./dgraph-txn.js";
 
-function buildSearchQuery(
-  hasEmbedding: boolean,
-  kmemBlock: string,
-  vmemBlock: string,
-): string {
+const KMEM_BLOCK = `kmem(func: anyoftext(Memory.value, $q), orderdesc: Memory.created_at, first: 20)
+          @filter(eq(Memory.is_deleted, false)) {
+          Memory.key Memory.value Memory.agent_id
+        }`;
+
+const VMEM_BLOCK = `vmem(func: similar_to(Memory.embedding, 20, $vec)) @filter(eq(Memory.is_deleted, false)) {
+          Memory.key Memory.value Memory.agent_id
+        }`;
+
+function buildSearchQuery(hasEmbedding: boolean): string {
   if (!hasEmbedding) {
-    return `query search($q: string) {\n${kmemBlock}\n}`;
+    return `query search($q: string) {\n${KMEM_BLOCK}\n}`;
   }
 
-  return `query search($q: string, $vec: string) {\n${kmemBlock}\n${vmemBlock}\n}`;
+  return `query search($q: string, $vec: string) {\n${KMEM_BLOCK}\n${VMEM_BLOCK}\n}`;
 }
 
 function searchVars(
@@ -81,17 +86,9 @@ export async function searchMemories(
   opts: { agentId?: string; limit?: number; embedding?: number[] },
 ): Promise<MemorySearchResult[]> {
   return withTxn(client, async (txn) => {
-    const kmemBlock = `kmem(func: anyoftext(Memory.value, $q), orderdesc: Memory.created_at, first: 20)
-          @filter(eq(Memory.is_deleted, false)) {
-          Memory.key Memory.value Memory.agent_id
-        }`;
-    const vmemBlock = `vmem(func: similar_to(Memory.embedding, 20, $vec)) @filter(eq(Memory.is_deleted, false)) {
-          Memory.key Memory.value Memory.agent_id
-        }`;
     const hasEmbedding = Boolean(opts.embedding);
-    const queryText = buildSearchQuery(hasEmbedding, kmemBlock, vmemBlock);
     const res = await txn.queryWithVars(
-      queryText,
+      buildSearchQuery(hasEmbedding),
       searchVars(query, opts.embedding),
     );
     const fused = rrfMerge(

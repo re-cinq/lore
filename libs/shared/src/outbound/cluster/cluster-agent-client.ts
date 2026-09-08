@@ -33,16 +33,9 @@ export class ClusterAgentClient {
     path: string,
     body?: unknown,
   ): Promise<T | undefined> {
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-    };
-
-    if (this.token) {
-      headers["authorization"] = `Bearer ${this.token}`;
-    }
     const res = await this.fetchImpl(`${this.baseUrl}/api/cluster${path}`, {
       method,
-      headers,
+      headers: this.jsonHeaders(),
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
@@ -52,6 +45,18 @@ export class ClusterAgentClient {
     }
 
     return res.status === 204 ? undefined : ((await res.json()) as T);
+  }
+
+  private jsonHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+    };
+
+    if (this.token) {
+      headers["authorization"] = `Bearer ${this.token}`;
+    }
+
+    return headers;
   }
 }
 

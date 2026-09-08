@@ -37,7 +37,6 @@ function readGapResult(
   }
 }
 
-/** Records a round's result; an invalid payload marks it failed and reports why rather than throwing. Advances the feature only while still mid-planning, so a slow/duplicate delivery can't drag a finalized feature back into the wizard. */
 /** Moves the feature on, but only while it is still mid-planning: a slow or duplicate delivery must not drag a finalized feature back into the wizard. */
 async function advancePlanning(
   features: GapResultFeatures,
@@ -55,6 +54,46 @@ async function advancePlanning(
   );
 }
 
+/** Which feature and which planning round a write belongs to. */
+interface RoundInput {
+  featureId: string;
+  iteration: number;
+}
+
+async function markRoundFailed(
+  features: GapResultFeatures,
+  round: RoundInput,
+  error: string,
+): Promise<ApplyGapResult> {
+  await features.setIterationResult(
+    round.featureId,
+    round.iteration,
+    null,
+    "failed",
+  );
+
+  return { outcome: "failed", error };
+}
+
+async function recordAndAdvance(
+  features: GapResultFeatures,
+  round: RoundInput,
+  status: string,
+  planningResult: ReturnType<typeof sanitizeGapResult>,
+): Promise<void> {
+  const { featureId, iteration } = round;
+
+  await features.setIterationResult(
+    featureId,
+    iteration,
+    planningResult,
+    "ready",
+  );
+
+  await advancePlanning(features, { featureId, status }, planningResult);
+}
+
+/** Records a round's result; an invalid payload marks it failed and reports why rather than throwing. Advances the feature only while still mid-planning, so a slow/duplicate delivery can't drag a finalized feature back into the wizard. */
 export async function applyGapResult(
   features: GapResultFeatures,
   featureId: string,
@@ -66,28 +105,14 @@ export async function applyGapResult(
   if (!feature) {
     return { outcome: "failed", error: "feature not found" };
   }
-
+  const round = { featureId, iteration };
   const parsed = readGapResult(payload);
 
   if ("error" in parsed) {
-    await features.setIterationResult(featureId, iteration, null, "failed");
-
-    return { outcome: "failed", error: parsed.error };
+    return markRoundFailed(features, round, parsed.error);
   }
-  const planningResult = parsed.result;
 
-  await features.setIterationResult(
-    featureId,
-    iteration,
-    planningResult,
-    "ready",
-  );
-
-  await advancePlanning(
-    features,
-    { featureId, status: feature.status },
-    planningResult,
-  );
+  await recordAndAdvance(features, round, feature.status, parsed.result);
 
   return { outcome: "ready" };
 }

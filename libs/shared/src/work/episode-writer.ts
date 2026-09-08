@@ -69,6 +69,28 @@ async function extractLesson(
   return lesson;
 }
 
+interface LessonInput {
+  taskId: string | undefined;
+  content: string;
+  ref: string;
+  agentId: string;
+}
+
+/** Ask for the lesson and store it as a memory entry; a lesson-free outcome writes nothing. */
+async function curateLesson(
+  deps: CurationDeps,
+  { taskId, content, ref, agentId }: LessonInput,
+): Promise<void> {
+  const lesson = await extractLesson(content, taskId);
+
+  if (!lesson) {
+    return;
+  }
+  const key = `auto-curation/${ref.replace(/[^a-zA-Z0-9\-/]/g, "_")}`;
+
+  await deps.memory.upsertMemory({ agentId, key, value: lesson });
+}
+
 /** Write episode and extract optional "lesson learned" via Haiku, stored for future search. */
 export async function writeEpisodeWithCuration(
   deps: CurationDeps,
@@ -89,16 +111,7 @@ export async function writeEpisodeWithCuration(
   }
 
   try {
-    const lesson = await extractLesson(content, taskId);
-
-    if (!lesson) {
-      return;
-    }
-
-    // Store as a memory entry
-    const key = `auto-curation/${ref.replace(/[^a-zA-Z0-9\-/]/g, "_")}`;
-
-    await deps.memory.upsertMemory({ agentId, key, value: lesson });
+    await curateLesson(deps, { taskId, content, ref, agentId });
   } catch {
     // Curation is best-effort — never block task processing
   }

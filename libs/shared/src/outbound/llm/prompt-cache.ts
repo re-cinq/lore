@@ -29,15 +29,16 @@ function resolveEligibility(): { allEligible: boolean; jobs: Set<string> } {
     return { allEligible: false, jobs: new Set() };
   }
 
-  return {
-    allEligible: false,
-    jobs: new Set(
-      raw
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    ),
-  };
+  return { allEligible: false, jobs: parseJobAllowlist(raw) };
+}
+
+function parseJobAllowlist(raw: string): Set<string> {
+  const names = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  return new Set(names);
 }
 
 // Latch eligibility once at module load — prevents mid-process env changes from toggling TTL, which would bust the server-side cache.
@@ -134,7 +135,6 @@ export interface CacheBreakAnalysis {
   ageMinutes?: number;
 }
 
-/** Classifies a cache miss; call AFTER the LLM call returns so cache_read_tokens is visible. Reads/writes module-level state keyed by jobName. */
 /** What this call observed once the response came back. */
 interface CacheObservation {
   isHit: boolean;
@@ -156,37 +156,59 @@ function changedParts(systemChanged: boolean, toolsChanged: boolean): string[] {
   return parts;
 }
 
+/** Classifies a cache miss; call AFTER the LLM call returns so cache_read_tokens is visible. */
 function classifyCacheBreak(
   prev: CacheState | undefined,
   newHash: PrefixHash,
-  { isHit, cacheCreationTokens, now }: CacheObservation,
+  observation: CacheObservation,
 ): CacheBreakAnalysis {
-  if (isHit) {
+  if (observation.isHit) {
     return { status: "hit" };
   }
 
   if (!prev) {
     return { status: "first-call" };
   }
-  const systemChanged = prev.systemHash !== newHash.system;
-  const toolsChanged = prev.toolsHash !== newHash.tools;
 
-  if (systemChanged || toolsChanged) {
-    return {
-      status: "prompt-changed",
-      reason: changedParts(systemChanged, toolsChanged).join("+"),
-    };
+  return classifyMiss(prev, newHash, observation);
+}
+
+function classifyMiss(
+  prev: CacheState,
+  newHash: PrefixHash,
+  observation: CacheObservation,
+): CacheBreakAnalysis {
+  const promptChange = classifyPromptChange(prev, newHash);
+
+  if (promptChange) {
+    return promptChange;
   }
 
-  if (cacheCreationTokens > 0) {
+  if (observation.cacheCreationTokens > 0) {
     // Hashes match but we paid to write again — prefix aged out
     return {
       status: "ttl-expired",
-      ageMinutes: Math.round((now - prev.lastCallAt) / 60_000),
+      ageMinutes: Math.round((observation.now - prev.lastCallAt) / 60_000),
     };
   }
 
   return { status: "unknown-miss" };
+}
+
+function classifyPromptChange(
+  prev: CacheState,
+  newHash: PrefixHash,
+): CacheBreakAnalysis | null {
+  const parts = changedParts(
+    prev.systemHash !== newHash.system,
+    prev.toolsHash !== newHash.tools,
+  );
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return { status: "prompt-changed", reason: parts.join("+") };
 }
 
 export function analyzeCacheBreak(
@@ -198,20 +220,23 @@ export function analyzeCacheBreak(
   const key = jobName || "_unnamed";
   const prev = cacheStateByJob.get(key);
   const now = Date.now();
-  const isHit = cacheReadTokens > 0;
   const analysis = classifyCacheBreak(prev, newHash, {
-    isHit,
+    isHit: cacheReadTokens > 0,
     cacheCreationTokens,
     now,
   });
 
+  rememberPrefix(key, newHash, now);
+
+  return analysis;
+}
+
+function rememberPrefix(key: string, newHash: PrefixHash, now: number): void {
   cacheStateByJob.set(key, {
     systemHash: newHash.system,
     toolsHash: newHash.tools,
     lastCallAt: now,
   });
-
-  return analysis;
 }
 
 /** Test helper — reset the in-memory tracker. Never call in production. */

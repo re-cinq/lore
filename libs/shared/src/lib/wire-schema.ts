@@ -12,12 +12,27 @@ export function wireSchema<
 ): z.ZodObject<{
   [K in keyof Shape as Columns[K & keyof Columns] & string]: Shape[K];
 }> {
+  const renamed = renameFieldsToColumns(
+    schema,
+    columns as Record<string, string | undefined>,
+  );
+
+  // The rename is by construction, not by inference: zod 4 widens the built shape to a string index signature, so the declared return type is reasserted here.
+  return z.object(renamed) as unknown as z.ZodObject<{
+    [K in keyof Shape as Columns[K & keyof Columns] & string]: Shape[K];
+  }>;
+}
+
+/** Rekeys a model's shape by its bound columns; a field with no binding is an error, never a silent fallback to the field name, because defaulting would publish a wrong contract. */
+function renameFieldsToColumns<Shape extends z.ZodRawShape>(
+  schema: z.ZodObject<Shape>,
+  columns: Record<string, string | undefined>,
+): Record<string, z.ZodType> {
   const renamed: Record<string, z.ZodType> = {};
 
   for (const [field, value] of Object.entries(schema.shape)) {
-    const column = (columns as Record<string, string | undefined>)[field];
+    const column = columns[field];
 
-    // No silent fallback to the field name: a miss means schema and column map disagree, and defaulting would publish a wrong contract.
     enforceTrue(
       column !== undefined,
       Error,
@@ -26,10 +41,7 @@ export function wireSchema<
     renamed[column] = value as z.ZodType;
   }
 
-  // The rename is by construction, not by inference: zod 4 widens the built shape to a string index signature, so the declared return type is reasserted here.
-  return z.object(renamed) as unknown as z.ZodObject<{
-    [K in keyof Shape as Columns[K & keyof Columns] & string]: Shape[K];
-  }>;
+  return renamed;
 }
 
 /** The plain TS shape `wireSchema` would infer, for callers that only want a snake_case-keyed type — typically `Pick<WireOf<...>, "a_column" | "b_column">` for a hand-written projection query. */

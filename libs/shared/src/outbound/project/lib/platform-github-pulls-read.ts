@@ -84,13 +84,7 @@ export async function isMerged(
   repo: string,
   number: number,
 ): Promise<boolean> {
-  const [owner, name] = split(repo);
-  const { pulls } = ok.rest;
-  const { data: pull } = await pulls.get({
-    owner,
-    repo: name,
-    pull_number: number,
-  });
+  const pull = await fetchPull(ok, repo, number);
 
   return pull.merged;
 }
@@ -100,13 +94,7 @@ export async function isClosed(
   repo: string,
   number: number,
 ): Promise<boolean> {
-  const [owner, name] = split(repo);
-  const { pulls } = ok.rest;
-  const { data: pull } = await pulls.get({
-    owner,
-    repo: name,
-    pull_number: number,
-  });
+  const pull = await fetchPull(ok, repo, number);
 
   return pull.state === "closed" && !pull.merged;
 }
@@ -116,13 +104,7 @@ export async function getStats(
   repo: string,
   number: number,
 ): Promise<PullStats> {
-  const [owner, name] = split(repo);
-  const { pulls } = ok.rest;
-  const { data: pull } = await pulls.get({
-    owner,
-    repo: name,
-    pull_number: number,
-  });
+  const pull = await fetchPull(ok, repo, number);
 
   return {
     files_changed: pull.changed_files,
@@ -132,6 +114,19 @@ export async function getStats(
     merged_at: pull.merged_at,
     created_at: pull.created_at,
   };
+}
+
+/** The one pull read the three single-PR readers above share. */
+async function fetchPull(ok: Octokit, repo: string, number: number) {
+  const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
+  const { data: pull } = await pulls.get({
+    owner,
+    repo: name,
+    pull_number: number,
+  });
+
+  return pull;
 }
 
 export async function changedFileCount(

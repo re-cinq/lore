@@ -9,7 +9,7 @@ export interface LlmJobContext {
 
 const ASSERTION_CONTENT_LIMIT = 12000;
 
-const EXTRACT_ASSERTIONS_TOOL_SCHEMA = {
+const EXTRACT_ASSERTIONS_TOOL_SCHEMA: Record<string, unknown> = {
   type: "object",
   properties: {
     assertions: {
@@ -43,7 +43,20 @@ const EXTRACT_ASSERTIONS_TOOL_SCHEMA = {
     },
   },
   required: ["assertions"],
-} as const;
+};
+
+function extractAssertionsPrompt(
+  specContent: string,
+  filePath: string,
+): string {
+  return `Analyze this specification and extract testable assertions — concrete names of functions, classes, interfaces, types, or API endpoints that SHOULD exist in the codebase based on this spec.
+
+Only extract items that are explicitly named in the spec. Do not infer or guess.
+
+Spec file: ${filePath}
+---
+${specContent.substring(0, ASSERTION_CONTENT_LIMIT)}`;
+}
 
 /** Extract symbols spec says should exist; used by spec-drift and spec-coverage-backfill. */
 export async function extractAssertions(
@@ -54,21 +67,12 @@ export async function extractAssertions(
   const result = await Llm.instance.completeWithTool<{
     assertions?: Assertion[];
   }>({
-    prompt: `Analyze this specification and extract testable assertions — concrete names of functions, classes, interfaces, types, or API endpoints that SHOULD exist in the codebase based on this spec.
-
-Only extract items that are explicitly named in the spec. Do not infer or guess.
-
-Spec file: ${filePath}
----
-${specContent.substring(0, ASSERTION_CONTENT_LIMIT)}`,
+    prompt: extractAssertionsPrompt(specContent, filePath),
     systemPrompt:
       "You extract testable code assertions from specifications. Return only explicitly named items.",
     toolName: "extract_assertions",
     toolDescription: "Extract testable assertions from a spec",
-    toolSchema: EXTRACT_ASSERTIONS_TOOL_SCHEMA as unknown as Record<
-      string,
-      unknown
-    >,
+    toolSchema: EXTRACT_ASSERTIONS_TOOL_SCHEMA,
     jobName: ctx.jobName,
   });
 
