@@ -52,18 +52,25 @@ async function existingBlobSha(
   }
 }
 
+interface PrRef {
+  url: string;
+  number: number;
+}
+
+interface PrRequest {
+  owner: string;
+  name: string;
+  branch: string;
+  base: string;
+  title: string;
+  body: string;
+}
+
 /** Opening a PR for a branch that already has one is not an error; the existing PR is the answer. */
 async function openOrFindPr(
   ok: Awaited<ReturnType<typeof octokit>>,
-  pr: {
-    owner: string;
-    name: string;
-    branch: string;
-    base: string;
-    title: string;
-    body: string;
-  },
-): Promise<{ url: string; number: number } | null> {
+  pr: PrRequest,
+): Promise<PrRef | null> {
   try {
     const { data: created } = await ok.rest.pulls.create({
       owner: pr.owner,
@@ -79,35 +86,40 @@ async function openOrFindPr(
     if (!isAlreadyExists(e)) {
       throw e;
     }
-    const { data: existing } = await ok.rest.pulls.list({
-      owner: pr.owner,
-      repo: pr.name,
-      head: `${pr.owner}:${pr.branch}`,
-      state: "open",
-    });
-    const found = existing.at(0);
 
-    return found ? { url: found.html_url, number: found.number } : null;
+    return await findOpenPr(ok, pr);
   }
+}
+
+/** The PR already open for this branch, if it is still open. Null rather than a throw: the caller asked for a PR to exist, and one that was opened and then closed is a state a human chose. */
+async function findOpenPr(
+  ok: Awaited<ReturnType<typeof octokit>>,
+  pr: PrRequest,
+): Promise<PrRef | null> {
+  const { data: existing } = await ok.rest.pulls.list({
+    owner: pr.owner,
+    repo: pr.name,
+    head: `${pr.owner}:${pr.branch}`,
+    state: "open",
+  });
+  const found = existing.at(0);
+
+  return found ? { url: found.html_url, number: found.number } : null;
+}
+
+interface WorkflowFile {
+  path: string;
+  content: string;
+  branch: string;
+  title: string;
+  body: string;
 }
 
 /** Open or reuse PR that installs workflow file on repo (idempotent). */
 async function openWorkflowPR(
   repo: string,
-  {
-    path,
-    content,
-    branch,
-    title,
-    body,
-  }: {
-    path: string;
-    content: string;
-    branch: string;
-    title: string;
-    body: string;
-  },
-): Promise<{ url: string; number: number } | null> {
+  { path, content, branch, title, body }: WorkflowFile,
+): Promise<PrRef | null> {
   if (!isGitHubConfigured()) {
     return null;
   }

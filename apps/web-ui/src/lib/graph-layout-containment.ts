@@ -50,6 +50,17 @@ function resolveContainment(
   return { ...DEFAULT_CONTAINMENT, ...opts };
 }
 
+/** Zeroes a velocity that is merely drifting. Without this the simulation never settles — a node keeps jittering by amounts too small to see but large enough to keep re-rendering. */
+function atRest(
+  { vx, vy }: { vx: number; vy: number },
+  epsilon: number,
+): { vx: number; vy: number } {
+  return {
+    vx: Math.abs(vx) < epsilon ? 0 : vx,
+    vy: Math.abs(vy) < epsilon ? 0 : vy,
+  };
+}
+
 /** Keep node velocity inside radius border; damp speed by overshoot. */
 export function containedVelocity(
   point: Point,
@@ -77,13 +88,5 @@ export function containedVelocity(
     vy = contained.vy;
   }
 
-  if (Math.abs(vx) < epsilon) {
-    vx = 0;
-  }
-
-  if (Math.abs(vy) < epsilon) {
-    vy = 0;
-  }
-
-  return { vx, vy };
+  return atRest({ vx, vy }, epsilon);
 }

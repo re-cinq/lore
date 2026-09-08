@@ -82,6 +82,59 @@ function GraphEdges({
   );
 }
 
+/** Every node in the layout. A node nothing leaves is TERMINAL, which the plain label renders differently — the end of a line should read as an end rather than as a step still waiting for a successor. */
+function GraphNodes({
+  laid,
+  mode,
+  onSelectNode,
+}: {
+  laid: ReturnType<typeof layoutRunGraph>;
+  mode: RunGraphViewProps["graph"]["mode"];
+  onSelectNode: RunGraphViewProps["onSelectNode"];
+}) {
+  return laid.layout.nodes.map((node) => (
+    <GraphNode
+      key={node.id}
+      node={node}
+      model={laid.nodeById.get(node.id)}
+      mode={mode}
+      height={laid.nodeHeight}
+      isTerminal={!laid.nodesWithOutgoing.has(node.id)}
+      onSelect={onSelectNode}
+    />
+  ));
+}
+
+/** The graph itself. A node nothing leaves is TERMINAL, which the plain label renders differently. `role="img"` with a `<title>`: the drawing is one picture to a screen reader, not a stack of unlabelled shapes, and the mode belongs in that label because the same nodes mean different things in definition and run mode. */
+function GraphSvg({
+  laid,
+  mode,
+  onSelectNode,
+}: {
+  laid: ReturnType<typeof layoutRunGraph>;
+  mode: RunGraphViewProps["graph"]["mode"];
+  onSelectNode: RunGraphViewProps["onSelectNode"];
+}) {
+  const { layout, view, titleId, edgeByPair } = laid;
+
+  return (
+    <svg
+      className={styles.svg}
+      style={{ ["--graph-width" as string]: `${view.width}px` }}
+      role="img"
+      aria-labelledby={titleId}
+      viewBox={view.viewBox}
+    >
+      <title id={titleId}>{`Workflow graph (${mode})`}</title>
+      <ArrowMarkerDefs />
+
+      <GraphEdges edges={layout.edges} edgeByPair={edgeByPair} />
+
+      <GraphNodes laid={laid} mode={mode} onSelectNode={onSelectNode} />
+    </svg>
+  );
+}
+
 export default function RunGraphView({
   graph,
   definition,
@@ -96,37 +149,14 @@ export default function RunGraphView({
     );
   }
 
-  const laid = layoutRunGraph(graph, definition);
-  const { layout, view, nodeHeight, titleId, nodeById, edgeByPair } = laid;
-  const nodesWithOutgoing = laid.nodesWithOutgoing;
-
   return (
     <section className={styles.panel}>
       {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
-      <svg
-        className={styles.svg}
-        style={{ ["--graph-width" as string]: `${view.width}px` }}
-        role="img"
-        aria-labelledby={titleId}
-        viewBox={view.viewBox}
-      >
-        <title id={titleId}>{`Workflow graph (${graph.mode})`}</title>
-        <ArrowMarkerDefs />
-
-        <GraphEdges edges={layout.edges} edgeByPair={edgeByPair} />
-
-        {layout.nodes.map((node) => (
-          <GraphNode
-            key={node.id}
-            node={node}
-            model={nodeById.get(node.id)}
-            mode={graph.mode}
-            height={nodeHeight}
-            isTerminal={!nodesWithOutgoing.has(node.id)}
-            onSelect={onSelectNode}
-          />
-        ))}
-      </svg>
+      <GraphSvg
+        laid={layoutRunGraph(graph, definition)}
+        mode={graph.mode}
+        onSelectNode={onSelectNode}
+      />
     </section>
   );
 }

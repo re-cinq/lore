@@ -100,16 +100,7 @@ function nodeInteraction(
   };
 }
 
-/** What the box says, in precedence order: a run badge when this visit has an outcome, else the outcomes the definition declares, else the plain name. A node cannot show both — the badge IS the run's answer, and listing the possibilities beside it would read as though they were still open. */
-function NodeBody({
-  badge,
-  outcomes,
-  title,
-  node,
-  top,
-  leftEdge,
-  isTerminal,
-}: {
+interface NodeBodyProps {
   badge: ReturnType<typeof computeBadge>;
   outcomes: readonly string[];
   title: string;
@@ -117,7 +108,12 @@ function NodeBody({
   top: number;
   leftEdge: number;
   isTerminal: boolean;
-}) {
+}
+
+/** What the box says, in precedence order: a run badge when this visit has an outcome, else the outcomes the definition declares, else the plain name. A node cannot show both — the badge IS the run's answer, and listing the possibilities beside it would read as though they were still open. */
+function NodeBody(props: NodeBodyProps) {
+  const { badge, outcomes, title, node, leftEdge } = props;
+
   if (badge) {
     return (
       <NodeRunBadge
@@ -131,12 +127,7 @@ function NodeBody({
 
   if (outcomes.length > 0) {
     return (
-      <NodeOutcomeList
-        title={title}
-        outcomes={outcomes}
-        leftEdge={leftEdge}
-        top={top}
-      />
+      <NodeOutcomeList {...{ title, outcomes, leftEdge, top: props.top }} />
     );
   }
 
@@ -145,9 +136,36 @@ function NodeBody({
       title={title}
       centerX={node.x}
       centerY={node.y}
-      isTerminal={isTerminal}
+      isTerminal={props.isTerminal}
     />
   );
+}
+
+/** The group's own attributes. The tone lands on `data-tone` as well as in the class so a test can assert what a node is SAYING without going through the stylesheet, and the aria-label carries the outcome in words for a reader who cannot see the colour. */
+function groupProps(
+  {
+    node,
+    badge,
+    outcomes,
+    isTerminal,
+  }: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">,
+  interaction: ReturnType<typeof nodeInteraction>,
+) {
+  return {
+    className: classes(styles.node, badge ? styles[badge.tone] : undefined),
+    "data-node": node.id,
+    "data-tone": badge?.tone ?? "idle",
+    role: interaction.role,
+    "aria-label": nodeAriaLabel(node.id, badge, outcomes, isTerminal),
+    tabIndex: interaction.tabIndex,
+    onClick: interaction.onClick,
+    onKeyDown: interaction.onKeyDown,
+  };
+}
+
+/** The box's top-left, from the layout's CENTRE point. The layout places node centres so edges can aim at them; SVG rects are drawn from a corner. */
+function boxOf(node: GraphNodeProps["node"], height: number) {
+  return { top: node.y - height / 2, leftEdge: node.x - NODE_WIDTH / 2 };
 }
 
 export default function GraphNode({
@@ -160,22 +178,12 @@ export default function GraphNode({
 }: GraphNodeProps) {
   const badge = computeBadge(mode, model);
   const outcomes = model?.outcomes ?? [];
-  const top = node.y - height / 2;
-  const leftEdge = node.x - NODE_WIDTH / 2;
-  const title = titleCase(node.id);
+  const { top, leftEdge } = boxOf(node, height);
   const interaction = nodeInteraction(node.id, onSelect);
+  const body = { node, badge, outcomes, isTerminal, top, leftEdge };
 
   return (
-    <g
-      className={classes(styles.node, badge ? styles[badge.tone] : undefined)}
-      data-node={node.id}
-      data-tone={badge?.tone ?? "idle"}
-      role={interaction.role}
-      aria-label={nodeAriaLabel(node.id, badge, outcomes, isTerminal)}
-      tabIndex={interaction.tabIndex}
-      onClick={interaction.onClick}
-      onKeyDown={interaction.onKeyDown}
-    >
+    <g {...groupProps(body, interaction)}>
       <rect
         className={styles.box}
         x={leftEdge}
@@ -184,15 +192,7 @@ export default function GraphNode({
         height={height}
         rx={10}
       />
-      <NodeBody
-        badge={badge}
-        outcomes={outcomes}
-        title={title}
-        node={node}
-        top={top}
-        leftEdge={leftEdge}
-        isTerminal={isTerminal}
-      />
+      <NodeBody {...body} title={titleCase(node.id)} />
     </g>
   );
 }

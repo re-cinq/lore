@@ -141,6 +141,18 @@ function groupAppliedByName(
   return applied;
 }
 
+/** Headers for a definition write. The approval-PR header rides along only when there is one — the two-key gate on privileged fields reads it, and sending an empty value would be a claim of approval nobody made. */
+function writeHeaders(
+  token: string,
+  approvalPr?: string,
+): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    authorization: `Bearer ${token}`,
+    ...(approvalPr ? { "x-lore-approval-pr": approvalPr } : {}),
+  };
+}
+
 export async function saveAgent(
   repo: string,
   def: Partial<AgentDefinition> & { name: string },
@@ -153,15 +165,6 @@ export async function saveAgent(
     return { status: "unconfigured" };
   }
 
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-    authorization: `Bearer ${c.token}`,
-  };
-
-  if (approvalPr) {
-    headers["x-lore-approval-pr"] = approvalPr;
-  }
-
   const url = isUpdate
     ? `${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(def.name)}`
     : `${c.apiUrl}/api/repos/${repo}/agent-definitions`;
@@ -172,7 +175,7 @@ export async function saveAgent(
     res = await fetch(url, {
       signal: AbortSignal.timeout(15_000),
       method: isUpdate ? "PUT" : "POST",
-      headers,
+      headers: writeHeaders(c.token, approvalPr),
       body: JSON.stringify(def),
       cache: "no-store",
     });
@@ -259,6 +262,16 @@ function genericSaveError(
   return { status: "error", message: String(body.error ?? `HTTP ${status}`) };
 }
 
+/** The failure the API reported, falling back to the status code. The body is parsed defensively because an error response is exactly the case where it may not be JSON at all — a gateway timeout answers in HTML. */
+async function readErrorBody(res: Response): Promise<AgentSaveResult> {
+  const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+
+  return {
+    status: "error",
+    message: String(body.error ?? `HTTP ${res.status}`),
+  };
+}
+
 export async function deleteAgent(
   repo: string,
   name: string,
@@ -287,10 +300,6 @@ export async function deleteAgent(
   if (res.ok) {
     return { status: "ok", agent: { name } as AgentDefinition };
   }
-  const body = await res.json().catch(() => ({}) as Record<string, unknown>);
 
-  return {
-    status: "error",
-    message: String(body.error ?? `HTTP ${res.status}`),
-  };
+  return await readErrorBody(res);
 }

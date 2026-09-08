@@ -128,6 +128,30 @@ function agentCells(
   ];
 }
 
+/** The table proper. Keyed on `agent_id`, falling back to the row index for calls nothing attributed — an unattributed row is still a row, and dropping it would make the totals disagree with the list. */
+function AgentRows({
+  agents,
+  hasWhy,
+}: {
+  agents: AgentsTableProps["agents"];
+  hasWhy: boolean;
+}) {
+  return (
+    <DataTable
+      columns={agentColumns(hasWhy)}
+      rows={agents}
+      rowKey={(a, index) => a.agent_id ?? `unattributed-${index}`}
+      empty={
+        <EmptyState
+          title="No agents yet"
+          description="Agents appear as developers use the Lore MCP server. Per-task run agents stay behind the audit toggle."
+        />
+      }
+      cells={(a) => agentCells(a, hasWhy)}
+    />
+  );
+}
+
 export default function AgentsTable({
   agents,
   intro,
@@ -147,18 +171,7 @@ export default function AgentsTable({
         showTaskAgents={showTaskAgents}
         onToggle={() => setShowTaskAgents((v) => !v)}
       />
-      <DataTable
-        columns={agentColumns(hasWhy)}
-        rows={visible}
-        rowKey={(a, index) => a.agent_id ?? `unattributed-${index}`}
-        empty={
-          <EmptyState
-            title="No agents yet"
-            description="Agents appear as developers use the Lore MCP server. Per-task run agents stay behind the audit toggle."
-          />
-        }
-        cells={(a) => agentCells(a, hasWhy)}
-      />
+      <AgentRows agents={visible} hasWhy={hasWhy} />
     </div>
   );
 }
@@ -183,28 +196,35 @@ function AgentsTableHeading({
     <>
       <div className={styles.head}>
         <h2 className={styles.heading}>{title}</h2>
-        <HelpPopover label="What agents are">
-          <p>Two kinds of session show up here:</p>
-          <ul>
-            <li>
-              <strong>Local MCP</strong> agents are developers&apos; own agents
-              — your stable <code>~/.lore/agent-id</code>. They write{" "}
-              <strong>memory</strong> and <strong>facts</strong> over the MCP
-              server but never claim pipeline tasks.
-            </li>
-            <li>
-              <strong>Task</strong> agents are ephemeral — one per pipeline task
-              run. They exist for auditing, so they&apos;re hidden until you ask
-              for them.
-            </li>
-          </ul>
-          <p>
-            <strong>Cost</strong> sums tracked <code>llm_calls</code>; headless
-            agent token spend is not metered, so it is a lower bound.
-          </p>
-        </HelpPopover>
+        <AgentKindsHelp />
       </div>
       {intro && <p className={`meta ${styles.intro}`}>{intro}</p>}
     </>
+  );
+}
+
+/** The distinction between the two kinds of agent, and the caveat on cost. Both are things a reader asks once and then knows, which is what a popover is for — a permanent paragraph would be re-read on every visit. */
+function AgentKindsHelp() {
+  return (
+    <HelpPopover label="What agents are">
+      <p>Two kinds of session show up here:</p>
+      <ul>
+        <li>
+          <strong>Local MCP</strong> agents are developers&apos; own agents —
+          your stable <code>~/.lore/agent-id</code>. They write{" "}
+          <strong>memory</strong> and <strong>facts</strong> over the MCP server
+          but never claim pipeline tasks.
+        </li>
+        <li>
+          <strong>Task</strong> agents are ephemeral — one per pipeline task
+          run. They exist for auditing, so they&apos;re hidden until you ask for
+          them.
+        </li>
+      </ul>
+      <p>
+        <strong>Cost</strong> sums tracked <code>llm_calls</code>; headless
+        agent token spend is not metered, so it is a lower bound.
+      </p>
+    </HelpPopover>
   );
 }

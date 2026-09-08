@@ -8,19 +8,21 @@ function hasVisibleContent(children: ReactNode): boolean {
   return children !== null && children !== undefined && children !== false;
 }
 
+interface CardSummaryProps {
+  title: string;
+  status?: { label: string; tone: StatusTone };
+  labels?: (string | null | undefined)[];
+  hint?: string;
+  actions?: ReactNode;
+}
+
 function CardSummary({
   title,
   status,
   labels,
   hint,
   actions,
-}: {
-  title: string;
-  status?: { label: string; tone: StatusTone };
-  labels?: (string | null | undefined)[];
-  hint?: string;
-  actions?: ReactNode;
-}) {
+}: CardSummaryProps) {
   return (
     <summary className={styles.summary}>
       <strong>{title}</strong>
@@ -38,15 +40,13 @@ function CardSummary({
   );
 }
 
-function CardBody({
-  hasContent,
-  emptyState,
-  children,
-}: {
+interface CardBodyProps {
   hasContent: boolean;
   emptyState?: string;
   children?: ReactNode;
-}) {
+}
+
+function CardBody({ hasContent, emptyState, children }: CardBodyProps) {
   if (hasContent) {
     return <>{children}</>;
   }
@@ -54,18 +54,7 @@ function CardBody({
   return emptyState ? <>{emptyState}</> : null;
 }
 
-export default function CollapsibleCard({
-  title,
-  status,
-  labels,
-  hint,
-  defaultOpen = false,
-  emptyState,
-  actions,
-  onToggle,
-  className = "",
-  children,
-}: {
+interface CollapsibleCardProps {
   title: string;
   /** A toned outcome pill rendered right after the title — string data only. */
   status?: { label: string; tone: StatusTone };
@@ -83,8 +72,10 @@ export default function CollapsibleCard({
   onToggle?: (open: boolean) => void;
   className?: string;
   children?: ReactNode;
-}) {
-  const hasContent = hasVisibleContent(children);
+}
+
+export default function CollapsibleCard(props: CollapsibleCardProps) {
+  const { defaultOpen = false, onToggle, className = "", children } = props;
 
   return (
     <div className={`spec-card ${className}`.trim()}>
@@ -93,14 +84,17 @@ export default function CollapsibleCard({
         onToggle={onToggle ? (e) => onToggle(e.currentTarget.open) : undefined}
       >
         <CardSummary
-          title={title}
-          status={status}
-          labels={labels}
-          hint={hint}
-          actions={actions}
+          title={props.title}
+          status={props.status}
+          labels={props.labels}
+          hint={props.hint}
+          actions={props.actions}
         />
         <div className={styles.body}>
-          <CardBody hasContent={hasContent} emptyState={emptyState}>
+          <CardBody
+            hasContent={hasVisibleContent(children)}
+            emptyState={props.emptyState}
+          >
             {children}
           </CardBody>
         </div>
