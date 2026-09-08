@@ -1,6 +1,6 @@
 /** HTTP delivery routes: multiple subscribers each consume their own copy, disjoint batches via FOR UPDATE SKIP LOCKED. */
 
-import type { ServerRoute } from "@hapi/hapi";
+import type { Lifecycle, ServerRoute } from "@hapi/hapi";
 import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import {
   DeadBody,
@@ -69,28 +69,29 @@ function subscribeRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
+// Hands a subscriber its next batch. The exclusion list is READ at claim time and holds a busy serial family back, so rows for a family already in flight stay pending rather than being handed out twice.
+function claimHandler(deps: EventDeliveryRoutesDeps): Lifecycle.Method {
+  return async (request, h) => {
+    guard(deps, request.headers);
+    const { subscriber, limit, excludeEventNames } = parseBody(
+      rawBody(request),
+      DeliveryClaimBody,
+      "claim",
+    );
+    const deliveries = await deps
+      .deliveries()
+      .claim(subscriber, limit, excludeEventNames ?? []);
+
+    return h.response({ deliveries }).code(200);
+  };
+}
+
 function claimRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     method: "POST",
     path: "/api/deliveries/claim",
     options: NO_BODY,
-    handler: async (request, h) => {
-      guard(deps, request.headers);
-      const { subscriber, limit, excludeEventNames } = parseBody(
-        rawBody(request),
-        DeliveryClaimBody,
-        "claim",
-      );
-
-      return h
-        .response({
-          // Exclusion is READ: claim time holds busy serial family so waiting rows stay pending.
-          deliveries: await deps
-            .deliveries()
-            .claim(subscriber, limit, excludeEventNames ?? []),
-        })
-        .code(200);
-    },
+    handler: claimHandler(deps),
   };
 }
 
@@ -181,27 +182,29 @@ function pruneRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   };
 }
 
+// The safety net for deliveries whose subscriber never acked. Bounded by a window rather than sweeping everything: a delivery still inside its window may simply be slow.
+function reconcileHandler(deps: EventDeliveryRoutesDeps): Lifecycle.Method {
+  return async (request, h) => {
+    guard(deps, request.headers);
+    const { withinMinutes } = parseBody(
+      rawBody(request),
+      ReconcileBody,
+      "reconcile",
+    );
+    const reconciled = await deps
+      .deliveries()
+      .reconcileDeliveries(withinMinutes);
+
+    return h.response({ reconciled }).code(200);
+  };
+}
+
 function reconcileRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
   return {
     method: "POST",
     path: "/api/deliveries/reconcile",
     options: NO_BODY,
-    handler: async (request, h) => {
-      guard(deps, request.headers);
-      const { withinMinutes } = parseBody(
-        rawBody(request),
-        ReconcileBody,
-        "reconcile",
-      );
-
-      return h
-        .response({
-          reconciled: await deps
-            .deliveries()
-            .reconcileDeliveries(withinMinutes),
-        })
-        .code(200);
-    },
+    handler: reconcileHandler(deps),
   };
 }
 

@@ -22,6 +22,27 @@ function logRequestErrors(server: Hapi.Server): void {
   });
 }
 
+// Every route this server serves. The repository accessors are THUNKS throughout: the pool does not exist at describe time, so binding them eagerly would build a server that cannot be constructed in a test.
+function allRoutes(): Hapi.ServerRoute[] {
+  return [
+    eventsRoute({
+      insert: (event) => pipeline().eventQueue.insert(event),
+      webhookSecret: process.env.LORE_WEBHOOK_SECRET,
+      bearerToken: process.env.LORE_INGEST_TOKEN,
+      findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
+    }),
+    ...eventQueueRoutes({
+      queue: () => pipeline().eventQueue,
+      bearerToken: process.env.LORE_INGEST_TOKEN,
+    }),
+    ...eventDeliveryRoutes({
+      deliveries: () => deliveries(),
+      bearerToken: process.env.LORE_INGEST_TOKEN,
+    }),
+    healthRoute(),
+  ];
+}
+
 export function buildServer(opts: { port?: number } = {}): Hapi.Server {
   const server = Hapi.server({
     port: opts.port ?? 0,
@@ -31,25 +52,7 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
 
   logRequestErrors(server);
 
-  server.route([
-    eventsRoute({
-      insert: (event) => pipeline().eventQueue.insert(event),
-      webhookSecret: process.env.LORE_WEBHOOK_SECRET,
-      bearerToken: process.env.LORE_INGEST_TOKEN,
-      // Thunk: pool doesn't exist at describe time; lookup only for non-ingest bearer.
-      findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
-    }),
-    ...eventQueueRoutes({
-      queue: () => pipeline().eventQueue,
-      bearerToken: process.env.LORE_INGEST_TOKEN,
-    }),
-    // Lazy thunk: pool doesn't exist at describe time.
-    ...eventDeliveryRoutes({
-      deliveries: () => deliveries(),
-      bearerToken: process.env.LORE_INGEST_TOKEN,
-    }),
-    healthRoute(),
-  ]);
+  server.route(allRoutes());
 
   return server;
 }
