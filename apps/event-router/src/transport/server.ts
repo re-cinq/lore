@@ -1,3 +1,4 @@
+import "@re-cinq/lore-shared/http/hapi-params.js";
 /** HTTP server (hapi): front door to pipeline.events + drain consume endpoints + health probe. */
 
 import Hapi from "@hapi/hapi";

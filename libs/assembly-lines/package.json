@@ -25,9 +25,9 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@types/node": "^22.20.1",
+    "@vitest/coverage-v8": "^4.1.11",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }
