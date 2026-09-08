@@ -577,7 +577,7 @@ edges:
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, enqueued } = makeDeps(port);
-    const gate = new LlmDispatchGate(() => new Date());
+    const gate = new LlmDispatchGate(() => new Date("2026-01-01T00:00:00Z"));
 
     gate.trip("anthropic-credit", "Credit balance is too low");
     await advanceLine(id, { ...deps, llmGate: gate });
@@ -591,7 +591,7 @@ edges:
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps } = makeDeps(port);
-    const gate = new LlmDispatchGate(() => new Date());
+    const gate = new LlmDispatchGate(() => new Date("2026-01-01T00:00:00Z"));
     const logged: string[] = [];
     const realLog = console.log;
 
@@ -611,7 +611,7 @@ edges:
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, enqueued } = makeDeps(port);
-    const gate = new LlmDispatchGate(() => new Date());
+    const gate = new LlmDispatchGate(() => new Date("2026-01-01T00:00:00Z"));
 
     gate.trip("anthropic-credit", "Credit balance is too low");
     await advanceLine(id, { ...deps, llmGate: gate });

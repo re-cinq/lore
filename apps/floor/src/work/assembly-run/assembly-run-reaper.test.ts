@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
@@ -40,7 +40,7 @@ edges:
 `);
 
 const MIN = 60_000;
-
+const FROZEN_MS = Date.parse("2026-01-01T00:00:00Z");
 const clusterAgent = (
   name: string,
   tags: string[],
@@ -58,9 +58,10 @@ const clusterAgent = (
   catalogCursor: null,
   ...overrides,
 });
-
 const QUEUE_WAIT_MS = 30 * MIN;
 
+beforeEach(() => vi.useFakeTimers({ toFake: ["Date"], now: FROZEN_MS }));
+afterEach(() => vi.useRealTimers());
 describe("decideNodeRecovery", () => {
   const node = (
     ageMinutes: number,
@@ -85,8 +86,7 @@ describe("decideNodeRecovery", () => {
     finishedAt: null,
     ...over,
   });
-  const nowMs = Date.now();
-
+  const nowMs = FROZEN_MS;
   const decide = (
     input: Partial<Parameters<typeof decideNodeRecovery>[0]> & {
       node: StationRunRecord;

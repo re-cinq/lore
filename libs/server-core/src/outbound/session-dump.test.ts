@@ -27,10 +27,7 @@ describe("session-tracker dump + ring buffer", () => {
     trackToolCall("dump_probe_beta", 80, false);
     trackToolCall("dump_probe_alpha", 200, true);
 
-    const target = join(
-      tmpdir(),
-      `lore-session-dump-${process.pid}-${Date.now()}.json`,
-    );
+    const target = join(tmpdir(), `lore-session-dump-${process.pid}.json`);
 
     dumpSessionLog(target);
 

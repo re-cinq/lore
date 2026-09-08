@@ -82,7 +82,7 @@ describe("POST /api/events — per-agent tokens (FR5)", () => {
     const { token, tokenHash } = mintAgentToken();
 
     await registry.create(registration(tokenHash));
-    await registry.markOffline(new Date(Date.now() + 60_000));
+    await registry.markOffline(new Date("2999-01-01T00:00:00Z"));
 
     const res = await server().inject(report(token));
 

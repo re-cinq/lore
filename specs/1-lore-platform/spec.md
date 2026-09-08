@@ -411,10 +411,10 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
   `redactSecrets()`; matched secrets are stripped before content is
   embedded and made searchable. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:30`](libs/shared/src/lib/redact.test.ts#L30))
 - FR-7.5: Beyond chunking and embedding, the Lore Agent drafts missing
-  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L123))
+  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L132))
 - FR-7.6: Nightly re-index MUST hard-delete chunks whose source
   file, PR, or ADR no longer exists or has been superseded. No
-  stale content is retained. ([validated by `verify.test.ts:71`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L71), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L398))
+  stale content is retained. ([validated by `verify.test.ts:71`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L71), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L407))
 
 ### FR-8: Observability (Phase 1)
 
@@ -444,32 +444,32 @@ The system MUST validate context quality via CI.
 
 ### FR-10: Gap Detection (Phase 2)
 
-The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L105))
+The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L114))
 
 - See ADR-010: a weekly job analyzes low-confidence retrievals from the
   previous week (the autoresearch gap loop).
 - Decision: candidate gaps are clustered by embedding similarity.
 - FR-10.3: For a repo missing a documentation kind (CLAUDE.md, ADRs, or
   specs), the `gap-detect` job drafts the missing content as a `gap-fill`
-  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L123))
+  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L132))
 - Decision: the agent opens PRs to the context repo with the drafted content,
   assigned to the relevant team.
 - Decision: human review is required before any auto-drafted content is merged.
 - FR-10.6: The per-repo `gap-detect` job skips repos that are not
-  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L105))
+  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L114))
 - FR-10.7: It checks the repo's resolved-schema chunks for a CLAUDE.md
   doc chunk, ADR chunks, and spec chunks — filing a `gap-fill` task per
   missing kind, and none when all are present.
-  ([validated by `gap-detect.test.ts:114`](libs/shared/src/work/detect/gap-detect.test.ts#L114), [`gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L123))
+  ([validated by `gap-detect.test.ts:114`](libs/shared/src/work/detect/gap-detect.test.ts#L123), [`gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L132))
 - FR-10.8: It files a stale-content `gap-fill` task only when more than
   10 reindex-owned chunks have gone unverified for over 90 days;
   api-ingested chunks never count toward the stale floor (semantics per
   the ADR-019 2026-07 verification-sweep amendment: a non-zero count
   means reindex has stopped covering the repo, not that files are
   unchanged).
-  ([validated by `gap-detect.test.ts:135`](libs/shared/src/work/detect/gap-detect.test.ts#L135), [`gap-detect.test.ts:152`](libs/shared/src/work/detect/gap-detect.test.ts#L152), [`gap-detect.test.ts:163`](libs/shared/src/work/detect/gap-detect.test.ts#L163))
+  ([validated by `gap-detect.test.ts:135`](libs/shared/src/work/detect/gap-detect.test.ts#L144), [`gap-detect.test.ts:152`](libs/shared/src/work/detect/gap-detect.test.ts#L161), [`gap-detect.test.ts:163`](libs/shared/src/work/detect/gap-detect.test.ts#L172))
 - FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
-  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/work/detect/gap-detect.test.ts#L175))
+  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/work/detect/gap-detect.test.ts#L184))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
@@ -497,12 +497,12 @@ live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/wo
 ### FR-12: Intelligent Memory Lifecycle (Phase 1)
 
 The system MUST manage agent memory automatically without agent
-cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/outbound/session-tracker.test.ts#L135))
+cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/outbound/session-tracker.test.ts#L123))
 
 - FR-12.1: MCP server tracks all tool calls in a 500-entry ring
   buffer (`session-tracker.ts`). On exit, dumps to
   `~/.lore/last-session.json`. Stop hook POSTs to
-  `/api/session-summary` for automatic episode + fact extraction. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/outbound/session-tracker.test.ts#L135), [`session-tracker.test.ts:15`](libs/server-core/src/outbound/session-tracker.test.ts#L15))
+  `/api/session-summary` for automatic episode + fact extraction. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/outbound/session-tracker.test.ts#L123), [`session-tracker.test.ts:15`](libs/server-core/src/outbound/session-tracker.test.ts#L15))
 - FR-12.2: Daily job at 5 AM scores memories 0-10 using half-life
   decay (`strength = 0.5^(age / half_life_days)`). Evicts
   lowest-scoring memories when agent exceeds 500 entries. Cleans
@@ -510,12 +510,12 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 - FR-12.3: Daily job at 5:30 AM groups recent facts (7-day lookback)
   by repo and calls Haiku to extract 1-3 higher-level patterns per
   repo. Stored as `consolidated/{repo}/{timestamp}` memories.
-  Minimum 5 facts required to trigger consolidation. ([validated by `memory-lifecycle.test.ts:99`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L99), [`memory-lifecycle.test.ts:198`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L198))
+  Minimum 5 facts required to trigger consolidation. ([validated by `memory-lifecycle.test.ts:99`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L108), [`memory-lifecycle.test.ts:198`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L207))
 - FR-12.4: Every `lore_search_memory` call asynchronously increments
   `retrieval_count`, updates `last_retrieved_at`, and extends
   `half_life_days` (+2, cap 365) on returned facts. Stale facts
   revive to `observed` on retrieval. Fire-and-forget — adds zero
-  latency to search. ([validated by `memory-lifecycle.test.ts:214`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L214), [`memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L188))
+  latency to search. ([validated by `memory-lifecycle.test.ts:214`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L223), [`memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L197))
 - FR-12.5: After every pipeline task completion (PR, no-changes,
   failure), an episode is automatically written. For high-signal
   events (PRs, failures), Haiku extracts a lesson and stores it
@@ -554,20 +554,20 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
 
 ### FR-14: Spec Drift Detection (Phase 2)
 
-The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:190`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L194), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L216))
+The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:190`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L203), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L225))
 
 - FR-14.1: Weekly job reads spec assertions and checks against
   current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/work/detect/fan-out.test.ts#L42))
 - Decision: divergence above 20% of a spec's assertions triggers a `gap-fill`
   pipeline task for the owning team.
-- FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L914), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L947))
+- FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L923), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L956))
 - FR-14.4: Spec-drift reads a repo's spec chunks and code symbols from
   the repo's resolved schema (team schema when provisioned, `org_shared`
   otherwise) — the same schema the reindex job wrote them to. The
   `codeSymbols` read excludes `symbol_type = 'call'` chunks, so a test
   file's `describe` title can never satisfy the drift heuristic's
   known-symbol check for a deleted declaration.
-  ([validated by `chunks.test.ts:153`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L157), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L175), [`chunks.test.ts:187`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L194), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L216), [`chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L914), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L947))
+  ([validated by `chunks.test.ts:153`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L166), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L184), [`chunks.test.ts:187`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L203), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L225), [`chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L923), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L956))
 
 ### FR-15: Progressive Trust (Phase 1)
 
@@ -1020,7 +1020,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   are env-overridable and echoed in the response so the UI labels the
   number as the estimate it is — Google's invoice lags a day and stays the
   truth.
-  ([validated by windows the metered llm spend and prices pod-hours at the assumed profile](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L117), [prices each live pod from its ACTUAL requests](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L269), [`spend-window.test.ts:293`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L293), [caps a never-finished station-run row at 2 hours](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L313), [`spend-window.test.ts:326`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L326), [carries every interval-scoped breakdown the merged spend page renders](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L148), [`spend-window.test.ts:248`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L248), [`SpendView.test.tsx:211`](apps/web-ui/src/app/spend/SpendView.test.tsx#L211), [`SpendView.test.tsx:219`](apps/web-ui/src/app/spend/SpendView.test.tsx#L219), [`SpendView.test.tsx:284`](apps/web-ui/src/app/spend/SpendView.test.tsx#L284), [`compute-cost.test.ts:12`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L12), [`compute-cost.test.ts:25`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L25), [`compute-cost.test.ts:34`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L34), [`compute-cost.test.ts:40`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L40), [`compute-cost.test.ts:47`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L47), [`compute-cost.test.ts:56`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L56), [`compute-cost.test.ts:65`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L65), [`compute-cost.test.ts:75`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L75), [`compute-cost.test.ts:82`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L82), [`compute-cost.test.ts:89`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L89), [lists the running pods with their requests](apps/cluster-agent/src/transport/routes/cluster.test.ts#L154), [fetches the default 7-day window and renders the whole spend view from it](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L98), [`SpendWindowPanel.test.tsx:128`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L128), [`SpendWindowPanel.test.tsx:143`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L143), [`SpendWindowPanel.test.tsx:154`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L154), [`SpendWindowPanel.test.tsx:170`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L170), [`SpendWindowPanel.test.tsx:191`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L191), [`spend-window-presets.test.ts:7`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L7), [`spend-window-presets.test.ts:14`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L14), [`spend-window-presets.test.ts:25`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L25), [`spend-window-presets.test.ts:34`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L34), [`SpendWindowPanel.test.tsx:207`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L207)])
+  ([validated by windows the metered llm spend and prices pod-hours at the assumed profile](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L117), [prices each live pod from its ACTUAL requests](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L269), [`spend-window.test.ts:293`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L293), [caps a never-finished station-run row at 2 hours](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L313), [`spend-window.test.ts:326`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L326), [carries every interval-scoped breakdown the merged spend page renders](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L148), [`spend-window.test.ts:248`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L248), [`SpendView.test.tsx:211`](apps/web-ui/src/app/spend/SpendView.test.tsx#L211), [`SpendView.test.tsx:219`](apps/web-ui/src/app/spend/SpendView.test.tsx#L219), [`SpendView.test.tsx:284`](apps/web-ui/src/app/spend/SpendView.test.tsx#L284), [`compute-cost.test.ts:12`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L12), [`compute-cost.test.ts:25`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L25), [`compute-cost.test.ts:34`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L34), [`compute-cost.test.ts:40`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L40), [`compute-cost.test.ts:47`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L47), [`compute-cost.test.ts:56`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L56), [`compute-cost.test.ts:65`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L65), [`compute-cost.test.ts:75`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L75), [`compute-cost.test.ts:82`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L82), [`compute-cost.test.ts:89`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L89), [lists the running pods with their requests](apps/cluster-agent/src/transport/routes/cluster.test.ts#L154), [fetches the default 7-day window and renders the whole spend view from it](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L99), [`SpendWindowPanel.test.tsx:129`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L129), [`SpendWindowPanel.test.tsx:144`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L144), [`SpendWindowPanel.test.tsx:155`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L155), [`SpendWindowPanel.test.tsx:171`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L171), [`SpendWindowPanel.test.tsx:192`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L192), [`spend-window-presets.test.ts:7`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L7), [`spend-window-presets.test.ts:14`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L14), [`spend-window-presets.test.ts:25`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L25), [`spend-window-presets.test.ts:34`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L34), [`SpendWindowPanel.test.tsx:208`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L208)])
 
 - **FR-19g — Whose invoice, and what a run costs** *(added 2026-09-03)*.
   `pipeline.llm_calls` prices every model call Lore sees, whoever bills it, so
@@ -1128,7 +1128,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   that pass, and returns distinct teams with per-team `org_shared`
   counts (defaulting a missing count to zero). Rows predating team
   tracking carry a null team and are left out of that list.
-  ([validated by `chunks.test.ts:42`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L46), [`chunks.test.ts:47`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L54), [`chunks.test.ts:53`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L60), [`chunks.test.ts:63`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L70), [`chunks.test.ts:78`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L85), [`chunks.test.ts:95`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L102), [`chunks.test.ts:103`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L110), [`chunks.test.ts:114`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L121), [`chunks.test.ts:128`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L135), [`chunks.test.ts:136`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L143), [`chunks.test.ts:142`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L149), [`chunks.test.ts:150`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L157), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L175), [`chunks.test.ts:187`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L194), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L216), [`chunks.test.ts:232`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L239), [`chunks.test.ts:246`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L253), [`chunks.test.ts:254`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L261), [`chunks.test.ts:268`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L275), [`chunks.test.ts:275`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L282), [`chunks.test.ts:292`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L299), [`chunks.test.ts:315`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L322), [`chunks.test.ts:359`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L366), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L398), [`chunks.test.ts:408`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L415), [`chunks.test.ts:423`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L430), [`chunks.test.ts:434`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L441), [`chunks.test.ts:449`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L456), [`chunks.test.ts:458`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L465), [`chunks.test.ts:465`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L472), [`chunks.test.ts:517`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L517), [`chunks.test.ts:525`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L525), [`chunks.test.ts:554`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L554), [`chunks.test.ts:568`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L568), [`chunks.test.ts:604`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L604), [`chunks.test.ts:623`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L623), [`chunks.test.ts:494`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L494))
+  ([validated by `chunks.test.ts:42`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L55), [`chunks.test.ts:47`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L63), [`chunks.test.ts:53`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L69), [`chunks.test.ts:63`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L79), [`chunks.test.ts:78`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L94), [`chunks.test.ts:95`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L111), [`chunks.test.ts:103`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L119), [`chunks.test.ts:114`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L130), [`chunks.test.ts:128`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L144), [`chunks.test.ts:136`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L152), [`chunks.test.ts:142`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L158), [`chunks.test.ts:150`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L166), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L184), [`chunks.test.ts:187`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L203), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L225), [`chunks.test.ts:232`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L248), [`chunks.test.ts:246`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L262), [`chunks.test.ts:254`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L270), [`chunks.test.ts:268`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L284), [`chunks.test.ts:275`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L291), [`chunks.test.ts:292`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L308), [`chunks.test.ts:315`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L331), [`chunks.test.ts:359`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L375), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L407), [`chunks.test.ts:408`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L424), [`chunks.test.ts:423`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L439), [`chunks.test.ts:434`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L450), [`chunks.test.ts:449`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L465), [`chunks.test.ts:458`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L474), [`chunks.test.ts:465`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L481), [`chunks.test.ts:517`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L526), [`chunks.test.ts:525`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L534), [`chunks.test.ts:554`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L563), [`chunks.test.ts:568`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L577), [`chunks.test.ts:604`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L613), [`chunks.test.ts:623`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L632), [`chunks.test.ts:494`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L503))
 - FR-20.7: The HTTP `Chunks` adapter reads spec chunks (and backfill
   chunks with embeddings) from the repo-scoped API with a bearer token,
   maps `hasChunk`/`staleChunkCount` to their query endpoints, and throws
@@ -1240,14 +1240,14 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   dedupe keeps a file already fresh in the target and drops its stale
   org_shared duplicates, files absent from the target relocate wholesale
   preserving id, embedding, and `ingested_at`, rewriting `team`, stamping
-  `metadata.migrated_from` ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L699), [`chunks.test.ts:716`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L716), [`chunks.test.ts:749`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L749))
+  `metadata.migrated_from` ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L708), [`chunks.test.ts:716`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L725), [`chunks.test.ts:749`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L758))
   - Provenance-less rows with a classifyFile content type are adopted via
-    `ingested_by = 'reindex-job'`; other content types relocate unowned ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L699), [`chunks.test.ts:739`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L739))
+    `ingested_by = 'reindex-job'`; other content types relocate unowned ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L708), [`chunks.test.ts:739`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L748))
   - The Pg adapter issues copy and delete as one statement (shared
     snapshot, insert before delete, repo and team as bind parameters),
     a clean repo is a zero no-op, and `org_shared` is rejected as a
     relocation target in every adapter — self-relocation would dedupe
-    rows against themselves and delete them ([validated by `chunks.test.ts:762`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L762), [`chunks.test.ts:773`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L773), [`chunks.test.ts:785`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L785))
+    rows against themselves and delete them ([validated by `chunks.test.ts:762`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L771), [`chunks.test.ts:773`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L782), [`chunks.test.ts:785`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L794))
   - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L94))
   - `PUT /api/repos/:o/:r/settings` on lore-api emits one
     `internal.repo.team_changed` event only when the write actually changes
@@ -1274,7 +1274,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
 - No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:107`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L107), [`security-posture.test.ts:128`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L128))
 - Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:99`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L99))
 - Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:124`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L124), [`security-posture.test.ts:128`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L128))
-- Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:153`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L157), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L175))
+- Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:153`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L166), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L184))
 - Secret and PII redaction runs at ingest time and on every memory write:
   `sanitizeContent()` / `redactSecrets()` strip API keys, JWTs, private keys,
   connection strings, and bearer tokens before storage in the org-wide

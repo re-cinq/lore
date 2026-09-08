@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -154,10 +154,13 @@ describe("FileLeaseBackend", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "lore-lease-"));
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 

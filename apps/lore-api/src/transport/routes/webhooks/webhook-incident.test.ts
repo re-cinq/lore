@@ -261,6 +261,6 @@ describe("POST /api/webhook/incident", () => {
     await bearer({ repo: "o/r", date: "2099-01-01T00:00:00.000Z" }, pool);
     const [, args] = pool.query.mock.calls[0];
 
-    expect(JSON.parse(args[1]).date).toBe(new Date(Date.now()).toISOString());
+    expect(JSON.parse(args[1]).date).toBe(new Date(Date.now()).toISOString()); // eslint-disable-line re-lint/no-nondeterministic-tests -- clock pinned for the file by useRateLimitSafeClock()
   });
 });

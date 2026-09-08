@@ -4,7 +4,7 @@ import { verifyRepoChunks } from "./verify.js";
 
 const REPO = "octo/repo";
 const SCHEMA = "platform";
-const OLD = new Date(Date.now() - 100 * 86_400_000).toISOString();
+const OLD = "2020-01-01T00:00:00.000Z";
 
 function seededChunks(): InMemoryChunks {
   const chunks = new InMemoryChunks([], new Set(["org_shared", SCHEMA]));
@@ -109,7 +109,7 @@ describe("verifyRepoChunks", () => {
   });
 
   it("leaves files verified within the 30-day age floor un-stamped", async () => {
-    const fresh = new Date().toISOString();
+    const fresh = "2099-01-01T00:00:00.000Z";
     const chunks = seededChunks();
 
     chunks.rows.push({

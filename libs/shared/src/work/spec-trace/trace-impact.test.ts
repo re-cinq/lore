@@ -25,6 +25,7 @@ const APPLIER = join(
   "setup-spec-trace-schema.sh",
 );
 
+const BASELINE_AT = new Date("2026-01-01T00:00:00.000Z");
 const reachable = await dgraphReachable();
 
 describe("parseRanges", () => {
@@ -213,7 +214,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     const repo = `test-impact/${randomUUID()}`;
 
     createdRepo = repo;
-    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+    await stampGraphBaseline(dgraphClient, repo, "base1", BASELINE_AT);
     const specPath = "specs/widget/spec.md";
 
     const txn = dgraphClient.newTxn();
@@ -284,7 +285,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     const repo = `test-impact/${randomUUID()}`;
 
     createdRepo = repo;
-    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+    await stampGraphBaseline(dgraphClient, repo, "base1", BASELINE_AT);
     const specPath = "specs/login/spec.md";
 
     const txn = dgraphClient.newTxn();
@@ -363,7 +364,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     const repo = `test-impact/${randomUUID()}`;
 
     createdRepo = repo;
-    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+    await stampGraphBaseline(dgraphClient, repo, "base1", BASELINE_AT);
     const specPath = "specs/legacy/spec.md";
 
     const txn = dgraphClient.newTxn();
@@ -492,7 +493,7 @@ describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
     const repo = `spec-only/${randomUUID()}`;
 
     createdRepo = repo;
-    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+    await stampGraphBaseline(dgraphClient, repo, "base1", BASELINE_AT);
     const specPath = "specs/widget/spec.md";
     const oldText = "The widget MUST render within 100ms.";
     const txn = dgraphClient.newTxn();
@@ -830,7 +831,7 @@ describe.skipIf(!reachable)(
 
     it("couples file-wide when the chunk carries no end_line to bound it", async () => {
       repo = `impl-anchor/${randomUUID()}`;
-      await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+      await stampGraphBaseline(dgraphClient, repo, "base1", BASELINE_AT);
       await seedAnchorOnlyChunk();
 
       const report = await computeImpact(
@@ -851,7 +852,7 @@ describe.skipIf(!reachable)(
 
     it("returns nothing for a file the graph holds no chunk for", async () => {
       repo = `impl-anchor/${randomUUID()}`;
-      await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+      await stampGraphBaseline(dgraphClient, repo, "base1", BASELINE_AT);
       await seedAnchorOnlyChunk();
 
       const report = await computeImpact(

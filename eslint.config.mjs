@@ -474,7 +474,11 @@ export default tseslint.config(
       // test writes the field and the test reads it. That is the point.
       "re-lint/no-hybrid-class": "off",
       "re-lint/max-expects": "warn",
-      "re-lint/no-nondeterministic-tests": "warn",
+      // Error since 2026-09-08: a test that reads the wall clock is one the
+      // calendar can fail. Filler timestamps are fixed literals now, and the
+      // tests that measure an age pin the clock with fake timers over Date
+      // only, so setTimeout and promises stay real.
+      "re-lint/no-nondeterministic-tests": "error",
       // A describe callback is one function holding every test, so per-function
       // line/callback budgets are meaningless here. Per-it bodies stay covered
       // by complexity and the nesting rules.

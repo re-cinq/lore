@@ -174,7 +174,7 @@ repo B
 - FR-3.4: Decay job transitions facts to `stale` when
   `last_retrieved_at < now() - 30 days` (or `last_retrieved_at IS
   NULL AND created_at < now() - 30 days`); already-`verified` facts
-  are left untouched. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L188), [`memory-lifecycle.test.ts:424`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L424))
+  are left untouched. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L197), [`memory-lifecycle.test.ts:424`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L433))
 - FR-3.5: On retrieval, if confidence is `stale`, update to
   `observed`.
 - FR-3.6: Include confidence tier in search results and context
@@ -210,12 +210,12 @@ repo B
 - FR-6.3: In `merge-check`, on PR merge: update contributing
   facts/memories with `half_life_days += 5` (capped at 365, using the
   table defaults 30/60 for a null `half_life_days`); an empty id list
-  is a no-op. ([validated by `memory-lifecycle.test.ts:214`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L214), [`memory-lifecycle.test.ts:472`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L472), [`memory-lifecycle.test.ts:242`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L242))
+  is a no-op. ([validated by `memory-lifecycle.test.ts:214`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L223), [`memory-lifecycle.test.ts:472`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L481), [`memory-lifecycle.test.ts:242`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L251))
 - FR-6.4: In `merge-check`, on PR rejection: update contributing
   facts/memories with `half_life_days = MAX(7, half_life_days - 3)`
-  (using the table defaults 30/60 for a null `half_life_days`). ([validated by `memory-lifecycle.test.ts:229`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L229), [`memory-lifecycle.test.ts:488`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L488))
+  (using the table defaults 30/60 for a null `half_life_days`). ([validated by `memory-lifecycle.test.ts:229`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L238), [`memory-lifecycle.test.ts:488`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L497))
 - FR-6.5: Audit log outcome feedback events, with the metadata
-  serialized on the row. ([validated by `memory-lifecycle.test.ts:252`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L252), [`memory-lifecycle.test.ts:500`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L500))
+  serialized on the row. ([validated by `memory-lifecycle.test.ts:252`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L261), [`memory-lifecycle.test.ts:500`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L509))
 
 ### FR-7: Updated Importance Scoring
 

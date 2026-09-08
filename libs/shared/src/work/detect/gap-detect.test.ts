@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { gapDetectJob } from "./gap-detect.js";
 import { Project } from "../../outbound/project/lib/project.js";
 import {
@@ -13,8 +13,17 @@ import type {
 } from "../../outbound/project/tasks/task-store-port.js";
 import type { PipelineTask } from "../../domain/types.js";
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 const REPO = "octo/repo";
-const OLD = new Date(Date.now() - 100 * 86_400_000).toISOString();
+const OLD = "2025-09-23T00:00:00.000Z";
 
 let nextId = 0;
 

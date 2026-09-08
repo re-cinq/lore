@@ -259,7 +259,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           { $agent: agent },
         );
         const uid = (res.data as { node?: { uid: string }[] }).node?.[0]?.uid;
-        const pastIso = new Date(Date.now() - 60_000).toISOString();
+        const pastIso = "2020-01-01T00:00:00.000Z";
 
         await txn.mutate({
           setJson: { uid, "Memory.expires_at": pastIso },

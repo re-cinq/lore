@@ -65,10 +65,10 @@ the Functional Requirements below. The acceptance-criteria bullets that carry
    specs, and audit trail — all for that repo.
 
 **Acceptance Criteria:**
-- Home page shows repos, not agents. ([validated by `HomeView.test.tsx:44`](apps/web-ui/src/app/HomeView.test.tsx#L44), [`HomeView.test.tsx:57`](apps/web-ui/src/app/HomeView.test.tsx#L57), [`HomeView.test.tsx:66`](apps/web-ui/src/app/HomeView.test.tsx#L66), [`HomeView.test.tsx:77`](apps/web-ui/src/app/HomeView.test.tsx#L77), [`HomeView.test.tsx:219`](apps/web-ui/src/app/HomeView.test.tsx#L219))
+- Home page shows repos, not agents. ([validated by `HomeView.test.tsx:45`](apps/web-ui/src/app/HomeView.test.tsx#L45), [`HomeView.test.tsx:58`](apps/web-ui/src/app/HomeView.test.tsx#L58), [`HomeView.test.tsx:67`](apps/web-ui/src/app/HomeView.test.tsx#L67), [`HomeView.test.tsx:78`](apps/web-ui/src/app/HomeView.test.tsx#L78), [`HomeView.test.tsx:220`](apps/web-ui/src/app/HomeView.test.tsx#L220))
 - Each repo card shows task count, team badge, running-agents count,
   last-ingested date, ingest-freshness/workflow badges, and a
-  fix-ingest action when repos are misaligned. ([validated by `HomeView.test.tsx:84`](apps/web-ui/src/app/HomeView.test.tsx#L84), [`HomeView.test.tsx:90`](apps/web-ui/src/app/HomeView.test.tsx#L90), [`HomeView.test.tsx:95`](apps/web-ui/src/app/HomeView.test.tsx#L95), [`HomeView.test.tsx:100`](apps/web-ui/src/app/HomeView.test.tsx#L100), [`HomeView.test.tsx:105`](apps/web-ui/src/app/HomeView.test.tsx#L105), [`HomeView.test.tsx:112`](apps/web-ui/src/app/HomeView.test.tsx#L112), [`HomeView.test.tsx:119`](apps/web-ui/src/app/HomeView.test.tsx#L119), [`HomeView.test.tsx:126`](apps/web-ui/src/app/HomeView.test.tsx#L126), [`HomeView.test.tsx:138`](apps/web-ui/src/app/HomeView.test.tsx#L138), [`HomeView.test.tsx:145`](apps/web-ui/src/app/HomeView.test.tsx#L145), [`HomeView.test.tsx:150`](apps/web-ui/src/app/HomeView.test.tsx#L150), [`HomeView.test.tsx:162`](apps/web-ui/src/app/HomeView.test.tsx#L162), [`HomeView.test.tsx:175`](apps/web-ui/src/app/HomeView.test.tsx#L175), [`HomeView.test.tsx:190`](apps/web-ui/src/app/HomeView.test.tsx#L190), [`HomeView.test.tsx:197`](apps/web-ui/src/app/HomeView.test.tsx#L197), [`HomeView.test.tsx:208`](apps/web-ui/src/app/HomeView.test.tsx#L208))
+  fix-ingest action when repos are misaligned. ([validated by `HomeView.test.tsx:85`](apps/web-ui/src/app/HomeView.test.tsx#L85), [`HomeView.test.tsx:91`](apps/web-ui/src/app/HomeView.test.tsx#L91), [`HomeView.test.tsx:96`](apps/web-ui/src/app/HomeView.test.tsx#L96), [`HomeView.test.tsx:101`](apps/web-ui/src/app/HomeView.test.tsx#L101), [`HomeView.test.tsx:106`](apps/web-ui/src/app/HomeView.test.tsx#L106), [`HomeView.test.tsx:113`](apps/web-ui/src/app/HomeView.test.tsx#L113), [`HomeView.test.tsx:120`](apps/web-ui/src/app/HomeView.test.tsx#L120), [`HomeView.test.tsx:127`](apps/web-ui/src/app/HomeView.test.tsx#L127), [`HomeView.test.tsx:139`](apps/web-ui/src/app/HomeView.test.tsx#L139), [`HomeView.test.tsx:146`](apps/web-ui/src/app/HomeView.test.tsx#L146), [`HomeView.test.tsx:151`](apps/web-ui/src/app/HomeView.test.tsx#L151), [`HomeView.test.tsx:163`](apps/web-ui/src/app/HomeView.test.tsx#L163), [`HomeView.test.tsx:176`](apps/web-ui/src/app/HomeView.test.tsx#L176), [`HomeView.test.tsx:191`](apps/web-ui/src/app/HomeView.test.tsx#L191), [`HomeView.test.tsx:198`](apps/web-ui/src/app/HomeView.test.tsx#L198), [`HomeView.test.tsx:209`](apps/web-ui/src/app/HomeView.test.tsx#L209))
 - Repo detail page has tabs whose active state tracks the exact path
   and its sub-routes. ([validated by `TabNav.test.tsx:32`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L32), [`TabNav.test.tsx:38`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L38), [`TabNav.test.tsx:44`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L44), [`TabNav.test.tsx:52`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L52))
 - No need to visit separate /pipeline, /search, /audit pages.
@@ -162,7 +162,7 @@ The system MUST maintain a registry of onboarded repos. ([validated by `repos.te
   team, onboarded_at, last_ingested_at, settings (JSONB). ([validated by `repos.test.ts:37`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L36))
 - FR-1.2: Repos are written to the registry on onboard (from the set the
   GitHub App has access to). ([validated by `repo-onboard.test.ts:120`](apps/lore-api/src/work/repo/repo-onboard.test.ts#L119))
-- FR-1.3: Repo list shown as the home page of the UI. ([validated by `HomeView.test.tsx:44`](apps/web-ui/src/app/HomeView.test.tsx#L44))
+- FR-1.3: Repo list shown as the home page of the UI. ([validated by `HomeView.test.tsx:45`](apps/web-ui/src/app/HomeView.test.tsx#L45))
 - FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:252`](apps/mcp-server/src/transport/tools/repo-tools.test.ts#L252))
 
 ### FR-2: Repo Onboarding via PR
@@ -212,9 +212,9 @@ The system MUST onboard new repos by creating a PR. ([validated by `worker.onboa
 
 ### FR-3: Repo-Centric UI Layout
 
-The system MUST reorganize the UI around repos. ([validated by `HomeView.test.tsx:44`](apps/web-ui/src/app/HomeView.test.tsx#L44))
+The system MUST reorganize the UI around repos. ([validated by `HomeView.test.tsx:45`](apps/web-ui/src/app/HomeView.test.tsx#L45))
 
-- FR-3.1: Home page (`/`) shows repo list with activity summary. ([validated by `HomeView.test.tsx:44`](apps/web-ui/src/app/HomeView.test.tsx#L44))
+- FR-3.1: Home page (`/`) shows repo list with activity summary. ([validated by `HomeView.test.tsx:45`](apps/web-ui/src/app/HomeView.test.tsx#L45))
 - FR-3.2: Repo detail (`/repos/[owner]/[repo]`) has tabs:
   Overview, Assembly Lines, Context, Assembled, Specs, Features,
   ADRs, Graph, Agents, Dark Factory, Settings. ([validated by `TabNav.test.tsx:32`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L32))

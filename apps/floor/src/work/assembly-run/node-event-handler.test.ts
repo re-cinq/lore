@@ -255,7 +255,7 @@ describe("createNodeEventHandler", () => {
 
   it("trips the dispatch gate when a node died of a dry account", async () => {
     const h = harness();
-    const gate = new LlmDispatchGate(() => new Date());
+    const gate = new LlmDispatchGate(() => new Date("2026-01-01T00:00:00Z"));
     const { id, crName } = await reviewInFlight(h);
 
     h.statusByName[crName] = {
@@ -276,7 +276,7 @@ describe("createNodeEventHandler", () => {
 
   it("leaves the dispatch gate alone for a failure that is only this run's", async () => {
     const h = harness();
-    const gate = new LlmDispatchGate(() => new Date());
+    const gate = new LlmDispatchGate(() => new Date("2026-01-01T00:00:00Z"));
     const { id, crName } = await reviewInFlight(h);
 
     h.statusByName[crName] = {

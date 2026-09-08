@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PgChunks } from "./chunks-pg.js";
 import { InMemoryChunks } from "./chunks-memory.js";
 import type { ChunkInsert } from "./chunks-port.js";
@@ -41,6 +41,15 @@ const teamSchemaLookup = [
   { rows: [{ team: "platform" }] },
   { rows: [{ schema_name: "platform" }] },
 ];
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("PgChunks adapter", () => {
   it("returns true when information_schema lists the schema", async () => {

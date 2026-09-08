@@ -28,7 +28,7 @@ function slack(
   pool: unknown = null,
 ) {
   const raw = new URLSearchParams(fields).toString();
-  const ts = opts.ts ?? String(Math.floor(Date.now() / 1000));
+  const ts = opts.ts ?? String(Math.floor(Date.now() / 1000)); // eslint-disable-line re-lint/no-nondeterministic-tests -- clock pinned for the file by useRateLimitSafeClock()
   const sig =
     "v0=" +
     createHmac("sha256", SLACK_SECRET).update(`v0:${ts}:${raw}`).digest("hex");
@@ -79,7 +79,7 @@ describe("POST /api/webhook/slack", () => {
   it("returns 401 when the timestamp is too old", async () => {
     const res = await slack(
       { text: "hi" },
-      { ts: String(Math.floor(Date.now() / 1000) - 400) },
+      { ts: String(Math.floor(Date.now() / 1000) - 400) }, // eslint-disable-line re-lint/no-nondeterministic-tests -- clock pinned for the file by useRateLimitSafeClock()
     );
 
     expect(res.statusCode).toBe(401);

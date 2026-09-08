@@ -68,7 +68,7 @@ describe("memory-file round-trips against real disk", () => {
       readFileSync(path, "utf-8"),
     );
 
-    onDisk["stale"].expires_at = new Date(Date.now() - 1000).toISOString();
+    onDisk["stale"].expires_at = "2020-01-01T00:00:00.000Z";
     writeFileSync(path, JSON.stringify(onDisk), "utf-8");
 
     const listing = mod.listMemoriesFile("agent-list");

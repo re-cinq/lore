@@ -137,7 +137,7 @@ describe("/api/task-logs", () => {
       iteration: null,
       event_type: null,
       envelope,
-      created_at: new Date(),
+      created_at: new Date("2026-01-01T00:00:00Z"),
     });
 
     it("resolves repo from task_id when repo is omitted", async () => {

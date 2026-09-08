@@ -73,6 +73,7 @@ const WINDOW: SpendWindow = {
   },
 };
 
+vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-01-01") });
 function stubFetch() {
   const fetchMock = vi.fn().mockResolvedValue({
     ok: true,

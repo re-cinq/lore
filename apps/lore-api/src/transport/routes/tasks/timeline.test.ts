@@ -57,7 +57,7 @@ describe("GET /api/tasks/:id/timeline", () => {
     pr_number: 5,
     pr_url: "u",
     status: "running",
-    created_at: new Date(Date.now() - 60_000),
+    created_at: new Date(Date.now() - 60_000), // eslint-disable-line re-lint/no-nondeterministic-tests -- clock pinned for the file by useRateLimitSafeClock()
     ...over,
   });
 
@@ -114,14 +114,14 @@ describe("GET /api/tasks/:id/timeline", () => {
           sha: "s2",
           commit: {
             message: "stage two has-trailer",
-            committer: { date: new Date(Date.now() - 10_000).toISOString() },
+            committer: { date: new Date(Date.now() - 10_000).toISOString() }, // eslint-disable-line re-lint/no-nondeterministic-tests -- clock pinned for the file by useRateLimitSafeClock()
           },
         },
         {
           sha: "s1",
           commit: {
             message: "no markers here",
-            committer: { date: new Date(Date.now() - 20_000).toISOString() },
+            committer: { date: new Date(Date.now() - 20_000).toISOString() }, // eslint-disable-line re-lint/no-nondeterministic-tests -- clock pinned for the file by useRateLimitSafeClock()
           },
         },
       ],
@@ -143,7 +143,7 @@ describe("GET /api/tasks/:id/timeline", () => {
       { rows: [taskRow()] },
       {
         rows: [
-          { holder: "agent-1", expires_at: new Date(Date.now() + 60_000) },
+          { holder: "agent-1", expires_at: new Date(Date.now() + 60_000) }, // eslint-disable-line re-lint/no-nondeterministic-tests -- clock pinned for the file by useRateLimitSafeClock()
         ],
       },
     );
