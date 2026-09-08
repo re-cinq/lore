@@ -33,7 +33,12 @@ export function mapCiIngest(body: CiIngestBody): CiIngestResult {
     };
   }
 
-  const events: EventInput[] = requested.map((kind) => ({
+  return { ok: true, events: specTraceEvents(body, requested) };
+}
+
+/** One `internal.ingest.spec_trace` event per requested kind; the commit + force flag ride the payload by value. */
+function specTraceEvents(body: CiIngestBody, kinds: string[]): EventInput[] {
+  return kinds.map((kind) => ({
     eventName: "internal.ingest.spec_trace",
     source: "internal",
     params: {
@@ -42,6 +47,4 @@ export function mapCiIngest(body: CiIngestBody): CiIngestResult {
       payload: { commit: body.commit, force: body.force },
     },
   }));
-
-  return { ok: true, events };
 }

@@ -2,11 +2,17 @@ import {
   countAnomaly,
   recordAgentCosts,
   writeCostDegradedAudit,
+  type CostIngestSummary,
 } from "./agent-events-cost.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 // POST /api/agent-events — ai-agent-subsystem (ADR-031 D8) run-output NDJSON; terminal `result` line feeds pipeline.llm_calls (uncorrelated/failed rows surfaced via metric+audit_log, not dropped, #945), and auth is dual (bus-wide LORE_AGENT_INTERNAL_TOKEN or a satellite's per-agent token, FR5 of specs/running-stations-in-any-k8s-cluster) checked inside the handler since a hapi strategy can only hold one expected token.
 
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { enforceRegistryOrSharedToken } from "@re-cinq/lore-shared/http/registry-or-shared-token.js";
 import type { RegistryOrSharedTokenDeps } from "@re-cinq/lore-shared/http/registry-or-shared-token.js";
 import { pipeline, taskStore } from "../../../outbound/queues.js";
@@ -25,20 +31,8 @@ import type {
   AgentRunTurnInsert,
 } from "@re-cinq/lore-shared";
 
-// Low-cardinality anomaly kinds; a union so a typo fails to compile.
-
-// Counts ingest anomalies so a silent problem shows on a dashboard; no-op until the OTEL SDK is registered (otel-init), so free in tests.
-
 // Above this body size, run-viz + turn transcript are skipped (cost accounting still recorded) to keep a pathological report from OOM-ing the single (replicaCount: 1) Floor replica — the pod's stdout in Cloud Logging is the sole remaining copy of an oversized stream (#1109).
 const MAX_VIZ_BODY_BYTES = 8 * 1024 * 1024;
-
-// How a batch of cost rows landed: persisted count, plus the two anomaly classes the sink used to swallow silently. `firstIssue` seeds the audit row.
-
-// Folds one settled insert into the running summary; the failed/uncorrelated split this hides is why recordAgentCosts stays a plain loop over it.
-
-// Persist one cost row per agent run: an unmatched id stores uncorrelated (counted, not dropped), and a genuine insert error is skipped rather than failing the batch — both feed the metric + audit summary (#945).
-
-// The audit_log row for a degraded cost batch, or null when everything correlated cleanly; pure (the route does the write), mirrors the review_post_degraded audit shape (#942).
 
 // Persist the per-tool-call run-viz projection and fan it out (#876); publish strictly AFTER insert resolves so a live subscriber never sees an id `listSince` can't replay on reconnect — the SSE catch-up's correctness argument. Skip-not-fail: a viz persistence failure must never 500 the cost sink.
 async function recordRunEvents(
@@ -58,6 +52,18 @@ async function recordRunEvents(
   }
 }
 
+// The round number the LINE is on — a resumed round mints no task, so the task's own value is stuck at the feature's first round (FR6.22).
+async function openRoundOfTask(taskId: string): Promise<number | undefined> {
+  const open = (await pipeline().assemblyRuns.listForTask(taskId)).filter(
+    (line) => line.status === "running" || line.status === "queued",
+  );
+  // Newest first: `listForTask` orders created_at DESC so index 0 is this round's run — the last element would read the OLDEST open run's iteration.
+  const newest = open.at(0);
+  const round = newest?.args.iteration;
+
+  return typeof round === "number" ? round : undefined;
+}
+
 // Settle any planning rounds whose artifact arrived in this batch; skip-not-fail like the projections above since a delivery failure must never 500 the sink (which also carries cost/viz rows for unrelated runs).
 async function recordPlanningResults(
   fileEvents: readonly AgentFileEvent[],
@@ -70,17 +76,7 @@ async function recordPlanningResults(
     return await deliverPlanningResults(fileEvents, {
       tasks: taskStore(),
       featuresFor: projectFor,
-      // The round number the LINE is on — a resumed round mints no task, so the task's own value is stuck at the feature's first round (FR6.22).
-      roundOf: async (taskId) => {
-        const open = (await pipeline().assemblyRuns.listForTask(taskId)).filter(
-          (line) => line.status === "running" || line.status === "queued",
-        );
-        // Newest first: `listForTask` orders created_at DESC so index 0 is this round's run — the last element would read the OLDEST open run's iteration.
-        const newest = open.at(0);
-        const round = newest?.args.iteration;
-
-        return typeof round === "number" ? round : undefined;
-      },
+      roundOf: openRoundOfTask,
     });
   } catch (err) {
     console.warn(`[floor] planning results skipped: ${errorMessage(err)}`);
@@ -146,61 +142,84 @@ function reportTurnAnomalies(turnsDropped: number, turnsCapped: number): void {
   }
 }
 
-// A failed audit write must not 500 the endpoint — a degraded batch still succeeds (FR5.6); losing the audit row beats dropping the whole ingest.
-
 export interface AgentEventsRouteDeps {
   // The registry lookup that lets a satellite's own token in; absent means only the bus-wide token opens the door (pre-satellite behavior).
   findByTokenHash?: RegistryOrSharedTokenDeps["findByTokenHash"];
 }
 
-/** One pass over the NDJSON body feeds every sink: cost rows, run-viz events, turns, and declared artifacts. An oversized body still records COST — only the visualization and turn stores are skipped, because losing telemetry is cheaper than losing the bill. */
-async function ingestAgentSink(rawNdjson: string): Promise<{
+/** Everything one parsed body produced, counted — the DROPPED and CAPPED ones included, since a run whose telemetry silently thinned out is what these exist to make visible. */
+interface SinkCounts {
+  events: number;
+  vizRows: number;
+  planningRounds: number;
+  turnRows: number;
+  turnsDropped: number;
+  turnsCapped: number;
+  oversized: boolean;
+}
+
+/** What the handler needs back: the two body fields it echoes, plus the span attributes it stamps. */
+interface AgentSinkResult {
   events: number;
   recorded: number;
   attributes: Record<string, number | boolean>;
-}> {
-  const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
-  // Turns ride the SAME single pass as the cost rows and the projection, reusing the oversized gate — no second parse, no second size rule.
-  const { costRows, runEvents, fileEvents, turns, turnsDropped, turnsCapped } =
-    parseAgentSink(rawNdjson, !oversized, !oversized);
-  const cost = await recordAgentCosts(costRows);
-  const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
-  const turnRows = turns.length > 0 ? await recordRunTurns(turns) : 0;
+}
+
+type ParsedAgentSink = ReturnType<typeof parseAgentSink>;
+
+/** Everything downstream of the cost rows and the viz projection: turn transcript, planning results and artifact hand-off, each skip-not-fail. */
+async function recordSinkProjections(
+  parsed: ParsedAgentSink,
+): Promise<{ turnRows: number; planningRounds: number }> {
+  const turnRows =
+    parsed.turns.length > 0 ? await recordRunTurns(parsed.turns) : 0;
   // Declared artifacts ride the same sink as cost + telemetry, so a planning round's result lands here rather than needing its own channel.
-  const planningRounds = await recordPlanningResults(fileEvents);
+  const planningRounds = await recordPlanningResults(parsed.fileEvents);
 
-  await mergeArtifacts(fileEvents);
+  await mergeArtifacts(parsed.fileEvents);
 
-  reportTurnAnomalies(turnsDropped, turnsCapped);
-  await writeCostDegradedAudit(cost);
+  reportTurnAnomalies(parsed.turnsDropped, parsed.turnsCapped);
 
+  return { turnRows, planningRounds };
+}
+
+/** The response body plus the span attributes, from one folded cost summary and the counts around it. */
+function sinkResult(
+  cost: CostIngestSummary,
+  counts: SinkCounts,
+): AgentSinkResult {
   return {
-    events: costRows.length,
+    events: counts.events,
     recorded: cost.recorded,
-    attributes: sinkAttributes(cost, {
-      events: costRows.length,
-      vizRows,
-      planningRounds,
-      turnRows,
-      turnsDropped,
-      turnsCapped,
-      oversized,
-    }),
+    attributes: sinkAttributes(cost, counts),
   };
 }
 
-/** The span attributes for one sink POST. Every count is carried, including the DROPPED and CAPPED ones — a run whose telemetry silently thinned out is exactly what these exist to make visible. */
+/** One pass over the NDJSON body feeds every sink: cost rows, run-viz events, turns, and declared artifacts. An oversized body still records COST — only the visualization and turn stores are skipped, because losing telemetry is cheaper than losing the bill. */
+async function ingestAgentSink(rawNdjson: string): Promise<AgentSinkResult> {
+  const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
+  // Turns ride the SAME single pass as the cost rows and the projection, reusing the oversized gate — no second parse, no second size rule.
+  const parsed = parseAgentSink(rawNdjson, !oversized, !oversized);
+  const cost = await recordAgentCosts(parsed.costRows);
+  const vizRows = oversized ? 0 : await recordRunEvents(parsed.runEvents);
+  const projected = await recordSinkProjections(parsed);
+
+  await writeCostDegradedAudit(cost);
+
+  return sinkResult(cost, {
+    events: parsed.costRows.length,
+    vizRows,
+    turnsDropped: parsed.turnsDropped,
+    turnsCapped: parsed.turnsCapped,
+    oversized,
+    ...projected,
+  });
+}
+
+/** The span attributes for one sink POST. */
 function sinkAttributes(
   cost: { recorded: number; uncorrelated: number; failed: number },
-  counts: {
-    events: number;
-    vizRows: number;
-    planningRounds: number;
-    turnRows: number;
-    turnsDropped: number;
-    turnsCapped: number;
-    oversized: boolean;
-  },
+  counts: SinkCounts,
 ): Record<string, number | boolean> {
   return {
     "agent_events.count": counts.events,
@@ -216,37 +235,52 @@ function sinkAttributes(
   };
 }
 
+/** The dual credential check: the bus-wide token, or a satellite's own registry token. Throws a 401 rather than returning one. */
+async function enforceAgentSinkAuth(
+  headers: Request["headers"],
+  deps: AgentEventsRouteDeps,
+): Promise<void> {
+  await enforceRegistryOrSharedToken(
+    headers,
+    {
+      sharedToken: process.env.LORE_AGENT_INTERNAL_TOKEN,
+      sharedTokenEnvName: "LORE_AGENT_INTERNAL_TOKEN",
+      findByTokenHash: deps.findByTokenHash,
+    },
+    "floor",
+  );
+}
+
+/** Authorize, ingest the whole body, stamp the counts on the request span, and echo what landed. */
+async function handleAgentSink(
+  request: Request,
+  h: ResponseToolkit,
+  deps: AgentEventsRouteDeps,
+): Promise<ResponseObject> {
+  await enforceAgentSinkAuth(request.headers, deps);
+
+  // A throw here becomes a 500 via hapi, and the request-tracing extension records the exception on the request span — no per-handler try/catch.
+  const ingested = await ingestAgentSink(rawBody(request));
+
+  const { span } = request.app;
+
+  span?.setAttributes(ingested.attributes);
+
+  return h
+    .response({
+      status: "ok",
+      events: ingested.events,
+      recorded: ingested.recorded,
+    })
+    .code(200);
+}
+
 export function agentEventsRoute(deps: AgentEventsRouteDeps = {}): ServerRoute {
   return {
     method: "POST",
     path: "/api/agent-events",
     // `auth: false` because the credential check is dual and lives in the handler; see the module comment.
     options: { auth: false, payload: { parse: false } },
-    handler: async (request, h) => {
-      await enforceRegistryOrSharedToken(
-        request.headers,
-        {
-          sharedToken: process.env.LORE_AGENT_INTERNAL_TOKEN,
-          sharedTokenEnvName: "LORE_AGENT_INTERNAL_TOKEN",
-          findByTokenHash: deps.findByTokenHash,
-        },
-        "floor",
-      );
-
-      // A throw here becomes a 500 via hapi, and the request-tracing extension records the exception on the request span — no per-handler try/catch.
-      const ingested = await ingestAgentSink(rawBody(request));
-
-      const { span } = request.app;
-
-      span?.setAttributes(ingested.attributes);
-
-      return h
-        .response({
-          status: "ok",
-          events: ingested.events,
-          recorded: ingested.recorded,
-        })
-        .code(200);
-    },
+    handler: (request, h) => handleAgentSink(request, h, deps),
   };
 }

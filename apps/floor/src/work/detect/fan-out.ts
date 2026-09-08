@@ -136,8 +136,21 @@ async function resolveTargetRepos(
     : deps.listTargetRepos();
 }
 
+/** A throw mid-loop would ORPHAN the job_run — nothing reaps those — so it is failed before the error is rethrown, and the retry settles cleanly. */
+async function failOrphanedJobRun(
+  jobRunId: string,
+  err: unknown,
+  deps: DetectFanOutDeps,
+): Promise<never> {
+  const { jobRuns } = deps;
+
+  await jobRuns
+    .fail(jobRunId, `assembly_line.start failed: ${(err as Error).message}`)
+    .catch(() => {});
+  throw err;
+}
+
 /** Starts (or joins) the detect run for one repo; never throws for a "superseded" join, only for a genuine `assembly_line.start` failure. */
-/** Starts the line and keeps its job_run honest: a throw mid-loop would ORPHAN the job_run — nothing reaps those — so it is failed before the error is rethrown, and the retry settles cleanly. */
 async function startUnderJobRun(
   blueprintName: string,
   repo: string,
@@ -153,12 +166,7 @@ async function startUnderJobRun(
       args: { job_run_id: jobRunId },
     });
   } catch (err) {
-    const { jobRuns } = deps;
-
-    await jobRuns
-      .fail(jobRunId, `assembly_line.start failed: ${(err as Error).message}`)
-      .catch(() => {});
-    throw err;
+    return failOrphanedJobRun(jobRunId, err, deps);
   }
 }
 
@@ -186,23 +194,34 @@ async function joinedAnotherTick(
   return true;
 }
 
+// Asked BEFORE the job_run is minted — one created for already-running work has no owner to close it (no job_runs reaper).
+async function detectAlreadyInFlight(
+  blueprintName: string,
+  repo: string,
+  deps: DetectFanOutDeps,
+): Promise<boolean> {
+  const inFlight = await deps.assemblyRuns.findOpenBySubject(
+    repo,
+    detectSubject(blueprintName, repo),
+  );
+
+  if (!inFlight) {
+    return false;
+  }
+  console.log(
+    `[detect] ${blueprintName}: ${repo} already running as ${inFlight.id}, skipping`,
+  );
+
+  return true;
+}
+
 async function processDetectRepo(
   blueprintName: string,
   repo: string,
   jobRef: string,
   deps: DetectFanOutDeps,
 ): Promise<void> {
-  // Asked BEFORE the job_run is minted — one created for already-running work has no owner to close it (no job_runs reaper).
-  const inFlight = await deps.assemblyRuns.findOpenBySubject(
-    repo,
-    detectSubject(blueprintName, repo),
-  );
-
-  if (inFlight) {
-    console.log(
-      `[detect] ${blueprintName}: ${repo} already running as ${inFlight.id}, skipping`,
-    );
-
+  if (await detectAlreadyInFlight(blueprintName, repo, deps)) {
     return;
   }
   const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);

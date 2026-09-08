@@ -64,10 +64,21 @@ export const featurePlanningReaper = fromJob(featurePlanningReaperJob);
 /** Delete leases >5min past expiry, writing a `lease_expired` audit entry per row. */
 export const leaseReaper = fromJob(() => leaseReaperJob());
 
-/** Liveness bound: resolve dropped node events, requeue orphans, time out stuck nodes. */
-/** The reaper's own reads. `offlineClusterAgents` performs FR4's sweep in one step — flip the silent agents to offline, then answer with who is offline — because the requeue that follows must act on the set the flip just produced, not on a snapshot taken before it. */
 type AuditEntry = { event_type: string; payload: Record<string, unknown> };
 
+/** FR4's sweep in one step — flip the silent agents to offline, then answer with who is offline — because the requeue that follows must act on the set the flip just produced, not on a snapshot taken before it. */
+function offlineClusterAgentIds(
+  clusterAgents: typeof import("../../outbound/queues.js").clusterAgents,
+) {
+  return async (cutoff: Date) => {
+    await clusterAgents().markOffline(cutoff);
+    const all = await clusterAgents().list();
+
+    return new Set(all.filter((a) => a.status === "offline").map((a) => a.id));
+  };
+}
+
+/** The reaper's own reads, bound to the Floor's queue singletons. */
 function reaperPorts(
   taskStore: typeof import("../../outbound/queues.js").taskStore,
   clusterAgents: typeof import("../../outbound/queues.js").clusterAgents,
@@ -77,14 +88,7 @@ function reaperPorts(
   return {
     taskStatus: async (taskId: string) =>
       (await taskStore().getById(taskId))?.status ?? null,
-    offlineClusterAgents: async (cutoff: Date) => {
-      await clusterAgents().markOffline(cutoff);
-      const all = await clusterAgents().list();
-
-      return new Set(
-        all.filter((a) => a.status === "offline").map((a) => a.id),
-      );
-    },
+    offlineClusterAgents: offlineClusterAgentIds(clusterAgents),
     audit: (entry: AuditEntry) => writeAuditLog(entry),
     listClusterAgents: () => clusterAgents().list(),
     centralClusterAgentId: async () =>
@@ -92,27 +96,18 @@ function reaperPorts(
   };
 }
 
-export const assemblyLineReaper: EventHandler = async () => {
-  const [
-    { assemblyLineReaperJob, centralClusterAgentName },
-    { productionNodeEventDeps },
-    { taskStore, clusterAgents },
-  ] = await Promise.all([
+/** Loaded lazily so the Floor cold start does not pull the reaper graph in. */
+function reaperModules() {
+  return Promise.all([
     import("../../work/assembly-run/assembly-run-reaper.js"),
     import("../../work/assembly-run/node-event-handler.js"),
     import("../../outbound/queues.js"),
+    import("../../outbound/audit.js"),
   ]);
-  const { writeAuditLog } = await import("../../outbound/audit.js");
-  const summary = await assemblyLineReaperJob({
-    ...(await productionNodeEventDeps()),
-    ...reaperPorts(
-      taskStore,
-      clusterAgents,
-      centralClusterAgentName,
-      writeAuditLog,
-    ),
-  });
+}
 
+/** An all-zero sweep is the normal case and stays silent. */
+function logReaperSummary(summary: string): void {
   if (
     !summary.startsWith(
       "resolved 0, requeued 0, timed out 0, queue-timed-out 0",
@@ -120,6 +115,22 @@ export const assemblyLineReaper: EventHandler = async () => {
   ) {
     console.log(`[assembly-run-reaper] ${summary}`);
   }
+}
+
+/** Liveness bound: resolve dropped node events, requeue orphans, time out stuck nodes. */
+export const assemblyLineReaper: EventHandler = async () => {
+  const [reaper, nodeEvents, queues, audit] = await reaperModules();
+  const summary = await reaper.assemblyLineReaperJob({
+    ...(await nodeEvents.productionNodeEventDeps()),
+    ...reaperPorts(
+      queues.taskStore,
+      queues.clusterAgents,
+      reaper.centralClusterAgentName,
+      audit.writeAuditLog,
+    ),
+  });
+
+  logReaperSummary(summary);
 };
 
 /** Close circuit breaker loop: probe Anthropic account and un-block dispatch if it can answer (fail-open). */
@@ -147,27 +158,22 @@ export const llmCreditProbe: EventHandler = async () => {
 /** Orphan report lookback window (matches hourly tick); no skip or re-report. */
 const ORPHAN_WINDOW_MINUTES = 60;
 
-/** Housekeeping: prune old terminal events and agent run events past retention. */
-export const eventsPrune: EventHandler = async () => {
-  const n = await pruneHandled(7);
-
-  if (n > 0) {
-    console.log(`[events] pruned ${n} handled delivery(ies)`);
-  }
-
-  // Report unclaimed event names to prevent silent producer failures.
+// Report unclaimed event names to prevent silent producer failures.
+async function reportOrphanedEvents(): Promise<void> {
   const orphaned = await orphanedEvents(ORPHAN_WINDOW_MINUTES);
 
-  if (orphaned.length > 0) {
-    const detail = orphaned
-      .map((o) => `${o.event_name} x${o.count}`)
-      .join(", ");
-
-    console.error(
-      `[events] ${orphaned.length} event name(s) reached nobody in the last ${ORPHAN_WINDOW_MINUTES}m — no subscriber is registered for: ${detail}`,
-    );
+  if (orphaned.length === 0) {
+    return;
   }
+  const detail = orphaned.map((o) => `${o.event_name} x${o.count}`).join(", ");
 
+  console.error(
+    `[events] ${orphaned.length} event name(s) reached nobody in the last ${ORPHAN_WINDOW_MINUTES}m — no subscriber is registered for: ${detail}`,
+  );
+}
+
+/** Per-tool-call events and full transcripts age out on their own retention windows. */
+async function pruneAgentRunRetention(): Promise<void> {
   const runEvents = await pipeline().agentRunEvents.pruneOld(
     AGENT_RUN_EVENT_RETENTION_DAYS,
   );
@@ -181,6 +187,18 @@ export const eventsPrune: EventHandler = async () => {
   if (runTurns > 0) {
     console.log(`[events] pruned ${runTurns} agent run turn(s)`);
   }
+}
+
+/** Housekeeping: prune old terminal events and agent run events past retention. */
+export const eventsPrune: EventHandler = async () => {
+  const n = await pruneHandled(7);
+
+  if (n > 0) {
+    console.log(`[events] pruned ${n} handled delivery(ies)`);
+  }
+
+  await reportOrphanedEvents();
+  await pruneAgentRunRetention();
 };
 
 /** Safety net for dropped k8s watch events: re-emit for terminal-unhandled CRs + prune old ones. */

@@ -65,6 +65,13 @@ async function commitWorkflowFiles(
   }
 }
 
+/** A static file counts as present when the repo has the exact path or its whole top-level directory. */
+function alreadyPresent(path: string, existingFiles: Set<string>): boolean {
+  const [topDir] = path.split("/");
+
+  return existingFiles.has(path) || existingFiles.has(topDir);
+}
+
 /** Static files the repo doesn't already have (by exact path or top-level dir). */
 async function commitMissingStaticFiles(
   project: Awaited<ReturnType<typeof projectFor>>,
@@ -73,11 +80,7 @@ async function commitMissingStaticFiles(
   ledger: { committed: string[]; failures: StepFailure[] },
 ): Promise<void> {
   for (const sf of ONBOARD_STATIC_FILES) {
-    const [topDir] = sf.path.split("/");
-    const alreadyThere =
-      existingFiles.has(sf.path) || existingFiles.has(topDir);
-
-    if (alreadyThere) {
+    if (alreadyPresent(sf.path, existingFiles)) {
       continue;
     }
 

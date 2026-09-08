@@ -47,13 +47,20 @@ export function withExtra(
 
 type Entry = [string, EventHandler];
 
-/** Layer 1's webhook ingress. `withExtra` rides a second handler alongside the first so neither can break the other — a spec-task sync must not be lost because a parked line failed to wake, or vice versa. */
-function githubEntries(): Entry[] {
+/** The PR-lifecycle events that all start (or restart) the code-review line. */
+function prReviewTriggerEntries(): Entry[] {
   return [
     ["github.pull_request.opened", codeReviewOnTrigger],
     ["github.pull_request.synchronize", codeReviewOnTrigger],
     ["github.pull_request.reopened", codeReviewOnTrigger],
     ["github.pull_request.ready_for_review", codeReviewOnTrigger],
+  ];
+}
+
+/** Layer 1's webhook ingress. `withExtra` rides a second handler alongside the first so neither can break the other — a spec-task sync must not be lost because a parked line failed to wake, or vice versa. */
+function githubEntries(): Entry[] {
+  return [
+    ...prReviewTriggerEntries(),
     [
       "github.pull_request.closed",
       withExtra(github.specPrMerge, github.specPrResumeLine, codeReviewOnClose),
@@ -111,6 +118,13 @@ function cronEntries(): Entry[] {
     ["cron.agent_watcher_reconcile.tick", cron.agentWatcherReconcile],
     ["cron.lease_reaper.tick", cron.leaseReaper],
     ["cron.events_prune.tick", cron.eventsPrune],
+    ...detectTickEntries(),
+  ];
+}
+
+/** The fan-out ticks: one tick starts one per-repo assembly line each. */
+function detectTickEntries(): Entry[] {
+  return [
     ["cron.gap_detection.tick", detect.gapDetectionTick],
     ["cron.spec_drift.tick", detect.specDriftTick],
     ["cron.spec_coverage_backfill.tick", cron.specCoverageBackfill],

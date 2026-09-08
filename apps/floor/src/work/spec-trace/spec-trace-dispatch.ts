@@ -42,11 +42,15 @@ function ingestLineBranch(kind: string, ref: string, chunk?: string): string {
   return chunk ? `${base}/${chunk}` : base;
 }
 
+type DispatchResult = { logLine: string; audit: AuditLogEntry };
+
+/** The log line and the audit entry a routed dispatch produces. The audit message defaults to the log message; a caller passes `auditMessage` only when the audit trail wants the kind spelled out again. */
 function routedResult(
   repo: string,
   kind: string,
   message: string,
-): { logLine: string; audit: AuditLogEntry } {
+  auditMessage: string = message,
+): DispatchResult {
   return {
     logLine: `[floor] spec-trace ${kind} ${repo}: ${message}`,
     audit: graphIngestAuditEntry(repo, {
@@ -56,13 +60,25 @@ function routedResult(
       failed: 0,
       failedFiles: [],
       status: "completed",
-      message,
+      message: auditMessage,
     }),
   };
 }
 
-/** Payload kinds (test-report/coverage): the pod fetches the body back by reference (FR3/FR6), never inline. */
-/** What a payload dispatch cannot proceed without. The inline projector was retired (specs/ingest-station FR6), so a missing `startLine` means there is nothing to run it on; and the pod fetches the body BY REFERENCE (FR3), so a missing event id leaves it with nothing to fetch. */
+/** The inline projector was retired (specs/ingest-station FR6), so a dispatch with no `startLine` has nothing to run on. */
+function enforceStartLine(
+  repo: string,
+  kind: string,
+  deps: SpecTraceDispatchDeps,
+): void {
+  enforceTrue(
+    deps.startLine !== undefined,
+    Error,
+    `spec-trace ${kind} for ${repo} requires the startLine dep — the inline projector was retired (specs/ingest-station FR6)`,
+  );
+}
+
+/** What a payload dispatch cannot proceed without: a known kind, somewhere to run it, and — since the pod fetches the body BY REFERENCE (FR3) — the scheduling event id to fetch it with. */
 function enforcePayloadDispatchable(
   repo: string,
   kind: string,
@@ -73,11 +89,7 @@ function enforcePayloadDispatchable(
     Error,
     `unknown spec-trace kind "${kind}"`,
   );
-  enforceTrue(
-    deps.startLine !== undefined,
-    Error,
-    `spec-trace ${kind} for ${repo} requires the startLine dep — the inline projector was retired (specs/ingest-station FR6)`,
-  );
+  enforceStartLine(repo, kind, deps);
   enforceTrue(
     typeof deps.eventId === "string" && deps.eventId.length > 0,
     Error,
@@ -85,24 +97,36 @@ function enforcePayloadDispatchable(
   );
 }
 
+/** Starts the ingest line for a payload kind. Lease key carries the scheduling event's id — each POSTed chunk is DISTINCT data (specs/ingest-station), so chunks never share a lease. */
+async function startPayloadLine(
+  repo: string,
+  kind: string,
+  ref: string,
+  deps: SpecTraceDispatchDeps,
+): Promise<string> {
+  const { eventId } = deps;
+
+  return deps.startLine!({
+    blueprintName: "ingest",
+    repo,
+    branch: ingestLineBranch(kind, ref, eventId),
+    subjectKey: ingestSubject(kind, ref, eventId),
+    args: { kind, ref, payload_event_id: eventId },
+  });
+}
+
+/** Payload kinds (test-report/coverage): the pod fetches the body back by reference (FR3/FR6), never inline. */
 async function dispatchPayloadKind(
   repo: string,
   kind: string,
   payload: unknown,
   deps: SpecTraceDispatchDeps,
-): Promise<{ logLine: string; audit: AuditLogEntry }> {
+): Promise<DispatchResult> {
   enforcePayloadDispatchable(repo, kind, deps);
 
   const p = (payload ?? {}) as RepoReadPayload;
   const ref = p.commit || p.branch || "main";
-  // Lease key carries the scheduling event's id — each POSTed chunk is DISTINCT data (specs/ingest-station), so chunks never share a lease.
-  const lineId = await deps.startLine!({
-    blueprintName: "ingest",
-    repo,
-    branch: ingestLineBranch(kind, ref, deps.eventId),
-    subjectKey: ingestSubject(kind, ref, deps.eventId),
-    args: { kind, ref, payload_event_id: deps.eventId },
-  });
+  const lineId = await startPayloadLine(repo, kind, ref, deps);
 
   return routedResult(
     repo,
@@ -111,23 +135,16 @@ async function dispatchPayloadKind(
   );
 }
 
-/** Repo-read kinds (specs/adrs), normal path: one ingest-station line per payload, clone pinned via args.ref (FR2/FR6). */
-async function dispatchRepoReadKind(
+/** The ingest-line start for a repo-read kind. The pod clones at args.ref; the branch only has to be distinct per kind. */
+function repoReadLineInput(
   repo: string,
   kind: string,
+  ref: string,
   p: RepoReadPayload,
-  deps: SpecTraceDispatchDeps,
-): Promise<{ logLine: string; audit: AuditLogEntry }> {
-  enforceTrue(
-    deps.startLine !== undefined,
-    Error,
-    `spec-trace ${kind} for ${repo} requires the startLine dep — the inline projector was retired (specs/ingest-station FR6)`,
-  );
-  const ref = p.commit || p.branch || "main";
-  const lineId = await deps.startLine!({
+): AssemblyRunStartInput {
+  return {
     blueprintName: "ingest",
     repo,
-    // The pod clones at args.ref; the branch only has to be distinct per kind.
     branch: ingestLineBranch(kind, ref, p.glob),
     subjectKey: ingestSubject(kind, ref, p.glob),
     args: {
@@ -136,7 +153,20 @@ async function dispatchRepoReadKind(
       ...(p.glob ? { glob: p.glob } : {}),
       ...(p.force ? { force: "true" } : {}),
     },
-  });
+  };
+}
+
+/** Repo-read kinds (specs/adrs), normal path: one ingest-station line per payload, clone pinned via args.ref (FR2/FR6). */
+async function dispatchRepoReadKind(
+  repo: string,
+  kind: string,
+  p: RepoReadPayload,
+  deps: SpecTraceDispatchDeps,
+): Promise<DispatchResult> {
+  enforceStartLine(repo, kind, deps);
+
+  const ref = p.commit || p.branch || "main";
+  const lineId = await deps.startLine!(repoReadLineInput(repo, kind, ref, p));
 
   return routedResult(
     repo,
@@ -145,8 +175,26 @@ async function dispatchRepoReadKind(
   );
 }
 
-/** A force pass with no glob re-projects EVERY file — one pod would blow the station deadline, so self-chunk one child event per top-level directory. */
-/** Splits a forced reprojection into one event per directory and emits them. The dedupe key carries the ref and the glob, so a re-forced commit collapses onto the same events instead of projecting the repo twice. Returns how many were emitted. */
+/** One child event for one directory. The dedupe key carries the ref and the glob, so a re-forced commit collapses onto the same events instead of projecting the repo twice. */
+function chunkEventInput(
+  repo: string,
+  kind: string,
+  ref: string | undefined,
+  glob: string,
+): EventInput {
+  return {
+    eventName: "internal.ingest.spec_trace",
+    source: "internal",
+    dedupeKey: `spec-trace-force:${kind}:${ref ?? "head"}:${glob}`,
+    params: {
+      kind,
+      repo,
+      payload: { ...(ref ? { commit: ref } : {}), force: true, glob },
+    },
+  };
+}
+
+/** Splits a forced reprojection into one event per directory and emits them. Returns how many were emitted. */
 async function emitChunkEvents(
   repo: string,
   kind: string,
@@ -157,27 +205,19 @@ async function emitChunkEvents(
   const globs = chunkGlobsForKind(kind, await project.repo.tree(ref));
 
   for (const glob of globs) {
-    await deps.insertEvent!({
-      eventName: "internal.ingest.spec_trace",
-      source: "internal",
-      dedupeKey: `spec-trace-force:${kind}:${ref ?? "head"}:${glob}`,
-      params: {
-        kind,
-        repo,
-        payload: { ...(ref ? { commit: ref } : {}), force: true, glob },
-      },
-    });
+    await deps.insertEvent!(chunkEventInput(repo, kind, ref, glob));
   }
 
   return globs.length;
 }
 
+/** A force pass with no glob re-projects EVERY file — one pod would blow the station deadline, so self-chunk one child event per top-level directory. */
 async function dispatchForceChunk(
   repo: string,
   kind: string,
   p: RepoReadPayload,
   deps: SpecTraceDispatchDeps,
-): Promise<{ logLine: string; audit: AuditLogEntry }> {
+): Promise<DispatchResult> {
   enforceTrue(
     deps.insertEvent !== undefined,
     Error,
@@ -187,18 +227,7 @@ async function dispatchForceChunk(
   const globs = await emitChunkEvents(repo, kind, ref, deps);
   const message = `force chunked into ${globs} per-directory event(s)`;
 
-  return {
-    logLine: `[floor] spec-trace ${kind} ${repo}: ${message}`,
-    audit: graphIngestAuditEntry(repo, {
-      kind,
-      projected: 0,
-      skipped: 0,
-      failed: 0,
-      failedFiles: [],
-      status: "completed",
-      message: `${kind}: ${message}`,
-    }),
-  };
+  return routedResult(repo, kind, message, `${kind}: ${message}`);
 }
 
 export async function dispatchSpecTrace(
@@ -206,7 +235,7 @@ export async function dispatchSpecTrace(
   kind: string,
   payload: unknown,
   deps: SpecTraceDispatchDeps,
-): Promise<{ logLine: string; audit: AuditLogEntry }> {
+): Promise<DispatchResult> {
   if (!REPO_READ_KINDS.has(kind)) {
     return dispatchPayloadKind(repo, kind, payload, deps);
   }

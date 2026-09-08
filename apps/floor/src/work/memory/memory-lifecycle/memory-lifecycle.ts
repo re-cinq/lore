@@ -37,30 +37,55 @@ function groupFactsByRepo(
   return byRepo;
 }
 
+function consolidationPrompt(repo: string, facts: string[]): string {
+  return `Here are ${facts.length} recent facts extracted from agent sessions working on ${repo}. Identify 1-3 higher-level patterns or insights that emerge from these facts. Each pattern should be actionable — something future agents should know.\n\nFacts:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n\nReturn each pattern on its own line, prefixed with "PATTERN: ". If no meaningful patterns emerge, respond with "NONE".`;
+}
+
+async function extractPatterns(
+  repo: string,
+  facts: string[],
+): Promise<string[]> {
+  const result = await Llm.instance.complete({
+    prompt: consolidationPrompt(repo, facts),
+    systemPrompt:
+      "You are a knowledge consolidation engine. Extract reusable patterns from raw facts.",
+    maxTokens: 512,
+    jobName: "consolidation",
+  });
+
+  return parseConsolidationPatterns(result.text);
+}
+
 /** Asks Haiku for patterns across one repo's facts and stores whatever it finds; best effort — a failure here just consolidates zero for this repo. */
 async function consolidateRepoFacts(
   repo: string,
   facts: string[],
 ): Promise<number> {
   try {
-    const result = await Llm.instance.complete({
-      prompt: `Here are ${facts.length} recent facts extracted from agent sessions working on ${repo}. Identify 1-3 higher-level patterns or insights that emerge from these facts. Each pattern should be actionable — something future agents should know.\n\nFacts:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n\nReturn each pattern on its own line, prefixed with "PATTERN: ". If no meaningful patterns emerge, respond with "NONE".`,
-      systemPrompt:
-        "You are a knowledge consolidation engine. Extract reusable patterns from raw facts.",
-      maxTokens: 512,
-      jobName: "consolidation",
-    });
+    const patterns = await extractPatterns(repo, facts);
 
-    const patterns = parseConsolidationPatterns(result.text);
-
-    if (patterns.length === 0) {
-      return 0;
-    }
-
-    return await storeConsolidatedPatterns(repo, patterns);
+    return patterns.length === 0
+      ? 0
+      : await storeConsolidatedPatterns(repo, patterns);
   } catch {
     return 0;
   }
+}
+
+/** Consolidates every repo bucket that clears the 3-fact floor, returning how many pattern memories landed. */
+async function consolidateAll(byRepo: Map<string, string[]>): Promise<number> {
+  let consolidated = 0;
+
+  for (const [repo, facts] of byRepo) {
+    // need at least 3 facts to consolidate
+    if (facts.length < 3) {
+      continue;
+    }
+
+    consolidated += await consolidateRepoFacts(repo, facts);
+  }
+
+  return consolidated;
 }
 
 export async function consolidationJob(): Promise<string> {
@@ -78,17 +103,7 @@ export async function consolidationJob(): Promise<string> {
     return `Skipped: only ${recentFacts.length} recent facts (need ${CONSOLIDATION_MIN_FACTS})`;
   }
 
-  const byRepo = groupFactsByRepo(recentFacts);
-  let consolidated = 0;
-
-  for (const [repo, facts] of byRepo) {
-    // need at least 3 facts to consolidate
-    if (facts.length < 3) {
-      continue;
-    }
-
-    consolidated += await consolidateRepoFacts(repo, facts);
-  }
+  const consolidated = await consolidateAll(groupFactsByRepo(recentFacts));
 
   if (consolidated > 0) {
     console.log(

@@ -33,20 +33,25 @@ interface NodeFacts {
   stationInherited: boolean;
 }
 
+/** What a pre-clone run's node can still say about itself once its blueprint is gone: nothing but the route its args resolve. */
+function unknownNodeFacts(args: Record<string, unknown>): NodeFacts {
+  return {
+    type: null,
+    promptRef: null,
+    // Resolved against THIS run's args (FR6.40); null when a placeholder is missing rather than serving a half-built href.
+    route: resolveRoute(undefined, args),
+    station: null,
+    stationInherited: false,
+  };
+}
+
 /** The graph facts for a node row: null/defaulted for pre-clone runs whose blueprint is gone, otherwise read straight off the run's own graph. */
 function nodeFacts(
   node: RunGraphNode | undefined,
   args: Record<string, unknown>,
 ): NodeFacts {
   if (!node) {
-    return {
-      type: null,
-      promptRef: null,
-      // Resolved against THIS run's args (FR6.40); null when a placeholder is missing rather than serving a half-built href.
-      route: resolveRoute(undefined, args),
-      station: null,
-      stationInherited: false,
-    };
+    return unknownNodeFacts(args);
   }
 
   return {
@@ -76,6 +81,42 @@ function describeNode(
   };
 }
 
+/** Each node row paired with its own graph node, matched by id; an unmatched row still describes itself (see nodeFacts). */
+function describeNodes(
+  rows: readonly NodeRow[],
+  nodes: readonly RunGraphNode[] | undefined,
+  args: Record<string, unknown>,
+) {
+  return rows.map((row) =>
+    describeNode(
+      row,
+      nodes?.find((node) => node.id === row.nodeId),
+      args,
+    ),
+  );
+}
+
+/** The body of GET /api/assembly-runs/{id}: the run row, its node rows, and the Station each node resolved to. 404s on an unknown id. */
+async function readAssemblyRun(
+  id: string,
+  load: () => Promise<Map<string, AssemblyLine>>,
+) {
+  const line = await pipeline().assemblyRuns.getById(id);
+
+  enforceTrue(line !== null, apiError(404), "assembly line not found");
+  const [rows, graph] = await Promise.all([
+    pipeline().assemblyRuns.listStationRuns(line.id),
+    // The run's own clone; loaded by name only for rows stamped before clones existed (same rule as the walk and reaper).
+    resolveRunGraph(line, load),
+  ]);
+
+  return {
+    line,
+    definitionKnown: Boolean(graph),
+    nodes: describeNodes(rows, graph?.nodes, line.args),
+  };
+}
+
 /** GET /api/assembly-runs/{id}: run row, nodes, and Station per node. */
 export function assemblyRunReadRoute(
   load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
@@ -84,28 +125,7 @@ export function assemblyRunReadRoute(
     method: "GET",
     path: "/api/assembly-runs/{id}",
     options: { auth: "ingest-token" },
-    handler: async (request) => {
-      const line = await pipeline().assemblyRuns.getById(request.params.id);
-
-      enforceTrue(line !== null, apiError(404), "assembly line not found");
-      const [rows, graph] = await Promise.all([
-        pipeline().assemblyRuns.listStationRuns(line.id),
-        // The run's own clone; loaded by name only for rows stamped before clones existed (same rule as the walk and reaper).
-        resolveRunGraph(line, load),
-      ]);
-
-      return {
-        line,
-        definitionKnown: Boolean(graph),
-        nodes: rows.map((row) =>
-          describeNode(
-            row,
-            graph?.nodes.find((n) => n.id === row.nodeId),
-            line.args,
-          ),
-        ),
-      };
-    },
+    handler: (request) => readAssemblyRun(request.params.id, load),
   };
 }
 

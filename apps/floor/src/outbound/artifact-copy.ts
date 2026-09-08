@@ -35,6 +35,18 @@ const SYSTEM_PROMPT =
 
 const MAX_OUTPUT_CHARS = 4000;
 
+const COPY_TOOL_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  properties: {
+    title: {
+      type: "string",
+      description: "Imperative title, under 70 chars",
+    },
+    body: { type: "string", description: "Short markdown description" },
+  },
+  required: ["title", "body"],
+};
+
 /** Build the LLM prompt from the change context. */
 export function buildCopyPrompt(input: ArtifactCopyInput): string {
   const artifact = input.kind === "pr" ? "pull request" : "issue";
@@ -78,17 +90,7 @@ async function requestLlmCopy(
     systemPrompt: SYSTEM_PROMPT,
     toolName: "write_copy",
     toolDescription: "Provide a title and description for the GitHub artifact",
-    toolSchema: {
-      type: "object",
-      properties: {
-        title: {
-          type: "string",
-          description: "Imperative title, under 70 chars",
-        },
-        body: { type: "string", description: "Short markdown description" },
-      },
-      required: ["title", "body"],
-    },
+    toolSchema: COPY_TOOL_SCHEMA,
     jobName: "artifact-copy",
     maxTokens: 600,
   });

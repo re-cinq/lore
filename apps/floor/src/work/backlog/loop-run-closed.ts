@@ -40,17 +40,26 @@ export async function handleLoopRunClosed(
   }
 
   try {
-    const blockedReason = await blockedReasonFor(run, outcome, reason, deps);
-
-    if (blockedReason) {
-      await markIssueBlocked(run, blockedReason, deps);
-    }
+    await markBlockedIfNeeded(run, outcome, reason, deps);
   } catch (err) {
     console.error(
       `[implementation-loop] blocked-marking for ${run.id} failed: ${(err as Error).message}`,
     );
   }
   await deps.emitTick(run.repo);
+}
+
+async function markBlockedIfNeeded(
+  run: ClosedLoopRun,
+  outcome: string,
+  reason: string | undefined,
+  deps: LoopRunClosedDeps,
+): Promise<void> {
+  const blockedReason = await blockedReasonFor(run, outcome, reason, deps);
+
+  if (blockedReason) {
+    await markIssueBlocked(run, blockedReason, deps);
+  }
 }
 
 function describeUncleanOutcome(
@@ -110,6 +119,18 @@ async function blockedReasonFor(
   return null;
 }
 
+function blockedComment(run: ClosedLoopRun, blockedReason: string): string {
+  const prLine =
+    typeof run.args.pr_url === "string"
+      ? `\n\nThe pull request stays open for a human: ${run.args.pr_url}`
+      : "";
+
+  return (
+    `Lore's implementation loop is parking this ticket: ${blockedReason}.` +
+    `${prLine}\n\nRemove the \`${LORE_BLOCKED_LABEL}\` label to re-queue it. Run: \`${run.id}\``
+  );
+}
+
 async function markIssueBlocked(
   run: ClosedLoopRun,
   blockedReason: string,
@@ -126,21 +147,11 @@ async function markIssueBlocked(
 
     return;
   }
-  const prLine =
-    typeof run.args.pr_url === "string"
-      ? `\n\nThe pull request stays open for a human: ${run.args.pr_url}`
-      : "";
 
   await deps.addLabel(run.repo, issueNumber, LORE_BLOCKED_LABEL);
-  await deps.comment(
-    run.repo,
-    issueNumber,
-    `Lore's implementation loop is parking this ticket: ${blockedReason}.` +
-      `${prLine}\n\nRemove the \`${LORE_BLOCKED_LABEL}\` label to re-queue it. Run: \`${run.id}\``,
-  );
+  await deps.comment(run.repo, issueNumber, blockedComment(run, blockedReason));
 }
 
-/** Production hook for finishLine's onRunClosed seam. */
 /** QUEUED rather than inserted: `onRunClosed` swallows what this throws, so a router blip used to lose the tick until the cron emitter next came round. The proxy retries it instead. */
 function queueLoopTick(
   repo: string,
@@ -156,31 +167,52 @@ function queueLoopTick(
   });
 }
 
-export async function loopRunClosed(
-  run: ClosedLoopRun,
-  outcome: string,
-  reason: string | undefined,
-): Promise<void> {
-  const [{ pipeline, taskStore, eventProxy }, { projectFor }] =
-    await Promise.all([
-      import("../../outbound/queues.js"),
-      import("../../outbound/project-boot.js"),
-    ]);
+type LoopQueues = typeof import("../../outbound/queues.js");
+type ProjectForFn =
+  (typeof import("../../outbound/project-boot.js"))["projectFor"];
 
-  await handleLoopRunClosed(run, outcome, reason, {
-    getTaskIssueNumber: async (taskId) => {
-      const task = await taskStore().getById(taskId);
-      const n = Number(
-        (task as { issue_number?: unknown } | null)?.issue_number,
-      );
+async function taskIssueNumber(
+  taskStore: LoopQueues["taskStore"],
+  taskId: string,
+): Promise<number | null> {
+  const task = await taskStore().getById(taskId);
+  const n = Number((task as { issue_number?: unknown } | null)?.issue_number);
 
-      return n > 0 ? n : null;
-    },
+  return n > 0 ? n : null;
+}
+
+function productionDeps(
+  queues: LoopQueues,
+  projectFor: ProjectForFn,
+): LoopRunClosedDeps {
+  const { pipeline, taskStore, eventProxy } = queues;
+
+  return {
+    getTaskIssueNumber: (taskId) => taskIssueNumber(taskStore, taskId),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
     addLabel: async (repo, issueNumber, label) =>
       (await projectFor(repo)).issues.addLabel(issueNumber, label),
     comment: async (repo, issueNumber, body) =>
       (await projectFor(repo)).issues.comment(issueNumber, body),
     emitTick: (repo) => queueLoopTick(repo, eventProxy),
-  });
+  };
+}
+
+/** Production hook for finishLine's onRunClosed seam. */
+export async function loopRunClosed(
+  run: ClosedLoopRun,
+  outcome: string,
+  reason: string | undefined,
+): Promise<void> {
+  const [queues, { projectFor }] = await Promise.all([
+    import("../../outbound/queues.js"),
+    import("../../outbound/project-boot.js"),
+  ]);
+
+  await handleLoopRunClosed(
+    run,
+    outcome,
+    reason,
+    productionDeps(queues, projectFor),
+  );
 }

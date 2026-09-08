@@ -33,6 +33,13 @@ import type {
 // GitHub caps payloads at 25 MB; bound generously to support large push deliveries.
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
 
+export interface FloorServerOptions {
+  getJobStatus: () => unknown;
+  port?: number;
+  podLogSource?: PodLogSource;
+  podLogArchive?: PodLogArchive;
+}
+
 /** The error channel fires only for 500s (#1319). `request.info.id` is logged so the line joins the span the tracing plugin opened for the same request — without it a stack trace has no request to belong to. */
 function logServerErrors(server: Hapi.Server): void {
   server.events.on({ name: "request", channels: "error" }, (request, event) => {
@@ -45,27 +52,37 @@ function logServerErrors(server: Hapi.Server): void {
   });
 }
 
-/** Everything the Floor serves. Cluster-agent tokens open the telemetry sink, which is what lets a satellite report cost and run-viz events without holding the bus secret. */
-function floorRoutes(opts: {
-  getJobStatus: () => unknown;
-  podLogSource?: PodLogSource;
-  podLogArchive?: PodLogArchive;
-}): Hapi.ServerRoute[] {
+/** The read surface the run visualization and the task pages pull from — conversations, telemetry, and the SSE stream that carries a run while it is still going. */
+function agentReadRoutes(): Hapi.ServerRoute[] {
   return [
-    healthRoute(opts.getJobStatus),
-    agentEventsRoute({
-      findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
-    }),
     agentConversationSaveRoute,
     agentConversationFetchRoute,
     agentEventsStreamRoute(),
     agentEventsHistoryRoute(),
     agentTurnsHistoryRoute(),
     agentTurnsByTaskRoute(),
+  ];
+}
+
+/** Definition + run reads, including the legacy path kept alive for links minted before the assembly-run rename. */
+function assemblyLineRoutes(): Hapi.ServerRoute[] {
+  return [
     assemblyLineDefinitionsRoute(),
     assemblyRunReadRoute(),
     legacyAssemblyLineReadRoute(),
     assemblyLineCatalogRoute(),
+  ];
+}
+
+/** Everything the Floor serves. Cluster-agent tokens open the telemetry sink, which is what lets a satellite report cost and run-viz events without holding the bus secret. */
+function floorRoutes(opts: FloorServerOptions): Hapi.ServerRoute[] {
+  return [
+    healthRoute(opts.getJobStatus),
+    agentEventsRoute({
+      findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
+    }),
+    ...agentReadRoutes(),
+    ...assemblyLineRoutes(),
     agentLogsRoute(opts.podLogSource, opts.podLogArchive),
     ciIngestRoute,
     ciTestsRoute,
@@ -73,12 +90,7 @@ function floorRoutes(opts: {
   ];
 }
 
-export function buildServer(opts: {
-  getJobStatus: () => unknown;
-  port?: number;
-  podLogSource?: PodLogSource;
-  podLogArchive?: PodLogArchive;
-}): Hapi.Server {
+export function buildServer(opts: FloorServerOptions): Hapi.Server {
   const server = Hapi.server({
     port: opts.port ?? 0,
     host: "0.0.0.0",
@@ -91,6 +103,24 @@ export function buildServer(opts: {
   server.route(floorRoutes(opts));
 
   return server;
+}
+
+/** A Floor that cannot bind its port has nothing to do, so both cases end the process — but a taken port means a second instance is already serving, which is worth saying plainly instead of dumping a stack. */
+function exitOnBindFailure(port: number, err: unknown): never {
+  const e = err as NodeJS.ErrnoException;
+
+  const portInUse = e.code === "EADDRINUSE";
+
+  if (portInUse) {
+    console.error(
+      `[floor] Health server port ${port} already in use — another agent instance is running. Exiting.`,
+    );
+  }
+
+  if (!portInUse) {
+    console.error("[floor] Health server error:", err);
+  }
+  process.exit(1);
 }
 
 /** Start the HTTP server and return how to stop it. No signal handlers: process lifecycle owns single exit (index.ts). */
@@ -106,19 +136,6 @@ export async function startHealthServer(
 
     return () => server.stop();
   } catch (err) {
-    const e = err as NodeJS.ErrnoException;
-
-    const portInUse = e.code === "EADDRINUSE";
-
-    if (portInUse) {
-      console.error(
-        `[floor] Health server port ${port} already in use — another agent instance is running. Exiting.`,
-      );
-    }
-
-    if (!portInUse) {
-      console.error("[floor] Health server error:", err);
-    }
-    process.exit(1);
+    return exitOnBindFailure(port, err);
   }
 }

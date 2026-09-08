@@ -1,7 +1,7 @@
 /** Request tracing for the Floor HTTP server: one span per request via onRequest → onPreResponse, covering every request including 401/404 ones; no-op until an OTel SDK is registered (otel-init). */
 
 import Boom from "@hapi/boom";
-import type { Server } from "@hapi/hapi";
+import type { Request, Server } from "@hapi/hapi";
 import { trace, SpanStatusCode, type Span } from "@opentelemetry/api";
 
 const tracer = trace.getTracer("lore.floor.http");
@@ -27,32 +27,35 @@ function openRequestSpan(server: Server): void {
   });
 }
 
+/** Renames the span after the matched route and records the outcome. A Boom response is the error case: its status lives on `output`, and the span is marked ERROR so a 4xx/5xx is visible without reading attributes. */
+function endSpanForResponse(span: Span, request: Request): void {
+  const res = request.response;
+  const route = request.route.path;
+
+  span.updateName(`${request.method.toUpperCase()} ${route}`);
+  span.setAttribute("http.route", route);
+
+  span.setAttribute(
+    "http.status_code",
+    Boom.isBoom(res) ? res.output.statusCode : res.statusCode,
+  );
+
+  if (Boom.isBoom(res)) {
+    span.recordException(res);
+    span.setStatus({ code: SpanStatusCode.ERROR, message: res.message });
+  }
+
+  span.end();
+}
+
 /** Closes the span, recording the status and any Boom error. Runs on onPreResponse rather than the response event so it still fires for a request that never reached a handler. */
 function closeRequestSpan(server: Server): void {
   server.ext("onPreResponse", (request, h) => {
     const span = request.app.span;
 
-    if (!span) {
-      return h.continue;
+    if (span) {
+      endSpanForResponse(span, request);
     }
-
-    const res = request.response;
-    const route = request.route.path;
-
-    span.updateName(`${request.method.toUpperCase()} ${route}`);
-    span.setAttribute("http.route", route);
-
-    span.setAttribute(
-      "http.status_code",
-      Boom.isBoom(res) ? res.output.statusCode : res.statusCode,
-    );
-
-    if (Boom.isBoom(res)) {
-      span.recordException(res);
-      span.setStatus({ code: SpanStatusCode.ERROR, message: res.message });
-    }
-
-    span.end();
 
     return h.continue;
   });

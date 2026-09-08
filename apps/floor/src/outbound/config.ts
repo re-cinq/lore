@@ -19,8 +19,8 @@ const taskTypes: Map<string, TaskTypeRecipe> = new Map();
 
 // ── Public API ───────────────────────────────────────────────────────
 
-/** Load task type definitions from YAML, trying in order: `configPath` arg, `TASK_TYPES_PATH` env, `./task-types.yaml`, `../scripts/task-types.yaml`, `/config/task-types.yaml`. */
-export function loadTaskTypes(configPath?: string): void {
+/** Where a task-types.yaml may live, most specific first: the explicit argument, then the env override, then the three conventional locations. */
+function candidateConfigPaths(configPath?: string): string[] {
   const paths: string[] = [];
 
   if (configPath) {
@@ -37,23 +37,35 @@ export function loadTaskTypes(configPath?: string): void {
     "/config/task-types.yaml",
   );
 
-  for (const p of paths) {
-    try {
-      const { taskTypes: types, drift } = parseTaskTypesFile(
-        readFileSync(p, "utf-8"),
-      );
+  return paths;
+}
 
-      taskTypes.clear();
-      Object.entries(types).forEach(([name, cfg]) => taskTypes.set(name, cfg));
+/** Replaces the loaded recipes from one candidate path, reporting whether it was there and parseable — an unreadable path is not an error, it is the next candidate's turn. */
+function loadFromPath(path: string): boolean {
+  try {
+    const { taskTypes: types, drift } = parseTaskTypesFile(
+      readFileSync(path, "utf-8"),
+    );
 
-      console.log(`[floor] Loaded ${taskTypes.size} task types from ${p}`);
+    taskTypes.clear();
+    Object.entries(types).forEach(([name, cfg]) => taskTypes.set(name, cfg));
 
-      // A stale ConfigMap once blinded every review (#866) — warn rather than silently serve a shape the code no longer describes.
-      warnOnDrift("[floor]", p, drift);
+    console.log(`[floor] Loaded ${taskTypes.size} task types from ${path}`);
 
+    // A stale ConfigMap once blinded every review (#866) — warn rather than silently serve a shape the code no longer describes.
+    warnOnDrift("[floor]", path, drift);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Load task type definitions from YAML, trying in order: `configPath` arg, `TASK_TYPES_PATH` env, `./task-types.yaml`, `../scripts/task-types.yaml`, `/config/task-types.yaml`. */
+export function loadTaskTypes(configPath?: string): void {
+  for (const path of candidateConfigPaths(configPath)) {
+    if (loadFromPath(path)) {
       return;
-    } catch {
-      // continue
     }
   }
 

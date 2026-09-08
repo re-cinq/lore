@@ -91,14 +91,13 @@ type IssuesLabeledParams = {
   };
 };
 
-/** Files the task an Issue dispatched, and marks the Issue as ours. The two GitHub writes are `allSettled`: the task exists by then, so a failed comment or label must not look like a failed dispatch. */
-async function fileIssueTask(
+/** Builds the task-store payload for an Issue dispatch; the Issue's identifiers ride the context bundle so the agent can read them back. */
+function issueTaskInput(
   repo: string,
   issue: IssuesLabeledParams["issue"],
   taskType: string,
-  issues: Awaited<ReturnType<typeof projectFor>>["issues"],
-): Promise<void> {
-  const task = await taskStore().create({
+) {
+  return {
     description: `${issue.title}\n\n${issue.body}`.trim(),
     taskType,
     targetRepo: repo,
@@ -108,7 +107,17 @@ async function fileIssueTask(
       github_issue_url: issue.html_url,
       github_issue_body: issue.body,
     },
-  });
+  };
+}
+
+/** Files the task an Issue dispatched, and marks the Issue as ours. The two GitHub writes are `allSettled`: the task exists by then, so a failed comment or label must not look like a failed dispatch. */
+async function fileIssueTask(
+  repo: string,
+  issue: IssuesLabeledParams["issue"],
+  taskType: string,
+  issues: Awaited<ReturnType<typeof projectFor>>["issues"],
+): Promise<void> {
+  const task = await taskStore().create(issueTaskInput(repo, issue, taskType));
 
   await pipeline().taskQueue.setColumns(task.task_id, {
     issue_number: issue.number,
@@ -121,6 +130,28 @@ async function fileIssueTask(
     ),
     issues.addLabel(issue.number, "lore-managed"),
   ]);
+}
+
+/** True when an Issue already has an active task; comments the existing task id on the Issue so the duplicate label is answered. */
+async function alreadyWorkingOnIssue(
+  repo: string,
+  issueNumber: number,
+  issues: Awaited<ReturnType<typeof projectFor>>["issues"],
+): Promise<boolean> {
+  const existing = await pipeline().taskQueue.activeTaskByIssue(
+    repo,
+    issueNumber,
+  );
+
+  if (!existing) {
+    return false;
+  }
+  await issues.comment(
+    issueNumber,
+    `Already being worked on: task \`${existing.id}\``,
+  );
+
+  return true;
 }
 
 export const issuesLabeled: EventHandler = async (params) => {
@@ -138,17 +169,8 @@ export const issuesLabeled: EventHandler = async (params) => {
   const taskType = dispatchTypeFromLabels(issue.labels) ?? dispatchDefaultType;
 
   const issues = (await projectFor(repo)).issues;
-  const existing = await pipeline().taskQueue.activeTaskByIssue(
-    repo,
-    issue.number,
-  );
 
-  if (existing) {
-    await issues.comment(
-      issue.number,
-      `Already being worked on: task \`${existing.id}\``,
-    );
-
+  if (await alreadyWorkingOnIssue(repo, issue.number, issues)) {
     return;
   }
 
@@ -209,6 +231,29 @@ async function syncMergedTasks(
   return taskGroupId;
 }
 
+/** Files a merged spec PR's tasks.md as spec-tasks; an unreadable tasks.md is a no-op. */
+async function syncSpecTasks(
+  repo: string,
+  branch: string,
+  specSlug: string,
+  mergeCommitSha: string | null,
+): Promise<void> {
+  const taskGroupId = await syncMergedTasks(repo, specSlug, mergeCommitSha);
+
+  if (!taskGroupId) {
+    return;
+  }
+
+  const { taskQueue } = pipeline();
+
+  await taskQueue
+    .markFeatureRequestMergedOnBranch(repo, branch)
+    .catch(() => {});
+  console.log(
+    `[events] spec PR merged: ${repo}/${specSlug} → spec-tasks (group ${taskGroupId})`,
+  );
+}
+
 /** pull_request closed+merged: a merged spec PR → sync its tasks.md into spec-tasks. */
 export const specPrMerge: EventHandler = async (params) => {
   const { repo, branch, merged, merge_commit_sha, labels } = params as {
@@ -224,7 +269,6 @@ export const specPrMerge: EventHandler = async (params) => {
   if (!specSlug) {
     return;
   }
-
   const { taskQueue } = pipeline();
 
   // already synced
@@ -232,16 +276,5 @@ export const specPrMerge: EventHandler = async (params) => {
     return;
   }
 
-  const taskGroupId = await syncMergedTasks(repo, specSlug, merge_commit_sha);
-
-  if (!taskGroupId) {
-    return;
-  }
-
-  await taskQueue
-    .markFeatureRequestMergedOnBranch(repo, branch)
-    .catch(() => {});
-  console.log(
-    `[events] spec PR merged: ${repo}/${specSlug} → spec-tasks (group ${taskGroupId})`,
-  );
+  await syncSpecTasks(repo, branch, specSlug, merge_commit_sha);
 };
