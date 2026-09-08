@@ -35,6 +35,8 @@ function decodeContent(encoded: string): string {
 
 type Octokit = Awaited<ReturnType<typeof getOctokit>>;
 
+type ReposApi = Octokit["rest"]["repos"];
+
 type GetContentResult = Awaited<
   ReturnType<Octokit["rest"]["repos"]["getContent"]>
 >["data"];
@@ -59,13 +61,13 @@ function fileContentIfPresent(content: GetContentResult): string | null {
 }
 
 async function fetchTopLevelTree(
-  octokit: Octokit,
+  reposApi: ReposApi,
   owner: string,
   repo: string,
   fullName: string,
 ): Promise<string[]> {
   try {
-    const { data: content } = await octokit.rest.repos.getContent({
+    const { data: content } = await reposApi.getContent({
       owner,
       repo,
       path: "",
@@ -83,14 +85,14 @@ async function fetchTopLevelTree(
 
 /** A 404 is SILENT — most repos hold only some of these paths, and logging every absent one would bury the errors that matter. */
 async function getContentOrNull(
-  octokit: Octokit,
+  reposApi: ReposApi,
   target: SampledRepoRef,
   path: string,
 ): Promise<GetContentResult | null> {
   const { owner, repo, fullName } = target;
 
   try {
-    const fetched = await octokit.rest.repos.getContent({ owner, repo, path });
+    const fetched = await reposApi.getContent({ owner, repo, path });
 
     return fetched.data;
   } catch (err) {
@@ -105,17 +107,17 @@ async function getContentOrNull(
 }
 
 async function fetchOptionalFile(
-  octokit: Octokit,
+  reposApi: ReposApi,
   target: SampledRepoRef,
   path: string,
 ): Promise<string | null> {
-  const content = await getContentOrNull(octokit, target, path);
+  const content = await getContentOrNull(reposApi, target, path);
 
   return content ? fileContentIfPresent(content) : null;
 }
 
 async function fetchKeyFiles(
-  octokit: Octokit,
+  reposApi: ReposApi,
   owner: string,
   repo: string,
   fullName: string,
@@ -125,7 +127,7 @@ async function fetchKeyFiles(
 
   await Promise.all(
     KEY_FILES.map(async (path) => {
-      const decoded = await fetchOptionalFile(octokit, ref, path);
+      const decoded = await fetchOptionalFile(reposApi, ref, path);
 
       if (decoded) {
         files[path] = decoded;
@@ -138,18 +140,18 @@ async function fetchKeyFiles(
 
 /** 200 lines is enough to read a repo's style, which is all a sample is for. */
 async function fetchSampleHead(
-  octokit: Octokit,
+  reposApi: ReposApi,
   ref: SampledRepoRef,
   path: string,
 ): Promise<string | null> {
-  const full = await fetchOptionalFile(octokit, ref, path);
+  const full = await fetchOptionalFile(reposApi, ref, path);
 
   return full ? full.split("\n").slice(0, 200).join("\n") : null;
 }
 
 /** Fills `samples` (up to 3 entries) with the first 200 lines of each listed file. */
 async function sampleSourceFiles(
-  octokit: Octokit,
+  reposApi: ReposApi,
   ref: SampledRepoRef,
   entries: RepoFileEntry[],
   samples: Record<string, string>,
@@ -159,7 +161,7 @@ async function sampleSourceFiles(
       break;
     }
 
-    const head = await fetchSampleHead(octokit, ref, entry.path);
+    const head = await fetchSampleHead(reposApi, ref, entry.path);
 
     if (head) {
       samples[entry.path] = head;
@@ -169,11 +171,11 @@ async function sampleSourceFiles(
 
 /** The files in one directory, or none. */
 async function listFilesIn(
-  octokit: Octokit,
+  reposApi: ReposApi,
   target: SampledRepoRef,
   dir: string,
 ): Promise<RepoFileEntry[]> {
-  const content = await getContentOrNull(octokit, target, dir);
+  const content = await getContentOrNull(reposApi, target, dir);
 
   return Array.isArray(content)
     ? content.filter((entry) => entry.type === "file")
@@ -181,7 +183,7 @@ async function listFilesIn(
 }
 
 async function fetchSamples(
-  octokit: Octokit,
+  reposApi: ReposApi,
   owner: string,
   repo: string,
   fullName: string,
@@ -194,9 +196,9 @@ async function fetchSamples(
       break;
     }
 
-    const entries = await listFilesIn(octokit, ref, dir);
+    const entries = await listFilesIn(reposApi, ref, dir);
 
-    await sampleSourceFiles(octokit, ref, entries, samples);
+    await sampleSourceFiles(reposApi, ref, entries, samples);
   }
 
   return samples;
@@ -212,10 +214,11 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
     `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
   );
 
-  const octokit = await getOctokit();
-  const tree = await fetchTopLevelTree(octokit, owner, repo, fullName);
-  const files = await fetchKeyFiles(octokit, owner, repo, fullName);
-  const samples = await fetchSamples(octokit, owner, repo, fullName);
+  const { rest } = await getOctokit();
+  const reposApi = rest.repos;
+  const tree = await fetchTopLevelTree(reposApi, owner, repo, fullName);
+  const files = await fetchKeyFiles(reposApi, owner, repo, fullName);
+  const samples = await fetchSamples(reposApi, owner, repo, fullName);
 
   return { tree, files, samples };
 }

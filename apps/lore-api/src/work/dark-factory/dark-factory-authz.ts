@@ -88,21 +88,23 @@ async function fetchApprovalPr({
   number,
   prRef,
 }: PrLookup): Promise<PullRequest> {
+  const { pulls } = octokit.rest;
+
   try {
-    return await octokit.rest.pulls.get({ owner, repo, pull_number: number });
+    return await pulls.get({ owner, repo, pull_number: number });
   } catch (err) {
     throwApprovalPrFetchError(err, prRef);
   }
 }
 
 async function fetchApprovalEvents(
-  octokit: Octokit,
+  issues: Octokit["rest"]["issues"],
   owner: string,
   repo: string,
   number: number,
 ): Promise<IssueEvents> {
   try {
-    return await octokit.rest.issues.listEvents({
+    return await issues.listEvents({
       owner,
       repo,
       issue_number: number,
@@ -228,7 +230,7 @@ async function fetchOpenApprovalPr(target: {
 async function resolveLabelApprover(target: PrLookup): Promise<string> {
   const { octokit, owner, repo, number, prRef } = target;
   const labelEvent = findApprovalLabelEvent(
-    await fetchApprovalEvents(octokit, owner, repo, number),
+    await fetchApprovalEvents(octokit.rest.issues, owner, repo, number),
   );
 
   assertLabelPresent(labelEvent, prRef);
@@ -273,11 +275,9 @@ async function fetchRepoFileText(
   ref: RepoRef,
   path: string,
 ): Promise<string | undefined> {
-  const res = await ref.octokit.rest.repos.getContent({
-    owner: ref.owner,
-    repo: ref.repo,
-    path,
-  });
+  const { octokit, owner, repo } = ref;
+  const { repos } = octokit.rest;
+  const res = await repos.getContent({ owner, repo, path });
   const file = res.data;
 
   return "content" in file && file.encoding === "base64"

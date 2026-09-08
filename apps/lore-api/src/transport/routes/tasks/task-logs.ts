@@ -8,7 +8,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { DB_UNAVAILABLE, offsetParam } from "../common-schemas.js";
 import {
   readTurnSlice,
   parseTurnCursor,
@@ -26,7 +26,7 @@ type TaskLogsBody = z.infer<typeof TaskLogsBody>;
 const TaskLogsQuery = z.object({
   task_id: z.string().min(1),
   repo: z.string().min(1).optional(),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: offsetParam,
   cursor: z.string().optional(),
 });
 

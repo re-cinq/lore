@@ -44,7 +44,9 @@ const TaskTimelineSchema = z.object({
 });
 
 function committedIsoOf(c: RawCommit): string {
-  return c.commit.committer?.date ?? new Date().toISOString();
+  const { committer } = c.commit;
+
+  return committer?.date ?? new Date().toISOString();
 }
 
 function outcomeOf(
@@ -70,7 +72,8 @@ function buildStageCommit(
   c: RawCommit,
   prevTimeMs: number,
 ): TimelineCommit | null {
-  const trailers = parseTrailers(c.commit.message);
+  const { message } = c.commit;
+  const trailers = parseTrailers(message);
 
   if (!trailers) {
     return null;
@@ -85,7 +88,7 @@ function buildStageCommit(
     outcome: outcomeOf(trailers),
     committed_at: committedIso,
     duration_ms: durationSince(committedMs, prevTimeMs),
-    summary: c.commit.message.split("\n")[0],
+    summary: message.split("\n")[0],
     ...extrasField(trailers),
   };
 }
@@ -236,10 +239,10 @@ async function readTaskRow(
 
 /** The branch's commits, newest first, capped at one page. A hundred is far more than a task's own history — a longer branch has been reused, and its earlier commits belong to work this timeline is not describing. */
 async function listBranchCommits(
-  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  repos: Awaited<ReturnType<typeof getOctokit>>["rest"]["repos"],
   target: { owner: string; repo: string; branch: string },
 ): Promise<RawCommit[]> {
-  const r = await octokit.rest.repos.listCommits({
+  const r = await repos.listCommits({
     owner: target.owner,
     repo: target.repo,
     sha: target.branch,
@@ -263,8 +266,8 @@ async function readBranchHistory(
 ): Promise<BranchHistory> {
   try {
     const [owner, repoName] = repo.split("/");
-    const octokit = await getOctokit();
-    const commits = await listBranchCommits(octokit, {
+    const { repos, pulls } = (await getOctokit()).rest;
+    const commits = await listBranchCommits(repos, {
       owner,
       repo: repoName,
       branch,
@@ -273,7 +276,7 @@ async function readBranchHistory(
     return {
       commits,
       prState: prNumber
-        ? await readPrState(octokit, owner, repoName, prNumber)
+        ? await readPrState(pulls, owner, repoName, prNumber)
         : null,
     };
   } catch (err) {
@@ -288,13 +291,13 @@ async function readBranchHistory(
 
 /** Best-effort: the commits are the timeline, and a PR whose state cannot be read still has one. */
 async function readPrState(
-  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  pulls: Awaited<ReturnType<typeof getOctokit>>["rest"]["pulls"],
   owner: string,
   repo: string,
   pull_number: number,
 ): Promise<"open" | "closed" | "merged" | null> {
   try {
-    const res = await octokit.rest.pulls.get({ owner, repo, pull_number });
+    const res = await pulls.get({ owner, repo, pull_number });
 
     return res.data.merged ? "merged" : (res.data.state as "open" | "closed");
   } catch {

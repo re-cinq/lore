@@ -287,9 +287,11 @@ const ERROR_SCHEMA: JsonSchema = {
 
 /** Walks every route into `build`, recording the ones deliberately left out of the contract. */
 function collectPaths(routes: ServerRoute[], build: DocumentBuild): void {
+  const { excluded } = build.coverage;
+
   for (const route of routes) {
     if (isExcludedPath(route.path)) {
-      build.coverage.excluded.push(route.path);
+      excluded.push(route.path);
       continue;
     }
 

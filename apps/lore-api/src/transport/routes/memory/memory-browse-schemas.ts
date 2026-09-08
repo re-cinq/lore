@@ -12,14 +12,14 @@ import {
   EpisodeSchema,
   EPISODE_COLUMNS,
 } from "@re-cinq/lore-shared/models/episode.js";
-import { clampedLimit, offsetParam } from "../common-schemas.js";
+import { clampedLimit, offsetParam, optionalBool } from "../common-schemas.js";
 
 // Request + response shapes for memory browse reads (ADR-032), shaped per SCREEN not per table.
 
 export const GraphBrowseQuery = z.object({
   entity: z.string().max(200).optional(),
   type: z.string().max(80).optional(),
-  show_invalid: z.coerce.boolean().optional(),
+  show_invalid: optionalBool,
 });
 
 export type GraphBrowseQuery = z.infer<typeof GraphBrowseQuery>;

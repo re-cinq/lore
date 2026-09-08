@@ -36,13 +36,20 @@ function bearerOf(request: Request): string | undefined {
   );
 }
 
-// A route that stamps no scope via `bearerScope` accepts any valid token; `admin` satisfies every scope.
-function enforceRouteScope(request: Request, scopes: TokenScope[]): void {
-  const routeConfig = request.route.settings.plugins as Record<
+// The scope a route stamped via `bearerScope`, read out of hapi's per-route plugin config.
+function requiredScope(request: Request): TokenScope | undefined {
+  const { settings } = request.route;
+  const routeConfig = settings.plugins as Record<
     string,
     { scope?: TokenScope } | undefined
   >;
-  const required = routeConfig[STRATEGY]?.scope;
+
+  return routeConfig[STRATEGY]?.scope;
+}
+
+// A route that stamps no scope via `bearerScope` accepts any valid token; `admin` satisfies every scope.
+function enforceRouteScope(request: Request, scopes: TokenScope[]): void {
+  const required = requiredScope(request);
 
   enforceTrue(
     !(required && !scopes.includes("admin") && !scopes.includes(required)),

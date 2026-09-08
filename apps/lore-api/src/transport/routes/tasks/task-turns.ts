@@ -129,7 +129,8 @@ async function relayTurns(
 
   enforceTrue(rows.length !== 0, apiError(404), `task not found: ${taskId}`);
 
-  const lines = body.raw
+  const { raw } = body;
+  const lines = raw
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);

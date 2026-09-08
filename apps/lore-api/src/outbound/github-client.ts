@@ -75,14 +75,15 @@ export async function createBranch(
   baseBranch: string = "main",
 ): Promise<void> {
   const octokit = await getOctokit();
+  const { git } = octokit.rest;
   const [owner, repoName] = repo.split("/");
-  const { data: ref } = await octokit.rest.git.getRef({
+  const { data: ref } = await git.getRef({
     owner,
     repo: repoName,
     ref: `heads/${baseBranch}`,
   });
 
-  await octokit.rest.git.createRef({
+  await git.createRef({
     owner,
     repo: repoName,
     ref: `refs/heads/${branchName}`,
@@ -97,9 +98,10 @@ export async function postReviewComment(
   event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT" = "COMMENT",
 ): Promise<void> {
   const octokit = await getOctokit();
+  const { pulls } = octokit.rest;
   const [owner, repoName] = repo.split("/");
 
-  await octokit.rest.pulls.createReview({
+  await pulls.createReview({
     owner,
     repo: repoName,
     pull_number: prNumber,
