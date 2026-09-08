@@ -11,10 +11,6 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-const TaskTurnsParams = z.object({
-  taskId: z.string().uuid(),
-});
-
 // Wrap side of the station contract's attribution envelope (unwrap is agent-output.ts); `turn_key` is this relay's idempotency stamp (#1389) — the Floor's turn store skips a key it already holds.
 function wrapTaskEnvelope(
   taskId: string,
@@ -150,6 +146,10 @@ async function relayTurns(
     ? { forwarded: relayable.length, skipped }
     : { error: `floor relay failed: ${forwarded.status}` };
 }
+
+const TaskTurnsParams = z.object({
+  taskId: z.string().uuid(),
+});
 
 const TURNS_ROUTE_OPTIONS = zodResponse(
   {

@@ -482,7 +482,6 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const repo = `test-proj/${randomUUID()}`;
 
     createdRepo = repo;
-    const filePath = "specs/example/spec.md";
     const content =
       "## Background\n\nThis section describes the prior art and context.\n";
     const segments = segmentStatements(content);
@@ -492,6 +491,8 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const classification = classifyByHeuristic(segments[0], intro);
 
     expect(classification.testability).toBe("untestable");
+
+    const filePath = "specs/example/spec.md";
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
@@ -524,10 +525,6 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       segments.every((segment) => segment.enclosingHeading === "Overview"),
     ).toBe(true);
 
-    const expectedStatementXids = segments
-      .map((segment) => `${repo}|${filePath}|${segment.ordinal}`)
-      .sort();
-
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const graph = (await readGraph(
@@ -558,6 +555,9 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       "Section.xid": `${repo}|${filePath}|0`,
       "Section.heading": "Overview",
     });
+    const expectedStatementXids = segments
+      .map((segment) => `${repo}|${filePath}|${segment.ordinal}`)
+      .sort();
     const sectionStatementXids = (section.stmts ?? [])
       .map((stmt) => stmt["Statement.xid"])
       .sort();

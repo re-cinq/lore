@@ -79,6 +79,7 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
       "CodeChunk.start_line": 1,
       "CodeChunk.end_line": 20,
     });
+    // eslint-disable-next-line re-lint/declare-near-use -- kept paired with the mutation that produced it, like every other uid capture here
     const ccXuid = ccUids.cc;
 
     const tcUids = await mutate({

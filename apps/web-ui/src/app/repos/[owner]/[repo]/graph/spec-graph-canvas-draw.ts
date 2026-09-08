@@ -71,10 +71,10 @@ export function createCanvasDrawer(params: CanvasDrawerParams) {
     .context(ctx);
 
   function draw(state: CanvasDrawState): void {
-    const collapsing = isAggregating(state.transform.k);
-
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const collapsing = isAggregating(state.transform.k);
 
     // World-space pass: edges then leaf dots, under the zoom transform.
     ctx.save();

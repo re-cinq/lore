@@ -100,7 +100,6 @@ export function radialTree(
   childrenOf: Map<string, string[]>,
   opts: RadialTreeOptions,
 ): Map<string, Point> {
-  const { center, ringGap } = opts;
   const { angleStart, angleEnd } = resolveAngleRange(opts);
 
   const { depth, postOrder, leaves } = walkTree(root, childrenOf);
@@ -113,6 +112,8 @@ export function radialTree(
   );
 
   fillParentAngles(postOrder, childrenOf, angle, angleStart);
+
+  const { center, ringGap } = opts;
 
   return positionsFromAngles(depth, angle, angleStart, { center, ringGap });
 }

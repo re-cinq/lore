@@ -91,7 +91,7 @@ describe("PRStatusBadgePanel", () => {
     const byTask: Record<string, string> = {
       "/api/tasks/first/pr-status": "open",
       "/api/tasks/second/pr-status": "merged",
-    };
+    }; // eslint-disable-next-line re-lint/declare-near-use -- the fetch stub must be installed before the render it serves
     const fetchMock = stubFetch((url) =>
       jsonResponse({ computed_status: byTask[url] }),
     );

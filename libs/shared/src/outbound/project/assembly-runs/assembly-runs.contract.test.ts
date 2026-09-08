@@ -495,6 +495,7 @@ describe.each(IMPLEMENTATIONS)(
 
     it("listOpen returns queued and running runs, never a terminal one", async () => {
       const { port, repo } = make();
+      // eslint-disable-next-line re-lint/declare-near-use -- arrange order is observable: these three starts must be created in this sequence
       const queued = await port.start({ blueprintName: "code-review", repo });
       const running = await port.start({ blueprintName: "code-review", repo });
       const closed = await port.start({ blueprintName: "code-review", repo });

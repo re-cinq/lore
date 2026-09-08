@@ -43,6 +43,7 @@ const IngestDeltaBody = z.object({
 
 type IngestDeltaBody = z.infer<typeof IngestDeltaBody>;
 
+// eslint-disable-next-line re-lint/declare-near-use -- response schema belongs beside the request schema it answers
 const IngestDeltaResultSchema = z.object({
   kind: z.string(),
   commit: z.string(),

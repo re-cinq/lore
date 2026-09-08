@@ -145,7 +145,6 @@ async function reindexRepo(repo: {
   if (!schema) {
     return null;
   }
-  const target = { schema, repo: repo.full_name };
   // Zero chunks means the first ingestion failed, so the incremental window is meaningless — seed the whole repo instead.
   const hasChunks = (await chunks().countChunks(schema, repo.full_name)) > 0;
   const lastIngestedAt = hasChunks ? repo.last_ingested_at : null;
@@ -156,6 +155,8 @@ async function reindexRepo(repo: {
     ingestFile(filePath, repo.full_name, schema);
   let fileCount = await ingestChangedFiles(filePaths, repo.full_name, schema);
   const processed = new Set(filePaths);
+
+  const target = { schema, repo: repo.full_name };
 
   fileCount += await runSweeps(target, { treePaths, processed, ingest });
   await settings().markIngested(repo.full_name);

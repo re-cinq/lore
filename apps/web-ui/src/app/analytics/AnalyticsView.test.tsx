@@ -130,6 +130,7 @@ describe("AnalyticsView", () => {
   it("renders the four task-summary stat cards with locale-formatted numbers", () => {
     const { container } = render(<AnalyticsView {...fullProps} />);
 
+    expect(container.querySelectorAll(".spec-card")).toHaveLength(4);
     expect(screen.getByText("Total Tasks")).toBeInTheDocument();
     expect(screen.getByText("1,234")).toBeInTheDocument();
     expect(screen.getByText("Succeeded")).toBeInTheDocument();
@@ -138,7 +139,6 @@ describe("AnalyticsView", () => {
     expect(screen.getByText("34")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("200")).toBeInTheDocument();
-    expect(container.querySelectorAll(".spec-card")).toHaveLength(4);
   });
 
   it("falls back to zero on every stat card when task summary is null", () => {

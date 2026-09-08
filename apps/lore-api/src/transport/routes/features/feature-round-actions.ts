@@ -132,7 +132,6 @@ export async function acceptPlan(
 ): Promise<{ lineId: string }> {
   const repo = repoOf(request.params);
   const id = request.params.id;
-  const body = request.payload as { user_answers?: unknown };
   const project = await projectFor(repo);
   const feature = await project.features.get(id);
 
@@ -153,6 +152,9 @@ export async function acceptPlan(
     apiError(409, runIdBothSpellings(runId)),
     "no plan is waiting to be accepted — this feature's line is not parked on the author",
   );
+
+  const body = request.payload as { user_answers?: unknown };
+
   await reportToParkedNode(eventReporterFor(getPool()), parked, {
     outcome: "success",
     args: acceptArgs(feature, body.user_answers),

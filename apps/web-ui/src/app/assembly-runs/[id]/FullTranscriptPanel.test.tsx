@@ -227,7 +227,7 @@ describe("FullTranscriptPanel", () => {
   });
 
   it("a failed walk retries when the panel is reopened", async () => {
-    const fetchMock = stubFetch(
+    stubFetch(
       new Response("{}", { status: 500 }),
       turnsResponse([wireTurn("1", "implement")]),
     );
@@ -242,7 +242,7 @@ describe("FullTranscriptPanel", () => {
     await openPanel(container);
 
     expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
   });
 
   it("a reopened retry shows Loading instead of the stale error", async () => {
