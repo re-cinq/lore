@@ -41,6 +41,20 @@ async function searchWithOrgSharedFallback(
   return hybridSearch(query, "org_shared", limit);
 }
 
+function renderScoredPassages(
+  query: string,
+  results: { rrf_score: number; content: string }[],
+): { content: Array<{ type: "text"; text: string }> } {
+  if (results.length === 0) {
+    return textResult(`No results for "${query}".`);
+  }
+  const text = results
+    .map((r) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`)
+    .join("\n\n---\n\n");
+
+  return textResult(text);
+}
+
 /** Hybrid vector+BM25 search over the team schema, falling back to org_shared when the team has no hits. */
 async function searchDbContext(
   query: string,
@@ -57,14 +71,7 @@ async function searchDbContext(
     resultCount: results.length,
   });
 
-  if (results.length === 0) {
-    return textResult(`No results for "${query}".`);
-  }
-  const text = results
-    .map((r) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`)
-    .join("\n\n---\n\n");
-
-  return textResult(text);
+  return renderScoredPassages(query, results);
 }
 
 interface ParagraphScan {
@@ -148,6 +155,20 @@ function resolveSearchRoot(team: string | undefined): string {
   return team ? join(CONTEXT_PATH, "teams", team) : CONTEXT_PATH;
 }
 
+function renderSourcedParagraphs(
+  query: string,
+  results: { source: string; paragraph: string }[],
+): { content: Array<{ type: "text"; text: string }> } {
+  if (results.length === 0) {
+    return textResult(`No results found for "${query}".`);
+  }
+  const text = results
+    .map((r) => `**Source:** ${r.source}\n\n${r.paragraph}`)
+    .join("\n\n---\n\n");
+
+  return textResult(text);
+}
+
 /** Case-insensitive substring scan of local .md files, used when no DB is available. */
 function fileFallbackSearch(
   query: string,
@@ -169,14 +190,7 @@ function fileFallbackSearch(
     resultCount: results.length,
   });
 
-  if (results.length === 0) {
-    return textResult(`No results found for "${query}".`);
-  }
-  const text = results
-    .map((r) => `**Source:** ${r.source}\n\n${r.paragraph}`)
-    .join("\n\n---\n\n");
-
-  return textResult(text);
+  return renderSourcedParagraphs(query, results);
 }
 
 function registerSearchContextTool(server: McpServer) {

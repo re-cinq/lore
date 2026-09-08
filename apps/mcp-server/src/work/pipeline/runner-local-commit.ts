@@ -28,15 +28,17 @@ export async function completeWithoutChanges(
   await updateTaskViaAPI(task.taskId, "completed", { no_changes: true });
 }
 
-/** Commit, push, and open the PR through `gh` — the developer's own auth, never the platform's. */
-function pushAndOpenPr(task: LocalTask): string {
-  const branchTail = task.branch.split("/").pop() || task.taskId;
-  const body = [
+// The PR's body, naming the task so the run is traceable back from GitHub.
+function prBody(task: LocalTask): string {
+  return [
     "Local task executed by Lore on developer machine.",
     "",
     `Task ID: ${task.taskId}`,
   ].join("\n");
+}
 
+// Commit then push. The push gets the longer timeout — it is the step that talks to the network, and a slow remote is not a failure.
+function commitAndPush(task: LocalTask, branchTail: string): void {
   execSync(`git commit -m "lore: local — ${branchTail}"`, {
     cwd: task.worktreePath,
     stdio: "pipe",
@@ -47,11 +49,36 @@ function pushAndOpenPr(task: LocalTask): string {
     stdio: "pipe",
     timeout: 60000,
   });
+}
+
+/** Commit, push, and open the PR through `gh` — the developer's own auth, never the platform's. */
+function pushAndOpenPr(task: LocalTask): string {
+  const branchTail = task.branch.split("/").pop() || task.taskId;
+  const body = prBody(task);
+
+  commitAndPush(task, branchTail);
 
   return execSync(
     `gh pr create --title "lore: local — ${branchTail}" --body "${body}" --head ${task.branch}`,
     { cwd: task.worktreePath, encoding: "utf-8", timeout: 30000 },
   ).trim();
+}
+
+// Stages everything and reports whether the INDEX actually has changes. Checked against `git diff --cached` rather than `git status --porcelain`, which can list files that `add` then strips (#250) — staging is not the same as having something to commit.
+function stageAll(task: LocalTask): boolean {
+  execSync("git add -A", {
+    cwd: task.worktreePath,
+    stdio: "pipe",
+    timeout: 30000,
+  });
+
+  return Boolean(
+    execSync("git diff --cached --name-only", {
+      cwd: task.worktreePath,
+      encoding: "utf-8",
+      timeout: 10000,
+    }).trim(),
+  );
 }
 
 /** Stages the worktree, then commits, pushes, and opens a PR — or marks the task completed when nothing staged. */
@@ -60,20 +87,7 @@ async function commitAndOpenPr(
   tasks: LocalTask[],
   idx: number,
 ): Promise<void> {
-  execSync("git add -A", {
-    cwd: task.worktreePath,
-    stdio: "pipe",
-    timeout: 30000,
-  });
-
-  // Verify the index actually has changes before commit/push/PR — `git status --porcelain` can include files stripped on add (#250).
-  const stagedFiles = execSync("git diff --cached --name-only", {
-    cwd: task.worktreePath,
-    encoding: "utf-8",
-    timeout: 10000,
-  }).trim();
-
-  if (!stagedFiles) {
+  if (!stageAll(task)) {
     await completeWithoutChanges(task, tasks, idx);
 
     return;
@@ -87,6 +101,14 @@ async function commitAndOpenPr(
   await updateTaskViaAPI(task.taskId, "pr-created", { pr_url: prUrl });
 }
 
+// The paths out of `git status --porcelain`. The first three characters are the two status columns and a space, so the path starts at index 3 — a rename's "old -> new" form is left as written, which is what the caller passes to the validators anyway.
+function changedPaths(status: string): string[] {
+  return status
+    .split("\n")
+    .map((line) => line.substring(3).trim())
+    .filter(Boolean);
+}
+
 /** Validates then commits/PRs the worktree's uncommitted changes. */
 async function processWorktreeChanges(
   task: LocalTask,
@@ -94,10 +116,7 @@ async function processWorktreeChanges(
   idx: number,
   status: string,
 ): Promise<"validation-failed" | "done"> {
-  const changedFiles = status
-    .split("\n")
-    .map((line) => line.substring(3).trim())
-    .filter(Boolean);
+  const changedFiles = changedPaths(status);
   const validationVerdict = await validateBeforeCommit(
     task,
     tasks,
@@ -136,17 +155,22 @@ export function removeWorktree(task: LocalTask): void {
   }
 }
 
+// What the run left in the worktree. This is the whole verdict on whether it did anything: an empty status means the agent finished without changing a file.
+function worktreeStatus(task: LocalTask): string {
+  return execSync("git status --porcelain", {
+    cwd: task.worktreePath,
+    encoding: "utf-8",
+    timeout: 10000,
+  }).trim();
+}
+
 /** What the finished run left behind. `git status --porcelain` in the worktree is the whole verdict on whether it did anything; the worktree goes away in both settled cases. */
 async function settleRun(
   task: LocalTask,
   tasks: LocalTask[],
   idx: number,
 ): Promise<string> {
-  const status = execSync("git status --porcelain", {
-    cwd: task.worktreePath,
-    encoding: "utf-8",
-    timeout: 10000,
-  }).trim();
+  const status = worktreeStatus(task);
   const verdict = status
     ? await processWorktreeChanges(task, tasks, idx, status)
     : "no-changes";

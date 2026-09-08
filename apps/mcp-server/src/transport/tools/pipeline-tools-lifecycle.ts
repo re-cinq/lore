@@ -33,6 +33,18 @@ function resolveTaskRepo(targetRepo: string | undefined): string | undefined {
   return targetRepo || detectCurrentRepo() || undefined;
 }
 
+// The task as the API names its fields — `task_type` and `target_repo` rather than the tool's own vocabulary.
+function taskBody(args: CreateTaskArgs, resolvedRepo: string | undefined) {
+  return {
+    description: args.description,
+    task_type: args.task_type,
+    target_repo: resolvedRepo,
+    priority: args.priority,
+    group_id: args.group_id,
+    context: args.context,
+  };
+}
+
 async function postTask(
   apiUrl: string,
   apiToken: string,
@@ -46,15 +58,22 @@ async function postTask(
       Authorization: `Bearer ${apiToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      description: args.description,
-      task_type: args.task_type,
-      target_repo: resolvedRepo,
-      priority: args.priority,
-      group_id: args.group_id,
-      context: args.context,
-    }),
+    body: JSON.stringify(taskBody(args, resolvedRepo)),
   });
+}
+
+// Every read a new task makes stale. Listed rather than cleared wholesale: a task creation says nothing about memories or the graph, and dropping those caches would cost round trips for no reason.
+const TASK_DERIVED_READS = [
+  "lore_list_pipeline_tasks",
+  "lore_list_pending_tasks",
+  "lore_get_pipeline_status",
+];
+
+// What happens next, which is the one thing a caller cannot read off the returned id.
+function pickupHint(priority: string | undefined): string {
+  return priority === "immediate"
+    ? "The GKE agent will pick this up within 30 seconds."
+    : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
 }
 
 /** The uuid plus what to do next — the pickup hint differs by priority, which is the one thing a caller cannot read off the id. */
@@ -67,16 +86,9 @@ async function createdResult(
     task_id?: string;
     task_type?: string;
   };
-  const pickup =
-    args.priority === "immediate"
-      ? "The GKE agent will pick this up within 30 seconds."
-      : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
 
-  invalidateCache([
-    "lore_list_pipeline_tasks",
-    "lore_list_pending_tasks",
-    "lore_get_pipeline_status",
-  ]);
+  invalidateCache(TASK_DERIVED_READS);
+  const pickup = pickupHint(args.priority);
 
   return textResult(
     `Task created: ${result.task_id}\nType: ${result.task_type || args.task_type}\nPriority: ${args.priority}\nRepo: ${resolvedRepo || "default"}\n\n${pickup}`,
@@ -149,6 +161,11 @@ async function fetchPipelineStatusText(taskId: string): Promise<ToolText> {
     return unreachableError("getting pipeline status", errorMessage(err));
   }
 
+  return statusResponse(res);
+}
+
+// The task's stored status, or why it could not be read. A denial is distinguished from any other failure: one means the token is wrong, the other that the task or the API is.
+async function statusResponse(res: Response) {
   if (isAuthDenied(res.status)) {
     return deniedError("getting pipeline status", res.statusText);
   }
@@ -179,39 +196,52 @@ function registerGetPipelineStatusTool(server: McpServer) {
   );
 }
 
+// The live PR verdict, straight from GitHub via the API.
+async function prStatusHandler({
+  repo,
+  pr_number,
+}: {
+  repo: string;
+  pr_number: number;
+}) {
+  try {
+    const params = new URLSearchParams({
+      repo,
+      pr_number: String(pr_number),
+    });
+    const proxied = await proxyGetApi(`/api/pr-status?${params}`);
+
+    return proxied.ok
+      ? textResult(JSON.stringify(JSON.parse(proxied.body), null, 2))
+      : prStatusRefusal(proxied);
+  } catch (err) {
+    return textResult(`Error getting PR status: ${errorMessage(err)}`);
+  }
+}
+
+// A read with no local fallback, so the server's own reason is surfaced plainly rather than the write-oriented "unreachable" copy.
+function prStatusRefusal(
+  proxied: Exclude<Awaited<ReturnType<typeof proxyGetApi>>, { ok: true }>,
+) {
+  if (proxied.reason === "not_configured") {
+    return unconfiguredError("getting PR status");
+  }
+
+  if (proxied.reason === "denied") {
+    return deniedError("lore_get_pr_status", proxied.detail);
+  }
+
+  return textResult(
+    `Could not fetch PR status from the Lore API: ${proxied.detail}`,
+  );
+}
+
 function registerGetPrStatusTool(server: McpServer) {
   server.tool(
     "lore_get_pr_status",
     "Fetches live PR state from GitHub and returns a derived computed_status (merged | closed | draft | checks-failing | changes-requested | approved | open) plus CI checks and reviews. Use this for the real-time PR/CI/review verdict. Instead: lore_get_pipeline_status for the Lore task's stored status and event timeline.",
     GET_PR_STATUS_INPUT,
-    async ({ repo, pr_number }) => {
-      try {
-        const params = new URLSearchParams({
-          repo,
-          pr_number: String(pr_number),
-        });
-        const proxied = await proxyGetApi(`/api/pr-status?${params}`);
-
-        if (proxied.ok) {
-          return textResult(JSON.stringify(JSON.parse(proxied.body), null, 2));
-        }
-
-        if (proxied.reason === "not_configured") {
-          return unconfiguredError("getting PR status");
-        }
-
-        if (proxied.reason === "denied") {
-          return deniedError("lore_get_pr_status", proxied.detail);
-        }
-
-        // A read with no local fallback: surface the server's reason plainly rather than the write-oriented "unreachable" copy.
-        return textResult(
-          `Could not fetch PR status from the Lore API: ${proxied.detail}`,
-        );
-      } catch (err) {
-        return textResult(`Error getting PR status: ${errorMessage(err)}`);
-      }
-    },
+    prStatusHandler,
   );
 }
 

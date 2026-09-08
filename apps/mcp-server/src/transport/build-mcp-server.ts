@@ -26,6 +26,23 @@ function resolveServerMode(): ServerMode {
   return process.env.LORE_MCP_SERVER_MODE === "agent" ? "agent" : "full";
 }
 
+function registerSharedTools(server: McpServer): void {
+  registerContextTools(server);
+  registerMemoryTools(server);
+  registerSpecTraceTools(server);
+  registerUsageTools(server);
+  registerRepoTools(server);
+}
+
+// Registered only outside `agent` mode: lore_create_pipeline_task is the recursion vector, and the rest need a developer's own machine.
+function registerLaptopOnlyTools(server: McpServer): void {
+  registerPipelineTools(server);
+  registerLocalRunnerTools(server);
+  registerSpecTraceLocalTools(server);
+  // lore_update rebuilds ~/.re-cinq/lore, a laptop-only checkout the gateway's agent pods do not have.
+  registerUpdateTools(server);
+}
+
 // Builds the McpServer; in `agent` mode the pipeline tools (lore_create_pipeline_task, the recursion vector), local-runner tools, local spec-trace runners, and lore_update are NOT registered.
 export function buildMcpServer(
   opts: { serverMode?: ServerMode } = {},
@@ -36,18 +53,10 @@ export function buildMcpServer(
   );
   const serverMode = opts.serverMode ?? resolveServerMode();
 
-  registerContextTools(server);
-  registerMemoryTools(server);
-  registerSpecTraceTools(server);
-  registerUsageTools(server);
-  registerRepoTools(server);
+  registerSharedTools(server);
 
   if (serverMode !== "agent") {
-    registerPipelineTools(server);
-    registerLocalRunnerTools(server);
-    registerSpecTraceLocalTools(server);
-    // lore_update rebuilds ~/.re-cinq/lore, a laptop-only checkout the gateway's agent pods do not have.
-    registerUpdateTools(server);
+    registerLaptopOnlyTools(server);
   }
 
   return server;

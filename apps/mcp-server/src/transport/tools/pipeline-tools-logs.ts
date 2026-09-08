@@ -94,24 +94,32 @@ async function cachedLogRead(read: {
   return interpretLogsProxy(read.tool, proxied);
 }
 
+/** The API resolves the task's repo from task_id — the local adapter holds no DB to look it up in. An absent cursor is left out of the cache key rather than keyed as undefined, so the first page and a re-read of it share one entry. */
+function getTaskLogs(read: {
+  task_id: string;
+  offset: number;
+  cursor?: string;
+}) {
+  const { task_id, offset, cursor } = read;
+
+  return cachedLogRead({
+    tool: "lore_get_task_logs",
+    missing: "Task logs require LORE_API_URL.",
+    path: (apiUrl) =>
+      `${apiUrl}/api/task-logs?${buildTaskLogsParams(task_id, offset, cursor)}`,
+    args:
+      cursor === undefined ? { task_id, offset } : { task_id, offset, cursor },
+  });
+}
+
 function registerGetTaskLogsTool(server: McpServer) {
   server.tool(
     "lore_get_task_logs",
     "Fetches one pipeline task's execution transcript (by UUID), returning {logs, next_offset, complete, cursor?}. Tasks with recorded agent turns return NDJSON — one {source, event} stream-json envelope per line from the turn store; tasks with no recorded turns fall back to the raw captured output. Responses may be capped: pass next_offset back as offset (and cursor back verbatim, when present) and poll until complete is true. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.",
     GET_TASK_LOGS_INPUT,
-    async ({ task_id, offset, cursor }) => {
+    async (args) => {
       try {
-        // The API resolves the task's repo from task_id — the local adapter holds no DB to look it up in.
-        return await cachedLogRead({
-          tool: "lore_get_task_logs",
-          missing: "Task logs require LORE_API_URL.",
-          path: (apiUrl) =>
-            `${apiUrl}/api/task-logs?${buildTaskLogsParams(task_id, offset, cursor)}`,
-          args:
-            cursor === undefined
-              ? { task_id, offset }
-              : { task_id, offset, cursor },
-        });
+        return await getTaskLogs(args);
       } catch (err) {
         return textResult(`Error getting task logs: ${errorMessage(err)}`);
       }

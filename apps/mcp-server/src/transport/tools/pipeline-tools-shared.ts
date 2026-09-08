@@ -63,6 +63,23 @@ export function isAuthDenied(status: number): boolean {
   return status === 401 || status === 403;
 }
 
+// A non-retriable status means the server answered and refused (e.g. 409); reporting "unreachable" would wrongly blame the network for the server's verdict.
+function describeProxyOutage(
+  proxied: Extract<ProxyResult, { reason: "unreachable" }>,
+  op: string,
+  subject?: string,
+): ToolText {
+  if (proxied.status) {
+    return toolText(`The Lore API refused ${op}: ${proxied.detail}`);
+  }
+
+  return subject
+    ? toolText(
+        `Could not fetch ${subject} from the Lore API: ${proxied.detail}`,
+      )
+    : unreachableError(op, proxied.detail);
+}
+
 /** Maps every failure reason of a resolved (non-ok) ProxyResult to its tool text. */
 function describeProxyFailure(
   proxied: Extract<ProxyResult, { ok: false }>,
@@ -78,33 +95,21 @@ function describeProxyFailure(
     return deniedError(toolName, proxied.detail);
   }
 
-  // A non-retriable status means the server answered and refused (e.g. 409); reporting "unreachable" would wrongly blame the network for the server's verdict.
-  if (proxied.status) {
-    return toolText(`The Lore API refused ${op}: ${proxied.detail}`);
-  }
+  return describeProxyOutage(proxied, op, subject);
+}
 
-  return subject
-    ? toolText(
-        `Could not fetch ${subject} from the Lore API: ${proxied.detail}`,
-      )
-    : unreachableError(op, proxied.detail);
+export interface ProxiedTextOptions {
+  op: string;
+  toolName: string;
+  /** Set for reads: names what could not be fetched, with no write-loss copy. */
+  subject?: string;
+  render: (body: unknown) => string;
 }
 
 // Runs a proxied call and maps every failure (no pool per ADR-032: config gap, denial, outage) to its own tool text rather than a misleading "requires PostgreSQL".
 export async function proxiedText(
   call: () => Promise<ProxyResult>,
-  {
-    op,
-    toolName,
-    subject,
-    render,
-  }: {
-    op: string;
-    toolName: string;
-    /** Set for reads: names what could not be fetched, with no write-loss copy. */
-    subject?: string;
-    render: (body: unknown) => string;
-  },
+  { op, toolName, subject, render }: ProxiedTextOptions,
 ): Promise<ToolText> {
   try {
     const proxied = await call();
@@ -156,15 +161,10 @@ function noPendingTasksMessage(filterRepo: string | undefined): string {
     : "No pending tasks.";
 }
 
-/** The pending-task list via the API, grouped by repo; null when the API is unavailable. */
-export async function listPendingTasksViaApi(
-  filterRepo: string | undefined,
-): Promise<{ content: Array<{ type: "text"; text: string }> } | null> {
-  const creds = resolveApiCredentials();
-
-  if (!creds) {
-    return null;
-  }
+/** Null means the API could not answer at all, which callers turn into a local fallback rather than an empty list. */
+async function fetchPendingTasks(
+  creds: ApiCredentials,
+): Promise<RemoteTaskLite[] | null> {
   const resp = await fetch(
     `${creds.apiUrl}/api/tasks?status=pending&limit=50`,
     {
@@ -177,7 +177,25 @@ export async function listPendingTasksViaApi(
     return null;
   }
   const body = (await resp.json()) as { tasks?: RemoteTaskLite[] };
-  const tasks = filterByRepo(body.tasks || [], filterRepo);
+
+  return body.tasks || [];
+}
+
+/** The pending-task list via the API, grouped by repo; null when the API is unavailable. */
+export async function listPendingTasksViaApi(
+  filterRepo: string | undefined,
+): Promise<{ content: Array<{ type: "text"; text: string }> } | null> {
+  const creds = resolveApiCredentials();
+
+  if (!creds) {
+    return null;
+  }
+  const fetched = await fetchPendingTasks(creds);
+
+  if (!fetched) {
+    return null;
+  }
+  const tasks = filterByRepo(fetched, filterRepo);
 
   if (tasks.length === 0) {
     return textResult(noPendingTasksMessage(filterRepo));

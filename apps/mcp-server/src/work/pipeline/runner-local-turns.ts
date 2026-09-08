@@ -63,6 +63,29 @@ export function buildTurnLines(
   return { lines, dropped };
 }
 
+// Exclusive end index of the batch opening at `start`; the `end > start` guard is what lets a single over-cap line still form a batch of its own rather than stalling the walk.
+function batchEnd(
+  lines: string[],
+  start: number,
+  maxBytes: number,
+  maxLines: number,
+): number {
+  let bytes = 0;
+  let end = start;
+
+  while (end < lines.length && end - start < maxLines) {
+    const lineBytes = Buffer.byteLength(lines[end], "utf8") + 1;
+
+    if (end > start && bytes + lineBytes > maxBytes) {
+      break;
+    }
+    bytes += lineBytes;
+    end++;
+  }
+
+  return end;
+}
+
 // Greedy batches under both relay caps (bytes and line count) — lore-api's body limit is 1MB, so the caller passes ~700KB headroom.
 export function batchTurnLines(
   lines: string[],
@@ -70,26 +93,13 @@ export function batchTurnLines(
   maxLines: number,
 ): string[][] {
   const batches: string[][] = [];
-  let batch: string[] = [];
-  let batchBytes = 0;
+  let start = 0;
 
-  for (const line of lines) {
-    const lineBytes = Buffer.byteLength(line, "utf8") + 1;
+  while (start < lines.length) {
+    const end = batchEnd(lines, start, maxBytes, maxLines);
 
-    if (
-      batch.length > 0 &&
-      (batch.length >= maxLines || batchBytes + lineBytes > maxBytes)
-    ) {
-      batches.push(batch);
-      batch = [];
-      batchBytes = 0;
-    }
-    batch.push(line);
-    batchBytes += lineBytes;
-  }
-
-  if (batch.length > 0) {
-    batches.push(batch);
+    batches.push(lines.slice(start, end));
+    start = end;
   }
 
   return batches;
@@ -133,6 +143,16 @@ function turnLinesToRelay(task: LocalTask, rawLogs: string): string[] {
   return kept;
 }
 
+// A rejected relay is reported only in the status line, so a non-2xx is the sole failure signal a batch ever gets.
+function enforceIngestOk(
+  resp: { ok: boolean; status: number },
+  taskId: string,
+): void {
+  if (!resp.ok) {
+    throw new Error(`turn ingest returned ${resp.status} for task ${taskId}`);
+  }
+}
+
 /** Sends one NDJSON batch. `x-turn-offset` is what makes a resend idempotent — the server keys on it, so a retried batch replaces rather than duplicates. */
 async function postTurns(
   relay: { apiUrl: string; token: string; task: LocalTask },
@@ -151,11 +171,7 @@ async function postTurns(
     body: batch.join("\n"),
   });
 
-  if (!resp.ok) {
-    throw new Error(
-      `turn ingest returned ${resp.status} for task ${task.taskId}`,
-    );
-  }
+  enforceIngestOk(resp, task.taskId);
 }
 
 async function postTurnBatch(
@@ -180,6 +196,28 @@ async function postTurnBatch(
   }
 }
 
+// Each batch declares its cumulative start offset so the relay can key lines by position and dedup a re-POST (#1389); the offset advances on failure too, and a failed batch is counted and skipped rather than aborting — the terminal result line rides last, so stopping early would cost the whole transcript tail.
+async function relayTurnBatches(
+  relay: { apiUrl: string; token: string; task: LocalTask },
+  kept: string[],
+): Promise<number> {
+  let failed = 0;
+  let offset = 0;
+
+  for (const batch of batchTurnLines(
+    kept,
+    TURN_BATCH_MAX_BYTES,
+    TURN_BATCH_MAX_LINES,
+  )) {
+    const posted = await postTurnBatch(relay, batch, offset);
+
+    offset += batch.length;
+    failed += posted ? 0 : 1;
+  }
+
+  return failed;
+}
+
 // Exported for tests (the x-turn-offset accounting); production callers stay inside this module via persistRunArtifacts.
 export async function ingestTurns(
   task: LocalTask,
@@ -192,21 +230,7 @@ export async function ingestTurns(
     return;
   }
   const kept = turnLinesToRelay(task, rawLogs);
-  // A failed batch is counted and skipped, never aborting — the terminal result line rides last, so stopping early would cost the whole transcript tail.
-  let failed = 0;
-  // Each batch declares its cumulative start offset so the relay can key lines by position and dedup a re-POST (#1389); advanced on failure too.
-  let offset = 0;
-
-  for (const batch of batchTurnLines(
-    kept,
-    TURN_BATCH_MAX_BYTES,
-    TURN_BATCH_MAX_LINES,
-  )) {
-    const posted = await postTurnBatch({ apiUrl, token, task }, batch, offset);
-
-    offset += batch.length;
-    failed += posted ? 0 : 1;
-  }
+  const failed = await relayTurnBatches({ apiUrl, token, task }, kept);
 
   if (failed > 0) {
     console.warn(
@@ -216,23 +240,26 @@ export async function ingestTurns(
 }
 
 /** stderr is appended as a trailing block, not interleaved with stdout — chronology across the two streams is lost in the GCS copy. */
-async function uploadLogs(task: LocalTask, rawLogs: string): Promise<void> {
+function combinedRunLog(task: LocalTask, rawLogs: string): string {
   const errFile = errFileFor(task.logFile);
   const stderr = fs.existsSync(errFile)
     ? fs.readFileSync(errFile, "utf-8").trim()
     : "";
-  const combined = stderr ? `${rawLogs}\n--- STDERR ---\n${stderr}\n` : rawLogs;
-  const apiUrl = getApiUrl();
-  const token = getToken();
 
-  if (!apiUrl || !token) {
-    return;
-  }
-  await fetch(`${apiUrl}/api/task-logs`, {
+  return stderr ? `${rawLogs}\n--- STDERR ---\n${stderr}\n` : rawLogs;
+}
+
+/** Redaction happens here, at the last moment before the text leaves the machine, so no caller can relay an unredacted log by mistake. */
+async function postRunLog(
+  relay: { apiUrl: string; token: string },
+  task: LocalTask,
+  combined: string,
+): Promise<void> {
+  await fetch(`${relay.apiUrl}/api/task-logs`, {
     signal: AbortSignal.timeout(30_000),
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${relay.token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -241,6 +268,16 @@ async function uploadLogs(task: LocalTask, rawLogs: string): Promise<void> {
       logs: redactLogs(combined),
     }),
   });
+}
+
+async function uploadLogs(task: LocalTask, rawLogs: string): Promise<void> {
+  const apiUrl = getApiUrl();
+  const token = getToken();
+
+  if (!apiUrl || !token) {
+    return;
+  }
+  await postRunLog({ apiUrl, token }, task, combinedRunLog(task, rawLogs));
 }
 
 // Best-effort persistence of the run's artifacts (redacted log to GCS + redacted transcript to the Floor's turn store); called on EVERY monitorTask exit path, including needs-human-help, since failed runs matter most.

@@ -170,6 +170,23 @@ export function warnBestEffort(op: string, err: unknown): void {
   console.error(`[lore] local-runner: ${op} failed: ${errorMessage(err)}`);
 }
 
+/** The body is passed already assembled so the wire shape stays with the caller that knows the task's metadata; the response is unread because these updates are advisory. */
+async function postTaskUpdate(
+  apiUrl: string,
+  token: string,
+  body: Record<string, unknown>,
+): Promise<void> {
+  await fetch(`${apiUrl}/api/task`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function updateTaskViaAPI(
   taskId: string,
   status: string,
@@ -183,14 +200,10 @@ export async function updateTaskViaAPI(
   }
 
   try {
-    await fetch(`${apiUrl}/api/task`, {
-      signal: AbortSignal.timeout(30_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ task_id: taskId, status, ...metadata }),
+    await postTaskUpdate(apiUrl, token, {
+      task_id: taskId,
+      status,
+      ...metadata,
     });
   } catch (err) {
     warnBestEffort(`status update (${status}) for task ${taskId}`, err);
