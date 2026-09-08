@@ -85,7 +85,7 @@ describe("LlmDispatchGate", () => {
   });
 
   it("stamps the wall clock when constructed without one", () => {
-    const before = Date.now();
+    const before = AT.getTime();
     const gate = new LlmDispatchGate();
 
     gate.trip("anthropic-credit", "Credit balance is too low");

@@ -37,6 +37,7 @@ const run: FeatureRunPayload = {
   tokens: null,
 };
 
+vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-01-01") });
 afterEach(() => {
   vi.unstubAllGlobals();
 });

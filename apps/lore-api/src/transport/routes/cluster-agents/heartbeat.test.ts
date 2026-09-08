@@ -22,7 +22,8 @@ describe("handleHeartbeat", () => {
   it("rejects 401 without a bearer and 403 on a foreign or unknown token", async () => {
     const repository = new InMemoryClusterAgents();
     const agent = await registeredAgent(repository);
-    const deps = { agents: repository, now: () => new Date() };
+    const at = new Date("2026-08-26T10:00:00Z");
+    const deps = { agents: repository, now: () => at };
 
     expect(await handleHeartbeat(deps, undefined, agent.id)).toMatchObject({
       code: 401,

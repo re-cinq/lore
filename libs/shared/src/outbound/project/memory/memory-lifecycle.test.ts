@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PgMemoryLifecycle } from "./memory-lifecycle-pg.js";
 import {
   InMemoryMemoryLifecycle,
@@ -6,6 +6,15 @@ import {
   type FactRow,
 } from "./memory-lifecycle-memory.js";
 import type { PgPool } from "../../memory-store.js";
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function fakePool(responses: Array<{ rows: unknown[] }> = []): {
   pool: PgPool;

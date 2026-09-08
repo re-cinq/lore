@@ -633,6 +633,8 @@ describe("cleanupStaleTasks", () => {
     const env = process.env;
 
     beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
       backup = fs.existsSync(tasksFile)
         ? fs.readFileSync(tasksFile, "utf-8")
         : null;
@@ -642,6 +644,7 @@ describe("cleanupStaleTasks", () => {
     });
 
     afterEach(() => {
+      vi.useRealTimers();
       delete env.GIT_CONFIG_GLOBAL;
       fs.mkdirSync(path.dirname(tasksFile), { recursive: true });
 

@@ -113,7 +113,7 @@ describe("lease span telemetry", () => {
   });
 
   it("reap records only the backend and the count it swept", async () => {
-    await new FileLeaseBackend(tmpDir).reapExpired(new Date());
+    await new FileLeaseBackend(tmpDir).reapExpired(new Date("2026-01-01"));
 
     expect(recordedSpan().attributes).toEqual({
       backend: "file",

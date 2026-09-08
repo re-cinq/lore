@@ -109,7 +109,7 @@ recover`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L626))
 A task whose PID has died is marked failed regardless of how long it ran,
 while a task whose PID is still alive is left untouched. ([validated by
 `marks dead tasks failed and leaves a live one running, unaffected by
-staleness age`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L656))
+staleness age`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L659))
 
 ## Out of Scope
 

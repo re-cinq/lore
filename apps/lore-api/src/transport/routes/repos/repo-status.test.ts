@@ -48,7 +48,7 @@ describe("GET /api/repo-status", () => {
     pool.query
       .mockResolvedValueOnce({
         rows: [
-          { settings: { auto_review: true }, last_ingested_at: new Date() },
+          { settings: { auto_review: true }, last_ingested_at: new Date() }, // eslint-disable-line re-lint/no-nondeterministic-tests -- clock pinned for the file by useRateLimitSafeClock()
         ],
       })
       .mockResolvedValueOnce({ rows: [{ c: "1" }] })
@@ -91,7 +91,7 @@ describe("GET /api/repo-status", () => {
 
     pool.query
       .mockResolvedValueOnce({
-        rows: [{ settings: null, last_ingested_at: new Date() }],
+        rows: [{ settings: null, last_ingested_at: new Date() }], // eslint-disable-line re-lint/no-nondeterministic-tests -- clock pinned for the file by useRateLimitSafeClock()
       })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })

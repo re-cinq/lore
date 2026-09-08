@@ -310,11 +310,11 @@ describe("reduceRunEvent", () => {
 
   it("folds 5000 events in under 500ms", () => {
     const events = Array.from({ length: 5000 }, () => event());
-    const started = performance.now();
+    const started = performance.now(); // eslint-disable-line re-lint/no-nondeterministic-tests -- measuring wall-clock duration is the point of this test
 
     replayTo(initialRunState(implementationDefinition, []), events);
 
-    expect(performance.now() - started).toBeLessThan(500);
+    expect(performance.now() - started).toBeLessThan(500); // eslint-disable-line re-lint/no-nondeterministic-tests -- measuring wall-clock duration is the point of this test
   });
 });
 

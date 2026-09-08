@@ -69,7 +69,7 @@ describe("forEachAgentPage", () => {
 
 describe("reconcileAgents pagination", () => {
   it("prunes an hour-old terminal CR found on a later page", async () => {
-    const old = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const old = "2020-01-01T00:00:00.000Z";
     const { cluster } = fakeLister([
       { items: [], continueToken: "next" },
       { items: [terminalCr("stale", old)] as never },
@@ -82,9 +82,9 @@ describe("reconcileAgents pagination", () => {
   });
 
   it("re-emits a terminal CR whose task is still running", async () => {
-    const now = new Date().toISOString();
+    const recent = "2099-01-01T00:00:00.000Z";
     const { cluster } = fakeLister([
-      { items: [terminalCr("fresh", now)] as never },
+      { items: [terminalCr("fresh", recent)] as never },
     ]);
 
     getById.mockResolvedValue({ status: "running" });
@@ -100,7 +100,7 @@ describe("reconcileAgents pagination", () => {
 
 describe("a page whose CRs reconcile independently", () => {
   it("still prunes the other two CRs of a page when the first one throws, instead of abandoning the whole sweep", async () => {
-    const old = new Date(Date.now() - 7 * 3600_000).toISOString();
+    const old = "2020-01-01T00:00:00.000Z";
     const { cluster } = fakeLister([
       {
         items: [

@@ -56,7 +56,7 @@ describe("wireSchema", () => {
       wire.safeParse({
         id: "r1",
         jobName: "reindex",
-        startedAt: new Date(),
+        startedAt: new Date("2026-01-01T00:00:00.000Z"),
         error: null,
       }).success,
     ).toBe(false);

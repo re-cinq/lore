@@ -1,9 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import {
   InMemoryMemoryLifecycle,
   type MemoryLifecycleRow,
 } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-memory.js";
 import { importanceDecay, MAX_MEMORIES_PER_AGENT } from "./importance-decay.js";
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const DAY_MS = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY_MS).toISOString();

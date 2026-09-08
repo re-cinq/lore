@@ -111,7 +111,7 @@ describe.skipIf(!reachable)("graph baseline (live Dgraph)", () => {
     const at = new Date("2026-08-07T10:30:00.000Z");
 
     await stampGraphBaseline(dgraphClient, repo, "8f2a1c3", at);
-    await stampGraphBaseline(dgraphClient, repo, "", new Date());
+    await stampGraphBaseline(dgraphClient, repo, "", new Date("2026-08-08"));
 
     expect(await readGraphBaseline(dgraphClient, repo)).toMatchObject({
       commit: "8f2a1c3",

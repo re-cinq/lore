@@ -385,7 +385,7 @@ describe("features routes", () => {
     const recent = {
       ...readyIteration(null),
       status: "running",
-      created_at: new Date().toISOString(),
+      created_at: new Date().toISOString(), // eslint-disable-line re-lint/no-nondeterministic-tests -- clock pinned for the file by useRateLimitSafeClock()
     };
 
     useProject(

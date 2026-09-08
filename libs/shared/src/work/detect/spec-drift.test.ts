@@ -74,7 +74,7 @@ function buildProject(specPaths: string[]): {
         task_type: "gap-fill",
         status: "pending",
         priority: "normal",
-        created_at: new Date().toISOString(),
+        created_at: "2026-01-01T00:00:00.000Z",
       };
     },
   } as unknown as TaskStorePort;
