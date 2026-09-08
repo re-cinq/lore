@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { toRow } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
@@ -16,11 +14,8 @@ import { getOnboardedReposWithCounts } from "../../../work/repo/repo-onboard.js"
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import {
-  DB_UNAVAILABLE,
-  clampedLimit,
-  offsetParam,
-} from "../common-schemas.js";
+import { clampedLimit, offsetParam } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 // Defaults to the max page so orgs with <=100 repos still get them all in one call (pre-pagination behavior).
 const ReposQuery = z.object({
@@ -65,13 +60,10 @@ async function repoListPage(pool: Pool, limit: number, offset: number) {
 
 /** A page of onboarded repos with their per-repo metadata and task counts. */
 async function serveRepoList(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { limit, offset } = request.query as unknown as ReposQuery;
 
   try {
@@ -95,6 +87,6 @@ export function reposRoute(getPool: () => Pool | null): ServerRoute {
       RepoListResponse,
       { name: "RepoList", description: "A page of onboarded repos" },
     ),
-    handler: (request, h) => serveRepoList(getPool, request, h),
+    handler: withPool(getPool, serveRepoList),
   };
 }

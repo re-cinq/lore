@@ -58,21 +58,29 @@ async function announceFailure(
   console.log(`[agent-watcher] Task ${ctx.taskId} failed: ${reason}`);
 }
 
-async function recordTaskFailure(
-  ctx: AgentContext,
-  failedTask: PipelineTask,
+/** Failing a task is both writes or neither: the status is what the queue reads back, the running→failed event is what the timeline shows. */
+async function markTaskFailed(
+  taskId: string,
   { reason, taskUrl }: { reason: string; taskUrl: string | undefined },
+  eventExtra: Record<string, unknown> = {},
 ): Promise<void> {
-  const { taskId } = ctx;
-
   await taskStore().setStatus(taskId, "failed", {
     failure_reason: reason,
     log_url: taskUrl,
   });
   await taskStore().recordEvent(taskId, "running", "failed", {
     error: reason,
+    ...eventExtra,
   });
-  await announceFailure(ctx, failedTask, reason);
+}
+
+async function recordTaskFailure(
+  ctx: AgentContext,
+  failedTask: PipelineTask,
+  failure: { reason: string; taskUrl: string | undefined },
+): Promise<void> {
+  await markTaskFailed(ctx.taskId, failure);
+  await announceFailure(ctx, failedTask, failure.reason);
 }
 
 /** Bounded re-queue of a transient-infra failure, carrying the retry count forward and keeping the Issue thread. */
@@ -124,15 +132,11 @@ async function requeueTransientInfraFailure(
 ): Promise<void> {
   const { taskId } = ctx;
 
-  await taskStore().setStatus(taskId, "failed", {
-    failure_reason: reason,
-    log_url: taskUrl,
-  });
-  await taskStore().recordEvent(taskId, "running", "failed", {
-    error: reason,
-    transient_infra: true,
-    infra_retry: infraRetries + 1,
-  });
+  await markTaskFailed(
+    taskId,
+    { reason, taskUrl },
+    { transient_infra: true, infra_retry: infraRetries + 1 },
+  );
   await fileRetry(ctx, failedTask, infraRetries);
   console.log(
     `[agent-watcher] Task ${taskId} transient infra failure (${reason}) — re-queued ${infraRetries + 1}/${MAX_INFRA_RETRIES}`,

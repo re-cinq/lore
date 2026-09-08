@@ -21,6 +21,7 @@ import {
   ChunksQuery,
 } from "./chunks-browse-schemas.js";
 import { schemaReaders } from "./chunk-schema-readers.js";
+import { withPool } from "../with-pool.js";
 
 /** Context browser chunk reads via schema union (ADR-032); queries per-team schemas + org_shared. */
 
@@ -295,13 +296,10 @@ async function readChunksByPath(
 }
 
 async function serveChunksByPath(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { path, repo } = request.query as unknown as ByPathQuery;
 
   return h.response({ chunks: await readChunksByPath(pool, path, repo) });
@@ -322,6 +320,6 @@ function chunksByPathRoute(getPool: () => Pool | null): ServerRoute {
         description: "Every chunk ingested from one file",
       },
     ),
-    handler: (request, h) => serveChunksByPath(getPool, request, h),
+    handler: withPool(getPool, serveChunksByPath),
   };
 }

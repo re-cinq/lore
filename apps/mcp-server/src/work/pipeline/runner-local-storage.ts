@@ -171,7 +171,7 @@ export function warnBestEffort(op: string, err: unknown): void {
 }
 
 /** The body is passed already assembled so the wire shape stays with the caller that knows the task's metadata; the response is unread because these updates are advisory. */
-async function postTaskUpdate(
+export async function postTaskUpdate(
   apiUrl: string,
   token: string,
   body: Record<string, unknown>,

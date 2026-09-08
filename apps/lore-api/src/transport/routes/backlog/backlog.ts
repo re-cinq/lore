@@ -14,7 +14,6 @@ import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 import {
   ImplementationLoopSchema,
   ToggleBodySchema,
@@ -28,6 +27,7 @@ import {
   taskTicket,
   type LoopTaskRow,
 } from "./backlog-ticket.js";
+import { withPool } from "../with-pool.js";
 
 export { pipelineOf } from "./backlog-ticket.js";
 
@@ -232,18 +232,15 @@ function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
       description:
         "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
     }),
-    handler: (request, h) => serveReadBacklog(getPool, request, h),
+    handler: withPool(getPool, serveReadBacklog),
   };
 }
 
 async function serveReadBacklog(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const state = await loadBacklogState(pool, repoOf(request.params));
 
   return h
@@ -304,18 +301,15 @@ function writeBacklogRoute(getPool: () => Pool | null): ServerRoute {
         description: "Enable or disable the repo's backlog loop.",
       },
     ),
-    handler: (request, h) => serveToggleBacklog(getPool, request, h),
+    handler: withPool(getPool, serveToggleBacklog),
   };
 }
 
 async function serveToggleBacklog(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const repo = repoOf(request.params);
   const { enabled } = request.payload as { enabled: boolean };
 

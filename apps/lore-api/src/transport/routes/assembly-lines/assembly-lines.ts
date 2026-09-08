@@ -11,7 +11,7 @@ import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { clampedLimit, DB_UNAVAILABLE } from "../common-schemas.js";
+import { clampedLimit } from "../common-schemas.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import type { AssemblyRunStatus } from "@re-cinq/lore-shared/models/assembly-run.js";
@@ -24,6 +24,7 @@ import {
   toRunRow,
   TokenUsageSchema,
 } from "./run-row.js";
+import { withPool } from "../with-pool.js";
 
 // Assembly-line reads for the run views, moved verbatim from web-ui (ADR-032: UI holds no pool); every read degrades to empty (not 500) on a database predating migrations 0025/0037.
 
@@ -106,14 +107,11 @@ async function runListRows(
 
 /** A page of runs, newest first. Filters are applied in SQL rather than after the fetch, because a busy org's run table is large and the page is small. */
 async function serveRunList(
-  getPool: () => Pool | null,
+  pool: Pool,
   portFor: (pool: Pool) => AssemblyRunsPort,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const query = request.query as unknown as RunsQuery;
 
   try {
@@ -128,6 +126,18 @@ async function serveRunList(
     throw err;
   }
 }
+
+/** Every run route needs the pool AND the runs port; this states the pairing once. */
+const runHandler = (
+  getPool: () => Pool | null,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+  serve: (
+    pool: Pool,
+    portFor: (pool: Pool) => AssemblyRunsPort,
+    request: Request,
+    h: ResponseToolkit,
+  ) => Promise<ResponseObject>,
+) => withPool(getPool, (pool, request, h) => serve(pool, portFor, request, h));
 
 function listRunsRoute(
   getPool: () => Pool | null,
@@ -147,7 +157,7 @@ function listRunsRoute(
       RunListSchema,
       meta,
     ),
-    handler: (request, h) => serveRunList(getPool, portFor, request, h),
+    handler: runHandler(getPool, portFor, serveRunList),
   };
 }
 
@@ -172,15 +182,11 @@ function stationRunRow(visit: StationRunVisit) {
 
 /** The run's station visits in VISIT order, not node order — a line that loops visits the same node more than once, and the sequence is what the timeline draws. */
 async function serveRunNodes(
-  getPool: () => Pool | null,
+  pool: Pool,
   portFor: (pool: Pool) => AssemblyRunsPort,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   try {
     const visits = await portFor(pool).listStationRuns(request.params.id);
 
@@ -205,7 +211,7 @@ function runNodesRoute(
       name: "StationRunList",
       description: "The run's station visits, in visit order",
     }),
-    handler: (request, h) => serveRunNodes(getPool, portFor, request, h),
+    handler: runHandler(getPool, portFor, serveRunNodes),
   };
 }
 
@@ -233,15 +239,11 @@ async function sumRunTokens(pool: Pool, runId: string): Promise<unknown> {
 }
 
 async function serveRunTokenUsage(
-  getPool: () => Pool | null,
+  pool: Pool,
   portFor: (pool: Pool) => AssemblyRunsPort,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   try {
     return h.response({
       usage: await sumRunTokens(pool, request.params.id as string),
@@ -266,21 +268,17 @@ function runTokenUsageRoute(
       name: "AssemblyRunTokenUsage",
       description: "Tokens spent so far on the run",
     }),
-    handler: (request, h) => serveRunTokenUsage(getPool, portFor, request, h),
+    handler: runHandler(getPool, portFor, serveRunTokenUsage),
   };
 }
 
 /** The flat by-id record. A database predating the run tables reads as "not found" rather than a 500 — the row genuinely is not there. */
 async function serveRunDetail(
-  getPool: () => Pool | null,
+  pool: Pool,
   portFor: (pool: Pool) => AssemblyRunsPort,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   try {
     const run = await portFor(pool).getById(request.params.id);
 
@@ -311,6 +309,6 @@ function runDetailRoute(
       description: "One run, carrying the blueprint clone it walked",
       errors: [404],
     }),
-    handler: (request, h) => serveRunDetail(getPool, portFor, request, h),
+    handler: runHandler(getPool, portFor, serveRunDetail),
   };
 }

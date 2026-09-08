@@ -1,7 +1,5 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { secretEquals } from "@re-cinq/lore-shared/lib/secret-equals.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type {
   Request,
   ResponseObject,
@@ -24,7 +22,7 @@ import {
 } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 /** Cluster registration: joins the registry and receives a per-agent token (FR1). */
 
@@ -159,13 +157,10 @@ export async function handleRegister(
 
 /** A cluster-agent introducing itself. Registration is mandatory in every cluster: nothing is ever pushed to an agent, so an unregistered process would simply never be given work. */
 async function serveRegister(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const bearer = extractBearer(request.headers.authorization);
 
   const result = await handleRegister(
@@ -201,6 +196,6 @@ export function clusterAgentRegisterRoute(
     method: "POST",
     path: "/api/cluster-agents/register",
     options: REGISTER_OPTIONS,
-    handler: (request, h) => serveRegister(getPool, request, h),
+    handler: withPool(getPool, serveRegister),
   };
 }

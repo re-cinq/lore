@@ -12,11 +12,11 @@ import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 import {
   parseDarkFactorySettings,
   twoKeyFieldsTouched,
 } from "../../../work/dark-factory/dark-factory-settings.js";
+import { withPool } from "../with-pool.js";
 
 // THE REFUSAL IS THE POINT: a patch touching privileged dark-factory fields is refused outright (nothing written) to keep the CODEOWNER-approval ceremony on PUT /settings/dark-factory from being bypassed by this blanket merge.
 
@@ -129,13 +129,10 @@ async function applyRepoUpdates(
 
 /** One repo's settings. Cross-repo links are bidirectional, so writing them here also updates the repo on the other side of the link. */
 async function serveRepoSettings(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const repo = `${request.params.owner}/${request.params.repo}`;
   const body = request.payload as RepoSettingsBody;
   const existingTeam = await loadRepoTeam(pool, repo);
@@ -168,6 +165,6 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
         description: "The repo settings were written",
       },
     ),
-    handler: (request, h) => serveRepoSettings(getPool, request, h),
+    handler: withPool(getPool, serveRepoSettings),
   };
 }

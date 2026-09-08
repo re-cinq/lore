@@ -5,13 +5,11 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { RunningPodInfo } from "@re-cinq/lore-shared";
 import { ClusterAgentClient } from "@re-cinq/lore-shared/cluster/cluster-agent-client.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { clusterAgentCredentials } from "../../../work/agents/agent-crd-k8s.js";
 import { spendInterval } from "../../../work/analytics/compute-cost.js";
 import { SpendWindowSchema } from "./spend-window-schema.js";
@@ -24,6 +22,7 @@ import {
   type SpendWindowDeps,
 } from "./spend-window-compute.js";
 import { readBudget } from "./spend-window-budget.js";
+import { withPool } from "../with-pool.js";
 
 export type { SpendWindowDeps } from "./spend-window-compute.js";
 
@@ -75,14 +74,11 @@ function resolveWindow(
 }
 
 async function serveSpendWindow(
-  getPool: () => Pool | null,
+  pool: Pool,
   deps: SpendWindowDeps,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const win = resolveWindow(
     request.query as Record<string, string | undefined>,
     deps,
@@ -119,6 +115,8 @@ export function spendWindowRoute(
         "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, the recorded balance, and the estimated Kubernetes compute cost",
       errors: [400],
     }),
-    handler: (request, h) => serveSpendWindow(getPool, deps, request, h),
+    handler: withPool(getPool, (pool, request, h) =>
+      serveSpendWindow(pool, deps, request, h),
+    ),
   };
 }

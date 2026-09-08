@@ -12,6 +12,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 // Org-wide `lore.settings` (ADR-032); the write is an ALLOWLIST, not a passthrough — an open upsert would let a caller invent settings the platform then reads.
 
@@ -101,13 +102,10 @@ async function applySettingEntries(
 
 /** Writes the org-wide settings every repo inherits where it has not overridden them. */
 async function serveOrgSettingsWrite(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { entries } = request.payload as SettingsBody;
 
   const unknown = entries.find((entry) => !WRITABLE_KEYS.has(entry.key));
@@ -135,19 +133,16 @@ function writeOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
       OkSchema,
       { name: "OrgSettingsSaved", description: "The settings were written" },
     ),
-    handler: (request, h) => serveOrgSettingsWrite(getPool, request, h),
+    handler: withPool(getPool, serveOrgSettingsWrite),
   };
 }
 
 /** How many distinct developers ran a local session against this repo, and when the last one was. */
 async function serveRepoSessions(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const repo = `${request.params.owner}/${request.params.repo}`;
   const { rows } = await pool.query<{ devs: number; last: string | null }>(
     `SELECT count(DISTINCT agent_id)::int AS devs, max(created_at) AS last
@@ -166,6 +161,6 @@ function repoSessionsRoute(getPool: () => Pool | null): ServerRoute {
       name: "RepoSessions",
       description: "Local-session activity against a repo",
     }),
-    handler: (request, h) => serveRepoSessions(getPool, request, h),
+    handler: withPool(getPool, serveRepoSessions),
   };
 }

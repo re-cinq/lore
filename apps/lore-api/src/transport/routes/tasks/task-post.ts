@@ -19,7 +19,7 @@ import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline
 import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 // POST /api/task multiplexes 5 shapes with irregular dispatch (status-update has no `action`, create is the fallback), so a discriminated union would contort (ADR-034 FR6) — branch selection stays in the handler.
 const TaskBody = z.object({
@@ -272,14 +272,10 @@ async function createTaskFromBody(
 
 /** Creating a task, or acknowledging a transition on one — the same endpoint, because the caller is the same MCP tool and the action rides in the body. */
 async function serveTaskPost(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   try {
     const parsed = request.payload as TaskBody;
 
@@ -313,6 +309,6 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
         errors: [400, 404, 409],
       },
     ),
-    handler: (request, h) => serveTaskPost(getPool, request, h),
+    handler: withPool(getPool, serveTaskPost),
   };
 }

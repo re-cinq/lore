@@ -1,8 +1,7 @@
-// Starting a local task: git worktree creation, spawning headless Claude Code detached, and the running-task read paths (list/cancel) that operate on it.
-import { execSync, spawn } from "node:child_process";
+// Starting a local task: git worktree creation, launching the run (see runner-local-claude), and the running-task read paths (list/cancel) that operate on it.
+import { execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as os from "node:os";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   type LocalTask,
@@ -20,8 +19,7 @@ import {
   warnBestEffort,
   writeTasks,
 } from "./runner-local-storage.js";
-import { claudeArgs } from "./runner-local-validation.js";
-import { errFileFor } from "./runner-local-turns.js";
+import { spawnClaude } from "./runner-local-claude.js";
 import { monitorTask } from "./runner-local-commit.js";
 
 // The Lore workflow preamble every locally-run task opens with — nothing is pre-fetched, so the agent assembles its own context through the MCP server as step 1.
@@ -37,29 +35,6 @@ export function withLoreWorkflowPreamble(prompt: string): string {
     "",
     prompt,
   ].join("\n");
-}
-
-/** Headless Claude Code, detached in the worktree. stdout gets the stream-json transcript (the turn-ingest source, #1295); stderr goes to a sibling file so it can never corrupt an NDJSON line mid-write. */
-function spawnRun(
-  worktreePath: string,
-  logFile: string,
-  model: string | undefined,
-  prompt: string,
-): number | undefined {
-  const logFd = fs.openSync(logFile, "w");
-  const errFd = fs.openSync(errFileFor(logFile), "w");
-  const child = spawn("claude", claudeArgs(model, prompt), {
-    cwd: worktreePath,
-    detached: true,
-    stdio: ["ignore", logFd, errFd],
-    env: { ...process.env, HOME: os.homedir() },
-  });
-
-  child.unref();
-  fs.closeSync(logFd);
-  fs.closeSync(errFd);
-
-  return child.pid;
 }
 
 function removeWorktreeAt(repoRoot: string, worktreePath: string): void {
@@ -98,12 +73,13 @@ function spawnOrUnwind(
   run: { worktreePath: string; logFile: string; model: string; prompt: string },
   repoRoot: string,
 ): number {
-  const pid = spawnRun(
-    run.worktreePath,
-    run.logFile,
-    run.model,
-    withLoreWorkflowPreamble(run.prompt),
-  );
+  const pid = spawnClaude({
+    cwd: run.worktreePath,
+    logFile: run.logFile,
+    logMode: "w",
+    model: run.model,
+    prompt: withLoreWorkflowPreamble(run.prompt),
+  });
 
   if (pid === undefined) {
     removeWorktreeAt(repoRoot, run.worktreePath);

@@ -1,6 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type {
   Request,
   ResponseObject,
@@ -11,7 +9,6 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
-import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 import type {
   CatalogEvent,
   CatalogEventsRepository,
@@ -23,7 +20,8 @@ import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
 import type { ClusterAgent } from "@re-cinq/lore-shared/models/cluster-agent.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
+import { authenticateClusterAgent } from "./cluster-agent-auth.js";
 
 // A cluster-agent pulls unapplied catalog changes (fan-out sibling of claim, each agent tailing lore.catalog_events with its own cursor); delivery is AT-LEAST-ONCE, advanced only by `ack` (CRD apply is idempotent so a re-delivered replay is a no-op), and a null cursor answers with the full snapshot as the fresh-cluster bootstrap.
 
@@ -56,26 +54,6 @@ export interface CatalogEventsDeps {
 export interface CatalogCursor {
   ack?: string;
   snapshot?: boolean;
-}
-
-type CatalogAuthFailure = { code: 401 | 403; body: { error: string } };
-
-async function authenticateAgent(
-  deps: CatalogEventsDeps,
-  bearer: string | undefined,
-  agentId: string,
-): Promise<CatalogAuthFailure | { agent: ClusterAgent }> {
-  if (!bearer) {
-    return { code: 401, body: { error: "unauthorized" } };
-  }
-  const agent = await deps.agents.findByTokenHash(hashAgentToken(bearer));
-  const authorized = agent !== null && agent.id === agentId;
-
-  if (!authorized) {
-    return { code: 403, body: { error: "forbidden" } };
-  }
-
-  return { agent };
 }
 
 async function resolveCursor(
@@ -174,7 +152,7 @@ export async function handleCatalogEvents(
   | { code: 200; body: z.infer<typeof CatalogEventsResponse> }
   | { code: 401 | 403 | 503; body: { error: string } }
 > {
-  const auth = await authenticateAgent(deps, bearer, agentId);
+  const auth = await authenticateClusterAgent(deps.agents, bearer, agentId);
 
   if ("code" in auth) {
     return auth;
@@ -213,14 +191,10 @@ function requestedCursor(request: Request): CatalogCursor {
 
 /** The catalog changes a cluster-agent has not applied yet, from its cursor — the pull side of catalog sync, since nothing is pushed to a cluster. */
 async function serveCatalogEvents(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   const result = await handleCatalogEvents(
     catalogEventsDeps(pool),
     extractBearer(request.headers.authorization),
@@ -248,6 +222,6 @@ export function clusterAgentCatalogEventsRoute(
           "The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete",
       },
     ),
-    handler: (request, h) => serveCatalogEvents(getPool, request, h),
+    handler: withPool(getPool, serveCatalogEvents),
   };
 }

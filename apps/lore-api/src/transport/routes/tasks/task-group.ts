@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
@@ -12,7 +10,7 @@ import type {
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 // One multi-repo feature's task rollup; an unknown group answers empty, not 404 — `task_group_id` is free-form, so "no rows" ≡ "never used".
 
@@ -32,14 +30,10 @@ const TaskGroupSchema = z.object({
 
 /** Every task in one feature's group, with completion state — the view that answers whether a multi-repo feature is done. */
 async function serveTaskGroup(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   const { id } = request.params as unknown as GroupParams;
 
   try {
@@ -78,6 +72,6 @@ export function taskGroupRoute(getPool: () => Pool | null): ServerRoute {
         description: "Every task in a group, with completion",
       },
     ),
-    handler: (request, h) => serveTaskGroup(getPool, request, h),
+    handler: withPool(getPool, serveTaskGroup),
   };
 }

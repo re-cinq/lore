@@ -14,6 +14,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 const UNDEFINED_TABLE = "42P01";
 
@@ -104,19 +105,15 @@ export function creditLedgerRoute(getPool: () => Pool | null): ServerRoute {
     method: "POST",
     path: "/api/spend/credits",
     options: CREDIT_LEDGER_OPTIONS,
-    handler: (request, h) => serveCreditEntry(getPool, request, h),
+    handler: withPool(getPool, serveCreditEntry),
   };
 }
 
 async function serveCreditEntry(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   try {
     const entry = await insertCreditEntry(
       pool,

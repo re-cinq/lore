@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type {
@@ -13,7 +11,7 @@ import { onboardRepo } from "../../../work/repo/repo-onboard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 const OnboardBody = z.object({
   repo: z
@@ -53,14 +51,10 @@ const OnboardResultSchema = z.union([
 
 /** Queues a repo's onboarding, or reports the block that refused it. Duplicate protection lives here rather than on the trust ladder — onboarding is allowed at every tier, but only once. */
 async function serveOnboard(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   try {
     const { repo, reonboard } = request.payload as OnboardBody;
     const result = await onboardRepo(pool, repo, { reonboard });
@@ -92,6 +86,6 @@ export function onboardRoute(getPool: () => Pool | null): ServerRoute {
         errors: [400, 409],
       },
     ),
-    handler: (request, h) => serveOnboard(getPool, request, h),
+    handler: withPool(getPool, serveOnboard),
   };
 }

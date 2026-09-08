@@ -7,6 +7,7 @@ import {
   getApiUrl,
   getToken,
   isProcessAlive,
+  postTaskUpdate,
   readTasks,
   writeTasks,
 } from "./runner-local-storage.js";
@@ -36,26 +37,6 @@ function removeOrphanedWorktree(worktreePath: string): void {
   });
 }
 
-/** The response is deliberately unread: the sweep only needs the hand-off attempted, and a rejected requeue is indistinguishable from an unreachable API for its purposes. */
-async function postRequeue(
-  apiUrl: string,
-  token: string,
-  taskId: string,
-): Promise<void> {
-  await fetch(`${apiUrl}/api/task`, {
-    signal: AbortSignal.timeout(30_000),
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      task_id: taskId,
-      action: "requeue",
-    }),
-  });
-}
-
 /** Re-queues a stale local task for GKE (best effort). */
 async function requeueStaleTask(task: LocalTask): Promise<void> {
   const apiUrl = getApiUrl();
@@ -66,7 +47,10 @@ async function requeueStaleTask(task: LocalTask): Promise<void> {
   }
 
   try {
-    await postRequeue(apiUrl, token, task.taskId);
+    await postTaskUpdate(apiUrl, token, {
+      task_id: task.taskId,
+      action: "requeue",
+    });
     task.error = "Stale — re-queued for GKE";
     console.log(`[lore] Stale local task ${task.taskId} re-queued for GKE`);
   } catch {

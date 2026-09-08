@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
@@ -14,7 +12,7 @@ import { ingestFiles } from "../../../work/spec-trace/ingest.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { triggerAgentSpecCoverageValidate } from "../helpers.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 const IngestBody = z.object({
   files: z.array(
@@ -42,14 +40,10 @@ function anyFileLanded(results: unknown): boolean {
 
 /** Stores posted content into a repo's context immediately, rather than waiting for the nightly pass. */
 async function serveIngest(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   try {
     const { files, repo, commit } = request.payload as IngestBody;
     const result = await ingestFiles(pool, files, repo, commit || "HEAD");
@@ -83,6 +77,6 @@ export function ingestRoute(getPool: () => Pool | null): ServerRoute {
         errors: [400],
       },
     ),
-    handler: (request, h) => serveIngest(getPool, request, h),
+    handler: withPool(getPool, serveIngest),
   };
 }

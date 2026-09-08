@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {
@@ -16,7 +14,7 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 // The analytics screen's six reads, one caller (old month-to-date /api/spend moved into /api/analytics/spend-window); job_runs alone derives from the pipeline.job_runs model, not an inline aggregate.
 const AnalyticsOverviewSchema = z.object({
@@ -94,14 +92,10 @@ function overviewQueries(pool: Pool) {
 }
 
 async function serveAnalyticsOverview(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   return h.response(await overviewSections(pool));
 }
 
@@ -115,7 +109,7 @@ export function analyticsOverviewRoute(
       name: "AnalyticsOverview",
       description: "Pipeline and usage roll-ups",
     }),
-    handler: (request, h) => serveAnalyticsOverview(getPool, request, h),
+    handler: withPool(getPool, serveAnalyticsOverview),
   };
 }
 

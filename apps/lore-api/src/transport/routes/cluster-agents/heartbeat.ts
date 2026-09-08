@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type {
   Request,
   ResponseObject,
@@ -10,9 +8,10 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
-import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
+import { authenticateClusterAgent } from "./cluster-agent-auth.js";
+import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
 /** Liveness heartbeat: bumps last_seen_at, revives offline agents to active. */
 
@@ -32,38 +31,26 @@ export async function handleHeartbeat(
   | { code: 200; body: z.infer<typeof HeartbeatResponse> }
   | { code: 401 | 403 | 503; body: { error: string } }
 > {
-  if (!bearer) {
-    return { code: 401, body: { error: "unauthorized" } };
+  const auth = await authenticateClusterAgent(deps.agents, bearer, agentId);
+
+  if ("code" in auth) {
+    return auth;
   }
 
-  const agent = await deps.agents.findByTokenHash(hashAgentToken(bearer));
-
-  if (!agent || agent.id !== agentId) {
-    return { code: 403, body: { error: "forbidden" } };
-  }
-
-  await deps.agents.heartbeat(agent.id, deps.now());
+  await deps.agents.heartbeat(auth.agent.id, deps.now());
 
   return { code: 200, body: { status: "ok" } };
 }
 
 /** A cluster-agent saying it is still there. */
 async function serveHeartbeat(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-  const authHeader = request.headers.authorization;
-  const bearer = (
-    Array.isArray(authHeader) ? authHeader[0] : authHeader
-  )?.replace("Bearer ", "");
-
   const result = await handleHeartbeat(
     { agents: new PgClusterAgents(pool), now: () => new Date() },
-    bearer,
+    extractBearer(request.headers.authorization),
     request.params.id,
   );
 
@@ -80,6 +67,6 @@ export function clusterAgentHeartbeatRoute(
       name: "ClusterAgentHeartbeat",
       description: "Liveness acknowledgement; last_seen_at was bumped",
     }),
-    handler: (request, h) => serveHeartbeat(getPool, request, h),
+    handler: withPool(getPool, serveHeartbeat),
   };
 }

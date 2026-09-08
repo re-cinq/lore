@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type {
   Request,
   ResponseObject,
@@ -12,8 +10,8 @@ import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/clust
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { restartClusterAgent } from "../../../work/agents/agent-crd-k8s.js";
+import { withPool } from "../with-pool.js";
 
 /** Bounces the cluster-agent pod to re-pull latest image; only central agent is reachable. */
 
@@ -68,14 +66,10 @@ export async function handleRestart(
 
 /** Bounces the central cluster-agent's pod. */
 async function serveRestart(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   const result = await handleRestart(
     { agents: new PgClusterAgents(pool), restart: restartClusterAgent },
     request.params.id,
@@ -96,6 +90,6 @@ export function clusterAgentRestartRoute(
         "Bounces the central cluster-agent so it re-pulls the latest image on restart. Refused for a satellite — lore-api has no inbound path to it.",
       errors: [400, 404],
     }),
-    handler: (request, h) => serveRestart(getPool, request, h),
+    handler: withPool(getPool, serveRestart),
   };
 }
