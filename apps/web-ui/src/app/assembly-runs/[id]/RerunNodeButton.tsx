@@ -32,35 +32,35 @@ async function startRerun(target: {
   }
 }
 
-export function RerunNodeButton({
-  runId,
-  resumeNodeId,
-  resumeIteration,
-}: {
+interface RerunNodeButtonProps {
   runId: string;
   resumeNodeId: string;
   resumeIteration: number;
-}) {
+}
+
+/** Records a failed retry. Only a FAILURE settles here: success navigates away, so clearing `pending` on that path would flash the idle label over a page that is already leaving. */
+function settleRerun(
+  failure: string | null,
+  setError: (error: string | null) => void,
+  setPending: (pending: boolean) => void,
+): void {
+  if (failure !== null) {
+    setError(failure);
+    setPending(false);
+  }
+}
+
+export function RerunNodeButton(props: RerunNodeButtonProps) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function rerun(event: React.MouseEvent<HTMLButtonElement>) {
+    // The button sits inside a clickable row; without both, retrying would also select the node behind it.
     event.preventDefault();
     event.stopPropagation();
     setPending(true);
     setError(null);
-
-    const failure = await startRerun({
-      runId,
-      resumeNodeId,
-      resumeIteration,
-    });
-
-    // Only a FAILURE returns: success navigates away, so clearing `pending` there would flash the idle label over a page that is leaving.
-    if (failure !== null) {
-      setError(failure);
-      setPending(false);
-    }
+    settleRerun(await startRerun(props), setError, setPending);
   }
 
   return (

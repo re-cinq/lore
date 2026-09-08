@@ -35,6 +35,27 @@ function TargetRepoField({
   );
 }
 
+/** The task types a human can start from this form. Narrower than the full set on purpose: onboard and review are started by the platform in response to something, not typed in here. */
+const TASK_TYPE_OPTIONS = [
+  { value: "general", label: "General" },
+  { value: "runbook", label: "Runbook" },
+  { value: "implementation", label: "Implementation" },
+  { value: "gap-fill", label: "Gap Fill" },
+];
+
+/** Opting out of the local-runner queue. Unchecked means the task waits to be picked up on a developer's machine, which is the cheaper default. */
+function PriorityField() {
+  return (
+    <label className={styles.priorityLabel}>
+      <input type="checkbox" name="priority" value="immediate" />
+      <span>Execute immediately</span>
+      <span className={`meta ${styles.priorityHint}`}>
+        — runs on GKE now instead of waiting for local pickup
+      </span>
+    </label>
+  );
+}
+
 export default function AssemblyRunCreateView({
   onboardedRepos,
   createTaskAction,
@@ -52,25 +73,12 @@ export default function AssemblyRunCreateView({
         />
 
         <label>Task Type</label>
-        <TaskTypeSelect
-          options={[
-            { value: "general", label: "General" },
-            { value: "runbook", label: "Runbook" },
-            { value: "implementation", label: "Implementation" },
-            { value: "gap-fill", label: "Gap Fill" },
-          ]}
-        />
+        <TaskTypeSelect options={TASK_TYPE_OPTIONS} />
 
         <label>Target Repository</label>
         <TargetRepoField repos={onboardedRepos} />
 
-        <label className={styles.priorityLabel}>
-          <input type="checkbox" name="priority" value="immediate" />
-          <span>Execute immediately</span>
-          <span className={`meta ${styles.priorityHint}`}>
-            — runs on GKE now instead of waiting for local pickup
-          </span>
-        </label>
+        <PriorityField />
 
         <SubmitButton pendingLabel="Creating…">Create Task</SubmitButton>
       </form>

@@ -72,15 +72,18 @@ function TableBody({ visibleRuns }: { visibleRuns: AssemblyRun[] }) {
   );
 }
 
+/** The row that reveals runs which did nothing. Hidden entirely when there were none — an empty "show 0 skips" control is a control that never has anything to say. */
+interface SkipToggleFooterProps {
+  skipCount: number;
+  showSkips: boolean;
+  onToggle: () => void;
+}
+
 function SkipToggleFooter({
   skipCount,
   showSkips,
   onToggle,
-}: {
-  skipCount: number;
-  showSkips: boolean;
-  onToggle: () => void;
-}) {
+}: SkipToggleFooterProps) {
   if (skipCount === 0) {
     return null;
   }

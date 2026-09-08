@@ -33,6 +33,14 @@ export function OutcomesToggle({
   );
 }
 
+interface ReplayControlsProps {
+  eventCount: number;
+  cursor: number;
+  position: { label: string; timestamp: string | null };
+  onCursorChange: (cursor: number) => void;
+  onBackToLive: () => void;
+}
+
 /** Scrub back through a finished run's events, and the way back to its end. */
 function ReplayControls({
   eventCount,
@@ -40,13 +48,7 @@ function ReplayControls({
   position,
   onCursorChange,
   onBackToLive,
-}: {
-  eventCount: number;
-  cursor: number;
-  position: { label: string; timestamp: string | null };
-  onCursorChange: (cursor: number) => void;
-  onBackToLive: () => void;
-}) {
+}: ReplayControlsProps) {
   return (
     <div className={styles.replayControls}>
       <ReplayScrubberView
@@ -117,36 +119,40 @@ interface RunGraphSectionProps {
   };
 }
 
-export function RunGraphSection({
-  chipState,
-  graph,
-  definition,
-  onSelectNode,
-  hasRunData,
-  showOutcomes,
-  onToggleOutcomes,
-  replay,
-}: RunGraphSectionProps) {
+/** How the page is currently receiving events. A live region rather than plain text: the transport can change under the reader — a dropped stream falls back to polling — and that is worth announcing rather than silently swapping. */
+function ConnectionChip({
+  state,
+}: {
+  state: RunGraphSectionProps["chipState"];
+}) {
+  return (
+    <div className={styles.header}>
+      <span
+        className={`${styles.chip} ${styles[state]}`}
+        role="status"
+        aria-live="polite"
+      >
+        {connectionLabel(state)}
+      </span>
+    </div>
+  );
+}
+
+export function RunGraphSection(props: RunGraphSectionProps) {
+  const { replay } = props;
+
   return (
     <>
-      <div className={styles.header}>
-        <span
-          className={`${styles.chip} ${styles[chipState]}`}
-          role="status"
-          aria-live="polite"
-        >
-          {connectionLabel(chipState)}
-        </span>
-      </div>
+      <ConnectionChip state={props.chipState} />
       <RunGraphView
-        graph={graph}
-        definition={definition}
-        onSelectNode={onSelectNode}
+        graph={props.graph}
+        definition={props.definition}
+        onSelectNode={props.onSelectNode}
       />
       <OutcomesToggle
-        show={hasRunData}
-        showOutcomes={showOutcomes}
-        onToggle={onToggleOutcomes}
+        show={props.hasRunData}
+        showOutcomes={props.showOutcomes}
+        onToggle={props.onToggleOutcomes}
       />
       <ReplayControlsSlot
         show={replay.show}

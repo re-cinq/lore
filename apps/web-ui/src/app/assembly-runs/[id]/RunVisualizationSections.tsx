@@ -73,45 +73,43 @@ function nodeActions(
   );
 }
 
-function NodeInspector({
-  nodeId,
+/** One log panel per attempt that actually ran a pod. An attempt with no Agent CR name never reached a pod — a service-runtime node, or one that failed before dispatch — so there are no logs to offer, and an empty panel would read as logs that failed to load. */
+function AttemptLogPanels({
   runId,
-  repo,
-  reason,
-  definition,
-  state,
-  row,
   rows,
-  attempts,
-  inputs,
-  retrySource,
-  agentEditHref,
-}: NodeInspectorProps) {
-  const actions = nodeActions(runId, retrySource, agentEditHref);
+}: {
+  runId: string;
+  rows: NodeInspectorProps["rows"];
+}) {
+  return rows
+    .filter((attempt) => attempt.agentCrName)
+    .map((attempt) => (
+      <NodeLogPanel
+        key={attempt.agentCrName as string}
+        assemblyLineId={runId}
+        agentCrName={attempt.agentCrName as string}
+        label={`Pod logs · attempt ${attempt.iteration}`}
+      />
+    ));
+}
+
+function NodeInspector(props: NodeInspectorProps) {
+  const { nodeId, runId, rows, retrySource, agentEditHref } = props;
 
   return (
     <section className={styles.inspector} aria-label={`${nodeId} inspector`}>
       <RunNodeDetail
         nodeId={nodeId}
-        state={state}
-        row={row}
-        definition={definition}
-        reason={reason}
-        repo={repo}
-        attempts={attempts}
-        actions={actions}
+        state={props.state}
+        row={props.row}
+        definition={props.definition}
+        reason={props.reason}
+        repo={props.repo}
+        attempts={props.attempts}
+        actions={nodeActions(runId, retrySource, agentEditHref)}
       />
-      <NodeInputCard inputs={inputs} />
-      {rows
-        .filter((attempt) => attempt.agentCrName)
-        .map((attempt) => (
-          <NodeLogPanel
-            key={attempt.agentCrName as string}
-            assemblyLineId={runId}
-            agentCrName={attempt.agentCrName as string}
-            label={`Pod logs · attempt ${attempt.iteration}`}
-          />
-        ))}
+      <NodeInputCard inputs={props.inputs} />
+      <AttemptLogPanels runId={runId} rows={rows} />
     </section>
   );
 }
@@ -133,23 +131,11 @@ interface SelectedNodeSectionProps {
   visibleNodeCount: number;
 }
 
-export function SelectedNodeSection({
-  selectedNodeId,
-  runId,
-  repo,
-  reason,
-  definition,
-  selectedState,
-  latestRows,
-  selectedRows,
-  selectedAttempts,
-  nodeInputs,
-  retrySource,
-  agentEditHrefs,
-  visibleNodeCount,
-}: SelectedNodeSectionProps) {
+export function SelectedNodeSection(props: SelectedNodeSectionProps) {
+  const { selectedNodeId, runId } = props;
+
   if (selectedNodeId === null) {
-    return <SelectionHint nodeCount={visibleNodeCount} />;
+    return <SelectionHint nodeCount={props.visibleNodeCount} />;
   }
 
   return (
@@ -157,22 +143,32 @@ export function SelectedNodeSection({
       <NodeInspector
         nodeId={selectedNodeId}
         runId={runId}
-        repo={repo}
-        reason={reason}
-        definition={definition}
-        state={selectedState ?? undefined}
-        row={latestRows.get(selectedNodeId)}
-        rows={selectedRows}
-        attempts={selectedAttempts}
-        inputs={nodeInputs}
-        retrySource={retrySource}
-        agentEditHref={agentEditHrefs?.[selectedNodeId]}
+        repo={props.repo}
+        reason={props.reason}
+        definition={props.definition}
+        state={props.selectedState ?? undefined}
+        row={props.latestRows.get(selectedNodeId)}
+        rows={props.selectedRows}
+        attempts={props.selectedAttempts}
+        inputs={props.nodeInputs}
+        retrySource={props.retrySource}
+        agentEditHref={props.agentEditHrefs?.[selectedNodeId]}
       />
       {/* Keyed on the run so a run change resets the loaded transcript by construction, not by a flag someone has to remember to clear. */}
       <FullTranscriptPanel key={runId} runId={runId} nodeId={selectedNodeId} />
     </>
   );
 }
+
+type RunDetailSectionProps = SelectedNodeSectionProps & {
+  timeline: ReturnType<typeof initialRunState>["timeline"];
+  fileTouches: ReturnType<typeof initialRunState>["fileTouches"];
+  startedAt: string | null;
+  now: string;
+  onSeek: ((id: string) => void) | undefined;
+  showAllFiles: boolean;
+  toggleShowAllFiles: () => void;
+};
 
 /** Everything below the graph: the selected node's inspector, the timeline, and the file heatmap. */
 export function RunDetailSection({
@@ -184,15 +180,7 @@ export function RunDetailSection({
   showAllFiles,
   toggleShowAllFiles,
   ...inspector
-}: Parameters<typeof SelectedNodeSection>[0] & {
-  timeline: ReturnType<typeof initialRunState>["timeline"];
-  fileTouches: ReturnType<typeof initialRunState>["fileTouches"];
-  startedAt: string | null;
-  now: string;
-  onSeek: ((id: string) => void) | undefined;
-  showAllFiles: boolean;
-  toggleShowAllFiles: () => void;
-}) {
+}: RunDetailSectionProps) {
   return (
     <>
       <SelectedNodeSection {...inspector} />

@@ -54,15 +54,7 @@ function useViewToggles() {
   };
 }
 
-/** The live stream and the replay that reads back over it. They are one hook because replay consumes exactly what the stream accumulated — splitting them would let a component subscribe without being able to scrub. */
-function useReplayableStream({
-  run,
-  runId,
-  liveState,
-  dispatch,
-  replayCursor,
-  setReplayCursor,
-}: {
+interface ReplayableStreamInput {
   run: Parameters<typeof useReplay>[0] extends infer R
     ? Omit<
         R,
@@ -74,7 +66,17 @@ function useReplayableStream({
   dispatch: (event: RunStreamEvent) => void;
   replayCursor: number | null;
   setReplayCursor: (cursor: number | null) => void;
-}) {
+}
+
+/** The live stream and the replay that reads back over it. They are one hook because replay consumes exactly what the stream accumulated — splitting them would let a component subscribe without being able to scrub. */
+function useReplayableStream({
+  run,
+  runId,
+  liveState,
+  dispatch,
+  replayCursor,
+  setReplayCursor,
+}: ReplayableStreamInput) {
   const onEvent = useCallback(
     (event: RunStreamEvent) => dispatch(event),
     [dispatch],
@@ -134,53 +136,67 @@ function useNodeAndGraph(
 }
 
 /** Composes the view's state. The ORDER is the content: replay resolves first because the selected node is read out of the displayed state, and the graph is built from both — each step consumes the previous one's output, so they cannot be reordered or run in parallel. */
-function useRunVisualization({
-  runId,
-  runStatus,
-  definition,
-  nodes,
-  reason,
-}: Pick<
+type RunVisualizationInput = Pick<
   RunVisualizationPanelProps,
   "runId" | "runStatus" | "definition" | "nodes" | "reason"
->) {
-  const runIsLive = !isTerminalRunStatus(runStatus);
-  const run: RunFacts = { nodes, definition, runStatus, runIsLive, reason };
-  const now = useNowTicker(runIsLive);
+>;
+
+/** Where the run's events come from: the reducer that holds them, and the stream/replay pair that feeds it. Seeded from the visit ROWS so a run opened long after the fact renders immediately, then folded forward by whatever the stream delivers. */
+function useRunSources(
+  run: RunFacts,
+  runId: string,
+  toggles: ReturnType<typeof useViewToggles>,
+) {
   const [state, dispatch] = useReducer(reduceRunEvent, undefined, () =>
-    initialRunState(definition, nodes),
+    initialRunState(run.definition, run.nodes),
   );
-  const toggles = useViewToggles();
-  const { replayCursor, selectedNodeId, showOutcomes } = toggles;
   const { historyEvents, chipState, replay } = useReplayableStream({
     run,
     runId,
     liveState: state,
     dispatch,
-    replayCursor,
+    replayCursor: toggles.replayCursor,
     setReplayCursor: toggles.setReplayCursor,
   });
-  const { displayState, scrubberVisible, replayPosition, replayActive } =
-    replay;
-  const { node, graph } = useNodeAndGraph(run, {
-    selectedNodeId,
-    showOutcomes,
-    replayActive,
-    nodeStates: displayState.nodeStates,
+
+  return { state, historyEvents, chipState, replay };
+}
+
+/** The replay hook's own output, flattened onto the view. Kept whole under `replay` as well: the panel passes the handlers straight to the scrubber, while the individual fields are what the surrounding chrome reads. */
+function replayView(replay: ReturnType<typeof useReplay>) {
+  return {
+    replay,
+    displayState: replay.displayState,
+    scrubberVisible: replay.scrubberVisible,
+    replayPosition: replay.replayPosition,
+  };
+}
+
+function useRunVisualization(input: RunVisualizationInput) {
+  const { runId, runStatus, definition, nodes, reason } = input;
+  const runIsLive = !isTerminalRunStatus(runStatus);
+  const run: RunFacts = { nodes, definition, runStatus, runIsLive, reason };
+  const toggles = useViewToggles();
+  const { state, historyEvents, chipState, replay } = useRunSources(
+    run,
+    runId,
+    toggles,
+  );
+  const nodeAndGraph = useNodeAndGraph(run, {
+    selectedNodeId: toggles.selectedNodeId,
+    showOutcomes: toggles.showOutcomes,
+    replayActive: replay.replayActive,
+    nodeStates: replay.displayState.nodeStates,
   });
 
   return {
     ...toggles,
-    now,
+    ...replayView(replay),
+    ...nodeAndGraph,
+    now: useNowTicker(runIsLive),
     state,
-    replay,
-    node,
-    graph,
     chipState,
     historyEvents,
-    displayState,
-    scrubberVisible,
-    replayPosition,
   };
 }
 
@@ -215,35 +231,36 @@ function RunGraph({
 }
 
 /** Takes the run's own props as `page` rather than threading eight arguments: none of them is derived from the run, they are what the route already knew. */
-function RunDetail({
-  view,
-  page,
-}: {
-  view: RunView;
-  page: Pick<
-    RunVisualizationPanelProps,
-    "runId" | "repo" | "reason" | "definition" | "agentEditHrefs" | "startedAt"
-  >;
-}) {
+type RunDetailPage = Pick<
+  RunVisualizationPanelProps,
+  "runId" | "repo" | "reason" | "definition" | "agentEditHrefs" | "startedAt"
+>;
+
+/** The inspector's plain values — the page's own facts and the view's derivations, flattened into one bundle because the section reads them as a flat prop list. */
+function detailProps(view: RunView, page: RunDetailPage) {
+  return {
+    selectedNodeId: view.selectedNodeId,
+    runId: page.runId,
+    repo: page.repo,
+    reason: page.reason,
+    definition: page.definition,
+    latestRows: view.graph.latestRows,
+    selectedRows: view.node.selectedRows,
+    selectedAttempts: view.node.selectedAttempts,
+    nodeInputs: view.node.nodeInputs,
+    retrySource: view.graph.retrySource,
+    agentEditHrefs: page.agentEditHrefs,
+    startedAt: page.startedAt,
+    now: view.now,
+    showAllFiles: view.showAllFiles,
+    toggleShowAllFiles: view.toggleShowAllFiles,
+  };
+}
+
+function RunDetail({ view, page }: { view: RunView; page: RunDetailPage }) {
   return (
     <RunDetailSection
-      {...{
-        selectedNodeId: view.selectedNodeId,
-        runId: page.runId,
-        repo: page.repo,
-        reason: page.reason,
-        definition: page.definition,
-        latestRows: view.graph.latestRows,
-        selectedRows: view.node.selectedRows,
-        selectedAttempts: view.node.selectedAttempts,
-        nodeInputs: view.node.nodeInputs,
-        retrySource: view.graph.retrySource,
-        agentEditHrefs: page.agentEditHrefs,
-        startedAt: page.startedAt,
-        now: view.now,
-        showAllFiles: view.showAllFiles,
-        toggleShowAllFiles: view.toggleShowAllFiles,
-      }}
+      {...detailProps(view, page)}
       selectedState={view.node.selected}
       visibleNodeCount={view.graph.visibleGraph.nodes.length}
       timeline={view.displayState.timeline}
