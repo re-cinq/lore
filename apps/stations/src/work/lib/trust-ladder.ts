@@ -51,18 +51,25 @@ function promotedLevel(level: TrustLevel): TrustLevel {
   return TRUST_LEVELS[nextIndex];
 }
 
+// No level recorded, or already at `full` — either way there is nowhere to promote to, so the banked count is returned unchanged rather than incremented. Counting merges a repo can never be promoted for would make the number read as progress.
+function holdAt(
+  level: TrustLevel | undefined,
+  trust: TrustState | undefined,
+): TrustDecision {
+  return {
+    hold: true,
+    level,
+    successfulTasks: bankedTasks(trust),
+    promoted: false,
+  };
+}
+
 /** Decide the trust state after one more successful merge. */
 export function nextTrust(trust: TrustState | undefined): TrustDecision {
   const level = currentLevel(trust);
 
-  // No level recorded or already at `full`: hold until promotion is possible.
   if (!level || level === "full") {
-    return {
-      hold: true,
-      level,
-      successfulTasks: bankedTasks(trust),
-      promoted: false,
-    };
+    return holdAt(level, trust);
   }
 
   const banked = bankedTasks(trust) + 1;

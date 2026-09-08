@@ -48,11 +48,11 @@ interface ParkedVerdict {
   verdict: PrReadyVerdict;
 }
 
-/** The evidence a parked PR is judged on, or null when there is nothing to judge yet. All four reads run together — they are independent, and this job sweeps every parked run on a tick. */
-async function verdictForRun(
+// The PR this run is parked on, and the commit to judge it by — or null when there is nothing to judge. A run with no `pr_number` never got that far; a PR with no head sha has no commit to check, because it was closed or its branch is gone. Both are skipped and logged rather than counted as waiting.
+async function judgeable(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
-): Promise<PrReadyVerdict | null> {
+): Promise<{ prNumber: number; headSha: string } | null> {
   const prNumber = Number(run.args.pr_number) || 0;
 
   if (!prNumber) {
@@ -62,7 +62,6 @@ async function verdictForRun(
 
     return null;
   }
-  // A PR with no head sha has no commit to check — it was closed, or the branch is gone.
   const headSha = await deps.getPrHeadSha(run.repo, prNumber);
 
   if (!headSha) {
@@ -72,6 +71,21 @@ async function verdictForRun(
 
     return null;
   }
+
+  return { prNumber, headSha };
+}
+
+/** The evidence a parked PR is judged on, or null when there is nothing to judge yet. All four reads run together — they are independent, and this job sweeps every parked run on a tick. */
+async function verdictForRun(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+): Promise<PrReadyVerdict | null> {
+  const judged = await judgeable(run, deps);
+
+  if (!judged) {
+    return null;
+  }
+  const { prNumber, headSha } = judged;
   const [ci, threads, openReviewRunCount, hasCiHistory] = await Promise.all([
     deps.ciConclusion(run.repo, headSha),
     deps.listReviewThreads(run.repo, prNumber),
@@ -80,6 +94,18 @@ async function verdictForRun(
   ]);
 
   return decidePrReady({ ci, threads, openReviewRunCount, hasCiHistory });
+}
+
+// Which node of which run the verdict is reported against. The iteration is part of it: a run that has been round the loop before has several attempts at the same node, and the report has to name the one that is parked.
+function targetOf(
+  run: LoopRunSlice,
+  parked: { nodeId: string; iteration: number },
+) {
+  return {
+    lineId: run.id,
+    nodeId: parked.nodeId,
+    iteration: parked.iteration,
+  };
 }
 
 /** Locates the parked node and pairs it with its verdict, or null to skip this run untallied. */
@@ -93,24 +119,13 @@ async function evaluateParkedRun(
     run.graph,
     { type: AWAIT_STATION_TYPE, fallbackNodeId: AWAIT_NODE },
   );
+  const verdict = parked ? await verdictForRun(run, deps) : null;
 
-  if (!parked) {
-    return null;
-  }
-  const verdict = await verdictForRun(run, deps);
-
-  if (!verdict) {
+  if (!parked || !verdict) {
     return null;
   }
 
-  return {
-    target: {
-      lineId: run.id,
-      nodeId: parked.nodeId,
-      iteration: parked.iteration,
-    },
-    verdict,
-  };
+  return { target: targetOf(run, parked), verdict };
 }
 
 /** Sweep tallies, mutated in place as each run resolves. */
@@ -121,17 +136,12 @@ interface SweepTally {
   errors: number;
 }
 
-/** Reports one run's verdict (if it has one) and bumps the matching tally. */
-async function reportParkedVerdict(
-  run: LoopRunSlice,
+// Reports the verdict and counts it. Only ready and blocked are reported — waiting is the absence of news, and telling the parked node about it every tick would wake a run that has nothing to act on.
+async function applyVerdict(
+  evaluated: ParkedVerdict,
   deps: PrReadyCheckDeps,
   tally: SweepTally,
 ): Promise<void> {
-  const evaluated = await evaluateParkedRun(run, deps);
-
-  if (!evaluated) {
-    return;
-  }
   const { target, verdict } = evaluated;
 
   if (verdict.kind === "ready") {
@@ -148,6 +158,20 @@ async function reportParkedVerdict(
     return;
   }
   tally.waiting++;
+}
+
+/** Reports one run's verdict (if it has one) and bumps the matching tally. */
+async function reportParkedVerdict(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+  tally: SweepTally,
+): Promise<void> {
+  const evaluated = await evaluateParkedRun(run, deps);
+
+  if (!evaluated) {
+    return;
+  }
+  await applyVerdict(evaluated, deps, tally);
 }
 
 /** The sweep's one-line summary, with the error count appended only when there was one. */
@@ -178,7 +202,6 @@ export async function prReadyCheckSweep(
   return summarizeSweep(runs.length, tally);
 }
 
-/** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */
 /** Memoizes a per-repo read for the length of one sweep. The PROMISE is cached, not its value, so two PRs of the same repo asked concurrently still make one call. */
 function perRepo<T>(
   read: (repo: string) => Promise<T>,
@@ -191,6 +214,23 @@ function perRepo<T>(
     cache.set(repo, cached);
 
     return cached;
+  };
+}
+
+// "This repo runs CI at all" — decided off the DEFAULT BRANCH, so a PR that has simply not started its checks yet is not mistaken for a repo that has no CI to wait for.
+function ciHistoryProbe<
+  P extends {
+    pulls: { ciConclusion(ref: string): Promise<string> };
+    repo: { defaultBranch(): Promise<string> };
+  },
+>(projectOf: (repo: string) => Promise<P>) {
+  return async (repo: string) => {
+    const project = await projectOf(repo);
+
+    return (
+      (await project.pulls.ciConclusion(await project.repo.defaultBranch())) !==
+      "none"
+    );
   };
 }
 
@@ -208,19 +248,7 @@ function sweepRepoCache<
 } {
   const projectOf = perRepo(projectFor);
 
-  return {
-    projectOf,
-    // "This repo runs CI at all" — decided off the default branch, so a PR that has simply not started its checks yet is not mistaken for a repo without any.
-    hasCiHistory: perRepo(async (repo: string) => {
-      const project = await projectOf(repo);
-
-      return (
-        (await project.pulls.ciConclusion(
-          await project.repo.defaultBranch(),
-        )) !== "none"
-      );
-    }),
-  };
+  return { projectOf, hasCiHistory: perRepo(ciHistoryProbe(projectOf)) };
 }
 
 /** The PR-side reads, all through one per-sweep repo cache. */
@@ -240,31 +268,38 @@ function prReads(
   };
 }
 
-/** The run-side reads. `countOpenReviewRuns` is what keeps a PR parked while a review of it is still in flight — resuming then would judge CI that the review is about to invalidate. */
+const OPEN_RUN_STATUS = ["queued", "running"] as const;
+
+/** How many reviews of this PR are still running. This is what keeps a PR parked while a review of it is in flight — resuming then would judge CI that the review is about to invalidate. */
+function openReviewRunCounter(
+  pipeline: () => Pick<PipelineRepositories, "assemblyRuns">,
+) {
+  return async (repo: string, number: number) =>
+    (
+      await pipeline().assemblyRuns.listSummaries({
+        repo,
+        blueprintName: REVIEW_DEFINITIONS,
+        status: OPEN_RUN_STATUS,
+        prNumber: number,
+      })
+    ).length;
+}
+
+/** The run-side reads. */
 function runReads(
   pipeline: () => Pick<PipelineRepositories, "assemblyRuns">,
 ): Pick<
   PrReadyCheckDeps,
   "listOpenLoopRuns" | "listStationRuns" | "countOpenReviewRuns"
 > {
-  const OPEN = ["queued", "running"] as const;
-
   return {
     listOpenLoopRuns: () =>
       pipeline().assemblyRuns.list({
         blueprintName: "implementation-loop",
-        status: OPEN,
+        status: OPEN_RUN_STATUS,
       }),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
-    countOpenReviewRuns: async (repo, number) =>
-      (
-        await pipeline().assemblyRuns.listSummaries({
-          repo,
-          blueprintName: REVIEW_DEFINITIONS,
-          status: OPEN,
-          prNumber: number,
-        })
-      ).length,
+    countOpenReviewRuns: openReviewRunCounter(pipeline),
   };
 }
 

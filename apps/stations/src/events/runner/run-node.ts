@@ -56,13 +56,9 @@ const failed = (detail: string): NodeResult => ({
   failureDetail: detail,
 });
 
-export async function runPublishedNode(
-  event: PublishedNode,
-  report: ReportNode,
-  // The RUNNER, not the module: needs nothing else from the manifest, and a narrower seam is one a test can satisfy with the function under test.
-  run: NodeStationRun | undefined = nodeStationFor(event.nodeType)?.run,
-): Promise<void> {
-  const input: StationInput = {
+// The published node, in the shape the station contract states. `branch` falls back to empty rather than being omitted: the contract has the field, and a station reading it should see "none" rather than undefined.
+function stationInput(event: PublishedNode): StationInput {
+  return {
     assembly_run_id: event.assemblyLineId,
     node_id: event.nodeId,
     node_type: event.nodeType,
@@ -71,12 +67,31 @@ export async function runPublishedNode(
     task_id: event.taskId,
     params: event.params,
   };
+}
 
-  const result = run
-    ? await run(input, NO_WORKSPACE).catch((err: Error) => failed(err.message))
-    : failed(
-        `no station answers to node type "${event.nodeType}" — the registry and the blueprint disagree`,
-      );
+// What the station made of this node. A missing runner and a thrown runner both become a failed result rather than an exception: the walk advances on the reported outcome, so a node that could not run has to say so through the same channel as one that ran and failed.
+async function nodeResult(
+  event: PublishedNode,
+  run: NodeStationRun | undefined,
+) {
+  if (!run) {
+    return failed(
+      `no station answers to node type "${event.nodeType}" — the registry and the blueprint disagree`,
+    );
+  }
+
+  return run(stationInput(event), NO_WORKSPACE).catch((err: Error) =>
+    failed(err.message),
+  );
+}
+
+export async function runPublishedNode(
+  event: PublishedNode,
+  report: ReportNode,
+  // The RUNNER, not the module: needs nothing else from the manifest, and a narrower seam is one a test can satisfy with the function under test.
+  run: NodeStationRun | undefined = nodeStationFor(event.nodeType)?.run,
+): Promise<void> {
+  const result = await nodeResult(event, run);
 
   await report(
     {

@@ -3,13 +3,8 @@
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
-async function postEpisode(input: StationInput): Promise<void> {
-  const baseUrl = process.env.LORE_API_URL;
-
-  // no API wired → nothing to write (local/dev)
-  if (!baseUrl) {
-    return;
-  }
+// The station token where there is one, falling back to the ingest token. Absent is allowed: a local run against an unauthenticated API still writes its episode rather than refusing.
+function episodeHeaders(): Record<string, string> {
   const token = process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -19,15 +14,30 @@ async function postEpisode(input: StationInput): Promise<void> {
     headers["authorization"] = `Bearer ${token}`;
   }
 
-  const content =
+  return headers;
+}
+
+// What the run reached, in one sentence. The episode is read back by fact extraction rather than by a person, so it names the run, the repo and the branch instead of reading well.
+function episodeContent(input: StationInput): string {
+  return (
     `Assembly line ${input.assembly_run_id} reached its retrospective node for ${input.repo}` +
-    ` on ${input.branch}.`;
+    ` on ${input.branch}.`
+  );
+}
+
+async function postEpisode(input: StationInput): Promise<void> {
+  const baseUrl = process.env.LORE_API_URL;
+
+  // no API wired → nothing to write (local/dev)
+  if (!baseUrl) {
+    return;
+  }
   const res = await fetch(`${baseUrl}/api/episode`, {
     signal: AbortSignal.timeout(30_000),
     method: "POST",
-    headers,
+    headers: episodeHeaders(),
     body: JSON.stringify({
-      content,
+      content: episodeContent(input),
       source: "retrospective-station",
       ref: input.branch,
     }),

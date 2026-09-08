@@ -18,6 +18,22 @@ interface RepoScanOutcome {
   failed: boolean;
 }
 
+// Starts a run per spec, in order, returning how many got away. Sequential rather than batched: each start consults the overlap guard, and firing them together would let two runs of the same spec both find nothing open.
+async function startEach(
+  deps: BackfillScanDeps,
+  repo: string,
+  specPaths: string[],
+): Promise<number> {
+  let started = 0;
+
+  for (const specPath of specPaths) {
+    await deps.startBackfill(repo, specPath);
+    started++;
+  }
+
+  return started;
+}
+
 // Scans one repo, catching its own failure so one unreadable repo cannot cost every other repo its run; counts already accrued survive a mid-repo failure.
 async function scanRepoForBackfill(
   deps: BackfillScanDeps,
@@ -31,11 +47,7 @@ async function scanRepoForBackfill(
     const take = specs.slice(0, BACKFILL_SPECS_PER_REPO);
 
     heldBack = specs.length - take.length;
-
-    for (const specPath of take) {
-      await deps.startBackfill(repo, specPath);
-      started++;
-    }
+    started = await startEach(deps, repo, take);
 
     return { started, heldBack, failed: false };
   } catch (err) {
@@ -46,6 +58,27 @@ async function scanRepoForBackfill(
 
     return { started, heldBack, failed: true };
   }
+}
+
+// The sweep's summary, mentioning the cap and the failures only when there were any. A clean sweep should read as one line, not as a report with two zeroes in it.
+function summaryParts(
+  started: number,
+  heldBack: number,
+  failed: number,
+): string[] {
+  const parts = [`started ${started} spec unit(s)`];
+
+  if (heldBack > 0) {
+    parts.push(
+      `${heldBack} held back over the ${BACKFILL_SPECS_PER_REPO}/repo cap`,
+    );
+  }
+
+  if (failed > 0) {
+    parts.push(`${failed} repo failed`);
+  }
+
+  return parts;
 }
 
 export async function scanForBackfill(deps: BackfillScanDeps): Promise<string> {
@@ -61,17 +94,7 @@ export async function scanForBackfill(deps: BackfillScanDeps): Promise<string> {
     failed += outcome.failed ? 1 : 0;
   }
 
-  const parts = [`started ${started} spec unit(s)`];
-
-  if (heldBack > 0) {
-    parts.push(
-      `${heldBack} held back over the ${BACKFILL_SPECS_PER_REPO}/repo cap`,
-    );
-  }
-
-  if (failed > 0) {
-    parts.push(`${failed} repo failed`);
-  }
+  const parts = summaryParts(started, heldBack, failed);
 
   return parts.join("; ");
 }

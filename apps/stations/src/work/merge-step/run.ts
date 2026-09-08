@@ -83,6 +83,27 @@ const recordMergeOutcome: MergeStepDeps["recordOutcome"] = async (task) => {
   );
 };
 
+// What merged, and what it cost to get there. Read back by fact extraction rather than by a person, so it states the figures plainly; the description is truncated because the episode is about the OUTCOME, not the request.
+function mergeEpisodeContent(
+  task: Parameters<NonNullable<MergeStepDeps["curate"]>>[0],
+  stats: {
+    files_changed: number;
+    additions: number;
+    deletions: number;
+    comments: number;
+    created_at: string;
+    merged_at: string | null;
+  },
+): string {
+  return [
+    `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.`,
+    `Files changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}`,
+    `Review comments: ${stats.comments}`,
+    `Time to merge: ${hoursBetween(stats.created_at, stats.merged_at)}h`,
+    `Description: ${task.description.substring(0, 200)}`,
+  ].join("\n");
+}
+
 const curateMergeEpisode: MergeStepDeps["curate"] = async (task) => {
   const stats = await (
     await projectFor(task.target_repo)
@@ -91,13 +112,7 @@ const curateMergeEpisode: MergeStepDeps["curate"] = async (task) => {
   await writeEpisodeWithCuration(
     { memory: memoryLifecycle() },
     {
-      content: [
-        `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.`,
-        `Files changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}`,
-        `Review comments: ${stats.comments}`,
-        `Time to merge: ${hoursBetween(stats.created_at, stats.merged_at)}h`,
-        `Description: ${task.description.substring(0, 200)}`,
-      ].join("\n"),
+      content: mergeEpisodeContent(task, stats),
       source: "ci",
       ref: `${task.target_repo}/${task.id}`,
       agentId: "merge-line",
@@ -145,13 +160,15 @@ function repoPorts(
   };
 }
 
-function productionDeps(): MergeStepDeps {
-  // Cache the whole row to hand to helpers rather than widening the step contract.
-  let row: PipelineTask | null = null;
-
+// The task-row reads and writes. Fetching CACHES the whole row through `remember`, so the repo-side ports below can read fields the step contract does not carry rather than widening it.
+function taskPorts(
+  remember: (row: PipelineTask | null) => void,
+): Pick<MergeStepDeps, "task" | "setStatus" | "recordEvent"> {
   return {
     task: async (id) => {
-      row = await taskStore().getById(id);
+      const row = await taskStore().getById(id);
+
+      remember(row);
 
       return hasMergeStepFields(row) ? toMergeStepTask(row) : null;
     },
@@ -159,6 +176,17 @@ function productionDeps(): MergeStepDeps {
     recordEvent: async (id, from, to) => {
       await taskStore().recordEvent(id, from, to, { merged_by: "merge-line" });
     },
+  };
+}
+
+function productionDeps(): MergeStepDeps {
+  // Cache the whole row to hand to helpers rather than widening the step contract.
+  let row: PipelineTask | null = null;
+
+  return {
+    ...taskPorts((fetched) => {
+      row = fetched;
+    }),
     ...repoPorts(() => row),
     recordOutcome: recordMergeOutcome,
     curate: curateMergeEpisode,
@@ -173,6 +201,15 @@ function productionDeps(): MergeStepDeps {
   };
 }
 
+// A failed node, named by the step that failed. Reported rather than thrown: the LINE is the error handling here, and its failed edge routes the run forward to whatever the definition says comes next.
+function stepFailed(step: string, detail: string): NodeResult {
+  return {
+    outcome: "failed",
+    failureClass: "unknown",
+    failureDetail: `merge step "${step}": ${detail}`,
+  };
+}
+
 export async function runMergeStepNode(
   input: StationInput,
 ): Promise<NodeResult> {
@@ -181,23 +218,14 @@ export async function runMergeStepNode(
   const taskId = input.task_id;
 
   if (!taskId) {
-    return {
-      outcome: "failed",
-      failureClass: "unknown",
-      failureDetail: `merge step "${step}" has no task to act on`,
-    };
+    return stepFailed(step, "has no task to act on");
   }
 
-  // No catch: the LINE is the error handling (failed edge routes forward).
   try {
     await runMergeStep(step, taskId, productionDeps());
 
     return { outcome: "success", extras: { "Lore-Merge-Step": step } };
   } catch (err) {
-    return {
-      outcome: "failed",
-      failureClass: "unknown",
-      failureDetail: `merge step "${step}": ${(err as Error).message}`,
-    };
+    return stepFailed(step, (err as Error).message);
   }
 }

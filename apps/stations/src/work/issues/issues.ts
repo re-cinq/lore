@@ -19,6 +19,27 @@ export interface IssuesStationDeps {
   project?: ReturnType<typeof createStationProject>;
 }
 
+// A run reaching this node with no decomposition is a WIRING failure, not a bad decomposition — so it fails rather than routing to rework, which would ask the agent to fix something it did nothing wrong about.
+function missingDecomposition(): NodeResult {
+  console.log(
+    eventLine(
+      "no decomposition reached this node — the artifact was never merged into the line",
+    ),
+  );
+
+  return { outcome: "failed" };
+}
+
+// The decomposition is readable but not fileable. The objection rides in extras so the agent that produced it gets told what to change.
+function rework(objection: string): NodeResult {
+  console.log(eventLine(`rework: ${objection}`));
+
+  return {
+    outcome: "changes_requested",
+    extras: { "Lore-Issues-Objection": objection },
+  };
+}
+
 // Files one Issue per story and one spec-task per task. The decomposition rides in on `params.feature_decomposition` — the artifact decompose produced, merged into the line's args by the Floor; a run reaching here without it is a wiring failure, not a bad decomposition, so it fails rather than asking the agent to fix something it did nothing wrong about.
 export async function runIssuesStation(
   input: StationInput,
@@ -27,13 +48,7 @@ export async function runIssuesStation(
   const raw = input.params.feature_decomposition;
 
   if (!raw) {
-    console.log(
-      eventLine(
-        "no decomposition reached this node — the artifact was never merged into the line",
-      ),
-    );
-
-    return { outcome: "failed" };
+    return missingDecomposition();
   }
   const project = deps.project ?? createStationProject(input.repo);
   const decomposition = parseDecomposition(parseModelJson(raw));
@@ -43,12 +58,7 @@ export async function runIssuesStation(
   );
 
   if (work.outcome === "changes_requested") {
-    console.log(eventLine(`rework: ${work.objection}`));
-
-    return {
-      outcome: "changes_requested",
-      extras: { "Lore-Issues-Objection": work.objection },
-    };
+    return rework(work.objection);
   }
 
   return fileWork(project, decomposition, work, input);
@@ -122,14 +132,33 @@ function storyBody(story: {
   return `${story.summary}\n\n## Acceptance criteria\n\n${criteria}\n`;
 }
 
+// What the spec-task carries about its place in the plan: its own id, what it waits on, and the Issue it reports to. `feature_id` is absent rather than null when the line carries no feature — the UI filter is a JSON text match, and a literal "null" would match nothing while looking set.
+function contextBundle(
+  planned: PlannedTask,
+  input: StationInput,
+  filed: number[],
+) {
+  const featureId = input.params.feature_id;
+
+  return {
+    spec_task_id: planned.task.id,
+    depends_on: planned.task.depends_on,
+    parallelizable: planned.task.parallelizable,
+    phase: planned.task.phase,
+    ...(planned.task.file_path ? { file_path: planned.task.file_path } : {}),
+    ...(planned.task.labels ? { labels: planned.task.labels } : {}),
+    story_issue: filed[planned.storyIndex],
+    assembly_line_id: input.assembly_run_id,
+    ...(featureId ? { feature_id: featureId } : {}),
+  };
+}
+
 // One spec-task, carrying the story Issue it implements so the work is traceable back to its user-facing slice. Written key by key rather than spread from the artifact: spreading published the agent's own vocabulary (`id`, no `feature_id`) instead of what every other producer/reader agrees on (`spec_task_id`) — the UI's `context_bundle->>'feature_id'` filter matched zero rows as a result. ADR-029's promise is that both producers share the row shape; this is what makes that true.
 function taskInput(
   planned: PlannedTask,
   input: StationInput,
   filed: number[],
 ): Parameters<ReturnType<typeof createStationProject>["tasks"]["create"]>[0] {
-  const featureId = input.params.feature_id;
-
   return {
     description: planned.description,
     taskType: "spec-task",
@@ -137,17 +166,6 @@ function taskInput(
     createdBy: "issues-station",
     // The line IS the decomposition attempt, so its id groups the tasks it produced — stable across a re-drive of the same run, distinct for a genuine re-run.
     taskGroupId: input.assembly_run_id,
-    contextBundle: {
-      spec_task_id: planned.task.id,
-      depends_on: planned.task.depends_on,
-      parallelizable: planned.task.parallelizable,
-      phase: planned.task.phase,
-      ...(planned.task.file_path ? { file_path: planned.task.file_path } : {}),
-      ...(planned.task.labels ? { labels: planned.task.labels } : {}),
-      story_issue: filed[planned.storyIndex],
-      assembly_line_id: input.assembly_run_id,
-      // Absent rather than null when the line carries no feature: the UI filter is a JSON text match, and a literal "null" would match nothing while looking set.
-      ...(featureId ? { feature_id: featureId } : {}),
-    },
+    contextBundle: contextBundle(planned, input, filed),
   };
 }

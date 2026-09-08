@@ -92,6 +92,27 @@ export function parseOnboardingPrUrl(
 
 type OnboardingOutcome = "merged" | "closed" | "invalid" | "unchanged";
 
+// Closed without merging: the stored URL is cleared so onboarding can be resubmitted (#968). Leaving it would make the repo look permanently mid-onboarding.
+async function clearClosedOnboarding(
+  repo: PendingOnboardingRepo,
+): Promise<OnboardingOutcome> {
+  await settings().clearOnboardingPrUrl(repo.id);
+  console.log(
+    `[job] merge-check: ${repo.full_name} onboarding PR closed unmerged — cleared`,
+  );
+
+  return "closed";
+}
+
+// A stored onboarding URL this job cannot read. Logged rather than cleared: the row is someone's record of an onboarding attempt, and losing it would hide the fact that the URL was ever wrong.
+function reportInvalidPrUrl(repo: PendingOnboardingRepo): OnboardingOutcome {
+  console.log(
+    `[job] merge-check: invalid PR URL for ${repo.full_name}: ${repo.onboarding_pr_url}`,
+  );
+
+  return "invalid";
+}
+
 /** One onboarding repo's PR check: merges/clears the row as needed, reporting what happened. */
 async function checkOnboardingRepo(
   repo: PendingOnboardingRepo,
@@ -99,11 +120,7 @@ async function checkOnboardingRepo(
   const parsed = parseOnboardingPrUrl(repo.onboarding_pr_url);
 
   if (!parsed) {
-    console.log(
-      `[job] merge-check: invalid PR URL for ${repo.full_name}: ${repo.onboarding_pr_url}`,
-    );
-
-    return "invalid";
+    return reportInvalidPrUrl(repo);
   }
   const project = await projectFor(`${parsed.owner}/${parsed.repoName}`);
 
@@ -114,20 +131,25 @@ async function checkOnboardingRepo(
     return "merged";
   }
 
-  // Closed without merging: clear onboarding URL to allow resubmission (#968).
   if (await project.pulls.isClosed(parsed.number)) {
-    await settings().clearOnboardingPrUrl(repo.id);
-    console.log(
-      `[job] merge-check: ${repo.full_name} onboarding PR closed unmerged — cleared`,
-    );
-
-    return "closed";
+    return clearClosedOnboarding(repo);
   }
 
   return "unchanged";
 }
 
 type MergeableOutcome = "merged" | "closed" | "unchanged";
+
+// The run store, as the merge line reads it. Thunks, not values: the pool does not exist when this module is loaded. The LINE does the work from here — its nine steps expose failures that route forward, which a single call could not.
+function mergeLinePorts(): Parameters<typeof startMergeLine>[1] {
+  return {
+    findOpenBySubject: (repo, key) =>
+      pipeline().assemblyRuns.findOpenBySubject(repo, key),
+    countBySubject: (repo, key) =>
+      pipeline().assemblyRuns.countBySubject(repo, key),
+    start: (input) => pipeline().assemblyRuns.start(input),
+  };
+}
 
 /** One mergeable task's PR check: starts the merge line or records rejection, reporting what happened. */
 async function checkMergeableTask(
@@ -136,14 +158,7 @@ async function checkMergeableTask(
   const project = await projectFor(task.target_repo);
 
   if (await project.pulls.isMerged(task.pr_number)) {
-    // The line does the work; nine steps expose failures that route forward.
-    await startMergeLine(task, {
-      findOpenBySubject: (repo, key) =>
-        pipeline().assemblyRuns.findOpenBySubject(repo, key),
-      countBySubject: (repo, key) =>
-        pipeline().assemblyRuns.countBySubject(repo, key),
-      start: (input) => pipeline().assemblyRuns.start(input),
-    });
+    await startMergeLine(task, mergeLinePorts());
     console.log(
       `[job] merge-check: task ${task.id} PR #${task.pr_number} merged`,
     );
@@ -164,26 +179,28 @@ async function checkMergeableTask(
   return "unchanged";
 }
 
+// One repo's outcome, or "unchanged" if reading it threw. Caught per repo on purpose: one repo whose PR cannot be read must not stop the sweep, because the next repo's merge is what unblocks its ingestion.
+async function checkedOutcome(
+  repo: PendingOnboardingRepo,
+): Promise<OnboardingOutcome> {
+  try {
+    return await checkOnboardingRepo(repo);
+  } catch (err) {
+    console.error(`[job] merge-check: error checking ${repo.full_name}:`, err);
+
+    return "unchanged";
+  }
+}
+
 /** Onboarding PRs. Each repo is caught on its own — one repo whose PR cannot be read must not stop the sweep, because the next repo's merge is what unblocks its ingestion. */
 async function sweepOnboardingRepos(
   repos: PendingOnboardingRepo[],
 ): Promise<number> {
   let mergedCount = 0;
-  const bump: Record<OnboardingOutcome, () => void> = {
-    merged: () => mergedCount++,
-    closed: () => {},
-    invalid: () => {},
-    unchanged: () => {},
-  };
 
   for (const repo of repos) {
-    try {
-      bump[await checkOnboardingRepo(repo)]();
-    } catch (err) {
-      console.error(
-        `[job] merge-check: error checking ${repo.full_name}:`,
-        err,
-      );
+    if ((await checkedOutcome(repo)) === "merged") {
+      mergedCount++;
     }
   }
 
@@ -250,6 +267,27 @@ async function handleRejectedTask(task: MergeableTask): Promise<void> {
   await applyOutcomeFeedback(task.id, "penalize");
 }
 
+// The audit entry for what the outcome did to the contributing facts and memories. Swallows its own failure: the boost or penalty has already landed, and losing the record of it is not a reason to report the feedback as failed.
+async function recordFeedback(
+  taskId: string,
+  action: "boost" | "penalize",
+  factIds: string[],
+  memoryIds: string[],
+): Promise<void> {
+  await memoryLifecycle()
+    .writeAuditLog({
+      agentId: "merge-check",
+      operation: "outcome-feedback",
+      metadata: {
+        task_id: taskId,
+        action,
+        fact_count: factIds.length,
+        memory_count: memoryIds.length,
+      },
+    })
+    .catch(() => {});
+}
+
 /** Boost or penalize task facts/memories by PR outcome. */
 export async function applyOutcomeFeedback(
   taskId: string,
@@ -267,53 +305,55 @@ export async function applyOutcomeFeedback(
     await (action === "boost"
       ? memoryLifecycle().boostContributors(factIds, memoryIds)
       : memoryLifecycle().penalizeContributors(factIds, memoryIds));
-    await memoryLifecycle()
-      .writeAuditLog({
-        agentId: "merge-check",
-        operation: "outcome-feedback",
-        metadata: {
-          task_id: taskId,
-          action,
-          fact_count: factIds.length,
-          memory_count: memoryIds.length,
-        },
-      })
-      .catch(() => {});
+    await recordFeedback(taskId, action, factIds, memoryIds);
   } catch {
     /* outcome feedback is best-effort */
+  }
+}
+
+// The trust block after banking one merge. `promoted_at` is stamped only on an actual promotion — every merge moves the count, but only the one that crosses a tier is a moment worth dating.
+function promotedTrust(
+  trust: TrustState | undefined,
+  decision: ReturnType<typeof nextTrust>,
+) {
+  return {
+    ...trust,
+    level: decision.level,
+    successful_tasks: decision.successfulTasks,
+    ...(decision.promoted ? { promoted_at: new Date().toISOString() } : {}),
+  };
+}
+
+// Moves the repo's trust one merge forward. A repo with no settings row and a decision that holds are both no-ops: trust is banked, not inferred, so a repo Lore knows nothing about does not start climbing.
+async function bankMerge(targetRepo: string): Promise<void> {
+  const repoSettings = await settings().rawSettings(targetRepo);
+
+  if (!repoSettings) {
+    return;
+  }
+  const trust = repoSettings.trust as TrustState | undefined;
+  const decision = nextTrust(trust);
+
+  if (decision.hold) {
+    return;
+  }
+
+  await settings().updateSettings(targetRepo, {
+    ...repoSettings,
+    trust: promotedTrust(trust, decision),
+  });
+
+  if (decision.promoted) {
+    console.log(
+      `[job] merge-check: ${targetRepo} trust promoted to ${decision.level}`,
+    );
   }
 }
 
 /** Bank one successful merge for progressive trust promotion. */
 export async function promoteTrust(targetRepo: string): Promise<void> {
   try {
-    const repoSettings = await settings().rawSettings(targetRepo);
-
-    if (!repoSettings) {
-      return;
-    }
-    const trust = repoSettings.trust as TrustState | undefined;
-    const decision = nextTrust(trust);
-
-    if (decision.hold) {
-      return;
-    }
-
-    await settings().updateSettings(targetRepo, {
-      ...repoSettings,
-      trust: {
-        ...trust,
-        level: decision.level,
-        successful_tasks: decision.successfulTasks,
-        ...(decision.promoted ? { promoted_at: new Date().toISOString() } : {}),
-      },
-    });
-
-    if (decision.promoted) {
-      console.log(
-        `[job] merge-check: ${targetRepo} trust promoted to ${decision.level}`,
-      );
-    }
+    await bankMerge(targetRepo);
   } catch {
     /* trust promotion is best-effort */
   }

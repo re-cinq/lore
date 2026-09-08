@@ -35,13 +35,11 @@ const detectors: Record<string, Detector> = {
     }),
 };
 
-export async function runDetectStation(
-  input: StationInput,
-  _env?: StationEnv,
-  makeProject: (repo: string) => Project = (repo) => createStationProject(repo),
-  registry: Record<string, Detector> = detectors,
-): Promise<NodeResult> {
-  const jobRef = input.params.job_ref;
+// The detector this node names. A `job_ref` with no detector is a definition referring to something this build does not carry, so it fails here rather than reporting an empty detection.
+function detectorFor(
+  registry: Record<string, Detector>,
+  jobRef: string | undefined,
+): Detector {
   const detector = jobRef ? registry[jobRef] : undefined;
 
   enforceTrue(
@@ -49,13 +47,32 @@ export async function runDetectStation(
     Error,
     `detect station: no detector for job_ref "${jobRef}"`,
   );
-  console.log(
-    eventLine(
-      `detect ${jobRef} on ${input.repo}${input.params.spec_path ? ` (${input.params.spec_path})` : ""}`,
-    ),
+
+  return detector;
+}
+
+// What is about to be detected, named in the pod's log. The spec path is included only when the detection is scoped to one — a repo-wide run has none to name.
+function describeDetectStart(input: StationInput): string {
+  const scope = input.params.spec_path ? ` (${input.params.spec_path})` : "";
+
+  return `detect ${input.params.job_ref} on ${input.repo}${scope}`;
+}
+
+export async function runDetectStation(
+  input: StationInput,
+  _env?: StationEnv,
+  makeProject: (repo: string) => Project = (repo) => createStationProject(repo),
+  registry: Record<string, Detector> = detectors,
+): Promise<NodeResult> {
+  const jobRef = input.params.job_ref;
+  const detector = detectorFor(registry, jobRef);
+
+  console.log(eventLine(describeDetectStart(input)));
+  const summary = await detector(
+    input.repo,
+    makeProject(input.repo),
+    input.params.spec_path,
   );
-  const specPath = input.params.spec_path;
-  const summary = await detector(input.repo, makeProject(input.repo), specPath);
 
   console.log(eventLine(summary.slice(0, DETECT_SUMMARY_MAX)));
 

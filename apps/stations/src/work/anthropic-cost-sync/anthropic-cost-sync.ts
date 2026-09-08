@@ -52,6 +52,20 @@ interface BucketPage {
   next: string | null;
 }
 
+// The page, as this job reads it. `next` is null unless the response BOTH says there is more and names where — a `has_more` with no cursor would otherwise loop on the same page.
+function toBucketPage(json: unknown): BucketPage {
+  const body = json as {
+    data?: unknown[];
+    has_more?: boolean;
+    next_page?: string | null;
+  };
+
+  return {
+    buckets: Array.isArray(body.data) ? body.data : [],
+    next: body.has_more ? (body.next_page ?? null) : null,
+  };
+}
+
 /** One page of usage buckets. A non-ok response throws rather than ending the walk: a partial cost sync silently under-reports spend, which is worse than a failed job somebody retries. */
 async function fetchBucketPage(
   url: URL,
@@ -67,16 +81,8 @@ async function fetchBucketPage(
       `Anthropic ${url.pathname} returned ${res.status}: ${await res.text()}`,
     );
   }
-  const body = (await res.json()) as {
-    data?: unknown[];
-    has_more?: boolean;
-    next_page?: string | null;
-  };
 
-  return {
-    buckets: Array.isArray(body.data) ? body.data : [],
-    next: body.has_more ? (body.next_page ?? null) : null,
-  };
+  return toBucketPage(await res.json());
 }
 
 async function fetchAllBuckets(

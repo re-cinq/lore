@@ -48,6 +48,18 @@ async function fetchAccessToken(): Promise<string> {
   return body.access_token;
 }
 
+// The headers BigQuery expects. The caller's own are spread LAST so a call can override the content type, while the bearer stays whatever this function decided.
+function bigQueryHeaders(
+  token: string,
+  extra: HeadersInit | undefined,
+): HeadersInit {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    ...extra,
+  };
+}
+
 async function bigQueryCall<T>(
   path: string,
   token: string,
@@ -56,11 +68,7 @@ async function bigQueryCall<T>(
   const res = await fetch(`${BIGQUERY_BASE}${path}`, {
     signal: AbortSignal.timeout(60_000),
     ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
+    headers: bigQueryHeaders(token, init.headers),
   });
 
   if (!res.ok) {
