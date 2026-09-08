@@ -30,6 +30,18 @@ async function changedFiles(gitDir: string): Promise<string[] | undefined> {
   }
 }
 
+// The node context the shared handler expects. `iteration` is 0 because a station pod runs one attempt: the walk decides whether there is another, and the pod has no way to know which one it is.
+function nodeContext(input: StationInput, gitDir: string) {
+  return {
+    taskId: input.task_id ?? "",
+    assemblyRunId: input.assembly_run_id,
+    branchName: input.branch,
+    gitDir,
+    iteration: 0,
+    assemblyLineName: input.node_type,
+  };
+}
+
 export async function runValidateStation(
   input: StationInput,
   env: StationEnv,
@@ -42,13 +54,6 @@ export async function runValidateStation(
 
   return handler(
     { id: input.node_id, type: "validate" },
-    {
-      taskId: input.task_id ?? "",
-      assemblyRunId: input.assembly_run_id,
-      branchName: input.branch,
-      gitDir,
-      iteration: 0,
-      assemblyLineName: input.node_type,
-    },
+    nodeContext(input, gitDir),
   );
 }

@@ -54,6 +54,28 @@ function successLine(
   return resultLine(result, undefined, result.usage ?? tracker.totalUsage());
 }
 
+// Runs the station with usage tracking around it. Both outcomes print ONE result line and the tracker is released either way — the pod's exit code says whether the node succeeded, and a line that never printed would leave the walk with nothing to read.
+async function runTracked(
+  runner: NodeStationRun,
+  inputJson: string,
+  env: StationEnv,
+): Promise<{ line: string; exitCode: number }> {
+  const tracker = acquireTracker();
+
+  try {
+    const result = await runner(parseStationInput(inputJson), env);
+
+    return { line: successLine(tracker, result), exitCode: 0 };
+  } catch (err) {
+    return {
+      line: resultLine(null, (err as Error).message, tracker?.totalUsage()),
+      exitCode: 1,
+    };
+  } finally {
+    releaseTracker(tracker);
+  }
+}
+
 export async function runStation(
   type: string,
   inputJson: string,
@@ -69,20 +91,7 @@ export async function runStation(
     };
   }
 
-  const tracker = acquireTracker();
-
-  try {
-    const result = await runner(parseStationInput(inputJson), env);
-
-    return { line: successLine(tracker, result), exitCode: 0 };
-  } catch (err) {
-    return {
-      line: resultLine(null, (err as Error).message, tracker?.totalUsage()),
-      exitCode: 1,
-    };
-  } finally {
-    releaseTracker(tracker);
-  }
+  return runTracked(runner, inputJson, env);
 }
 
 async function main() {

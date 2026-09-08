@@ -4,26 +4,36 @@ import { classifyComment } from "@re-cinq/lore-shared/review/comment-triage.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
+// A comment that could not be classified is a FAILED node, not an ignorable one — reporting success with action `ignore` (what a swallowed failure used to do) drops the comment while telling the walk it was handled.
+function unclassified(err: Error): NodeResult {
+  return {
+    outcome: "failed",
+    failureClass: "unknown",
+    failureDetail: `comment triage could not classify: ${err.message}`,
+  };
+}
+
+// The comment as the classifier reads it. Everything arrives as station params — strings threaded from the triage line's args — so each field is coerced here rather than trusted.
+function commentToClassify(input: StationInput) {
+  const p = input.params;
+
+  return {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- params is z.record(z.string()); zod does not guarantee this specific key was present in the wire JSON
+    body: p.comment_body ?? "",
+    isReply: Boolean(p.in_reply_to_id),
+    prNumber: Number(p.pr_number) || 0,
+  };
+}
+
 export async function runCommentTriageStation(
   input: StationInput,
 ): Promise<NodeResult> {
-  const p = input.params;
   let decision;
 
   try {
-    decision = await classifyComment({
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- params is z.record(z.string()); zod does not guarantee this specific key was present in the wire JSON
-      body: p.comment_body ?? "",
-      isReply: Boolean(p.in_reply_to_id),
-      prNumber: Number(p.pr_number) || 0,
-    });
+    decision = await classifyComment(commentToClassify(input));
   } catch (err) {
-    // A comment that could not be classified is a FAILED node, not an ignorable one — reporting success with action `ignore` (what a swallowed failure used to do) drops the comment while telling the walk it was handled.
-    return {
-      outcome: "failed",
-      failureClass: "unknown",
-      failureDetail: `comment triage could not classify: ${(err as Error).message}`,
-    };
+    return unclassified(err as Error);
   }
 
   return {

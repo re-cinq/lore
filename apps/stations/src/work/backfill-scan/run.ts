@@ -11,6 +11,27 @@ const BLUEPRINT = "spec-coverage-backfill";
 const subjectFor = (repo: string, specPath: string): string =>
   `${BLUEPRINT}:${repo}:${specPath}`;
 
+// Starts one spec's backfill, or hands back the run already doing it. The subject key is per (repo, spec), so two specs of the same repo do not block each other while one spec cannot be started twice.
+async function startBackfill(repo: string, specPath: string): Promise<string> {
+  const subjectKey = subjectFor(repo, specPath);
+  const open = await pipeline().assemblyRuns.findOpenBySubject(
+    repo,
+    subjectKey,
+  );
+
+  if (open) {
+    return open.id;
+  }
+
+  return pipeline().assemblyRuns.start({
+    blueprintName: BLUEPRINT,
+    repo,
+    branch: `detect/${BLUEPRINT}/${specPath}`,
+    subjectKey,
+    args: { spec_path: specPath },
+  });
+}
+
 export function runBackfillScan(_ctx: SweepContext): Promise<string> {
   return scanForBackfill({
     // Onboarded repos, filtered to those with specs by the per-repo listing below, rather than a second definition of "a repo with specs" living here alongside the Floor's.
@@ -20,24 +41,6 @@ export function runBackfillScan(_ctx: SweepContext): Promise<string> {
       (await (await projectFor(repo)).chunks.specChunksForBackfill()).map(
         (s) => s.filePath,
       ),
-    startBackfill: async (repo, specPath) => {
-      const subjectKey = subjectFor(repo, specPath);
-      const open = await pipeline().assemblyRuns.findOpenBySubject(
-        repo,
-        subjectKey,
-      );
-
-      if (open) {
-        return open.id;
-      }
-
-      return pipeline().assemblyRuns.start({
-        blueprintName: BLUEPRINT,
-        repo,
-        branch: `detect/${BLUEPRINT}/${specPath}`,
-        subjectKey,
-        args: { spec_path: specPath },
-      });
-    },
+    startBackfill,
   });
 }

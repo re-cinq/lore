@@ -99,20 +99,24 @@ function defaultEmbed():
   );
 }
 
+// The station token where there is one, falling back to the ingest token — a pod carries the narrower credential, a local run usually only the broader one.
+function stationToken(): string | undefined {
+  return process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
+}
+
 /** GET the scheduling event's payload back from the Lore API (FR3). */
 async function fetchPayloadFromApi(
   repo: string,
   eventId: string,
 ): Promise<unknown> {
   const baseUrl = process.env.LORE_API_URL;
-  const token = process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
 
   enforceTrue(baseUrl, Error, "ingest station: LORE_API_URL not configured");
   const res = await fetch(
     `${baseUrl}/api/repos/${repo}/events/${eventId}/payload`,
     {
       signal: AbortSignal.timeout(30_000),
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${stationToken()}` },
     },
   );
 
@@ -212,6 +216,16 @@ function graphSources(
   };
 }
 
+// What to project, from the node's params. `force` arrives as the string "true" — station params are a string map on the wire, so the comparison is against the text rather than a boolean.
+function docsRequest(kind: "specs" | "adrs", input: StationInput) {
+  return {
+    kind,
+    repo: input.repo,
+    glob: input.params.glob as string | undefined,
+    force: input.params.force === "true",
+  };
+}
+
 async function runDocsIngest(
   kind: "specs" | "adrs",
   input: StationInput,
@@ -219,12 +233,7 @@ async function runDocsIngest(
   deps: IngestStationDeps,
 ): Promise<NodeResult> {
   const summary = await runIngestGraph(
-    {
-      kind,
-      repo: input.repo,
-      glob: input.params.glob as string | undefined,
-      force: input.params.force === "true",
-    },
+    docsRequest(kind, input),
     graphSources(target, deps),
   );
 
@@ -235,18 +244,26 @@ async function runDocsIngest(
   );
 
   // Partial failure routes the line's failed edge — never a silent success with files missing (same contract as the Floor handler it replaces).
-  return {
-    outcome: summary.failed > 0 ? "failed" : "success",
-    extras,
-  };
+  return { outcome: summary.failed > 0 ? "failed" : "success", extras };
 }
 
-async function runPayloadIngest(
+// What the projection actually wrote, as one line. Counts rather than prose: this ends up in a stage commit's extras, where it is read to answer "did the graph get the tests" without opening the graph.
+function traceSummary(outcome: {
+  validatedBy: number;
+  violated: number;
+  coverageNodes: number;
+  coversEdges: number;
+  testChunks: number;
+}): string {
+  return `validated_by=${outcome.validatedBy} violated=${outcome.violated} coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`;
+}
+
+// The payload this kind of ingest projects. Fetched back from the API by the scheduling event's id rather than carried in the node's params: a test report is far larger than an event row wants to be.
+async function readPayload(
   kind: string,
   input: StationInput,
-  dgraph: DgraphClientPort,
   deps: IngestStationDeps,
-): Promise<NodeResult> {
+): Promise<unknown> {
   const eventId = input.params.payload_event_id as string | undefined;
 
   enforceTrue(
@@ -256,16 +273,24 @@ async function runPayloadIngest(
   );
   const fetchPayload =
     deps.fetchPayload ?? ((id: string) => fetchPayloadFromApi(input.repo, id));
-  const payload = await fetchPayload(eventId!);
-  const outcome = await ingestSpecTrace(dgraph, input.repo, kind, payload);
-  const summaryLine = `validated_by=${outcome.validatedBy} violated=${outcome.violated} coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`;
+
+  return fetchPayload(eventId);
+}
+
+async function runPayloadIngest(
+  kind: string,
+  input: StationInput,
+  dgraph: DgraphClientPort,
+  deps: IngestStationDeps,
+): Promise<NodeResult> {
+  const payload = await readPayload(kind, input, deps);
+  const summaryLine = traceSummary(
+    await ingestSpecTrace(dgraph, input.repo, kind, payload),
+  );
 
   console.log(eventLine(`ingest ${kind} complete: ${summaryLine}`));
 
-  return {
-    outcome: "success",
-    extras: { "Lore-Ingest-Summary": summaryLine },
-  };
+  return { outcome: "success", extras: { "Lore-Ingest-Summary": summaryLine } };
 }
 
 export async function runIngestStation(

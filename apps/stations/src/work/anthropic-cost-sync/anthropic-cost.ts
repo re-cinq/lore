@@ -80,6 +80,28 @@ function blankRow(bucketDate: string, model: string): AnthropicCostDailyRow {
   };
 }
 
+// The row for one day and model, created blank on first sight. Cost and usage arrive from two separate endpoints and neither is a superset of the other, so both sides have to be able to introduce a row.
+function rowFor(
+  byKey: Map<string, AnthropicCostDailyRow>,
+  date: string,
+  model: string,
+): AnthropicCostDailyRow {
+  const key = `${date}|${model}`;
+  const row = byKey.get(key) ?? blankRow(date, model);
+
+  byKey.set(key, row);
+
+  return row;
+}
+
+// Adds one usage record's four token counts onto the row.
+function addUsage(row: AnthropicCostDailyRow, usage: UsageRow): void {
+  row.inputTokens += usage.inputTokens;
+  row.outputTokens += usage.outputTokens;
+  row.cacheReadTokens += usage.cacheReadTokens;
+  row.cacheCreationTokens += usage.cacheCreationTokens;
+}
+
 export function mergeCostAndUsage(
   costRows: CostRow[],
   usageRows: UsageRow[],
@@ -87,22 +109,11 @@ export function mergeCostAndUsage(
   const byKey = new Map<string, AnthropicCostDailyRow>();
 
   for (const cost of costRows) {
-    const key = `${cost.date}|${cost.model}`;
-    const row = byKey.get(key) ?? blankRow(cost.date, cost.model);
-
-    row.costUsd += cost.costUsd;
-    byKey.set(key, row);
+    rowFor(byKey, cost.date, cost.model).costUsd += cost.costUsd;
   }
 
   for (const usage of usageRows) {
-    const key = `${usage.date}|${usage.model}`;
-    const row = byKey.get(key) ?? blankRow(usage.date, usage.model);
-
-    row.inputTokens += usage.inputTokens;
-    row.outputTokens += usage.outputTokens;
-    row.cacheReadTokens += usage.cacheReadTokens;
-    row.cacheCreationTokens += usage.cacheCreationTokens;
-    byKey.set(key, row);
+    addUsage(rowFor(byKey, usage.date, usage.model), usage);
   }
 
   return [...byKey.values()];

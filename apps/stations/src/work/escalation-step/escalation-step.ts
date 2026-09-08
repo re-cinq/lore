@@ -29,38 +29,52 @@ const failed = (detail: string): NodeResult => ({
   failureDetail: detail.substring(0, 300),
 });
 
+// The filed Issue as produced ARGS, not extras: args are merged into the line and reach notify as its params, while extras route the walk and never arrive there. `issue_url` is set only when there is one — absent selects the audit-only text downstream, so an empty string must not stand in for it.
+function filedArgs(issue: { url?: string; number: number | string }) {
+  return {
+    ...(issue.url ? { issue_url: issue.url } : {}),
+    issue_number: String(issue.number),
+  };
+}
+
+// One attempt at opening the Issue. A refusal comes back as an error string rather than thrown, so the retry loop above decides whether it is worth another go.
+async function tryFileIssue(
+  input: EscalateInput,
+  deps: EscalationStepDeps,
+): Promise<{ result: NodeResult } | { error: string }> {
+  const title = `[lore] needs-human-help: ${input.reason} on ${input.branchName}`;
+
+  try {
+    const issue = await deps.createIssue(
+      input.repo,
+      title,
+      renderEscalationBody(input),
+    );
+
+    return { result: { outcome: "success", args: filedArgs(issue) } };
+  } catch (err) {
+    return { error: (err as Error).message };
+  }
+}
+
 async function fileIssue(
   input: EscalateInput,
   deps: EscalationStepDeps,
 ): Promise<NodeResult> {
-  const title = `[lore] needs-human-help: ${input.reason} on ${input.branchName}`;
-
   const { attempts, delayMs } = deps.retry ?? { attempts: 3, delayMs: 1000 };
   let lastError = "";
 
+  // Retried rather than degraded on the first refusal — audit_only is a legitimate outcome and LOOKS like one, so a single GitHub blip would quietly turn a real escalation into a Slack line.
   for (let attempt = 1; attempt <= attempts; attempt++) {
-    try {
-      const issue = await deps.createIssue(
-        input.repo,
-        title,
-        renderEscalationBody(input),
-      );
+    const filed = await tryFileIssue(input, deps);
 
-      return {
-        outcome: "success",
-        // Produced ARGS, not extras: args are merged into the line and reach notify as its params (extras route the walk and never arrive there). `issue_url` is set only when there is one — absent selects the audit-only text, so an empty string must not stand in.
-        args: {
-          ...(issue.url ? { issue_url: issue.url } : {}),
-          issue_number: String(issue.number),
-        },
-      };
-    } catch (err) {
-      // Retried rather than degraded on the first refusal — audit_only is a legitimate outcome and LOOKS like one, so a single GitHub blip would quietly turn a real escalation into a Slack line.
-      lastError = (err as Error).message;
+    if ("result" in filed) {
+      return filed.result;
+    }
+    lastError = filed.error;
 
-      if (attempt < attempts) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
-      }
+    if (attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
     }
   }
 

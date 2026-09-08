@@ -27,6 +27,24 @@ async function promoteIfApproved(
   return true;
 }
 
+// Whether this task was promoted. Caught per task, so one unreachable repo cannot stall every other repo's queue — an error reads as "not approved yet", which the next tick will revisit.
+async function checkedApproval(
+  deps: StationHost,
+  task: Parameters<typeof promoteIfApproved>[1],
+  label: string,
+): Promise<boolean> {
+  try {
+    return await promoteIfApproved(deps, task, label);
+  } catch (err) {
+    console.error(
+      `[station] approval-check: error checking task ${task.id}:`,
+      err,
+    );
+
+    return false;
+  }
+}
+
 export async function runApprovalCheck(deps: StationHost): Promise<string> {
   const tasks = await deps.awaitingApproval();
 
@@ -39,16 +57,8 @@ export async function runApprovalCheck(deps: StationHost): Promise<string> {
   let approved = 0;
 
   for (const task of tasks) {
-    // Per task, so one unreachable repo cannot stall every other repo's queue.
-    try {
-      if (await promoteIfApproved(deps, task, label)) {
-        approved++;
-      }
-    } catch (err) {
-      console.error(
-        `[station] approval-check: error checking task ${task.id}:`,
-        err,
-      );
+    if (await checkedApproval(deps, task, label)) {
+      approved++;
     }
   }
 
