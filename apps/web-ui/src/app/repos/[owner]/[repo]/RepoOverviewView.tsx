@@ -3,7 +3,7 @@ import { Alert } from "@/components/Alert";
 import Link from "next/link";
 import ReadmeBox from "./ReadmeBox";
 import EnrollmentSection from "@/components/EnrollmentSection";
-import EventRow from "./events/EventRow";
+import EventRow, { EventsTableHead } from "./events/EventRow";
 import { type RepoEvent } from "./events/pagination";
 import { type Check } from "@/lib/enrollment";
 import { TimeAgo } from "@/components/TimeAgo";
@@ -236,14 +236,7 @@ function EventsTable({
 
   return (
     <table>
-      <thead>
-        <tr>
-          <th>When</th>
-          <th>Event</th>
-          <th>Source</th>
-          <th>Status</th>
-        </tr>
-      </thead>
+      <EventsTableHead />
       <tbody>
         {events.map((event) => (
           <EventRow key={event.id} event={event} />

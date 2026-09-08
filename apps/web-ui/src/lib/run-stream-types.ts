@@ -1,3 +1,5 @@
+import { num, record, str } from "@/lib/json-field";
+
 // Mirrors AgentRunEventRow (isolated build + drift detection); createdAt divergence is structural (revisit per #1419).
 export type AgentRunEventType =
   | "init"
@@ -35,20 +37,6 @@ const EVENT_TYPES: ReadonlySet<string> = new Set<AgentRunEventType>([
   "result",
   "hook",
 ]);
-
-function str(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
-}
-
-function num(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
 
 function isEventType(value: string | null): value is AgentRunEventType {
   return value !== null && EVENT_TYPES.has(value);

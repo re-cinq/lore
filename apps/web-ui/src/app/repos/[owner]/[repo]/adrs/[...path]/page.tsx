@@ -4,6 +4,7 @@ import { fetchTraceSource } from "@/lib/trace-api";
 import { parseFrontmatter } from "@/lib/frontmatter";
 import SpecDocument from "../../specs/[...path]/SpecDocument";
 import AdrMetaView from "./AdrMetaView";
+import { decodeCatchAllPath } from "@/lib/catch-all-path";
 
 /** Why this ADR is blank, and when it will not be. Nothing here is for the reader to do: the projection runs on the next push to `main`, so the note says to come back rather than offering an action. */
 function EmptyGraphData({ filePath }: { filePath: string }) {
@@ -23,7 +24,7 @@ export default async function RepoAdrDetail({
 }) {
   const { owner, repo, path } = await params;
   const fullName = `${owner}/${repo}`;
-  const filePath = path.map(decodeURIComponent).join("/");
+  const filePath = decodeCatchAllPath(path);
   const adrsLink = `/repos/${owner}/${repo}/adrs`;
 
   // ADR source from graph (no coverage), frontmatter → metadata header (safe to strip).

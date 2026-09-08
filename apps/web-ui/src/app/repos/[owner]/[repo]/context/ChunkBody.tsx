@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import { markdownSanitizeSchema } from "@/lib/markdown-sanitize";
-import { resolveHref, blobUrl } from "@/lib/github-links";
+import { blobUrl } from "@/lib/github-links";
+import { useResolvedMarkdownLinks } from "@/app/repos/[owner]/[repo]/useResolvedMarkdownLinks";
 import { languageForPath, fenceFor } from "@/lib/code-lang";
 import { chunkHeader, type ChunkMeta } from "@/lib/chunk-presenter";
 import readme from "../ReadmeBox.module.css";
@@ -92,34 +92,6 @@ export interface ChunkBodyProps {
   preview?: boolean;
 }
 
-/** Rewrites a chunk's links against the repo they were written in: a relative path becomes a blob URL on this branch, and anything leaving the site opens in a new tab with `noopener`. */
-function useResolvedLinks(repo: string, branch: string) {
-  const mdComponents = useMemo(
-    () => ({
-      a(props: React.ComponentPropsWithoutRef<"a"> & { node?: unknown }) {
-        const { href, children, node: _node, ...rest } = props;
-        const { href: resolved, external } = resolveHref(
-          href ?? "",
-          repo,
-          branch,
-        );
-        const ext = external
-          ? { target: "_blank", rel: "noopener noreferrer" }
-          : {};
-
-        return (
-          <a href={resolved} {...ext} {...rest}>
-            {children}
-          </a>
-        );
-      },
-    }),
-    [repo, branch],
-  );
-
-  return mdComponents;
-}
-
 /** Where this chunk lives on GitHub. A code chunk carries its line range into the fragment so the link lands on the chunk rather than the top of the file; prose chunks have no range to point at. */
 function ghHrefFor({
   repo,
@@ -174,7 +146,7 @@ export default function ChunkBody({
 }: ChunkBodyProps) {
   const isCode = contentType === CODE_TYPE;
 
-  const mdComponents = useResolvedLinks(repo, branch);
+  const mdComponents = useResolvedMarkdownLinks(repo, branch);
   const markdown = markdownFor(isCode, content, filePath);
   const rehypePlugins = rehypePluginsFor(isCode);
   const headerLabel = chunkHeader(contentType, metadata);

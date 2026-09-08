@@ -21,6 +21,7 @@ export default defineConfig({
         "src/lib/db.ts",
         "src/lib/trace-api.ts",
         "src/lib/webhook-api.ts",
+        "src/lib/lore-api-get.ts",
         "src/lib/task-runtime.ts",
         "src/lib/auth.ts",
         "src/lib/auth-options.ts",

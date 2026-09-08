@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getChunksByPath } from "@/lib/api/chunks";
+import { decodeCatchAllPath } from "@/lib/catch-all-path";
 import ContextFileView, {
   type ContextFileGroup,
   type ContextFileChunk,
@@ -42,7 +43,7 @@ export default async function GlobalContextFile({
   params: Promise<{ path: string[] }>;
 }) {
   const { path } = await params;
-  const filePath = path.map(decodeURIComponent).join("/");
+  const filePath = decodeCatchAllPath(path);
 
   const result = await getChunksByPath(filePath);
   const rows = (result.status === "ok"

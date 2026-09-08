@@ -1,4 +1,5 @@
 // Mirrors AgentRunTurnRow with type-drift guard (createdAt: string from JSON; eventType unnarrowed; #1419).
+import { num, record, str } from "@/lib/json-field";
 
 export interface AgentRunTurn {
   id: string;
@@ -12,20 +13,6 @@ export interface AgentRunTurn {
   /** The untruncated `{source, event}` line. */
   envelope: Record<string, unknown>;
   createdAt: string;
-}
-
-function str(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
-}
-
-function num(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 }
 
 /** Validates and coerces a row; returns null for missing id/createdAt. */

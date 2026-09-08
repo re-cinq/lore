@@ -1,16 +1,10 @@
 "use client";
 
 // ADR list from graph /trace API; status filters from frontmatter (no Postgres).
-import { useState } from "react";
 import SpecCard from "../specs/SpecCard";
-import DocListControls from "@/components/DocListControls";
-import SpecStatusChips from "@/components/SpecStatusChips";
-import {
-  filterDocCards,
-  sortDocCards,
-  type DocSortOrder,
-} from "@/lib/doc-filter";
-import type { SpecStatusFilter, SpecStatusInfo } from "@/lib/spec-status";
+import DocListToolbar, { useDocListView } from "@/components/DocListToolbar";
+import { filterDocCards, sortDocCards } from "@/lib/doc-filter";
+import type { SpecStatusInfo } from "@/lib/spec-status";
 
 interface AdrSummary {
   filePath: string;
@@ -55,44 +49,6 @@ function AdrCards({
   );
 }
 
-/** Search, status and sort, held together because every one of them re-filters the same list. */
-function useAdrListView() {
-  const [filter, setFilter] = useState<SpecStatusFilter>("all");
-  const [query, setQuery] = useState("");
-  const [order, setOrder] = useState<DocSortOrder>("path");
-
-  return { filter, setFilter, query, setQuery, order, setOrder };
-}
-
-/** Search, sort and the status chips. Counts come from the FULL set rather than the visible one: selecting a status must not make the other statuses look empty. */
-function ListControls({
-  view,
-  counts,
-  total,
-}: {
-  view: ReturnType<typeof useAdrListView>;
-  counts: ReturnType<typeof filterDocCards>["counts"];
-  total: number;
-}) {
-  return (
-    <>
-      <DocListControls
-        query={view.query}
-        onQueryChange={view.setQuery}
-        sort={view.order}
-        onSortChange={view.setOrder}
-      />
-      <SpecStatusChips
-        counts={counts}
-        total={total}
-        active={view.filter}
-        onChange={view.setFilter}
-        kind="adr"
-      />
-    </>
-  );
-}
-
 interface AdrListViewProps {
   owner: string;
   repo: string;
@@ -103,7 +59,7 @@ interface AdrListViewProps {
 
 export default function AdrListView(props: AdrListViewProps) {
   const { owner, repo, adrs, statuses = {} } = props;
-  const view = useAdrListView();
+  const view = useDocListView();
 
   if (adrs.length === 0) {
     return <EmptyAdrs />;
@@ -117,7 +73,12 @@ export default function AdrListView(props: AdrListViewProps) {
 
   return (
     <div>
-      <ListControls view={view} counts={counts} total={adrs.length} />
+      <DocListToolbar
+        view={view}
+        counts={counts}
+        total={adrs.length}
+        kind="adr"
+      />
       <AdrCards adrs={ordered} statusOf={statusOf} owner={owner} repo={repo} />
       {ordered.length === 0 && (
         <p className="muted">No ADRs match this filter.</p>

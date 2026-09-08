@@ -1,5 +1,6 @@
 // HTTP client for mcp-server /trace API (IO glue, excluded from coverage like lib/db.ts).
 
+import { loreApiGet } from "@/lib/lore-api-get";
 import type { TraceDocument } from "@/lib/trace-types";
 import type { SpecGraph, SpecRing } from "@/lib/spec-graph";
 import type { SpecStatusInfo } from "@/lib/spec-status";
@@ -13,34 +14,8 @@ export interface GlobalDocEntry {
   status: SpecStatusInfo | null;
 }
 
-function creds(): { api: string; token: string } | null {
-  const api = process.env.LORE_API_URL;
-  const token = process.env.LORE_INGEST_TOKEN;
-
-  return api && token ? { api, token } : null;
-}
-
-async function apiGet<T>(pathAndQuery: string): Promise<T | null> {
-  const c = creds();
-
-  if (!c) {
-    return null;
-  }
-  const res = await fetch(`${c.api}${pathAndQuery}`, {
-    signal: AbortSignal.timeout(15_000),
-    headers: { Authorization: `Bearer ${c.token}` },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    return null;
-  }
-
-  return (await res.json()) as T;
-}
-
 function traceGet<T>(repo: string, kindAndQuery: string): Promise<T | null> {
-  return apiGet<T>(`/api/repos/${repo}/trace/${kindAndQuery}`);
+  return loreApiGet<T>(`/api/repos/${repo}/trace/${kindAndQuery}`);
 }
 
 /** Spec document paths the graph holds for the repo. */
@@ -136,13 +111,15 @@ export async function fetchTraceRing(
 /** Cross-repo spec list for the global /specs viewer. */
 export async function fetchAllSpecs(): Promise<GlobalDocEntry[]> {
   return (
-    (await apiGet<{ specs: GlobalDocEntry[] }>("/api/trace/specs"))?.specs ?? []
+    (await loreApiGet<{ specs: GlobalDocEntry[] }>("/api/trace/specs"))
+      ?.specs ?? []
   );
 }
 
 /** Cross-repo ADR list for the global /adrs viewer. */
 export async function fetchAllAdrs(): Promise<GlobalDocEntry[]> {
   return (
-    (await apiGet<{ adrs: GlobalDocEntry[] }>("/api/trace/adrs"))?.adrs ?? []
+    (await loreApiGet<{ adrs: GlobalDocEntry[] }>("/api/trace/adrs"))?.adrs ??
+    []
   );
 }

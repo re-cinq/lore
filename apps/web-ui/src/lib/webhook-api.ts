@@ -1,4 +1,6 @@
 // HTTP client for lore-api's webhook status/ensure API (IO glue, excluded from coverage).
+import { loreApiGet } from "@/lib/lore-api-get";
+import { resolveLoreApiConfig } from "@/lib/lore-api-config";
 
 export interface WebhookStatus {
   state:
@@ -19,67 +21,31 @@ export interface WebhookStatus {
   secret?: string;
 }
 
-function creds(): { api: string; token: string } | null {
-  const api = process.env.LORE_API_URL;
-  const token = process.env.LORE_INGEST_TOKEN;
-
-  return api && token ? { api, token } : null;
-}
-
-export async function getWebhookStatus(
-  repo: string,
-): Promise<WebhookStatus | null> {
-  const c = creds();
-
-  if (!c) {
-    return null;
-  }
-  const res = await fetch(`${c.api}/api/repos/${repo}/webhook`, {
-    signal: AbortSignal.timeout(15_000),
-    headers: { Authorization: `Bearer ${c.token}` },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    return null;
-  }
-
-  return (await res.json()) as WebhookStatus;
+export function getWebhookStatus(repo: string): Promise<WebhookStatus | null> {
+  return loreApiGet<WebhookStatus>(`/api/repos/${repo}/webhook`);
 }
 
 /** Reveals HMAC signing secret for manual webhook setup (admin-scoped). */
 export async function getWebhookSecret(repo: string): Promise<string | null> {
-  const c = creds();
+  const body = await loreApiGet<{ secret?: string }>(
+    `/api/repos/${repo}/webhook/secret`,
+  );
 
-  if (!c) {
-    return null;
-  }
-  const res = await fetch(`${c.api}/api/repos/${repo}/webhook/secret`, {
-    signal: AbortSignal.timeout(15_000),
-    headers: { Authorization: `Bearer ${c.token}` },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    return null;
-  }
-  const body = (await res.json()) as { secret?: string };
-
-  return body.secret ?? null;
+  return body?.secret ?? null;
 }
 
 export async function ensureWebhook(
   repo: string,
 ): Promise<WebhookStatus | { error: string }> {
-  const c = creds();
+  const config = resolveLoreApiConfig();
 
-  if (!c) {
+  if (!config) {
     return { error: "web-ui is not configured to reach the Lore API" };
   }
-  const res = await fetch(`${c.api}/api/repos/${repo}/webhook/ensure`, {
+  const res = await fetch(`${config.apiUrl}/api/repos/${repo}/webhook/ensure`, {
     signal: AbortSignal.timeout(15_000),
     method: "POST",
-    headers: { Authorization: `Bearer ${c.token}` },
+    headers: { Authorization: `Bearer ${config.token}` },
     cache: "no-store",
   });
 

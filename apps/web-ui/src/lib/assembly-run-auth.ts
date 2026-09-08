@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { fetchAssemblyRun, type AssemblyRun } from "@/lib/assembly-runs";
-import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { resolveSessionAccessToken } from "@/lib/session-access-token";
-import { resolveFloorConfig } from "@/lib/floor-config";
+import { type FloorConfig } from "@/lib/floor-config";
+import { authorizeRepoFloorAccess } from "@/lib/floor-access";
+import { serverError } from "@/lib/api-error";
 
 export interface AssemblyRunAuth {
   run: AssemblyRun;
@@ -33,21 +34,47 @@ export async function authorizeAssemblyRunAccess(
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
-  if (!(await userCanAccessRepo(accessToken, run.repo))) {
-    return NextResponse.json(
-      { error: "Access denied — you do not have access to this repo" },
-      { status: 403 },
-    );
-  }
+  const floorConfig = await authorizeRepoFloorAccess(accessToken, run.repo);
 
-  const floorConfig = resolveFloorConfig();
-
-  if (!floorConfig) {
-    return NextResponse.json(
-      { error: "LORE_FLOOR_URL/LORE_INGEST_TOKEN not configured" },
-      { status: 500 },
-    );
+  if (floorConfig instanceof NextResponse) {
+    return floorConfig;
   }
 
   return { run, ...floorConfig };
+}
+
+/** What a run proxy needs once the ladder has passed: the run id, the caller's request, and the Floor to ask. */
+export interface RunProxyContext extends FloorConfig {
+  id: string;
+  req: Request;
+}
+
+/** A run-scoped Floor proxy route. The id, the auth ladder and the failure label are the same for every one of them, so each route states only its upstream call. */
+export function assemblyRunProxyRoute(
+  errorContext: string,
+  proxy: (ctx: RunProxyContext) => Promise<Response>,
+) {
+  return async function GET(
+    req: Request,
+    { params }: { params: Promise<{ id: string }> },
+  ) {
+    const { id } = await params;
+
+    try {
+      const auth = await authorizeAssemblyRunAccess(id);
+
+      if (isAssemblyRunAuthError(auth)) {
+        return auth;
+      }
+
+      return await proxy({
+        id,
+        req,
+        floorUrl: auth.floorUrl,
+        token: auth.token,
+      });
+    } catch (err) {
+      return serverError(errorContext, err);
+    }
+  };
 }

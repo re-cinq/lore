@@ -10,6 +10,7 @@ import { type StatementInfo, type StatementState } from "@/lib/trace-types";
 
 export type { StatementInfo, StatementState };
 import { resolveHref } from "@/lib/github-links";
+import { useResolvedMarkdownLinks } from "@/app/repos/[owner]/[repo]/useResolvedMarkdownLinks";
 import { buildHighlighter } from "./statement-highlight";
 import readme from "../ReadmeBox.module.css";
 import styles from "./SpecDetails.module.css";
@@ -77,7 +78,7 @@ function SpecMarkdown({
 }: {
   content: string;
   rehypePlugins: ReturnType<typeof useStatementHighlighting>["rehypePlugins"];
-  components: ReturnType<typeof useGithubLinks>;
+  components: ReturnType<typeof useResolvedMarkdownLinks>;
 }) {
   return (
     <ReactMarkdown
@@ -152,7 +153,7 @@ export default function SpecDetails(props: SpecDetailsProps) {
         <SpecMarkdown
           content={content}
           rehypePlugins={rehypePlugins}
-          components={useGithubLinks(repo, branch)}
+          components={useResolvedMarkdownLinks(repo, branch)}
         />
         {hover && hovered && (
           <HoverPopover
@@ -216,31 +217,4 @@ function useStatementHover(wrapperRef: React.RefObject<HTMLDivElement | null>) {
   }
 
   return { hover, onMouseOver, onMouseLeave };
-}
-
-/** Markdown links resolve against the spec's own repo and branch; anything that leaves the app opens in a new tab. */
-function useGithubLinks(repo: string, branch: string) {
-  // Rewrite markdown links to GitHub: open externally instead of in-app.
-  return useMemo(
-    () => ({
-      a(props: React.ComponentPropsWithoutRef<"a"> & { node?: unknown }) {
-        const { href, children, node: _node, ...rest } = props;
-        const { href: resolved, external } = resolveHref(
-          href ?? "",
-          repo,
-          branch,
-        );
-        const ext = external
-          ? { target: "_blank", rel: "noopener noreferrer" }
-          : {};
-
-        return (
-          <a href={resolved} {...ext} {...rest}>
-            {children}
-          </a>
-        );
-      },
-    }),
-    [repo, branch],
-  );
 }

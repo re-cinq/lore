@@ -6,6 +6,7 @@ import { parseSpecStatus } from "@/lib/spec-status";
 import SpecStatusPill from "@/components/SpecStatusPill";
 import SpecDocument from "./SpecDocument";
 import styles from "./page.module.scss";
+import { decodeCatchAllPath } from "@/lib/catch-all-path";
 
 /** The spec as the GRAPH holds it, not as the repo does: the source renders the markdown, and the document supplies the per-statement coverage overlay laid over it. */
 async function readSpec(fullName: string, filePath: string) {
@@ -39,7 +40,7 @@ export default async function RepoSpecDetail({
 }) {
   const { owner, repo, path } = await params;
   const fullName = `${owner}/${repo}`;
-  const filePath = path.map(decodeURIComponent).join("/");
+  const filePath = decodeCatchAllPath(path);
   const specsLink = `/repos/${owner}/${repo}/specs`;
 
   const { source, statements, status } = await readSpec(fullName, filePath);

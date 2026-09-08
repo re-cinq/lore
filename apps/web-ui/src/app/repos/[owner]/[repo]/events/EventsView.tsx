@@ -1,5 +1,5 @@
 import { Alert } from "@/components/Alert";
-import EventRow from "./EventRow";
+import EventRow, { EventsTableHead } from "./EventRow";
 import InfiniteEvents from "./InfiniteEvents";
 import { EVENTS_PAGE_SIZE, type RepoEvent } from "./pagination";
 
@@ -16,14 +16,7 @@ export interface EventsViewProps {
 function EventsTable({ owner, repo, events, hasMore }: EventsViewProps) {
   return (
     <table>
-      <thead>
-        <tr>
-          <th>When</th>
-          <th>Event</th>
-          <th>Source</th>
-          <th>Status</th>
-        </tr>
-      </thead>
+      <EventsTableHead />
       <tbody>
         {events.map((e) => (
           <EventRow key={e.id} event={e} />
