@@ -332,9 +332,9 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 
 9. Each migrated batch job is an independently-runnable unit the runner dispatches and whose one-line
    result the run row records: `memory_ttl` soft-deletes expired memories and reports the count,
-   `anthropic_cost_sync` returns a skip summary when `ANTHROPIC_ADMIN_KEY` is unset (and otherwise
-   parses the Admin cost/usage report — cents-string amount → dollars, 1h + 5m ephemeral
-   cache-creation buckets summed, cost joined to tokens per date+model). ([validated by `anthropic-cost-sync.test.ts:10`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts:9`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts:37`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts:73`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L73), [`anthropic-cost.test.ts:92`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L92)))
+   `anthropic_cost_sync` returns a skip summary when `ANTHROPIC_ADMIN_KEY` is unset, and otherwise
+   parses the Admin cost/usage report: cents-string amount → dollars, 1h + 5m ephemeral
+   cache-creation buckets summed, cost joined to tokens per date+model. ([validated by `anthropic-cost-sync.test.ts:10`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts:9`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts:37`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts:73`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L73), [`anthropic-cost.test.ts:92`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L92)))
 
 10. The detection-family cron tick fans out one per-repo assembly line (2026-07 amendment):
    `detectBranchName` keys each run `detect/<definition>/<repo>` (the old lease key, now the
