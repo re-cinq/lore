@@ -4,23 +4,28 @@ import { NodeSDK } from "@opentelemetry/sdk-node";
 
 let sdk: NodeSDK | null = null;
 
+/** The Cloud exporters are imported dynamically so a deployment without them fails here rather than at module load, which is what makes tracing optional. */
+async function buildCloudSdk(): Promise<NodeSDK> {
+  const { TraceExporter } =
+    await import("@google-cloud/opentelemetry-cloud-trace-exporter");
+  const { MetricExporter } =
+    await import("@google-cloud/opentelemetry-cloud-monitoring-exporter");
+  const { PeriodicExportingMetricReader } =
+    await import("@opentelemetry/sdk-metrics");
+
+  return new NodeSDK({
+    traceExporter: new TraceExporter(),
+    metricReader: new PeriodicExportingMetricReader({
+      exporter: new MetricExporter(),
+      exportIntervalMillis: 60_000,
+    }),
+    serviceName: "lore-floor",
+  });
+}
+
 export async function initOtel(): Promise<void> {
   try {
-    const { TraceExporter } =
-      await import("@google-cloud/opentelemetry-cloud-trace-exporter");
-    const { MetricExporter } =
-      await import("@google-cloud/opentelemetry-cloud-monitoring-exporter");
-    const { PeriodicExportingMetricReader } =
-      await import("@opentelemetry/sdk-metrics");
-
-    sdk = new NodeSDK({
-      traceExporter: new TraceExporter(),
-      metricReader: new PeriodicExportingMetricReader({
-        exporter: new MetricExporter(),
-        exportIntervalMillis: 60_000,
-      }),
-      serviceName: "lore-floor",
-    });
+    sdk = await buildCloudSdk();
     sdk.start();
     console.log("[otel] Tracing and metrics initialized → Cloud Monitoring");
   } catch {

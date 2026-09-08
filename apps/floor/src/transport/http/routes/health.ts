@@ -16,6 +16,21 @@ async function probeProcessedCounts(): Promise<ProcessedCounts | null> {
   }
 }
 
+/** The informational body of a healthy probe; `current` is always null since the Floor no longer tracks an in-flight task here. */
+function healthyBody(counts: ProcessedCounts, jobs: unknown) {
+  return {
+    status: "ok",
+    uptime_seconds: Math.floor((Date.now() - startTime) / 1000),
+    tasks: {
+      processed_today: counts.today,
+      processed_total: counts.total,
+      current: null,
+    },
+    jobs,
+    database: { connected: true },
+  };
+}
+
 export function healthRoute(getJobStatus: () => unknown): ServerRoute {
   return {
     method: "GET",
@@ -32,19 +47,7 @@ export function healthRoute(getJobStatus: () => unknown): ServerRoute {
           .code(503);
       }
 
-      return h
-        .response({
-          status: "ok",
-          uptime_seconds: Math.floor((Date.now() - startTime) / 1000),
-          tasks: {
-            processed_today: counts.today,
-            processed_total: counts.total,
-            current: null,
-          },
-          jobs: getJobStatus(),
-          database: { connected: true },
-        })
-        .code(200);
+      return h.response(healthyBody(counts, getJobStatus())).code(200);
     },
   };
 }

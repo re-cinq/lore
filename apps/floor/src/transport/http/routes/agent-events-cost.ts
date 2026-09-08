@@ -88,14 +88,28 @@ function applySettledCostRow(
   applyFailedCostRow(summary, entry);
 }
 
+// Sequential over Promise.all's index-ordered results so firstTaskId/firstIssue name the first row, not whichever settled first; the two anomaly classes are counted once the whole batch is folded.
+function summarizeSettledCostRows(
+  settled: readonly SettledCostRow[],
+): CostIngestSummary {
+  const s: CostIngestSummary = { recorded: 0, uncorrelated: 0, failed: 0 };
+
+  for (const entry of settled) {
+    applySettledCostRow(s, entry);
+  }
+
+  countAnomaly("cost_uncorrelated", s.uncorrelated);
+  countAnomaly("cost_failed", s.failed);
+
+  return s;
+}
+
 export async function recordAgentCosts(
   rows: readonly LlmCallRow[],
   logCall: (r: LlmCallRecord) => Promise<LlmCallResult> = (r) =>
     usage().logLlmCall(r),
 ): Promise<CostIngestSummary> {
-  const s: CostIngestSummary = { recorded: 0, uncorrelated: 0, failed: 0 };
-
-  // Inserts run in parallel (relay holds the request open across a serial chain otherwise), but the fold below stays sequential over Promise.all's index-ordered results so firstTaskId/firstIssue name the first row, not whichever settled first.
+  // Inserts run in parallel; a serial chain would hold the relay's request open for the whole batch.
   const settled = await Promise.all(
     rows.map(async (row): Promise<SettledCostRow> => {
       try {
@@ -106,14 +120,7 @@ export async function recordAgentCosts(
     }),
   );
 
-  for (const entry of settled) {
-    applySettledCostRow(s, entry);
-  }
-
-  countAnomaly("cost_uncorrelated", s.uncorrelated);
-  countAnomaly("cost_failed", s.failed);
-
-  return s;
+  return summarizeSettledCostRows(settled);
 }
 
 export function costDegradedAudit(s: CostIngestSummary): AuditLogEntry | null {

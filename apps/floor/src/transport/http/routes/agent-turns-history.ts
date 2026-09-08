@@ -12,13 +12,16 @@ export function pageWithLookahead(rows: AgentRunTurnRow[], limit: number) {
   return { turns: rows.slice(0, limit), hasMore: rows.length > limit };
 }
 
-export function agentTurnsHistoryRoute(turns?: {
+/** The one read the route needs; a narrow shape so a test can pass a stub without standing up the whole repository. */
+interface TurnsByLineReader {
   listByLine: (
     assemblyLineId: string,
     afterId: string,
     limit: number,
   ) => Promise<AgentRunTurnRow[]>;
-}): ServerRoute {
+}
+
+export function agentTurnsHistoryRoute(turns?: TurnsByLineReader): ServerRoute {
   return {
     method: "GET",
     path: "/api/agent-turns/{assemblyRunId}",

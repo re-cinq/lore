@@ -121,34 +121,65 @@ interface LoopDispatchInput {
   resume: ReturnType<typeof decideBranchResume>;
 }
 
+function loopContextBundle(input: LoopDispatchInput): Record<string, unknown> {
+  const { picked, branch, resume } = input;
+
+  return {
+    github_issue_number: picked.number,
+    ...(picked.url ? { github_issue_url: picked.url } : {}),
+    branch,
+    // Draft PR: the line declares the flag; a draft gets no Lore code review, avoiding twelve reviews on twelve round-pushes.
+    line_args: buildLineArgs(picked, resume),
+  };
+}
+
 /** Creates the backlog task and stamps the issue link onto it; console-logs whether it resumed an existing branch. */
 async function dispatchLoopTask(
   input: LoopDispatchInput,
   deps: LoopTickDeps,
 ): Promise<void> {
-  const { repo, picked, branch, resume } = input;
+  const { repo, picked } = input;
   const task = await deps.createTask({
     description: implementationTicketDescription(picked),
     taskType: "implementation-loop",
     targetRepo: repo,
     createdBy: "implementation-loop",
-    contextBundle: {
-      github_issue_number: picked.number,
-      ...(picked.url ? { github_issue_url: picked.url } : {}),
-      branch,
-      // Draft PR: the line declares the flag; a draft gets no Lore code review, avoiding twelve reviews on twelve round-pushes.
-      line_args: buildLineArgs(picked, resume),
-    },
+    contextBundle: loopContextBundle(input),
   });
 
   await deps.setTaskColumns(task.task_id, {
     issue_number: picked.number,
     ...(picked.url ? { issue_url: picked.url } : {}),
   });
+  logDispatch(input, task.task_id);
+}
+
+function logDispatch(input: LoopDispatchInput, taskId: string): void {
+  const { repo, picked, branch, resume } = input;
+
   console.log(
-    `[implementation-loop] ${repo}: picked #${picked.number} as task ${task.task_id}` +
+    `[implementation-loop] ${repo}: picked #${picked.number} as task ${taskId}` +
       (resume.resume ? ` (continuing ${branch})` : ""),
   );
+}
+
+/** Continuing a branch is silent by design: recorded on the run's args, not GitHub. Deleting the branch is the owner's restart lever. */
+async function resolveResume(
+  repo: string,
+  picked: IssueRef,
+  branch: string,
+  deps: LoopTickDeps,
+): Promise<ReturnType<typeof decideBranchResume>> {
+  const [branchExists, openPr] = await Promise.all([
+    deps.branchExists(repo, branch),
+    deps.openPrForBranch(repo, branch),
+  ]);
+
+  return decideBranchResume({
+    branchExists,
+    issueLabels: picked.labels,
+    openPr,
+  });
 }
 
 async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
@@ -170,16 +201,7 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   }
 
   const branch = implementationLoopBranch(picked.number);
-  // Continuing a branch is silent by design: recorded on the run's args, not GitHub. Deleting the branch is the owner's restart lever.
-  const [branchExists, openPr] = await Promise.all([
-    deps.branchExists(repo, branch),
-    deps.openPrForBranch(repo, branch),
-  ]);
-  const resume = decideBranchResume({
-    branchExists,
-    issueLabels: picked.labels,
-    openPr,
-  });
+  const resume = await resolveResume(repo, picked, branch, deps);
 
   await dispatchLoopTask({ repo, picked, branch, resume }, deps);
 }
@@ -202,16 +224,15 @@ function repoPorts(projectFor: (repo: string) => Promise<Project>) {
   };
 }
 
-/** Production wiring for the `cron.implementation_loop.tick` handler. */
-export const implementationLoopTick: EventHandler = async (params) => {
-  const [{ pipeline, settings, taskStore }, { projectFor }] = await Promise.all(
-    [
-      import("../../outbound/queues.js"),
-      import("../../outbound/project-boot.js"),
-    ],
-  );
+type LoopQueues = typeof import("../../outbound/queues.js");
 
-  await createImplementationLoopTickHandler({
+function tickDeps(
+  queues: LoopQueues,
+  projectFor: (repo: string) => Promise<Project>,
+): LoopTickDeps {
+  const { pipeline, settings, taskStore } = queues;
+
+  return {
     listRepos: async () =>
       (await settings().onboardedRepos()).map((r) => r.full_name),
     rawSettings: (repo) => settings().rawSettings(repo),
@@ -223,5 +244,18 @@ export const implementationLoopTick: EventHandler = async (params) => {
     setTaskColumns: (taskId, columns) =>
       pipeline().taskQueue.setColumns(taskId, columns),
     ...repoPorts(projectFor),
-  })(params);
+  };
+}
+
+/** Production wiring for the `cron.implementation_loop.tick` handler. */
+export const implementationLoopTick: EventHandler = async (params) => {
+  const [queues, { projectFor }] = await Promise.all([
+    import("../../outbound/queues.js"),
+    import("../../outbound/project-boot.js"),
+  ]);
+  const handler = createImplementationLoopTickHandler(
+    tickDeps(queues, projectFor),
+  );
+
+  await handler(params);
 };

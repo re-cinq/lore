@@ -18,13 +18,16 @@ export function parseAfter(raw: unknown): string {
   return typeof raw === "string" && /^\d+$/.test(raw) ? raw : "0";
 }
 
-export function agentEventsHistoryRoute(events?: {
+/** The one read the route needs; a narrow shape so a test can pass a stub without standing up the whole repository. */
+interface RunEventReader {
   listSince: (
     assemblyLineId: string,
     afterId: string,
     limit: number,
   ) => Promise<AgentRunEventRow[]>;
-}): ServerRoute {
+}
+
+export function agentEventsHistoryRoute(events?: RunEventReader): ServerRoute {
   return {
     method: "GET",
     path: "/api/agent-events/{assemblyRunId}",

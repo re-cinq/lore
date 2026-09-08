@@ -10,7 +10,6 @@ export interface ShutdownSteps {
   exit: (code: number) => void;
 }
 
-/** A shutdown function safe to wire to several signals. Every step is best-effort — a shutdown that cannot complete must still terminate — and it runs once however many signals arrive (SIGTERM then SIGKILL, or a Ctrl-C mid-drain, must not restart the sequence). */
 /** Drains the in-memory queue, reporting what did not make it. Never throws: the process is already going down, and the reconcile cron is what re-emits an undelivered event — losing the exit path would be worse than losing the event. */
 async function drainEvents(steps: ShutdownSteps): Promise<void> {
   const undrained = await steps.flushEvents?.().catch((err) => {
@@ -26,31 +25,36 @@ async function drainEvents(steps: ShutdownSteps): Promise<void> {
   }
 }
 
+/** The teardown sequence itself, in the one order that works: stop serving, then drain what the last in-flight requests queued, then flush telemetry, then exit. */
+async function runShutdownSequence(
+  steps: ShutdownSteps,
+  signal: string,
+): Promise<void> {
+  console.log(`[floor] ${signal} — shutting down`);
+
+  await steps
+    .stopServing()
+    .catch((err) =>
+      console.warn(`[floor] stop failed: ${(err as Error).message}`),
+    );
+  await drainEvents(steps);
+  await steps
+    .flushTelemetry()
+    .catch((err) =>
+      console.warn(`[floor] telemetry flush failed: ${(err as Error).message}`),
+    );
+
+  steps.exit(0);
+}
+
+/** A shutdown function safe to wire to several signals. Every step is best-effort — a shutdown that cannot complete must still terminate — and it runs once however many signals arrive (SIGTERM then SIGKILL, or a Ctrl-C mid-drain, must not restart the sequence). */
 export function createShutdown(
   steps: ShutdownSteps,
 ): (signal: string) => Promise<void> {
   let running: Promise<void> | null = null;
 
   return (signal: string) => {
-    running ??= (async () => {
-      console.log(`[floor] ${signal} — shutting down`);
-
-      await steps
-        .stopServing()
-        .catch((err) =>
-          console.warn(`[floor] stop failed: ${(err as Error).message}`),
-        );
-      await drainEvents(steps);
-      await steps
-        .flushTelemetry()
-        .catch((err) =>
-          console.warn(
-            `[floor] telemetry flush failed: ${(err as Error).message}`,
-          ),
-        );
-
-      steps.exit(0);
-    })();
+    running ??= runShutdownSequence(steps, signal);
 
     return running;
   };

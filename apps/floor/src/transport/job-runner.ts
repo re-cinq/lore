@@ -35,25 +35,29 @@ interface ConsoleSink {
   error: typeof console.error;
 }
 
+/** One labelled sink appending a console call to the run's log buffer. Non-string arguments are JSON-encoded because the buffer is uploaded as plain text. */
+function captureInto(buffer: string[], label: string) {
+  return (...args: unknown[]): void => {
+    buffer.push(
+      `${label} ${args
+        .map((a) => (typeof a === "string" ? a : JSON.stringify(a)))
+        .join(" ")}\n`,
+    );
+  };
+}
+
 function teeConsole(buffer: string[]): ConsoleSink {
   const original: ConsoleSink = { log: console.log, error: console.error };
-  const capture =
-    (label: string) =>
-    (...args: unknown[]): void => {
-      buffer.push(
-        `${label} ${args
-          .map((a) => (typeof a === "string" ? a : JSON.stringify(a)))
-          .join(" ")}\n`,
-      );
-    };
+  const captureLog = captureInto(buffer, "[log]");
+  const captureErr = captureInto(buffer, "[err]");
 
   console.log = (...args: unknown[]) => {
     original.log(...args);
-    capture("[log]")(...args);
+    captureLog(...args);
   };
   console.error = (...args: unknown[]) => {
     original.error(...args);
-    capture("[err]")(...args);
+    captureErr(...args);
   };
 
   return original;
@@ -90,14 +94,15 @@ function bootJobRuntime(): void {
   Llm.configure({ usage: usage() });
 }
 
-/** Closes a successful run: the captured console goes to storage first, so the completed row can point at logs that already exist rather than at an upload that may still fail. */
-async function settleSuccess(run: {
+interface JobRun {
   jobName: string;
   runId: string;
   buffer: string[];
-  summary: string;
   start: number;
-}): Promise<void> {
+}
+
+/** Closes a successful run: the captured console goes to storage first, so the completed row can point at logs that already exist rather than at an upload that may still fail. */
+async function settleSuccess(run: JobRun & { summary: string }): Promise<void> {
   const { jobName, runId, buffer, summary, start } = run;
   const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
 
@@ -105,6 +110,40 @@ async function settleSuccess(run: {
   console.log(
     `[job-runner] ${jobName} completed in ${Date.now() - start}ms: ${summary}`,
   );
+}
+
+/** Closes a failed run and hands back the message, so the caller can report it AFTER the console is restored — the upload has already happened by then. */
+async function settleFailure(run: JobRun, err: unknown): Promise<string> {
+  const { jobName, runId, buffer } = run;
+  const message = err instanceof Error ? err.message : String(err);
+  const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
+
+  await failJobRun(runId, message, { logPath });
+
+  return message;
+}
+
+/** Runs the handler with the console teed into the run's buffer, restoring it on both arms so a pod that keeps going does not keep capturing. */
+async function executeJob(run: JobRun, handler: JobHandler): Promise<number> {
+  const originalConsole = teeConsole(run.buffer);
+
+  try {
+    const summary = await handler();
+
+    await settleSuccess({ ...run, summary });
+    restoreConsole(originalConsole);
+
+    return 0;
+  } catch (err) {
+    const message = await settleFailure(run, err);
+
+    restoreConsole(originalConsole);
+    console.error(
+      `[job-runner] ${run.jobName} failed in ${Date.now() - run.start}ms: ${message}`,
+    );
+
+    return 1;
+  }
 }
 
 export async function runJobByName(jobName: string): Promise<number> {
@@ -121,30 +160,8 @@ export async function runJobByName(jobName: string): Promise<number> {
   bootJobRuntime();
 
   const runId = await startJobRun(jobName);
-  const buffer: string[] = [];
-  const originalConsole = teeConsole(buffer);
 
-  const start = Date.now();
-
-  try {
-    const summary = await handler();
-
-    await settleSuccess({ jobName, runId, buffer, summary, start });
-    restoreConsole(originalConsole);
-
-    return 0;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
-
-    await failJobRun(runId, message, { logPath });
-    restoreConsole(originalConsole);
-    console.error(
-      `[job-runner] ${jobName} failed in ${Date.now() - start}ms: ${message}`,
-    );
-
-    return 1;
-  }
+  return executeJob({ jobName, runId, buffer: [], start: Date.now() }, handler);
 }
 
 function isCliEntrypoint(): boolean {

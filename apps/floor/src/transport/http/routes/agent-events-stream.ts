@@ -7,7 +7,12 @@ import {
   agentEventBus,
   MAX_BUFFERED_EVENTS,
 } from "../../../work/agent/agent-event-bus.js";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { AgentEventHandler } from "../../../work/agent/agent-event-bus.js";
 import type { AgentRunEventRow } from "@re-cinq/lore-shared";
 
@@ -152,8 +157,8 @@ class RunEventSession {
     this.stream.on("error", this.teardown);
   }
 
-  /** Reads history to the end, then flips live and flushes whatever the bus delivered meanwhile. */
-  async catchUp(): Promise<void> {
+  /** Pages history forward until a short page ends it, delivering as it goes; returns early when the stream closed mid-read, which the caller re-checks before declaring catch-up complete. */
+  private async drainHistory(): Promise<void> {
     for (;;) {
       const page = await this.deps.events.listSince(
         this.deps.assemblyLineId,
@@ -167,11 +172,16 @@ class RunEventSession {
       this.deliver(page);
 
       if (page.length < this.pageSize) {
-        break;
+        return;
       }
     }
+  }
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- same async-flip hazard as above: closed can turn true while the loop was awaiting.
+  /** Reads history to the end, then flips live and flushes whatever the bus delivered meanwhile. */
+  async catchUp(): Promise<void> {
+    await this.drainHistory();
+
+    // The drain can have closed the stream while it was awaiting, so this re-reads rather than trusting the entry state.
     if (this.closed) {
       return;
     }
@@ -246,6 +256,33 @@ function startRunEventStream(
   }
 }
 
+/** Resolves this request's cursor (`Last-Event-ID` over `?after`) and opens the stream for the run it names. */
+function startStreamForRequest(
+  request: Request,
+  stream: PassThrough,
+  deps: StreamRouteDeps | undefined,
+): RunEventStream {
+  const after = parseCursor(
+    request.headers["last-event-id"],
+    request.query.after,
+  );
+
+  return startRunEventStream(stream, request.params.assemblyRunId, after, deps);
+}
+
+/** The SSE headers, set once here so the route body is just the stream's lifecycle. */
+function sseResponse(h: ResponseToolkit, stream: PassThrough): ResponseObject {
+  return (
+    h
+      .response(stream)
+      .type("text/event-stream")
+      .header("cache-control", "no-cache, no-transform")
+      .header("x-accel-buffering", "no")
+      // Compression buffers SSE frames; identity encoding keeps frames on the wire immediately.
+      .header("content-encoding", "identity")
+  );
+}
+
 export function agentEventsStreamRoute(deps?: StreamRouteDeps): ServerRoute {
   return {
     method: "GET",
@@ -253,26 +290,13 @@ export function agentEventsStreamRoute(deps?: StreamRouteDeps): ServerRoute {
     options: { auth: "ingest-token" },
     handler: (request, h) => {
       const stream = new PassThrough();
-      const assemblyLineId = request.params.assemblyRunId;
-      const after = parseCursor(
-        request.headers["last-event-id"],
-        request.query.after,
-      );
-      const run = startRunEventStream(stream, assemblyLineId, after, deps);
+      const run = startStreamForRequest(request, stream, deps);
 
       const { req } = request.raw;
 
       req.on("close", run.teardown);
 
-      return (
-        h
-          .response(stream)
-          .type("text/event-stream")
-          .header("cache-control", "no-cache, no-transform")
-          .header("x-accel-buffering", "no")
-          // Compression buffers SSE frames; identity encoding keeps frames on the wire immediately.
-          .header("content-encoding", "identity")
-      );
+      return sseResponse(h, stream);
     },
   };
 }

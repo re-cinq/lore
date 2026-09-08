@@ -5,22 +5,11 @@ import { runPromptfooEval } from "../lib/promptfoo.js";
 const IMPROVEMENT_THRESHOLD = 0.02; // 2% to promote; 5% regression threshold to reject
 const REGRESSION_THRESHOLD = 0.05;
 
-/** Context Core Builder: nightly eval at 4am UTC; promote chunks if +2%, reject if -5%. */
-export async function contextCoreBuilderJob(): Promise<string> {
-  // Get all namespaces (teams) that have chunks
-  const namespaces = await chunks().distinctTeams();
+type EvalTally = Record<"promoted" | "rejected" | "unchanged", number>;
 
-  if (namespaces.length === 0) {
-    console.log("[job] context-core: no namespaces found");
-
-    return "No namespaces to evaluate";
-  }
-
-  const tally: Record<"promoted" | "rejected" | "unchanged", number> = {
-    promoted: 0,
-    rejected: 0,
-    unchanged: 0,
-  };
+/** One namespace's error is contained so the rest of the nightly still runs. */
+async function tallyNamespaces(namespaces: string[]): Promise<EvalTally> {
+  const tally: EvalTally = { promoted: 0, rejected: 0, unchanged: 0 };
 
   for (const team of namespaces) {
     try {
@@ -32,6 +21,21 @@ export async function contextCoreBuilderJob(): Promise<string> {
     }
   }
 
+  return tally;
+}
+
+/** Context Core Builder: nightly eval at 4am UTC; promote chunks if +2%, reject if -5%. */
+export async function contextCoreBuilderJob(): Promise<string> {
+  // Get all namespaces (teams) that have chunks
+  const namespaces = await chunks().distinctTeams();
+
+  if (namespaces.length === 0) {
+    console.log("[job] context-core: no namespaces found");
+
+    return "No namespaces to evaluate";
+  }
+
+  const tally = await tallyNamespaces(namespaces);
   const summary = `Evaluated ${namespaces.length} namespaces: ${tally.promoted} promoted, ${tally.rejected} rejected, ${tally.unchanged} unchanged`;
 
   console.log(`[job] context-core: ${summary}`);
@@ -137,6 +141,23 @@ async function applyEvalDecision(
     : recordNoChange(input);
 }
 
+/** Reads the production baseline, stamps this build's version, and logs the comparison the decision is made on. */
+async function decisionInputFor(
+  namespace: string,
+  currentScore: number,
+): Promise<EvalDecisionInput> {
+  // Get previous production score
+  const prevScore = (await contextCore().latest(namespace)) ?? 0;
+  const delta = currentScore - prevScore;
+  const version = `v${new Date().toISOString().slice(0, 10)}-${namespace}`;
+
+  console.log(
+    `[job] context-core: ${namespace} — current: ${(currentScore * 100).toFixed(1)}%, prev: ${(prevScore * 100).toFixed(1)}%, delta: ${(delta * 100).toFixed(1)}%`,
+  );
+
+  return { namespace, currentScore, prevScore, delta, version };
+}
+
 async function evaluateNamespace(
   namespace: string,
 ): Promise<"promoted" | "rejected" | "unchanged"> {
@@ -155,21 +176,5 @@ async function evaluateNamespace(
     return "unchanged";
   }
 
-  // Get previous production score
-  const prevScore = (await contextCore().latest(namespace)) ?? 0;
-  const delta = currentScore - prevScore;
-
-  const version = `v${new Date().toISOString().slice(0, 10)}-${namespace}`;
-
-  console.log(
-    `[job] context-core: ${namespace} — current: ${(currentScore * 100).toFixed(1)}%, prev: ${(prevScore * 100).toFixed(1)}%, delta: ${(delta * 100).toFixed(1)}%`,
-  );
-
-  return applyEvalDecision({
-    namespace,
-    currentScore,
-    prevScore,
-    delta,
-    version,
-  });
+  return applyEvalDecision(await decisionInputFor(namespace, currentScore));
 }

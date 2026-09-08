@@ -6,13 +6,16 @@ import { PAGE_LOOKAHEAD, pageWithLookahead } from "./agent-turns-history.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared";
 
-export function agentTurnsByTaskRoute(turns?: {
+/** The one read the route needs; a narrow shape so a test can pass a stub without standing up the whole repository. */
+interface TurnsByTaskReader {
   listByTask: (
     taskId: string,
     afterId: string,
     limit: number,
   ) => Promise<AgentRunTurnRow[]>;
-}): ServerRoute {
+}
+
+export function agentTurnsByTaskRoute(turns?: TurnsByTaskReader): ServerRoute {
   return {
     method: "GET",
     path: "/api/agent-turns/task/{taskId}",

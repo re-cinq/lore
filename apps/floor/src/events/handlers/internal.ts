@@ -36,6 +36,18 @@ export const repoTeamChanged: EventHandler = async (params) => {
   }
 };
 
+// The Floor never writes dgraph itself (FR6); without LORE_DGRAPH_HTTP there's no graph system, so a miss is a success no-op, not a retry.
+function graphConfigured(repo: string, kind: string): boolean {
+  if (createDgraphClient()) {
+    return true;
+  }
+  console.log(
+    `[events] spec-trace skipped for ${repo} (${kind}): LORE_DGRAPH_HTTP not configured`,
+  );
+
+  return false;
+}
+
 export const specTrace: EventHandler = async (params, meta) => {
   const { repo, kind, payload } = params as {
     repo: string;
@@ -43,12 +55,7 @@ export const specTrace: EventHandler = async (params, meta) => {
     payload: unknown;
   };
 
-  // The Floor never writes dgraph itself (FR6); without LORE_DGRAPH_HTTP there's no graph system, so this is a success no-op, not a retry.
-  if (!createDgraphClient()) {
-    console.log(
-      `[events] spec-trace skipped for ${repo} (${kind}): LORE_DGRAPH_HTTP not configured`,
-    );
-
+  if (!graphConfigured(repo, kind)) {
     return;
   }
   const { logLine, audit } = await dispatchSpecTrace(repo, kind, payload, {
