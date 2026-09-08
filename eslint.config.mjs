@@ -433,7 +433,6 @@ export default tseslint.config(
       "apps/mcp-server/**/*.{ts,tsx}",
       "apps/stations/**/*.{ts,tsx}",
       "apps/cluster-agent/**/*.{ts,tsx}",
-      "apps/event-router/**/*.{ts,tsx}",
       "libs/shared/**/*.{ts,tsx}",
       "libs/server-core/**/*.{ts,tsx}",
     ],

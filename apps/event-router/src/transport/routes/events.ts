@@ -1,7 +1,7 @@
 /** POST /api/events (ADR-044): one front door, GitHub or bearer; 202 fast, deduped on dedupeKey. */
 
 import { z } from "zod";
-import type { ServerRoute } from "@hapi/hapi";
+import type { Lifecycle, ServerRoute } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { SOURCES, type EventInsert } from "@re-cinq/lore-shared";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
@@ -33,32 +33,35 @@ export interface EventsRouteDeps {
   findByTokenHash?: ReporterAuthDeps["findByTokenHash"];
 }
 
+// Captures one delivery, from either branch. The inserts are SEQUENTIAL on purpose: a partial failure surfaces as a 5xx so the sender retries the whole delivery, and every insert is idempotent, so a retry costs nothing.
+function captureHandler(deps: EventsRouteDeps): Lifecycle.Method {
+  return async (request, h) => {
+    const raw = rawBody(request);
+    const signature = githubSignature(request.headers);
+    const events = signature
+      ? fromGitHub(request.headers, raw, signature, deps)
+      : [await fromReporter(raw, request.headers, deps)];
+
+    for (const event of events) {
+      await deps.insert(event);
+    }
+
+    return h
+      .response({
+        captured: events.length,
+        events: events.map((e) => e.eventName),
+      })
+      .code(202);
+  };
+}
+
 export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
   return {
     method: "POST",
     path: "/api/events",
     // No hapi auth: two branches authenticate differently; strategy can't pick before handler.
     options: { auth: false, payload: { parse: false } },
-    handler: async (request, h) => {
-      const raw = rawBody(request);
-      const signature = githubSignature(request.headers);
-
-      const events = signature
-        ? fromGitHub(request.headers, raw, signature, deps)
-        : [await fromReporter(raw, request.headers, deps)];
-
-      // Sequential: partial failure surfaces as 5xx so sender retries; every insert is idempotent.
-      for (const event of events) {
-        await deps.insert(event);
-      }
-
-      return h
-        .response({
-          captured: events.length,
-          events: events.map((e) => e.eventName),
-        })
-        .code(202);
-    },
+    handler: captureHandler(deps),
   };
 }
 
@@ -67,6 +70,28 @@ function githubSignature(headers: Record<string, unknown>): string | undefined {
   const sig = headers["x-hub-signature-256"];
 
   return typeof sig === "string" ? sig : undefined;
+}
+
+// The three things that must hold before a GitHub body is trusted. Each error names what to fix, because these are read in a delivery log rather than at a terminal: a 500 for the missing secret (503 would tell GitHub to redeliver, but an unset env var needs a redeploy), a 401 for a mismatch, a 400 for a body with no event type.
+function enforceGitHubDelivery(
+  eventType: string | undefined,
+  raw: string,
+  signature: string,
+  deps: EventsRouteDeps,
+): string {
+  enforceTrue(
+    deps.webhookSecret,
+    apiError(500),
+    "webhook secret not configured — set LORE_WEBHOOK_SECRET on the event-router deployment",
+  );
+  enforceTrue(
+    verifyGitHubSignature(deps.webhookSecret, signature, raw),
+    apiError(401),
+    "signature verification failed — LORE_WEBHOOK_SECRET and the secret on the GitHub webhook do not match",
+  );
+  enforceTrue(eventType, apiError(400), "missing x-github-event header");
+
+  return eventType;
 }
 
 /** The GitHub branch: verify over the raw body, then map. */
@@ -79,22 +104,8 @@ function fromGitHub(
   const eventType = headers["x-github-event"] as string | undefined;
   const deliveryId = (headers["x-github-delivery"] as string | undefined) ?? "";
 
-  // Errors name what to fix: delivery logs need clear messages about secret mismatches.
-  enforceTrue(
-    deps.webhookSecret,
-    // 500 not 503: 503 tells GitHub to redeliver, but missing env var needs redeploy.
-    apiError(500),
-    "webhook secret not configured — set LORE_WEBHOOK_SECRET on the event-router deployment",
-  );
-  enforceTrue(
-    verifyGitHubSignature(deps.webhookSecret, signature, raw),
-    apiError(401),
-    "signature verification failed — LORE_WEBHOOK_SECRET and the secret on the GitHub webhook do not match",
-  );
-  enforceTrue(eventType, apiError(400), "missing x-github-event header");
-
   return mapGitHubEvent(
-    eventType,
+    enforceGitHubDelivery(eventType, raw, signature, deps),
     parseJsonBody(raw, "webhook body"),
     deliveryId,
   );
