@@ -67,7 +67,6 @@ export function sharedWriteFile(
   value: string,
   agentId?: string,
 ): SharedWriteResult {
-  const id = resolveAgentId(agentId);
   const now = new Date().toISOString();
   const filePath = sharedMemoriesPath(pool);
 
@@ -77,6 +76,8 @@ export function sharedWriteFile(
 
   memories[key] = sharedRecord(value, nextVersion, now);
   writeJson(filePath, memories);
+
+  const id = resolveAgentId(agentId);
 
   appendAudit(sharedWriteAudit(id, pool, key, nextVersion));
 
