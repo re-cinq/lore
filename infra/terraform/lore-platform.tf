@@ -97,7 +97,6 @@ resource "helm_release" "lore_platform" {
       }
       ingestTokenSecret   = { name = "lore-ingest-token", key = "token" }
       internalTokenSecret = { name = "lore-agent-internal-token", key = "token" }
-      webhookSecret       = { name = "lore-floor-webhook-secret", key = "secret" }
     }
 
     # ---- Lore API (lore-api namespace) ----

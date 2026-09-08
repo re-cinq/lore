@@ -9,7 +9,9 @@ const TOKEN = "tok-1";
 
 let inserted: EventInsert[];
 
-function server(): Hapi.Server {
+function server(
+  deps: { webhookSecret?: string } = { webhookSecret: SECRET },
+): Hapi.Server {
   const s = Hapi.server({ port: 0 });
 
   s.route(
@@ -17,7 +19,7 @@ function server(): Hapi.Server {
       insert: async (ev) => {
         inserted.push(ev);
       },
-      webhookSecret: SECRET,
+      webhookSecret: deps.webhookSecret,
       bearerToken: TOKEN,
     }),
   );
@@ -53,8 +55,64 @@ describe("POST /api/events — the GitHub branch", () => {
     });
 
     expect(res.statusCode).toBe(202);
-    expect(inserted.map((e) => e.source)).toEqual(inserted.map(() => "github"));
-    expect(inserted.length).toBeGreaterThan(0);
+    expect(res.result).toMatchObject({
+      captured: 1,
+      events: ["github.pull_request.closed"],
+    });
+    expect(inserted).toMatchObject([
+      { source: "github", dedupeKey: "github:d-1" },
+    ]);
+  });
+
+  it("returns 400 when a signed delivery carries no x-github-event header", async () => {
+    const body = "{}";
+
+    const res = await server().inject({
+      method: "POST",
+      url: "/api/events",
+      headers: {
+        "x-hub-signature-256": signed(body),
+        "x-github-delivery": "d-3",
+      },
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(inserted).toEqual([]);
+  });
+
+  it("returns 500, not a redeliverable 503, when the webhook secret is not configured", async () => {
+    const res = await server({}).inject({
+      method: "POST",
+      url: "/api/events",
+      headers: {
+        "x-hub-signature-256": "sha256=deadbeef",
+        "x-github-event": "ping",
+      },
+      payload: "{}",
+    });
+
+    expect(res.statusCode).toBe(500);
+    expect(inserted).toEqual([]);
+  });
+
+  it("returns 202 capturing nothing for a validly-signed ping that maps to no work", async () => {
+    const body = JSON.stringify({ zen: "Keep it simple" });
+
+    const res = await server().inject({
+      method: "POST",
+      url: "/api/events",
+      headers: {
+        "x-hub-signature-256": signed(body),
+        "x-github-event": "ping",
+        "x-github-delivery": "d-4",
+      },
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toEqual({ captured: 0, events: [] });
+    expect(inserted).toEqual([]);
   });
 
   it("refuses a webhook whose signature does not match the secret", async () => {

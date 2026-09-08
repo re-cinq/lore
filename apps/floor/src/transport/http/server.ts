@@ -22,7 +22,6 @@ import {
   legacyAssemblyLineReadRoute,
   assemblyLineCatalogRoute,
 } from "./routes/assembly-line-reads.js";
-import { githubWebhookRoute } from "./routes/github-webhook.js";
 import { ciIngestRoute } from "./routes/ci-ingest.js";
 import { ciTestsRoute } from "./routes/ci-tests.js";
 import { reviewStartRoute } from "./routes/review-start.js";
@@ -68,7 +67,6 @@ function floorRoutes(opts: {
     legacyAssemblyLineReadRoute(),
     assemblyLineCatalogRoute(),
     agentLogsRoute(opts.podLogSource, opts.podLogArchive),
-    githubWebhookRoute,
     ciIngestRoute,
     ciTestsRoute,
     reviewStartRoute,
