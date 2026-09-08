@@ -1,6 +1,5 @@
 "use client";
 
-import { Alert } from "@/components/Alert";
 import Link from "next/link";
 import styles from "./FeatureDetailView.module.scss";
 import CollapsibleCard from "@/components/CollapsibleCard";
@@ -16,64 +15,12 @@ import { useState, useTransition } from "react";
 import StatusBadge from "../StatusBadge";
 import { isLifecycleActive } from "@/lib/feature-status";
 import PlanningWizard from "./PlanningWizard";
-import DecompositionView from "./DecompositionView";
-import Markdown from "@/components/Markdown";
 import type {
   FeatureWithIterations,
   SectionAnswers,
 } from "@/lib/feature-types";
 import type { DecompStoryGroup } from "@/lib/decomposition-view";
-
-function FinalizedView({
-  owner,
-  repo,
-  feature,
-  decomposition,
-}: {
-  owner: string;
-  repo: string;
-  feature: FeatureWithIterations;
-  decomposition: { stories: DecompStoryGroup[]; total: number };
-}) {
-  return (
-    <div>
-      <div className={`spec-card ${styles.specCard}`}>
-        {feature.spec_pr_url ? (
-          <p>
-            Spec PR:{" "}
-            <a href={feature.spec_pr_url} target="_blank" rel="noreferrer">
-              #{feature.spec_pr_number}
-            </a>
-            {feature.issue_url && (
-              <>
-                {" · "}
-                <a href={feature.issue_url} target="_blank" rel="noreferrer">
-                  user story
-                </a>
-              </>
-            )}
-          </p>
-        ) : (
-          <Alert>Creating the spec PR…</Alert>
-        )}
-      </div>
-      <DecompositionView
-        owner={owner}
-        repo={repo}
-        stories={decomposition.stories}
-        total={decomposition.total}
-      />
-      {feature.draft_spec_md && (
-        <CollapsibleCard
-          title="Draft spec"
-          hint={`${feature.draft_spec_md.split("\n").length} lines`}
-        >
-          <Markdown markdown={feature.draft_spec_md} />
-        </CollapsibleCard>
-      )}
-    </div>
-  );
-}
+import { FinalizedView } from "./FinalizedView";
 
 /** Only show the live graph below to avoid a frozen server-rendered twin while a node is working. */
 function showsLiveGraphBelow(
@@ -141,30 +88,23 @@ function OriginalPrompt({ prompt }: { prompt: string | null }) {
   );
 }
 
-export default function FeatureDetailView({
-  owner,
-  repo,
+/** The header, the assembly line, and the prompt that started it. The line is omitted when the body below will render a LIVE one — two graphs of the same run, one of them frozen at server-render time, is worse than one. */
+function FeatureIntro({
   feature,
-  timeoutMinutes,
-  decomposition,
-  definition = null,
-  run = null,
-  refine,
-  onCreateSpecFile,
-  split,
-  del,
-}: FeatureDetailViewProps) {
-  const [pending, startTransition] = useTransition();
-  const onCreateDraft = (title: string, prompt: string) =>
-    startTransition(() => split(title, prompt));
-  const base = `/repos/${owner}/${repo}`;
-  const liveGraphBelow = showsLiveGraphBelow(run, feature);
-
+  base,
+  definition,
+  run,
+}: {
+  feature: FeatureWithIterations;
+  base: string;
+  definition: AssemblyLineDefinition | null;
+  run: FeatureDetailViewProps["run"];
+}) {
   return (
-    <div>
+    <>
       <FeatureHeader feature={feature} base={base} />
 
-      {liveGraphBelow ? null : (
+      {showsLiveGraphBelow(run ?? null, feature) ? null : (
         <FeatureAssemblyLine
           definition={definition}
           run={run}
@@ -173,37 +113,38 @@ export default function FeatureDetailView({
       )}
 
       <OriginalPrompt prompt={feature.original_prompt} />
+    </>
+  );
+}
 
-      <LifecycleBody
-        owner={owner}
-        repo={repo}
+export default function FeatureDetailView(props: FeatureDetailViewProps) {
+  const { owner, repo, feature, definition = null, run = null } = props;
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <div>
+      <FeatureIntro
         feature={feature}
-        timeoutMinutes={timeoutMinutes}
-        decomposition={decomposition}
-        refine={refine}
-        onCreateSpecFile={onCreateSpecFile}
-        onCreateDraft={onCreateDraft}
+        base={`/repos/${owner}/${repo}`}
+        definition={definition}
+        run={run}
+      />
+      <LifecycleBody
+        {...props}
+        onCreateDraft={(title, prompt) =>
+          startTransition(() => props.split(title, prompt))
+        }
       />
       <DeleteFeature
         title={feature.title}
         pending={pending}
-        onDelete={() => startTransition(() => del())}
+        onDelete={() => startTransition(() => props.del())}
       />
     </div>
   );
 }
 
-/** The wizard stays mounted while the lifecycle is still moving — including a merged spec PR awaiting decomposition — because only the line knows when to hand off to the finished view. */
-function LifecycleBody({
-  owner,
-  repo,
-  feature,
-  timeoutMinutes,
-  decomposition,
-  refine,
-  onCreateSpecFile,
-  onCreateDraft,
-}: {
+interface LifecycleBodyProps {
   owner: string;
   repo: string;
   feature: FeatureWithIterations;
@@ -215,7 +156,11 @@ function LifecycleBody({
   ) => Promise<void>;
   onCreateSpecFile: (userAnswers: SectionAnswers) => Promise<void>;
   onCreateDraft: (title: string, prompt: string) => void;
-}) {
+}
+
+/** The wizard stays mounted while the lifecycle is still moving — including a merged spec PR awaiting decomposition — because only the line knows when to hand off to the finished view. */
+function LifecycleBody(props: LifecycleBodyProps) {
+  const { owner, repo, feature, decomposition } = props;
   const finalized = (
     <FinalizedView
       owner={owner}
@@ -234,49 +179,65 @@ function LifecycleBody({
       owner={owner}
       repo={repo}
       feature={feature}
-      timeoutMinutes={timeoutMinutes}
-      refine={refine}
-      onFinalize={onCreateSpecFile}
-      onCreateDraft={onCreateDraft}
+      timeoutMinutes={props.timeoutMinutes}
+      refine={props.refine}
+      onFinalize={props.onCreateSpecFile}
+      onCreateDraft={props.onCreateDraft}
       settledView={finalized}
     />
   );
 }
 
-/** Two-step by design: a feature carries every planning round it ever ran, and none of that comes back. */
-function DeleteFeature({
+/** The confirm step, naming the feature. The title is repeated back because the button that opened this row sits below a page that may have scrolled away from it. */
+function ConfirmDeleteRow({
   title,
   pending,
   onDelete,
+  onCancel,
 }: {
   title: string;
   pending: boolean;
   onDelete: () => void;
+  onCancel: () => void;
 }) {
+  return (
+    <div className={styles.confirmRow}>
+      <span>Delete &ldquo;{title}&rdquo; and all its rounds?</span>
+      <SubmitButton
+        type="button"
+        className="danger"
+        onClick={onDelete}
+        pending={pending}
+        pendingLabel="Deleting…"
+      >
+        Confirm delete
+      </SubmitButton>
+      <SubmitButton type="button" onClick={onCancel} pending={pending}>
+        Cancel
+      </SubmitButton>
+    </div>
+  );
+}
+
+interface DeleteFeatureProps {
+  title: string;
+  pending: boolean;
+  onDelete: () => void;
+}
+
+/** Two-step by design: a feature carries every planning round it ever ran, and none of that comes back. */
+function DeleteFeature({ title, pending, onDelete }: DeleteFeatureProps) {
   const [confirming, setConfirming] = useState(false);
 
   return (
     <DangerZone description="Permanently delete this feature and all its planning rounds. This cannot be undone.">
       {confirming ? (
-        <div className={styles.confirmRow}>
-          <span>Delete &ldquo;{title}&rdquo; and all its rounds?</span>
-          <SubmitButton
-            type="button"
-            className="danger"
-            onClick={onDelete}
-            pending={pending}
-            pendingLabel="Deleting…"
-          >
-            Confirm delete
-          </SubmitButton>
-          <SubmitButton
-            type="button"
-            onClick={() => setConfirming(false)}
-            pending={pending}
-          >
-            Cancel
-          </SubmitButton>
-        </div>
+        <ConfirmDeleteRow
+          title={title}
+          pending={pending}
+          onDelete={onDelete}
+          onCancel={() => setConfirming(false)}
+        />
       ) : (
         <SubmitButton
           type="button"

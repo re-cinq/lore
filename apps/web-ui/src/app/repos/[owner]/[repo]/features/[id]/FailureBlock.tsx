@@ -29,6 +29,46 @@ function SubmittedList({ submitted }: { submitted: SubmittedLine[] }) {
   );
 }
 
+interface FailureBlockProps {
+  iteration: number;
+  failureReason: string | null | undefined;
+  /** Author's round submission, persisted before the run: shown here because the wizard clears the form on submit. */
+  answers?: SectionAnswers | null;
+  /** The round's assembly line, for the recorded reason and a link to the transcript. */
+  run?: { id: string; reason: string | null } | null;
+  pending: boolean;
+  onRetry: () => void;
+}
+
+/** The way to the run's own record. Always worth offering when a run exists: the block above summarizes, and the transcript is where the agent said what actually happened. */
+function TranscriptLink({ runId }: { runId?: string }) {
+  if (!runId) {
+    return null;
+  }
+
+  return (
+    <p className="meta">
+      <a href={`/assembly-runs/${runId}`}>View the full run transcript →</a>
+    </p>
+  );
+}
+
+/** What went wrong, or an admission that nothing was recorded. `failure_reason` is preferred over the run's own reason because the Floor composes it from the node's CLASSIFIED failure (#1455) rather than from the routing statement. The no-reason text deliberately refuses to guess: naming a likely cause sends readers to check a credential when the transcript would have told them. */
+function Diagnosis({ reason }: { reason: string | null | undefined }) {
+  if (!reason) {
+    return (
+      <p className="meta">
+        The run finished without producing a result, and recorded no reason. The
+        transcript below has the agent&apos;s own error — read it before
+        retrying. A missing model credential is one cause among several, not the
+        likely one.
+      </p>
+    );
+  }
+
+  return <pre className={styles.diagnosis}>{reason}</pre>;
+}
+
 export default function FailureBlock({
   iteration,
   failureReason,
@@ -36,40 +76,13 @@ export default function FailureBlock({
   run,
   pending,
   onRetry,
-}: {
-  iteration: number;
-  failureReason: string | null | undefined;
-  /** Author's round submission, persisted before run: shown here since wizard clears form on submit. */
-  answers?: SectionAnswers | null;
-  /** The round's assembly line, for the recorded reason + a link to the transcript. */
-  run?: { id: string; reason: string | null } | null;
-  pending: boolean;
-  onRetry: () => void;
-}) {
-  // failure_reason is richest: Floor composes from node's CLASSIFIED failure since #1455, not routing statement.
-  const diagnosis = failureReason || run?.reason;
-  const submitted = submittedFeedback(answers);
-
+}: FailureBlockProps) {
   return (
     <div className={`spec-card ${styles.failure}`} role="alert">
       <p className={styles.headline}>Planning round {iteration} failed.</p>
-      {!diagnosis && (
-        <p className="meta">
-          The run finished without producing a result, and recorded no reason.
-          The transcript below has the agent&apos;s own error — read it before
-          retrying. A missing model credential is one cause among several, not
-          the likely one.
-        </p>
-      )}
-      {diagnosis && <pre className={styles.diagnosis}>{diagnosis}</pre>}
-      {run && (
-        <p className="meta">
-          <a href={`/assembly-runs/${run.id}`}>
-            View the full run transcript →
-          </a>
-        </p>
-      )}
-      <SubmittedList submitted={submitted} />
+      <Diagnosis reason={failureReason || run?.reason} />
+      <TranscriptLink runId={run?.id} />
+      <SubmittedList submitted={submittedFeedback(answers)} />
       <SubmitButton
         type="button"
         pending={pending}

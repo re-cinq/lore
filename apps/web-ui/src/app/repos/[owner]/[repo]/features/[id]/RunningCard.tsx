@@ -9,14 +9,8 @@ import { formatTokens, type RunTokens } from "@/lib/run-tokens";
 import RunVisualizationPanel from "@/app/assembly-runs/[id]/RunVisualizationPanel";
 import type { FeatureRunPayload } from "@/lib/feature-run";
 
-/** Elapsed/budget timer ticking every second; turns red when deadline (reaper's kill time) passes. */
-function ElapsedTimer({
-  since,
-  timeoutMinutes,
-}: {
-  since: string | undefined;
-  timeoutMinutes: number;
-}) {
+/** Seconds since `since`, ticking every second, or null when there is no parseable start. The interval runs regardless so the hook order never changes between renders. */
+function useElapsedSeconds(since: string | undefined): number | null {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -26,10 +20,25 @@ function ElapsedTimer({
   }, []);
   const start = since ? Date.parse(since) : NaN;
 
-  if (Number.isNaN(start)) {
+  return Number.isNaN(start)
+    ? null
+    : Math.max(0, Math.floor((now - start) / 1000));
+}
+
+/** Elapsed/budget timer ticking every second; turns red when deadline (reaper's kill time) passes. */
+function ElapsedTimer({
+  since,
+  timeoutMinutes,
+}: {
+  since: string | undefined;
+  timeoutMinutes: number;
+}) {
+  const secs = useElapsedSeconds(since);
+
+  // A start time that will not parse means there is nothing to count from; no timer beats a timer counting from zero.
+  if (secs === null) {
     return null;
   }
-  const secs = Math.max(0, Math.floor((now - start) / 1000));
   const over = secs > timeoutMinutes * 60;
 
   return (
@@ -103,6 +112,19 @@ function RunGraph({ run }: { run: FeatureRunPayload | null | undefined }) {
   );
 }
 
+interface RunningCardProps {
+  iteration: number;
+  since: string | undefined;
+  /** Fallback budget for legacy features with no definition to read a per-node deadline from. */
+  timeoutMinutes: number;
+  /** The node the line is working; it owns the real deadline. */
+  nodeId?: string;
+  liveOutput?: string | null;
+  run?: FeatureRunPayload | null;
+  /** A planning ROUND or the SPEC work following the author's accept; both run on the same line and get the same card. */
+  phase?: "round" | "spec";
+}
+
 export default function RunningCard({
   iteration,
   since,
@@ -111,18 +133,7 @@ export default function RunningCard({
   liveOutput,
   run,
   phase = "round",
-}: {
-  iteration: number;
-  since: string | undefined;
-  /** Fallback budget for legacy features with no definition to read per-node deadline. */
-  timeoutMinutes: number;
-  /** The node the line is working; owns the real deadline. */
-  nodeId?: string;
-  liveOutput?: string | null;
-  run?: FeatureRunPayload | null;
-  /** Planning ROUND or SPEC work following author's accept; both run on same line and get same card. */
-  phase?: "round" | "spec";
-}) {
+}: RunningCardProps) {
   const spec = phase === "spec";
   // Node's deadline when line names one; round's budget only for features with no line.
   const budget = effectiveBudget(run, nodeId, timeoutMinutes);

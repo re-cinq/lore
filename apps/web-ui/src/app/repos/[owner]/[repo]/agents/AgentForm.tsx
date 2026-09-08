@@ -1,227 +1,23 @@
 "use client";
 import { useActionState, useState } from "react";
-import { KNOWN_MODELS, type AgentDefinition } from "@/lib/agents-mirror";
-import { type AgentFormState, type PodResources } from "@/lib/agents-form";
-import styles from "./agents.module.css";
-import { agentFormValues, scopeNote } from "./agent-form-values";
+import { type AgentDefinition } from "@/lib/agents-mirror";
+import { type AgentFormState } from "@/lib/agents-form";
+import { agentFormValues } from "./agent-form-values";
+import {
+  NameField,
+  ModelField,
+  PodResourceFields,
+  ImageFields,
+  HiddenFields,
+  ScopeNote,
+  FormActions,
+  RunLimitsFields,
+} from "./AgentFormFields";
 
 export type AgentFormAction = (
   prev: AgentFormState,
   fd: FormData,
 ) => Promise<AgentFormState>;
-
-/** Name is immutable after creation — it is the key the three precedence layers resolve by — so an existing agent shows it disabled and carries it in a hidden field. */
-function NameField({
-  isNew,
-  name,
-}: {
-  isNew: boolean;
-  name: string;
-}): React.ReactElement {
-  if (isNew) {
-    return <input name="name_input" placeholder="my-agent" required />;
-  }
-
-  return (
-    <>
-      <input type="hidden" name="name" value={name} />
-      <input value={name} disabled />
-    </>
-  );
-}
-
-/** A known model or a typed-in id. The custom box only exists while `Custom…` is selected, so a stale id can never be submitted alongside a picked one. */
-function ModelField({
-  selection,
-  onSelect,
-  customModel,
-}: {
-  selection: string;
-  onSelect: (value: string) => void;
-  customModel: string;
-}): React.ReactElement {
-  return (
-    <>
-      <select
-        name="model_select"
-        value={selection}
-        onChange={(e) => onSelect(e.target.value)}
-      >
-        <option value="">(inherit)</option>
-        {KNOWN_MODELS.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.label}
-          </option>
-        ))}
-        <option value="__custom__">Custom…</option>
-      </select>
-      {selection === "__custom__" && (
-        <input
-          name="model_custom"
-          defaultValue={customModel}
-          placeholder="model id (e.g. claude-opus-4-8)"
-        />
-      )}
-    </>
-  );
-}
-
-/** One row of the requests/limits grid. Blank inherits the platform default, which is what the placeholder shows. */
-function ResourceRow({
-  label,
-  prefix,
-  values,
-  placeholders,
-}: {
-  label: string;
-  prefix: string;
-  values: PodResources["requests"];
-  placeholders: [string, string, string];
-}): React.ReactElement {
-  const fields: [string, string | undefined, string][] = [
-    ["cpu", values?.cpu, placeholders[0]],
-    ["memory", values?.memory, placeholders[1]],
-    ["ephemeral", values?.["ephemeral-storage"], placeholders[2]],
-  ];
-
-  return (
-    <>
-      <span className={styles.resourceHeading}>{label}</span>
-      {fields.map(([field, value, placeholder]) => (
-        <input
-          key={field}
-          name={`res_${prefix}_${field}`}
-          defaultValue={value ?? ""}
-          placeholder={placeholder}
-        />
-      ))}
-    </>
-  );
-}
-
-function PodResourceFields({
-  podResources,
-}: {
-  podResources: PodResources;
-}): React.ReactElement {
-  return (
-    <>
-      <label>Pod resources</label>
-      <div className={styles.resourceGrid}>
-        <span />
-        <span className={styles.resourceHeading}>CPU</span>
-        <span className={styles.resourceHeading}>Memory</span>
-        <span className={styles.resourceHeading}>Ephemeral storage</span>
-        <ResourceRow
-          label="Requests"
-          prefix="requests"
-          values={podResources.requests}
-          placeholders={["250m", "512Mi", "2Gi"]}
-        />
-        <ResourceRow
-          label="Limits"
-          prefix="limits"
-          values={podResources.limits}
-          placeholders={["1", "1Gi", "4Gi"]}
-        />
-      </div>
-      <span className={styles.formNote}>
-        Kubernetes quantities (e.g. <code>500m</code>, <code>4Gi</code>). Blank
-        inherits the platform defaults shown as placeholders; the values are
-        stored on this definition, so they survive releases.
-      </span>
-    </>
-  );
-}
-
-/** Repo-scoped only: the API refuses an org-wide image change, because the two-key ceremony that authorizes one is repo-scoped. */
-function ImageFields({
-  image,
-  defaultImage,
-}: {
-  image: string | null | undefined;
-  defaultImage?: string;
-}): React.ReactElement {
-  return (
-    <>
-      <label>Execution image (security-gated)</label>
-      <input
-        name="image"
-        defaultValue={image ?? ""}
-        placeholder={image ?? defaultImage ?? "(inherit default runner image)"}
-      />
-      <span className={styles.formNote}>
-        Inherits the default runner image
-        {defaultImage ? (
-          <>
-            {" "}
-            (<code>{defaultImage}</code>)
-          </>
-        ) : null}{" "}
-        when blank. Changing it requires a CODEOWNERS-approved{" "}
-        <code>dark-factory-approval</code> PR — reference it below.
-      </span>
-
-      <label>Approval PR (only when changing the image)</label>
-      <input name="approval_pr" placeholder="re-cinq/lore#123" />
-    </>
-  );
-}
-
-function HiddenFields({
-  repo,
-  isNew,
-  executionMode,
-  reviewRequired,
-}: {
-  repo: string;
-  isNew: boolean;
-  executionMode: string;
-  reviewRequired: string;
-}): React.ReactElement {
-  return (
-    <>
-      <input type="hidden" name="repo" value={repo} />
-      <input type="hidden" name="is_new" value={isNew ? "1" : "0"} />
-      <input type="hidden" name="execution_mode" value={executionMode} />
-      <input type="hidden" name="review_required" value={reviewRequired} />
-    </>
-  );
-}
-
-function ScopeNote({
-  isNew,
-  orgScope,
-  inherited,
-}: {
-  isNew: boolean;
-  orgScope: boolean;
-  inherited: boolean;
-}): React.ReactElement | null {
-  if (isNew) {
-    return null;
-  }
-
-  return <p className={styles.formNote}>{scopeNote(orgScope, inherited)}</p>;
-}
-
-function FormActions({
-  isNew,
-  state,
-}: {
-  isNew: boolean;
-  state: AgentFormState;
-}): React.ReactElement {
-  return (
-    <div className={styles.formActions}>
-      <button type="submit">{isNew ? "Create agent" : "Save agent"}</button>
-      {state.twoKey && (
-        <span className={styles.error}>image change needs an approval PR</span>
-      )}
-      {state.error && <span className={styles.error}>{state.error}</span>}
-    </div>
-  );
-}
 
 /** Agent create/edit form; org editing forks to project agent (upserts via saveAgent). */
 interface AgentFormProps {
@@ -235,53 +31,47 @@ interface AgentFormProps {
   orgScope?: boolean;
 }
 
-/** How long a run may take and what it is told to do. Both fall back to the INHERITED value when left blank — the placeholder says so, because an empty field here means "use the org default", not "no timeout" or "no prompt". */
-function RunLimitsFields({
-  timeoutMinutes,
-  prompt,
-  promptPlaceholder,
+/** What this agent IS: its name and the model behind it. The name is only editable while creating — it is the key the three precedence layers resolve by. */
+function IdentityFields({
+  isNew,
+  values,
+  modelSel,
+  onModelSelect,
 }: {
-  timeoutMinutes: string | number | undefined;
-  prompt: string | undefined;
-  promptPlaceholder: string | undefined;
+  isNew: boolean;
+  values: ReturnType<typeof agentFormValues>;
+  modelSel: string;
+  onModelSelect: (value: string) => void;
 }) {
   return (
     <>
-      <label>Timeout (minutes)</label>
-      <input
-        name="timeout_minutes"
-        type="number"
-        min={1}
-        max={1440}
-        defaultValue={timeoutMinutes}
-        placeholder="(inherit)"
-      />
+      <label>Name</label>
+      <NameField isNew={isNew} name={values.name} />
 
-      <label>Prompt</label>
-      <textarea
-        name="prompt"
-        rows={6}
-        defaultValue={prompt}
-        placeholder={promptPlaceholder}
+      <label>Model</label>
+      <ModelField
+        selection={modelSel}
+        onSelect={onModelSelect}
+        customModel={values.customModel}
       />
     </>
   );
 }
 
-export default function AgentForm({
+/** The parts of the request the reader does not fill in: the fields carried through hidden, and the note saying whether this save writes an org default or a repo override. */
+function FormPreamble({
   repo,
-  agent,
-  action,
   isNew,
-  defaultImage,
-  orgScope = false,
-}: AgentFormProps) {
-  const [state, formAction] = useActionState(action, {});
-  const values = agentFormValues(agent, isNew);
-  const [modelSel, setModelSel] = useState(values.initialSelection);
-
+  orgScope,
+  values,
+}: {
+  repo: string;
+  isNew: boolean;
+  orgScope: boolean;
+  values: ReturnType<typeof agentFormValues>;
+}) {
   return (
-    <form action={formAction} className="task-form">
+    <>
       <HiddenFields
         repo={repo}
         isNew={isNew}
@@ -294,17 +84,24 @@ export default function AgentForm({
         orgScope={orgScope}
         inherited={values.inherited}
       />
+    </>
+  );
+}
 
-      <label>Name</label>
-      <NameField isNew={isNew} name={values.name} />
-
-      <label>Model</label>
-      <ModelField
-        selection={modelSel}
-        onSelect={setModelSel}
-        customModel={values.customModel}
-      />
-
+/** How this agent RUNS: its limits, its pod resources, and — repo-scoped only — the execution image. The image is omitted org-wide because the API refuses an org-wide image change: the two-key ceremony authorizing one is itself repo-scoped. */
+function ExecutionFields({
+  values,
+  orgScope,
+  image,
+  defaultImage,
+}: {
+  values: ReturnType<typeof agentFormValues>;
+  orgScope: boolean;
+  image: string | null | undefined;
+  defaultImage?: string;
+}) {
+  return (
+    <>
       <RunLimitsFields
         timeoutMinutes={values.timeoutMinutes}
         prompt={values.prompt}
@@ -313,9 +110,37 @@ export default function AgentForm({
 
       <PodResourceFields podResources={values.podResources} />
 
-      {!orgScope && (
-        <ImageFields image={agent?.image} defaultImage={defaultImage} />
-      )}
+      {!orgScope && <ImageFields image={image} defaultImage={defaultImage} />}
+    </>
+  );
+}
+
+export default function AgentForm(props: AgentFormProps) {
+  const { repo, agent, isNew, defaultImage, orgScope = false } = props;
+  const [state, formAction] = useActionState(props.action, {});
+  const values = agentFormValues(agent, isNew);
+  const [modelSel, setModelSel] = useState(values.initialSelection);
+
+  return (
+    <form action={formAction} className="task-form">
+      <FormPreamble
+        repo={repo}
+        isNew={isNew}
+        orgScope={orgScope}
+        values={values}
+      />
+      <IdentityFields
+        isNew={isNew}
+        values={values}
+        modelSel={modelSel}
+        onModelSelect={setModelSel}
+      />
+      <ExecutionFields
+        values={values}
+        orgScope={orgScope}
+        image={agent?.image}
+        defaultImage={defaultImage}
+      />
 
       <FormActions isNew={isNew} state={state} />
     </form>

@@ -4,7 +4,34 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 
-/** Fetches test source slice and renders as highlighted code; language auto-detected via fence. */
+/** One slice of a repo file. An open-ended range is sent without `end`, which the route reads as "to the end of the symbol" rather than as line zero. */
+async function fetchSlice({
+  repo,
+  path,
+  start,
+  end,
+}: {
+  repo: string;
+  path: string;
+  start: number;
+  end?: number;
+}): Promise<string> {
+  const params = new URLSearchParams({
+    path,
+    start: String(start),
+    ...(end ? { end: String(end) } : {}),
+  });
+  const res = await fetch(`/api/repos/${repo}/file?${params.toString()}`, {
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    throw new Error("unavailable");
+  }
+
+  return ((await res.json()) as { text: string }).text;
+}
+
 /** The lines this test occupies, fetched from the repo. `cancelled` guards the setState rather than aborting the request: the popover unmounts as soon as the pointer leaves, and a half-finished fetch is cheaper to ignore than to tear down. */
 function useFileSlice(repo: string, path: string, start: number, end?: number) {
   const [text, setText] = useState<string | null>(null);
@@ -12,21 +39,11 @@ function useFileSlice(repo: string, path: string, start: number, end?: number) {
 
   useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams({
-      path,
-      start: String(start),
-      ...(end ? { end: String(end) } : {}),
-    });
 
-    fetch(`/api/repos/${repo}/file?${params.toString()}`, {
-      signal: AbortSignal.timeout(15_000),
-    })
-      .then((res) =>
-        res.ok ? res.json() : Promise.reject(new Error("unavailable")),
-      )
-      .then((json: { text: string }) => {
+    fetchSlice({ repo, path, start, end })
+      .then((slice) => {
         if (!cancelled) {
-          setText(json.text);
+          setText(slice);
         }
       })
       .catch(() => {
@@ -43,6 +60,15 @@ function useFileSlice(repo: string, path: string, start: number, end?: number) {
   return { text, error };
 }
 
+function PreviewNote({ text }: { text: string }) {
+  return (
+    <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
+      {text}
+    </div>
+  );
+}
+
+/** Fetches test source slice and renders as highlighted code; language auto-detected via fence. */
 export default function TestPreview({
   repo,
   path,
@@ -56,19 +82,9 @@ export default function TestPreview({
 }) {
   const { text, error } = useFileSlice(repo, path, start, end);
 
-  if (error) {
+  if (error || text === null) {
     return (
-      <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
-        Preview unavailable.
-      </div>
-    );
-  }
-
-  if (text === null) {
-    return (
-      <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
-        Loading preview…
-      </div>
+      <PreviewNote text={error ? "Preview unavailable." : "Loading preview…"} />
     );
   }
 

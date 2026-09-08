@@ -78,80 +78,53 @@ function useRoundStatus(poll: ReturnType<typeof useSeededPoll>["data"]) {
   return { latest, phase, latestReady, failed, iteration, latestCreatedAt };
 }
 
-/** The wizard's whole state: where the planning line is, what the author has typed, and the two submits. Kept together because each depends on the last — the phase is read from the poll, the round metadata from the phase, and the submits close over the feedback the author is editing. */
-function usePlanningRound({
-  owner,
-  repo,
-  feature,
-  refine,
-  onFinalize,
-}: Pick<
+type PlanningRoundInput = Pick<
   PlanningWizardProps,
   "owner" | "repo" | "feature" | "refine" | "onFinalize"
->) {
+>;
+
+/** The wizard's whole state: where the planning line is, what the author has typed, and the two submits. Kept together because each depends on the last — the phase is read from the poll, the round metadata from the phase, and the submits close over the feedback the author is editing. */
+function usePlanningRound(props: PlanningRoundInput) {
+  const { feature } = props;
   const { data: poll, refresh: fetchLatest } = useSeededPoll(
-    owner,
-    repo,
+    props.owner,
+    props.repo,
     feature,
   );
   const draft = useRoundDraft();
-  const { feedback, continueFrom, finalizing } = draft;
-
-  const status = useRoundStatus(poll);
-
-  // Server-rendered feature refreshed when round lands; poll carries only latest iteration, not history.
+  // Rewind options come from the SERVER-rendered feature, not the poll: the poll carries only the latest iteration, and rewinding needs the history.
   const rounds = rewindOptions(feature.iterations);
-  const rewinding = isRewind(rounds, continueFrom);
-
-  const { submitRefine, submitCreateSpecFile } = useRoundSubmits({
-    refine,
-    onFinalize,
-    feedback,
-    continueFrom,
+  const submits = useRoundSubmits({
+    ...draft,
+    refine: props.refine,
+    onFinalize: props.onFinalize,
+    feedback: draft.feedback,
+    continueFrom: draft.continueFrom,
     fetchLatest,
-    startTransition: draft.startTransition,
-    setFeedback: draft.setFeedback,
-    setContinueFrom: draft.setContinueFrom,
-    setFinalizing: draft.setFinalizing,
   });
 
-  useRefreshWhenPlanningEnds(finalizing, poll.feature.status);
+  useRefreshWhenPlanningEnds(draft.finalizing, poll.feature.status);
 
   return {
     ...draft,
-    ...status,
+    ...useRoundStatus(poll),
+    ...submits,
     poll,
     rounds,
-    rewinding,
-    submitRefine,
-    submitCreateSpecFile,
+    rewinding: isRewind(rounds, draft.continueFrom),
   };
 }
 
-export default function PlanningWizard({
-  owner,
-  repo,
-  feature,
-  timeoutMinutes,
-  refine,
-  onFinalize,
-  onCreateDraft,
-  settledView,
-}: PlanningWizardProps) {
-  const round = usePlanningRound({
-    owner,
-    repo,
-    feature,
-    refine,
-    onFinalize,
-  });
-
+export default function PlanningWizard(props: PlanningWizardProps) {
+  const { onCreateDraft, settledView } = props;
+  const round = usePlanningRound(props);
+  // A card here means the line is between rounds — running, failed, or finished — and there is no analysis to edit yet.
   const phaseCard = phaseView({
     phase: round.phase,
     poll: round.poll,
     settledView,
     iteration: round.iteration,
-    timeoutMinutes,
+    timeoutMinutes: props.timeoutMinutes,
     finalizing: round.finalizing,
     latestCreatedAt: round.latestCreatedAt,
   });

@@ -27,28 +27,31 @@ function FeatureGrid({
 
   return (
     <div className={styles.grid}>
-      {features.map((f) => (
-        <Link
-          key={f.id}
-          href={`${base}/${f.id}`}
-          className={`spec-card ${styles.card}`}
-        >
-          <div className={styles.cardHeader}>
-            <h3 className={styles.cardTitle}>{f.title}</h3>
-            <StatusBadge status={f.status} />
-          </div>
-          <p className={`meta ${styles.excerpt}`}>
-            {f.original_prompt.slice(0, 160)}
-            {f.original_prompt.length > 160 ? "…" : ""}
-          </p>
-          {f.parent_feature_id && (
-            <p className={`meta ${styles.lineage}`}>
-              ↳ split from a parent feature
-            </p>
-          )}
-        </Link>
+      {features.map((feature) => (
+        <FeatureCard key={feature.id} feature={feature} base={base} />
       ))}
     </div>
+  );
+}
+
+/** One feature, as much of it as fits on a card. The prompt is excerpted rather than wrapped: the grid only works if every card is roughly the same height, and a feature's title is what the reader scans for. */
+function FeatureCard({ feature, base }: { feature: FeatureRow; base: string }) {
+  return (
+    <Link href={`${base}/${feature.id}`} className={`spec-card ${styles.card}`}>
+      <div className={styles.cardHeader}>
+        <h3 className={styles.cardTitle}>{feature.title}</h3>
+        <StatusBadge status={feature.status} />
+      </div>
+      <p className={`meta ${styles.excerpt}`}>
+        {feature.original_prompt.slice(0, 160)}
+        {feature.original_prompt.length > 160 ? "…" : ""}
+      </p>
+      {feature.parent_feature_id && (
+        <p className={`meta ${styles.lineage}`}>
+          ↳ split from a parent feature
+        </p>
+      )}
+    </Link>
   );
 }
 

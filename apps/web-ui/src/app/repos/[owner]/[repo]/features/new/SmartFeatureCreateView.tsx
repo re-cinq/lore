@@ -12,6 +12,27 @@ type CreateAction = (
   formData: FormData,
 ) => Promise<{ error?: string }>;
 
+/** What the author supplies. Both required: the planning round has nothing to analyze without a prompt, and nothing to call the feature without a title. */
+function FeatureFields() {
+  return (
+    <>
+      <label>
+        Title
+        <input name="title" required placeholder="Short feature name" />
+      </label>
+      <label>
+        Describe the feature
+        <textarea
+          name="prompt"
+          rows={6}
+          required
+          placeholder="What should it do, for whom, and why?"
+        />
+      </label>
+    </>
+  );
+}
+
 export default function SmartFeatureCreateView({
   action,
   definition = null,
@@ -31,19 +52,7 @@ export default function SmartFeatureCreateView({
         project and returns a gap-closing analysis you can refine before a spec
         PR is opened.
       </p>
-      <label>
-        Title
-        <input name="title" required placeholder="Short feature name" />
-      </label>
-      <label>
-        Describe the feature
-        <textarea
-          name="prompt"
-          rows={6}
-          required
-          placeholder="What should it do, for whom, and why?"
-        />
-      </label>
+      <FeatureFields />
       <FormError message={state?.error} />
       <SubmitButton pending={pending} pendingLabel="Starting planning…">
         Start planning

@@ -5,21 +5,21 @@ import MockupSection from "./MockupSection";
 import styles from "./GapSections.module.scss";
 import Markdown from "@/components/Markdown";
 import { sectionsOf } from "@/lib/gap-sections";
-import type {
-  GapResult,
-  GapQuestion,
-  GapSection,
-  SectionAnswers,
-  SectionDirection,
-} from "@/lib/feature-types";
+import {
+  SectionFeedback,
+  QuestionInput,
+  type FeedbackState,
+} from "./GapFeedbackInputs";
 
 const FREE_FORM_MAX = 5000;
 
-export interface FeedbackState {
-  sections: Record<string, { comment?: string; direction?: SectionDirection }>;
-  questions: Record<string, string>;
-  free_form: string;
-}
+import type {
+  GapResult,
+  GapSection,
+  SectionAnswers,
+} from "@/lib/feature-types";
+
+export type { FeedbackState };
 
 export function emptyFeedback(): FeedbackState {
   return { sections: {}, questions: {}, free_form: "" };
@@ -31,96 +31,6 @@ export function toUserAnswers(f: FeedbackState): SectionAnswers {
     questions: f.questions,
     free_form: f.free_form,
   };
-}
-
-function SectionFeedback({
-  sectionKey,
-  feedback,
-  onChange,
-}: {
-  sectionKey: string;
-  feedback: FeedbackState;
-  onChange: (next: FeedbackState) => void;
-}) {
-  const current = feedback.sections[sectionKey] ?? {};
-  const set = (patch: { comment?: string; direction?: SectionDirection }) =>
-    onChange({
-      ...feedback,
-      sections: {
-        ...feedback.sections,
-        [sectionKey]: { ...current, ...patch },
-      },
-    });
-
-  return (
-    <div className={styles.feedback}>
-      <div className={styles.directionRow}>
-        <select
-          value={current.direction ?? "keep"}
-          onChange={(e) =>
-            set({ direction: e.target.value as SectionDirection })
-          }
-          aria-label={`${sectionKey} direction`}
-        >
-          <option value="keep">Keep</option>
-          <option value="refine">Refine</option>
-          <option value="redirect">Redirect</option>
-        </select>
-      </div>
-      <textarea
-        className={styles.commentInput}
-        placeholder="Comment / direction for this section"
-        value={current.comment ?? ""}
-        onChange={(e) => set({ comment: e.target.value })}
-      />
-    </div>
-  );
-}
-
-/** One follow-up question for a section — short label, detail in `why`, answer input. */
-function QuestionInput({
-  q,
-  feedback,
-  onChange,
-}: {
-  q: GapQuestion;
-  feedback: FeedbackState;
-  onChange: (next: FeedbackState) => void;
-}) {
-  const set = (value: string) =>
-    onChange({
-      ...feedback,
-      questions: { ...feedback.questions, [q.id]: value },
-    });
-
-  return (
-    <div className={styles.question}>
-      <label htmlFor={q.id} className={styles.questionLabel}>
-        {q.question}
-      </label>
-      {q.why && <p className={`meta ${styles.questionWhy}`}>{q.why}</p>}
-      {q.kind === "choice" && q.options ? (
-        <select
-          id={q.id}
-          value={feedback.questions[q.id] ?? ""}
-          onChange={(e) => set(e.target.value)}
-        >
-          <option value="">—</option>
-          {q.options.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          id={q.id}
-          value={feedback.questions[q.id] ?? ""}
-          onChange={(e) => set(e.target.value)}
-        />
-      )}
-    </div>
-  );
 }
 
 function SectionCard({
@@ -162,29 +72,41 @@ function NoSectionsFallback({ draft }: { draft: string }) {
   );
 }
 
+/** The section's mockups, when the round produced any. */
+function SectionMockups({
+  section,
+  stylesheet,
+}: {
+  section: GapSection;
+  stylesheet: GapResult["mockup_stylesheet"];
+}) {
+  if (!section.mockups || section.mockups.length === 0) {
+    return null;
+  }
+
+  return <MockupSection mockups={section.mockups} stylesheet={stylesheet} />;
+}
+
+interface SectionBodyProps {
+  section: GapSection;
+  index: number;
+  gap: GapResult;
+  feedback: FeedbackState;
+  onChange: (next: FeedbackState) => void;
+}
+
 function SectionBody({
   section,
   index,
   gap,
   feedback,
   onChange,
-}: {
-  section: GapSection;
-  index: number;
-  gap: GapResult;
-  feedback: FeedbackState;
-  onChange: (next: FeedbackState) => void;
-}) {
+}: SectionBodyProps) {
   return (
     <SectionCard title={section.title} highlight={index === 0}>
       {section.content && <Markdown markdown={section.content} />}
-      {section.mockups && section.mockups.length > 0 && (
-        <MockupSection
-          mockups={section.mockups}
-          stylesheet={gap.mockup_stylesheet}
-        />
-      )}
-      {section.questions?.map((q) => (
+      <SectionMockups section={section} stylesheet={gap.mockup_stylesheet} />
+      {(section.questions ?? []).map((q) => (
         <QuestionInput
           key={q.id}
           q={q}
@@ -227,57 +149,110 @@ function SplitSuggestion({
   );
 }
 
+/** The round's suggestion to split this feature, when it made one. */
+function SplitSuggestionSlot({
+  split,
+  onCreateDraft,
+}: {
+  split: GapResult["split_suggestion"];
+  onCreateDraft: (title: string, prompt: string) => void;
+}) {
+  if (!split) {
+    return null;
+  }
+
+  return (
+    <SplitSuggestion
+      rationale={split.rationale}
+      // openapi marks proposed_features required, but it is an LLM-authored payload that can omit the array.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      proposedFeatures={split.proposed_features ?? []}
+      onCreateDraft={onCreateDraft}
+    />
+  );
+}
+
+/** Direction that belongs to no section. Capped and counted because it rides into the next round's prompt: an unbounded field here is an unbounded prompt there. */
+function FreeFormCard({
+  feedback,
+  onChange,
+}: {
+  feedback: FeedbackState;
+  onChange: (next: FeedbackState) => void;
+}) {
+  return (
+    <SectionCard title="Anything else?">
+      <textarea
+        rows={3}
+        maxLength={FREE_FORM_MAX}
+        placeholder="Free-form direction for the next round"
+        value={feedback.free_form}
+        onChange={(e) => onChange({ ...feedback, free_form: e.target.value })}
+      />
+      <p className={`meta ${styles.freeFormCount}`}>
+        {feedback.free_form.length}/{FREE_FORM_MAX}
+      </p>
+    </SectionCard>
+  );
+}
+
+interface GapSectionsProps {
+  gap: GapResult;
+  feedback: FeedbackState;
+  onChange: (next: FeedbackState) => void;
+  onCreateDraft: (title: string, prompt: string) => void;
+}
+
+/** Every section the round produced. Keyed on title AND index because two sections can legitimately share a heading, and a duplicate key would let React reuse one section's inputs for the other. */
+function SectionList({
+  sections,
+  gap,
+  feedback,
+  onChange,
+}: {
+  sections: GapSection[];
+  gap: GapResult;
+  feedback: FeedbackState;
+  onChange: (next: FeedbackState) => void;
+}) {
+  return sections.map((section, index) => (
+    <SectionBody
+      key={`${section.title}-${index}`}
+      section={section}
+      index={index}
+      gap={gap}
+      feedback={feedback}
+      onChange={onChange}
+    />
+  ));
+}
+
 export default function GapSections({
   gap,
   feedback,
   onChange,
   onCreateDraft,
-}: {
-  gap: GapResult;
-  feedback: FeedbackState;
-  onChange: (next: FeedbackState) => void;
-  onCreateDraft: (title: string, prompt: string) => void;
-}) {
+}: GapSectionsProps) {
   const sections = sectionsOf(gap);
-  // Fall back to draft when round produced no sections; say so plainly when there is neither.
-  const draft = gap.draft_spec_markdown?.trim() ?? "";
 
   return (
     <div>
-      {sections.length === 0 && <NoSectionsFallback draft={draft} />}
-      {sections.map((section, i) => (
-        <SectionBody
-          key={`${section.title}-${i}`}
-          section={section}
-          index={i}
-          gap={gap}
-          feedback={feedback}
-          onChange={onChange}
-        />
-      ))}
-
-      {gap.split_suggestion && (
-        <SplitSuggestion
-          rationale={gap.split_suggestion.rationale}
-          // openapi marks proposed_features required, but it's an LLM-authored payload that can omit the array.
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-          proposedFeatures={gap.split_suggestion.proposed_features ?? []}
-          onCreateDraft={onCreateDraft}
-        />
+      {sections.length === 0 && (
+        <NoSectionsFallback draft={gap.draft_spec_markdown?.trim() ?? ""} />
       )}
+      <SectionList
+        sections={sections}
+        gap={gap}
+        feedback={feedback}
+        onChange={onChange}
+      />
 
-      <SectionCard title="Anything else?">
-        <textarea
-          rows={3}
-          maxLength={FREE_FORM_MAX}
-          placeholder="Free-form direction for the next round"
-          value={feedback.free_form}
-          onChange={(e) => onChange({ ...feedback, free_form: e.target.value })}
-        />
-        <p className={`meta ${styles.freeFormCount}`}>
-          {feedback.free_form.length}/{FREE_FORM_MAX}
-        </p>
-      </SectionCard>
+      <SplitSuggestionSlot
+        split={gap.split_suggestion}
+        onCreateDraft={onCreateDraft}
+      />
+
+      <FreeFormCard feedback={feedback} onChange={onChange} />
     </div>
   );
 }

@@ -66,6 +66,48 @@ export function HoverTooltip({
   );
 }
 
+const HEADER_ROW = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  marginBottom: 6,
+} as const;
+
+/** The node's type colour, matching the dot the graph draws for it — the card and the canvas have to agree, or the reader cannot tell which node they selected. */
+function TypeDot({ type }: { type: SpecGraphNode["type"] }) {
+  return (
+    <span
+      style={{
+        width: 10,
+        height: 10,
+        borderRadius: "50%",
+        background: colorOf(type),
+        display: "inline-block",
+      }}
+    />
+  );
+}
+
+function CloseButton({ onClose }: { onClose: () => void }) {
+  return (
+    <button
+      onClick={onClose}
+      style={{
+        marginLeft: "auto",
+        border: "none",
+        background: "transparent",
+        color: "var(--text-muted)",
+        cursor: "pointer",
+        fontSize: "var(--fs-base)",
+        lineHeight: 1,
+      }}
+      aria-label="Close"
+    >
+      ×
+    </button>
+  );
+}
+
 function SelectedNodeHeader({
   selected,
   onClose,
@@ -74,39 +116,15 @@ function SelectedNodeHeader({
   onClose: () => void;
 }) {
   return (
-    <div
-      style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}
-    >
-      <span
-        style={{
-          width: 10,
-          height: 10,
-          borderRadius: "50%",
-          background: colorOf(selected.type),
-          display: "inline-block",
-        }}
-      />
+    <div style={HEADER_ROW}>
+      <TypeDot type={selected.type} />
       <strong>{selected.type}</strong>
       {selected.type === "Spec" && (
         <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
           · double-click to expand
         </span>
       )}
-      <button
-        onClick={onClose}
-        style={{
-          marginLeft: "auto",
-          border: "none",
-          background: "transparent",
-          color: "var(--text-muted)",
-          cursor: "pointer",
-          fontSize: "var(--fs-base)",
-          lineHeight: 1,
-        }}
-        aria-label="Close"
-      >
-        ×
-      </button>
+      <CloseButton onClose={onClose} />
     </div>
   );
 }
@@ -197,6 +215,24 @@ function NodeLinks({
   );
 }
 
+/** The node's detail, rendered as markdown. Statement text carries inline code and links that would otherwise show as raw syntax in a popover people read at a glance. */
+function NodeDetailMarkdown({ detail }: { detail?: string }) {
+  if (!detail) {
+    return null;
+  }
+
+  return (
+    <div className="md-popover" style={{ marginBottom: 8, lineHeight: 1.5 }}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+      >
+        {detail}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
 export function SelectedNodeCard({
   selected,
   repo,
@@ -212,19 +248,7 @@ export function SelectedNodeCard({
       {selected.label && (
         <div style={{ fontWeight: 600, marginBottom: 4 }}>{selected.label}</div>
       )}
-      {selected.detail && (
-        <div
-          className="md-popover"
-          style={{ marginBottom: 8, lineHeight: 1.5 }}
-        >
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeHighlight]}
-          >
-            {selected.detail}
-          </ReactMarkdown>
-        </div>
-      )}
+      <NodeDetailMarkdown detail={selected.detail} />
       <SelectedNodePathLine selected={selected} />
       <SelectedNodeTestPreview selected={selected} repo={repo} />
       <NodeLinks selected={selected} repo={repo} />

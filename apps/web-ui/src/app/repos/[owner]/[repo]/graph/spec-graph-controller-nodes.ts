@@ -134,21 +134,21 @@ function wireDrag(
   );
 }
 
-function enterNodeGroups(
-  enter: d3.Selection<d3.EnterElement, SimNode, SVGGElement, unknown>,
+type NodeSelection = d3.Selection<SVGGElement, SimNode, SVGGElement, unknown>;
+
+/** Click selects and centres, double-click expands, hover explains. Every handler stops propagation because the canvas behind the node has its own click that clears the selection. */
+function wireNodeHandlers(
+  g: NodeSelection,
   c: GraphController,
   coverageTint: (t: number) => string,
-): d3.Selection<SVGGElement, SimNode, SVGGElement, unknown> {
-  const g = enter
-    .append("g")
-    .style("cursor", "pointer")
-    .on("click", (event: PointerEvent, d) => {
-      event.stopPropagation();
-      c.selectedIdRef.current = d.id;
-      c.setSelected(d);
-      highlight(c, d.id);
-      centerOn(c, d);
-    })
+): void {
+  g.on("click", (event: PointerEvent, d) => {
+    event.stopPropagation();
+    c.selectedIdRef.current = d.id;
+    c.setSelected(d);
+    highlight(c, d.id);
+    centerOn(c, d);
+  })
     .on("dblclick", (event: PointerEvent, d) => {
       event.stopPropagation();
       void toggleExpand(c, d, coverageTint);
@@ -156,19 +156,21 @@ function enterNodeGroups(
     .on("mouseenter mousemove", (event: PointerEvent, d) => {
       const text = (d.detail?.trim() || d.label || d.path || "").trim();
 
+      // A node with nothing to say shows no tooltip rather than an empty one.
       if (!text) {
         c.setHover(null);
 
         return;
       }
-      const [px, py] = d3.pointer(event, c.el);
+      const [pointerX, pointerY] = d3.pointer(event, c.el);
 
-      c.setHover({ text, x: px, y: py });
+      c.setHover({ text, x: pointerX, y: pointerY });
     })
     .on("mouseleave", () => c.setHover(null));
+}
 
-  wireDrag(g, c);
-
+/** The circle every node gets, and the label only some do. Labels are `pointer-events: none` so the text never intercepts a click meant for the node it names. */
+function appendNodeShapes(g: NodeSelection): void {
   g.append("circle")
     .attr("r", (d) => radiusOf(d.type))
     .attr("fill", (d) => nodeColor(d))
@@ -183,6 +185,18 @@ function enterNodeGroups(
     .attr("font-weight", (d) => (d.type === "Spec" ? 600 : 400))
     .attr("fill", "currentColor")
     .style("pointer-events", "none");
+}
+
+function enterNodeGroups(
+  enter: d3.Selection<d3.EnterElement, SimNode, SVGGElement, unknown>,
+  c: GraphController,
+  coverageTint: (t: number) => string,
+): d3.Selection<SVGGElement, SimNode, SVGGElement, unknown> {
+  const g = enter.append("g").style("cursor", "pointer");
+
+  wireNodeHandlers(g, c, coverageTint);
+  wireDrag(g, c);
+  appendNodeShapes(g);
 
   return g;
 }

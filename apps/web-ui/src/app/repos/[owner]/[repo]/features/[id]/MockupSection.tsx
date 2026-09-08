@@ -32,6 +32,21 @@ function downloadName(mockup: GapMockup, index: number): string {
 /** Lazily imported; never notifies — store IS "am I in a browser". */
 const subscribeNever = () => () => {};
 
+/** Renders one mermaid diagram to SVG. Returns EMPTY rather than the markup when a script tag survives: a mockup is author-supplied text rendered into a frame, and framing a potentially escaped script is worse than showing no diagram. */
+async function renderMermaid(markup: string, index: number): Promise<string> {
+  const mermaid = (await import("mermaid")).default;
+
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: "strict",
+    // Flowchart-only; ER and edge labels are foreignObject HTML, so MOCKUP_SVG_CONFIG would have to allow the tag.
+    flowchart: { htmlLabels: false },
+  });
+  const rendered = await mermaid.render(`mockup-${index}`, markup.trim());
+
+  return /<script/i.test(rendered.svg) ? "" : rendered.svg;
+}
+
 function useMermaidSvg(mockup: GapMockup, index: number): string | null {
   const [svg, setSvg] = useState<string | null>(null);
 
@@ -43,27 +58,15 @@ function useMermaidSvg(mockup: GapMockup, index: number): string | null {
 
     void (async () => {
       try {
-        const mermaid = (await import("mermaid")).default;
-
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: "strict",
-          // Flowchart-only; ER/edge labels are foreignObject HTML, so MOCKUP_SVG_CONFIG must allow the tag.
-          flowchart: { htmlLabels: false },
-        });
-        const rendered = await mermaid.render(
-          `mockup-${index}`,
-          mockup.markup.trim(),
-        );
+        const svgMarkup = await renderMermaid(mockup.markup, index);
 
         // `live` flips to false from the cleanup below, across an async boundary the type checker can't see.
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (live) {
-          // Tripwire for script tags: fail render rather than frame a potentially escaped script.
-          setSvg(/<script/i.test(rendered.svg) ? "" : rendered.svg);
+          setSvg(svgMarkup);
         }
       } catch {
-        // Parse failure does not fail the round; author still has all sections.
+        // Parse failure does not fail the round; the author still has every section.
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (live) {
           setSvg("");
@@ -94,6 +97,15 @@ function frameHeight(
   return fromMermaid ?? mockupHeight(mockup);
 }
 
+interface MockupFrameProps {
+  isMermaid: boolean;
+  mermaidSvg: string | null;
+  clean: string;
+  stylesheet?: string;
+  mockup: GapMockup;
+  index: number;
+}
+
 function MockupFrame({
   isMermaid,
   mermaidSvg,
@@ -101,14 +113,7 @@ function MockupFrame({
   stylesheet,
   mockup,
   index,
-}: {
-  isMermaid: boolean;
-  mermaidSvg: string | null;
-  clean: string;
-  stylesheet?: string;
-  mockup: GapMockup;
-  index: number;
-}) {
+}: MockupFrameProps) {
   if (isMermaid && mermaidSvg === null) {
     return <div className="meta">rendering diagram…</div>;
   }
@@ -158,6 +163,37 @@ function useMockupMarkup(mockup: GapMockup, index: number) {
   };
 }
 
+/** The mockup's title and a download link for its source. The markup is offered as a data URI because the frame is sandboxed with no scripts — there is no way for the frame itself to hand its contents back. */
+function MockupCaption({
+  mockup,
+  index,
+}: {
+  mockup: GapMockup;
+  index: number;
+}) {
+  return (
+    <figcaption
+      className="meta"
+      style={{
+        marginBottom: 4,
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <span>{mockupTitle(mockup, index)}</span>
+      <a
+        href={`data:text/plain;charset=utf-8,${encodeURIComponent(mockup.markup)}`}
+        download={downloadName(mockup, index)}
+        className="meta"
+      >
+        download ↓
+      </a>
+    </figcaption>
+  );
+}
+
 function MockupFigure({
   mockup,
   index,
@@ -168,25 +204,10 @@ function MockupFigure({
   stylesheet?: string;
 }) {
   const { mermaidSvg, isMermaid, clean } = useMockupMarkup(mockup, index);
-  const href = `data:text/plain;charset=utf-8,${encodeURIComponent(mockup.markup)}`;
 
   return (
     <figure style={{ margin: "0 0 12px" }}>
-      <figcaption
-        className="meta"
-        style={{
-          marginBottom: 4,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <span>{mockupTitle(mockup, index)}</span>
-        <a href={href} download={downloadName(mockup, index)} className="meta">
-          download ↓
-        </a>
-      </figcaption>
+      <MockupCaption mockup={mockup} index={index} />
       <MockupFrame
         isMermaid={isMermaid}
         mermaidSvg={mermaidSvg}

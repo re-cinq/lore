@@ -33,6 +33,14 @@ function shouldSkipEdge(
   return collapsing && (aggHidden.has(sId) || aggHidden.has(tId));
 }
 
+/** The control points a bundled edge bends through — its route up and back down the containment hierarchy. Control ids that no longer resolve are dropped rather than treated as the origin, which would drag the curve to the top-left corner. */
+function bundlePoints(l: SimLink, state: CanvasDrawState): [number, number][] {
+  return (l.controlIds ?? [])
+    .map((id) => state.nodeById.get(id))
+    .filter((n): n is SimNode => !!n)
+    .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
+}
+
 function strokeEdge(
   deps: EdgeDrawDeps,
   l: SimLink,
@@ -49,11 +57,9 @@ function strokeEdge(
   ctx.globalAlpha = op;
   ctx.strokeStyle = colors.edgeColor;
 
-  const bundlePts = (l.controlIds ?? [])
-    .map((id) => state.nodeById.get(id))
-    .filter((n): n is SimNode => !!n)
-    .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
+  const bundlePts = bundlePoints(l, state);
 
+  // Fewer than three control points is not a curve worth bending; fall through to the straight edge.
   if (bundlePts.length > 2) {
     ctx.beginPath();
     bundleLine(bundlePts);
