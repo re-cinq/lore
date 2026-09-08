@@ -5,8 +5,11 @@ import { Llm } from "@re-cinq/lore-shared";
 export function createGraphLlmCall(
   _pool: unknown,
 ): (prompt: string) => Promise<string> {
-  const llm = Llm.instance;
+  return (prompt: string) => {
+    const llm = Llm.instance;
 
-  return (prompt: string) =>
-    llm.complete({ prompt, jobName: "graph-extraction" }).then((r) => r.text);
+    return llm
+      .complete({ prompt, jobName: "graph-extraction" })
+      .then((r) => r.text);
+  };
 }
