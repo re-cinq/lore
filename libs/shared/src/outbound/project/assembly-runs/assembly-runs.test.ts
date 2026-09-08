@@ -670,7 +670,7 @@ describe("InMemoryAssemblyRuns double", () => {
       taskId: "task-1",
     });
 
-    assemblyRuns.clock = () => new Date("2026-07-03T11:00:00Z");
+    assemblyRuns.setClock(() => new Date("2026-07-03T11:00:00Z"));
     const second = await assemblyRuns.start({
       blueprintName: "general",
       repo: "r/a",

@@ -16,7 +16,7 @@ export {
 
 /** In-memory {@link LeaseReaper}: behavioral spec double. */
 export class InMemoryLeaseReaper implements LeaseReaper {
-  constructor(public leases: ExpiredLease[] = []) {}
+  constructor(public readonly leases: ExpiredLease[] = []) {}
 
   async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
     const isExpired = (lease: ExpiredLease) =>
@@ -24,7 +24,9 @@ export class InMemoryLeaseReaper implements LeaseReaper {
       lease.expires_at.getTime() < cutoff.getTime();
     const expired = this.leases.filter(isExpired);
 
-    this.leases = this.leases.filter((lease) => !isExpired(lease));
+    const kept = this.leases.filter((lease) => !isExpired(lease));
+
+    this.leases.splice(0, this.leases.length, ...kept);
 
     return expired;
   }

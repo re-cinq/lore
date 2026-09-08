@@ -25,9 +25,9 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
   private deliverySeq = 0;
 
   constructor(
-    public events: StoredEvent[] = [],
-    public deliveries: EventDeliveryRow[] = [],
-    public subscriptions: Map<string, Map<string, number>> = new Map(),
+    public readonly events: StoredEvent[] = [],
+    public readonly deliveries: EventDeliveryRow[] = [],
+    public readonly subscriptions: Map<string, Map<string, number>> = new Map(),
     private readonly now: () => number = () => Date.now(),
   ) {}
 
@@ -210,7 +210,7 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
     const cutoff = this.now() - olderThanDays * 86_400_000;
     const before = this.deliveries.length;
 
-    this.deliveries = this.deliveries.filter(
+    const keptDeliveries = this.deliveries.filter(
       (d) =>
         !(
           (d.status === "done" || d.status === "dead") &&
@@ -219,12 +219,16 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
         ),
     );
 
+    this.deliveries.splice(0, this.deliveries.length, ...keptDeliveries);
+
     // An event is collectable only once nothing is still owed a delivery of it.
     const live = new Set(this.deliveries.map((d) => d.event_id));
 
-    this.events = this.events.filter(
+    const keptEvents = this.events.filter(
       (e) => live.has(e.id) || Date.parse(e.captured_at) > cutoff,
     );
+
+    this.events.splice(0, this.events.length, ...keptEvents);
 
     return before - this.deliveries.length;
   }

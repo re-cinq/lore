@@ -16,7 +16,7 @@ export interface TaskRecord {
 export class InMemoryBaseline implements BaselinePort {
   readonly rows: BaselineRow[] = [];
 
-  constructor(public tasks: TaskRecord[] = []) {}
+  constructor(public readonly tasks: TaskRecord[] = []) {}
 
   async insert(row: BaselineRow): Promise<void> {
     this.rows.push(row);

@@ -229,7 +229,10 @@ export default tseslint.config(
       "re-lint/max-member-chain": "warn",
       "re-lint/callee-below-caller": "warn",
       "re-lint/declare-near-use": "warn",
-      "re-lint/no-hybrid-class": "warn",
+      // Error since 2026-09-08: the in-memory doubles now expose their
+      // collections readonly, which also stops a captured reference from
+      // desyncing when one is pruned. Off in tests, below.
+      "re-lint/no-hybrid-class": "error",
     },
   },
 
@@ -460,6 +463,9 @@ export default tseslint.config(
       // Zero comments in tests: the test NAME carries the meaning. Queue hit
       // zero on 2026-09-04, so this is an error.
       "re-lint/max-comment-lines": ["error", { max: 0 }],
+      // A recording double IS half data and half behaviour: the code under
+      // test writes the field and the test reads it. That is the point.
+      "re-lint/no-hybrid-class": "off",
       "re-lint/max-expects": "warn",
       "re-lint/no-nondeterministic-tests": "warn",
       // A describe callback is one function holding every test, so per-function

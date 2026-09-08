@@ -40,8 +40,8 @@ export class InMemoryChunks implements ChunksPort {
   private readonly reindex: ReindexChunkStore;
 
   constructor(
-    public rows: ChunkRow[] = [],
-    public schemas: Set<string> = new Set(["org_shared"]),
+    public readonly rows: ChunkRow[] = [],
+    public readonly schemas: Set<string> = new Set(["org_shared"]),
   ) {
     this.reindex = new ReindexChunkStore(this);
   }
@@ -63,7 +63,7 @@ export class InMemoryChunks implements ChunksPort {
     repo: string,
   ): Promise<void> {
     enforceSchema(schema);
-    this.rows = this.rows.filter(
+    const kept = this.rows.filter(
       (row) =>
         !(
           row.schema === schema &&
@@ -71,6 +71,8 @@ export class InMemoryChunks implements ChunksPort {
           row.repo === repo
         ),
     );
+
+    this.rows.splice(0, this.rows.length, ...kept);
   }
 
   async insertChunk(

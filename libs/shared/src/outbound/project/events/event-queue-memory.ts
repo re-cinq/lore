@@ -9,7 +9,7 @@ export class InMemoryEventQueue implements EventQueueRepository {
   private seq = 0;
 
   constructor(
-    public rows: EventRow[] = [],
+    public readonly rows: EventRow[] = [],
     private readonly now: () => number = () => Date.now(),
   ) {}
 
@@ -117,7 +117,7 @@ export class InMemoryEventQueue implements EventQueueRepository {
     const cutoff = this.now() - olderThanDays * 86_400_000;
     const before = this.rows.length;
 
-    this.rows = this.rows.filter(
+    const kept = this.rows.filter(
       (r) =>
         !(
           (r.status === "done" || r.status === "dead") &&
@@ -125,6 +125,8 @@ export class InMemoryEventQueue implements EventQueueRepository {
           new Date(r.handled_at).getTime() < cutoff
         ),
     );
+
+    this.rows.splice(0, this.rows.length, ...kept);
 
     return before - this.rows.length;
   }

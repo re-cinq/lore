@@ -70,12 +70,12 @@ function resumeRefs(input: AssemblyRunStartInput): {
 
 /** In-memory AssemblyRunsPort — the behavioral spec of the Pg adapter; clock is injectable for deterministic ordering in tests. */
 export class InMemoryAssemblyRuns implements AssemblyRunsPort {
-  rows: AssemblyRunRecord[] = [];
-  events: SeedAssemblyLineEvent[] = [];
+  readonly rows: AssemblyRunRecord[] = [];
+  readonly events: SeedAssemblyLineEvent[] = [];
   private readonly stationRuns: StationRunStore;
   private readonly queries: AssemblyRunQueryStore;
 
-  constructor(public clock: () => Date = () => new Date()) {
+  constructor(private currentClock: () => Date = () => new Date()) {
     this.stationRuns = new StationRunStore(() => this.clock());
     this.queries = new AssemblyRunQueryStore(
       this.rows,
@@ -83,6 +83,16 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       (runId, clusterAgentId) =>
         this.stationRuns.hasOpenClaimByAgent(runId, clusterAgentId),
     );
+  }
+
+  /** The clock in force, so a test can put back the one it replaced. */
+  get clock(): () => Date {
+    return this.currentClock;
+  }
+
+  /** Tests advance time by swapping the clock; the seeded rows stay put. */
+  setClock(clock: () => Date): void {
+    this.currentClock = clock;
   }
 
   /** Delegates to the station-run store — kept as a field for callers/tests that read `port.nodes` directly. */

@@ -1,7 +1,7 @@
 import { enforceTrue } from "../../../lib/enforce.js";
 import { enforceSchema, type ChunkRow } from "./chunk-row-memory.js";
 
-/** The reindex-job maintenance surface of InMemoryChunks — which files a repo's reindex-job chunks own, aging them out, pruning them, and migrating legacy org_shared rows onto a team schema. Reads/writes the SAME `rows` array `InMemoryChunks` owns (via `host`, since several of these reassign the array wholesale rather than mutate in place). */
+/** The reindex-job maintenance surface of InMemoryChunks — which files a repo's reindex-job chunks own, aging them out, pruning them, and migrating legacy org_shared rows onto a team schema. Reads/writes the SAME `rows` array `InMemoryChunks` owns (via `host`), always in place, so the host and this store never drift apart. */
 /** Moves one legacy row into the team schema. `ingested_by` is stamped only where it was ABSENT and the type is one the reindex job owns — a chunk written by another ingester keeps its provenance, or the heal sweep would later treat it as its own to re-chunk. */
 function adoptRow(row: ChunkRow, schema: string): void {
   const adopt =
@@ -18,7 +18,7 @@ function adoptRow(row: ChunkRow, schema: string): void {
 }
 
 export class ReindexChunkStore {
-  constructor(private readonly host: { rows: ChunkRow[] }) {}
+  constructor(private readonly host: { readonly rows: ChunkRow[] }) {}
 
   private reindexOwnedForRepo(schema: string, repo: string): ChunkRow[] {
     return this.host.rows.filter(
@@ -124,7 +124,7 @@ export class ReindexChunkStore {
     const paths = new Set(filePaths);
     const before = this.host.rows.length;
 
-    this.host.rows = this.host.rows.filter(
+    const kept = this.host.rows.filter(
       (row) =>
         !(
           row.schema === schema &&
@@ -133,6 +133,8 @@ export class ReindexChunkStore {
           paths.has(row.filePath)
         ),
     );
+
+    this.host.rows.splice(0, this.host.rows.length, ...kept);
 
     return before - this.host.rows.length;
   }
@@ -161,7 +163,7 @@ export class ReindexChunkStore {
     );
     const { moved, dropIds } = this.adoptLegacyRows(schema, repo);
 
-    this.host.rows = this.host.rows.filter(
+    const kept = this.host.rows.filter(
       (row) =>
         !(
           row.schema === "org_shared" &&
@@ -169,6 +171,8 @@ export class ReindexChunkStore {
           dropIds.has(row.id)
         ),
     );
+
+    this.host.rows.splice(0, this.host.rows.length, ...kept);
 
     return { moved, dropped: moved + dropIds.size };
   }

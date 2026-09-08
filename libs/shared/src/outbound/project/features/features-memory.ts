@@ -18,7 +18,7 @@ export class InMemoryFeatures implements FeaturesPort {
   readonly rows: Feature[] = [];
   readonly iterations: FeatureIteration[] = [];
 
-  constructor(public clock: () => Date = () => new Date()) {}
+  constructor(private readonly clock: () => Date = () => new Date()) {}
 
   private insertFeature(
     repo: string,
