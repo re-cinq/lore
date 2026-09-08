@@ -1,7 +1,7 @@
 /** POST /api/webhook/ci-tests — Layer-1 test-report ingest producer: lore-code-trace bearer-authenticates, `mapCiTests` maps the body to an event we INSERT, the loop dispatches. */
 
 import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import {
   mapCiTests,

@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError, rethrowBoom } from "../api-error.js";
+import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 // Conversation registry (ai-agent-subsystem#188): GET fetches the prior run's state archive for pod init, POST saves this run's state for a later run; bytes ride the existing ArchivePort, Postgres holds only the index.
 
 import type { ServerRoute } from "@hapi/hapi";

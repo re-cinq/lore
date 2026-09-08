@@ -42,7 +42,7 @@ describe("startHealthServer failure paths", () => {
 
     await startHealthServer(80, () => ({}));
 
-    expect(error.mock.calls[0]?.[0]).toBe("[floor] Health server error:");
+    expect(error.mock.calls[0]?.[0]).toBe("[floor] server error:");
     expect(exit).toHaveBeenCalledWith(1);
   });
 });

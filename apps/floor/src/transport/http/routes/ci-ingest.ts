@@ -1,7 +1,7 @@
 /** POST /api/webhook/ci-ingest — Layer-1 doc-projection producer: CI bearer-authenticates, `mapCiIngest` turns the body into events we INSERT, the loop dispatches. `payload.parse: false` so the body parses as JSON regardless of Content-Type. */
 
 import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import {
   mapCiIngest,

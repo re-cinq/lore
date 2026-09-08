@@ -5,7 +5,7 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import { rethrowBoom, apiError } from "../../http/api-error.js";
+import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { z } from "zod";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";

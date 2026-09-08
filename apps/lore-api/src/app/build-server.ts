@@ -5,7 +5,8 @@ import type { Pool } from "pg";
 import { routeList } from "../transport/route-list.js";
 import Hapi from "@hapi/hapi";
 import type { ServerRoute } from "@hapi/hapi";
-import { registerRequestTracing } from "./plugins/tracing.js";
+import { registerRequestTracing } from "@re-cinq/lore-shared/http/tracing.js";
+import { traceHttp } from "@re-cinq/lore-server-core/platform/otel.js";
 import { registerRateLimit } from "../transport/http/rate-limit.js";
 import { registerBearerScope } from "../transport/http/bearer-scope.js";
 import { zodFailAction } from "../transport/http/zod-validate.js";
@@ -29,6 +30,9 @@ function logOpenApiCoverage(routes: ServerRoute[]): void {
   }
 }
 
+// `traceHttp` is the metric half the span does not carry — lore-api recorded it per request before the tracing plugin was shared, and still does.
+const TRACING = { tracerName: "lore.api.http", observe: traceHttp };
+
 export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   const server = Hapi.server({
     port,
@@ -41,7 +45,7 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
     },
   });
 
-  registerRequestTracing(server);
+  registerRequestTracing(server, TRACING);
   registerRateLimit(server);
   registerBearerScope(server, getPool);
 

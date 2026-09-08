@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { errorMessage } from "@re-cinq/lore-shared";
-import { rethrowBoom, apiError } from "../../http/api-error.js";
+import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { selectList, pickColumns } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {

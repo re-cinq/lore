@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../http/api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { zodResponse } from "../../http/zod-response.js";

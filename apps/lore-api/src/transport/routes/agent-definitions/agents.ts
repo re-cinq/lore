@@ -5,7 +5,7 @@ import {
 } from "./agent-writes.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
-import { rethrowBoom, apiError } from "../../http/api-error.js";
+import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { ResponseObject, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";

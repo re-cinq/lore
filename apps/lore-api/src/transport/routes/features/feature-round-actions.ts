@@ -13,7 +13,7 @@ import { findParkedAuthorNode } from "@re-cinq/lore-shared/project/features/plan
 import { startRefinementRound } from "@re-cinq/lore-shared/project/features/refinement-round.js";
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../../http/api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { eventReporterFor } from "../event-reporter.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { runIdBothSpellings } from "./features-schema.js";

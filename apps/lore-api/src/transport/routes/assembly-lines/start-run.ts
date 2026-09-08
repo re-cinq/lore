@@ -14,7 +14,7 @@ import {
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
 import { projectFor } from "../../../outbound/project-boot.js";
-import { apiError, rethrowBoom } from "../../http/api-error.js";
+import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { zodResponse } from "../../http/zod-response.js";

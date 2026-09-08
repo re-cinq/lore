@@ -1,6 +1,6 @@
 /** Bearer-token auth: hapi scheme + ingest-token (503) + internal-token (401) strategies. */
 
-import { apiError } from "./api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // Shared constant-time compare; prevents drift from `bearer.ts` hardening.
 import { secretEquals } from "@re-cinq/lore-shared/lib/secret-equals.js";

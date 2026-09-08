@@ -1,6 +1,6 @@
 /** GET /api/assembly-line-definitions/{name} (FR3.2) — returns the WHOLE parsed definition (web-ui's drift-guard mirror needs `description`/`version` too); no cache here since `loadBuiltinAssemblyLines` already memoizes. */
 
-import { apiError } from "../api-error.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import type { ServerRoute } from "@hapi/hapi";
