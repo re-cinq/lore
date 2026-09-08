@@ -214,6 +214,24 @@ function failedLifecycleMarker(value: unknown): { phase?: unknown } | null {
   return isFailedMarker ? marker : null;
 }
 
+// The newest `[agent] …` line at or before the failure, capped — scanned backwards so the words closest to the death win.
+function lastAgentStderrLine(lines: string[], failedAt: number): string | null {
+  for (let i = failedAt; i >= 0; i--) {
+    const line = lines[i];
+
+    if (!line.startsWith(AGENT_STDERR_PREFIX)) {
+      continue;
+    }
+    const text = line.slice(AGENT_STDERR_PREFIX.length).trim();
+
+    if (text.length > 0) {
+      return text.substring(0, 300);
+    }
+  }
+
+  return null;
+}
+
 // The agent's own last words when it never reached a result line (engine died at BOOT, before terminalErrorText's is_error line exists) — the runner relays engine stderr as `[agent] …`; run 129235d4 (2026-08-28) showed an unread boot error misclassified as retryable `infra`, burning a 25min retry. Gated on the runner's own prefix + a lifecycle envelope reporting agent phase FAILED, so ordinary chatter never reads as a cause.
 export function agentStderrError(output?: string): string | null {
   if (!output) {
@@ -227,18 +245,7 @@ export function agentStderrError(output?: string): string | null {
     return null;
   }
 
-  for (let i = failedAt; i >= 0; i--) {
-    if (!lines[i].startsWith(AGENT_STDERR_PREFIX)) {
-      continue;
-    }
-    const text = lines[i].slice(AGENT_STDERR_PREFIX.length).trim();
-
-    if (text.length > 0) {
-      return text.substring(0, 300);
-    }
-  }
-
-  return null;
+  return lastAgentStderrLine(lines, failedAt);
 }
 
 // True when `text` is already a serialized result line or attribution envelope.

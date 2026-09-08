@@ -125,11 +125,10 @@ function storyBody(story: {
   summary: string;
   acceptance_criteria: string[];
 }): string {
-  const criteria = story.acceptance_criteria
-    .map((c) => `- [ ] ${c}`)
-    .join("\n");
+  const { acceptance_criteria: criteria } = story;
+  const checklist = criteria.map((c) => `- [ ] ${c}`).join("\n");
 
-  return `${story.summary}\n\n## Acceptance criteria\n\n${criteria}\n`;
+  return `${story.summary}\n\n## Acceptance criteria\n\n${checklist}\n`;
 }
 
 // What the spec-task carries about its place in the plan: its own id, what it waits on, and the Issue it reports to. `feature_id` is absent rather than null when the line carries no feature — the UI filter is a JSON text match, and a literal "null" would match nothing while looking set.

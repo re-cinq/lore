@@ -51,7 +51,8 @@ function agentByNameRoute(opts: ClusterRoutesDeps): ServerRoute {
     options: { auth: false },
     handler: async (request, h) => {
       guard(opts, request.headers);
-      const cr = await opts.deps().agents.get(request.params.name);
+      const { agents } = opts.deps();
+      const cr = await agents.get(request.params.name);
 
       return h.response({ found: cr !== null, cr }).code(200);
     },
@@ -70,7 +71,8 @@ function listAgentsHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
       apiError(400),
       `limit must be an integer in 1..${MAX_PAGE} — a larger page is what blew the heap on 2026-07-24`,
     );
-    const page = await opts.deps().agents.list({
+    const { agents } = opts.deps();
+    const page = await agents.list({
       labelSelector: q.labelSelector,
       limit,
       continue: q.continue,
@@ -96,7 +98,9 @@ function deleteAgentRoute(opts: ClusterRoutesDeps): ServerRoute {
     options: { auth: false },
     handler: async (request, h) => {
       guard(opts, request.headers);
-      await opts.deps().agents.remove(request.params.name);
+      const { agents } = opts.deps();
+
+      await agents.remove(request.params.name);
 
       return h.response().code(204);
     },
@@ -110,7 +114,8 @@ function podInfoRoute(opts: ClusterRoutesDeps): ServerRoute {
     options: { auth: false },
     handler: async (request, h) => {
       guard(opts, request.headers);
-      const pod = await opts.deps().pods.agentInfo(request.params.name);
+      const { pods } = opts.deps();
+      const pod = await pods.agentInfo(request.params.name);
 
       return h
         .response({
@@ -130,11 +135,10 @@ function jobPodsRoute(opts: ClusterRoutesDeps): ServerRoute {
     options: { auth: false },
     handler: async (request, h) => {
       guard(opts, request.headers);
+      const { pods } = opts.deps();
 
       return h
-        .response({
-          pods: await opts.deps().pods.podsForJob(request.params.jobName),
-        })
+        .response({ pods: await pods.podsForJob(request.params.jobName) })
         .code(200);
     },
   };
@@ -147,10 +151,9 @@ function listPodsRoute(opts: ClusterRoutesDeps): ServerRoute {
     options: { auth: false },
     handler: async (request, h) => {
       guard(opts, request.headers);
+      const { pods } = opts.deps();
 
-      return h
-        .response({ pods: await opts.deps().pods.listRunning() })
-        .code(200);
+      return h.response({ pods: await pods.listRunning() }).code(200);
     },
   };
 }
@@ -163,9 +166,11 @@ function podLogHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
       (request.query as Record<string, string | undefined>).tail ?? MAX_TAIL,
     );
     const tail = Number.isInteger(asked) && asked > 0 ? asked : MAX_TAIL;
-    const logs = await opts
-      .deps()
-      .pods.podLog(request.params.podName, Math.min(tail, MAX_TAIL));
+    const { pods } = opts.deps();
+    const logs = await pods.podLog(
+      request.params.podName,
+      Math.min(tail, MAX_TAIL),
+    );
 
     return h.response({ logs }).code(200);
   };
@@ -188,7 +193,9 @@ function deletePerTaskTokenRoute(opts: ClusterRoutesDeps): ServerRoute {
     options: { auth: false },
     handler: async (request, h) => {
       guard(opts, request.headers);
-      await opts.deps().tokens.cleanup(request.params.taskId);
+      const { tokens } = opts.deps();
+
+      await tokens.cleanup(request.params.taskId);
 
       return h.response().code(204);
     },

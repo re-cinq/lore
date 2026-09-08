@@ -39,7 +39,12 @@ function lastNodeResultPayload(output?: string): string | null {
     ...(output ?? "").matchAll(/^LORE_NODE_RESULT:[ \t]*(.*)$/gm),
   ];
 
-  return matches.length ? matches[matches.length - 1][1].trim() : null;
+  if (matches.length === 0) {
+    return null;
+  }
+  const last = matches[matches.length - 1];
+
+  return last[1].trim();
 }
 
 function parseJsonPayload(payload: string): unknown {

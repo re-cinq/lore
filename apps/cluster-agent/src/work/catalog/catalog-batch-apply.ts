@@ -29,7 +29,9 @@ type CrdOwnership =
   { writable: true } | { writable: false; managedBy: string | undefined };
 
 function managedByLabelOf(live: AgentDefinition): string | undefined {
-  return live.metadata?.labels?.["app.kubernetes.io/managed-by"];
+  const labels = live.metadata?.labels;
+
+  return labels?.["app.kubernetes.io/managed-by"];
 }
 
 /** A live CR labeled by neither the sync loop nor the UI belongs to someone else. */

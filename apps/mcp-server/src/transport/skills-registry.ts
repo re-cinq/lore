@@ -14,7 +14,9 @@ function skillsSubpath(req: IncomingMessage): string | null {
     return null;
   }
 
-  return url.slice("/skills/".length).split("?")[0];
+  const suffix = url.slice("/skills/".length);
+
+  return suffix.split("?")[0];
 }
 
 // A safe skill dir name out of `<name>.tar.gz`; null on anything else (no suffix, or an unsafe/traversing name).

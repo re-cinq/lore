@@ -34,9 +34,11 @@ function orphanTest(
   expired: (createdAt: Date) => boolean,
 ): (recipe: PrunableRecipe) => boolean {
   const doomed = new Set(doomedAgents);
+  const surviving = input.agents.filter(
+    (candidate) => !doomed.has(candidate.name),
+  );
   const stillReferenced = new Set(
-    input.agents
-      .filter((candidate) => !doomed.has(candidate.name))
+    surviving
       .map((candidate) => candidate.stationRef)
       .filter((ref): ref is string => ref !== undefined),
   );
@@ -63,11 +65,10 @@ export function decidePrune(input: PruneInput): PrunePlan {
   const expired = (createdAt: Date): boolean =>
     input.now.getTime() - createdAt.getTime() > input.ttlMs;
 
-  const agents = input.agents
-    .filter(
-      (candidate) =>
-        isTerminal(candidate.phase) && expired(candidate.createdAt),
-    )
+  const terminal = input.agents.filter(
+    (candidate) => isTerminal(candidate.phase) && expired(candidate.createdAt),
+  );
+  const agents = terminal
     .slice(0, input.maxPerTick)
     .map((candidate) => candidate.name);
   const orphaned = orphanTest(input, agents, expired);

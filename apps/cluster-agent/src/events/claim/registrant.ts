@@ -40,8 +40,10 @@ async function registerAndAnnounce(
     publishTelemetryCredential: opts.publishTelemetryCredential,
   });
 
+  const { name, tags } = opts.config;
+
   console.log(
-    `[cluster-agent] registered as ${opts.config.name} (${identity.id}), tags [${opts.config.tags.join(", ")}] — claim loop starting`,
+    `[cluster-agent] registered as ${name} (${identity.id}), tags [${tags.join(", ")}] — claim loop starting`,
   );
 
   return identity;

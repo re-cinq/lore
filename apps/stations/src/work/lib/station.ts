@@ -153,10 +153,13 @@ export const nodeTriggers = (manifest: StationManifest): NodeTrigger[] =>
   manifest.triggers.filter((t): t is NodeTrigger => t.kind === "node");
 
 /** The event names a manifest's event triggers subscribe to, if any. */
-export const eventTriggerNames = (manifest: StationManifest): string[] =>
-  manifest.triggers
-    .filter((t): t is EventTrigger => t.kind === "event")
-    .flatMap((t) => t.eventNames);
+export const eventTriggerNames = (manifest: StationManifest): string[] => {
+  const events = manifest.triggers.filter(
+    (t): t is EventTrigger => t.kind === "event",
+  );
+
+  return events.flatMap((t) => t.eventNames);
+};
 
 /** True when the module can actually run a node visit. */
 export const isNodeModule = (mod: StationModule): mod is NodeStationModule =>
