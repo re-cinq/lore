@@ -19,23 +19,34 @@ interface DefinitionsSectionProps {
   usage: Awaited<ReturnType<typeof fetchAgentUsage>>;
 }
 
-/** The recipes each task type runs FROM — config, not a run — which is the distinction the Sessions section below it depends on. Org defaults are shown already overlaid with this repo's overrides, so what is listed is what a dispatch will actually resolve. */
-async function DefinitionsSection({
+/** The section's own heading, count and the one action it offers. */
+function DefinitionsHead({
   fullName,
-  agents,
-  usage,
-}: DefinitionsSectionProps) {
+  count,
+}: {
+  fullName: string;
+  count: number;
+}) {
+  return (
+    <div className={styles.sectionHead}>
+      <div className={styles.headingGroup}>
+        <h2 className={styles.sectionTitle}>Agent definitions</h2>
+        <span className="count-pill">{count}</span>
+      </div>
+      <Link href={`/repos/${fullName}/agents/new`}>
+        <button>+ New definition</button>
+      </Link>
+    </div>
+  );
+}
+
+/** The recipes each task type runs FROM — config, not a run — which is the distinction the Sessions section below it depends on. Org defaults are shown already overlaid with this repo's overrides, so what is listed is what a dispatch will actually resolve. */
+async function DefinitionsSection(props: DefinitionsSectionProps) {
+  const { fullName, agents, usage } = props;
+
   return (
     <section className={styles.section}>
-      <div className={styles.sectionHead}>
-        <div className={styles.headingGroup}>
-          <h2 className={styles.sectionTitle}>Agent definitions</h2>
-          <span className="count-pill">{agents.length}</span>
-        </div>
-        <Link href={`/repos/${fullName}/agents/new`}>
-          <button>+ New definition</button>
-        </Link>
-      </div>
+      <DefinitionsHead fullName={fullName} count={agents.length} />
       <p className={styles.sectionDesc}>
         The model, timeout, prompt and execution image each task type runs from
         — config, not a run. Org defaults overlaid with this repo&apos;s

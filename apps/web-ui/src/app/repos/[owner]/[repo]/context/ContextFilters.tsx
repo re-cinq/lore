@@ -12,13 +12,8 @@ export interface ContextFiltersProps {
 }
 
 /** Keyword search + content-type chips; both navigate client-side with loading state. */
-export default function ContextFilters({
-  basePath,
-  types,
-  activeType,
-  q,
-}: ContextFiltersProps) {
-  const ordered = orderTypes(types);
+export default function ContextFilters(props: ContextFiltersProps) {
+  const { basePath, activeType, q } = props;
 
   return (
     <>
@@ -30,16 +25,21 @@ export default function ContextFilters({
         >
           All
         </FilterChip>
-        {ordered.map((t) => (
-          <FilterChip
-            key={t}
-            href={contextHref(basePath, t, q)}
-            active={activeType === t}
-          >
-            {labelForType(t)}
-          </FilterChip>
-        ))}
+        <TypeChips {...props} />
       </div>
     </>
   );
+}
+
+/** One chip per content type actually present in the data. */
+function TypeChips({ basePath, types, activeType, q }: ContextFiltersProps) {
+  return orderTypes(types).map((t) => (
+    <FilterChip
+      key={t}
+      href={contextHref(basePath, t, q)}
+      active={activeType === t}
+    >
+      {labelForType(t)}
+    </FilterChip>
+  ));
 }

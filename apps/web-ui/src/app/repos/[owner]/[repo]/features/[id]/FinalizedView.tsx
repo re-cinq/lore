@@ -20,21 +20,30 @@ function SpecPrCard({ feature }: { feature: FeatureWithIterations }) {
 
   return (
     <div className={`spec-card ${styles.specCard}`}>
-      <p>
-        Spec PR:{" "}
-        <a href={feature.spec_pr_url} target="_blank" rel="noreferrer">
-          #{feature.spec_pr_number}
-        </a>
-        {feature.issue_url && (
-          <>
-            {" · "}
-            <a href={feature.issue_url} target="_blank" rel="noreferrer">
-              user story
-            </a>
-          </>
-        )}
-      </p>
+      <SpecPrLinks feature={feature} />
     </div>
+  );
+}
+
+/** The spec PR, and the user story beside it when the feature filed one. */
+function SpecPrLinks({ feature }: { feature: FeatureWithIterations }) {
+  const prUrl = feature.spec_pr_url ?? undefined;
+
+  return (
+    <p>
+      Spec PR:{" "}
+      <a href={prUrl} target="_blank" rel="noreferrer">
+        #{feature.spec_pr_number}
+      </a>
+      {feature.issue_url && (
+        <>
+          {" · "}
+          <a href={feature.issue_url} target="_blank" rel="noreferrer">
+            user story
+          </a>
+        </>
+      )}
+    </p>
   );
 }
 
@@ -54,17 +63,16 @@ function DraftSpecCard({ markdown }: { markdown?: string | null }) {
   );
 }
 
-export function FinalizedView({
-  owner,
-  repo,
-  feature,
-  decomposition,
-}: {
+interface FinalizedViewProps {
   owner: string;
   repo: string;
   feature: FeatureWithIterations;
   decomposition: { stories: DecompStoryGroup[]; total: number };
-}) {
+}
+
+export function FinalizedView(props: FinalizedViewProps) {
+  const { owner, repo, feature, decomposition } = props;
+
   return (
     <div>
       <SpecPrCard feature={feature} />

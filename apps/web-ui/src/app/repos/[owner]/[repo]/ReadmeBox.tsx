@@ -32,34 +32,37 @@ function ReadmeMarkdown({ markdown, rawBaseUrl, htmlUrl }: ReadmeBoxProps) {
   );
 }
 
-export default function ReadmeBox({
-  markdown,
-  rawBaseUrl,
-  htmlUrl,
-}: ReadmeBoxProps) {
-  const [expanded, setExpanded] = useState(false);
+/** The expand/collapse control, shown only when the README is long enough to be worth truncating. */
+function ReadmeToggle({
+  expanded,
+  onToggle,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`btn-secondary ${styles.toggle}`}
+      onClick={onToggle}
+    >
+      {expanded ? "Read less" : "Read more"}
+    </button>
+  );
+}
 
-  const blocks = splitBlocks(markdown);
+export default function ReadmeBox(props: ReadmeBoxProps) {
+  const [expanded, setExpanded] = useState(false);
+  const blocks = splitBlocks(props.markdown);
   const collapsible = blocks.length > 2;
+  const collapsed = blocks.slice(0, 2).join("\n\n");
+  const shown = expanded || !collapsible ? props.markdown : collapsed;
+  const toggle = () => setExpanded((e) => !e);
 
   return (
     <div className={styles.readme}>
-      <ReadmeMarkdown
-        markdown={
-          expanded || !collapsible ? markdown : blocks.slice(0, 2).join("\n\n")
-        }
-        rawBaseUrl={rawBaseUrl}
-        htmlUrl={htmlUrl}
-      />
-      {collapsible && (
-        <button
-          type="button"
-          className={`btn-secondary ${styles.toggle}`}
-          onClick={() => setExpanded((e) => !e)}
-        >
-          {expanded ? "Read less" : "Read more"}
-        </button>
-      )}
+      <ReadmeMarkdown {...props} markdown={shown} />
+      {collapsible && <ReadmeToggle expanded={expanded} onToggle={toggle} />}
     </div>
   );
 }

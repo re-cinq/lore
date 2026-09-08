@@ -16,15 +16,13 @@ function testLinkHref(
 }
 
 /** One validating test. The path and line are repeated UNDER the link exactly as the spec wrote them, so a reader can see what the link claims without following it — a link whose text and target disagree is how spec drift hides. */
-function TestLinkRow({
-  link,
-  repo,
-  branch,
-}: {
+interface TestLinkRowProps {
   link: StatementInfo["testLinks"][number];
   repo: string;
   branch: string;
-}) {
+}
+
+function TestLinkRow({ link, repo, branch }: TestLinkRowProps) {
   return (
     <li>
       <a
@@ -43,21 +41,25 @@ function TestLinkRow({
 }
 
 /** The tests that validate this statement, each linking to its exact line. The rationale under each link repeats the file and line as WRITTEN, so a reader can see what the link claims without following it. */
-function TestedState({
-  statement,
-  repo,
-  branch,
-}: {
+/** How many tests claim this statement, in the tooltip's own voice rather than as a bare number. */
+function TestedCount({ count }: { count: number }) {
+  return (
+    <strong>
+      {count} test{count === 1 ? "" : "s"} validate this
+    </strong>
+  );
+}
+
+interface StatementViewProps {
   statement: StatementInfo;
   repo: string;
   branch: string;
-}) {
+}
+
+function TestedState({ statement, repo, branch }: StatementViewProps) {
   return (
     <div className={styles.popoverTested}>
-      <strong>
-        {statement.testLinks.length} test
-        {statement.testLinks.length === 1 ? "" : "s"} validate this
-      </strong>
+      <TestedCount count={statement.testLinks.length} />
       <ul className={styles.popoverTestList}>
         {statement.testLinks.map((link, index) => (
           <TestLinkRow
@@ -100,15 +102,7 @@ function UntestedState() {
 }
 
 /** What is known about this statement's coverage. Narrative is NOT a gap — it is excluded from the denominator because it states context rather than a verifiable requirement — so it reads differently from untested, which is a gap and says how to close it. */
-function StatementState({
-  statement,
-  repo,
-  branch,
-}: {
-  statement: StatementInfo;
-  repo: string;
-  branch: string;
-}) {
+function StatementState({ statement, repo, branch }: StatementViewProps) {
   if (statement.state === "narrative") {
     return <NarrativeState category={statement.category} />;
   }
@@ -124,11 +118,7 @@ export function StatementPopover({
   statement,
   repo,
   branch,
-}: {
-  statement: StatementInfo;
-  repo: string;
-  branch: string;
-}) {
+}: StatementViewProps) {
   return (
     <>
       {statement.drifted && (

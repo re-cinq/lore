@@ -2,9 +2,10 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { fetchTraceDocument, fetchTraceSource } from "@/lib/trace-api";
 import { toStatementInfo } from "@/lib/trace-statement-info";
-import { parseSpecStatus } from "@/lib/spec-status";
+import { parseSpecStatus, type SpecStatusInfo } from "@/lib/spec-status";
 import SpecStatusPill from "@/components/SpecStatusPill";
 import SpecDocument from "./SpecDocument";
+import type { StatementInfo } from "../SpecDetails";
 import styles from "./page.module.scss";
 import { decodeCatchAllPath } from "@/lib/catch-all-path";
 
@@ -33,33 +34,54 @@ function EmptyGraphData({ filePath }: { filePath: string }) {
   );
 }
 
-export default async function RepoSpecDetail({
-  params,
-}: {
+interface SpecBreadcrumbProps {
+  href: string;
+  status: SpecStatusInfo | null;
+}
+
+function SpecBreadcrumb({ href, status }: SpecBreadcrumbProps) {
+  return (
+    <p className={`meta ${styles.breadcrumb}`}>
+      <Link href={href}>← Specs</Link>
+      {status && <SpecStatusPill status={status} />}
+    </p>
+  );
+}
+
+interface SpecBodyProps {
+  repo: string;
+  source: string | null;
+  statements: StatementInfo[];
+  filePath: string;
+}
+
+function SpecBody({ repo, source, statements, filePath }: SpecBodyProps) {
+  if (!source) {
+    return <EmptyGraphData filePath={filePath} />;
+  }
+
+  return <SpecDocument repo={repo} content={source} statements={statements} />;
+}
+
+interface RepoSpecDetailProps {
   params: Promise<{ owner: string; repo: string; path: string[] }>;
-}) {
+}
+
+export default async function RepoSpecDetail({ params }: RepoSpecDetailProps) {
   const { owner, repo, path } = await params;
   const fullName = `${owner}/${repo}`;
   const filePath = decodeCatchAllPath(path);
-  const specsLink = `/repos/${owner}/${repo}/specs`;
-
   const { source, statements, status } = await readSpec(fullName, filePath);
 
   return (
     <div>
-      <p className={`meta ${styles.breadcrumb}`}>
-        <Link href={specsLink}>← Specs</Link>
-        {status && <SpecStatusPill status={status} />}
-      </p>
-      {source ? (
-        <SpecDocument
-          repo={fullName}
-          content={source}
-          statements={statements}
-        />
-      ) : (
-        <EmptyGraphData filePath={filePath} />
-      )}
+      <SpecBreadcrumb href={`/repos/${owner}/${repo}/specs`} status={status} />
+      <SpecBody
+        repo={fullName}
+        source={source}
+        statements={statements}
+        filePath={filePath}
+      />
     </div>
   );
 }

@@ -3,15 +3,14 @@
 import Link from "next/link";
 import styles from "./FeatureDetailView.module.scss";
 import CollapsibleCard from "@/components/CollapsibleCard";
-import { DangerZone } from "@/components/DangerZone";
+import DeleteFeature from "./DeleteFeature";
 import {
   FeatureAssemblyLine,
   type AssemblyRunSummary,
 } from "@/components/FeatureAssemblyLine";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import { featurePhaseOf } from "@/lib/feature-phase";
-import { SubmitButton } from "@/components/SubmitButton";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import StatusBadge from "../StatusBadge";
 import { isLifecycleActive } from "@/lib/feature-status";
 import PlanningWizard from "./PlanningWizard";
@@ -53,13 +52,14 @@ interface FeatureDetailViewProps {
   del: () => Promise<void>;
 }
 
-function FeatureHeader({
-  feature,
-  base,
-}: {
+interface FeatureHeaderProps {
   feature: FeatureDetailViewProps["feature"];
   base: string;
-}) {
+}
+
+function FeatureHeader(props: FeatureHeaderProps) {
+  const { feature, base } = props;
+
   return (
     <div className={styles.header}>
       <div className={styles.titleRow}>
@@ -89,17 +89,9 @@ function OriginalPrompt({ prompt }: { prompt: string | null }) {
 }
 
 /** The header, the assembly line, and the prompt that started it. The line is omitted when the body below will render a LIVE one — two graphs of the same run, one of them frozen at server-render time, is worse than one. */
-function FeatureIntro({
-  feature,
-  base,
-  definition,
-  run,
-}: {
-  feature: FeatureWithIterations;
-  base: string;
-  definition: AssemblyLineDefinition | null;
-  run: FeatureDetailViewProps["run"];
-}) {
+function FeatureIntro(props: FeatureDetailViewProps & { base: string }) {
+  const { feature, base, definition = null, run = null } = props;
+
   return (
     <>
       <FeatureHeader feature={feature} base={base} />
@@ -118,23 +110,15 @@ function FeatureIntro({
 }
 
 export default function FeatureDetailView(props: FeatureDetailViewProps) {
-  const { owner, repo, feature, definition = null, run = null } = props;
+  const { owner, repo, feature } = props;
   const [pending, startTransition] = useTransition();
+  const onCreateDraft = (title: string, prompt: string) =>
+    startTransition(() => props.split(title, prompt));
 
   return (
     <div>
-      <FeatureIntro
-        feature={feature}
-        base={`/repos/${owner}/${repo}`}
-        definition={definition}
-        run={run}
-      />
-      <LifecycleBody
-        {...props}
-        onCreateDraft={(title, prompt) =>
-          startTransition(() => props.split(title, prompt))
-        }
-      />
+      <FeatureIntro {...props} base={`/repos/${owner}/${repo}`} />
+      <LifecycleBody {...props} onCreateDraft={onCreateDraft} />
       <DeleteFeature
         title={feature.title}
         pending={pending}
@@ -160,15 +144,8 @@ interface LifecycleBodyProps {
 
 /** The wizard stays mounted while the lifecycle is still moving — including a merged spec PR awaiting decomposition — because only the line knows when to hand off to the finished view. */
 function LifecycleBody(props: LifecycleBodyProps) {
-  const { owner, repo, feature, decomposition } = props;
-  const finalized = (
-    <FinalizedView
-      owner={owner}
-      repo={repo}
-      feature={feature}
-      decomposition={decomposition}
-    />
-  );
+  const { owner, repo, feature } = props;
+  const finalized = <FinalizedView {...props} />;
 
   if (!isLifecycleActive(feature.status)) {
     return finalized;
@@ -185,69 +162,5 @@ function LifecycleBody(props: LifecycleBodyProps) {
       onCreateDraft={props.onCreateDraft}
       settledView={finalized}
     />
-  );
-}
-
-/** The confirm step, naming the feature. The title is repeated back because the button that opened this row sits below a page that may have scrolled away from it. */
-function ConfirmDeleteRow({
-  title,
-  pending,
-  onDelete,
-  onCancel,
-}: {
-  title: string;
-  pending: boolean;
-  onDelete: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className={styles.confirmRow}>
-      <span>Delete &ldquo;{title}&rdquo; and all its rounds?</span>
-      <SubmitButton
-        type="button"
-        className="danger"
-        onClick={onDelete}
-        pending={pending}
-        pendingLabel="Deleting…"
-      >
-        Confirm delete
-      </SubmitButton>
-      <SubmitButton type="button" onClick={onCancel} pending={pending}>
-        Cancel
-      </SubmitButton>
-    </div>
-  );
-}
-
-interface DeleteFeatureProps {
-  title: string;
-  pending: boolean;
-  onDelete: () => void;
-}
-
-/** Two-step by design: a feature carries every planning round it ever ran, and none of that comes back. */
-function DeleteFeature({ title, pending, onDelete }: DeleteFeatureProps) {
-  const [confirming, setConfirming] = useState(false);
-
-  return (
-    <DangerZone description="Permanently delete this feature and all its planning rounds. This cannot be undone.">
-      {confirming ? (
-        <ConfirmDeleteRow
-          title={title}
-          pending={pending}
-          onDelete={onDelete}
-          onCancel={() => setConfirming(false)}
-        />
-      ) : (
-        <SubmitButton
-          type="button"
-          className="danger"
-          onClick={() => setConfirming(true)}
-          pending={pending}
-        >
-          Delete feature
-        </SubmitButton>
-      )}
-    </DangerZone>
   );
 }

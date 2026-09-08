@@ -151,6 +151,18 @@ function isBlockMatchCandidate(
   return !state.used.has(s.ordinal) && !!s.plain;
 }
 
+/** Wrap everything the element already renders in one `<mark>`, keeping its inline structure intact underneath. */
+function wrapChildren(node: Element, meta: MarkMeta): void {
+  const mark: Element = {
+    type: "element",
+    tagName: "mark",
+    properties: markProps(meta),
+    children: node.children,
+  };
+
+  node.children = [mark];
+}
+
 /** Fallback: wrap element's children when its rendered text matches a statement (split by code/bold). */
 function tryBlockMatch(state: HighlightState, node: Element): boolean {
   if (!isMatchableBlock(node) || !hasChildren(node)) {
@@ -165,14 +177,7 @@ function tryBlockMatch(state: HighlightState, node: Element): boolean {
 
     if (rendered.startsWith(s.plain)) {
       state.used.add(s.ordinal);
-      node.children = [
-        {
-          type: "element",
-          tagName: "mark",
-          properties: markProps(s),
-          children: node.children,
-        },
-      ];
+      wrapChildren(node, s);
 
       return true;
     }
@@ -198,13 +203,17 @@ function splitAroundMatch(
   parts.push(makeMark(s.matcher, s));
 
   if (after) {
-    const tail = { type: "text", value: after } as Text;
-    const recursed = processTextNode(state, tail);
-
-    parts.push(...(recursed ?? [tail]));
+    parts.push(...tailParts(state, after));
   }
 
   return parts;
+}
+
+/** The text following a match, re-offered to the matcher: a single text node can hold two consecutive statements. */
+function tailParts(state: HighlightState, after: string): ElementContent[] {
+  const tail = { type: "text", value: after } as Text;
+
+  return processTextNode(state, tail) ?? [tail];
 }
 
 function processTextNode(
@@ -227,56 +236,75 @@ function processTextNode(
   return null;
 }
 
+/** Appends `child` to `out`, replaced by its marked-up parts when a statement claims its text; says whether it was replaced. */
+function pushChild<T extends ElementContent | RootContent>(
+  state: HighlightState,
+  out: T[],
+  child: T,
+): boolean {
+  if (child.type !== "text") {
+    out.push(child);
+
+    return false;
+  }
+  const replaced = processTextNode(state, child);
+
+  if (!replaced) {
+    out.push(child);
+
+    return false;
+  }
+  out.push(...(replaced as T[]));
+
+  return true;
+}
+
+/** Recurse into an element child, leaving an existing `<mark>` alone so a second pass cannot nest highlights. */
+function descendElement(state: HighlightState, child: ElementContent) {
+  if (child.type === "element" && child.tagName !== "mark") {
+    walkElement(state, child);
+  }
+}
+
+/** The element's children after every claimed text node has been replaced by its marked-up parts, and whether any were. */
+function rebuildChildren(state: HighlightState, children: ElementContent[]) {
+  const next: ElementContent[] = [];
+  let changed = false;
+
+  for (const child of children) {
+    descendElement(state, child);
+    changed = pushChild(state, next, child) || changed;
+  }
+
+  return { next, changed };
+}
+
 function walkElement(state: HighlightState, node: Element) {
   if (node.children.length === 0) {
     return;
   }
-  const next: ElementContent[] = [];
-  let changed = false;
+  const { next, changed } = rebuildChildren(state, node.children);
 
-  node.children.forEach((child) => {
-    if (child.type === "element" && child.tagName !== "mark") {
-      walkElement(state, child);
-    }
-
-    if (child.type !== "text") {
-      next.push(child);
-
-      return;
-    }
-    const replaced = processTextNode(state, child);
-
-    if (replaced) {
-      next.push(...replaced);
-      changed = true;
-
-      return;
-    }
-    next.push(child);
-  });
-
-  // TS narrows `changed` to its initial `false` here — it doesn't track the forEach callback's reassignment across the closure boundary.
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (changed) {
     node.children = next;
   }
 
   // Fallback: whole-element wrap when contiguous-text-node match finds nothing (e.g. fragmented by inline code).
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!changed) {
     tryBlockMatch(state, node);
   }
 }
 
+/** One statement as the caller knows it, before the matcher texts are derived from it. */
+export interface HighlightStatement {
+  ordinal: number;
+  text: string;
+  state: StatementState;
+  drifted?: boolean;
+}
+
 /** The statements to match, longest matcher first. Order matters: a short statement that is a prefix of a longer one would otherwise claim the longer one's text, and the `used` set makes each claim exclusive. */
-function matcherState(
-  statements: {
-    ordinal: number;
-    text: string;
-    state: StatementState;
-    drifted?: boolean;
-  }[],
-): HighlightState {
+function matcherState(statements: HighlightStatement[]): HighlightState {
   const enriched = statements.map((s) => ({
     ordinal: s.ordinal,
     text: s.text,
@@ -297,38 +325,17 @@ function walkRoot(state: HighlightState, tree: Root) {
   const rootChildren: RootContent[] = [];
   let rootChanged = false;
 
-  tree.children.forEach((child) => {
+  for (const child of tree.children) {
     if (child.type === "element") {
       walkElement(state, child);
     }
-
-    if (child.type !== "text") {
-      rootChildren.push(child);
-
-      return;
-    }
-    const replaced = processTextNode(state, child);
-
-    if (replaced) {
-      rootChildren.push(...(replaced as RootContent[]));
-      rootChanged = true;
-
-      return;
-    }
-    rootChildren.push(child);
-  });
+    rootChanged = pushChild(state, rootChildren, child) || rootChanged;
+  }
 
   return { rootChildren, rootChanged };
 }
 
-export function buildHighlighter(
-  statements: {
-    ordinal: number;
-    text: string;
-    state: StatementState;
-    drifted?: boolean;
-  }[],
-) {
+export function buildHighlighter(statements: HighlightStatement[]) {
   const state = matcherState(statements);
 
   return function plugin() {

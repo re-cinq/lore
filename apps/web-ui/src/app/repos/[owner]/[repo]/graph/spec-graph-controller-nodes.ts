@@ -125,38 +125,69 @@ function prewarmIfFresh(
   }
 }
 
+type NodeDragEvent = d3.D3DragEvent<SVGGElement, SimNode, SimNode>;
+
+/** Drag start: warms the simulation so neighbours react, then pins the node under the pointer. */
+function beginDrag(c: GraphController, event: NodeDragEvent, d: SimNode): void {
+  const { sim } = c;
+
+  if (!event.active) {
+    sim.alphaTarget(0.1).restart();
+  }
+  d.fx = d.x;
+  d.fy = d.y;
+}
+
+/** Drag end: cools the simulation, and leaves fx/fy pinned at the drop point — a dragged node stays put. */
+function endDrag(c: GraphController, event: NodeDragEvent): void {
+  const { sim } = c;
+
+  if (!event.active) {
+    sim.alphaTarget(0);
+  }
+  c.saveState();
+}
+
+/** Elastic drag: link springs tug neighbors while seed forces pull back toward home. */
 function wireDrag(
   selection: d3.Selection<SVGGElement, SimNode, SVGGElement, unknown>,
   c: GraphController,
 ): void {
-  const { sim } = c;
-
   selection.call(
     d3
       .drag<SVGGElement, SimNode>()
-      // Elastic drag: link springs tug neighbors while seed forces pull back toward home.
-      .on("start", (event, d) => {
-        if (!event.active) {
-          sim.alphaTarget(0.1).restart();
-        }
-        d.fx = d.x;
-        d.fy = d.y;
-      })
+      .on("start", (event, d) => beginDrag(c, event, d))
       .on("drag", (event, d) => {
         d.fx = event.x;
         d.fy = event.y;
       })
-      .on("end", (event) => {
-        if (!event.active) {
-          sim.alphaTarget(0);
-        }
-        // Leave fx/fy pinned at the drop point — a dragged node stays put.
-        c.saveState();
-      }),
+      .on("end", (event) => endDrag(c, event)),
   );
 }
 
 type NodeSelection = d3.Selection<SVGGElement, SimNode, SVGGElement, unknown>;
+
+/** Selecting a node: it becomes the focus root, and the view glides to it. */
+function selectNode(c: GraphController, d: SimNode): void {
+  c.selectedIdRef.current = d.id;
+  c.setSelected(d);
+  highlight(c, d.id);
+  centerOn(c, d);
+}
+
+/** The hover tooltip's text and pointer position — a node with nothing to say shows none rather than an empty one. */
+function showHover(c: GraphController, event: PointerEvent, d: SimNode): void {
+  const text = (d.detail?.trim() || d.label || d.path || "").trim();
+
+  if (!text) {
+    c.setHover(null);
+
+    return;
+  }
+  const [pointerX, pointerY] = d3.pointer(event, c.el);
+
+  c.setHover({ text, x: pointerX, y: pointerY });
+}
 
 /** Click selects and centres, double-click expands, hover explains. Every handler stops propagation because the canvas behind the node has its own click that clears the selection. */
 function wireNodeHandlers(
@@ -166,28 +197,15 @@ function wireNodeHandlers(
 ): void {
   g.on("click", (event: PointerEvent, d) => {
     event.stopPropagation();
-    c.selectedIdRef.current = d.id;
-    c.setSelected(d);
-    highlight(c, d.id);
-    centerOn(c, d);
+    selectNode(c, d);
   })
     .on("dblclick", (event: PointerEvent, d) => {
       event.stopPropagation();
       void toggleExpand(c, d, coverageTint);
     })
-    .on("mouseenter mousemove", (event: PointerEvent, d) => {
-      const text = (d.detail?.trim() || d.label || d.path || "").trim();
-
-      // A node with nothing to say shows no tooltip rather than an empty one.
-      if (!text) {
-        c.setHover(null);
-
-        return;
-      }
-      const [pointerX, pointerY] = d3.pointer(event, c.el);
-
-      c.setHover({ text, x: pointerX, y: pointerY });
-    })
+    .on("mouseenter mousemove", (event: PointerEvent, d) =>
+      showHover(c, event, d),
+    )
     .on("mouseleave", () => c.setHover(null));
 }
 
@@ -223,6 +241,32 @@ function enterNodeGroups(
   return g;
 }
 
+/** The data join. Canvas leaves are left out on purpose — they are drawn on the canvas layer, not as SVG groups. */
+function joinNodeGroups(
+  c: GraphController,
+  coverageTint: (t: number) => string,
+): void {
+  const groups = c.nodeG.selectAll<SVGGElement, SimNode>("g");
+
+  groups
+    .data(
+      c.nodes.filter((n) => !isLeafCanvas(n.type)),
+      (d) => d.id,
+    )
+    .join((enter) => enterNodeGroups(enter, c, coverageTint));
+}
+
+/** Everything the join invalidates: adjacency, the id index, ring state, and the search binding. */
+function rebuildIndexes(
+  c: GraphController,
+  bindFilter: (fn: (q: string) => void) => void,
+): void {
+  buildAdj(c);
+  c.nodeById = new Map(c.nodes.map((n) => [n.id, n]));
+  applyRingState(c);
+  bindFilter((q) => applyFilter(c, q));
+}
+
 export function update(
   c: GraphController,
   restoredFromStorage: boolean,
@@ -233,21 +277,8 @@ export function update(
 
   sim.nodes(c.nodes);
   c.linkForce.links(c.links);
-
-  const groups = c.nodeG.selectAll<SVGGElement, SimNode>("g");
-
-  groups
-    .data(
-      c.nodes.filter((n) => !isLeafCanvas(n.type)),
-      (d) => d.id,
-    )
-    .join((enter) => enterNodeGroups(enter, c, coverageTint));
-
-  buildAdj(c);
-  c.nodeById = new Map(c.nodes.map((n) => [n.id, n]));
-  applyRingState(c);
-  bindFilter((q) => applyFilter(c, q));
-
+  joinNodeGroups(c, coverageTint);
+  rebuildIndexes(c, bindFilter);
   prewarmIfFresh(c, restoredFromStorage);
   sim.alpha(0).restart();
 

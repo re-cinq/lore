@@ -28,24 +28,24 @@ function EmptyGraphNote() {
   );
 }
 
-export default async function RepoGraphPage({
-  params,
-}: {
+const PAGE_COLUMN: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  flex: 1,
+  minHeight: 0,
+  height: "calc(100vh - 160px)",
+};
+
+interface RepoGraphPageProps {
   params: Promise<{ owner: string; repo: string }>;
-}) {
+}
+
+export default async function RepoGraphPage({ params }: RepoGraphPageProps) {
   const { owner, repo } = await params;
   const graph = await fetchTraceGraph(`${owner}/${repo}`);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        minHeight: 0,
-        height: "calc(100vh - 160px)",
-      }}
-    >
+    <div style={PAGE_COLUMN}>
       <GraphIntro nodes={graph.nodes.length} edges={graph.links.length} />
       {graph.nodes.length === 0 ? (
         <EmptyGraphNote />

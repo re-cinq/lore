@@ -39,16 +39,14 @@ const GRAPH_COLUMN = {
   minHeight: 0,
 } as const;
 
-/** Search and reset. Reset clears the SAVED layout as well as the query — a graph someone has dragged into a shape keeps that shape across visits, so resetting the search alone would leave it looking untouched. */
-function GraphToolbar({
-  query,
-  onQueryChange,
-  onReset,
-}: {
+interface GraphToolbarProps {
   query: string;
   onQueryChange: (value: string) => void;
   onReset: () => void;
-}) {
+}
+
+/** Search and reset. Reset clears the SAVED layout as well as the query — a graph someone has dragged into a shape keeps that shape across visits, so resetting the search alone would leave it looking untouched. */
+function GraphToolbar({ query, onQueryChange, onReset }: GraphToolbarProps) {
   return (
     <div style={TOOLBAR_ROW}>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -77,25 +75,30 @@ function clearSavedLayout(repoId: string): void {
   }
 }
 
-/** Toolbar + graph container with search/reset; reset clears persisted layout and re-runs layout effect. */
-export default function GraphView({
-  owner,
-  repo,
-  graph,
-}: {
+interface GraphViewProps {
   owner: string;
   repo: string;
   graph: SpecGraph;
-}) {
+}
+
+/** The search query and the reset signal the layout effect watches; resetting bumps the signal AND drops the saved layout. */
+function useGraphViewState(repoId: string) {
   const [query, setQuery] = useState("");
   const [resetSignal, setResetSignal] = useState(0);
-  const repoId = `${owner}/${repo}`;
 
   function reset() {
     clearSavedLayout(repoId);
     setQuery("");
     setResetSignal((n) => n + 1);
   }
+
+  return { query, setQuery, resetSignal, reset };
+}
+
+/** Toolbar + graph container with search/reset; reset clears persisted layout and re-runs layout effect. */
+export default function GraphView({ owner, repo, graph }: GraphViewProps) {
+  const repoId = `${owner}/${repo}`;
+  const { query, setQuery, resetSignal, reset } = useGraphViewState(repoId);
 
   return (
     <div style={GRAPH_COLUMN}>

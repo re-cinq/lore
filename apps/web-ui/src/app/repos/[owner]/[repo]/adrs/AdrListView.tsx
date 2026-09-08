@@ -12,6 +12,8 @@ interface AdrSummary {
   description: string;
 }
 
+type AdrStatusOf = (adr: AdrSummary) => SpecStatusInfo | undefined;
+
 /** Not an error state: ADRs reach the graph through CI, so an empty list means nothing has been pushed since the workflow was installed. */
 function EmptyAdrs() {
   return (
@@ -23,17 +25,19 @@ function EmptyAdrs() {
   );
 }
 
-function AdrCards({
-  adrs,
-  statusOf,
-  owner,
-  repo,
-}: {
+/** The filter narrowed the list to nothing, which is a different answer from the repo having no ADRs at all. */
+function EmptyAdrFilter() {
+  return <p className="muted">No ADRs match this filter.</p>;
+}
+
+interface AdrCardsProps {
   adrs: AdrSummary[];
-  statusOf: (adr: AdrSummary) => SpecStatusInfo | undefined;
-  owner: string;
-  repo: string;
-}) {
+  statusOf: AdrStatusOf;
+  /** Repo route the detail links hang off, e.g. `/repos/owner/repo`. */
+  base: string;
+}
+
+function AdrCards({ adrs, statusOf, base }: AdrCardsProps) {
   return (
     <>
       {adrs.map((adr) => (
@@ -42,10 +46,39 @@ function AdrCards({
           title={adr.title}
           description={adr.description}
           status={statusOf(adr)}
-          detailsHref={`/repos/${owner}/${repo}/adrs/${encodeURIComponent(adr.filePath)}`}
+          detailsHref={`${base}/adrs/${encodeURIComponent(adr.filePath)}`}
         />
       ))}
     </>
+  );
+}
+
+interface AdrListBodyProps {
+  view: ReturnType<typeof useDocListView>;
+  adrs: AdrSummary[];
+  statusOf: AdrStatusOf;
+  base: string;
+}
+
+/** The filtered, ordered list. Counts come from the FULL set, so picking a status does not make the other statuses look empty. */
+function AdrListBody({ view, adrs, statusOf, base }: AdrListBodyProps) {
+  const { counts, visible } = filterDocCards(adrs, statusOf, view.filter, {
+    query: view.query,
+    textOf: (adr) => `${adr.title} ${adr.description} ${adr.filePath}`,
+  });
+  const ordered = sortDocCards(visible, view.order, statusOf);
+
+  return (
+    <div>
+      <DocListToolbar
+        view={view}
+        counts={counts}
+        total={adrs.length}
+        kind="adr"
+      />
+      <AdrCards adrs={ordered} statusOf={statusOf} base={base} />
+      {ordered.length === 0 && <EmptyAdrFilter />}
+    </div>
   );
 }
 
@@ -64,25 +97,13 @@ export default function AdrListView(props: AdrListViewProps) {
   if (adrs.length === 0) {
     return <EmptyAdrs />;
   }
-  const statusOf = (adr: AdrSummary) => statuses[adr.filePath];
-  const { counts, visible } = filterDocCards(adrs, statusOf, view.filter, {
-    query: view.query,
-    textOf: (adr) => `${adr.title} ${adr.description} ${adr.filePath}`,
-  });
-  const ordered = sortDocCards(visible, view.order, statusOf);
 
   return (
-    <div>
-      <DocListToolbar
-        view={view}
-        counts={counts}
-        total={adrs.length}
-        kind="adr"
-      />
-      <AdrCards adrs={ordered} statusOf={statusOf} owner={owner} repo={repo} />
-      {ordered.length === 0 && (
-        <p className="muted">No ADRs match this filter.</p>
-      )}
-    </div>
+    <AdrListBody
+      view={view}
+      adrs={adrs}
+      statusOf={(adr) => statuses[adr.filePath]}
+      base={`/repos/${owner}/${repo}`}
+    />
   );
 }

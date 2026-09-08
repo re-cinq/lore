@@ -82,6 +82,38 @@ function ringSlot(
   };
 }
 
+/** Each feature's own tree, laid out at the ORIGIN so it can be measured before the ring is sized. */
+function localFeatureTrees(
+  featureIds: string[],
+  forest: Map<string, string>,
+): Map<string, Point>[] {
+  return featureIds.map((id) =>
+    radialTree(id, buildChildrenMap(forest), {
+      center: { x: 0, y: 0 },
+      ringGap: RING_GAP,
+    }),
+  );
+}
+
+/** Translates each origin-relative tree onto the ring slot its feature was given. */
+function offsetTreesOntoRing(
+  localTrees: Map<string, Point>[],
+  ringR: number,
+  viewportCenter: Point,
+): Map<string, Point> {
+  const seed = new Map<string, Point>();
+
+  localTrees.forEach((tree, index) => {
+    const center = ringSlot(index, localTrees.length, ringR, viewportCenter);
+
+    for (const [nodeId, point] of tree) {
+      seed.set(nodeId, { x: center.x + point.x, y: center.y + point.y });
+    }
+  });
+
+  return seed;
+}
+
 function seedFeatureTrees(
   graph: SpecGraph,
   forest: Map<string, string>,
@@ -90,28 +122,29 @@ function seedFeatureTrees(
 ): Map<string, Point> {
   const features = graph.nodes.filter((n) => n.type === "Feature");
   const featureIds = features.map((n) => n.id);
-  const localTrees = featureIds.map((id) =>
-    radialTree(id, buildChildrenMap(forest), {
-      center: { x: 0, y: 0 },
-      ringGap: RING_GAP,
-    }),
-  );
+  const localTrees = localFeatureTrees(featureIds, forest);
   const ringR = featureRingRadius(
     featureIds.length,
     widestTree(localTrees),
     boundR * FEATURE_SPREAD,
   );
-  const seed = new Map<string, Point>();
 
-  featureIds.forEach((id, index) => {
-    const center = ringSlot(index, featureIds.length, ringR, viewportCenter);
+  return offsetTreesOntoRing(localTrees, ringR, viewportCenter);
+}
 
-    for (const [nodeId, point] of localTrees[index]) {
-      seed.set(nodeId, { x: center.x + point.x, y: center.y + point.y });
-    }
-  });
+/** Components no feature tree reached and small enough to read as separate from the main graph. */
+function smallStrayComponents(
+  graph: SpecGraph,
+  seed: Map<string, { x: number; y: number }>,
+): string[][] {
+  const components = connectedComponents(
+    graph.nodes.map((n) => n.id),
+    graph.links,
+  );
 
-  return seed;
+  return components.filter(
+    (c) => c.length < SMALL_COMPONENT_MAX && !c.some((id) => seed.has(id)),
+  );
 }
 
 /** Everything the feature trees did not place. A node no tree reached is spiralled near the centre; a small disconnected component is pushed to a rim OUTSIDE the main graph's extent, so it reads as separate rather than as a stray part of the whole. */
@@ -120,16 +153,10 @@ function placeStrayAndSmallComponents(
   seed: Map<string, { x: number; y: number }>,
   viewportCenter: { x: number; y: number },
 ): Set<string> {
-  // Unreached nodes: seed as spiral near center with LOCAL counter to bound radius.
-  const components = connectedComponents(
-    graph.nodes.map((n) => n.id),
-    graph.links,
-  );
-  const smallComponents = components.filter(
-    (c) => c.length < SMALL_COMPONENT_MAX && !c.some((id) => seed.has(id)),
-  );
+  const smallComponents = smallStrayComponents(graph, seed);
   const smallIds = new Set(smallComponents.flat());
 
+  // Unreached nodes: seed as spiral near center with LOCAL counter to bound radius.
   seedStrayNodes(graph.nodes, seed, smallIds, viewportCenter);
 
   // Add small components last on rim beyond main graph extent, so they ring the outside.
@@ -195,20 +222,29 @@ export function prepareGraphLayout(
   return { ...base, ...placeGraph(graph, base, { width, height }) };
 }
 
-/** The mutable copy the simulation runs on, plus everything derived from the graph alone. Copies, not the caller's arrays: the simulation writes x/y onto every node on every tick. */
-function graphWorkingCopy(graph: SpecGraph, repo: string) {
-  const nodes: SimNode[] = graph.nodes.map((n) => ({ ...n }));
-  const links: SimLink[] = graph.links.map((l) => ({
+/** Copies, not the caller's arrays: the simulation writes x/y onto every node on every tick. */
+function copyNodes(graph: SpecGraph): SimNode[] {
+  return graph.nodes.map((n) => ({ ...n }));
+}
+
+function copyLinks(graph: SpecGraph): SimLink[] {
+  return graph.links.map((l) => ({
     source: l.source,
     target: l.target,
     kind: l.kind,
   }));
-  // Collapse single-owner canvas leaves into per-parent badges, applied when zoomed out.
-  const { hidden: aggHidden, badges: aggBadges } = aggregateLeaves(
-    graph.nodes,
-    graph.links,
-    LEAF_CANVAS_TYPES,
-  );
+}
+
+/** Collapse single-owner canvas leaves into per-parent badges, applied when zoomed out. */
+function aggregateCanvasLeaves(graph: SpecGraph) {
+  return aggregateLeaves(graph.nodes, graph.links, LEAF_CANVAS_TYPES);
+}
+
+/** The mutable copy the simulation runs on, plus everything derived from the graph alone. */
+function graphWorkingCopy(graph: SpecGraph, repo: string) {
+  const nodes = copyNodes(graph);
+  const links = copyLinks(graph);
+  const { hidden: aggHidden, badges: aggBadges } = aggregateCanvasLeaves(graph);
   const storageKey = `lore.graph:${repo}`;
 
   return {
@@ -223,7 +259,18 @@ function graphWorkingCopy(graph: SpecGraph, repo: string) {
   };
 }
 
-/** Where everything starts. Seeding matters more than it looks: a force simulation started at random settles somewhere different each load, so the graph would appear to rearrange itself between visits. A restored session keeps its own positions — re-seeding would discard where the reader left it. */
+/** A restored session keeps its own positions — re-seeding would discard where the reader left it. */
+function applySeeds(
+  base: ReturnType<typeof graphWorkingCopy>,
+  seed: Map<string, Point>,
+  viewportCenter: Point,
+): void {
+  if (!base.restoredFromStorage) {
+    seedInitialPositions(base.nodes, seed, viewportCenter);
+  }
+}
+
+/** Where everything starts. Seeding matters more than it looks: a force simulation started at random settles somewhere different each load, so the graph would appear to rearrange itself between visits. */
 function placeGraph(
   graph: SpecGraph,
   base: ReturnType<typeof graphWorkingCopy>,
@@ -237,9 +284,7 @@ function placeGraph(
     viewportCenter,
   });
 
-  if (!base.restoredFromStorage) {
-    seedInitialPositions(base.nodes, seed, viewportCenter);
-  }
+  applySeeds(base, seed, viewportCenter);
 
   return {
     boundR,

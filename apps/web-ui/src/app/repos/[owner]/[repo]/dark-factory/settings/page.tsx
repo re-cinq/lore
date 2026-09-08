@@ -45,27 +45,26 @@ async function saveDarkFactory(
   return { saved: true, privileged };
 }
 
-export default async function RepoDarkFactory({
-  params,
-}: {
+interface RepoDarkFactoryProps {
   params: Promise<{ owner: string; repo: string }>;
-}) {
-  const { owner, repo } = await params;
+}
+
+export default async function RepoDarkFactory(props: RepoDarkFactoryProps) {
+  const { owner, repo } = await props.params;
   const fullName = `${owner}/${repo}`;
   const repoData = await getRepo(fullName);
 
   if (repoData.status !== "ok") {
     return <div>Repo not found</div>;
   }
-  const settings = repoSettingsOf(repoData);
-  const resolved = resolveDarkFactorySettings(settings.dark_factory ?? null);
-  const execution = settings.dark_factory?.execution;
+  const { dark_factory: darkFactory } = repoSettingsOf(repoData);
+  const resolved = resolveDarkFactorySettings(darkFactory ?? null);
 
   return (
     <DarkFactoryView
       fullName={fullName}
       resolved={resolved}
-      rawImage={execution?.image}
+      rawImage={darkFactory?.execution?.image}
       defaultExecutionImage={DEFAULT_EXECUTION_IMAGE}
       saveAction={saveDarkFactory}
     />

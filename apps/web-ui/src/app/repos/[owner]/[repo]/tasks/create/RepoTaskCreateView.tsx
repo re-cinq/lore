@@ -30,11 +30,25 @@ function ImmediateCheckbox() {
   );
 }
 
+/** Plain language is enough here — the agent turns it into a spec — so the placeholder says so rather than asking for structure. */
+function DescriptionField() {
+  return (
+    <>
+      <label>Description</label>
+      <textarea
+        name="description"
+        rows={5}
+        required
+        placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions."
+      />
+    </>
+  );
+}
+
 /** Per-repo "New Task" form: pure render, container resolves repo identity and handles create action. */
-export default function RepoTaskCreateView({
-  fullName,
-  createTaskAction,
-}: RepoTaskCreateViewProps) {
+export default function RepoTaskCreateView(props: RepoTaskCreateViewProps) {
+  const { fullName, createTaskAction } = props;
+
   return (
     <div>
       <h2>New Task for {fullName}</h2>
@@ -44,13 +58,7 @@ export default function RepoTaskCreateView({
         <label>Task Type</label>
         <TaskTypeSelect options={TASK_TYPE_OPTIONS} />
 
-        <label>Description</label>
-        <textarea
-          name="description"
-          rows={5}
-          required
-          placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions."
-        />
+        <DescriptionField />
 
         <ImmediateCheckbox />
 

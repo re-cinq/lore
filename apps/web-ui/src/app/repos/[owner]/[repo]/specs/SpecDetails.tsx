@@ -27,6 +27,13 @@ interface SpecDetailsProps {
   branch?: string;
 }
 
+/** The markdown and the repo revision its relative links resolve against, carried together because every renderer below needs all three. */
+interface SpecSource {
+  content: string;
+  repo: string;
+  branch: string;
+}
+
 function resolveSpecDetailsProps(props: SpecDetailsProps) {
   return {
     content: props.content,
@@ -36,30 +43,38 @@ function resolveSpecDetailsProps(props: SpecDetailsProps) {
   };
 }
 
-/** The markdown pipeline for a spec: an ordinal lookup for the hover, and the rehype chain that highlights each statement by its coverage state. Sanitisation sits BETWEEN raw HTML and the highlighter — raw first so a spec's own markup renders, sanitize next so it cannot inject, and the highlighter last because it only adds attributes to nodes that already survived. */
-function useStatementHighlighting(statements: StatementInfo[]) {
-  const statementsByOrdinal = useMemo(() => {
-    const m = new Map<number, StatementInfo>();
+/** Ordinal → statement, the join the hover reads back: the rehype plugins stamp the ordinal into the rendered HTML, and this turns it into the statement's coverage record. */
+function useStatementsByOrdinal(statements: StatementInfo[]) {
+  return useMemo(() => {
+    const byOrdinal = new Map<number, StatementInfo>();
 
-    for (const s of statements) {
-      m.set(s.ordinal, s);
+    for (const statement of statements) {
+      byOrdinal.set(statement.ordinal, statement);
     }
 
-    return m;
+    return byOrdinal;
   }, [statements]);
+}
 
+/** Only the facets the highlighter matches on — the rest of a statement is irrelevant to where the `<mark>` goes. */
+function highlightInput(statements: StatementInfo[]) {
+  return statements.map((statement) => ({
+    ordinal: statement.ordinal,
+    text: statement.text,
+    state: statement.state,
+    drifted: statement.drifted,
+  }));
+}
+
+/** The markdown pipeline for a spec: an ordinal lookup for the hover, and the rehype chain that highlights each statement by its coverage state. Sanitisation sits BETWEEN raw HTML and the highlighter — raw first so a spec's own markup renders, sanitize next so it cannot inject, and the highlighter last because it only adds attributes to nodes that already survived. */
+function useStatementHighlighting(statements: StatementInfo[]) {
+  const statementsByOrdinal = useStatementsByOrdinal(statements);
   const plugin = useMemo(() => {
     if (statements.length === 0) {
       return null;
     }
-    const enriched = statements.map((s) => ({
-      ordinal: s.ordinal,
-      text: s.text,
-      state: s.state,
-      drifted: s.drifted,
-    }));
 
-    return buildHighlighter(enriched);
+    return buildHighlighter(highlightInput(statements));
   }, [statements]);
 
   const sanitize = [rehypeSanitize, markdownSanitizeSchema] as const;
@@ -70,40 +85,35 @@ function useStatementHighlighting(statements: StatementInfo[]) {
   return { statementsByOrdinal, rehypePlugins };
 }
 
-/** The spec itself, with the statement-highlighting plugins applied. Those plugins are what put the hover targets in the rendered HTML, so the popover has something to attach to. */
-function SpecMarkdown({
-  content,
-  rehypePlugins,
-  components,
-}: {
-  content: string;
+interface SpecMarkdownProps {
+  spec: SpecSource;
   rehypePlugins: ReturnType<typeof useStatementHighlighting>["rehypePlugins"];
-  components: ReturnType<typeof useResolvedMarkdownLinks>;
-}) {
+}
+
+/** The spec itself, with the statement-highlighting plugins applied. Those plugins are what put the hover targets in the rendered HTML, so the popover has something to attach to. */
+function SpecMarkdown({ spec, rehypePlugins }: SpecMarkdownProps) {
+  const { content, repo, branch } = spec;
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rehypePlugins={rehypePlugins as any}
-      components={components}
+      components={useResolvedMarkdownLinks(repo, branch)}
     >
       {content}
     </ReactMarkdown>
   );
 }
 
-/** The tooltip, positioned by CSS variables rather than inline top/left so the stylesheet keeps ownership of how it is offset from the text. */
-function HoverPopover({
-  at,
-  statement,
-  repo,
-  branch,
-}: {
+interface HoverPopoverProps {
   at: { x: number; y: number };
   statement: StatementInfo;
-  repo: string;
-  branch: string;
-}) {
+  spec: SpecSource;
+}
+
+/** The tooltip, positioned by CSS variables rather than inline top/left so the stylesheet keeps ownership of how it is offset from the text. */
+function HoverPopover({ at, statement, spec }: HoverPopoverProps) {
   return (
     <div
       className={styles.popover}
@@ -113,17 +123,21 @@ function HoverPopover({
       }}
       role="tooltip"
     >
-      <StatementPopover statement={statement} repo={repo} branch={branch} />
+      <StatementPopover
+        statement={statement}
+        repo={spec.repo}
+        branch={spec.branch}
+      />
     </div>
   );
 }
 
-/** Which statement the pointer is over, and everything needed to say something about it. The ordinal is the join: the rehype plugins stamp it into the rendered HTML, the mouse handler reads it back off the hovered element, and this lookup turns it into the statement's coverage record. */
+/** Which statement the pointer is over, and everything needed to say something about it. */
 function useHoveredStatement(
   wrapperRef: React.RefObject<HTMLDivElement | null>,
   statements: StatementInfo[],
 ) {
-  const { hover, onMouseOver, onMouseLeave } = useStatementHover(wrapperRef);
+  const { hover, handlers } = useStatementHover(wrapperRef);
   const { statementsByOrdinal, rehypePlugins } =
     useStatementHighlighting(statements);
 
@@ -131,39 +145,43 @@ function useHoveredStatement(
     hover,
     hovered: hover ? statementsByOrdinal.get(hover.ordinal) : null,
     rehypePlugins,
-    onMouseOver,
-    onMouseLeave,
+    handlers,
   };
+}
+
+interface SpecCanvasProps {
+  spec: SpecSource;
+  statements: StatementInfo[];
+}
+
+/** The rendered spec plus the pointer tracking over it. The wrapper is the measuring frame the tooltip is positioned against, which is why the ref, the handlers and the popover live in one component. */
+function SpecCanvas({ spec, statements }: SpecCanvasProps) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const { hover, hovered, rehypePlugins, handlers } = useHoveredStatement(
+    wrapperRef,
+    statements,
+  );
+
+  return (
+    <div
+      ref={wrapperRef}
+      className={`${readme.readme} ${styles.specBody}`}
+      {...handlers}
+    >
+      <SpecMarkdown spec={spec} rehypePlugins={rehypePlugins} />
+      {hover && hovered && (
+        <HoverPopover at={hover} statement={hovered} spec={spec} />
+      )}
+    </div>
+  );
 }
 
 export default function SpecDetails(props: SpecDetailsProps) {
   const { content, statements, repo, branch } = resolveSpecDetailsProps(props);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const { hover, hovered, rehypePlugins, onMouseOver, onMouseLeave } =
-    useHoveredStatement(wrapperRef, statements);
 
   return (
     <div>
-      <div
-        ref={wrapperRef}
-        className={`${readme.readme} ${styles.specBody}`}
-        onMouseOver={onMouseOver}
-        onMouseLeave={onMouseLeave}
-      >
-        <SpecMarkdown
-          content={content}
-          rehypePlugins={rehypePlugins}
-          components={useResolvedMarkdownLinks(repo, branch)}
-        />
-        {hover && hovered && (
-          <HoverPopover
-            at={hover}
-            statement={hovered}
-            repo={repo}
-            branch={branch}
-          />
-        )}
-      </div>
+      <SpecCanvas spec={{ content, repo, branch }} statements={statements} />
     </div>
   );
 }
@@ -182,39 +200,50 @@ function tooltipPosition(
   };
 }
 
+interface HoverPoint {
+  ordinal: number;
+  x: number;
+  y: number;
+}
+
+/** The highlighted statement the pointer is inside, found by walking up from whatever inline element the event landed on. */
+function hoverTarget(event: React.MouseEvent<HTMLDivElement>) {
+  return (event.target as HTMLElement).closest<HTMLElement>(
+    "mark[data-ordinal]",
+  );
+}
+
+/** Where to anchor the tooltip for `target`, or null when its ordinal is unusable — an unreadable ordinal leaves the current hover alone rather than clearing it. */
+function hoverPoint(
+  target: HTMLElement,
+  wrapperRef: React.RefObject<HTMLDivElement | null>,
+): HoverPoint | null {
+  const ordinal = Number(target.dataset.ordinal);
+
+  if (!Number.isFinite(ordinal)) {
+    return null;
+  }
+  const { left, top } = tooltipPosition(target, wrapperRef);
+
+  return { ordinal, x: left, y: top };
+}
+
 /** Which highlighted statement the pointer is over, and where to put its tooltip — measured against the wrapper, so the popover sits with the text rather than the viewport. */
 function useStatementHover(wrapperRef: React.RefObject<HTMLDivElement | null>) {
-  const [hover, setHover] = useState<{
-    ordinal: number;
-    x: number;
-    y: number;
-  } | null>(null);
+  const [hover, setHover] = useState<HoverPoint | null>(null);
 
-  function onMouseOver(e: React.MouseEvent<HTMLDivElement>) {
-    const target = (e.target as HTMLElement).closest<HTMLElement>(
-      "mark[data-ordinal]",
-    );
+  function onMouseOver(event: React.MouseEvent<HTMLDivElement>) {
+    const target = hoverTarget(event);
+    const next = target ? hoverPoint(target, wrapperRef) : null;
 
-    if (!target && hover) {
-      setHover(null);
+    if (!target || next) {
+      setHover(next);
     }
-
-    if (!target) {
-      return;
-    }
-    const ordinal = Number(target.dataset.ordinal);
-
-    if (!Number.isFinite(ordinal)) {
-      return;
-    }
-    const { left, top } = tooltipPosition(target, wrapperRef);
-
-    setHover({ ordinal, x: left, y: top });
   }
 
   function onMouseLeave() {
     setHover(null);
   }
 
-  return { hover, onMouseOver, onMouseLeave };
+  return { hover, handlers: { onMouseOver, onMouseLeave } };
 }

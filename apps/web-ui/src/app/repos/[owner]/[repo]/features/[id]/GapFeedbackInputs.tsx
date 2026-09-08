@@ -16,16 +16,18 @@ interface SectionFeedbackProps {
   onChange: (next: FeedbackState) => void;
 }
 
-/** What the next round should do with this section. Defaults to "keep" so a section the author says nothing about is left alone rather than reworked. */
-function DirectionPicker({
-  sectionKey,
-  direction,
-  onSelect,
-}: {
+type SectionEntry = { comment?: string; direction?: SectionDirection };
+
+interface DirectionPickerProps {
   sectionKey: string;
   direction: SectionDirection | undefined;
   onSelect: (direction: SectionDirection) => void;
-}) {
+}
+
+/** What the next round should do with this section. Defaults to "keep" so a section the author says nothing about is left alone rather than reworked. */
+function DirectionPicker(props: DirectionPickerProps) {
+  const { sectionKey, direction, onSelect } = props;
+
   return (
     <div className={styles.directionRow}>
       <select
@@ -41,13 +43,11 @@ function DirectionPicker({
   );
 }
 
-export function SectionFeedback({
-  sectionKey,
-  feedback,
-  onChange,
-}: SectionFeedbackProps) {
-  const current = feedback.sections[sectionKey] ?? {};
-  const set = (patch: { comment?: string; direction?: SectionDirection }) =>
+/** Merges one patch into this section's entry, leaving every other section as the author left it. */
+function sectionSetter(props: SectionFeedbackProps, current: SectionEntry) {
+  const { sectionKey, feedback, onChange } = props;
+
+  return (patch: SectionEntry) =>
     onChange({
       ...feedback,
       sections: {
@@ -55,6 +55,30 @@ export function SectionFeedback({
         [sectionKey]: { ...current, ...patch },
       },
     });
+}
+
+/** The author's free-text note on a section, alongside the direction they picked for it. */
+function SectionComment({
+  value,
+  onSet,
+}: {
+  value: string;
+  onSet: (comment: string) => void;
+}) {
+  return (
+    <textarea
+      className={styles.commentInput}
+      placeholder="Comment / direction for this section"
+      value={value}
+      onChange={(e) => onSet(e.target.value)}
+    />
+  );
+}
+
+export function SectionFeedback(props: SectionFeedbackProps) {
+  const { sectionKey, feedback } = props;
+  const current = feedback.sections[sectionKey] ?? {};
+  const set = sectionSetter(props, current);
 
   return (
     <div className={styles.feedback}>
@@ -63,26 +87,35 @@ export function SectionFeedback({
         direction={current.direction}
         onSelect={(direction) => set({ direction })}
       />
-      <textarea
-        className={styles.commentInput}
-        placeholder="Comment / direction for this section"
+      <SectionComment
         value={current.comment ?? ""}
-        onChange={(e) => set({ comment: e.target.value })}
+        onSet={(comment) => set({ comment })}
       />
     </div>
   );
 }
 
-/** One follow-up question for a section — short label, detail in `why`, answer input. */
-export function QuestionInput({
-  q,
-  feedback,
-  onChange,
-}: {
+interface QuestionInputProps {
   q: GapQuestion;
   feedback: FeedbackState;
   onChange: (next: FeedbackState) => void;
-}) {
+}
+
+/** Records one answer, leaving every other answer the author gave untouched. */
+function answerSetter(props: QuestionInputProps) {
+  const { q, feedback, onChange } = props;
+
+  return (value: string) =>
+    onChange({
+      ...feedback,
+      questions: { ...feedback.questions, [q.id]: value },
+    });
+}
+
+/** One follow-up question for a section — short label, detail in `why`, answer input. */
+export function QuestionInput(props: QuestionInputProps) {
+  const { q, feedback } = props;
+
   return (
     <div className={styles.question}>
       <label htmlFor={q.id} className={styles.questionLabel}>
@@ -92,27 +125,22 @@ export function QuestionInput({
       <AnswerControl
         q={q}
         value={feedback.questions[q.id] ?? ""}
-        onSet={(value) =>
-          onChange({
-            ...feedback,
-            questions: { ...feedback.questions, [q.id]: value },
-          })
-        }
+        onSet={answerSetter(props)}
       />
     </div>
   );
 }
 
-/** A select when the round offered options, a free-text box otherwise. The empty option is kept so an answered question can be un-answered — a choice the author regrets should not be stuck. */
-function AnswerControl({
-  q,
-  value,
-  onSet,
-}: {
+interface AnswerControlProps {
   q: GapQuestion;
   value: string;
   onSet: (value: string) => void;
-}) {
+}
+
+/** A select when the round offered options, a free-text box otherwise. The empty option is kept so an answered question can be un-answered — a choice the author regrets should not be stuck. */
+function AnswerControl(props: AnswerControlProps) {
+  const { q, value, onSet } = props;
+
   if (q.kind !== "choice" || !q.options) {
     return (
       <input id={q.id} value={value} onChange={(e) => onSet(e.target.value)} />

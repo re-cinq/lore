@@ -14,7 +14,7 @@ import {
   type SimNode,
 } from "./spec-graph-visual";
 import { visibleLeaf } from "./spec-graph-canvas-draw";
-import type { ExpandData } from "./spec-graph-ring-layout";
+import type { ExpandData, StatementArc } from "./spec-graph-ring-layout";
 import {
   highlight,
   clearHighlight,
@@ -47,32 +47,41 @@ function leafHitNodes(c: GraphController, collapsing: boolean) {
   }));
 }
 
+/** The leaf dot under the pointer, if any: the click lands in screen space, the dots live in world space. */
+function leafHitAt(
+  c: GraphController,
+  event: PointerEvent,
+  collapsing: boolean,
+): SimNode | undefined {
+  const [px, py] = d3.pointer(event, c.el);
+  const world = invertPoint(c.transform as ZoomTransform, { x: px, y: py });
+  const hitId = findNodeAtPoint(world, leafHitNodes(c, collapsing), HIT_SLOP);
+
+  return hitId ? c.nodeById.get(hitId) : undefined;
+}
+
+/** A hit selects, highlights and centres the leaf; a miss clears the selection. */
+function selectHit(c: GraphController, hit: SimNode | undefined): void {
+  if (!hit) {
+    c.selectedIdRef.current = null;
+    c.setSelected(null);
+    clearHighlight(c);
+
+    return;
+  }
+  c.selectedIdRef.current = hit.id;
+  c.setSelected(hit);
+  highlight(c, hit.id);
+  centerOn(c, hit);
+}
+
 // SVG covers canvas: background click inverts pointer, hit-tests leaf dots.
 export function wireBackgroundClick(
   c: GraphController,
   isAggregating: () => boolean,
 ): void {
   c.svg.on("click", (event: PointerEvent) => {
-    const [px, py] = d3.pointer(event, c.el);
-    const world = invertPoint(c.transform as ZoomTransform, { x: px, y: py });
-    const hitId = findNodeAtPoint(
-      world,
-      leafHitNodes(c, isAggregating()),
-      HIT_SLOP,
-    );
-    const hit = hitId ? c.nodeById.get(hitId) : undefined;
-
-    if (!hit) {
-      c.selectedIdRef.current = null;
-      c.setSelected(null);
-      clearHighlight(c);
-
-      return;
-    }
-    c.selectedIdRef.current = hit.id;
-    c.setSelected(hit);
-    highlight(c, hit.id);
-    centerOn(c, hit);
+    selectHit(c, leafHitAt(c, event, isAggregating()));
   });
 }
 
@@ -117,6 +126,42 @@ function spokeableLeaf(
   return leaf;
 }
 
+/** One statement's spokeable neighbours, in adjacency order — the order decides how far out each one lands. */
+function spokeableNeighbours(
+  c: GraphController,
+  statementUid: string,
+): SimNode[] {
+  const leaves: SimNode[] = [];
+  const neighbours = c.adj.get(statementUid);
+
+  neighbours?.forEach((neighbourId) => {
+    const leaf = spokeableLeaf(c, neighbourId);
+
+    if (leaf) {
+      leaves.push(leaf);
+    }
+  });
+
+  return leaves;
+}
+
+/** Fans one statement's neighbours outward along its own angle, each a further 34px step off the ring. */
+function placeStatementNeighbours(
+  c: GraphController,
+  exp: ExpandData,
+  statement: StatementArc,
+  { cx, cy }: { cx: number; cy: number },
+): void {
+  spokeableNeighbours(c, statement.uid).forEach((leaf, placed) => {
+    pinAt(leaf, {
+      cx,
+      cy,
+      radius: exp.outerR1 + 32 + placed * 34,
+      mid: statement.mid,
+    });
+  });
+}
+
 // Pin statements on outer ring, fan related nodes radially outward: short spokes never chords.
 function placeStatementSpokes(
   c: GraphController,
@@ -131,24 +176,7 @@ function placeStatementSpokes(
       radius: exp.outerMid,
       mid: statement.mid,
     });
-    let placed = 0;
-    const neighbours = c.adj.get(statement.uid);
-
-    neighbours?.forEach((neighbourId) => {
-      const leaf = spokeableLeaf(c, neighbourId);
-
-      if (!leaf) {
-        return;
-      }
-
-      pinAt(leaf, {
-        cx,
-        cy,
-        radius: exp.outerR1 + 32 + placed * 34,
-        mid: statement.mid,
-      });
-      placed += 1;
-    });
+    placeStatementNeighbours(c, exp, statement, { cx, cy });
   });
 }
 

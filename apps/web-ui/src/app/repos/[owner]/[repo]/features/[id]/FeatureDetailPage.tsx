@@ -63,21 +63,21 @@ async function resolveFeatureView(fullName: string, id: string) {
   };
 }
 
-export default async function FeatureDetailPage({
-  params,
-}: {
+interface DetailPageProps {
   params: Promise<{ owner: string; repo: string; id: string }>;
-}) {
-  const { owner, repo, id } = await params;
-  const fullName = `${owner}/${repo}`;
+}
 
-  const result = await getFeature(fullName, id);
+interface FeatureScreenProps {
+  owner: string;
+  repo: string;
+  feature: FeatureWithIterations;
+  view: Awaited<ReturnType<typeof resolveFeatureView>>;
+  actions: ReturnType<typeof featureActions>;
+}
 
-  if (result.status !== "ok") {
-    return <FeatureNotFound />;
-  }
-  const full: FeatureWithIterations = result.data;
-  const view = await resolveFeatureView(fullName, id);
+/** The whole page below the fold, once the feature is known to exist. The outage banner sits above the view because it outranks whatever the feature itself is doing. */
+function FeatureScreen(props: FeatureScreenProps) {
+  const { owner, repo, feature, view, actions } = props;
 
   return (
     <>
@@ -87,11 +87,33 @@ export default async function FeatureDetailPage({
         run={view.run}
         owner={owner}
         repo={repo}
-        feature={full}
+        feature={feature}
         timeoutMinutes={view.planningTimeoutMinutes}
         decomposition={view.decomposition}
-        {...featureActions(fullName, id)}
+        {...actions}
       />
     </>
+  );
+}
+
+export default async function FeatureDetailPage(props: DetailPageProps) {
+  const { owner, repo, id } = await props.params;
+  const fullName = `${owner}/${repo}`;
+  const result = await getFeature(fullName, id);
+
+  if (result.status !== "ok") {
+    return <FeatureNotFound />;
+  }
+  const feature: FeatureWithIterations = result.data;
+  const view = await resolveFeatureView(fullName, id);
+
+  return (
+    <FeatureScreen
+      owner={owner}
+      repo={repo}
+      feature={feature}
+      view={view}
+      actions={featureActions(fullName, id)}
+    />
   );
 }

@@ -11,15 +11,20 @@ const BADGE_CLASS: Record<string, string> = {
 
 const cap = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
-export default function DarkFactoryConsoleView({
-  owner,
-  repo,
-  model,
-}: {
+type ConsoleConfig = DarkFactoryConsoleModel["config"];
+type AutoMergeConfig = ConsoleConfig["auto_merge"];
+type TrustLevel = DarkFactoryConsoleModel["trustLevel"];
+type WorkItemList = DarkFactoryConsoleModel["workItems"];
+type DecisionList = DarkFactoryConsoleModel["decisions"];
+
+interface ConsoleViewProps {
   owner: string;
   repo: string;
   model: DarkFactoryConsoleModel;
-}) {
+}
+
+export default function DarkFactoryConsoleView(props: ConsoleViewProps) {
+  const { owner, repo, model } = props;
   const { activation, config, trustLevel, workItems, decisions } = model;
 
   return (
@@ -52,45 +57,47 @@ function TwoKeyNote({ owner, repo }: { owner: string; repo: string }) {
   );
 }
 
-/** Both gates, always. Either one alone explains an "off", so showing only the failing one would leave a reader guessing whether the other is fine. */
-function Gates({
-  repoEnabled,
-  trustLevel,
-}: {
+/** The repo's own switch, spelled out with an icon so an "off" is legible at a glance. */
+function RepoGate({ enabled }: { enabled: boolean }) {
+  return enabled ? (
+    <>
+      <Icon name="check" size={13} inline /> enabled
+    </>
+  ) : (
+    <>
+      <Icon name="error" size={13} inline /> disabled
+    </>
+  );
+}
+
+interface GatesProps {
   repoEnabled: boolean;
-  trustLevel: DarkFactoryConsoleModel["trustLevel"];
-}) {
+  trustLevel: TrustLevel;
+}
+
+/** Both gates, always. Either one alone explains an "off", so showing only the failing one would leave a reader guessing whether the other is fine. */
+function Gates({ repoEnabled, trustLevel }: GatesProps) {
   return (
     <div className={styles.gates}>
       <span>
-        Repo gate:{" "}
-        {repoEnabled ? (
-          <>
-            <Icon name="check" size={13} inline /> enabled
-          </>
-        ) : (
-          <>
-            <Icon name="error" size={13} inline /> disabled
-          </>
-        )}
+        Repo gate: <RepoGate enabled={repoEnabled} />
       </span>
       <span>Trust: {trustLevel}</span>
     </div>
   );
 }
 
-/** Two gates decide whether the factory runs dark on this repo: the repo's own switch and its trust level. Both are shown, because either one alone explains an "off". */
-function ActivationCard({
-  owner,
-  repo,
-  activation,
-  trustLevel,
-}: {
+interface ActivationCardProps {
   owner: string;
   repo: string;
   activation: DarkFactoryConsoleModel["activation"];
-  trustLevel: DarkFactoryConsoleModel["trustLevel"];
-}) {
+  trustLevel: TrustLevel;
+}
+
+/** Two gates decide whether the factory runs dark on this repo: the repo's own switch and its trust level. Both are shown, because either one alone explains an "off". */
+function ActivationCard(props: ActivationCardProps) {
+  const { owner, repo, activation, trustLevel } = props;
+
   return (
     <div className="spec-card">
       <div className={styles.stateRow}>
@@ -105,47 +112,50 @@ function ActivationCard({
   );
 }
 
-/** The policy as label/value pairs. An empty notify list reads as "escalation (implicit)" rather than blank: the platform always escalates, so nothing configured is not the same as nothing happening. */
-function policyRows(config: DarkFactoryConsoleModel["config"]) {
-  const { auto_merge: autoMerge } = config;
-
+/** The auto-merge gates, each shown as the literal value it is set to. */
+function requirementRows(autoMerge: AutoMergeConfig) {
   return [
     { label: "Allowlist paths", value: autoMerge.paths.join(", ") },
-    { label: "Min trust", value: config.auto_merge.min_trust },
-    {
-      label: "Require green CI",
-      value: String(config.auto_merge.require_green_ci),
-    },
+    { label: "Min trust", value: autoMerge.min_trust },
+    { label: "Require green CI", value: String(autoMerge.require_green_ci) },
     {
       label: "Require bot approval",
-      value: String(config.auto_merge.require_bot_approval),
-    },
-    { label: "Create issue", value: config.create_issue },
-    { label: "Review", value: config.review },
-    {
-      label: "Notify",
-      value: config.notify.length
-        ? config.notify.join(", ")
-        : "escalation (implicit)",
+      value: String(autoMerge.require_bot_approval),
     },
   ];
 }
 
-function AutoMergePolicy({
-  config,
-}: {
-  config: DarkFactoryConsoleModel["config"];
-}) {
+/** The policy as label/value pairs. An empty notify list reads as "escalation (implicit)" rather than blank: the platform always escalates, so nothing configured is not the same as nothing happening. */
+function policyRows(config: ConsoleConfig) {
+  const notify = config.notify.length
+    ? config.notify.join(", ")
+    : "escalation (implicit)";
+
+  return [
+    ...requirementRows(config.auto_merge),
+    { label: "Create issue", value: config.create_issue },
+    { label: "Review", value: config.review },
+    { label: "Notify", value: notify },
+  ];
+}
+
+function PolicyRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="meta">{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function AutoMergePolicy({ config }: { config: ConsoleConfig }) {
   return (
     <>
       <h3>Auto-merge policy</h3>
       <div className="spec-card">
         <dl className={styles.config}>
-          {policyRows(config).map(({ label, value }) => (
-            <div key={label}>
-              <dt className="meta">{label}</dt>
-              <dd>{value}</dd>
-            </div>
+          {policyRows(config).map((row) => (
+            <PolicyRow key={row.label} {...row} />
           ))}
         </dl>
       </div>
@@ -154,11 +164,7 @@ function AutoMergePolicy({
 }
 
 /** One task the factory ran. A dash rather than a blank when there is no PR: dark mode's whole point is that the PR is the artifact, so its absence is worth showing. */
-function WorkItemRow({
-  workItem,
-}: {
-  workItem: DarkFactoryConsoleModel["workItems"][number];
-}) {
+function WorkItemRow({ workItem }: { workItem: WorkItemList[number] }) {
   return (
     <tr>
       <td>{workItem.type}</td>
@@ -175,30 +181,32 @@ function WorkItemRow({
   );
 }
 
-function WorkItems({
-  workItems,
-}: {
-  workItems: DarkFactoryConsoleModel["workItems"];
-}) {
+function WorkItemsTable({ workItems }: { workItems: WorkItemList }) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Status</th>
+          <th>PR</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {workItems.map((workItem) => (
+          <WorkItemRow key={workItem.id} workItem={workItem} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function WorkItems({ workItems }: { workItems: WorkItemList }) {
   return (
     <>
       <h3>What it works on</h3>
       {workItems.length > 0 ? (
-        <table>
-          <thead>
-            <tr>
-              <th>Type</th>
-              <th>Status</th>
-              <th>PR</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {workItems.map((workItem) => (
-              <WorkItemRow key={workItem.id} workItem={workItem} />
-            ))}
-          </tbody>
-        </table>
+        <WorkItemsTable workItems={workItems} />
       ) : (
         <Alert variant="secondary">No recent tasks.</Alert>
       )}
@@ -206,23 +214,25 @@ function WorkItems({
   );
 }
 
-function DecisionFeed({
-  decisions,
-}: {
-  decisions: DarkFactoryConsoleModel["decisions"];
-}) {
+function DecisionItems({ decisions }: { decisions: DecisionList }) {
+  return (
+    <ul className={styles.feed}>
+      {decisions.map((decision, index) => (
+        <li key={`${decision.kind}-${index}`}>
+          <span>{decision.summary}</span>{" "}
+          <span className="meta">{decision.createdAt}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function DecisionFeed({ decisions }: { decisions: DecisionList }) {
   return (
     <>
       <h3>Decision feed</h3>
       {decisions.length > 0 ? (
-        <ul className={styles.feed}>
-          {decisions.map((decision, index) => (
-            <li key={`${decision.kind}-${index}`}>
-              <span>{decision.summary}</span>{" "}
-              <span className="meta">{decision.createdAt}</span>
-            </li>
-          ))}
-        </ul>
+        <DecisionItems decisions={decisions} />
       ) : (
         <Alert variant="secondary">No dark-factory audit events yet.</Alert>
       )}

@@ -10,18 +10,15 @@ export interface RemoveOverrideButtonProps {
   remove: () => Promise<void>;
 }
 
-/** The second click. Removing the override is not undoable from this page: the repo's model, timeout and prompt are gone and the org default resolves in their place. */
-function ConfirmRow({
-  name,
-  pending,
-  onConfirm,
-  onCancel,
-}: {
+interface ConfirmRowProps {
   name: string;
   pending: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-}) {
+}
+
+/** The second click. Removing the override is not undoable from this page: the repo's model, timeout and prompt are gone and the org default resolves in their place. */
+function ConfirmRow({ name, pending, onConfirm, onCancel }: ConfirmRowProps) {
   return (
     <div className={styles.confirmRow}>
       <span className={styles.detail}>
@@ -37,11 +34,18 @@ function ConfirmRow({
   );
 }
 
+/** The first click. Arms the confirmation rather than removing anything. */
+function ArmButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="btn-secondary" onClick={onClick}>
+      Remove
+    </button>
+  );
+}
+
 /** Drops a per-repo agent override, restoring the org-wide default for that station. Confirmed rather than fired from one press — the repo's own prompt and model do not come back. */
-export default function RemoveOverrideButton({
-  name,
-  remove,
-}: RemoveOverrideButtonProps) {
+export default function RemoveOverrideButton(props: RemoveOverrideButtonProps) {
+  const { name, remove } = props;
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
 
@@ -56,9 +60,5 @@ export default function RemoveOverrideButton({
     );
   }
 
-  return (
-    <button className="btn-secondary" onClick={() => setConfirming(true)}>
-      Remove
-    </button>
-  );
+  return <ArmButton onClick={() => setConfirming(true)} />;
 }

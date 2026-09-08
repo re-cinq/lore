@@ -53,16 +53,14 @@ function DocMetrics({ document }: { document: TraceSection["items"][number] }) {
   );
 }
 
-/** One contributing document, with its provenance. A document with no `source_path` came from memory or a fact rather than a file, so it shows an excerpt instead of a dead link. */
-function DocRow({
-  document,
-  owner,
-  repo,
-}: {
+interface DocRowProps {
   document: TraceSection["items"][number];
   owner: string;
   repo: string;
-}) {
+}
+
+/** One contributing document, with its provenance. */
+function DocRow({ document, owner, repo }: DocRowProps) {
   return (
     <li className={styles.docItem}>
       {document.content_type && (
@@ -70,30 +68,35 @@ function DocRow({
           {labelForType(document.content_type)}
         </span>
       )}
-      {document.source_path ? (
-        <a
-          href={`/repos/${owner}/${repo}/context/${encodeURIComponent(document.source_path)}`}
-        >
-          {document.source_path}
-        </a>
-      ) : (
-        <span className="meta">{document.text.slice(0, 60)}…</span>
-      )}
+      <DocSource document={document} owner={owner} repo={repo} />
       <DocMetrics document={document} />
     </li>
   );
 }
 
-/** What actually went into this section, collapsed by default: a reader opens it to answer "why did the agent see THIS", which is a question about one section at a time. */
-function ContributingDocs({
-  documents,
-  owner,
-  repo,
-}: {
+/** A document with no `source_path` came from memory or a fact rather than a file, so it shows an excerpt instead of a dead link. */
+function DocSource({ document, owner, repo }: DocRowProps) {
+  if (!document.source_path) {
+    return <span className="meta">{document.text.slice(0, 60)}…</span>;
+  }
+
+  const path = encodeURIComponent(document.source_path);
+
+  return (
+    <a href={`/repos/${owner}/${repo}/context/${path}`}>
+      {document.source_path}
+    </a>
+  );
+}
+
+interface ContributingDocsProps {
   documents: TraceSection["items"];
   owner: string;
   repo: string;
-}) {
+}
+
+/** What actually went into this section, collapsed by default: a reader opens it to answer "why did the agent see THIS", which is a question about one section at a time. */
+function ContributingDocs({ documents, owner, repo }: ContributingDocsProps) {
   if (documents.length === 0) {
     return null;
   }
@@ -129,16 +132,14 @@ function CardHead({ section }: { section: TraceSection }) {
   );
 }
 
-/** Per-section card: budget, status, documents with provenance (expandable). */
-export function TraceCard({
-  owner,
-  repo,
-  section,
-}: {
+interface TraceCardProps {
   owner: string;
   repo: string;
   section: TraceSection;
-}) {
+}
+
+/** Per-section card: budget, status, documents with provenance (expandable). */
+export function TraceCard({ owner, repo, section }: TraceCardProps) {
   return (
     <div className={styles.card}>
       <CardHead section={section} />

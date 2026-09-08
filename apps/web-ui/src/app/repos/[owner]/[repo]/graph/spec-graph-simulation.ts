@@ -25,33 +25,44 @@ export interface SimulationDeps {
   viewportCenter: Point;
 }
 
+/** Only force-placed nodes take part in separation; a pinned node (fx/fy set) is where the reader or a ring put it. */
+function freePositions(nodes: SimNode[]): Array<Point & { id: string }> {
+  return nodes
+    .filter((n) => n.fx == null && n.fy == null)
+    .map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 }));
+}
+
+/** Teleports a node and kills its velocity, so the next tick does not carry it back toward where it was pushed from. */
+function placeNode(node: SimNode, p: Point): void {
+  node.x = p.x;
+  node.y = p.y;
+  node.vx = 0;
+  node.vy = 0;
+}
+
+function applySeparation(deps: SimulationDeps, nodes: SimNode[]): void {
+  if (deps.smallIds.size === 0) {
+    return;
+  }
+  const nodeById = deps.getNodeById();
+  const separated = separateSmallComponents(
+    freePositions(nodes),
+    deps.smallIds,
+    deps.viewportCenter,
+    RIM_MARGIN,
+  );
+
+  for (const [id, p] of separated) {
+    const node = nodeById.get(id);
+
+    if (node) {
+      placeNode(node, p);
+    }
+  }
+}
+
 function createSeparationForce(deps: SimulationDeps, nodes: SimNode[]) {
-  return () => {
-    if (deps.smallIds.size === 0) {
-      return;
-    }
-    const nodeById = deps.getNodeById();
-    const placed = nodes
-      .filter((n) => n.fx == null && n.fy == null)
-      .map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 }));
-
-    for (const [id, p] of separateSmallComponents(
-      placed,
-      deps.smallIds,
-      deps.viewportCenter,
-      RIM_MARGIN,
-    )) {
-      const n = nodeById.get(id);
-
-      if (!n) {
-        continue;
-      }
-      n.x = p.x;
-      n.y = p.y;
-      n.vx = 0;
-      n.vy = 0;
-    }
-  };
+  return () => applySeparation(deps, nodes);
 }
 
 /** Links pull their endpoints together, with d3's standard 1/min(degree) strength: a leaf is held firmly to its parent, while a link between two hubs stays loose so neither drags the other's subtree around. */
@@ -84,13 +95,35 @@ function collideForce(deps: SimulationDeps) {
     .strength(1);
 }
 
+/** Radial anchoring: forceX/Y pull each node back to its seeded position, which is what holds the circular shape. */
+function seedXForce(deps: SimulationDeps) {
+  return d3.forceX<SimNode>((d) => deps.seedOf(d).x).strength(0.22);
+}
+
+function seedYForce(deps: SimulationDeps) {
+  return d3.forceY<SimNode>((d) => deps.seedOf(d).y).strength(0.22);
+}
+
+/** Spacing pass: anchors kept clear of each other & rings (resolveSpacing); others just off rings. */
+function spacingForce(deps: SimulationDeps, nodes: SimNode[]) {
+  return () =>
+    applySpacingForce(
+      nodes,
+      deps.getExpanded(),
+      deps.getNodeById(),
+      deps.getRingPinned(),
+    );
+}
+
+export interface GraphSimulation {
+  sim: d3.Simulation<SimNode, undefined>;
+  linkForce: d3.ForceLink<SimNode, SimLink>;
+}
+
 export function createGraphSimulation(
   nodes: SimNode[],
   deps: SimulationDeps,
-): {
-  sim: d3.Simulation<SimNode, undefined>;
-  linkForce: d3.ForceLink<SimNode, SimLink>;
-} {
+): GraphSimulation {
   const linkForce = createLinkForce(deps);
   const sim = d3
     .forceSimulation<SimNode>([])
@@ -98,19 +131,10 @@ export function createGraphSimulation(
     .velocityDecay(0.7)
     .force("link", linkForce)
     .force("charge", chargeForce(deps))
-    // Radial anchoring: forceX/Y pull each node back to its seeded position, which is what holds the circular shape.
-    .force("x", d3.forceX<SimNode>((d) => deps.seedOf(d).x).strength(0.22))
-    .force("y", d3.forceY<SimNode>((d) => deps.seedOf(d).y).strength(0.22))
+    .force("x", seedXForce(deps))
+    .force("y", seedYForce(deps))
     .force("collide", collideForce(deps))
-    // Spacing pass: anchors kept clear of each other & rings (resolveSpacing); others just off rings.
-    .force("spacing", () =>
-      applySpacingForce(
-        nodes,
-        deps.getExpanded(),
-        deps.getNodeById(),
-        deps.getRingPinned(),
-      ),
-    )
+    .force("spacing", spacingForce(deps, nodes))
     // Hard separation: keep small-component nodes outside main graph, measured dynamically.
     .force("separate", createSeparationForce(deps, nodes));
 

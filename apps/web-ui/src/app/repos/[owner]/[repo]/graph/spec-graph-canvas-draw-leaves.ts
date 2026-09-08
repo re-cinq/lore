@@ -64,6 +64,22 @@ export interface BadgeDrawDeps {
   aggBadges: AggBadge[];
 }
 
+/** Where a badge sits: just off its parent's top-right, in screen pixels so it stays a fixed size at any zoom. */
+function badgeAnchor(
+  parent: SimNode,
+  transform: CanvasDrawState["transform"],
+): { x: number; y: number } {
+  const screen = applyPoint(transform as ZoomTransform, {
+    x: parent.x ?? 0,
+    y: parent.y ?? 0,
+  });
+
+  return {
+    x: screen.x + radiusOf(parent.type) + 8,
+    y: screen.y - radiusOf(parent.type),
+  };
+}
+
 function drawBadge(
   deps: BadgeDrawDeps,
   badge: AggBadge,
@@ -75,12 +91,7 @@ function drawBadge(
   if (!parent) {
     return;
   }
-  const screen = applyPoint(state.transform as ZoomTransform, {
-    x: parent.x ?? 0,
-    y: parent.y ?? 0,
-  });
-  const px = screen.x + radiusOf(parent.type) + 8;
-  const py = screen.y - radiusOf(parent.type);
+  const { x: px, y: py } = badgeAnchor(parent, state.transform);
 
   ctx.fillStyle = colors.canvasColorOf(badge.type);
   ctx.beginPath();

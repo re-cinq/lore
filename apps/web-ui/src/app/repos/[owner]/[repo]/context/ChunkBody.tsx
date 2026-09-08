@@ -52,13 +52,12 @@ function wrapperClass(preview: boolean): string {
   return `${readme.readme}${preview ? ` ${styles.previewBox}` : ""}`;
 }
 
-function ChunkHeader({
-  headerLabel,
-  ghHref,
-}: {
+interface ChunkHeaderProps {
   headerLabel: string;
   ghHref: string;
-}) {
+}
+
+function ChunkHeader({ headerLabel, ghHref }: ChunkHeaderProps) {
   if (!headerLabel && !ghHref) {
     return null;
   }
@@ -66,17 +65,21 @@ function ChunkHeader({
   return (
     <div className={styles.chunkHeader}>
       {headerLabel && <span className={styles.headerLabel}>{headerLabel}</span>}
-      {ghHref && (
-        <a
-          className={styles.headerLink}
-          href={ghHref}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          View on GitHub ↗
-        </a>
-      )}
+      {ghHref && <GitHubLink href={ghHref} />}
     </div>
+  );
+}
+
+function GitHubLink({ href }: { href: string }) {
+  return (
+    <a
+      className={styles.headerLink}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      View on GitHub ↗
+    </a>
   );
 }
 
@@ -110,17 +113,19 @@ function ghHrefFor({
 }
 
 /** The chunk's body. Code arrives already fenced by `markdownFor`, so both content kinds go through the same markdown renderer and differ only in the plugins they carry. */
+interface ChunkMarkdownProps {
+  markdown: string;
+  rehypePlugins: React.ComponentProps<typeof ReactMarkdown>["rehypePlugins"];
+  components: React.ComponentProps<typeof ReactMarkdown>["components"];
+  className: string;
+}
+
 function ChunkMarkdown({
   markdown,
   rehypePlugins,
   components,
   className,
-}: {
-  markdown: string;
-  rehypePlugins: React.ComponentProps<typeof ReactMarkdown>["rehypePlugins"];
-  components: React.ComponentProps<typeof ReactMarkdown>["components"];
-  className: string;
-}) {
+}: ChunkMarkdownProps) {
   return (
     <div className={className}>
       <ReactMarkdown
@@ -135,32 +140,40 @@ function ChunkMarkdown({
 }
 
 /** Render ingested chunk: prose→ReactMarkdown with GitHub links, code→highlight.js. */
-export default function ChunkBody({
+export default function ChunkBody(props: ChunkBodyProps) {
+  const view = useChunkView(props);
+
+  return (
+    <div>
+      {!props.preview && (
+        <ChunkHeader headerLabel={view.headerLabel} ghHref={view.ghHref} />
+      )}
+      <ChunkMarkdown
+        markdown={view.markdown}
+        rehypePlugins={view.rehypePlugins}
+        components={view.components}
+        className={wrapperClass(props.preview ?? false)}
+      />
+    </div>
+  );
+}
+
+/** Everything the two halves of the body need, derived once: the content kind decides the fencing, the plugins and whether the GitHub link carries a line range. */
+function useChunkView({
   content,
   contentType,
   filePath,
   repo,
   branch = "main",
   metadata,
-  preview = false,
 }: ChunkBodyProps) {
   const isCode = contentType === CODE_TYPE;
 
-  const mdComponents = useResolvedMarkdownLinks(repo, branch);
-  const markdown = markdownFor(isCode, content, filePath);
-  const rehypePlugins = rehypePluginsFor(isCode);
-  const headerLabel = chunkHeader(contentType, metadata);
-  const ghHref = ghHrefFor({ repo, branch, filePath, isCode, metadata });
-
-  return (
-    <div>
-      {!preview && <ChunkHeader headerLabel={headerLabel} ghHref={ghHref} />}
-      <ChunkMarkdown
-        markdown={markdown}
-        rehypePlugins={rehypePlugins}
-        components={mdComponents}
-        className={wrapperClass(preview)}
-      />
-    </div>
-  );
+  return {
+    components: useResolvedMarkdownLinks(repo, branch),
+    markdown: markdownFor(isCode, content, filePath),
+    rehypePlugins: rehypePluginsFor(isCode),
+    headerLabel: chunkHeader(contentType, metadata),
+    ghHref: ghHrefFor({ repo, branch, filePath, isCode, metadata }),
+  };
 }

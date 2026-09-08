@@ -31,27 +31,30 @@ interface AgentFormProps {
   orgScope?: boolean;
 }
 
-/** What this agent IS: its name and the model behind it. The name is only editable while creating — it is the key the three precedence layers resolve by. */
-function IdentityFields({
-  isNew,
-  values,
-  modelSel,
-  onModelSelect,
-}: {
+/** Every prefilled value the fields read, plus the scope the save writes at — one bundle, so a field group takes the request rather than a handful of loose strings. */
+type AgentFormValues = ReturnType<typeof agentFormValues> & {
+  repo: string;
   isNew: boolean;
-  values: ReturnType<typeof agentFormValues>;
-  modelSel: string;
-  onModelSelect: (value: string) => void;
-}) {
+  orgScope: boolean;
+};
+
+interface IdentityFieldsProps {
+  values: AgentFormValues;
+  model: string;
+  onSelect: (value: string) => void;
+}
+
+/** What this agent IS: its name and the model behind it. The name is only editable while creating — it is the key the three precedence layers resolve by. */
+function IdentityFields({ values, model, onSelect }: IdentityFieldsProps) {
   return (
     <>
       <label>Name</label>
-      <NameField isNew={isNew} name={values.name} />
+      <NameField isNew={values.isNew} name={values.name} />
 
       <label>Model</label>
       <ModelField
-        selection={modelSel}
-        onSelect={onModelSelect}
+        selection={model}
+        onSelect={onSelect}
         customModel={values.customModel}
       />
     </>
@@ -59,47 +62,37 @@ function IdentityFields({
 }
 
 /** The parts of the request the reader does not fill in: the fields carried through hidden, and the note saying whether this save writes an org default or a repo override. */
-function FormPreamble({
-  repo,
-  isNew,
-  orgScope,
-  values,
-}: {
-  repo: string;
-  isNew: boolean;
-  orgScope: boolean;
-  values: ReturnType<typeof agentFormValues>;
-}) {
+function FormPreamble({ values }: { values: AgentFormValues }) {
   return (
     <>
       <HiddenFields
-        repo={repo}
-        isNew={isNew}
+        repo={values.repo}
+        isNew={values.isNew}
         executionMode={values.executionMode}
         reviewRequired={values.reviewRequired}
       />
 
       <ScopeNote
-        isNew={isNew}
-        orgScope={orgScope}
+        isNew={values.isNew}
+        orgScope={values.orgScope}
         inherited={values.inherited}
       />
     </>
   );
 }
 
+interface ExecutionFieldsProps {
+  values: AgentFormValues;
+  image: string | null | undefined;
+  defaultImage?: string;
+}
+
 /** How this agent RUNS: its limits, its pod resources, and — repo-scoped only — the execution image. The image is omitted org-wide because the API refuses an org-wide image change: the two-key ceremony authorizing one is itself repo-scoped. */
 function ExecutionFields({
   values,
-  orgScope,
   image,
   defaultImage,
-}: {
-  values: ReturnType<typeof agentFormValues>;
-  orgScope: boolean;
-  image: string | null | undefined;
-  defaultImage?: string;
-}) {
+}: ExecutionFieldsProps) {
   return (
     <>
       <RunLimitsFields
@@ -110,7 +103,9 @@ function ExecutionFields({
 
       <PodResourceFields podResources={values.podResources} />
 
-      {!orgScope && <ImageFields image={image} defaultImage={defaultImage} />}
+      {!values.orgScope && (
+        <ImageFields image={image} defaultImage={defaultImage} />
+      )}
     </>
   );
 }
@@ -118,26 +113,15 @@ function ExecutionFields({
 export default function AgentForm(props: AgentFormProps) {
   const { repo, agent, isNew, defaultImage, orgScope = false } = props;
   const [state, formAction] = useActionState(props.action, {});
-  const values = agentFormValues(agent, isNew);
-  const [modelSel, setModelSel] = useState(values.initialSelection);
+  const values = { ...agentFormValues(agent, isNew), repo, isNew, orgScope };
+  const [model, setModel] = useState(values.initialSelection);
 
   return (
     <form action={formAction} className="task-form">
-      <FormPreamble
-        repo={repo}
-        isNew={isNew}
-        orgScope={orgScope}
-        values={values}
-      />
-      <IdentityFields
-        isNew={isNew}
-        values={values}
-        modelSel={modelSel}
-        onModelSelect={setModelSel}
-      />
+      <FormPreamble values={values} />
+      <IdentityFields values={values} model={model} onSelect={setModel} />
       <ExecutionFields
         values={values}
-        orgScope={orgScope}
         image={agent?.image}
         defaultImage={defaultImage}
       />

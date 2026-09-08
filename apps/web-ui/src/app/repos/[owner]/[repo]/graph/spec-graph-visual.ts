@@ -156,18 +156,29 @@ export function bfsLevels(
   let frontier = [startId];
 
   for (let d = 1; d <= maxDepth; d += 1) {
-    const next: string[] = [];
-
-    frontier.forEach((id) => {
-      adj.get(id)?.forEach((nb) => {
-        if (!level.has(nb)) {
-          level.set(nb, d);
-          next.push(nb);
-        }
-      });
-    });
-    frontier = next;
+    frontier = expandFrontier(adj, level, frontier, d);
   }
 
   return level;
+}
+
+/** One BFS step: records `depth` for every unseen neighbour of the frontier and returns the next frontier. */
+function expandFrontier(
+  adj: Map<string, Set<string>>,
+  level: Map<string, number>,
+  frontier: string[],
+  depth: number,
+): string[] {
+  const next: string[] = [];
+
+  frontier.forEach((id) => {
+    adj.get(id)?.forEach((nb) => {
+      if (!level.has(nb)) {
+        level.set(nb, depth);
+        next.push(nb);
+      }
+    });
+  });
+
+  return next;
 }

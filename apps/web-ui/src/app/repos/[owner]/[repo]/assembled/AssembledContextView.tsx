@@ -4,6 +4,7 @@ import { Alert } from "@/components/Alert";
 import { useState } from "react";
 import HelpPopover from "@/components/HelpPopover";
 import Markdown from "@/components/Markdown";
+import AssemblyQueryForm from "./AssemblyQueryForm";
 import { Bar } from "./TraceCard";
 import { AssembledPrompt, TraceSources } from "./TracePromptView";
 import type { AssembledResult } from "./trace-types";
@@ -33,23 +34,16 @@ export interface AssembledContextViewProps {
 /** Assembled context view: form + assembly trace + final prompt tree. */
 export default function AssembledContextView(props: AssembledContextViewProps) {
   const { owner, repo, result, loading, error, query } = props;
-  const [raw, setRaw] = useState(false);
-  const hasQuery = query.trim().length > 0;
+  const canSubmit = query.trim().length > 0 && !loading;
 
   return (
     <div>
       <AssembledHeader />
-      <QueryForm {...props} canSubmit={hasQuery && !loading} />
+      <AssemblyQueryForm {...props} canSubmit={canSubmit} />
       {loading && <Alert>Assembling context…</Alert>}
       {error && <p className={styles.error}>Context unavailable: {error}</p>}
       {!loading && !error && (
-        <AssemblyResult
-          owner={owner}
-          repo={repo}
-          result={result}
-          raw={raw}
-          onToggleRaw={() => setRaw((v) => !v)}
-        />
+        <AssemblyOutcome owner={owner} repo={repo} result={result} />
       )}
     </div>
   );
@@ -79,86 +73,102 @@ function PromptDebugHelp() {
         output of <code>assemble_context</code> — plus a full trace of{" "}
         <em>how and why</em> it was assembled.
       </p>
-      <ul>
-        <li>
-          Each source shows its status, the token budget it was allocated, and
-          every document it contributed (with relevance and ingested date).
-        </li>
-        <li>
-          The final prompt is shown as a nested tag tree — the same XML the
-          runners receive.
-        </li>
-        <li>
-          Omitted sections name their reason (no results, no rule matched,
-          budget exhausted).
-        </li>
-      </ul>
+      <PromptDebugPoints />
     </HelpPopover>
   );
 }
 
-type FormControlsProps = Pick<
-  AssembledContextViewProps,
-  "template" | "templates" | "loading" | "onTemplateChange"
-> & { canSubmit: boolean };
-
-/** The template picker and the submit, which travel together: the template decides WHICH assembly runs, so choosing one and running it is a single decision. */
-function FormControls({
-  template,
-  templates,
-  loading,
-  canSubmit,
-  onTemplateChange,
-}: FormControlsProps) {
+function PromptDebugPoints() {
   return (
-    <div className={styles.controls}>
-      <label htmlFor="template" className="meta">
-        Template
-      </label>
-      <select
-        id="template"
-        value={template}
-        onChange={(e) => onTemplateChange(e.target.value)}
-        className={styles.select}
-      >
-        {templates.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </select>
-      <button type="submit" className="btn" disabled={!canSubmit}>
-        {loading ? "Assembling…" : "Assemble"}
-      </button>
+    <ul>
+      <li>
+        Each source shows its status, the token budget it was allocated, and
+        every document it contributed (with relevance and ingested date).
+      </li>
+      <li>
+        The final prompt is shown as a nested tag tree — the same XML the
+        runners receive.
+      </li>
+      <li>
+        Omitted sections name their reason (no results, no rule matched, budget
+        exhausted).
+      </li>
+    </ul>
+  );
+}
+
+type AssemblyOutcomeProps = Pick<
+  AssembledContextViewProps,
+  "owner" | "repo" | "result"
+>;
+
+/** Owns the raw/rendered toggle: it is a reading preference of the result, and nothing the query form needs to know about. */
+function AssemblyOutcome({ owner, repo, result }: AssemblyOutcomeProps) {
+  const [raw, setRaw] = useState(false);
+
+  return (
+    <AssemblyResult
+      owner={owner}
+      repo={repo}
+      result={result}
+      raw={raw}
+      onToggleRaw={() => setRaw((v) => !v)}
+    />
+  );
+}
+
+type AssemblyResultProps = AssemblyOutcomeProps & {
+  raw: boolean;
+  onToggleRaw: () => void;
+};
+
+/** The assembled block plus the trace of how it got that way; without a trace only the plain text is available, and without either there is nothing to show. */
+function AssemblyResult(props: AssemblyResultProps) {
+  const { result } = props;
+
+  if (!result) {
+    return null;
+  }
+
+  const trace = result.trace;
+  const emptyState = assemblyEmptyState(result, trace);
+
+  if (emptyState || !trace) {
+    return emptyState;
+  }
+
+  return <TraceView {...props} trace={trace} />;
+}
+
+type TraceViewProps = AssemblyResultProps & { trace: AssemblyTrace };
+
+function TraceView({ trace, ...props }: TraceViewProps) {
+  const { owner, repo, result } = props;
+
+  return (
+    <div>
+      <TraceOverview owner={owner} repo={repo} trace={trace} />
+      <AssembledPrompt
+        trace={trace}
+        text={result?.text ?? ""}
+        raw={props.raw}
+        onToggleRaw={props.onToggleRaw}
+      />
     </div>
   );
 }
 
-type QueryFormProps = FormControlsProps &
-  Pick<AssembledContextViewProps, "query" | "onQueryChange" | "onSubmit">;
+type TraceOverviewProps = Pick<AssemblyOutcomeProps, "owner" | "repo"> & {
+  trace: AssemblyTrace;
+};
 
-function QueryForm({ canSubmit, ...props }: QueryFormProps) {
+/** The assembly's inputs and the sources it drew on — everything upstream of the prompt itself. */
+function TraceOverview({ owner, repo, trace }: TraceOverviewProps) {
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-
-        // The button is already disabled; this guards the Enter-key path, which submits regardless.
-        if (canSubmit) {
-          props.onSubmit();
-        }
-      }}
-      className={styles.form}
-    >
-      <textarea
-        value={props.query}
-        onChange={(e) => props.onQueryChange(e.target.value)}
-        placeholder="Describe the task, like a dev session would…"
-        rows={2}
-        className={styles.textarea}
-      />
-      <FormControls {...props} canSubmit={canSubmit} />
-    </form>
+    <>
+      <TraceSummary trace={trace} />
+      <TraceSources owner={owner} repo={repo} sections={trace.sections} />
+    </>
   );
 }
 
@@ -183,44 +193,6 @@ function assemblyEmptyState(
   return (
     <div className={styles.fallback}>
       <Markdown markdown={result.text} />
-    </div>
-  );
-}
-
-/** The assembled block plus the trace of how it got that way; without a trace only the plain text is available, and without either there is nothing to show. */
-type AssemblyResultProps = Pick<
-  AssembledContextViewProps,
-  "owner" | "repo" | "result"
-> & { raw: boolean; onToggleRaw: () => void };
-
-function AssemblyResult({
-  owner,
-  repo,
-  result,
-  raw,
-  onToggleRaw,
-}: AssemblyResultProps) {
-  if (!result) {
-    return null;
-  }
-
-  const trace = result.trace;
-  const emptyState = assemblyEmptyState(result, trace);
-
-  if (emptyState || !trace) {
-    return emptyState;
-  }
-
-  return (
-    <div>
-      <TraceSummary trace={trace} />
-      <TraceSources owner={owner} repo={repo} sections={trace.sections} />
-      <AssembledPrompt
-        trace={trace}
-        text={result.text ?? ""}
-        raw={raw}
-        onToggleRaw={onToggleRaw}
-      />
     </div>
   );
 }

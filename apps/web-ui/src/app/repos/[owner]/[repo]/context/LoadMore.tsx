@@ -22,29 +22,20 @@ interface ContextPage {
   hasMore: boolean;
 }
 
-/** One page of a repo's context. Returns null on a failed request rather than throwing: the button re-enables and the reader can try again, which is a better answer than an error where a list was expected. */
-async function fetchContextPage({
-  owner,
-  repo,
-  q,
-  type,
-  offset,
-}: {
+interface ContextPageRequest {
   owner: string;
   repo: string;
   q?: string;
   type?: string;
   offset: number;
-}): Promise<ContextPage | null> {
-  const params = new URLSearchParams({ offset: String(offset) });
+}
 
-  if (q) {
-    params.set("q", q);
-  }
-
-  if (type) {
-    params.set("type", type);
-  }
+/** One page of a repo's context. Returns null on a failed request rather than throwing: the button re-enables and the reader can try again, which is a better answer than an error where a list was expected. */
+async function fetchContextPage(
+  request: ContextPageRequest,
+): Promise<ContextPage | null> {
+  const { owner, repo } = request;
+  const params = contextPageParams(request);
 
   try {
     const res = await fetch(`/api/repos/${owner}/${repo}/context?${params}`, {
@@ -57,18 +48,30 @@ async function fetchContextPage({
   }
 }
 
-/** The pages loaded since the server's first render; the server-rendered ones sit above this component. */
-function ContextCards({
-  chunks,
-  owner,
-  repo,
-  base,
-}: {
+/** The active keyword and content-type filters ride along with the offset, so a paged fetch sees the same list the server rendered. */
+function contextPageParams({ q, type, offset }: ContextPageRequest): string {
+  const params = new URLSearchParams({ offset: String(offset) });
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  if (type) {
+    params.set("type", type);
+  }
+
+  return String(params);
+}
+
+interface ContextCardsProps {
   chunks: ContextCardChunk[];
   owner: string;
   repo: string;
   base: string;
-}) {
+}
+
+/** The pages loaded since the server's first render; the server-rendered ones sit above this component. */
+function ContextCards({ chunks, owner, repo, base }: ContextCardsProps) {
   return (
     <>
       {chunks.map((c) => (
@@ -125,29 +128,39 @@ function MoreButton({
 
 /** Client-side pager for per-repo context list; appends pages on demand to keep initial load small. */
 export default function LoadMore(props: LoadMoreProps) {
-  const { owner, repo, q, type, initialOffset, hasMore } = props;
-  const [chunks, setChunks] = useState<ContextCardChunk[]>([]);
-  const [offset, setOffset] = useState(initialOffset);
-  const [more, setMore] = useState(hasMore);
-  const [loading, setLoading] = useState(false);
+  const { owner, repo } = props;
+  const pager = usePager(props);
 
+  return (
+    <>
+      <ContextCards
+        chunks={pager.chunks}
+        owner={owner}
+        repo={repo}
+        base={`/repos/${owner}/${repo}/context`}
+      />
+      {pager.more && (
+        <MoreButton loading={pager.loading} onClick={pager.onLoadMore} />
+      )}
+    </>
+  );
+}
+
+/** The pages appended since the first render, and the request that adds the next one. */
+function usePager(props: LoadMoreProps) {
+  const { owner, repo, q, type } = props;
+  const [chunks, setChunks] = useState<ContextCardChunk[]>([]);
+  const [offset, setOffset] = useState(props.initialOffset);
+  const [more, setMore] = useState(props.hasMore);
+  const [loading, setLoading] = useState(false);
   const loadMore = async () => {
     setLoading(true);
+
     const page = await fetchContextPage({ owner, repo, q, type, offset });
 
     setLoading(false);
     applyPage(page, { setChunks, setOffset, setMore });
   };
 
-  return (
-    <>
-      <ContextCards
-        chunks={chunks}
-        owner={owner}
-        repo={repo}
-        base={`/repos/${owner}/${repo}/context`}
-      />
-      {more && <MoreButton loading={loading} onClick={() => void loadMore()} />}
-    </>
-  );
+  return { chunks, more, loading, onLoadMore: () => void loadMore() };
 }

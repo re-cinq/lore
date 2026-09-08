@@ -20,29 +20,20 @@ import { reonboard, setupWebhook } from "./actions";
 import RepoOverviewView, { type RecentTask } from "./RepoOverviewView";
 import { type RepoEvent } from "./events/pagination";
 
-export default async function RepoOverview({
-  params,
-}: {
+interface RepoOverviewProps {
   params: Promise<{ owner: string; repo: string }>;
-}) {
-  const { owner, repo: repoName } = await params;
-  const fullName = `${owner}/${repoName}`;
+}
 
+export default async function RepoOverview(props: RepoOverviewProps) {
+  const { owner, repo: repoName } = await props.params;
+  const fullName = `${owner}/${repoName}`;
   const page = await loadRepoOverview(fullName);
 
   return (
     <RepoOverviewView
       owner={owner}
       repo={repoName}
-      readme={page.readme}
-      enrollmentChecks={page.enrollmentChecks}
-      darkFactoryEnabled={page.darkFactoryEnabled}
-      trustLevel={page.trustLevel}
-      darkTasksWeek={page.darkTasksWeek}
-      autoMergedWeek={page.autoMergedWeek}
-      escalationsWeek={page.escalationsWeek}
-      recentTasks={page.recentTasks}
-      latestEvents={page.latestEvents}
+      {...page}
       reonboardAction={reonboard.bind(null, fullName)}
       setupWebhookAction={setupWebhook.bind(null, fullName)}
     />
@@ -132,6 +123,17 @@ async function fetchRepoPanels(fullName: string) {
   return { readme, repoInfo, recentTasks, latestEvents };
 }
 
+/** The onboarding files Lore expects a repo to carry, each reported as null when the read fails. */
+function fetchOnboardingFiles(fullName: string) {
+  return checkRepoFiles(fullName, [
+    "AGENTS.md",
+    ".github/workflows/lore-ingest.yml",
+  ]).catch(() => ({
+    "AGENTS.md": null,
+    ".github/workflows/lore-ingest.yml": null,
+  }));
+}
+
 /** How well the repo is wired into Lore: its session, its onboarding files, its webhook, its dark-factory counters. Fail-soft in the same way, and each figure falls back to null rather than to zero — "not known" is not "none". */
 async function fetchIntegrationPanels(fullName: string) {
   const [localMcpRow, githubFiles, webhook, activityCounts] = await Promise.all(
@@ -139,13 +141,7 @@ async function fetchIntegrationPanels(fullName: string) {
       getRepoSessions(fullName).then((r) =>
         r.status === "ok" ? r.data : null,
       ),
-      checkRepoFiles(fullName, [
-        "AGENTS.md",
-        ".github/workflows/lore-ingest.yml",
-      ]).catch(() => ({
-        "AGENTS.md": null,
-        ".github/workflows/lore-ingest.yml": null,
-      })),
+      fetchOnboardingFiles(fullName),
       getWebhookStatus(fullName).catch(() => null),
       getRepoActivityCounts(fullName).then((r) =>
         r.status === "ok"

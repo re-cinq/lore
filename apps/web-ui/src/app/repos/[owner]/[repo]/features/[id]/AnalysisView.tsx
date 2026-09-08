@@ -5,18 +5,17 @@ import GapSections, { type FeedbackState } from "./GapSections";
 import FailureBlock from "./FailureBlock";
 import { lineageLabel, rewindOptions } from "@/lib/round-picker";
 
-/** Which earlier round the next one continues from. Rounds after the chosen one stay on record; they are simply not carried forward. */
-function RewindPicker({
-  rounds,
-  continueFrom,
-  disabled,
-  onChange,
-}: {
+interface RewindPickerProps {
   rounds: ReturnType<typeof rewindOptions>;
   continueFrom: number | undefined;
   disabled: boolean;
   onChange: (iteration: number) => void;
-}) {
+}
+
+/** Which earlier round the next one continues from. Rounds after the chosen one stay on record; they are simply not carried forward. */
+function RewindPicker(props: RewindPickerProps) {
+  const { rounds, continueFrom, disabled, onChange } = props;
+
   return (
     <label className={`meta ${styles.continueFrom}`}>
       Continue from{" "}
@@ -64,20 +63,33 @@ function CreateSpecPrButton({
   );
 }
 
+/** The refine action, which starts one more round on the same feature. */
+function RefineButton({
+  pending,
+  onClick,
+}: {
+  pending: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <SubmitButton
+      type="button"
+      pending={pending}
+      pendingLabel="Working…"
+      onClick={onClick}
+    >
+      Refine again
+    </SubmitButton>
+  );
+}
+
 /** The two ways forward from an analysis, and the picker that decides which round the next one continues from. */
 function RoundActions(props: RoundActionsProps) {
   const { pending, rounds, continueFrom } = props;
 
   return (
     <div className={styles.actions}>
-      <SubmitButton
-        type="button"
-        pending={pending}
-        pendingLabel="Working…"
-        onClick={props.onRefine}
-      >
-        Refine again
-      </SubmitButton>
+      <RefineButton pending={pending} onClick={props.onRefine} />
       <CreateSpecPrButton disabled={pending} onClick={props.onCreateSpecPr} />
       {rounds.length > 1 && (
         <RewindPicker
@@ -169,6 +181,17 @@ function AnalysisBody(props: AnalysisBodyProps) {
         onChange={handlers.onChangeFeedback}
         onCreateDraft={handlers.onCreateDraft}
       />
+      <AnalysisActions {...props} />
+    </div>
+  );
+}
+
+/** Both ways forward plus the note explaining what a rewind costs — one block, because an author reads the choice and its consequence together. */
+function AnalysisActions(props: AnalysisBodyProps) {
+  const { handlers } = props;
+
+  return (
+    <>
       <RoundActions
         pending={props.pending}
         rounds={props.rounds}
@@ -178,7 +201,7 @@ function AnalysisBody(props: AnalysisBodyProps) {
         onContinueFrom={handlers.onContinueFrom}
       />
       <RewindNote show={props.rewinding} continueFrom={props.continueFrom} />
-    </div>
+    </>
   );
 }
 

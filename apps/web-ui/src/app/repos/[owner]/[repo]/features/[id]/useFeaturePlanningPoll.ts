@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import { toApiResult } from "@/lib/api/result";
 import type { FeaturePollPayload } from "@/lib/feature-poll";
 import type { FeatureRunPayload } from "@/lib/feature-run";
@@ -54,23 +55,15 @@ interface PollHandle {
   refresh: () => Promise<FeaturePollPayload | null>;
 }
 
-/** Poll while wizard is on screen; failed polls keep last good payload; run graph fetched once per run via named request. */
-export function useFeaturePlanningPoll({
-  owner,
-  repo,
-  featureId,
-  initial,
-}: PollInput): PollHandle {
-  const [payload, setPayload] = useState<FeaturePollPayload>(initial);
+/** One poll, folded into state and handed back to the caller. Identity is stable across renders so the interval below is not torn down on every payload. */
+function usePollRefresh(
+  target: PollInput,
+  held: RefObject<FeatureRunPayload | null>,
+  setPayload: Dispatch<SetStateAction<FeaturePollPayload>>,
+) {
+  const { owner, repo, featureId } = target;
 
-  // Run's graph in hand via ref so `refresh` keeps stable identity; written in effect for concurrent React safety.
-  const held = useRef<FeatureRunPayload | null>(null);
-
-  useEffect(() => {
-    held.current = payload.run ?? null;
-  }, [payload.run]);
-
-  const refresh = useCallback(async (): Promise<FeaturePollPayload | null> => {
+  return useCallback(async (): Promise<FeaturePollPayload | null> => {
     const result = await fetchPoll({ owner, repo, featureId }, held.current);
 
     if (result.status !== "ok") {
@@ -82,7 +75,22 @@ export function useFeaturePlanningPoll({
     setPayload((previous) => withMergedGraph(previous.run ?? null, fresh));
 
     return withMergedGraph(held.current, fresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the ref and the state setter are stable for the component's lifetime.
   }, [owner, repo, featureId]);
+}
+
+/** Poll while wizard is on screen; failed polls keep last good payload; run graph fetched once per run via named request. */
+export function useFeaturePlanningPoll(input: PollInput): PollHandle {
+  const [payload, setPayload] = useState<FeaturePollPayload>(input.initial);
+
+  // Run's graph in hand via ref so `refresh` keeps stable identity; written in effect for concurrent React safety.
+  const held = useRef<FeatureRunPayload | null>(null);
+
+  useEffect(() => {
+    held.current = payload.run ?? null;
+  }, [payload.run]);
+
+  const refresh = usePollRefresh(input, held, setPayload);
 
   useEffect(() => {
     void refresh();

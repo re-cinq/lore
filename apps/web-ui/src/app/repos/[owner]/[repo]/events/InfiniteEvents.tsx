@@ -19,6 +19,65 @@ interface EventsPage {
   hasMore: boolean;
 }
 
+interface PagerState {
+  events: RepoEvent[];
+  offset: number;
+  more: boolean;
+  loading: boolean;
+  failed: boolean;
+}
+
+type SetPagerState = React.Dispatch<React.SetStateAction<PagerState>>;
+
+/** Infinite-scroll events pager: first page server-side, appends on sentinel scroll, pauses on failure. */
+export default function InfiniteEvents(props: InfiniteEventsProps) {
+  const pager = useInfiniteEvents(props);
+  const { events, more } = pager;
+
+  return (
+    <>
+      {events.map((e) => (
+        <EventRow key={e.id} event={e} />
+      ))}
+      {more ? <SentinelRow {...pager} /> : events.length > 0 && <EndOfList />}
+    </>
+  );
+}
+
+/** Loads the next page when the sentinel row scrolls into view. The observer DISCONNECTS on the first intersection and is rebuilt by the effect: an observer left attached would fire again for the same row while the fetch is still in flight. A failure stops the loop rather than retrying forever — the reader retries, which also clears the flag that re-arms this effect. */
+function useInfiniteEvents(props: InfiniteEventsProps) {
+  const { owner, repo } = props;
+  const [state, setState] = useState(() => initialPagerState(props));
+  const sentinel = useRef<HTMLTableRowElement>(null);
+  const { offset, more, loading, failed } = state;
+
+  useEffect(() => {
+    const node = sentinel.current;
+
+    if (!node || !canStartObserving(node, more, loading, failed)) {
+      return;
+    }
+
+    return armSentinel(node, () => loadNextPage(owner, repo, offset, setState));
+  }, [owner, repo, offset, more, loading, failed]);
+
+  return { ...state, sentinel, onRetry: () => setState(clearFailure) };
+}
+
+/** The server rendered the first page already, so the pager starts past it. */
+function initialPagerState({
+  initialOffset,
+  hasMore,
+}: InfiniteEventsProps): PagerState {
+  return {
+    events: [],
+    offset: initialOffset,
+    more: hasMore,
+    loading: false,
+    failed: false,
+  };
+}
+
 function canStartObserving(
   node: HTMLTableRowElement | null,
   more: boolean,
@@ -28,36 +87,34 @@ function canStartObserving(
   return !!node && more && !loading && !failed;
 }
 
-function PagerCell({
-  loading,
-  failed,
-  onRetry,
-}: {
-  loading: boolean;
-  failed: boolean;
-  onRetry: () => void;
-}) {
-  if (loading) {
-    return (
-      <>
-        <span className={`route-loading-spinner ${styles.spinner}`} />
-        Loading more…
-      </>
-    );
-  }
+/** Watches one row and fires once. The observer disconnects itself before `onHit` runs, so a slow load cannot be started twice for the same row; the effect that called this arms a fresh observer when the next page is wanted. Returns the effect's cleanup. */
+function armSentinel(node: HTMLTableRowElement, onHit: () => Promise<void>) {
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises -- async observer callback; state updates handled inside
+  const observer = new IntersectionObserver(async (entries) => {
+    if (!entries[0]?.isIntersecting) {
+      return;
+    }
+    observer.disconnect();
+    await onHit();
+  });
 
-  if (failed) {
-    return (
-      <>
-        Couldn&apos;t load more events.{" "}
-        <button type="button" className="btn-secondary" onClick={onRetry}>
-          Retry
-        </button>
-      </>
-    );
-  }
+  observer.observe(node);
 
-  return null;
+  return () => observer.disconnect();
+}
+
+/** Fetches one page and folds the outcome into the pager in a single update. */
+async function loadNextPage(
+  owner: string,
+  repo: string,
+  offset: number,
+  setState: SetPagerState,
+) {
+  setState((prev) => ({ ...prev, loading: true }));
+
+  const page = await fetchEventsPage(owner, repo, offset);
+
+  setState((prev) => applyPage(prev, page));
 }
 
 /** One page of events, or `null` when the request did not produce one. Every failure mode — offline, a non-2xx, the 15s timeout, unparseable JSON — collapses to the same `null`, because the reader is offered the same retry for all of them. */
@@ -78,72 +135,74 @@ async function fetchEventsPage(
   }
 }
 
-interface PagerSetters {
-  setEvents: React.Dispatch<React.SetStateAction<RepoEvent[]>>;
-  setOffset: React.Dispatch<React.SetStateAction<number>>;
-  setMore: React.Dispatch<React.SetStateAction<boolean>>;
-  setFailed: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-/** Folds one fetch result into the pager. A `null` page raises the failure flag rather than ending the list: the events after this offset still exist, so the reader is offered a retry instead of being told there are none. */
-function applyPage(page: EventsPage | null, setters: PagerSetters) {
+/** A `null` page raises the failure flag rather than ending the list: the events after this offset still exist, so the reader is offered a retry instead of being told there are none. */
+function applyPage(prev: PagerState, page: EventsPage | null): PagerState {
   if (!page) {
-    setters.setFailed(true);
-
-    return;
+    return { ...prev, loading: false, failed: true };
   }
-  setters.setEvents((prev) => [...prev, ...page.events]);
-  setters.setOffset((prev) => prev + EVENTS_PAGE_SIZE);
-  setters.setMore(page.hasMore);
+
+  return {
+    events: [...prev.events, ...page.events],
+    offset: prev.offset + EVENTS_PAGE_SIZE,
+    more: page.hasMore,
+    loading: false,
+    failed: false,
+  };
 }
 
-/** Watches one row and fires once. The observer disconnects itself before `onHit` runs, so a slow load cannot be started twice for the same row; the effect that called this arms a fresh observer when the next page is wanted. Returns the effect's cleanup. */
-function armSentinel(node: HTMLTableRowElement, onHit: () => Promise<void>) {
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises -- async observer callback; state updates handled inside
-  const observer = new IntersectionObserver(async (entries) => {
-    if (!entries[0]?.isIntersecting) {
-      return;
-    }
-    observer.disconnect();
-    await onHit();
-  });
-
-  observer.observe(node);
-
-  return () => observer.disconnect();
+/** Retrying clears the flag that stopped the loop, which is what re-arms the effect. */
+function clearFailure(prev: PagerState): PagerState {
+  return { ...prev, failed: false };
 }
 
-/** Loads the next page when the sentinel row scrolls into view. The observer DISCONNECTS on the first intersection and is rebuilt by the effect: an observer left attached would fire again for the same row while the fetch is still in flight. A failure stops the loop rather than retrying forever — the reader retries, which also clears the flag that re-arms this effect. */
-function useInfiniteEvents(
-  owner: string,
-  repo: string,
-  initialOffset: number,
-  hasMore: boolean,
-) {
-  const [events, setEvents] = useState<RepoEvent[]>([]);
-  const [offset, setOffset] = useState(initialOffset);
-  const [more, setMore] = useState(hasMore);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const sentinel = useRef<HTMLTableRowElement>(null);
+interface PagerCellProps {
+  loading: boolean;
+  failed: boolean;
+  onRetry: () => void;
+}
 
-  useEffect(() => {
-    const node = sentinel.current;
+interface SentinelRowProps extends PagerCellProps {
+  sentinel: React.RefObject<HTMLTableRowElement | null>;
+}
 
-    if (!node || !canStartObserving(node, more, loading, failed)) {
-      return;
-    }
+/** The row the observer watches; its cell says what is happening while the reader waits. */
+function SentinelRow({ sentinel, loading, failed, onRetry }: SentinelRowProps) {
+  return (
+    <tr ref={sentinel}>
+      <td colSpan={4} className={`meta ${styles.pagerCell}`}>
+        <PagerCell loading={loading} failed={failed} onRetry={onRetry} />
+      </td>
+    </tr>
+  );
+}
 
-    return armSentinel(node, async () => {
-      setLoading(true);
-      const page = await fetchEventsPage(owner, repo, offset);
+function PagerCell({ loading, failed, onRetry }: PagerCellProps) {
+  if (loading) {
+    return (
+      <>
+        <span className={`route-loading-spinner ${styles.spinner}`} />
+        Loading more…
+      </>
+    );
+  }
 
-      setLoading(false);
-      applyPage(page, { setEvents, setOffset, setMore, setFailed });
-    });
-  }, [owner, repo, offset, more, loading, failed]);
+  if (failed) {
+    return <RetryPrompt onRetry={onRetry} />;
+  }
 
-  return { events, more, loading, failed, setFailed, sentinel };
+  return null;
+}
+
+/** Every failure mode collapses to the same offer: ask for that page again. */
+function RetryPrompt({ onRetry }: Pick<PagerCellProps, "onRetry">) {
+  return (
+    <>
+      Couldn&apos;t load more events.{" "}
+      <button type="button" className="btn-secondary" onClick={onRetry}>
+        Retry
+      </button>
+    </>
+  );
 }
 
 /** Says the list is complete. Only rendered once a page has actually loaded — on an empty repo the reader has reached the end of nothing, and saying so would read as a failure. */
@@ -154,37 +213,5 @@ function EndOfList() {
         You&apos;ve reached the end.
       </td>
     </tr>
-  );
-}
-
-/** Infinite-scroll events pager: first page server-side, appends on sentinel scroll, pauses on failure. */
-export default function InfiniteEvents({
-  owner,
-  repo,
-  initialOffset,
-  hasMore,
-}: InfiniteEventsProps) {
-  const { events, more, loading, failed, setFailed, sentinel } =
-    useInfiniteEvents(owner, repo, initialOffset, hasMore);
-
-  return (
-    <>
-      {events.map((e) => (
-        <EventRow key={e.id} event={e} />
-      ))}
-      {more ? (
-        <tr ref={sentinel}>
-          <td colSpan={4} className={`meta ${styles.pagerCell}`}>
-            <PagerCell
-              loading={loading}
-              failed={failed}
-              onRetry={() => setFailed(false)}
-            />
-          </td>
-        </tr>
-      ) : (
-        events.length > 0 && <EndOfList />
-      )}
-    </>
   );
 }

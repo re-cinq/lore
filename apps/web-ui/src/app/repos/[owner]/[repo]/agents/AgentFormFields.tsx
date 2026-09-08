@@ -31,6 +31,28 @@ interface ModelFieldProps {
   customModel: string;
 }
 
+/** The picker itself: every known model plus the escape hatch that reveals the custom box. */
+function ModelSelect({
+  selection,
+  onSelect,
+}: Omit<ModelFieldProps, "customModel">): React.ReactElement {
+  return (
+    <select
+      name="model_select"
+      value={selection}
+      onChange={(e) => onSelect(e.target.value)}
+    >
+      <option value="">(inherit)</option>
+      {KNOWN_MODELS.map((m) => (
+        <option key={m.id} value={m.id}>
+          {m.label}
+        </option>
+      ))}
+      <option value="__custom__">Custom…</option>
+    </select>
+  );
+}
+
 /** A known model or a typed-in id. The custom box only exists while `Custom…` is selected, so a stale id can never be submitted alongside a picked one. */
 export function ModelField({
   selection,
@@ -39,19 +61,7 @@ export function ModelField({
 }: ModelFieldProps): React.ReactElement {
   return (
     <>
-      <select
-        name="model_select"
-        value={selection}
-        onChange={(e) => onSelect(e.target.value)}
-      >
-        <option value="">(inherit)</option>
-        {KNOWN_MODELS.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.label}
-          </option>
-        ))}
-        <option value="__custom__">Custom…</option>
-      </select>
+      <ModelSelect selection={selection} onSelect={onSelect} />
       {selection === "__custom__" && (
         <input
           name="model_custom"
@@ -63,23 +73,29 @@ export function ModelField({
   );
 }
 
-/** One row of the requests/limits grid. Blank inherits the platform default, which is what the placeholder shows. */
-function ResourceRow({
-  label,
-  prefix,
-  values,
-  placeholders,
-}: {
+interface ResourceRowProps {
   label: string;
   prefix: string;
   values: PodResources["requests"];
   placeholders: [string, string, string];
-}): React.ReactElement {
-  const fields: [string, string | undefined, string][] = [
+}
+
+/** The three quantities a row edits, paired with the platform default each shows when left blank. */
+function resourceFields(
+  values: PodResources["requests"],
+  placeholders: [string, string, string],
+): [string, string | undefined, string][] {
+  return [
     ["cpu", values?.cpu, placeholders[0]],
     ["memory", values?.memory, placeholders[1]],
     ["ephemeral", values?.["ephemeral-storage"], placeholders[2]],
   ];
+}
+
+/** One row of the requests/limits grid. Blank inherits the platform default, which is what the placeholder shows. */
+function ResourceRow(props: ResourceRowProps): React.ReactElement {
+  const { label, prefix, values, placeholders } = props;
+  const fields = resourceFields(values, placeholders);
 
   return (
     <>
@@ -96,18 +112,27 @@ function ResourceRow({
   );
 }
 
-/** The requests/limits grid. Placeholders carry the PLATFORM defaults rather than prefilling them, so a definition that has chosen nothing stores nothing — and picks up a new default when the platform changes one. */
-function ResourceGrid({
-  podResources,
-}: {
+interface PodResourceProps {
   podResources: PodResources;
-}): React.ReactElement {
+}
+
+/** The grid's column headings. The leading empty cell is the row-label column, which has no heading of its own. */
+function ResourceGridHead(): React.ReactElement {
   return (
-    <div className={styles.resourceGrid}>
+    <>
       <span />
       <span className={styles.resourceHeading}>CPU</span>
       <span className={styles.resourceHeading}>Memory</span>
       <span className={styles.resourceHeading}>Ephemeral storage</span>
+    </>
+  );
+}
+
+/** The requests/limits grid. Placeholders carry the PLATFORM defaults rather than prefilling them, so a definition that has chosen nothing stores nothing — and picks up a new default when the platform changes one. */
+function ResourceGrid({ podResources }: PodResourceProps): React.ReactElement {
+  return (
+    <div className={styles.resourceGrid}>
+      <ResourceGridHead />
       <ResourceRow
         label="Requests"
         prefix="requests"
@@ -126,9 +151,7 @@ function ResourceGrid({
 
 export function PodResourceFields({
   podResources,
-}: {
-  podResources: PodResources;
-}): React.ReactElement {
+}: PodResourceProps): React.ReactElement {
   return (
     <>
       <label>Pod resources</label>
@@ -163,14 +186,15 @@ function ImageNote({
   );
 }
 
-/** Repo-scoped only: the API refuses an org-wide image change, because the two-key ceremony that authorizes one is repo-scoped. */
-export function ImageFields({
-  image,
-  defaultImage,
-}: {
+interface ImageFieldsProps {
   image: string | null | undefined;
   defaultImage?: string;
-}): React.ReactElement {
+}
+
+/** Repo-scoped only: the API refuses an org-wide image change, because the two-key ceremony that authorizes one is repo-scoped. */
+export function ImageFields(props: ImageFieldsProps): React.ReactElement {
+  const { image, defaultImage } = props;
+
   return (
     <>
       <label>Execution image (security-gated)</label>
@@ -242,16 +266,16 @@ export function FormActions({
   );
 }
 
-/** How long a run may take and what it is told to do. Both fall back to the INHERITED value when left blank — the placeholder says so, because an empty field here means "use the org default", not "no timeout" or "no prompt". */
-export function RunLimitsFields({
-  timeoutMinutes,
-  prompt,
-  promptPlaceholder,
-}: {
+interface RunLimitsFieldsProps {
   timeoutMinutes: string | number | undefined;
   prompt: string | undefined;
   promptPlaceholder: string | undefined;
-}) {
+}
+
+/** Blank means inherit rather than "no timeout", which the placeholder rather than the bounds is what says so. */
+function TimeoutField({
+  timeoutMinutes,
+}: Pick<RunLimitsFieldsProps, "timeoutMinutes">) {
   return (
     <>
       <label>Timeout (minutes)</label>
@@ -263,6 +287,17 @@ export function RunLimitsFields({
         defaultValue={timeoutMinutes}
         placeholder="(inherit)"
       />
+    </>
+  );
+}
+
+/** How long a run may take and what it is told to do. Both fall back to the INHERITED value when left blank — the placeholder says so, because an empty field here means "use the org default", not "no timeout" or "no prompt". */
+export function RunLimitsFields(props: RunLimitsFieldsProps) {
+  const { timeoutMinutes, prompt, promptPlaceholder } = props;
+
+  return (
+    <>
+      <TimeoutField timeoutMinutes={timeoutMinutes} />
 
       <label>Prompt</label>
       <textarea
