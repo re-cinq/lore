@@ -104,39 +104,68 @@ function classifyApplyError(err: unknown, crdName: string): EntryVerdict {
   };
 }
 
+// Why this cluster will not take the entry, if it will not. A refusal is PERMANENT for this (row, cluster) pair, so the loop acks past it rather than re-serving — re-serving head-of-line blocked the tail for 2h on 2026-09-01.
+function refusalVerdict(
+  definition: NonNullable<
+    CatalogEventsResponse["entries"][number]["definition"]
+  >,
+  crdName: string,
+  deps: CatalogSyncTickDeps,
+): EntryVerdict | null {
+  const refusal = validateCatalogEntry(definition, deps.crdOptions);
+
+  return refusal === null
+    ? null
+    : { state: "refused", detail: `${crdName}: ${refusal}`, reason: refusal };
+}
+
 /** Land one catalog entry as a CRD pair. */
+// Lands the recipe and its station together, unless this cluster refuses the definition.
+async function landPair(
+  deps: CatalogSyncTickDeps,
+  definition: NonNullable<
+    CatalogEventsResponse["entries"][number]["definition"]
+  >,
+  crdName: string,
+): Promise<EntryVerdict> {
+  const refusal = refusalVerdict(definition, crdName, deps);
+
+  if (refusal) {
+    return refusal;
+  }
+  await deps.catalog.applyPair(agentDefToCrds(definition, deps.crdOptions));
+
+  return { state: "applied" };
+}
+
+// The write itself: skip what this cluster does not own, delete what the row cleared, refuse what it will not take, otherwise land the pair. Throws — the caller classifies, because whether a failure is transient decides if the loop acks past it.
+async function writeCatalogEntry(
+  deps: CatalogSyncTickDeps,
+  entry: CatalogEventsResponse["entries"][number],
+  crdName: string,
+): Promise<EntryVerdict> {
+  const ownership = await resolveCrdOwnership(deps, crdName);
+
+  if (!ownership.writable) {
+    return skippedVerdict(crdName, ownership.managedBy);
+  }
+
+  if (entry.definition === null) {
+    await deps.catalog.deletePair(crdName);
+
+    return { state: "deleted" };
+  }
+
+  return landPair(deps, entry.definition, crdName);
+}
+
 async function applyCatalogEntry(
   deps: CatalogSyncTickDeps,
   entry: CatalogEventsResponse["entries"][number],
   crdName: string,
 ): Promise<EntryVerdict> {
   try {
-    const ownership = await resolveCrdOwnership(deps, crdName);
-
-    if (!ownership.writable) {
-      return skippedVerdict(crdName, ownership.managedBy);
-    }
-
-    if (entry.definition === null) {
-      await deps.catalog.deletePair(crdName);
-
-      return { state: "deleted" };
-    }
-    // Refusal is permanent for this (row, cluster) pair, so the loop acks past it — re-serving head-of-line blocked the tail for 2h on 2026-09-01.
-    const refusal = validateCatalogEntry(entry.definition, deps.crdOptions);
-
-    if (refusal !== null) {
-      return {
-        state: "refused",
-        detail: `${crdName}: ${refusal}`,
-        reason: refusal,
-      };
-    }
-    await deps.catalog.applyPair(
-      agentDefToCrds(entry.definition, deps.crdOptions),
-    );
-
-    return { state: "applied" };
+    return await writeCatalogEntry(deps, entry, crdName);
   } catch (err) {
     return classifyApplyError(err, crdName);
   }
@@ -154,9 +183,9 @@ export interface BatchTally {
 export type BatchApplyResult =
   { kind: "ok"; tally: BatchTally } | { kind: "transient"; message: string };
 
-function recordVerdict(
+// Counts one verdict. Applied and deleted are tallied as numbers while skipped and refused keep their DETAIL — a count of refusals tells nobody which entries this cluster will not take.
+function countVerdict(
   tally: BatchTally,
-  entry: CatalogEventsResponse["entries"][number],
   verdict: Exclude<EntryVerdict, { state: "transient" }>,
 ): void {
   if (verdict.state === "applied") {
@@ -174,6 +203,14 @@ function recordVerdict(
   if (verdict.state === "refused") {
     tally.refused.push(verdict.detail);
   }
+}
+
+function recordVerdict(
+  tally: BatchTally,
+  entry: CatalogEventsResponse["entries"][number],
+  verdict: Exclude<EntryVerdict, { state: "transient" }>,
+): void {
+  countVerdict(tally, verdict);
   tally.reports.push({
     name: entry.name,
     projectId: entry.project_id,
@@ -182,17 +219,16 @@ function recordVerdict(
   });
 }
 
+// A tally that has seen nothing yet.
+function emptyTally(): BatchTally {
+  return { applied: 0, deleted: 0, skipped: [], refused: [], reports: [] };
+}
+
 export async function applyBatchEntries(
   deps: CatalogSyncTickDeps,
   entries: CatalogEventsResponse["entries"],
 ): Promise<BatchApplyResult> {
-  const tally: BatchTally = {
-    applied: 0,
-    deleted: 0,
-    skipped: [],
-    refused: [],
-    reports: [],
-  };
+  const tally = emptyTally();
 
   for (const entry of entries) {
     const crdName = catalogCrdName(entry.name, entry.project_id);

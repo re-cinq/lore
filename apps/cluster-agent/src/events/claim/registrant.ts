@@ -29,6 +29,24 @@ const sleep = (ms: number): Promise<void> =>
 /** How long the claim loop's start waits on the first catalog sync — long enough for a snapshot, short enough a wedged API cannot block claiming forever. */
 const FIRST_SYNC_TIMEOUT_MS = 120_000;
 
+// The first registration, with the line that says this cluster is now claiming. Announced here rather than by the caller because the id only exists once registration has succeeded.
+async function registerAndAnnounce(
+  opts: Pick<RegistrantOpts, "config" | "store" | "publishTelemetryCredential">,
+): Promise<ClusterAgentIdentity> {
+  const identity = await registerWithBackoff({
+    config: opts.config,
+    store: opts.store,
+    sleep,
+    publishTelemetryCredential: opts.publishTelemetryCredential,
+  });
+
+  console.log(
+    `[cluster-agent] registered as ${opts.config.name} (${identity.id}), tags [${opts.config.tags.join(", ")}] — claim loop starting`,
+  );
+
+  return identity;
+}
+
 /** Registers, and hands back the identity as a GETTER rather than a value: a 401 rotates it mid-run, and every loop must read the current one rather than the one it captured at startup. */
 async function establishIdentity(
   opts: Pick<RegistrantOpts, "config" | "store" | "publishTelemetryCredential">,
@@ -37,17 +55,7 @@ async function establishIdentity(
   reRegister: () => Promise<ClusterAgentIdentity | null>;
 }> {
   const { config, store, publishTelemetryCredential } = opts;
-  let current: ClusterAgentIdentity = await registerWithBackoff({
-    config,
-    store,
-    sleep,
-    publishTelemetryCredential,
-  });
-
-  console.log(
-    `[cluster-agent] registered as ${config.name} (${current.id}), tags [${config.tags.join(", ")}] — claim loop starting`,
-  );
-
+  let current = await registerAndAnnounce(opts);
   const reRegister = singleFlightReRegister({
     config,
     store,
@@ -106,32 +114,41 @@ export interface RegistrantOpts {
   running: () => boolean;
 }
 
-/** The two loops that run BESIDE the claim loop: the catalog sync, whose first snapshot gates the start, and the heartbeat, which must keep reporting while a long claim executes. Returns the first-sync promise the caller waits on. */
-function startSideLoops(opts: {
+// What both side loops need: where to talk, who this cluster is, and whether the process is still up. One shape because they are started together and stopped together.
+interface SideLoopOpts {
   env: NodeJS.ProcessEnv;
   config: RegistrationConfig;
   identity: () => ClusterAgentIdentity;
   reRegister: () => Promise<ClusterAgentIdentity | null>;
   running: () => boolean;
-}): Promise<void> {
-  const { env, config, identity, reRegister, running } = opts;
-  const firstSync = startCatalogSync({
-    env,
-    config,
-    identity,
-    reRegister,
-    running,
-  });
+}
+
+/** The two loops that run BESIDE the claim loop: the catalog sync, whose first snapshot gates the start, and the heartbeat, which must keep reporting while a long claim executes. Returns the first-sync promise the caller waits on. */
+function startSideLoops(opts: SideLoopOpts): Promise<void> {
+  const firstSync = startCatalogSync(opts);
 
   startHeartbeat({
-    env,
-    apiUrl: config.apiUrl,
-    identity,
-    reRegister,
-    running,
+    env: opts.env,
+    apiUrl: opts.config.apiUrl,
+    identity: opts.identity,
+    reRegister: opts.reRegister,
+    running: opts.running,
   });
 
   return firstSync;
+}
+
+// What one claim needs: where to ask, who is asking, and where the work runs. `identity` stays a getter — a 401 rotates it mid-run, and a captured value would keep claiming with a credential the API no longer accepts.
+function claimDeps(
+  config: RegistrationConfig,
+  identity: () => ClusterAgentIdentity,
+  backend: RegistrantOpts["backend"],
+): Parameters<typeof claimOnce>[0] {
+  return {
+    apiUrl: config.apiUrl,
+    identity,
+    launch: (spec) => backend.launch(spec),
+  };
 }
 
 export async function runRegistrant(opts: RegistrantOpts): Promise<void> {
@@ -151,12 +168,7 @@ export async function runRegistrant(opts: RegistrantOpts): Promise<void> {
   await awaitFirstCatalogSync(firstSync);
 
   await runClaimLoop({
-    claim: () =>
-      claimOnce({
-        apiUrl: config.apiUrl,
-        identity,
-        launch: (spec) => backend.launch(spec),
-      }),
+    claim: () => claimOnce(claimDeps(config, identity, backend)),
     reRegister,
     sleep,
     baseDelayMs: claimIntervalMs(env),
@@ -174,21 +186,47 @@ function singleFlightReRegister(opts: {
   let inFlight: Promise<ClusterAgentIdentity | null> | null = null;
 
   return () =>
-    (inFlight ??= registerOnce({
-      config: opts.config,
-      store: opts.store,
-      publishTelemetryCredential: opts.publishTelemetryCredential,
-    })
-      .then((rotated) => {
-        if (rotated) {
-          opts.adopt(rotated);
-        }
+    (inFlight ??= attemptReRegister(opts).finally(() => {
+      inFlight = null;
+    }));
+}
 
-        return rotated;
-      })
-      .finally(() => {
-        inFlight = null;
-      }));
+// One re-registration, adopting the rotated identity if it succeeded. Adopting here rather than at the call site is what makes the getter every loop reads point at the new credential the moment it exists.
+function attemptReRegister(opts: {
+  config: RegistrationConfig;
+  store: IdentityStore;
+  publishTelemetryCredential: (id: ClusterAgentIdentity) => Promise<void>;
+  adopt: (identity: ClusterAgentIdentity) => void;
+}): Promise<ClusterAgentIdentity | null> {
+  return registerOnce({
+    config: opts.config,
+    store: opts.store,
+    publishTelemetryCredential: opts.publishTelemetryCredential,
+  }).then((rotated) => {
+    if (rotated) {
+      opts.adopt(rotated);
+    }
+
+    return rotated;
+  });
+}
+
+// The sync loop died. Logged, not rethrown: it runs beside the claim loop, and a cluster that can still claim work is more useful than one that exits because its catalog went stale.
+function reportSyncCrash(err: unknown): void {
+  console.error("[cluster-agent] catalog sync loop crashed:", err);
+}
+
+// A promise that settles on the first completed catalog sync. The claim loop waits on it: a claim that lands before the first snapshot cannot resolve an Agent CR's stationRef.
+function firstSyncLatch(): {
+  firstSync: Promise<void>;
+  resolveFirstSync: () => void;
+} {
+  let resolveFirstSync = (): void => {};
+  const firstSync = new Promise<void>((resolve) => {
+    resolveFirstSync = resolve;
+  });
+
+  return { firstSync, resolveFirstSync: () => resolveFirstSync() };
 }
 
 /** The catalog sync rides beside the claim loop and GATES its start — the first full-catalog snapshot must be able to resolve an Agent CR's stationRef. The returned promise settles on that first snapshot. */
@@ -219,19 +257,10 @@ function syncOptions(
   };
 }
 
-function startCatalogSync(opts: {
-  env: NodeJS.ProcessEnv;
-  config: RegistrationConfig;
-  identity: () => ClusterAgentIdentity;
-  reRegister: () => Promise<ClusterAgentIdentity | null>;
-  running: () => boolean;
-}): Promise<void> {
+function startCatalogSync(opts: SideLoopOpts): Promise<void> {
   const { env, config, identity, reRegister, running } = opts;
   const catalog = catalogTarget();
-  let resolveFirstSync = (): void => {};
-  const firstSync = new Promise<void>((resolve) => {
-    resolveFirstSync = resolve;
-  });
+  const { firstSync, resolveFirstSync } = firstSyncLatch();
 
   void runCatalogSyncLoop({
     sync: (ack, snapshot) =>
@@ -244,10 +273,8 @@ function startCatalogSync(opts: {
     sleep,
     baseDelayMs: syncIntervalMs(env),
     running,
-    onFirstSync: () => resolveFirstSync(),
-  }).catch((err) => {
-    console.error("[cluster-agent] catalog sync loop crashed:", err);
-  });
+    onFirstSync: resolveFirstSync,
+  }).catch(reportSyncCrash);
 
   return firstSync;
 }

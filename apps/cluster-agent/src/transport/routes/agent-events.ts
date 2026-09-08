@@ -17,6 +17,14 @@ export interface AgentEventsDeps {
   acceptedTokens: () => Array<string | undefined>;
 }
 
+// Whether the presented token is one of ours. Every comparison runs even after a match — the same reason `secretEquals` exists: bailing early leaks, through timing, which credential matched.
+function matchesAny(presented: string, configured: string[]): boolean {
+  return configured.reduce(
+    (found, token) => secretEquals(presented, token) || found,
+    false,
+  );
+}
+
 /** Accept the request only if it presents one of this cluster's credentials; every comparison runs even after a match (same reason `secretEquals` exists). */
 function enforceAnyBearer(
   headers: Record<string, unknown>,
@@ -33,13 +41,9 @@ function enforceAnyBearer(
   );
 
   const presented = extractBearer(headers["authorization"]);
-  const matched = configured.reduce(
-    (found, token) => secretEquals(presented ?? "", token) || found,
-    false,
-  );
 
   enforceTrue(
-    presented && matched,
+    presented && matchesAny(presented, configured),
     apiError(401),
     "missing or invalid bearer token — run pods authenticate with this cluster's agent-events credential",
   );

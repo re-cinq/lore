@@ -80,22 +80,25 @@ export class AgentWatchInput implements EventInput {
     }
   }
 
-  private async watchOnce(deps: WatchDeps): Promise<void> {
-    const kc = kubeConfig();
-    const k8sApi = customObjectsApi();
-    const namespace = agentsNamespace();
-    // Seed resourceVersion + catch up on terminal CRs missed while down — paginated for the same reason the reconcile pass is.
-    const resourceVersion = await forEachAgentPage(
-      k8sApi,
-      namespace,
+  // Reports every terminal CR missed while this watch was down, and returns the resourceVersion to stream from. Paginated for the same reason the reconcile pass is: a cluster with hundreds of CRs would otherwise pull them all into one response.
+  private async catchUp(deps: WatchDeps): Promise<string | undefined> {
+    return forEachAgentPage(
+      customObjectsApi(),
+      agentsNamespace(),
       async (agents) => {
         for (const agent of agents) {
           await reportForAgent(agent, deps);
         }
       },
     );
+  }
 
-    const watch = new Watch(kc);
+  // Follows the CR stream from `resourceVersion`. Resolves when the watch closes cleanly and rejects when it errors — the caller decides whether to reconnect, because that decision is about the process, not the stream.
+  private async streamFrom(
+    resourceVersion: string | undefined,
+    deps: WatchDeps,
+  ): Promise<void> {
+    const watch = new Watch(kubeConfig());
 
     await new Promise<void>((resolve, reject) => {
       watch
@@ -111,5 +114,11 @@ export class AgentWatchInput implements EventInput {
         )
         .catch(reject);
     });
+  }
+
+  private async watchOnce(deps: WatchDeps): Promise<void> {
+    const resourceVersion = await this.catchUp(deps);
+
+    await this.streamFrom(resourceVersion, deps);
   }
 }

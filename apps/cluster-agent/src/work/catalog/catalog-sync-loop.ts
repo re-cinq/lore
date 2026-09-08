@@ -9,6 +9,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { secondsEnvMs } from "../../lib/intervals.js";
 import {
   applyBatchEntries,
+  type BatchTally,
   type CatalogSyncTickDeps,
 } from "./catalog-batch-apply.js";
 import { fetchCatalogBatch, reportStatus } from "./catalog-events-http.js";
@@ -99,11 +100,8 @@ export function catalogProfile(env: NodeJS.ProcessEnv): "full" | "bare" {
   return raw === "full" ? "full" : "bare";
 }
 
-export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
-  if (catalogProfile(env) !== "full") {
-    return;
-  }
-
+// The URLs a full cluster renders into every recipe. Unset, it produces pods that die at boot — the 2026-09-01 settings.json incident.
+function enforceFullProfileUrls(env: NodeJS.ProcessEnv): void {
   for (const name of [
     "LORE_MCP_URL",
     "LORE_SKILLS_URL",
@@ -115,8 +113,10 @@ export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
       `cluster-agent cannot start: LORE_CATALOG_PROFILE=full but ${name} is unset — a full cluster rendering recipes without it produces pods that die at boot (see the 2026-09-01 settings.json incident). Set the value or declare the cluster bare.`,
     );
   }
+}
 
-  // Credential axis of the same incident class: a full cluster with no anthropic key would render every default recipe secretless while validation passes.
+// The credential axis of the same incident class: a full cluster with no anthropic key renders every default recipe secretless while validation passes.
+function enforceFullProfileCredential(env: NodeJS.ProcessEnv): void {
   enforceTrue(
     env.LORE_AGENT_LLM_SECRET_KEY ||
       (env.LORE_MODEL_SECRET_KEYS &&
@@ -124,6 +124,15 @@ export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
     Error,
     "cluster-agent cannot start: LORE_CATALOG_PROFILE=full but no anthropic credential key is configured (LORE_AGENT_LLM_SECRET_KEY or modelSecretKeys.anthropic) — every default recipe would render without its LLM secret.",
   );
+}
+
+export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
+  if (catalogProfile(env) !== "full") {
+    return;
+  }
+
+  enforceFullProfileUrls(env);
+  enforceFullProfileCredential(env);
 }
 
 /** The catalog-events response body (200). */
@@ -165,6 +174,34 @@ export function nextSyncDelay(
   return backoffDelay(baseMs, idleTicks, maxIdleMs);
 }
 
+// What landed, as the loop reports it. Skipped and refused carry their details rather than counts — the log line is where an operator learns WHICH entries this cluster would not take.
+function syncedOutcome(tally: BatchTally): CatalogSyncOutcome {
+  return {
+    kind: "synced",
+    applied: tally.applied,
+    deleted: tally.deleted,
+    skipped: tally.skipped,
+    refused: tally.refused,
+  };
+}
+
+// Applies one batch and reports its verdicts. A transient failure keeps the OLD ack so the batch is re-served; anything landed advances to the body's cursor. Reporting is best effort and happens after the applies — a cluster that cannot report must keep syncing, because a failed report costs visibility, never delivery.
+async function applyBatch(
+  deps: CatalogSyncTickDeps,
+  body: CatalogEventsResponse,
+  ack: string | undefined,
+): Promise<{ outcome: CatalogSyncOutcome; ack: string | undefined }> {
+  const result = await applyBatchEntries(deps, body.entries);
+
+  if (result.kind === "transient") {
+    return { outcome: { kind: "error", message: result.message }, ack };
+  }
+
+  await reportStatus(deps, result.tally.reports);
+
+  return { outcome: syncedOutcome(result.tally), ack: body.cursor };
+}
+
 export async function catalogSyncOnce(
   deps: CatalogSyncTickDeps,
   ack: string | undefined,
@@ -182,25 +219,7 @@ export async function catalogSyncOnce(
     return { outcome: { kind: "empty" }, ack: body.cursor };
   }
 
-  const result = await applyBatchEntries(deps, body.entries);
-
-  if (result.kind === "transient") {
-    return { outcome: { kind: "error", message: result.message }, ack };
-  }
-
-  // Best effort, after the applies — a cluster that cannot report must keep syncing; a failed report costs visibility, never delivery.
-  await reportStatus(deps, result.tally.reports);
-
-  return {
-    outcome: {
-      kind: "synced",
-      applied: result.tally.applied,
-      deleted: result.tally.deleted,
-      skipped: result.tally.skipped,
-      refused: result.tally.refused,
-    },
-    ack: body.cursor,
-  };
+  return applyBatch(deps, body, ack);
 }
 
 export interface CatalogSyncLoopDeps {
@@ -235,44 +254,63 @@ function logSyncedOutcome(
   }
 }
 
+// The outcomes that do NOT count as a landed sync, handled. An unauthorized outcome re-registers and an error is warned; neither clears `resync`, so the boot snapshot is not consumed by a poll that never delivered one.
+async function handledWithoutLanding(
+  outcome: CatalogSyncOutcome,
+  deps: CatalogSyncLoopDeps,
+): Promise<boolean> {
+  if (outcome.kind === "unauthorized") {
+    await deps.reRegister();
+
+    return true;
+  }
+
+  if (outcome.kind === "error") {
+    console.warn(`[cluster-agent] catalog sync: ${outcome.message}`);
+
+    return true;
+  }
+
+  return false;
+}
+
 /** The loop's position in the catalog stream. `resync` stays true until one sync actually LANDS — synced or empty — so a failed first poll does not eat the boot resync, and later polls tail from the acked cursor. An unauthorized outcome re-registers without advancing anything. */
 function syncCursor(deps: CatalogSyncLoopDeps) {
   let ack: string | undefined;
-  let first = true;
-  let resync = true;
+  const landing = { first: true, resync: true };
 
   return {
     tick: async (): Promise<CatalogSyncOutcome> => {
-      const result = await deps.sync(ack, resync);
+      const result = await deps.sync(ack, landing.resync);
 
       ack = result.ack;
 
       return result.outcome;
     },
     absorb: async (outcome: CatalogSyncOutcome): Promise<void> => {
-      if (outcome.kind === "unauthorized") {
-        await deps.reRegister();
-
+      if (await handledWithoutLanding(outcome, deps)) {
         return;
       }
-
-      if (outcome.kind === "error") {
-        console.warn(`[cluster-agent] catalog sync: ${outcome.message}`);
-
-        return;
-      }
-
-      if (outcome.kind === "synced") {
-        logSyncedOutcome(outcome);
-      }
-      resync = false;
-
-      if (first) {
-        first = false;
-        deps.onFirstSync?.();
-      }
+      noteLanded(outcome, landing, deps);
     },
   };
+}
+
+// Records that a sync actually LANDED. `resync` clears here and nowhere else, so a failed first poll does not eat the boot resync; `first` fires the gate the claim loop is waiting on, once.
+function noteLanded(
+  outcome: CatalogSyncOutcome,
+  landing: { first: boolean; resync: boolean },
+  deps: CatalogSyncLoopDeps,
+): void {
+  if (outcome.kind === "synced") {
+    logSyncedOutcome(outcome);
+  }
+  landing.resync = false;
+
+  if (landing.first) {
+    landing.first = false;
+    deps.onFirstSync?.();
+  }
 }
 
 export async function runCatalogSyncLoop(

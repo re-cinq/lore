@@ -432,7 +432,6 @@ export default tseslint.config(
       "apps/lore-api/**/*.{ts,tsx}",
       "apps/mcp-server/**/*.{ts,tsx}",
       "apps/stations/**/*.{ts,tsx}",
-      "apps/cluster-agent/**/*.{ts,tsx}",
       "libs/shared/**/*.{ts,tsx}",
       "libs/server-core/**/*.{ts,tsx}",
     ],

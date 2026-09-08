@@ -47,6 +47,18 @@ function orphanTest(
     !stillReferenced.has(recipe.name);
 }
 
+// The orphaned recipes to remove this tick, capped. Bounded per tick rather than swept whole: a large backlog is cleared over several ticks, so one sweep cannot spend its budget deleting and starve the claim loop beside it.
+function prunableNames(
+  recipes: PrunableRecipe[],
+  orphaned: (recipe: PrunableRecipe) => boolean,
+  maxPerTick: number,
+): string[] {
+  return recipes
+    .filter(orphaned)
+    .slice(0, maxPerTick)
+    .map((recipe) => recipe.name);
+}
+
 export function decidePrune(input: PruneInput): PrunePlan {
   const expired = (createdAt: Date): boolean =>
     input.now.getTime() - createdAt.getTime() > input.ttlMs;
@@ -58,18 +70,11 @@ export function decidePrune(input: PruneInput): PrunePlan {
     )
     .slice(0, input.maxPerTick)
     .map((candidate) => candidate.name);
-
   const orphaned = orphanTest(input, agents, expired);
 
   return {
     agents,
-    stations: input.stations
-      .filter(orphaned)
-      .slice(0, input.maxPerTick)
-      .map((recipe) => recipe.name),
-    definitions: input.definitions
-      .filter(orphaned)
-      .slice(0, input.maxPerTick)
-      .map((recipe) => recipe.name),
+    stations: prunableNames(input.stations, orphaned, input.maxPerTick),
+    definitions: prunableNames(input.definitions, orphaned, input.maxPerTick),
   };
 }

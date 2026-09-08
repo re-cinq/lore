@@ -31,6 +31,22 @@ function pageContinueToken(page: AgentListPage): string | undefined {
   return page.metadata?._continue ?? page.metadata?.continue;
 }
 
+// One page of Agent CRs. Bounded by `LIST_PAGE_LIMIT` because 180 accumulated CRs in a single unpaginated LIST blew Node's heap on 2026-07-24.
+async function listAgentPage(
+  k8sApi: AgentLister,
+  namespace: string,
+  continueToken: string | undefined,
+): Promise<AgentListPage> {
+  return (await k8sApi.listNamespacedCustomObject({
+    group: GROUP,
+    version: VERSION,
+    namespace,
+    plural: PLURAL,
+    limit: LIST_PAGE_LIMIT,
+    _continue: continueToken,
+  })) as AgentListPage;
+}
+
 /** Walk the Agent CRs one page at a time, returning the list's resourceVersion — 180 accumulated CRs in one unpaginated LIST blew Node's heap on 2026-07-24. */
 export async function forEachAgentPage(
   k8sApi: AgentLister,
@@ -40,22 +56,12 @@ export async function forEachAgentPage(
   let resourceVersion: string | undefined;
 
   await forEachPage<AgentCr>(async (continueToken?: string) => {
-    const page = (await k8sApi.listNamespacedCustomObject({
-      group: GROUP,
-      version: VERSION,
-      namespace,
-      plural: PLURAL,
-      limit: LIST_PAGE_LIMIT,
-      _continue: continueToken,
-    })) as AgentListPage;
+    const page = await listAgentPage(k8sApi, namespace, continueToken);
 
     // Captured here rather than returned by the walk — the resourceVersion is this caller's concern (it seeds the watch), not pagination's.
     resourceVersion = pageResourceVersion(page, resourceVersion);
 
-    return {
-      items: page.items ?? [],
-      continueToken: pageContinueToken(page),
-    };
+    return { items: page.items ?? [], continueToken: pageContinueToken(page) };
   }, onPage);
 
   return resourceVersion;
