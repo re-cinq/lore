@@ -101,6 +101,7 @@ describe("eventsPrune turn retention override", () => {
   });
 
   it("falls back to 30 days with a warning when the override is not a positive integer within 3650", async () => {
+    // eslint-disable-next-line re-lint/declare-near-use -- the spy must be installed before the eventsPrune calls it records
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS = "0";

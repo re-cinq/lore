@@ -390,6 +390,7 @@ describe("streamRunEvents", () => {
 
   it("ends the stream when rows buffered during catch-up exceed the bus cap", async () => {
     const stream = new PassThrough();
+    // eslint-disable-next-line re-lint/declare-near-use -- collect must attach before streamRunEvents writes, or the output is lost
     const text = collect(stream);
     const bus = fakeBus();
     const seeded = pagedEvents([row("1")]);
@@ -456,6 +457,7 @@ describe("streamRunEvents", () => {
 
   it("stops replaying when the client disconnects mid-catchup", async () => {
     const stream = new PassThrough();
+    // eslint-disable-next-line re-lint/declare-near-use -- collect must attach before streamRunEvents writes, or the output is lost
     const text = collect(stream);
     let teardownRef = (): void => {};
     const seeded = pagedEvents([row("1"), row("2")]);

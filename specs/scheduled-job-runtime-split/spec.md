@@ -312,7 +312,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    successful run passes the handler result to `completeJobRun`; and
    `getJobStatus` reports `idle` plus the in-memory last-attempt timestamp
    (`null` before the first attempt in this process).
-   ([validated by `scheduler.test.ts:45`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L45), [`scheduler.test.ts:69`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L69), [`scheduler.test.ts:82`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L82), [`scheduler.test.ts:98`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L98), [`scheduler.test.ts:114`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L114), [`scheduler.test.ts:129`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L129))
+   ([validated by `scheduler.test.ts:45`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L45), [`scheduler.test.ts:69`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L70), [`scheduler.test.ts:82`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L83), [`scheduler.test.ts:98`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L99), [`scheduler.test.ts:114`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L115), [`scheduler.test.ts:129`](apps/floor/src/events/main-loop/scheduling/scheduler.test.ts#L130))
 
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.

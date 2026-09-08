@@ -25,6 +25,7 @@ const SEED_LABELS = { "app.kubernetes.io/managed-by": "lore-catalog-seed" };
 const REPO_WORKDIR = "/workspace/target";
 
 // Placeholder for the per-cluster sink URL; catalogChartYaml swaps it for the helm value.
+// eslint-disable-next-line re-lint/declare-near-use -- module-level sentinel, grouped with its sibling __*__ placeholders
 const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
 
 // Placeholder for the shared lore-mcp gateway URL; catalogChartYaml swaps it for the helm value (empty → block omitted).

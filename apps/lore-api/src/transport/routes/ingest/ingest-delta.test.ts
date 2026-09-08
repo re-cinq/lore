@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import Hapi from "@hapi/hapi";
 import { ingestDeltaRoute, type IngestDeltaDeps } from "./ingest-delta.js";
 
-const SHA_A = "a".repeat(40);
+const SHA_A = "a".repeat(40); // eslint-disable-line re-lint/declare-near-use -- paired fixture shas belong together at the head of the file
 const SHA_B = "b".repeat(40);
 
 interface Issued {

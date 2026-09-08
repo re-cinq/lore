@@ -156,7 +156,7 @@ function useLogFetching({
 
 /** Keeps this node's logs current while the card is open: fetch on first open, poll while the pod is still running, and scroll to the newest line on every arrival. A 403 is stored as a MESSAGE rather than thrown — the reader lacks access to the repo, which is an answer, not a failure. */
 function useNodeLogs(assemblyLineId: string, agentCrName: string) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // eslint-disable-line re-lint/declare-near-use -- moving it down only pushes the sibling state past the same threshold
   const [resp, setResp] = useState<NodeLogsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);

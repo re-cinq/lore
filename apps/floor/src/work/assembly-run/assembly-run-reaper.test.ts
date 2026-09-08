@@ -267,7 +267,6 @@ describe("stationQueueWaitMs", () => {
 });
 
 function harness() {
-  const port = new InMemoryAssemblyRuns();
   const enqueued: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
   const taskStatusById: Record<string, string | null> = {};
@@ -280,6 +279,7 @@ function harness() {
     event_type: string;
     payload: Record<string, unknown>;
   }> = [];
+  const port = new InMemoryAssemblyRuns();
   const armDispatch = port.enqueueStationRunDispatch.bind(port);
 
   port.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
@@ -1079,10 +1079,6 @@ edges:
 
   it("names the validate station's 15-minute budget, not the global 60, when the YAML is silent (message used to quote the global default and contradict the visible clock)", async () => {
     const h = harness();
-    const deps = {
-      ...h.deps,
-      definitions: async () => new Map([["with-validate", validateLine]]),
-    };
     const id = await h.port.start({
       blueprintName: "with-validate",
       repo: "o/r",
@@ -1100,6 +1096,11 @@ edges:
       agentCrName: `${id.substring(0, 12)}-check`,
     });
     h.port.setClock(clock);
+
+    const deps = {
+      ...h.deps,
+      definitions: async () => new Map([["with-validate", validateLine]]),
+    };
 
     await assemblyLineReaperJob(deps);
 

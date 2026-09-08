@@ -88,7 +88,6 @@ function findTrailingParenSpan(
 
 /** Turn a `[label](path#Lline)` regex match into a normalized link ref. */
 function linkRefFromMatch(match: RegExpMatchArray): SpecLinkRef {
-  const label = match[1].replace(/\s+/g, " ").trim();
   const href = match[2].trim();
   const hashIdx = href.indexOf("#L");
   const rawPath = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
@@ -100,6 +99,8 @@ function linkRefFromMatch(match: RegExpMatchArray): SpecLinkRef {
 
     line = Number.isFinite(n) ? n : null;
   }
+
+  const label = match[1].replace(/\s+/g, " ").trim();
 
   return { label, path, line };
 }

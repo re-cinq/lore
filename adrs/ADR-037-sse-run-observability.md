@@ -67,7 +67,7 @@ introduced for this feature must not collide with that name.
 
 Run observability is delivered over Server-Sent Events at
 `GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
-semantics keyed on a row-id cursor. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L510), [`agent-events-stream.test.ts:168`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L168), [`agent-events-stream.test.ts:239`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L239))
+semantics keyed on a row-id cursor. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L512), [`agent-events-stream.test.ts:168`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L168), [`agent-events-stream.test.ts:239`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L239))
 
 The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([validated by `agent-event-bus.test.ts:28`](apps/floor/src/work/agent/agent-event-bus.test.ts#L29)) A
 subscriber registers against an assembly-line id; the ingest path publishes each
@@ -80,9 +80,9 @@ backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([va
 
 A subscriber that cannot keep up is disconnected rather than allowed to apply
 back-pressure to the ingest path, which shares a process with the cost sink and
-the Floor's job loops. ([validated by `agent-event-bus.test.ts:187`](apps/floor/src/work/agent/agent-event-bus.test.ts#L188), [`agent-events-stream.test.ts:420`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L420))
+the Floor's job loops. ([validated by `agent-event-bus.test.ts:187`](apps/floor/src/work/agent/agent-event-bus.test.ts#L188), [`agent-events-stream.test.ts:420`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L421))
 
-Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L510), [`route.test.ts:149`](apps/web-ui/src/app/api/assembly-runs/[id]/events/stream/route.test.ts#L149))
+Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/transport/http/routes/agent-events-stream.test.ts#L512), [`route.test.ts:149`](apps/web-ui/src/app/api/assembly-runs/[id]/events/stream/route.test.ts#L149))
 
 The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in
 `apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L27), [`run-stream-types.test.ts:67`](apps/web-ui/src/lib/run-stream-types.test.ts#L67))

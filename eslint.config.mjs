@@ -232,7 +232,12 @@ export default tseslint.config(
       "re-lint/prefer-polymorphism": "error",
       "re-lint/max-member-chain": "warn",
       "re-lint/callee-below-caller": "warn",
-      "re-lint/declare-near-use": "warn",
+      // Error since 2026-09-08: 20 declarations moved down to their first use.
+      // The other 19 carry an inline disable, because moving them would change
+      // what they capture (a spy installed before the call it records, a clock
+      // read before the work it times, a cwd saved before a stub replaces it)
+      // or would split a group whose order is the point.
+      "re-lint/declare-near-use": "error",
       // Error since 2026-09-08: the in-memory doubles now expose their
       // collections readonly, which also stops a captured reference from
       // desyncing when one is pruned. Off in tests, below.

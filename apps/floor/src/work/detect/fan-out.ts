@@ -116,10 +116,6 @@ export const specRepos = async (q: QueryFn = query): Promise<string[]> => {
   return rows.map((r) => r.repo);
 };
 
-/** Through the shared settings port, not a second copy of its SELECT — "onboarded" belongs in one place. Sorted here since the port makes no ordering promise. */
-const onboardedRepos = async (): Promise<string[]> =>
-  (await settings().onboardedRepos()).map((repo) => repo.full_name).sort();
-
 export interface DetectFanOutDeps {
   assemblyRuns: AssemblyRunsPort;
   /** Pre-create the `<job_ref>:<repo>` job_runs row; the walk closes it via `args.job_run_id` at a terminal state. */
@@ -252,6 +248,10 @@ const productionTick =
       jobRef: () => builtinJobRef(blueprintName),
       listTargetRepos,
     })(params);
+
+/** Through the shared settings port, not a second copy of its SELECT — "onboarded" belongs in one place. Sorted here since the port makes no ordering promise. */
+const onboardedRepos = async (): Promise<string[]> =>
+  (await settings().onboardedRepos()).map((repo) => repo.full_name).sort();
 
 // Composed production handlers, one per detection tick (registry layer 3).
 export const specDriftTick = productionTick("spec-drift", activeSpecRepos);

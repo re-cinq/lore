@@ -153,6 +153,7 @@ export async function searchMemories(
 ): Promise<MemorySearchResult[]> {
   const { agentId, poolName, limit, includeInvalidated, graphAugmentEnabled } =
     resolveSearchOptions(options);
+  // eslint-disable-next-line re-lint/declare-near-use -- must capture the clock BEFORE the work it times; moving it down would shorten the reported latency
   const searchStartTime = Date.now();
   const agent = agentId ? resolveAgentId(agentId) : null;
   const poolId = await resolvePoolId(pool, poolName);

@@ -117,7 +117,6 @@ async function serveRepoSettings(
   );
 
   enforceTrue(rows.length !== 0, apiError(404), "Repo not found");
-  const existing = rows[0];
 
   const darkFactory = (body.settings as { dark_factory?: unknown } | undefined)
     ?.dark_factory;
@@ -132,6 +131,8 @@ async function serveRepoSettings(
     `UPDATE lore.repos SET ${updates.join(", ")} WHERE full_name = $${values.length}`,
     values,
   );
+
+  const existing = rows[0];
 
   // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
   if (body.team !== undefined && (body.team || null) !== existing.team) {

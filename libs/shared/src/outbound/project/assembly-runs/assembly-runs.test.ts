@@ -1727,6 +1727,7 @@ describe("findOpenOnBranch", () => {
 
   it("answers open runs on exactly that repo+branch, oldest first (InMemory)", async () => {
     const port = new InMemoryAssemblyRuns();
+    // eslint-disable-next-line re-lint/declare-near-use -- the test asserts oldest-first ordering, so this start must happen before the others
     const older = await port.start({
       blueprintName: "spec-drift",
       repo: "re-cinq/lore",

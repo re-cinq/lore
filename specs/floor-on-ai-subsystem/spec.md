@@ -318,7 +318,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     so the run reported success while the round it existed for failed with no result
     posted. Read-only recipes (the review family) opt out via `repo_workdir: false` —
     see statement 31 (#1160)
-    ([validated by `agent-catalog.test.ts:180`](apps/floor/src/work/agent/agent-catalog.test.ts#L180); implemented by [`agent-catalog.ts:211`](apps/floor/src/work/agent/agent-catalog.ts#L211))
+    ([validated by `agent-catalog.test.ts:180`](apps/floor/src/work/agent/agent-catalog.test.ts#L180); implemented by [`agent-catalog.ts:211`](apps/floor/src/work/agent/agent-catalog.ts#L212))
 
 28. *(added 2026-08-10)* A run whose deliverable is a **file** MUST declare it, so the
     artifact can leave the pod. The subsystem streams what an agent *says*
@@ -330,7 +330,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     delivery path. `feature-planning` declares `planning.result` →
     `target/result.json`; the path resolves against `WORKSPACE_DIR`, not the agent's
     cwd. A recipe whose deliverable is its own output declares nothing
-    ([validated by `agent-catalog.test.ts:136`](apps/floor/src/work/agent/agent-catalog.test.ts#L136), [`agent-catalog.test.ts:147`](apps/floor/src/work/agent/agent-catalog.test.ts#L147); implemented by [`agent-catalog.ts:173`](apps/floor/src/work/agent/agent-catalog.ts#L173))
+    ([validated by `agent-catalog.test.ts:136`](apps/floor/src/work/agent/agent-catalog.test.ts#L136), [`agent-catalog.test.ts:147`](apps/floor/src/work/agent/agent-catalog.test.ts#L147); implemented by [`agent-catalog.ts:173`](apps/floor/src/work/agent/agent-catalog.ts#L174))
 
 29. *(added 2026-08-10)* The Floor MUST project those artifact events off the
     telemetry sink. The sink carries every run's events, so a file event with no name
@@ -355,7 +355,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     declares none keeps the base deny alone. The declared denies are dormant under
     the current `permission_mode: "bypass"` (the CLI skips deny-rule evaluation in
     that mode) and become enforced when the family moves to an enforcing mode
-    ([validated by `agent-catalog.test.ts:418`](apps/floor/src/work/agent/agent-catalog.test.ts#L418), [`agent-catalog.test.ts:428`](apps/floor/src/work/agent/agent-catalog.test.ts#L428), [`agent-catalog.test.ts:434`](apps/floor/src/work/agent/agent-catalog.test.ts#L434); implemented by [`agent-catalog.ts:166`](apps/floor/src/work/agent/agent-catalog.ts#L166), [`agent-catalog.ts:209`](apps/floor/src/work/agent/agent-catalog.ts#L209))
+    ([validated by `agent-catalog.test.ts:418`](apps/floor/src/work/agent/agent-catalog.test.ts#L418), [`agent-catalog.test.ts:428`](apps/floor/src/work/agent/agent-catalog.test.ts#L428), [`agent-catalog.test.ts:434`](apps/floor/src/work/agent/agent-catalog.test.ts#L434); implemented by [`agent-catalog.ts:166`](apps/floor/src/work/agent/agent-catalog.ts#L167), [`agent-catalog.ts:209`](apps/floor/src/work/agent/agent-catalog.ts#L210))
 
 32. *(added 2026-08-28)* Every agent run opens with the same instruction in the CR
     parameter the assembled context used to occupy: `CONTEXT_BOOTSTRAP` names
@@ -389,7 +389,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     one-entry list and a four-entry list survive by the identical path. A recipe MUST NOT name a skill the
     gateway's bundle does not carry: the init fetches it as a 404 and the run
     proceeds without the contract the recipe asked for, which is FR26's failure
-    one level down and just as silent. ([validated by `agent-catalog.test.ts:104`](apps/floor/src/work/agent/agent-catalog.test.ts#L104), [`agent-catalog.test.ts:113`](apps/floor/src/work/agent/agent-catalog.test.ts#L113), [`skills-registry.test.ts:118`](apps/mcp-server/src/transport/skills-registry.test.ts#L118); implemented by [`agent-catalog.ts:141`](apps/floor/src/work/agent/agent-catalog.ts#L141))
+    one level down and just as silent. ([validated by `agent-catalog.test.ts:104`](apps/floor/src/work/agent/agent-catalog.test.ts#L104), [`agent-catalog.test.ts:113`](apps/floor/src/work/agent/agent-catalog.test.ts#L113), [`skills-registry.test.ts:118`](apps/mcp-server/src/transport/skills-registry.test.ts#L118); implemented by [`agent-catalog.ts:141`](apps/floor/src/work/agent/agent-catalog.ts#L142))
 
 35. *(added 2026-09-04)* `GET /api/repos/{owner}/{repo}/chunks/{kind}` is the pod-side chunk read
     named by D7: one route dispatching by `{kind}` (`spec`, `code-symbols`, `spec-ingest`,

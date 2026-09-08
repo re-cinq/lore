@@ -674,7 +674,7 @@ describe("stream give-up and history polling", () => {
   });
 
   it("polls the history proxy from the reducer cursor after giving up and applies new rows", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers(); // eslint-disable-next-line re-lint/declare-near-use -- the history stub must be installed before the render it serves
     const fetchMock = stubHistory([
       eventRow({ id: "5", nodeId: "implement", eventType: "init" }),
     ]);
@@ -960,7 +960,7 @@ describe("retry from node", () => {
   }
 
   it("offers retry in the node card's header on a finished run, posting the implement fork source", async () => {
-    const fetchMock = stubHistory([]);
+    const fetchMock = stubHistory([]); // eslint-disable-line re-lint/declare-near-use -- the history stub must be installed before the render it serves
 
     useFakeEventSource();
 

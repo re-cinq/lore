@@ -4,8 +4,6 @@ import { join } from "node:path";
 import type { ZodRawShape, ZodTypeAny } from "zod";
 import { REPO_COLUMNS, REPO_TABLE } from "./repo.js";
 
-const modelsDir = import.meta.dirname;
-
 export function unboundFields(
   shape: ZodRawShape,
   columns: Record<string, string>,
@@ -47,6 +45,8 @@ interface TableModel {
   columns: Record<string, string>;
   source: string;
 }
+
+const modelsDir = import.meta.dirname;
 
 const files = [
   ...new Map(

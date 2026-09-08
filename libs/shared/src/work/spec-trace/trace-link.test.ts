@@ -280,6 +280,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
       },
       commitNow: true,
     });
+    // eslint-disable-next-line re-lint/declare-near-use -- kept paired with the mutation that produced it, like every other uid capture here
     const ccUid = codeChunkRes.data.uids.cc;
 
     const fileRes = await dgraphClient.newTxn().mutate({

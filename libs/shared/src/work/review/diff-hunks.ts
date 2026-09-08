@@ -28,6 +28,7 @@ interface DiffScanState {
 /** A line-type handler: applies its effect and returns true when it recognized the line, else false so the next handler is tried. */
 type DiffLineHandler = (state: DiffScanState, line: string) => boolean;
 
+// eslint-disable-next-line re-lint/declare-near-use -- one of a coherent group of sibling line handlers consumed together by DIFF_LINE_HANDLERS
 const handleFileHeader: DiffLineHandler = (state, line) => {
   if (!line.startsWith("+++ ")) {
     return false;
@@ -39,6 +40,7 @@ const handleFileHeader: DiffLineHandler = (state, line) => {
   return true;
 };
 
+// eslint-disable-next-line re-lint/declare-near-use -- one of a coherent group of sibling line handlers consumed together by DIFF_LINE_HANDLERS
 const handleDiffHeader: DiffLineHandler = (state, line) => {
   if (!line.startsWith("diff --git")) {
     return false;

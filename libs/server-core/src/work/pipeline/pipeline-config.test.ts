@@ -41,7 +41,7 @@ describe("loadTaskTypes", () => {
 
   it("handles missing YAML gracefully — getTaskTypes returns whatever was loaded before, and the call does not throw", () => {
     process.env.TASK_TYPES_PATH = "/nonexistent/path/task-types.yaml";
-    const origCwd = process.cwd;
+    const origCwd = process.cwd; // eslint-disable-line re-lint/declare-near-use -- must capture process.cwd before the stub below replaces it
 
     process.cwd = () => "/nonexistent";
     const origHome = process.env.HOME;

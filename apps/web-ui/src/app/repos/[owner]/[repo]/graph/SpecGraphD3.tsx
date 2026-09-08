@@ -99,7 +99,6 @@ export default function SpecGraphD3({
 
     // Canvas uses CSS pixels; backing store scaled up by DPR for crispness on HiDPI.
     const dpr = devicePixelRatioSafe();
-    const colors = resolveColors(el);
     const sizeCanvas = () => {
       canvas.width = Math.max(1, Math.round(width * dpr));
       canvas.height = Math.max(1, Math.round(height * dpr));
@@ -133,6 +132,8 @@ export default function SpecGraphD3({
     });
 
     const container = svg.append("g");
+
+    const colors = resolveColors(el);
 
     const c: GraphController = {
       el,

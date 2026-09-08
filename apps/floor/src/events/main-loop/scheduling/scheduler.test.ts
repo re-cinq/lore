@@ -43,6 +43,7 @@ afterEach(() => {
 
 describe("runJob via startScheduler", () => {
   it("runs the job again on the next tick after startJobRun rejects", async () => {
+    // eslint-disable-next-line re-lint/declare-near-use -- the spy must be installed before startScheduler logs
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     startJobRun

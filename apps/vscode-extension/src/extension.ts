@@ -45,8 +45,6 @@ const decCovered = vscode.window.createTextEditorDecorationType({
   overviewRulerLane: vscode.OverviewRulerLane.Left,
 });
 
-const lensesChanged = new vscode.EventEmitter<void>();
-
 function workspaceRoot(): string | null {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
 }
@@ -194,6 +192,8 @@ function linkLenses(
       }),
   );
 }
+
+const lensesChanged = new vscode.EventEmitter<void>();
 
 const lensProvider: vscode.CodeLensProvider = {
   onDidChangeCodeLenses: lensesChanged.event,
