@@ -46,7 +46,7 @@ export interface EnrollmentInput {
   team: string | null;
   /** path -> exists (true/false) or null when unknown (App not configured / no access) */
   githubFiles: Record<string, boolean | null>;
-  /** GitHub webhook → Floor status, or null when not fetched. */
+  /** GitHub webhook → Lore status, or null when not fetched. */
   webhook: WebhookCheck | null;
   localMcp: { developerCount: number; lastActivity: string | null };
   /** Reference timestamp for staleness math — injectable for tests, defaults to Date.now(). */
@@ -204,7 +204,7 @@ function webhookCheckRow(w: WebhookCheck): Check {
   const detail = WEBHOOK_DETAIL[w.state](w);
   const check: Check = {
     id: "webhook",
-    label: "GitHub webhook → Floor",
+    label: "GitHub webhook → Lore",
     status: stateInfo.status,
     detail,
   };

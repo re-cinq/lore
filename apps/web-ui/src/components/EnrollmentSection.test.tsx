@@ -60,7 +60,7 @@ describe("EnrollmentSection", () => {
       label: "Webhook delivering",
       status: "warn",
       action: { kind: "setup-webhook", text: "set up" },
-      copy: { value: "https://lore/api/webhook/github", label: "set this URL" },
+      copy: { value: "https://lore/api/events", label: "set this URL" },
       secret: { value: "shhh-secret", label: "and this secret" },
     };
 
@@ -72,9 +72,7 @@ describe("EnrollmentSection", () => {
     );
 
     expect(screen.getByRole("button", { name: "set up" })).toBeInTheDocument();
-    expect(
-      screen.getByText("https://lore/api/webhook/github"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("https://lore/api/events")).toBeInTheDocument();
     expect(screen.getByText("set this URL:")).toBeInTheDocument();
     expect(screen.getByText("and this secret:")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reveal" })).toBeInTheDocument();

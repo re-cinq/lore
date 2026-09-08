@@ -335,7 +335,7 @@ describe("computeEnrollmentChecks", () => {
     });
   });
 
-  const HOOK_URL = "https://lore-webhook.gcp.re-cinq.com/api/webhook/github";
+  const HOOK_URL = "https://lore-events.gcp.re-cinq.com/api/events";
 
   it("webhook surfaces the URL to set by hand when not configured", () => {
     expect(

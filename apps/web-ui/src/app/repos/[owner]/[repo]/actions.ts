@@ -12,7 +12,7 @@ export async function reonboard(fullName: string): Promise<void> {
   redirect(taskId ? `/tasks/${taskId}` : `/repos/${fullName}`);
 }
 
-/** Create/repoint GitHub webhook to Floor via mcp-server; refresh overview. */
+/** Create/repoint the repo's GitHub webhook at the event-router via lore-api; refresh overview. */
 export async function setupWebhook(fullName: string): Promise<void> {
   await ensureWebhook(fullName);
   revalidatePath(`/repos/${fullName}`);
