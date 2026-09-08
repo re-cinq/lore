@@ -7,7 +7,7 @@ export const GraphEntitySchema = z.object({
   id: z.string(),
   name: z.string(),
   entityType: z.string(),
-  properties: z.record(z.unknown()).nullable(),
+  properties: z.record(z.string(), z.unknown()).nullable(),
   repo: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),

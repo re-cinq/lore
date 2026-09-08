@@ -46,13 +46,15 @@ const SpecSyncSchema = z.object({
   synced: z.number(),
   created: z.number(),
 });
-const SpecReadySchema = z.object({ tasks: z.array(z.record(z.unknown())) });
+const SpecReadySchema = z.object({
+  tasks: z.array(z.record(z.string(), z.unknown())),
+});
 const SpecClaimSchema = z.object({
   claimed: z.boolean(),
   task_id: z.string(),
   agent_id: z.string(),
 });
-const SpecCompleteSchema = z.record(z.unknown());
+const SpecCompleteSchema = z.record(z.string(), z.unknown());
 
 /** Parses a tasks.md and upserts each checklist item. Idempotent by design: it runs again on every re-sync of the same spec, and must converge rather than duplicate. */
 async function serveSpecTaskSync(

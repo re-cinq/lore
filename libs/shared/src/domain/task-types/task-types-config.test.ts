@@ -42,7 +42,7 @@ describe("parseTaskTypesFile", () => {
     );
 
     expect(parsed.drift).toEqual([
-      "task_types.broken: prompt_template — Required",
+      "task_types.broken: prompt_template — Invalid input: expected string, received undefined",
     ]);
     expect(parsed.taskTypes.broken).toMatchObject({ timeout_minutes: 5 });
   });
@@ -81,8 +81,8 @@ describe("an entry a reader cannot read at all", () => {
     const { drift } = parseTaskTypesFile(BODYLESS);
 
     expect(drift).toEqual([
-      "task_types.general: <entry> — Expected object, received null",
-      "task_types.broken: <entry> — Expected object, received string",
+      "task_types.general: <entry> — Invalid input: expected object, received null",
+      "task_types.broken: <entry> — Invalid input: expected object, received string",
     ]);
   });
 

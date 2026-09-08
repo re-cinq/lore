@@ -10,7 +10,7 @@ export const StationRunInputSchema = z.object({
   /** The resolved prompt an agent node's pod rendered; null for station nodes. */
   prompt: z.string().nullable(),
   /** A station node's `station_input` params; null for agent nodes. */
-  params: z.record(z.string()).nullable(),
+  params: z.record(z.string(), z.string()).nullable(),
   /** The checkout the pod clones — a visit's input files, honestly and cheaply. */
   repo: z.string(),
   ref: z.string(),

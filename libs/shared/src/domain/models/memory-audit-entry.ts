@@ -9,7 +9,7 @@ export const MemoryAuditEntrySchema = z.object({
   operation: z.string(),
   memoryKey: z.string().nullable(),
   poolName: z.string().nullable(),
-  metadata: z.record(z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
   createdAt: z.date(),
 });
 

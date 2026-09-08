@@ -12,7 +12,7 @@ export function wireSchema<
 ): z.ZodObject<{
   [K in keyof Shape as Columns[K & keyof Columns] & string]: Shape[K];
 }> {
-  const renamed: z.ZodRawShape = {};
+  const renamed: Record<string, z.ZodType> = {};
 
   for (const [field, value] of Object.entries(schema.shape)) {
     const column = (columns as Record<string, string | undefined>)[field];
@@ -23,10 +23,11 @@ export function wireSchema<
       Error,
       `wireSchema: no column bound for field "${String(field)}"`,
     );
-    renamed[column] = value as z.ZodTypeAny;
+    renamed[column] = value as z.ZodType;
   }
 
-  return z.object(renamed) as z.ZodObject<{
+  // The rename is by construction, not by inference: zod 4 widens the built shape to a string index signature, so the declared return type is reasserted here.
+  return z.object(renamed) as unknown as z.ZodObject<{
     [K in keyof Shape as Columns[K & keyof Columns] & string]: Shape[K];
   }>;
 }

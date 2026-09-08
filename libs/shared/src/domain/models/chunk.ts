@@ -12,7 +12,7 @@ export const ChunkSchema = z.object({
   filePath: z.string().nullable(),
   author: z.string().nullable(),
   ingestedAt: z.date().nullable(),
-  metadata: z.record(z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
 });
 
 export type Chunk = z.infer<typeof ChunkSchema>;

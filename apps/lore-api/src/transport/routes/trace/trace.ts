@@ -31,7 +31,7 @@ const TRACE_KINDS = new Set([
 ]);
 
 // Union of all /trace/{kind} responses; one route, many contract shapes.
-const TraceReadSchema = z.record(z.unknown());
+const TraceReadSchema = z.record(z.string(), z.unknown());
 
 type ProjectResult = Awaited<ReturnType<typeof projectFor>>;
 type Trace = ProjectResult["trace"];

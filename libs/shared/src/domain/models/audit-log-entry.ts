@@ -9,7 +9,7 @@ export const AuditLogEntrySchema = z.object({
   taskId: z.string().nullable(),
   repo: z.string().nullable(),
   actor: z.string().nullable(),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
   createdAt: z.date(),
 });
 

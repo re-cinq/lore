@@ -27,7 +27,7 @@ const IngestBody = z.object({
 type IngestBody = z.infer<typeof IngestBody>;
 
 /** What the ingest wrote — counts per kind. */
-const IngestResultSchema = z.record(z.unknown());
+const IngestResultSchema = z.record(z.string(), z.unknown());
 
 /** Stores posted content into a repo's context immediately, rather than waiting for the nightly pass. */
 async function serveIngest(

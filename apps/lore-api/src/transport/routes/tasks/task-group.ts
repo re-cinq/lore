@@ -27,7 +27,7 @@ const TaskGroupSchema = z.object({
   group_id: z.string(),
   total: z.number(),
   completed: z.number(),
-  tasks: z.array(z.record(z.unknown())),
+  tasks: z.array(z.record(z.string(), z.unknown())),
 });
 
 /** Every task in one feature's group, with completion state — the view that answers whether a multi-repo feature is done. */

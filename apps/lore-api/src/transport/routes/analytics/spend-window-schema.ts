@@ -4,7 +4,7 @@ const LiveSchema = z.object({
   name: z.string(),
   phase: z.string(),
   started_at: z.string().nullable(),
-  requests: z.record(z.string()),
+  requests: z.record(z.string(), z.string()),
   usd_per_hour: z.number(),
   usd_so_far: z.number(),
   station_run_id: z.string().nullable(),
@@ -124,7 +124,7 @@ export const SpendWindowSchema = z.object({
       cpu_hour_usd: z.number(),
       mem_gib_hour_usd: z.number(),
     }),
-    assumed_profile: z.record(z.string()),
+    assumed_profile: z.record(z.string(), z.string()),
     pod_hours: z.array(
       z.object({
         blueprint: z.string(),

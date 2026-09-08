@@ -18,7 +18,7 @@ export const AssemblyRunSchema = z.object({
   repo: z.string(),
   branch: z.string().nullable(),
   subjectKey: z.string().nullable(),
-  args: z.record(z.unknown()),
+  args: z.record(z.string(), z.unknown()),
   status: AssemblyRunStatusSchema,
   outcome: z.string().nullable(),
   reason: z.string().nullable(),

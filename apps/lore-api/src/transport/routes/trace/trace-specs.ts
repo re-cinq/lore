@@ -6,7 +6,9 @@ import { bearerScope } from "../../http/bearer-scope.js";
 
 /** GET /api/trace/specs — cross-repo spec list for the global viewer (not per-repo, so not via Project). */
 /** Every spec the graph holds; empty when no graph is configured. */
-const SpecListSchema = z.object({ specs: z.array(z.record(z.unknown())) });
+const SpecListSchema = z.object({
+  specs: z.array(z.record(z.string(), z.unknown())),
+});
 
 export function traceSpecsRoute(): ServerRoute {
   return {

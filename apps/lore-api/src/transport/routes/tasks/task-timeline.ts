@@ -38,9 +38,9 @@ const TaskTimelineSchema = z.object({
   pr_number: z.number().nullable(),
   pr_url: z.string().nullable(),
   pr_state: z.string().nullable(),
-  commits: z.array(z.record(z.unknown())),
+  commits: z.array(z.record(z.string(), z.unknown())),
   current_stage: z.string().nullable(),
-  lease: z.record(z.unknown()).nullable().optional(),
+  lease: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 function committedIsoOf(c: RawCommit): string {

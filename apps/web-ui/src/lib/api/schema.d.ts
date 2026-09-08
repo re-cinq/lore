@@ -2424,7 +2424,7 @@ export interface components {
       node_id: string;
       iteration: number;
       agent_cr_name: string | null;
-      spec?: unknown;
+      spec: unknown;
     };
     ClusterAgentHeartbeat: {
       /** @constant */
@@ -5394,7 +5394,6 @@ export interface operations {
               /** @constant */
               action: "list";
               agent_id?: string;
-              /** @default 50 */
               limit?: number;
               /** @default 0 */
               offset?: number;

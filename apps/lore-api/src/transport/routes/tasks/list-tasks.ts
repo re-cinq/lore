@@ -22,7 +22,7 @@ type ListTasksQuery = z.infer<typeof ListTasksQuery>;
 
 /** A page of tasks plus the paging the caller asked for. */
 const TaskPageSchema = z.object({
-  tasks: z.array(z.record(z.unknown())),
+  tasks: z.array(z.record(z.string(), z.unknown())),
   total: z.number(),
   limit: z.number(),
   offset: z.number(),

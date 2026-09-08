@@ -6,11 +6,13 @@ import type { AgentDefinitionInput } from "@re-cinq/lore-shared";
 // Kubernetes resource quantity validated at edge to catch typos early.
 const QUANTITY = /^\d+(\.\d+)?(m|[kKMGTPE]i?)?$/;
 const PodResourcesSchema = z.object({
-  requests: z.record(z.string().regex(QUANTITY)).optional(),
-  limits: z.record(z.string().regex(QUANTITY)).optional(),
+  requests: z.record(z.string(), z.string().regex(QUANTITY)).optional(),
+  limits: z.record(z.string(), z.string().regex(QUANTITY)).optional(),
 });
 
 export type PodResources = z.infer<typeof PodResourcesSchema>;
+
+const ExecutionMode = z.enum(["claude-code", "graph-ingest", "station"]);
 
 export const AgentInputSchema = z.object({
   name: z
@@ -22,9 +24,7 @@ export const AgentInputSchema = z.object({
   timeout_minutes: z.number().int().positive().max(1440).nullish(),
   prompt: z.string().max(20000).nullish(),
   image: z.string().max(512).nullish(),
-  execution_mode: z
-    .enum(["claude-code", "graph-ingest", "station"])
-    .default("claude-code"),
+  execution_mode: ExecutionMode.default("claude-code"),
   review_required: z.boolean().default(false),
   pod_resources: PodResourcesSchema.nullish(),
 });
@@ -56,7 +56,13 @@ export type AgentPatch = Partial<AgentDefinitionInput> & {
   pod_resources?: PodResources | null;
 };
 
-type ParsedAgentPatch = z.infer<ReturnType<typeof AgentInputSchema.partial>>;
+// A patch must not invent values: zod 4 applies an inner .default() through .partial(), turning an omitted field into a silent write.
+const AgentPatchSchema = AgentInputSchema.partial().extend({
+  execution_mode: ExecutionMode.optional(),
+  review_required: z.boolean().optional(),
+});
+
+type ParsedAgentPatch = z.infer<typeof AgentPatchSchema>;
 
 const nameField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
   p.name !== undefined ? { name: p.name } : {};
@@ -87,7 +93,7 @@ const podResourcesField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
     : {};
 
 export function parseAgentPatch(body: unknown): AgentPatch {
-  const parsed = AgentInputSchema.partial().parse(body);
+  const parsed = AgentPatchSchema.parse(body);
 
   return {
     ...nameField(parsed),

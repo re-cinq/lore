@@ -5,8 +5,8 @@ import type { ColumnMap } from "../../lib/row.js";
 
 // Recipe fields lack columns; pod resources survive deploys as catalog never overwrites existing org rows.
 const PodResourcesSchema = z.object({
-  requests: z.record(z.string()).optional(),
-  limits: z.record(z.string()).optional(),
+  requests: z.record(z.string(), z.string()).optional(),
+  limits: z.record(z.string(), z.string()).optional(),
 });
 
 export const CatalogConfigSchema = z
@@ -17,8 +17,8 @@ export const CatalogConfigSchema = z
     watch: z.object({ event: z.string(), path: z.string() }).optional(),
     repo_workdir: z.boolean().optional(),
     command: z.array(z.string()).optional(),
-    env: z.record(z.string()).optional(),
-    pod_labels: z.record(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    pod_labels: z.record(z.string(), z.string()).optional(),
     needs_model: z.boolean().optional(),
   })
   .passthrough();

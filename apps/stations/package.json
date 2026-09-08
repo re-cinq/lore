@@ -19,7 +19,7 @@
     "@re-cinq/lore-shared": "*",
     "octokit": "^5.0.5",
     "pg": "^8.23.0",
-    "zod": "^3.24.2",
+    "zod": "^4.5.4",
     "@re-cinq/lore-assembly-lines": "*"
   },
   "devDependencies": {

@@ -10,7 +10,7 @@ import { bearerScope } from "../../http/bearer-scope.js";
 const UNSTAMPED = { graphCommit: null, graphCommitAt: null, source: "none" };
 
 /** The commit a repo's impact reports are measured against. */
-const ImpactBaseSchema = z.record(z.unknown());
+const ImpactBaseSchema = z.record(z.string(), z.unknown());
 
 export function impactBaseRoute(): ServerRoute {
   return {

@@ -19,7 +19,7 @@ const CHUNK_KINDS = new Set([
 ]);
 
 /** One route per chunk KIND; the body is whichever collection the kind names. */
-const RepoChunksSchema = z.record(z.unknown());
+const RepoChunksSchema = z.record(z.string(), z.unknown());
 
 type ChunksProject = Awaited<ReturnType<typeof projectFor>>["chunks"];
 type ChunkQuery = Record<string, string | undefined>;

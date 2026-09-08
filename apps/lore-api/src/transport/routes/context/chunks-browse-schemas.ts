@@ -50,7 +50,7 @@ export const ChunkByPathSchema = z.object({
       id: z.string(),
       content_type: z.string().nullable(),
       content: z.string(),
-      metadata: z.record(z.unknown()).nullable(),
+      metadata: z.record(z.string(), z.unknown()).nullable(),
       repo: z.string().nullable(),
     }),
   ),

@@ -26,7 +26,7 @@ type GraphQuery = z.infer<typeof GraphQuery>;
 
 /** GET /api/graph — read the live knowledge graph (MCP-proxied lore_query_graph). */
 /** Graph query results — shape follows the query. */
-const GraphQuerySchema = z.record(z.unknown());
+const GraphQuerySchema = z.record(z.string(), z.unknown());
 
 /** Entities and relationships matching a query. The graph is written asynchronously by episode ingestion, so this read may legitimately trail the memory it describes. */
 async function serveGraph(

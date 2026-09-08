@@ -40,7 +40,7 @@ const UNAVAILABLE: ImpactReport = {
 };
 
 /** A change-impact report plus the PR annotations and comment it produced. */
-const ImpactReportSchema = z.record(z.unknown());
+const ImpactReportSchema = z.record(z.string(), z.unknown());
 
 export function impactRoute(): ServerRoute {
   return {

@@ -16,7 +16,7 @@ const UsageQuery = z.object({ agent_id: z.string().min(1).max(200) });
 type UsageQuery = z.infer<typeof UsageQuery>;
 
 /** Per-agent token and cost usage. An aggregate, so its keys are the query's. */
-const AgentUsageSchema = z.record(z.unknown());
+const AgentUsageSchema = z.record(z.string(), z.unknown());
 
 export function usageRoute(getPool: () => Pool | null): ServerRoute {
   return {
