@@ -106,6 +106,46 @@ async function loadAllPages(
   return { ok: true, collected };
 }
 
+/** Folds the run's persisted history in, page by page. A partial read is reported as offline rather than shown: half a run's events look like a run that did less than it did, which is worse than saying the history could not be loaded. */
+interface HistoryLoad {
+  runId: string;
+  dispatch: (event: RunStreamEvent) => void;
+  cancelled: () => boolean;
+}
+
+interface HistorySetters {
+  setHistoryEvents: (events: RunStreamEvent[]) => void;
+  setHistoryLoadedFor: (runId: string) => void;
+  setConnection: (state: ConnectionState) => void;
+  setStreamUnavailable: (unavailable: boolean) => void;
+}
+
+async function foldHistory(
+  { runId, dispatch, cancelled }: HistoryLoad,
+  set: HistorySetters,
+): Promise<void> {
+  try {
+    const { ok, collected } = await loadAllPages(runId, dispatch, cancelled);
+
+    if (cancelled()) {
+      return;
+    }
+
+    if (!ok) {
+      set.setStreamUnavailable(true);
+      set.setConnection("offline");
+
+      return;
+    }
+    set.setHistoryEvents(collected);
+    set.setHistoryLoadedFor(runId);
+  } catch {
+    if (!cancelled()) {
+      set.setConnection("offline");
+    }
+  }
+}
+
 export function useRunHistory(
   runId: string,
   dispatch: (event: RunStreamEvent) => void,
@@ -114,42 +154,23 @@ export function useRunHistory(
   const [historyLoadedFor, setHistoryLoadedFor] = useState<string | null>(null);
   const [streamUnavailable, setStreamUnavailable] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
+  const set = {
+    setHistoryEvents,
+    setHistoryLoadedFor,
+    setConnection,
+    setStreamUnavailable,
+  };
 
   useEffect(() => {
     let cancelled = false;
 
-    async function foldHistory() {
-      try {
-        const { ok, collected } = await loadAllPages(
-          runId,
-          dispatch,
-          () => cancelled,
-        );
-
-        if (cancelled) {
-          return;
-        }
-
-        if (!ok) {
-          setStreamUnavailable(true);
-          setConnection("offline");
-
-          return;
-        }
-        setHistoryEvents(collected);
-        setHistoryLoadedFor(runId);
-      } catch {
-        if (!cancelled) {
-          setConnection("offline");
-        }
-      }
-    }
-
-    void foldHistory();
+    void foldHistory({ runId, dispatch, cancelled: () => cancelled }, set);
 
     return () => {
       cancelled = true;
     };
+    // `set` is rebuilt each render but holds only useState setters, which React guarantees stable — including it would re-fold the history on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId, dispatch]);
 
   return {
@@ -159,6 +180,53 @@ export function useRunHistory(
     connection,
     setConnection,
     setStreamUnavailable,
+  };
+}
+
+interface PollTarget {
+  runId: string;
+  lastEventIdRef: { current: string };
+  dispatch: (event: RunStreamEvent) => void;
+}
+
+/** One poll tick. Skipped while a previous request is still out, so a slow backend cannot stack requests faster than it answers them; a failed tick is swallowed because the next one retries and the chip already reads "Polling". */
+async function pollOnce(
+  state: { inFlight: boolean },
+  cancelled: () => boolean,
+  { runId, lastEventIdRef, dispatch }: PollTarget,
+): Promise<void> {
+  if (state.inFlight) {
+    return;
+  }
+
+  state.inFlight = true;
+
+  try {
+    const page = await fetchPage(runId, lastEventIdRef.current);
+
+    if (cancelled() || !page.ok) {
+      return;
+    }
+    dispatchParsedRows(page.rows, dispatch);
+  } catch {
+    // The next tick retries; the chip already reads Polling.
+  } finally {
+    state.inFlight = false;
+  }
+}
+
+/** Starts the poll interval and returns its disposer. The `cancelled` flag is separate from `clearInterval`: a request already in flight when the effect tears down still resolves, and dispatching its rows into an unmounted reducer is the classic late-write bug. */
+function startPolling(target: PollTarget): () => void {
+  let cancelled = false;
+  const state = { inFlight: false };
+  const id = setInterval(
+    () => void pollOnce(state, () => cancelled, target),
+    HISTORY_POLL_MS,
+  );
+
+  return () => {
+    cancelled = true;
+    clearInterval(id);
   };
 }
 
@@ -180,36 +248,7 @@ export function useHistoryPoll(
       return;
     }
 
-    let cancelled = false;
-    let inFlight = false;
-
-    async function poll() {
-      if (inFlight) {
-        return;
-      }
-
-      inFlight = true;
-
-      try {
-        const page = await fetchPage(runId, lastEventIdRef.current);
-
-        if (cancelled || !page.ok) {
-          return;
-        }
-        dispatchParsedRows(page.rows, dispatch);
-      } catch {
-        // The next tick retries; the chip already reads Polling.
-      } finally {
-        inFlight = false;
-      }
-    }
-
-    const id = setInterval(() => void poll(), HISTORY_POLL_MS);
-
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
+    return startPolling({ runId, lastEventIdRef, dispatch });
   }, [active, runId, dispatch]);
 }
 
@@ -220,35 +259,12 @@ export interface RunStreamWiring {
   chipState: ChipState;
 }
 
-/** How events reach the panel: the one-off history fold, then either the live SSE stream or — when a browser or a server cannot hold one open — a poll from the reducer's own cursor. The caller never learns which; both dispatch the same events. */
-export function useRunStream({
-  runId,
-  runStatus,
-  runIsLive,
-  lastEventId,
-  dispatch,
-}: {
-  runId: string;
-  runStatus: string;
-  runIsLive: boolean;
-  lastEventId: string;
-  dispatch: (event: RunStreamEvent) => void;
-}): RunStreamWiring {
-  const {
-    historyEvents,
-    historyLoadedFor,
-    streamUnavailable,
-    connection,
-    setConnection,
-    setStreamUnavailable,
-  } = useRunHistory(runId, dispatch);
-  const mode = resolveStreamMode({
-    runStatus,
-    eventSourceAvailable: typeof EventSource !== "undefined",
-    streamUnavailable,
-  });
-  // "offline" means the stream hook gave up for good (STREAM_MAX_ATTEMPTS); flipping mode to history-only disables it and hands off to the poll.
-  const onConnectionChange = useCallback(
+/** Reports connection changes, and hands off to the poll when the stream gives up for good. "offline" is not a transient state — the stream hook only reports it after STREAM_MAX_ATTEMPTS — so it flips the mode to history-only, which disables the stream and starts the fallback poll. */
+function useStreamHandoff(
+  setConnection: (next: ConnectionState) => void,
+  setStreamUnavailable: (unavailable: boolean) => void,
+): (next: ConnectionState) => void {
+  return useCallback(
     (next: ConnectionState) => {
       setConnection(next);
 
@@ -258,21 +274,74 @@ export function useRunStream({
     },
     [setConnection, setStreamUnavailable],
   );
+}
 
+/** Arms both transports; each is inert unless its own flag says otherwise. Both are always CALLED — hooks cannot be conditional — so the choice is expressed as an `enabled` flag rather than as a branch. */
+function useTransports(
+  {
+    runId,
+    lastEventId,
+    dispatch,
+  }: {
+    runId: string;
+    lastEventId: string;
+    dispatch: RunStreamInput["dispatch"];
+  },
+  enabled: { live: boolean; poll: boolean },
+  history: RunHistory,
+): void {
   useRunEventStream({
     runId,
     afterId: lastEventId,
-    enabled: mode === "live" && historyLoadedFor === runId,
+    enabled: enabled.live,
     onEvent: dispatch,
-    onConnectionChange,
+    onConnectionChange: useStreamHandoff(
+      history.setConnection,
+      history.setStreamUnavailable,
+    ),
   });
-  const fallbackPollActive =
-    runIsLive && mode === "history-only" && historyLoadedFor === runId;
+  useHistoryPoll(enabled.poll, runId, lastEventId, dispatch);
+}
 
-  useHistoryPoll(fallbackPollActive, runId, lastEventId, dispatch);
+/** How events reach the panel: the one-off history fold, then either the live SSE stream or — when a browser or a server cannot hold one open — a poll from the reducer's own cursor. The caller never learns which; both dispatch the same events. */
+export interface RunStreamInput {
+  runId: string;
+  runStatus: string;
+  runIsLive: boolean;
+  lastEventId: string;
+  dispatch: (event: RunStreamEvent) => void;
+}
+
+export function useRunStream({
+  runId,
+  runStatus,
+  runIsLive,
+  lastEventId,
+  dispatch,
+}: RunStreamInput): RunStreamWiring {
+  const history = useRunHistory(runId, dispatch);
+  const mode = resolveStreamMode({
+    runStatus,
+    eventSourceAvailable: typeof EventSource !== "undefined",
+    streamUnavailable: history.streamUnavailable,
+  });
+  // Both transports wait for the history fold to finish: dispatching a live event before the run's past is in would fold it into a timeline missing everything before it.
+  const historyReady = history.historyLoadedFor === runId;
+  const fallbackPollActive =
+    runIsLive && mode === "history-only" && historyReady;
+
+  useTransports(
+    { runId, lastEventId, dispatch },
+    { live: mode === "live" && historyReady, poll: fallbackPollActive },
+    history,
+  );
 
   return {
-    historyEvents,
-    chipState: resolveChipState({ mode, connection, fallbackPollActive }),
+    historyEvents: history.historyEvents,
+    chipState: resolveChipState({
+      mode,
+      connection: history.connection,
+      fallbackPollActive,
+    }),
   };
 }

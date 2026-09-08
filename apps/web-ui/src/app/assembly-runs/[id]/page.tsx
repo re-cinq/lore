@@ -79,6 +79,57 @@ function TaskContextSection({
   );
 }
 
+/** Everything the page renders from, resolved in one place. `agentEditHrefs` is built from RESOLVED definitions because those carry the `project_id` the "Edit agent" link routes on; `listAgents` degrades to an empty list when the API is unreachable, which costs the links and nothing else. */
+async function resolveRunView(
+  run: NonNullable<Awaited<ReturnType<typeof resolveRun>>>,
+  id: string,
+) {
+  const nodes = await fetchAssemblyRunNodes(id);
+  const { events, llmCalls } = await resolveTaskContext(run.taskId);
+  const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
+
+  return {
+    nodes,
+    events,
+    llmCalls,
+    definition,
+    editHrefs: agentEditHrefs(definition, await listAgents(run.repo), run.repo),
+  };
+}
+
+/** The run page proper, once the id has resolved to a run. */
+interface RunPageProps {
+  run: NonNullable<Awaited<ReturnType<typeof resolveRun>>>;
+  view: Awaited<ReturnType<typeof resolveRunView>>;
+}
+
+function RunPage({ run, view }: RunPageProps) {
+  return (
+    <>
+      <RunAutoRefresh runStatus={run.status} />
+      <AssemblyRunView run={run} />
+      <AssemblyRunOptions run={run} />
+      <RunVisualizationPanel
+        runId={run.id}
+        runStatus={run.status}
+        startedAt={run.startedAt}
+        definition={view.definition}
+        nodes={view.nodes}
+        repo={run.repo}
+        reason={run.reason}
+        agentEditHrefs={view.editHrefs}
+      />
+
+      <TaskContextSection
+        taskId={run.taskId}
+        events={view.events}
+        llmCalls={view.llmCalls}
+        repo={run.repo}
+      />
+    </>
+  );
+}
+
 // Resolver for `/assembly-runs/[id]`: a run renders detail; a task id redirects to `/tasks/[id]` (legacy links keep working); unknown → "Not found".
 export default async function AssemblyLineResolverPage({
   params,
@@ -97,38 +148,5 @@ export default async function AssemblyLineResolverPage({
     return <p>Not found.</p>;
   }
 
-  const nodes = await fetchAssemblyRunNodes(id);
-  const { events, llmCalls } = await resolveTaskContext(run.taskId);
-  const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
-  // Resolved defs carry project_id, the discriminator "Edit agent" routes on; listAgents degrades to [] (no links) when the API is unreachable.
-  const editHrefs = agentEditHrefs(
-    definition,
-    await listAgents(run.repo),
-    run.repo,
-  );
-
-  return (
-    <>
-      <RunAutoRefresh runStatus={run.status} />
-      <AssemblyRunView run={run} />
-      <AssemblyRunOptions run={run} />
-      <RunVisualizationPanel
-        runId={run.id}
-        runStatus={run.status}
-        startedAt={run.startedAt}
-        definition={definition}
-        nodes={nodes}
-        repo={run.repo}
-        reason={run.reason}
-        agentEditHrefs={editHrefs}
-      />
-
-      <TaskContextSection
-        taskId={run.taskId}
-        events={events}
-        llmCalls={llmCalls}
-        repo={run.repo}
-      />
-    </>
-  );
+  return <RunPage run={run} view={await resolveRunView(run, id)} />;
 }

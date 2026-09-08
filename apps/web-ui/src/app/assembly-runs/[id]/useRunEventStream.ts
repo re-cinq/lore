@@ -36,65 +36,90 @@ function scheduleReconnect(
   return setTimeout(connect, action.delayMs);
 }
 
-/** Opens the run's event stream and keeps it open, returning its disposer. Reconnect state lives here rather than in React state on purpose: an attempt counter that triggered a re-render would tear down the socket it is counting for. `afterId` is read as a FUNCTION so a resumed connection starts from the newest event seen, not from the id captured when the stream first opened. */
-function openRunStream(
-  runId: string,
-  handlers: {
-    afterId: () => string;
-    onEvent: (event: RunStreamEvent) => void;
-    onConnectionChange: (state: ConnectionState) => void;
-  },
-): () => void {
-  let source: EventSource | null = null;
-  let retryTimer: ReturnType<typeof setTimeout> | null = null;
-  let attempt = 0;
-  let disposed = false;
-
-  const handleMessage = (event: MessageEvent) => {
+/** Wires one EventSource's three signals. Both `catchup-complete` and `open` mean the connection is good — the first fires when the server finishes replaying history, the second when there was none to replay — so either one counts as live. An unparseable frame is dropped rather than thrown: one malformed event must not take down a stream that is otherwise healthy. */
+function listenOn(
+  source: EventSource,
+  onEvent: (event: RunStreamEvent) => void,
+  { onLive, onError }: { onLive: () => void; onError: () => void },
+): void {
+  source.addEventListener("agent-event", (event: MessageEvent) => {
     const parsed = parseRunStreamEvent(String(event.data));
 
     if (parsed !== null) {
-      handlers.onEvent(parsed);
+      onEvent(parsed);
     }
+  });
+
+  for (const live of ["catchup-complete", "open"]) {
+    source.addEventListener(live, onLive);
+  }
+  source.onerror = onError;
+}
+
+/** Opens the run's event stream and keeps it open, returning its disposer. Reconnect state lives here rather than in React state on purpose: an attempt counter that triggered a re-render would tear down the socket it is counting for. `afterId` is read as a FUNCTION so a resumed connection starts from the newest event seen, not from the id captured when the stream first opened. */
+function openRunStream(runId: string, handlers: StreamHandlers): () => void {
+  const stream: StreamState = {
+    source: null,
+    retryTimer: null,
+    attempt: 0,
+    disposed: false,
   };
 
-  const connect = () => {
-    if (disposed) {
-      return;
-    }
-
-    handlers.onConnectionChange(attempt === 0 ? "connecting" : "reconnecting");
-    source = new EventSource(streamUrl(runId, handlers.afterId()));
-    source.addEventListener("agent-event", handleMessage);
-
-    // Either signal means the connection is good, so both clear the attempt count.
-    for (const live of ["catchup-complete", "open"]) {
-      source.addEventListener(live, () => {
-        attempt = 0;
-        handlers.onConnectionChange("live");
-      });
-    }
-    source.onerror = () => {
-      source?.close();
-      attempt += 1;
-      retryTimer = scheduleReconnect(
-        attempt,
-        connect,
-        handlers.onConnectionChange,
-      );
-    };
-  };
-
-  connect();
+  connectStream(stream, runId, handlers);
 
   return () => {
-    disposed = true;
+    stream.disposed = true;
 
-    if (retryTimer !== null) {
-      clearTimeout(retryTimer);
+    if (stream.retryTimer !== null) {
+      clearTimeout(stream.retryTimer);
     }
-    source?.close();
+    stream.source?.close();
   };
+}
+
+interface StreamHandlers {
+  afterId: () => string;
+  onEvent: (event: RunStreamEvent) => void;
+  onConnectionChange: (state: ConnectionState) => void;
+}
+
+/** The reconnect bookkeeping, held in a plain object rather than React state on purpose: an attempt counter that triggered a re-render would tear down the socket it is counting for. */
+interface StreamState {
+  source: EventSource | null;
+  retryTimer: ReturnType<typeof setTimeout> | null;
+  attempt: number;
+  disposed: boolean;
+}
+
+/** Opens one connection and arms the next. Calls itself through `scheduleReconnect` on error, so the retry chain lives in this one function; a disposed stream returns immediately rather than reconnecting to a run nobody is watching. */
+function connectStream(
+  stream: StreamState,
+  runId: string,
+  handlers: StreamHandlers,
+): void {
+  if (stream.disposed) {
+    return;
+  }
+
+  handlers.onConnectionChange(
+    stream.attempt === 0 ? "connecting" : "reconnecting",
+  );
+  stream.source = new EventSource(streamUrl(runId, handlers.afterId()));
+  listenOn(stream.source, handlers.onEvent, {
+    onLive: () => {
+      stream.attempt = 0;
+      handlers.onConnectionChange("live");
+    },
+    onError: () => {
+      stream.source?.close();
+      stream.attempt += 1;
+      stream.retryTimer = scheduleReconnect(
+        stream.attempt,
+        () => connectStream(stream, runId, handlers),
+        handlers.onConnectionChange,
+      );
+    },
+  });
 }
 
 export function useRunEventStream({

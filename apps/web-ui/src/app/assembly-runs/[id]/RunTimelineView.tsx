@@ -11,6 +11,33 @@ export interface RunTimelineViewProps {
   onSeek?: (id: string) => void;
 }
 
+/** One event on the rail. A seekable timeline renders buttons and an unseekable one renders spans — the same mark either way, but only one of them claims to be clickable, which is what a keyboard user goes by. */
+function Tick({
+  tick,
+  bounds,
+  onSeek,
+}: {
+  tick: RunTimelineViewProps["ticks"][number];
+  bounds: ReturnType<typeof timelineBounds>;
+  onSeek: RunTimelineViewProps["onSeek"];
+}) {
+  const attrs = {
+    className: `${styles.tick} ${styles[eventTone(tick.eventType)]}`,
+    "data-tone": eventTone(tick.eventType),
+    "data-node": tick.nodeId,
+    style: {
+      ["--tick-left" as string]: `${timeToFraction(tick.createdAt, bounds.start, bounds.end) * 100}%`,
+    },
+    title: `${tick.nodeId} ${tick.eventType}`,
+  };
+
+  return onSeek ? (
+    <button type="button" {...attrs} onClick={() => onSeek(tick.id)} />
+  ) : (
+    <span {...attrs} />
+  );
+}
+
 function TimelineRail({
   ticks,
   runStartedAt,
@@ -22,33 +49,9 @@ function TimelineRail({
   return (
     <div className={styles.timeline}>
       <div className={styles.rail}>
-        {ticks.map((tick) => {
-          const left = `${timeToFraction(tick.createdAt, bounds.start, bounds.end) * 100}%`;
-          const tone = eventTone(tick.eventType);
-          const title = `${tick.nodeId} ${tick.eventType}`;
-
-          return onSeek ? (
-            <button
-              key={tick.id}
-              type="button"
-              className={`${styles.tick} ${styles[tone]}`}
-              data-tone={tone}
-              data-node={tick.nodeId}
-              style={{ ["--tick-left" as string]: left }}
-              title={title}
-              onClick={() => onSeek(tick.id)}
-            />
-          ) : (
-            <span
-              key={tick.id}
-              className={`${styles.tick} ${styles[tone]}`}
-              data-tone={tone}
-              data-node={tick.nodeId}
-              style={{ ["--tick-left" as string]: left }}
-              title={title}
-            />
-          );
-        })}
+        {ticks.map((tick) => (
+          <Tick key={tick.id} tick={tick} bounds={bounds} onSeek={onSeek} />
+        ))}
       </div>
     </div>
   );

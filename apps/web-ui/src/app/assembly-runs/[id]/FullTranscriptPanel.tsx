@@ -132,6 +132,34 @@ async function walkAllTurns(
   }
 }
 
+/** Walks the transcript once. A failure RE-ARMS the started gate, so closing and reopening retries instead of pinning the error until a page reload; the stale error is cleared up front so a retry reads as Loading rather than as the previous failure. */
+async function loadTranscript(
+  runId: string,
+  refs: { disposedRef: { current: boolean }; startedRef: { current: boolean } },
+  set: {
+    setTurns: (turns: AgentRunTurn[]) => void;
+    setCapped: (capped: boolean) => void;
+    setError: (error: string | null) => void;
+  },
+): Promise<void> {
+  try {
+    set.setError(null);
+    const result = await walkAllTurns(runId, () => refs.disposedRef.current);
+
+    if (refs.disposedRef.current) {
+      return;
+    }
+    set.setTurns(result.turns);
+    set.setCapped(result.hitCap);
+    set.setError(null);
+  } catch (e) {
+    if (!refs.disposedRef.current) {
+      set.setError(walkErrorMessage(e));
+      refs.startedRef.current = false;
+    }
+  }
+}
+
 /** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload; unmount is the only cancellation, because a re-closed panel still wants the data it asked for. */
 function useTranscriptWalk(runId: string) {
   const [open, setOpen] = useState(false);
@@ -156,28 +184,11 @@ function useTranscriptWalk(runId: string) {
     }
     startedRef.current = true;
 
-    async function load() {
-      try {
-        // A reopen retries a failed walk — drop the stale error so the retry shows Loading… rather than the previous failure.
-        setError(null);
-        const result = await walkAllTurns(runId, () => disposedRef.current);
-
-        if (disposedRef.current) {
-          return;
-        }
-        setTurns(result.turns);
-        setCapped(result.hitCap);
-        setError(null);
-      } catch (e) {
-        if (!disposedRef.current) {
-          setError(walkErrorMessage(e));
-          // Re-arms the gate so closing/reopening retries instead of pinning the error until a page reload.
-          startedRef.current = false;
-        }
-      }
-    }
-
-    void load();
+    void loadTranscript(
+      runId,
+      { disposedRef, startedRef },
+      { setTurns, setCapped, setError },
+    );
   }, [open, runId]);
 
   return { open, setOpen, turns, capped, error, showRaw, setShowRaw };
@@ -201,47 +212,95 @@ function useNodeSegments(turns: AgentRunTurn[] | null, nodeId: string) {
   return { nodeTurns, nodeSegments };
 }
 
+/** Which of the panel's mutually exclusive states is on screen. One decision, so the four flags are resolved together rather than each child asking separately. */
+function bodyFlags(
+  walk: ReturnType<typeof useTranscriptWalk>,
+  segments: ReturnType<typeof useNodeSegments>,
+) {
+  const displayInput: TranscriptDisplayInput = {
+    error: walk.error,
+    open: walk.open,
+    turns: walk.turns,
+    capped: walk.capped,
+    nodeTurnsCount: segments.nodeTurns.length,
+  };
+
+  return {
+    ...transcriptMessageFlags(displayInput),
+    showList: transcriptListVisible(displayInput),
+  };
+}
+
+/** The states shown INSTEAD of turns. Each child renders only when its own flag is set, and at most one flag is ever true. */
+function TranscriptNotices({
+  error,
+  flags,
+  turnsLoaded,
+  nodeId,
+}: {
+  error: string | null;
+  flags: { showLoading: boolean; showCapped: boolean; showEmpty: boolean };
+  turnsLoaded: number;
+  nodeId: string;
+}) {
+  return (
+    <>
+      <TranscriptError error={error} />
+      <TranscriptLoading show={flags.showLoading} />
+      <TranscriptCapped show={flags.showCapped} turnsLoaded={turnsLoaded} />
+      <TranscriptEmpty show={flags.showEmpty} nodeId={nodeId} />
+    </>
+  );
+}
+
+/** Everything inside the card. Exactly one of the messages or the list is on screen at a time, so the flags are resolved here rather than by each child deciding for itself. */
+interface TranscriptBodyProps {
+  walk: ReturnType<typeof useTranscriptWalk>;
+  segments: ReturnType<typeof useNodeSegments>;
+  nodeId: string;
+}
+
+function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
+  const { turns, error, showRaw } = walk;
+  const { showList, ...flags } = bodyFlags(walk, segments);
+
+  return (
+    <>
+      <TranscriptToggleRow
+        show={showList}
+        showRaw={showRaw}
+        onChange={walk.setShowRaw}
+      />
+      <TranscriptNotices
+        error={error}
+        flags={flags}
+        turnsLoaded={(turns ?? []).length}
+        nodeId={nodeId}
+      />
+      <TranscriptTurnsList
+        show={showList}
+        showRaw={showRaw}
+        turns={segments.nodeTurns}
+        segments={segments.nodeSegments}
+      />
+    </>
+  );
+}
+
 export default function FullTranscriptPanel({
   runId,
   nodeId,
 }: FullTranscriptPanelProps) {
-  const { open, setOpen, turns, capped, error, showRaw, setShowRaw } =
-    useTranscriptWalk(runId);
-
-  const { nodeTurns, nodeSegments } = useNodeSegments(turns, nodeId);
-
-  const displayInput: TranscriptDisplayInput = {
-    error,
-    open,
-    turns,
-    capped,
-    nodeTurnsCount: nodeTurns.length,
-  };
-  const { showLoading, showCapped, showEmpty } =
-    transcriptMessageFlags(displayInput);
-  const showList = transcriptListVisible(displayInput);
+  const walk = useTranscriptWalk(runId);
+  const segments = useNodeSegments(walk.turns, nodeId);
 
   return (
-    <CollapsibleCard title="Full transcript" onToggle={setOpen}>
+    <CollapsibleCard title="Full transcript" onToggle={walk.setOpen}>
       <p className={`meta ${styles.hint}`}>
         Untruncated turns from the transcript store (30-day retention). The live
         view above stays truncated by design.
       </p>
-      <TranscriptToggleRow
-        show={showList}
-        showRaw={showRaw}
-        onChange={setShowRaw}
-      />
-      <TranscriptError error={error} />
-      <TranscriptLoading show={showLoading} />
-      <TranscriptCapped show={showCapped} turnsLoaded={(turns ?? []).length} />
-      <TranscriptEmpty show={showEmpty} nodeId={nodeId} />
-      <TranscriptTurnsList
-        show={showList}
-        showRaw={showRaw}
-        turns={nodeTurns}
-        segments={nodeSegments}
-      />
+      <TranscriptBody walk={walk} segments={segments} nodeId={nodeId} />
     </CollapsibleCard>
   );
 }

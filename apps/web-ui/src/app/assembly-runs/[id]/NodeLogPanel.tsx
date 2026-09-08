@@ -34,16 +34,7 @@ function logContent(
   return showRaw ? resp.logs : <LogEntriesView entries={entries} />;
 }
 
-/** Everything below the collapsible header: error, unavailable notice, format toggle, and the log body itself. */
-function NodeLogBody({
-  open,
-  error,
-  resp,
-  showRaw,
-  onShowRawChange,
-  entries,
-  bottomRef,
-}: {
+interface NodeLogBodyProps {
   open: boolean;
   error: string | null;
   resp: NodeLogsResponse | null;
@@ -51,7 +42,14 @@ function NodeLogBody({
   onShowRawChange: (raw: boolean) => void;
   entries: LogEntry[];
   bottomRef: React.RefObject<HTMLDivElement | null>;
-}) {
+}
+
+/** What to show INSTEAD of logs, or null when there are logs to show. A closed card renders nothing at all — not even a placeholder — because the fetch has not been asked for yet, and "Loading…" under a collapsed header would claim work nobody started. */
+function logNotice(
+  open: boolean,
+  error: string | null,
+  resp: NodeLogsResponse | null,
+) {
   if (error) {
     return <p className={styles.error}>Failed to load logs: {error}</p>;
   }
@@ -68,6 +66,24 @@ function NodeLogBody({
         {unavailableMessage(resp.reason)}
       </p>
     );
+  }
+
+  return null;
+}
+
+/** Everything below the collapsible header: error, unavailable notice, format toggle, and the log body itself. */
+function NodeLogBody({
+  open,
+  error,
+  resp,
+  showRaw,
+  onShowRawChange,
+  entries,
+  bottomRef,
+}: NodeLogBodyProps) {
+  // Null from logNotice means "a closed card shows nothing", NOT "show the logs" — so the fall-through is keyed on the response being available, not on the notice being absent.
+  if (error !== null || resp === null || !resp.available) {
+    return logNotice(open, error, resp);
   }
 
   return (
@@ -110,30 +126,20 @@ async function readNodeLogs(
   }
 }
 
-/** Keeps this node's logs current while the card is open: fetch on first open, poll while the pod is still running, and scroll to the newest line on every arrival. A 403 is stored as a MESSAGE rather than thrown — the reader lacks access to the repo, which is an answer, not a failure. */
-function useNodeLogs(assemblyLineId: string, agentCrName: string) {
-  const [open, setOpen] = useState(false);
-  const [resp, setResp] = useState<NodeLogsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [showRaw, setShowRaw] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const entries = useMemo(() => parseAgentLog(resp?.logs ?? ""), [resp?.logs]);
-
-  const fetchLogs = useCallback(async () => {
-    const result = await readNodeLogs(assemblyLineId, agentCrName);
-
-    if (typeof result === "string") {
-      setError(result);
-
-      return;
-    }
-    setResp(result);
-    setError(null);
-  }, [assemblyLineId, agentCrName]);
-
+/** Fetches once on first open, then polls only while the pod is still running. A finished pod's logs never change, so the poll stops rather than asking the same question forever. */
+function useLogFetching({
+  open,
+  resp,
+  error,
+  fetchLogs,
+}: {
+  open: boolean;
+  resp: NodeLogsResponse | null;
+  error: string | null;
+  fetchLogs: () => Promise<void>;
+}): void {
   useEffect(() => {
     if (open && resp === null && error === null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on open; state is set inside the async fetch
       void fetchLogs();
     }
   }, [open, resp, error, fetchLogs]);
@@ -146,6 +152,29 @@ function useNodeLogs(assemblyLineId: string, agentCrName: string) {
 
     return () => clearInterval(id);
   }, [open, resp, fetchLogs]);
+}
+
+/** Keeps this node's logs current while the card is open: fetch on first open, poll while the pod is still running, and scroll to the newest line on every arrival. A 403 is stored as a MESSAGE rather than thrown — the reader lacks access to the repo, which is an answer, not a failure. */
+function useNodeLogs(assemblyLineId: string, agentCrName: string) {
+  const [open, setOpen] = useState(false);
+  const [resp, setResp] = useState<NodeLogsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const entries = useMemo(() => parseAgentLog(resp?.logs ?? ""), [resp?.logs]);
+
+  const fetchLogs = useCallback(async () => {
+    const result = await readNodeLogs(assemblyLineId, agentCrName);
+
+    // A string IS the answer here — readNodeLogs turns a 403 into a message rather than throwing.
+    setError(typeof result === "string" ? result : null);
+
+    if (typeof result !== "string") {
+      setResp(result);
+    }
+  }, [assemblyLineId, agentCrName]);
+
+  useLogFetching({ open, resp, error, fetchLogs });
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -168,31 +197,22 @@ export default function NodeLogPanel({
   agentCrName,
   label,
 }: NodeLogPanelProps) {
-  const {
-    open,
-    setOpen,
-    resp,
-    error,
-    showRaw,
-    setShowRaw,
-    entries,
-    bottomRef,
-  } = useNodeLogs(assemblyLineId, agentCrName);
+  const logs = useNodeLogs(assemblyLineId, agentCrName);
 
   return (
     <CollapsibleCard
       title={label}
-      labels={[resp?.phase, resp?.archived ? "retained" : null]}
-      onToggle={setOpen}
+      labels={[logs.resp?.phase, logs.resp?.archived ? "retained" : null]}
+      onToggle={logs.setOpen}
     >
       <NodeLogBody
-        open={open}
-        error={error}
-        resp={resp}
-        showRaw={showRaw}
-        onShowRawChange={setShowRaw}
-        entries={entries}
-        bottomRef={bottomRef}
+        open={logs.open}
+        error={logs.error}
+        resp={logs.resp}
+        showRaw={logs.showRaw}
+        onShowRawChange={logs.setShowRaw}
+        entries={logs.entries}
+        bottomRef={logs.bottomRef}
       />
     </CollapsibleCard>
   );

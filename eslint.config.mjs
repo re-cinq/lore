@@ -330,6 +330,19 @@ export default tseslint.config(
   },
 
   {
+    // web-ui is drained route group by route group rather than in one 147-file
+    // change. A group joins this list in the PR that empties it, so the block
+    // above only ever covers what is genuinely still outstanding.
+    files: ["apps/web-ui/src/app/assembly-runs/**/*.{ts,tsx}"],
+    rules: {
+      "max-lines-per-function": [
+        "error",
+        { max: 30, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+
+  {
     files: ["**/*.test.{ts,tsx}"],
     languageOptions: {
       parserOptions: { projectService: false, project: false },

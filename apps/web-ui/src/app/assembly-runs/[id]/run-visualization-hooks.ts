@@ -57,28 +57,53 @@ interface RunGraphInput {
   takenEdges: RunData["taken"];
 }
 
-export function useRunGraph({
-  nodes,
-  definition,
-  runStatus,
-  runIsLive,
-  selectedNodeId,
-  showOutcomes,
-  replayActive,
-  nodeStates,
-  takenEdges,
-}: RunGraphInput) {
-  const hasRunData = computeHasRunData(nodes.length, nodeStates);
-  const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
-  // Fork source for "retry this node" — null hides the button (live run, unvisited node, entry node, or an unnameable prefix; see retry-resume.ts).
-  const retrySource = useMemo(
+/** The graph as drawn. A run with no rows yet passes `null` run data on purpose — the definition alone renders as the plain shape of the line, rather than as every node wrongly reporting "not started". */
+function useVisibleGraph(
+  definition: AssemblyLineDefinition | null,
+  hasRunData: boolean,
+  runData: RunData,
+  showOutcomes: boolean,
+) {
+  const graphMode = computeGraphMode(hasRunData, showOutcomes);
+
+  return useMemo(
+    () =>
+      deriveVisibleGraph(definition, hasRunData ? runData : null, graphMode),
+    [definition, hasRunData, runData, graphMode],
+  );
+}
+
+/** Fork source for "retry this node", or null to hide the button — a live run, an unvisited node, the entry node, or a prefix that cannot be named (see retry-resume.ts). */
+function useRetrySource(
+  nodes: readonly AssemblyRunNode[],
+  runIsLive: boolean,
+  selectedNodeId: string | null,
+) {
+  return useMemo(
     () =>
       runIsLive || selectedNodeId === null
         ? null
         : retryResumeSource(nodes, selectedNodeId),
     [runIsLive, nodes, selectedNodeId],
   );
-  const runData = useMemo<RunData>(
+}
+
+type RunDataInput = Pick<
+  RunGraphInput,
+  | "replayActive"
+  | "definition"
+  | "nodes"
+  | "nodeStates"
+  | "takenEdges"
+  | "runStatus"
+> & { latestRows: ReturnType<typeof latestRowByNode> };
+
+/** What the graph draws. While scrubbing, this is rebuilt from the REPLAYED state rather than the live rows: the two disagree by design, and the cursor's answer is the one on screen. */
+function useRunData(input: RunDataInput): RunData {
+  const { replayActive, definition, nodes, nodeStates } = input;
+  const { latestRows, takenEdges, runStatus } = input;
+
+  return useMemo<RunData>(
     () =>
       replayActive
         ? replayRunData(definition, nodes, nodeStates)
@@ -99,14 +124,30 @@ export function useRunGraph({
       runStatus,
     ],
   );
-  const graphMode = computeGraphMode(hasRunData, showOutcomes);
-  const visibleGraph = useMemo(
-    () =>
-      deriveVisibleGraph(definition, hasRunData ? runData : null, graphMode),
-    [definition, hasRunData, runData, graphMode],
-  );
+}
 
-  return { hasRunData, visibleGraph, retrySource, latestRows };
+export function useRunGraph(input: RunGraphInput) {
+  const { nodes, definition, nodeStates, showOutcomes } = input;
+  const hasRunData = computeHasRunData(nodes.length, nodeStates);
+  const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
+  const retrySource = useRetrySource(
+    nodes,
+    input.runIsLive,
+    input.selectedNodeId,
+  );
+  const runData = useRunData({ ...input, latestRows });
+
+  return {
+    hasRunData,
+    visibleGraph: useVisibleGraph(
+      definition,
+      hasRunData,
+      runData,
+      showOutcomes,
+    ),
+    retrySource,
+    latestRows,
+  };
 }
 
 /** Scrubbing a finished run. A terminal run renders state AS OF the cursor by folding history through the SAME reducer live mode uses, based on the all-idle state — never the visit-row seed, which would show verdicts the cursor has not reached. */
@@ -118,6 +159,44 @@ interface ReplayInput {
   liveState: ReturnType<typeof initialRunState>;
   replayCursor: number | null;
   setReplayCursor: (cursor: number | null) => void;
+}
+
+/** Seeks to the event with this id. An id the history does not hold leaves the cursor alone rather than resetting it — a stale link should not silently jump the scrubber to the start. */
+function useSeek(
+  historyEvents: RunStreamEvent[],
+  setReplayCursor: (cursor: number | null) => void,
+) {
+  return useCallback(
+    (id: string) => {
+      const cursor = cursorForEventId(historyEvents, id);
+
+      if (cursor !== null) {
+        setReplayCursor(cursor);
+      }
+    },
+    [historyEvents, setReplayCursor],
+  );
+}
+
+/** What the scrubber itself shows. A null cursor means "follow the end", so it reads as the full history length rather than as position zero. */
+function scrubberView(
+  runStatus: string,
+  historyEvents: RunStreamEvent[],
+  replayCursor: number | null,
+  runIsLive: boolean,
+) {
+  return {
+    scrubberVisible: computeScrubberVisible(runStatus, historyEvents.length),
+    replayPosition: scrubberPositionLabel(
+      historyEvents,
+      replayCursor ?? historyEvents.length,
+    ),
+    replayActive: computeReplayActive(
+      runIsLive,
+      replayCursor,
+      historyEvents.length,
+    ),
+  };
 }
 
 export function useReplay({
@@ -138,33 +217,33 @@ export function useReplay({
       ),
     [definition, historyEvents, replayCursor],
   );
-  const onSeek = useCallback(
-    (id: string) => {
-      const cursor = cursorForEventId(historyEvents, id);
-
-      if (cursor !== null) {
-        setReplayCursor(cursor);
-      }
-    },
-    [historyEvents, setReplayCursor],
-  );
 
   return {
     displayState: pickDisplayState(runIsLive, liveState, replayState),
-    scrubberVisible: computeScrubberVisible(runStatus, historyEvents.length),
-    replayPosition: scrubberPositionLabel(
-      historyEvents,
-      replayCursor ?? historyEvents.length,
-    ),
-    replayActive: computeReplayActive(
-      runIsLive,
-      replayCursor,
-      historyEvents.length,
-    ),
+    ...scrubberView(runStatus, historyEvents, replayCursor, runIsLive),
     onCursorChange: setReplayCursor,
     onBackToLive: () => setReplayCursor(null),
-    onSeek,
+    onSeek: useSeek(historyEvents, setReplayCursor),
   };
+}
+
+interface SelectedNodeInput {
+  nodes: readonly AssemblyRunNode[];
+  definition: AssemblyLineDefinition | null;
+  reason: string | null;
+  selectedNodeId: string | null;
+  nodeStates: Readonly<Record<string, NodeRunState>>;
+}
+
+/** What each visit was GIVEN, per attempt. A visit with no recorded input contributes nothing rather than an empty entry — the inspector lists inputs, and a blank row reads as "given nothing" rather than "not recorded". */
+function useNodeInputs(selectedRows: readonly AssemblyRunNode[]) {
+  return useMemo(
+    () =>
+      selectedRows.flatMap((node) =>
+        node.input ? [{ iteration: node.iteration, ...node.input }] : [],
+      ),
+    [selectedRows],
+  );
 }
 
 /** Everything the inspector needs about the selected node. Its walk rows are the source for the attempt history and the per-attempt pod logs; what each visit was GIVEN is per-visit state like its outcome, and rides those rows rather than the event stream, since no pod echoes its own prompt. */
@@ -174,25 +253,13 @@ export function useSelectedNode({
   reason,
   selectedNodeId,
   nodeStates,
-}: {
-  nodes: readonly AssemblyRunNode[];
-  definition: AssemblyLineDefinition | null;
-  reason: string | null;
-  selectedNodeId: string | null;
-  nodeStates: Readonly<Record<string, NodeRunState>>;
-}) {
+}: SelectedNodeInput) {
   const selected = pickSelectedState(nodeStates, selectedNodeId);
   const selectedRows = useMemo(
     () => nodes.filter((node) => node.nodeId === selectedNodeId),
     [nodes, selectedNodeId],
   );
-  const nodeInputs = useMemo(
-    () =>
-      selectedRows.flatMap((node) =>
-        node.input ? [{ iteration: node.iteration, ...node.input }] : [],
-      ),
-    [selectedRows],
-  );
+  const nodeInputs = useNodeInputs(selectedRows);
   const selectedAttempts = useMemo(
     () => stepViews(definition, selectedRows, reason),
     [definition, selectedRows, reason],

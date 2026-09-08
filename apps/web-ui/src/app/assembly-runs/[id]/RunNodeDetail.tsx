@@ -167,6 +167,70 @@ function NodeFacts({ detail, repo }: { detail: NodeDetail; repo: string }) {
   );
 }
 
+/** The stage commit this attempt made, linked to GitHub. Shown short, as a sha is read: the full forty characters carry no more meaning to a human and crowd out the row. */
+function CommitLink({ sha, repo }: { sha: string | null; repo: string }) {
+  if (!sha) {
+    return null;
+  }
+
+  return (
+    <a
+      className={styles.mono}
+      href={`https://github.com/${repo}/commit/${sha}`}
+      target="_blank"
+      rel="noreferrer"
+    >
+      {sha.substring(0, 7)}
+    </a>
+  );
+}
+
+/** What an attempt left behind: the pod that ran it, the commit it made, the edge it took, and why. Each is omitted when absent rather than rendered blank — an attempt that never reached a pod has no CR name, and an empty slot would read as one that failed to load. */
+function AttemptRefs({
+  step,
+  repo,
+}: {
+  step: RunNodeDetailProps["attempts"][number];
+  repo: string;
+}) {
+  return (
+    <>
+      {step.agentCrName ? (
+        <span className={`${styles.attemptMeta} ${styles.mono}`}>
+          {step.agentCrName}
+        </span>
+      ) : null}
+      <CommitLink sha={step.commitSha} repo={repo} />
+      {step.transition ? (
+        <span className={styles.attemptEdge}>{step.transition}</span>
+      ) : null}
+      {step.reason ? (
+        <span className={styles.attemptReason}>{step.reason}</span>
+      ) : null}
+    </>
+  );
+}
+
+/** One attempt. Every field past the status pill is optional and omitted when absent rather than rendered blank — an attempt that never reached a pod has no CR name, and an empty slot would read as a name that failed to load. */
+function AttemptRow({
+  step,
+  repo,
+}: {
+  step: RunNodeDetailProps["attempts"][number];
+  repo: string;
+}) {
+  return (
+    <li className={styles.attemptItem}>
+      <span className={styles.attemptMeta}>attempt {step.iteration}</span>
+      <StatusPill label={step.label} tone={step.tone} />
+      <span className={styles.attemptMeta}>
+        {formatDuration(step.durationSeconds)}
+      </span>
+      <AttemptRefs step={step} repo={repo} />
+    </li>
+  );
+}
+
 /** Only shown once a node has been visited more than once — a single attempt is already the card above. */
 function AttemptHistory({
   attempts,
@@ -184,34 +248,7 @@ function AttemptHistory({
       <div className={styles.attemptsHead}>Attempts ({attempts.length})</div>
       <ol className={styles.attemptList}>
         {attempts.map((step) => (
-          <li key={step.iteration} className={styles.attemptItem}>
-            <span className={styles.attemptMeta}>attempt {step.iteration}</span>
-            <StatusPill label={step.label} tone={step.tone} />
-            <span className={styles.attemptMeta}>
-              {formatDuration(step.durationSeconds)}
-            </span>
-            {step.agentCrName ? (
-              <span className={`${styles.attemptMeta} ${styles.mono}`}>
-                {step.agentCrName}
-              </span>
-            ) : null}
-            {step.commitSha ? (
-              <a
-                className={styles.mono}
-                href={`https://github.com/${repo}/commit/${step.commitSha}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {step.commitSha.substring(0, 7)}
-              </a>
-            ) : null}
-            {step.transition ? (
-              <span className={styles.attemptEdge}>{step.transition}</span>
-            ) : null}
-            {step.reason ? (
-              <span className={styles.attemptReason}>{step.reason}</span>
-            ) : null}
-          </li>
+          <AttemptRow key={step.iteration} step={step} repo={repo} />
         ))}
       </ol>
     </div>
