@@ -94,3 +94,67 @@ function isUsableRouteArg(value: unknown): boolean {
     (typeof value === "string" || typeof value === "number") && value !== ""
   );
 }
+
+/** What a station-run row contributes to the wire shape, independent of which adapter read it. */
+export interface StationRunFacts {
+  nodeId: string;
+  iteration: number;
+  outcome: string | null;
+  agentCrName: string | null;
+  commitSha: string | null;
+  startedAt: Date;
+  finishedAt: Date | null;
+}
+
+/** What the run's own graph adds; every field is null-shaped, because a pre-clone run's blueprint may be gone. */
+export interface NodeGraphFields {
+  type: string | null;
+  promptRef: string | null;
+  route: string | null;
+  station: string | null;
+  stationInherited: boolean;
+}
+
+/** All a visit can say once its blueprint is gone, bar the route, which still resolves from the run's own args. */
+const UNKNOWN_NODE = {
+  type: null,
+  promptRef: null,
+  station: null,
+  stationInherited: false,
+} as const;
+
+function nodeGraphFields(
+  node: RunGraphNode | undefined,
+  args: Record<string, unknown>,
+): NodeGraphFields {
+  // Resolved against THIS run's args (FR6.40); null when a placeholder is missing, since a half-built href is worse than none.
+  if (!node) {
+    return { ...UNKNOWN_NODE, route: resolveRoute(undefined, args) };
+  }
+
+  return {
+    type: node.type,
+    promptRef: node.prompt_ref ?? null,
+    route: resolveRoute(node.route, args),
+    station: node.station,
+    stationInherited: node.station_inherited,
+  };
+}
+
+/** The one wire shape for a station run, so the Floor and lore-api cannot describe the same node two ways (FR6.38). */
+export function describeStationRun(
+  row: StationRunFacts,
+  node: RunGraphNode | undefined,
+  args: Record<string, unknown> = {},
+) {
+  return {
+    nodeId: row.nodeId,
+    iteration: row.iteration,
+    outcome: row.outcome,
+    agentCrName: row.agentCrName,
+    commitSha: row.commitSha,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    ...nodeGraphFields(node, args),
+  };
+}
