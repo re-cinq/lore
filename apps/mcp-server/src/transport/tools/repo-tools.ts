@@ -78,25 +78,40 @@ function repoPage(
   return { repos, total };
 }
 
+async function fetchRepoPage(
+  offset: number,
+  pageSize: number,
+  bankedSoFar: number,
+): Promise<
+  { page: { repos: unknown[]; total: number } } | { failure: ToolTextResult }
+> {
+  const proxied = await proxyGetApi(
+    `/api/repos?limit=${pageSize}&offset=${offset}`,
+  );
+
+  if (!proxied.ok) {
+    return {
+      failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied),
+    };
+  }
+
+  return { page: repoPage(proxied.body, bankedSoFar) };
+}
+
 /** Walks every page. The API caps one response at 100, so an org with more repos than that would silently see only the first page; `total` ends the walk even when a page comes back exactly full. */
 async function walkRepoPages(): Promise<
-  | { repos: unknown[]; total: number }
-  | { failure: ReturnType<typeof proxyFailure> }
+  { repos: unknown[]; total: number } | { failure: ToolTextResult }
 > {
   const pageSize = 100;
   const repos: unknown[] = [];
 
   for (let offset = 0; ; offset += pageSize) {
-    const proxied = await proxyGetApi(
-      `/api/repos?limit=${pageSize}&offset=${offset}`,
-    );
+    const fetched = await fetchRepoPage(offset, pageSize, repos.length);
 
-    if (!proxied.ok) {
-      return {
-        failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied),
-      };
+    if ("failure" in fetched) {
+      return fetched;
     }
-    const page = repoPage(proxied.body, repos.length);
+    const { page } = fetched;
 
     repos.push(...page.repos);
 
@@ -156,36 +171,42 @@ function registerListReposTool(server: McpServer) {
   );
 }
 
+// A 409 is the guard refusing a duplicate, not an outage — return the body verbatim so the caller keeps `blocked`/`task_id` to poll or pass reonboard.
+function onboardFailure(
+  proxied: Extract<ProxyResult, { ok: false }>,
+): ToolTextResult {
+  if (
+    proxied.reason === "unreachable" &&
+    proxied.status === 409 &&
+    proxied.body
+  ) {
+    return textResult(proxied.body);
+  }
+
+  return proxyFailure("lore_onboard_repo", NOT_CONFIGURED, proxied);
+}
+
+async function onboardRepo({
+  full_name,
+  reonboard,
+}: {
+  full_name: string;
+  reonboard?: boolean;
+}): Promise<ToolTextResult> {
+  const proxied = await proxyToApi("/api/onboard", {
+    repo: full_name,
+    reonboard,
+  });
+
+  return proxied.ok ? textResult(proxied.body) : onboardFailure(proxied);
+}
+
 function registerOnboardRepoTool(server: McpServer) {
   server.tool(
     "lore_onboard_repo",
     `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status }. Refuses (HTTP 409) when the repo is already onboarded, still has its onboarding PR open, or already has an onboard task in flight — pass reonboard to regenerate missing scaffolding for an onboarded repo. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
     ONBOARD_REPO_INPUT,
-    async ({ full_name, reonboard }) => {
-      const proxied = await proxyToApi("/api/onboard", {
-        repo: full_name,
-        reonboard,
-      });
-
-      if (proxied.ok) {
-        return textResult(proxied.body);
-      }
-
-      if (proxied.reason === "not_configured") {
-        return textResult(NOT_CONFIGURED);
-      }
-
-      if (proxied.reason === "denied") {
-        return deniedError("lore_onboard_repo", proxied.detail);
-      }
-
-      // A 409 is the guard refusing a duplicate, not an outage — return the body verbatim so the caller keeps `blocked`/`task_id` to poll or pass reonboard.
-      if (proxied.status === 409 && proxied.body) {
-        return textResult(proxied.body);
-      }
-
-      return unreachableError("lore_onboard_repo", proxied.detail);
-    },
+    onboardRepo,
   );
 }
 
@@ -228,6 +249,28 @@ interface IngestOutcome {
   message: string;
 }
 
+// An error body is not guaranteed to be JSON, so the status text is the fallback explanation.
+async function ingestFailure(res: Response): Promise<IngestOutcome> {
+  const err = await res.json().catch(() => ({ error: res.statusText }));
+
+  return {
+    ingested: false,
+    message: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
+  };
+}
+
+async function ingestSuccess(
+  res: Response,
+  resolvedRepo: string,
+): Promise<IngestOutcome> {
+  const result = (await res.json()) as { ingested?: number; errors?: number };
+
+  return {
+    ingested: true,
+    message: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
+  };
+}
+
 async function postIngest(
   credentials: IngestCredentials,
   files: string[],
@@ -244,21 +287,7 @@ async function postIngest(
     body: JSON.stringify({ files, repo: resolvedRepo, commit }),
   });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-
-    return {
-      ingested: false,
-      message: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
-    };
-  }
-
-  const result = (await res.json()) as { ingested?: number; errors?: number };
-
-  return {
-    ingested: true,
-    message: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
-  };
+  return res.ok ? ingestSuccess(res, resolvedRepo) : ingestFailure(res);
 }
 
 function registerIngestFilesTool(server: McpServer) {

@@ -8,14 +8,20 @@ import {
   ENABLE_TASK_NOTIFICATIONS_INPUT,
 } from "./pipeline-tools-schemas.js";
 
-/** The offline view, read from the notifier's own cache. It is the same list the API would serve, minus repos this machine has never seen — which is why the API is tried first rather than this. */
-async function pendingFromFile(filterRepo?: string) {
+/** The cache holds every repo the notifier watches, so the repo filter has to be applied here as well as on the API path. */
+async function readPendingCache(filterRepo?: string) {
   const { listPendingTasks } =
     await import("../../work/pipeline/runner.local.js");
   const allTasks = listPendingTasks();
-  const tasks = filterRepo
+
+  return filterRepo
     ? allTasks.filter((t) => t.target_repo === filterRepo)
     : allTasks;
+}
+
+/** The offline view, read from the notifier's own cache. It is the same list the API would serve, minus repos this machine has never seen — which is why the API is tried first rather than this. */
+async function pendingFromFile(filterRepo?: string) {
+  const tasks = await readPendingCache(filterRepo);
 
   if (tasks.length === 0) {
     return textResult(
@@ -77,35 +83,56 @@ function registerSkipTaskTool(server: McpServer) {
   );
 }
 
-/** Starts the poller, defaulting to the repo the caller is standing in. The default task types are the ones a developer can actually pick up locally — a surfaced task nobody can run is noise on the statusline. */
-async function startTaskNotifier(args: {
-  repos?: string[];
-  task_types?: string[];
-}) {
-  const { startNotifier, detectRepo, isNotifierRunning } =
-    await import("../../work/pipeline/runner.local.js");
+// The types a developer can actually pick up locally — a surfaced task nobody can run is noise on the statusline.
+const LOCALLY_RUNNABLE_TASK_TYPES = [
+  "implementation",
+  "general",
+  "runbook",
+  "gap-fill",
+];
 
-  if (isNotifierRunning()) {
-    return textResult("Task notifications already active.");
-  }
-  const repos = args.repos || ([detectRepo()].filter(Boolean) as string[]);
+/** Null rather than an empty list: a notifier watching nothing would poll forever and surface nothing. */
+async function resolveNotifierRepos(
+  explicit?: string[],
+): Promise<string[] | null> {
+  const { detectRepo } = await import("../../work/pipeline/runner.local.js");
+  const repos = explicit || ([detectRepo()].filter(Boolean) as string[]);
 
-  if (repos.length === 0) {
-    return textResult(
-      "Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote.",
-    );
-  }
-  const taskTypes = args.task_types || [
-    "implementation",
-    "general",
-    "runbook",
-    "gap-fill",
-  ];
+  return repos.length === 0 ? null : repos;
+}
+
+async function beginWatching(repos: string[], taskTypes: string[]) {
+  const { startNotifier } = await import("../../work/pipeline/runner.local.js");
 
   startNotifier(repos, taskTypes);
 
   return textResult(
     `Watching for pending tasks on ${repos.join(", ")}.\nTypes: ${taskTypes.join(", ")}\nCheck the statusline for new tasks.`,
+  );
+}
+
+/** Starts the poller, defaulting to the repo the caller is standing in. */
+async function startTaskNotifier(args: {
+  repos?: string[];
+  task_types?: string[];
+}) {
+  const { isNotifierRunning } =
+    await import("../../work/pipeline/runner.local.js");
+
+  if (isNotifierRunning()) {
+    return textResult("Task notifications already active.");
+  }
+  const repos = await resolveNotifierRepos(args.repos);
+
+  if (!repos) {
+    return textResult(
+      "Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote.",
+    );
+  }
+
+  return await beginWatching(
+    repos,
+    args.task_types || LOCALLY_RUNNABLE_TASK_TYPES,
   );
 }
 

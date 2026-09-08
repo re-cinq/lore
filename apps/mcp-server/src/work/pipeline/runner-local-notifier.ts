@@ -32,6 +32,15 @@ function pendingTask(row: PendingTaskRow): PendingTask {
   };
 }
 
+// Oldest first, capped at ten: this feeds a statusline count, so the exact tail does not matter and an unbounded read on a busy org would.
+const PENDING_SQL = `SELECT id, description, task_type, target_repo, created_at, issue_number
+     FROM pipeline.tasks
+     WHERE status = 'pending'
+       AND target_repo = ANY($1)
+       AND task_type = ANY($2)
+     ORDER BY created_at ASC
+     LIMIT 10`;
+
 async function pendingFromDb(
   dbPool: PgPool,
   repos: string[],
@@ -45,16 +54,7 @@ async function pendingFromDb(
       target_repo: string;
       created_at: string;
       issue_number: number | null;
-    }>(
-      `SELECT id, description, task_type, target_repo, created_at, issue_number
-         FROM pipeline.tasks
-         WHERE status = 'pending'
-           AND target_repo = ANY($1)
-           AND task_type = ANY($2)
-         ORDER BY created_at ASC
-         LIMIT 10`,
-      [repos, taskTypes],
-    );
+    }>(PENDING_SQL, [repos, taskTypes]);
 
     return rows.map((r) => pendingTask(r));
   } catch {
@@ -128,29 +128,31 @@ export async function fetchPendingTasks(
 
 let notifierInterval: ReturnType<typeof setInterval> | null = null;
 
-// Starts the background task notifier: polls every 30s, writes matches to ~/.lore/pending-tasks.json (read-only, never claims), which the statusline reads to show "N new task(s)".
-export function startNotifier(
+// Refreshes the file the statusline reads. Best effort throughout — this runs on a timer inside the MCP server, and a poll that threw would take the server down with it.
+async function writePendingFile(
   repos: string[],
   taskTypes: string[],
   dbPool?: PgPool,
-): void {
-  // Already running
-  if (notifierInterval) {
-    return;
-  }
+): Promise<void> {
+  try {
+    const tasks = await fetchPendingTasks(repos, taskTypes, dbPool);
 
+    fs.writeFileSync(PENDING_FILE, JSON.stringify(tasks, null, 2));
+  } catch {
+    /* never crash the MCP server */
+  }
+}
+
+// Every fifth cycle also sweeps stale tasks (~2.5 min at a 30s interval) — not something each poll needs to pay for.
+function pollCycle(
+  repos: string[],
+  taskTypes: string[],
+  dbPool?: PgPool,
+): () => Promise<void> {
   let pollCount = 0;
 
-  const poll = async () => {
-    try {
-      const tasks = await fetchPendingTasks(repos, taskTypes, dbPool);
-
-      fs.writeFileSync(PENDING_FILE, JSON.stringify(tasks, null, 2));
-    } catch {
-      // Best effort — never crash the MCP server
-    }
-
-    // Run stale task cleanup every 5th cycle (~2.5 min at 30 s interval)
+  return async () => {
+    await writePendingFile(repos, taskTypes, dbPool);
     pollCount++;
 
     if (pollCount % 5 === 0) {
@@ -159,6 +161,18 @@ export function startNotifier(
       );
     }
   };
+}
+
+// Starts the background task notifier: polls every 30s, writes matches to ~/.lore/pending-tasks.json (read-only, never claims), which the statusline reads to show "N new task(s)".
+export function startNotifier(
+  repos: string[],
+  taskTypes: string[],
+  dbPool?: PgPool,
+): void {
+  if (notifierInterval) {
+    return;
+  }
+  const poll = pollCycle(repos, taskTypes, dbPool);
 
   // Run immediately, then on interval
   void poll();

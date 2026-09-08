@@ -35,59 +35,69 @@ function renderProxied(
   );
 }
 
+const MY_USAGE_INPUT = {
+  agent_id: z
+    .string()
+    .optional()
+    .describe(
+      "Agent identifier (email or UUID). Auto-detected from caller when omitted. Pass only to inspect a different agent.",
+    ),
+};
+
+async function handleMyUsage({ agent_id }: { agent_id?: string }) {
+  try {
+    const params = new URLSearchParams({ agent_id: resolveAgentId(agent_id) });
+
+    return renderProxied(await proxyGetApi(`/api/usage?${params}`), {
+      op: "reading usage",
+      subject: "usage",
+      toolName: "lore_my_usage",
+    });
+  } catch (err) {
+    return textResult(`Error: ${errorMessage(err)}`);
+  }
+}
+
 function registerLoreMyUsage(server: McpServer) {
   server.tool(
     "lore_my_usage",
     `Reports the calling agent's own task count and input/output token totals across three windows (today, 7_day, 30_day); returns { agent_id, usage: { today, 7_day, 30_day } }. Instead: for org-wide throughput, success rates, and per-type breakdown use lore_get_analytics — this tool is single-agent only and does not report success rates or per-type counts.`,
-    {
-      agent_id: z
-        .string()
-        .optional()
-        .describe(
-          "Agent identifier (email or UUID). Auto-detected from caller when omitted. Pass only to inspect a different agent.",
-        ),
-    },
-    async ({ agent_id }) => {
-      try {
-        const params = new URLSearchParams({
-          agent_id: resolveAgentId(agent_id),
-        });
-
-        return renderProxied(await proxyGetApi(`/api/usage?${params}`), {
-          op: "reading usage",
-          subject: "usage",
-          toolName: "lore_my_usage",
-        });
-      } catch (err) {
-        return textResult(`Error: ${errorMessage(err)}`);
-      }
-    },
+    MY_USAGE_INPUT,
+    handleMyUsage,
   );
+}
+
+const ANALYTICS_INPUT = {
+  period: z
+    .enum(["today", "week", "month", "all"])
+    .default("month")
+    .describe('"today", "week", "month", or "all" (no time filter).'),
+};
+
+async function handleGetAnalytics({
+  period,
+}: {
+  period: "today" | "week" | "month" | "all";
+}) {
+  try {
+    const params = new URLSearchParams({ period });
+
+    return renderProxied(await proxyGetApi(`/api/analytics?${params}`), {
+      op: "fetching analytics",
+      subject: "analytics",
+      toolName: "lore_get_analytics",
+    });
+  } catch (err) {
+    return textResult(`Error fetching analytics: ${errorMessage(err)}`);
+  }
 }
 
 function registerLoreGetAnalytics(server: McpServer) {
   server.tool(
     "lore_get_analytics",
     `Returns org-wide pipeline analytics for a time window: { period, usage: { llm_calls, input_tokens, output_tokens }, tasks: { total, succeeded, failed }, by_type }. Note: by_type[].tasks is a numeric string (raw pg bigint). Instead: for a single agent's own footprint use lore_my_usage — this tool is not per-agent and does not filter by caller.`,
-    {
-      period: z
-        .enum(["today", "week", "month", "all"])
-        .default("month")
-        .describe('"today", "week", "month", or "all" (no time filter).'),
-    },
-    async ({ period }) => {
-      try {
-        const params = new URLSearchParams({ period });
-
-        return renderProxied(await proxyGetApi(`/api/analytics?${params}`), {
-          op: "fetching analytics",
-          subject: "analytics",
-          toolName: "lore_get_analytics",
-        });
-      } catch (err) {
-        return textResult(`Error fetching analytics: ${errorMessage(err)}`);
-      }
-    },
+    ANALYTICS_INPUT,
+    handleGetAnalytics,
   );
 }
 

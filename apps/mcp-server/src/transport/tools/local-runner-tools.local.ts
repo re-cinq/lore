@@ -2,7 +2,10 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { textResult } from "./deps.js";
-import type { LocalRunnerConfig } from "../../work/pipeline/runner.local.js";
+import type {
+  LocalRunnerConfig,
+  PendingTask,
+} from "../../work/pipeline/runner.local.js";
 import {
   createPipelineTaskViaApi,
   resolvePendingTask,
@@ -95,28 +98,14 @@ function wrongRepoWarning(description: string, repo: string): string | null {
   return `Warning: This task references ${repoRefMatch[1]} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoRefMatch[1].split("/")[1]} && claude`;
 }
 
-/** Starts a brand-new task here. The pipeline row is created first so the task has an id the org can see; offline it falls back to a generated uuid rather than refusing to run, because the worktree run is the point and the row is bookkeeping. */
-async function runTaskLocally(args: {
-  description: string;
-  task_type: string;
-  model?: string;
-}) {
-  const { spawnLocalTask, detectRepo, getRepoRoot } =
+/** The id is already resolved by the caller because the pipeline row must exist before the process does — a run with no id is invisible to the org. */
+async function spawnWorktreeRun(
+  args: { description: string; task_type: string; model?: string },
+  repo: string,
+  taskId: string,
+) {
+  const { spawnLocalTask, getRepoRoot } =
     await import("../../work/pipeline/runner.local.js");
-  const repo = detectRepo();
-
-  if (!repo) {
-    return textResult("Error: not in a git repository with a GitHub remote");
-  }
-  // Refuses a description that names a DIFFERENT repo than the one you are standing in — the run would push to the wrong place.
-  const warning = wrongRepoWarning(args.description, repo);
-
-  if (warning) {
-    return textResult(warning);
-  }
-  const taskId =
-    (await createPipelineTaskViaApi(args.description, args.task_type, repo)) ??
-    crypto.randomUUID();
   const task = await spawnLocalTask({
     taskId,
     prompt: args.description,
@@ -131,9 +120,54 @@ async function runTaskLocally(args: {
   );
 }
 
-/** Takes an EXISTING pending task. The claim is best-effort but the skip is not: leaving it on the pending list after the worktree has started is how two machines end up running the same task. */
+/** Starts a brand-new task here. The pipeline row is created first so the task has an id the org can see; offline it falls back to a generated uuid rather than refusing to run, because the worktree run is the point and the row is bookkeeping. */
+async function runTaskLocally(args: {
+  description: string;
+  task_type: string;
+  model?: string;
+}) {
+  const { detectRepo } = await import("../../work/pipeline/runner.local.js");
+  const repo = detectRepo();
+
+  if (!repo) {
+    return textResult("Error: not in a git repository with a GitHub remote");
+  }
+  // Refuses a description that names a DIFFERENT repo than the one you are standing in — the run would push to the wrong place.
+  const warning = wrongRepoWarning(args.description, repo);
+
+  if (warning) {
+    return textResult(warning);
+  }
+  const taskId =
+    (await createPipelineTaskViaApi(args.description, args.task_type, repo)) ??
+    crypto.randomUUID();
+
+  return await spawnWorktreeRun(args, repo, taskId);
+}
+
+/** The skip is not best-effort the way the claim is: leaving the task on the pending list after the worktree has started is how two machines end up running the same task. */
+async function runClaimedTask(task: PendingTask, model?: string) {
+  const { spawnLocalTask, getRepoRoot, skipTask } =
+    await import("../../work/pipeline/runner.local.js");
+  const localTask = await spawnLocalTask({
+    taskId: task.id,
+    prompt: task.description,
+    repo: task.target_repo,
+    taskType: task.task_type,
+    model,
+    repoRoot: getRepoRoot() || undefined,
+  });
+
+  skipTask(task.id);
+
+  return textResult(
+    `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
+  );
+}
+
+/** Takes an EXISTING pending task. The claim is best-effort: the local cache may hold a task this machine cannot reach the API to claim, and the run is still worth starting. */
 async function claimAndRunLocally(args: { task_id: string; model?: string }) {
-  const { spawnLocalTask, getRepoRoot, skipTask, listPendingTasks } =
+  const { listPendingTasks } =
     await import("../../work/pipeline/runner.local.js");
   const task = await resolvePendingTask(args.task_id, listPendingTasks());
 
@@ -144,20 +178,7 @@ async function claimAndRunLocally(args: { task_id: string; model?: string }) {
   }
   await claimTaskBestEffort(task.id);
 
-  const localTask = await spawnLocalTask({
-    taskId: task.id,
-    prompt: task.description,
-    repo: task.target_repo,
-    taskType: task.task_type,
-    model: args.model,
-    repoRoot: getRepoRoot() || undefined,
-  });
-
-  skipTask(task.id);
-
-  return textResult(
-    `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
-  );
+  return await runClaimedTask(task, args.model);
 }
 
 function registerRunTaskLocallyTool(server: McpServer) {
@@ -175,6 +196,23 @@ function registerRunTaskLocallyTool(server: McpServer) {
   );
 }
 
+/** The listing is the local task file, not the pipeline — a task this machine never ran has no row here even when the org knows about it. */
+async function listLocalTasksText() {
+  const { listLocalTasks } =
+    await import("../../work/pipeline/runner.local.js");
+  const tasks = listLocalTasks();
+
+  if (tasks.length === 0) {
+    return textResult("No local tasks.");
+  }
+  const lines = tasks.map(
+    (t) =>
+      `${t.taskId.substring(0, 8)} ${t.status} ${t.repo} ${t.branch}${t.prUrl ? " → " + t.prUrl : ""}${t.error ? " ✗ " + t.error : ""}`,
+  );
+
+  return textResult(lines.join("\n"));
+}
+
 function registerListLocalTasksTool(server: McpServer) {
   server.tool(
     "lore_list_local_tasks",
@@ -182,23 +220,24 @@ function registerListLocalTasksTool(server: McpServer) {
     {},
     async () => {
       try {
-        const { listLocalTasks } =
-          await import("../../work/pipeline/runner.local.js");
-        const tasks = listLocalTasks();
-
-        if (tasks.length === 0) {
-          return textResult("No local tasks.");
-        }
-        const lines = tasks.map(
-          (t) =>
-            `${t.taskId.substring(0, 8)} ${t.status} ${t.repo} ${t.branch}${t.prUrl ? " → " + t.prUrl : ""}${t.error ? " ✗ " + t.error : ""}`,
-        );
-
-        return textResult(lines.join("\n"));
+        return await listLocalTasksText();
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }
     },
+  );
+}
+
+/** Cancellation is reported, not thrown: an already-gone process and a missing worktree are both ordinary outcomes here. */
+async function cancelLocalTaskText(taskId: string) {
+  const { cancelLocalTask } =
+    await import("../../work/pipeline/runner.local.js");
+  const result = cancelLocalTask(taskId);
+
+  return textResult(
+    result.cancelled
+      ? `Task ${taskId} cancelled. Worktree cleaned up.`
+      : `Could not cancel: ${result.error}`,
   );
 }
 
@@ -211,15 +250,7 @@ function registerCancelLocalTaskTool(server: McpServer) {
     },
     async (args) => {
       try {
-        const { cancelLocalTask } =
-          await import("../../work/pipeline/runner.local.js");
-        const result = cancelLocalTask(args.task_id);
-
-        return textResult(
-          result.cancelled
-            ? `Task ${args.task_id} cancelled. Worktree cleaned up.`
-            : `Could not cancel: ${result.error}`,
-        );
+        return await cancelLocalTaskText(args.task_id);
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }
@@ -280,6 +311,22 @@ function applyConfigureUpdate(
   return next;
 }
 
+/** No arguments means read, not "clear everything" — the tool doubles as the config viewer. */
+async function configureLocalRunner(args: ConfigureLocalRunnerArgs) {
+  const { readConfig, writeConfig } =
+    await import("../../work/pipeline/runner.local.js");
+  const config = readConfig();
+
+  if (!hasConfigureArgs(args)) {
+    return textResult(JSON.stringify(config, null, 2));
+  }
+  const updated = applyConfigureUpdate(config, args);
+
+  writeConfig(updated);
+
+  return textResult(`Config updated:\n${JSON.stringify(updated, null, 2)}`);
+}
+
 function registerConfigureLocalRunnerTool(server: McpServer) {
   server.tool(
     "lore_configure_local_runner",
@@ -287,20 +334,7 @@ function registerConfigureLocalRunnerTool(server: McpServer) {
     CONFIGURE_LOCAL_RUNNER_INPUT,
     async (args) => {
       try {
-        const { readConfig, writeConfig } =
-          await import("../../work/pipeline/runner.local.js");
-        const config = readConfig();
-
-        if (!hasConfigureArgs(args)) {
-          return textResult(JSON.stringify(config, null, 2));
-        }
-        const updated = applyConfigureUpdate(config, args);
-
-        writeConfig(updated);
-
-        return textResult(
-          `Config updated:\n${JSON.stringify(updated, null, 2)}`,
-        );
+        return await configureLocalRunner(args);
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }

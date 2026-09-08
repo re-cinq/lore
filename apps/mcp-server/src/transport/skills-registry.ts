@@ -46,16 +46,24 @@ export async function handleSkillsRequest(
     return true;
   }
 
+  await serveNamedTarball(res, skillsRoot, path);
+
+  return true;
+}
+
+async function serveNamedTarball(
+  res: ServerResponse,
+  skillsRoot: string,
+  path: string,
+): Promise<void> {
   const name = tarballSkillName(path);
 
   if (!name) {
     res.writeHead(404).end();
 
-    return true;
+    return;
   }
   await serveSkillTarball(res, skillsRoot, name);
-
-  return true;
 }
 
 async function serveSettings(
@@ -71,28 +79,32 @@ async function serveSettings(
   }
 }
 
+// Belt-and-suspenders against traversal: the resolved dir must stay under skills/, whatever the name matched upstream.
+async function isServableSkillDir(
+  skillsDir: string,
+  name: string,
+): Promise<boolean> {
+  const dir = resolve(skillsDir, name);
+
+  if (dir !== skillsDir && !dir.startsWith(skillsDir + sep)) {
+    return false;
+  }
+
+  try {
+    return (await stat(dir)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 async function serveSkillTarball(
   res: ServerResponse,
   skillsRoot: string,
   name: string,
 ): Promise<void> {
   const skillsDir = resolve(skillsRoot, "skills");
-  const dir = resolve(skillsDir, name);
 
-  // Belt-and-suspenders against traversal: the resolved dir must stay under skills/.
-  if (dir !== skillsDir && !dir.startsWith(skillsDir + sep)) {
-    res.writeHead(404).end();
-
-    return;
-  }
-
-  try {
-    if (!(await stat(dir)).isDirectory()) {
-      res.writeHead(404).end();
-
-      return;
-    }
-  } catch {
+  if (!(await isServableSkillDir(skillsDir, name))) {
     res.writeHead(404).end();
 
     return;

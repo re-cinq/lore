@@ -80,19 +80,24 @@ function jsonRpcError(res: ServerResponse, status: number, message: string) {
   );
 }
 
-// A new McpServer + transport per MCP session (an McpServer binds to one transport), tracked by the session id the transport mints on initialize.
-function newSession(
-  opts: HttpGatewayOptions,
+// Map keeps insertion order, so the first key is the oldest session — evict it rather than let a leak grow the map unbounded.
+function evictOldestWhenFull(
   sessions: Map<string, StreamableHTTPServerTransport>,
-): StreamableHTTPServerTransport {
-  // Map keeps insertion order, so the first key is the oldest session — evict it rather than let a leak grow the map unbounded.
+): void {
   const oldest =
     sessions.size >= MAX_SESSIONS ? sessions.keys().next().value : undefined;
 
-  if (oldest) {
-    void sessions.get(oldest)?.close();
-    sessions.delete(oldest);
+  if (!oldest) {
+    return;
   }
+  void sessions.get(oldest)?.close();
+  sessions.delete(oldest);
+}
+
+// The transport mints the session id on initialize, so both registration and cleanup have to ride its own callbacks rather than be done by the caller.
+function trackedTransport(
+  sessions: Map<string, StreamableHTTPServerTransport>,
+): StreamableHTTPServerTransport {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
     // Lore's tools are request/response, so a single JSON reply is simpler for clients than an SSE stream.
@@ -107,6 +112,18 @@ function newSession(
       sessions.delete(transport.sessionId);
     }
   };
+
+  return transport;
+}
+
+// A new McpServer + transport per MCP session (an McpServer binds to one transport), tracked by the session id the transport mints on initialize.
+function newSession(
+  opts: HttpGatewayOptions,
+  sessions: Map<string, StreamableHTTPServerTransport>,
+): StreamableHTTPServerTransport {
+  evictOldestWhenFull(sessions);
+  const transport = trackedTransport(sessions);
+
   void buildMcpServer({ serverMode: opts.serverMode }).connect(transport);
 
   return transport;
@@ -210,13 +227,38 @@ async function handledUnauthenticated(
   return handleSkillsRequest(req, res, skillsRoot);
 }
 
-/** The gateway's four surfaces in precedence order: health (unauthenticated, for the probe), skills (unauthenticated — org conventions, not secrets), then /mcp behind the bearer. Anything else is a 404 rather than a 401, so an unauthenticated scan cannot map what exists here. */
+/** The per-process wiring every request needs but no request carries: where the skills bundle lives and how a caller proves it may reach /mcp. */
+interface GatewayWiring {
+  skillsRoot: string;
+  authorized: (req: IncomingMessage) => boolean;
+}
+
+/** A 404 rather than a 401 on an unknown path, so an unauthenticated scan cannot map what exists here. Returns whether the request was already refused. */
+function refusedBeforeMcp(
+  wiring: GatewayWiring,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: string,
+): boolean {
+  if (!url.startsWith("/mcp")) {
+    res.writeHead(404).end();
+
+    return true;
+  }
+
+  if (!wiring.authorized(req)) {
+    jsonRpcError(res, 401, "Unauthorized");
+
+    return true;
+  }
+
+  return false;
+}
+
+/** The gateway's four surfaces in precedence order: health (unauthenticated, for the probe), skills (unauthenticated — org conventions, not secrets), then /mcp behind the bearer. */
 async function routeRequest(
   mcp: McpContext,
-  wiring: {
-    skillsRoot: string;
-    authorized: (req: IncomingMessage) => boolean;
-  },
+  wiring: GatewayWiring,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -226,37 +268,29 @@ async function routeRequest(
     return;
   }
 
-  if (!url.startsWith("/mcp")) {
-    res.writeHead(404).end();
-
+  if (refusedBeforeMcp(wiring, req, res, url)) {
     return;
   }
+  const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
-  if (!wiring.authorized(req)) {
-    jsonRpcError(res, 401, "Unauthorized");
-
-    return;
-  }
-
-  await routeMcp(
-    mcp,
-    req,
-    res,
-    req.headers["mcp-session-id"] as string | undefined,
-  );
+  await routeMcp(mcp, req, res, sessionId);
 }
 
-export function startHttpGateway(opts: HttpGatewayOptions): Server {
-  const sessions = new Map<string, StreamableHTTPServerTransport>();
-  // The agent-skills bundle baked into this gateway image; the subsystem init fetches it over /skills, not part of MCP.
-  const skillsRoot =
-    process.env.LORE_AGENT_SKILLS_DIR ?? resolve(process.cwd(), "agent-skills");
-  const wiring = {
-    skillsRoot,
+// The agent-skills bundle baked into this gateway image; the subsystem init fetches it over /skills, which is not part of MCP.
+function gatewayWiring(opts: HttpGatewayOptions): GatewayWiring {
+  return {
+    skillsRoot:
+      process.env.LORE_AGENT_SKILLS_DIR ??
+      resolve(process.cwd(), "agent-skills"),
     authorized: (req: IncomingMessage): boolean =>
       !opts.authToken ||
       req.headers.authorization === `Bearer ${opts.authToken}`,
   };
+}
+
+export function startHttpGateway(opts: HttpGatewayOptions): Server {
+  const sessions = new Map<string, StreamableHTTPServerTransport>();
+  const wiring = gatewayWiring(opts);
   const mcp: McpContext = { sessions, opts };
   const server = createServer((req, res) => {
     void routeRequest(mcp, wiring, req, res).catch((err: unknown) =>

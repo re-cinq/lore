@@ -73,7 +73,6 @@ function removeWorktreeAt(repoRoot: string, worktreePath: string): void {
   }
 }
 
-// Spawns a local task in a git worktree with a background Claude Code process and returns immediately; the agent starts cold and assembles its own context via the MCP server.
 /** The existence check is the idempotency guard: a second spawn for the same task must fail loudly rather than attach to a worktree another run is already using. */
 function addWorktree(opts: {
   repoRoot: string;
@@ -130,7 +129,23 @@ function runPaths(run: { taskId: string; prompt: string; taskType: string }): {
   };
 }
 
-/** Creates the worktree, starts the run, and takes the worktree back down if the process never started — a worktree with no run behind it is invisible work that blocks the branch name. */
+/** Creates the worktree and starts the run in it; the configured model is only read here, so an explicit per-task model always wins over the config file. */
+function launchRun(
+  run: { taskId: string; prompt: string; model?: string },
+  paths: { branch: string; worktreePath: string; logFile: string },
+  repoRoot: string,
+): number {
+  const { branch, worktreePath, logFile } = paths;
+  const { taskId, prompt, model } = run;
+
+  addWorktree({ repoRoot, worktreePath, branch, taskId });
+
+  return spawnOrUnwind(
+    { worktreePath, logFile, model: model || readConfig().model, prompt },
+    repoRoot,
+  );
+}
+
 function startRun(
   run: {
     taskId: string;
@@ -141,23 +156,13 @@ function startRun(
   },
   repoRoot: string,
 ): LocalTask {
-  const { taskId, prompt, repo, model } = run;
-  const { branch, worktreePath, logFile } = runPaths(run);
-
-  addWorktree({ repoRoot, worktreePath, branch, taskId });
-
-  const pid = spawnOrUnwind(
-    { worktreePath, logFile, model: model || readConfig().model, prompt },
-    repoRoot,
-  );
+  const paths = runPaths(run);
 
   return {
-    taskId,
-    pid,
-    branch,
-    repo,
-    worktreePath,
-    logFile,
+    ...paths,
+    taskId: run.taskId,
+    repo: run.repo,
+    pid: launchRun(run, paths, repoRoot),
     startedAt: new Date().toISOString(),
     status: "running",
   };
@@ -177,6 +182,31 @@ function discardWorktree(worktreePath: string, taskId: string): void {
   }
 }
 
+/** enforceTrue narrows the nullable root away, so every worktree call downstream is spared a null check the runner could not act on anyway. */
+function requireRepoRoot(repoRoot: string | null): string {
+  enforceTrue(
+    repoRoot,
+    Error,
+    "Not in a git repository — cannot create worktree",
+  );
+
+  return repoRoot;
+}
+
+/** Task metadata goes into ~/.lore/local-tasks.json only, never inside the worktree — writing it there previously caused noise PRs (#250). */
+function recordAndMonitor(taskMeta: LocalTask): void {
+  const tasks = readTasks();
+
+  tasks.push(taskMeta);
+  writeTasks(tasks);
+  monitorTask(taskMeta).catch((err) => {
+    console.error(
+      `[lore] local-runner: monitor error for ${taskMeta.taskId}: ${err}`,
+    );
+  });
+}
+
+// Spawns a local task in a git worktree with a background Claude Code process and returns immediately; the agent starts cold and assembles its own context via the MCP server.
 export async function spawnLocalTask(opts: {
   taskId: string;
   prompt: string;
@@ -187,30 +217,14 @@ export async function spawnLocalTask(opts: {
 }): Promise<LocalTask> {
   ensureDirs();
 
-  const { taskId, prompt, repo, taskType, model } = opts;
-  const repoRoot = opts.repoRoot || getRepoRoot();
-
-  enforceTrue(
-    repoRoot,
-    Error,
-    "Not in a git repository — cannot create worktree",
-  );
+  const repoRoot = requireRepoRoot(opts.repoRoot || getRepoRoot());
 
   // Refuse to run if the developer's cwd is a checkout of a different repo than the task's target_repo.
-  validateRepoMatch(repo, detectRepo());
+  validateRepoMatch(opts.repo, detectRepo());
 
-  const taskMeta = startRun(
-    { taskId, prompt, repo, taskType, model },
-    repoRoot,
-  );
-  // Task metadata goes into ~/.lore/local-tasks.json only, never inside the worktree — writing it there previously caused noise PRs (#250).
-  const tasks = readTasks();
+  const taskMeta = startRun(opts, repoRoot);
 
-  tasks.push(taskMeta);
-  writeTasks(tasks);
-  monitorTask(taskMeta).catch((err) => {
-    console.error(`[lore] local-runner: monitor error for ${taskId}: ${err}`);
-  });
+  recordAndMonitor(taskMeta);
 
   return taskMeta;
 }
@@ -235,6 +249,29 @@ export function listLocalTasks(): LocalTask[] {
   return tasks;
 }
 
+// A process that is already gone is the ordinary case, not a failure to cancel.
+function killTask(pid: number): void {
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    /* already dead */
+  }
+}
+
+/** Tears one running task down; `tasks` is the whole list because the task object is a member of it and the file is rewritten wholesale. */
+function terminateTask(task: LocalTask, tasks: LocalTask[]): void {
+  killTask(task.pid);
+  task.status = "failed";
+  task.error = "Cancelled by user";
+  writeTasks(tasks);
+  discardWorktree(task.worktreePath, task.taskId);
+
+  // Update pipeline status (fire and forget)
+  updateTaskViaAPI(task.taskId, "cancelled", {}).catch((err) =>
+    warnBestEffort(`cancel status update for task ${task.taskId}`, err),
+  );
+}
+
 export function cancelLocalTask(taskId: string): {
   cancelled: boolean;
   error?: string;
@@ -249,23 +286,7 @@ export function cancelLocalTask(taskId: string): {
   if (task.status !== "running") {
     return { cancelled: false, error: `Task is ${task.status}` };
   }
-
-  // A process that is already gone is the ordinary case, not a failure to cancel.
-  try {
-    process.kill(task.pid, "SIGTERM");
-  } catch {
-    // Already dead — that's fine
-  }
-
-  task.status = "failed";
-  task.error = "Cancelled by user";
-  writeTasks(tasks);
-  discardWorktree(task.worktreePath, taskId);
-
-  // Update pipeline status (fire and forget)
-  updateTaskViaAPI(taskId, "cancelled", {}).catch((err) =>
-    warnBestEffort(`cancel status update for task ${taskId}`, err),
-  );
+  terminateTask(task, tasks);
 
   return { cancelled: true };
 }

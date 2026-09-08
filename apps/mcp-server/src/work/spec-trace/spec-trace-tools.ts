@@ -63,22 +63,26 @@ import {
 
 export { runTestsList, runTestsRun, parseCommandJson };
 
+// These tools answer with a plain string, so an unmet precondition IS the return value rather than a thrown error.
+function testInterfaceRefusal(
+  env: NodeJS.ProcessEnv,
+  manifest: TestCommandManifest | null,
+): string | null {
+  return executionRefusal(env) ?? (manifest ? null : NO_MANIFEST);
+}
+
 export async function listTestsTool(
   env: NodeJS.ProcessEnv,
   manifest: TestCommandManifest | null,
   cwd: string,
 ): Promise<string> {
-  const refusal = executionRefusal(env);
+  const refusal = testInterfaceRefusal(env, manifest);
 
   if (refusal) {
     return refusal;
   }
 
-  if (!manifest) {
-    return NO_MANIFEST;
-  }
-
-  if (!manifest.list) {
+  if (!manifest?.list) {
     return NO_LIST_COMMAND;
   }
 

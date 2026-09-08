@@ -14,6 +14,22 @@ function resolveApiCredentials(): ApiCredentials | null {
   return apiUrl && token ? { apiUrl, token } : null;
 }
 
+// /api/task is both the create and the claim endpoint — the action is carried in the body, so one poster serves both callers.
+function postTask(
+  creds: ApiCredentials,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  return fetch(`${creds.apiUrl}/api/task`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${creds.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 /** Registers the task via the API, returning the server-issued id, or null when offline. */
 export async function createPipelineTaskViaApi(
   description: string,
@@ -26,21 +42,20 @@ export async function createPipelineTaskViaApi(
     return null;
   }
 
+  return postTaskCreate(creds, {
+    description,
+    task_type: taskType,
+    target_repo: repo,
+    created_by: "local-runner",
+  });
+}
+
+async function postTaskCreate(
+  creds: ApiCredentials,
+  body: Record<string, unknown>,
+): Promise<string | null> {
   try {
-    const resp = await fetch(`${creds.apiUrl}/api/task`, {
-      signal: AbortSignal.timeout(30_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${creds.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        description,
-        task_type: taskType,
-        target_repo: repo,
-        created_by: "local-runner",
-      }),
-    });
+    const resp = await postTask(creds, body);
     const created = (await resp.json()) as { task_id?: string };
 
     return created.task_id ?? null;
@@ -76,6 +91,13 @@ function toPendingTask(fetchedTask: FetchedTask): PendingTask | undefined {
   };
 }
 
+function getTask(creds: ApiCredentials, taskId: string): Promise<Response> {
+  return fetch(`${creds.apiUrl}/api/task/${taskId}`, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { Authorization: `Bearer ${creds.token}` },
+  });
+}
+
 /** Fetches one task from the API; undefined when unreachable or not pending. */
 export async function fetchPendingTaskFromApi(
   taskId: string,
@@ -87,10 +109,7 @@ export async function fetchPendingTaskFromApi(
   }
 
   try {
-    const resp = await fetch(`${creds.apiUrl}/api/task/${taskId}`, {
-      signal: AbortSignal.timeout(30_000),
-      headers: { Authorization: `Bearer ${creds.token}` },
-    });
+    const resp = await getTask(creds, taskId);
 
     if (!resp.ok) {
       return undefined;
@@ -121,18 +140,10 @@ export async function claimTaskBestEffort(taskId: string): Promise<void> {
   }
 
   try {
-    await fetch(`${creds.apiUrl}/api/task`, {
-      signal: AbortSignal.timeout(30_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${creds.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        task_id: taskId,
-        action: "claim",
-        claimed_by: "local-runner",
-      }),
+    await postTask(creds, {
+      task_id: taskId,
+      action: "claim",
+      claimed_by: "local-runner",
     });
   } catch {
     /* best effort */

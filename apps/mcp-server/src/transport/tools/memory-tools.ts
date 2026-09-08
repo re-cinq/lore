@@ -40,37 +40,56 @@ export function registerMemoryTools(server: McpServer) {
   registerGraphEpisodeTools(server);
 }
 
+// A memory addressed by key. `agent_id` is optional everywhere: absent means "this agent", resolved once at the edge.
+interface KeyedMemoryArgs {
+  key: string;
+  agent_id?: string;
+}
+
+interface WriteMemoryArgs extends KeyedMemoryArgs {
+  value: string;
+  ttl?: number;
+  extract_facts?: boolean;
+}
+
+// Writes through the API, falling back to the file store ONLY when LORE_API_URL is unset — true offline mode. A configured API that refused is reported, not quietly written to disk, or the two stores would diverge.
+async function writeMemoryHandler(args: WriteMemoryArgs) {
+  const { key, value, agent_id, ttl } = args;
+
+  try {
+    const handled = interpretMemoryProxy(
+      "lore_write_memory",
+      await proxyMemory("write", writeProxyArgs(args)),
+      () => invalidateCache(MEMORY_DERIVED_READS),
+    );
+
+    return (
+      handled ??
+      textResult(JSON.stringify(writeMemoryFile(key, value, agent_id, ttl)))
+    );
+  } catch (err) {
+    return textResult(`Error writing memory: ${errorMessage(err)}`);
+  }
+}
+
+// The write as the API takes it. The repo is detected HERE rather than passed in: the caller is a tool invocation with no notion of where it is running, and a repo-scoped memory must be scoped by the repo the session is actually in.
+function writeProxyArgs(args: WriteMemoryArgs) {
+  return {
+    key: args.key,
+    value: args.value,
+    agent_id: args.agent_id || resolveAgentId(),
+    ttl: args.ttl,
+    repo: detectCurrentRepo() || undefined,
+    extract_facts: args.extract_facts,
+  };
+}
+
 function registerWriteMemoryTool(server: McpServer) {
   server.tool(
     "lore_write_memory",
     `Stores one curated key/value memory (versioned, repo-scoped when a repo is detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.`,
     WRITE_MEMORY_INPUT,
-    async ({ key, value, agent_id, ttl, extract_facts }) => {
-      try {
-        const repo = detectCurrentRepo() || undefined;
-        const proxied = await proxyMemory("write", {
-          key,
-          value,
-          agent_id: agent_id || resolveAgentId(),
-          ttl,
-          repo,
-          extract_facts,
-        });
-        const handled = interpretMemoryProxy("lore_write_memory", proxied, () =>
-          invalidateCache(MEMORY_DERIVED_READS),
-        );
-
-        if (handled) {
-          return handled;
-        }
-        // File fallback only when LORE_API_URL is not configured (true offline mode)
-        const result = writeMemoryFile(key, value, agent_id, ttl);
-
-        return textResult(JSON.stringify(result));
-      } catch (err) {
-        return textResult(`Error writing memory: ${errorMessage(err)}`);
-      }
-    },
+    writeMemoryHandler,
   );
 }
 
@@ -110,6 +129,19 @@ async function cachedMemoryRead(
   return interpretMemoryProxy(spec.tool, proxied) ?? fromFile();
 }
 
+// The offline read. A miss is reported as a miss rather than an error — asking for a key that is not there is an ordinary answer.
+function readMemoryFromFile(
+  key: string,
+  agent_id: string | undefined,
+  version: string | undefined,
+) {
+  const result = readMemoryFile(key, agent_id, resolveVersionParam(version));
+
+  return result
+    ? textResult(JSON.stringify(result, null, 2))
+    : textResult(`Memory "${key}" not found.`);
+}
+
 /** The exact-key read. A miss is reported as a miss rather than an error — asking for a key that is not there is an ordinary answer. */
 async function readMemory(args: {
   key: string;
@@ -124,17 +156,7 @@ async function readMemory(args: {
       op: "read",
       args: { key, agent_id: agent_id || resolveAgentId(), version },
     },
-    () => {
-      const result = readMemoryFile(
-        key,
-        agent_id,
-        resolveVersionParam(version),
-      );
-
-      return result
-        ? textResult(JSON.stringify(result, null, 2))
-        : textResult(`Memory "${key}" not found.`);
-    },
+    () => readMemoryFromFile(key, agent_id, version),
   );
 }
 
@@ -153,34 +175,80 @@ function registerReadMemoryTool(server: McpServer) {
   );
 }
 
+// A soft delete: the row is hidden from read/list/search and its version history is kept. Scoped by agent, not repo — a memory belongs to whoever wrote it.
+async function deleteMemoryHandler({ key, agent_id }: KeyedMemoryArgs) {
+  try {
+    const proxied = await proxyMemory("delete", {
+      key,
+      agent_id: agent_id || resolveAgentId(),
+    });
+    const handled = interpretMemoryProxy("lore_delete_memory", proxied, () =>
+      invalidateCache(MEMORY_DERIVED_READS),
+    );
+
+    return (
+      handled ?? textResult(JSON.stringify(deleteMemoryFile(key, agent_id)))
+    );
+  } catch (err) {
+    return textResult(`Error deleting memory: ${errorMessage(err)}`);
+  }
+}
+
 function registerDeleteMemoryTool(server: McpServer) {
   server.tool(
     "lore_delete_memory",
     `Soft-deletes a memory by key (hides it from read/list/search; version history is retained) and returns {key, deleted: true}. Scope is agent_id, not repo. Use to retire a stale or mistaken memory. Instead: lore_cancel_local_task to stop a local background task; lore_cancel_task to cancel a pipeline task — those are unrelated.`,
     DELETE_MEMORY_INPUT,
-    async ({ key, agent_id }) => {
-      try {
-        const proxied = await proxyMemory("delete", {
-          key,
-          agent_id: agent_id || resolveAgentId(),
-        });
-        const handled = interpretMemoryProxy(
-          "lore_delete_memory",
-          proxied,
-          () => invalidateCache(MEMORY_DERIVED_READS),
-        );
-
-        if (handled) {
-          return handled;
-        }
-        const result = deleteMemoryFile(key, agent_id);
-
-        return textResult(JSON.stringify(result));
-      } catch (err) {
-        return textResult(`Error deleting memory: ${errorMessage(err)}`);
-      }
-    },
+    deleteMemoryHandler,
   );
+}
+
+// The cache key for one listing. `repo` appears twice on purpose: once as a proxied argument and once as the cache scope, so a listing cached for one repo is never served to another.
+function listReadSpec(
+  agent_id: string | undefined,
+  limit: number,
+  offset: number,
+  repo: string | undefined,
+) {
+  return {
+    tool: "lore_list_memories" as const,
+    op: "list" as const,
+    args: { agent_id: agent_id || undefined, limit, offset, repo },
+    repo,
+  };
+}
+
+// The offline listing. Paged the same way as the API's, so a laptop with no API sees the same shape rather than the whole store at once.
+function listFromFile(
+  agent_id: string | undefined,
+  limit: number,
+  offset: number,
+) {
+  return textResult(
+    JSON.stringify(listMemoriesFile(agent_id, limit, offset), null, 2),
+  );
+}
+
+// The detected repo scopes the listing; without one it falls back to the agent, then org-wide.
+async function listMemoriesHandler({
+  agent_id,
+  limit,
+  offset,
+}: {
+  agent_id?: string;
+  limit: number;
+  offset: number;
+}) {
+  const repo = detectCurrentRepo() || undefined;
+
+  try {
+    return await cachedMemoryRead(
+      listReadSpec(agent_id, limit, offset, repo),
+      () => listFromFile(agent_id, limit, offset),
+    );
+  } catch (err) {
+    return textResult(`Error listing memories: ${errorMessage(err)}`);
+  }
 }
 
 function registerListMemoriesTool(server: McpServer) {
@@ -188,58 +256,38 @@ function registerListMemoriesTool(server: McpServer) {
     "lore_list_memories",
     `Lists memory keys for the current repo (newest-first, paginated), returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Scope: detected repo wins; falls back to agent_id; then org-wide. Excludes expired and soft-deleted entries. Use to browse existing keys without ranking. Instead: lore_search_memory to find memories by meaning; lore_read_memory to fetch one specific value.`,
     LIST_MEMORIES_INPUT,
-    async ({ agent_id, limit, offset }) => {
-      try {
-        // The detected repo scopes the listing; without one it falls back to the agent, then org-wide.
-        const repo = detectCurrentRepo() || undefined;
-
-        return await cachedMemoryRead(
-          {
-            tool: "lore_list_memories",
-            op: "list",
-            args: { agent_id: agent_id || undefined, limit, repo },
-            repo,
-          },
-          () =>
-            textResult(
-              JSON.stringify(
-                listMemoriesFile(agent_id, limit, offset),
-                null,
-                2,
-              ),
-            ),
-        );
-      } catch (err) {
-        return textResult(`Error listing memories: ${errorMessage(err)}`);
-      }
-    },
+    ({ agent_id, limit, offset }) =>
+      listMemoriesHandler({ agent_id, limit, offset }),
   );
 }
 
+// The search as the API takes it — `pool` becomes `pool_name`, and an empty agent is dropped rather than sent as "".
+function searchProxyArgs(args: SearchMemoryArgs) {
+  return {
+    query: args.query,
+    agent_id: args.agent_id || undefined,
+    pool_name: args.pool,
+    limit: args.limit,
+    include_invalidated: args.include_invalidated,
+    graph_augment: args.graph_augment,
+  };
+}
+
 /** Semantic search, or substring matching when it falls back — the file store holds no embeddings, so a laptop with no API gets a strictly weaker answer rather than none. */
-async function searchMemory(args: {
+interface SearchMemoryArgs {
   query: string;
   agent_id?: string;
   pool?: string;
   limit: number;
   include_invalidated?: boolean;
   graph_augment?: boolean;
-}): Promise<ToolText> {
-  const { query, agent_id, pool, limit } = args;
+}
+
+async function searchMemory(args: SearchMemoryArgs): Promise<ToolText> {
+  const { query, agent_id, limit } = args;
 
   return cachedMemoryRead(
-    {
-      tool: "lore_search_memory",
-      op: "search",
-      args: {
-        query,
-        agent_id: agent_id || undefined,
-        pool_name: pool,
-        limit,
-        include_invalidated: args.include_invalidated,
-        graph_augment: args.graph_augment,
-      },
-    },
+    { tool: "lore_search_memory", op: "search", args: searchProxyArgs(args) },
     () =>
       textResult(
         JSON.stringify(searchMemoryFile(query, agent_id, limit), null, 2),

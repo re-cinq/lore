@@ -60,9 +60,9 @@ function spawnFixRun(task: LocalTask, fixOutput: string): number | undefined {
 
 // Spawns a Claude Code fix retry for a failed validation and re-validates; returns null when the fix child never got a pid.
 /** The one retry a failed validation gets: a prompt that says fix ONLY these errors, run headless in the same worktree. */
-async function attemptValidationFix(
+async function fixAndRevalidate(
   task: LocalTask,
-  quickChecks: ReturnType<typeof detectTooling>["quickChecks"],
+  tooling: ReturnType<typeof detectTooling>,
   changedFiles: string[],
   fixOutput: string,
 ): Promise<Awaited<ReturnType<typeof runValidation>> | null> {
@@ -80,7 +80,24 @@ async function attemptValidationFix(
   }
   await waitForExit(pid);
 
-  return runValidation(task.worktreePath, quickChecks, changedFiles);
+  return runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
+}
+
+function failedStepNames(
+  retry: Awaited<ReturnType<typeof runValidation>>,
+): string {
+  return retry.steps
+    .filter((s) => !s.passed)
+    .map((s) => s.name)
+    .join(", ");
+}
+
+/** The task log is the only artifact a human inherits, so the retry output is appended before any status write can fail. */
+function recordRetryFailure(task: LocalTask, output: string): void {
+  fs.appendFileSync(
+    task.logFile,
+    `\n\n--- RETRY VALIDATION FAILED ---\n${output}\n`,
+  );
 }
 
 /** Twice-failed validation is not this runner's to resolve: mark the task, keep the transcript, and leave the worktree in place for whoever picks it up. */
@@ -91,15 +108,9 @@ export async function handOffToHuman(
   retry: Awaited<ReturnType<typeof runValidation>>,
 ): Promise<void> {
   const output = formatValidationOutput(retry);
-  const failedNames = retry.steps
-    .filter((s) => !s.passed)
-    .map((s) => s.name)
-    .join(", ");
+  const failedNames = failedStepNames(retry);
 
-  fs.appendFileSync(
-    task.logFile,
-    `\n\n--- RETRY VALIDATION FAILED ---\n${output}\n`,
-  );
+  recordRetryFailure(task, output);
 
   if (idx >= 0) {
     tasks[idx].status = "failed";
@@ -114,13 +125,15 @@ export async function handOffToHuman(
   await persistRunArtifacts(task);
 }
 
-// Deterministic validation (Minions-inspired): lint/typecheck before commit with one fix retry; "failed" means the task was marked needs-human-help and its artifacts persisted.
-/** The first validation pass, scoped to the files this run changed — a repo with pre-existing lint debt would otherwise fail every task that touches it. */
-async function firstPass(
+/** Null means there was nothing to run: a repo with no detectable tooling is not a failing repo. The pass is scoped to the files this run changed, so pre-existing lint debt cannot fail every task that touches the repo. */
+async function validateOrSkip(
   task: LocalTask,
   tooling: ReturnType<typeof detectTooling>,
   changedFiles: string[],
-): Promise<Awaited<ReturnType<typeof runValidation>>> {
+): Promise<Awaited<ReturnType<typeof runValidation>> | null> {
+  if (tooling.quickChecks.length === 0) {
+    return null;
+  }
   console.log(
     `[lore] local-runner: running ${tooling.language} validation (${tooling.quickChecks.map((s) => s.name).join(", ")})`,
   );
@@ -128,6 +141,7 @@ async function firstPass(
   return runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
 }
 
+// Deterministic validation (Minions-inspired): lint/typecheck before commit with one fix retry; "failed" means the task was marked needs-human-help and its artifacts persisted.
 export async function validateBeforeCommit(
   task: LocalTask,
   tasks: LocalTask[],
@@ -135,22 +149,13 @@ export async function validateBeforeCommit(
   changedFiles: string[],
 ): Promise<"passed" | "failed"> {
   const tooling = detectTooling(task.worktreePath);
+  const validation = await validateOrSkip(task, tooling, changedFiles);
 
-  // A repo with no detectable tooling is not a failing repo — there is nothing to run, so there is nothing to fail.
-  if (tooling.quickChecks.length === 0) {
+  if (!validation || validation.passed) {
     return "passed";
   }
-  const validation = await firstPass(task, tooling, changedFiles);
-
-  if (validation.passed) {
-    return "passed";
-  }
-  const retry = await attemptValidationFix(
-    task,
-    tooling.quickChecks,
-    changedFiles,
-    formatValidationOutput(validation),
-  );
+  const failure = formatValidationOutput(validation);
+  const retry = await fixAndRevalidate(task, tooling, changedFiles, failure);
 
   // A fix run that never started leaves the original changes to commit — the same as having had no validation at all.
   if (!retry || retry.passed) {
