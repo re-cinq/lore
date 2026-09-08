@@ -12,6 +12,23 @@ import { isConflict, isNotFound } from "../lib/k8s-errors.js";
 import { customObjectsApi } from "./kube-clients.js";
 import type { CatalogApi } from "./kube-token-provisioner.js";
 
+// The version the API currently holds. A replace without it is rejected — Kubernetes uses it to refuse a write based on a copy someone else has already moved on from.
+async function liveResourceVersion(
+  api: ReturnType<typeof customObjectsApi>,
+  namespace: string,
+  target: { plural: string; name: string },
+): Promise<string | undefined> {
+  const current = (await api.getNamespacedCustomObject({
+    group: GROUP,
+    version: VERSION,
+    namespace,
+    plural: target.plural,
+    name: target.name,
+  })) as { metadata?: { resourceVersion?: string } };
+
+  return current.metadata?.resourceVersion;
+}
+
 /** A conflict means it already exists, so this replaces it — carrying the LIVE resourceVersion, without which the API rejects the write. */
 async function replaceExisting(
   api: ReturnType<typeof customObjectsApi>,
@@ -19,13 +36,10 @@ async function replaceExisting(
   target: { plural: string; name: string; body: object },
 ): Promise<void> {
   const { plural, name, body } = target;
-  const current = (await api.getNamespacedCustomObject({
-    group: GROUP,
-    version: VERSION,
-    namespace,
+  const resourceVersion = await liveResourceVersion(api, namespace, {
     plural,
     name,
-  })) as { metadata?: { resourceVersion?: string } };
+  });
   const meta = (body as { metadata?: Record<string, unknown> }).metadata ?? {};
 
   await api.replaceNamespacedCustomObject({
@@ -34,10 +48,7 @@ async function replaceExisting(
     namespace,
     plural,
     name,
-    body: {
-      ...body,
-      metadata: { ...meta, resourceVersion: current.metadata?.resourceVersion },
-    },
+    body: { ...body, metadata: { ...meta, resourceVersion } },
   });
 }
 
@@ -82,6 +93,18 @@ export class KubeCatalogApi implements CatalogApi {
     }
   }
 
+  // A 409 means the object already exists, so the create becomes a replace. Anything else is rethrown — this path exists to make the write idempotent, not to swallow API errors.
+  private async replaceOnConflict(
+    err: unknown,
+    api: ReturnType<typeof customObjectsApi>,
+    target: { plural: string; name: string; body: object },
+  ): Promise<void> {
+    if (!isConflict(err)) {
+      throw err;
+    }
+    await replaceExisting(api, this.namespace, target);
+  }
+
   // Create, or replace (carrying the live resourceVersion) when it already exists.
   private async apply(
     plural: string,
@@ -99,10 +122,7 @@ export class KubeCatalogApi implements CatalogApi {
         body,
       });
     } catch (err) {
-      if (!isConflict(err)) {
-        throw err;
-      }
-      await replaceExisting(api, this.namespace, { plural, name, body });
+      await this.replaceOnConflict(err, api, { plural, name, body });
     }
   }
 

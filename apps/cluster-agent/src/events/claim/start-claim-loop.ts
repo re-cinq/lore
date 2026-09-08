@@ -71,40 +71,71 @@ function launchRegistrant(
     });
 }
 
+// Republishes the identity wherever a run pod will read it. Writes through the SAME Secret writer the per-task GitHub provisioner uses — a merge into `agent-secrets`, not a replace, since both write to it.
+function publishCredential(
+  env: NodeJS.ProcessEnv,
+  opts: StartClaimLoopOpts,
+): (id: ClusterAgentIdentity) => Promise<void> {
+  const secrets = new KubeSecretKeyWriter();
+
+  return async (id) => {
+    opts.onIdentity?.(id);
+    await writeAgentEventsAuth(secrets, id, env);
+  };
+}
+
+// Everything the registrant needs to run this cluster: where it launches work, how it republishes its credential, and how it reports the rotation hook back.
+function registrantOpts(
+  env: NodeJS.ProcessEnv,
+  opts: StartClaimLoopOpts,
+  config: RegistrationConfig,
+  hooks: {
+    running: () => boolean;
+    onReRegister: (fn: () => Promise<unknown>) => void;
+  },
+): Parameters<typeof launchRegistrant>[1] {
+  return {
+    env,
+    config,
+    backend: new AgentCrBackend(new KubeAgentApi(), kubeTokenProvisioner()),
+    publishTelemetryCredential: publishCredential(env, opts),
+    onReRegister: hooks.onReRegister,
+    running: hooks.running,
+  };
+}
+
+// The rotation hook, which does not exist until the registrant has registered once. Calling before then resolves to null — a caller asking early gets "nothing to rotate", not a crash.
+function rotationSlot(): {
+  fill: (fn: () => Promise<unknown>) => void;
+  call: () => Promise<unknown>;
+} {
+  let reRegister: (() => Promise<unknown>) | null = null;
+
+  return {
+    fill: (fn) => {
+      reRegister = fn;
+    },
+    call: () => reRegister?.() ?? Promise.resolve(null),
+  };
+}
+
 export function startClaimLoop(
   env: NodeJS.ProcessEnv,
   opts: StartClaimLoopOpts = {},
 ): ClaimLoopHandle {
-  let reRegister: (() => Promise<unknown>) | null = null;
+  const rotation = rotationSlot();
   const latch = stopLatch();
   const { config, storeConfig } = assertBootable(env);
 
-  const backend = new AgentCrBackend(
-    new KubeAgentApi(),
-    kubeTokenProvisioner(),
+  launchRegistrant(
+    storeConfig,
+    registrantOpts(env, opts, config, {
+      running: latch.running,
+      onReRegister: rotation.fill,
+    }),
   );
 
-  // The same Secret writer the per-task GitHub provisioner uses — a merge into `agent-secrets`, not a replace, since both write to it.
-  const secrets = new KubeSecretKeyWriter();
-
-  launchRegistrant(storeConfig, {
-    env,
-    config,
-    backend,
-    publishTelemetryCredential: async (id) => {
-      opts.onIdentity?.(id);
-      await writeAgentEventsAuth(secrets, id, env);
-    },
-    onReRegister: (fn) => {
-      reRegister = fn;
-    },
-    running: latch.running,
-  });
-
-  return {
-    stop: latch.stop,
-    reRegister: () => reRegister?.() ?? Promise.resolve(null),
-  };
+  return { stop: latch.stop, reRegister: rotation.call };
 }
 
 /** In a cluster the identity persists through the Kubernetes Secret API — the chart mounts the container read-only, so a file write would EROFS and strand the identity. File store only for local runs. */

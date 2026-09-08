@@ -46,48 +46,56 @@ export type PruneOutcome =
   | { kind: "nothing" }
   | { kind: "error"; message: string };
 
-/** One sweep. Never throws — every failure shape is an outcome the loop logs. */
+// One kind of delete, bound to its port. Called THROUGH the port rather than passed as a bare method reference, since an unbound call loses `this`.
+function deleter(
+  deps: PruneDeps,
+  method: "deleteAgent" | "deleteStation" | "deleteDefinition",
+): (name: string) => Promise<void> {
+  return (name) => deps.cluster[method](name);
+}
+
 /** Agents FIRST, then their clones: a clone deleted while its CR still stands would leave a run describing a missing recipe. Every delete goes THROUGH the port rather than as a bare method reference, since an unbound call loses `this`. */
 async function applyPlan(
   plan: ReturnType<typeof decidePrune>,
   deps: PruneDeps,
 ): Promise<{ agents: number; stations: number; definitions: number }> {
   return {
-    agents: await deleteEach(
-      plan.agents,
-      (name) => deps.cluster.deleteAgent(name),
-      deps,
-    ),
+    agents: await deleteEach(plan.agents, deleter(deps, "deleteAgent"), deps),
     stations: await deleteEach(
       plan.stations,
-      (name) => deps.cluster.deleteStation(name),
+      deleter(deps, "deleteStation"),
       deps,
     ),
     definitions: await deleteEach(
       plan.definitions,
-      (name) => deps.cluster.deleteDefinition(name),
+      deleter(deps, "deleteDefinition"),
       deps,
     ),
   };
 }
 
+// What this tick would remove. All three lists are read together — they are independent, and the orphan test needs every one of them before it can say which recipes nothing references any more.
+async function plannedPrune(deps: PruneDeps) {
+  const [agents, stations, definitions] = await Promise.all([
+    deps.cluster.listAgents(),
+    deps.cluster.listStations(),
+    deps.cluster.listDefinitions(),
+  ]);
+
+  return decidePrune({
+    agents,
+    stations,
+    definitions,
+    now: deps.now?.() ?? new Date(),
+    ttlMs: deps.ttlMs,
+    maxPerTick: deps.maxPerTick ?? DEFAULT_MAX_PER_TICK,
+  });
+}
+
+/** One sweep. Never throws — every failure shape is an outcome the loop logs. */
 export async function pruneOnce(deps: PruneDeps): Promise<PruneOutcome> {
   try {
-    const [agents, stations, definitions] = await Promise.all([
-      deps.cluster.listAgents(),
-      deps.cluster.listStations(),
-      deps.cluster.listDefinitions(),
-    ]);
-    const plan = decidePrune({
-      agents,
-      stations,
-      definitions,
-      now: deps.now?.() ?? new Date(),
-      ttlMs: deps.ttlMs,
-      maxPerTick: deps.maxPerTick ?? DEFAULT_MAX_PER_TICK,
-    });
-
-    const deleted = await applyPlan(plan, deps);
+    const deleted = await applyPlan(await plannedPrune(deps), deps);
 
     if (deleted.agents + deleted.stations + deleted.definitions === 0) {
       return { kind: "nothing" };

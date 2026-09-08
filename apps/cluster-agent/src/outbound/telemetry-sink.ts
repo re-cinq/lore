@@ -8,12 +8,30 @@ import type {
 
 const TIMEOUT_MS = 30_000;
 
+// The status rides ON the thrown error so the proxy's ladder can tell a rotated credential (401/403) from a blip — collapsing them retries a refused token and drops the batch.
+function relayError(status: number): () => Error {
+  return () =>
+    Object.assign(new Error(`agent-events relay failed: ${status}`), {
+      status,
+    });
+}
+
 export class TelemetrySink implements Sink {
   constructor(
     private readonly floorUrl: string,
     private readonly token: () => string | undefined,
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
+
+  // NDJSON, with this cluster's token when it has one. An unregistered relay still posts — the Floor decides whether to accept it, and dropping the batch here would lose telemetry the run cannot re-emit.
+  private relayHeaders(): Record<string, string> {
+    const token = this.token();
+
+    return {
+      "content-type": "application/x-ndjson",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    };
+  }
 
   async deliver(message: ProxyMessage): Promise<void> {
     enforceTrue(
@@ -22,25 +40,13 @@ export class TelemetrySink implements Sink {
       `TelemetrySink received a ${message.kind} message — the proxy routes by kind and should never send one here`,
     );
 
-    const token = this.token();
     const res = await this.fetchImpl(`${this.floorUrl}/api/agent-events`, {
       method: "POST",
-      headers: {
-        "content-type": "application/x-ndjson",
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
-      },
+      headers: this.relayHeaders(),
       body: message.body,
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
 
-    // The status rides on the throw so the proxy's ladder can tell a rotated credential (401/403) from a blip — collapsing them retries a refused token and drops the batch.
-    enforceTrue(
-      res.ok,
-      () =>
-        Object.assign(new Error(`agent-events relay failed: ${res.status}`), {
-          status: res.status,
-        }),
-      "",
-    );
+    enforceTrue(res.ok, relayError(res.status), "");
   }
 }

@@ -45,32 +45,52 @@ export interface TokenCleanup {
   cleanup(taskId: string): Promise<void>;
 }
 
-/** Reclaims the same triple `cleanup(taskId)` does, but WARNS per failure — unlike cleanup's silent allSettled, a token stranded here is a live credential nobody will ever use. */
-async function reclaimProvision(
-  ports: {
-    secretName: string;
-    secrets: { deleteKey: (secret: string, key: string) => Promise<void> };
-    catalog: {
-      deleteStation: (name: string) => Promise<void>;
-      deleteAgentDefinition: (name: string) => Promise<void>;
-    };
-  },
+// The three things a provision creates, each paired with its label. Attempted together rather than in sequence: one failing must not stop the other two being reclaimed.
+function reclaimTriple(
+  ports: ReclaimPorts,
   ref: { key: string; name: string },
-): Promise<void> {
-  const reclaim: Array<[string, Promise<void>]> = [
+): Array<[string, Promise<void>]> {
+  return [
     [ref.key, ports.secrets.deleteKey(ports.secretName, ref.key)],
     [ref.name, ports.catalog.deleteStation(ref.name)],
     [ref.name, ports.catalog.deleteAgentDefinition(ref.name)],
   ];
-  const settled = await Promise.allSettled(reclaim.map(([, p]) => p));
+}
 
+// Names each thing the reclaim could not remove. WARNED individually — unlike cleanup's silent allSettled, a token stranded here is a live credential nobody will ever use.
+function warnUnreclaimed(
+  labels: string[],
+  settled: PromiseSettledResult<void>[],
+): void {
   settled.forEach((result, i) => {
     if (result.status === "rejected") {
       console.warn(
-        `[cluster-agent] could not reclaim ${reclaim[i][0]} after a failed provision: ${errorMessage(result.reason)}`,
+        `[cluster-agent] could not reclaim ${labels[i]} after a failed provision: ${errorMessage(result.reason)}`,
       );
     }
   });
+}
+
+/** Reclaims the same triple `cleanup(taskId)` does, but WARNS per failure — unlike cleanup's silent allSettled, a token stranded here is a live credential nobody will ever use. */
+interface ReclaimPorts {
+  secretName: string;
+  secrets: { deleteKey: (secret: string, key: string) => Promise<void> };
+  catalog: {
+    deleteStation: (name: string) => Promise<void>;
+    deleteAgentDefinition: (name: string) => Promise<void>;
+  };
+}
+
+async function reclaimProvision(
+  ports: ReclaimPorts,
+  ref: { key: string; name: string },
+): Promise<void> {
+  const reclaim = reclaimTriple(ports, ref);
+
+  warnUnreclaimed(
+    reclaim.map(([label]) => label),
+    await Promise.allSettled(reclaim.map(([, p]) => p)),
+  );
 }
 
 export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
@@ -113,18 +133,36 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
     return key;
   }
 
-  async provision(spec: LoreTaskSpec): Promise<string | undefined> {
+  // Undoes a half-finished provision. A token minted but never paired with a recipe is a live credential nobody will use, so the failure path removes all three before rethrowing.
+  private async reclaim(ref: { key: string; name: string }): Promise<void> {
+    await reclaimProvision(
+      {
+        secretName: this.secretName,
+        secrets: this.secrets,
+        catalog: this.catalog,
+      },
+      ref,
+    );
+  }
+
+  // The recipe and its station, or null when either is missing. BOTH reads, one wait — neither depends on the other, and this sits between "claim returned" and "CR exists", where every extra round trip is time the claimed visit is not running.
+  private async catalogPair(spec: LoreTaskSpec) {
     const lookup = catalogLookupName(spec);
-    // Both reads, one wait — neither depends on the other, and this sits between "claim returned" and "CR exists".
     const [catalogDef, catalogStation] = await Promise.all([
       this.catalog.getAgentDefinition(lookup),
       this.catalog.getStation(lookup),
     ]);
 
-    if (!catalogDef || !catalogStation) {
+    return catalogDef && catalogStation ? { catalogDef, catalogStation } : null;
+  }
+
+  async provision(spec: LoreTaskSpec): Promise<string | undefined> {
+    const pair = await this.catalogPair(spec);
+
+    if (!pair) {
       return undefined;
     }
-
+    const { catalogDef, catalogStation } = pair;
     const key = await this.mintToken(spec);
     const name = perTaskName(spec.taskId);
 
@@ -133,14 +171,7 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
 
       return name;
     } catch (err) {
-      await reclaimProvision(
-        {
-          secretName: this.secretName,
-          secrets: this.secrets,
-          catalog: this.catalog,
-        },
-        { key, name },
-      );
+      await this.reclaim({ key, name });
       throw err;
     }
 
@@ -215,29 +246,36 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
     });
   }
 
+  // One read-modify-replace. Rereads every time it is called, which is the point: a concurrent provision bumps resourceVersion, the replace 409s, and retrying against a stale copy would drop whichever key the other writer had just added.
+  private async mutateOnce(
+    secret: string,
+    change: (data: Record<string, string>) => void,
+  ): Promise<void> {
+    const core = this.core();
+    const current = await core.readNamespacedSecret({
+      name: secret,
+      namespace: this.namespace,
+    });
+    const entries = (current.data ?? {}) as Record<string, string>;
+
+    change(entries);
+    current.data = entries;
+
+    await core.replaceNamespacedSecret({
+      name: secret,
+      namespace: this.namespace,
+      body: current,
+    });
+  }
+
   // Read-modify-replace under optimistic concurrency: a concurrent provision bumps resourceVersion, replace 409s, and we retry the read so no key is lost.
   private async mutate(
     secret: string,
     change: (data: Record<string, string>) => void,
   ): Promise<void> {
-    const core = this.core();
-
     for (let attempt = 0; ; attempt++) {
-      const current = await core.readNamespacedSecret({
-        name: secret,
-        namespace: this.namespace,
-      });
-      const entries = (current.data ?? {}) as Record<string, string>;
-
-      change(entries);
-      current.data = entries;
-
       try {
-        await core.replaceNamespacedSecret({
-          name: secret,
-          namespace: this.namespace,
-          body: current,
-        });
+        await this.mutateOnce(secret, change);
 
         return;
       } catch (err) {

@@ -1,6 +1,6 @@
 // The cluster's Kubernetes surface, as HTTP — every route is a DOMAIN operation (never raw get/replace, no resourceVersion crosses the wire); list is ONE apiserver page per call since 180 CRs blew Node's heap on 2026-07-24.
 
-import type { ServerRoute } from "@hapi/hapi";
+import type { Lifecycle, ServerRoute } from "@hapi/hapi";
 import type { ClusterDeps } from "../../domain/cluster-deps.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
@@ -58,32 +58,34 @@ function agentByNameRoute(opts: ClusterRoutesDeps): ServerRoute {
   };
 }
 
+// Lists Agent CRs, one bounded page at a time. The ceiling is enforced rather than clamped: a caller asking for more than `MAX_PAGE` is told so, because a larger page is what blew the heap on 2026-07-24 and silently narrowing it would hide the mistake.
+function listAgentsHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
+  return async (request, h) => {
+    guard(opts, request.headers);
+    const q = request.query as Record<string, string | undefined>;
+    const limit = Number(q.limit ?? MAX_PAGE);
+
+    enforceTrue(
+      Number.isInteger(limit) && limit > 0 && limit <= MAX_PAGE,
+      apiError(400),
+      `limit must be an integer in 1..${MAX_PAGE} — a larger page is what blew the heap on 2026-07-24`,
+    );
+    const page = await opts.deps().agents.list({
+      labelSelector: q.labelSelector,
+      limit,
+      continue: q.continue,
+    });
+
+    return h.response(page).code(200);
+  };
+}
+
 function listAgentsRoute(opts: ClusterRoutesDeps): ServerRoute {
   return {
     method: "GET",
     path: "/api/cluster/agents",
     options: { auth: false },
-    handler: async (request, h) => {
-      guard(opts, request.headers);
-      const q = request.query as Record<string, string | undefined>;
-      const limit = Number(q.limit ?? MAX_PAGE);
-
-      enforceTrue(
-        Number.isInteger(limit) && limit > 0 && limit <= MAX_PAGE,
-        apiError(400),
-        `limit must be an integer in 1..${MAX_PAGE} — a larger page is what blew the heap on 2026-07-24`,
-      );
-
-      return h
-        .response(
-          await opts.deps().agents.list({
-            labelSelector: q.labelSelector,
-            limit,
-            continue: q.continue,
-          }),
-        )
-        .code(200);
-    },
+    handler: listAgentsHandler(opts),
   };
 }
 
@@ -153,26 +155,28 @@ function listPodsRoute(opts: ClusterRoutesDeps): ServerRoute {
   };
 }
 
+// One pod's log tail. Unlike the page limit above, a bad `tail` is CLAMPED rather than refused — the reader wants logs, and the exact line count is not what they came for.
+function podLogHandler(opts: ClusterRoutesDeps): Lifecycle.Method {
+  return async (request, h) => {
+    guard(opts, request.headers);
+    const asked = Number(
+      (request.query as Record<string, string | undefined>).tail ?? MAX_TAIL,
+    );
+    const tail = Number.isInteger(asked) && asked > 0 ? asked : MAX_TAIL;
+    const logs = await opts
+      .deps()
+      .pods.podLog(request.params.podName, Math.min(tail, MAX_TAIL));
+
+    return h.response({ logs }).code(200);
+  };
+}
+
 function podLogRoute(opts: ClusterRoutesDeps): ServerRoute {
   return {
     method: "GET",
     path: "/api/cluster/pods/{podName}/log",
     options: { auth: false },
-    handler: async (request, h) => {
-      guard(opts, request.headers);
-      const asked = Number(
-        (request.query as Record<string, string | undefined>).tail ?? MAX_TAIL,
-      );
-      const tail = Number.isInteger(asked) && asked > 0 ? asked : MAX_TAIL;
-
-      return h
-        .response({
-          logs: await opts
-            .deps()
-            .pods.podLog(request.params.podName, Math.min(tail, MAX_TAIL)),
-        })
-        .code(200);
-    },
+    handler: podLogHandler(opts),
   };
 }
 

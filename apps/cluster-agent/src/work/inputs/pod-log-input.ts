@@ -128,6 +128,47 @@ function batchingSink(batcher: PodLogBatcher): Writable {
   });
 }
 
+// The pod to stream, and the container within it. The CONTAINER is resolved here too rather than defaulted — an empty container name 400s the log request.
+async function podToFollow(
+  core: CoreV1Api,
+  namespace: string,
+  jobName: string,
+) {
+  const pods = await core.listNamespacedPod({
+    namespace,
+    labelSelector: podSelectorForJob(jobName),
+  });
+
+  return pickPodToFollow(pods.items);
+}
+
+// Both ways a sink stops — a clean end and an error — reach the same finisher, because a follower left in the map is a leak either way.
+function endsWith(sink: Writable, finish: (why: string) => void): void {
+  sink.once("finish", () => finish("stream ended"));
+  sink.once("error", (err: Error) => finish(`stream errored: ${err.message}`));
+}
+
+// The stream never opened. Logged rather than thrown: discovery runs over every agent, and one unreadable pod must not stop the others being followed.
+function reportOpenFailure(podName: string, err: unknown): void {
+  console.error(
+    `[cluster-agent] pod-log stream failed for ${podName}:`,
+    errorMessage(err),
+  );
+}
+
+// Honours a stop that landed while the request was still opening. The listener alone would never fire for an abort that already happened, leaving the stream running with nobody to stop it.
+function bindAbort(
+  controller: { abort: () => void },
+  abort: AbortController,
+): void {
+  if (abort.signal.aborted) {
+    controller.abort();
+
+    return;
+  }
+  abort.signal.addEventListener("abort", () => controller.abort());
+}
+
 /** Opens the stream and wires the abort. A stop that landed while the request was still opening is honoured explicitly — the listener alone would never fire for an abort that already happened. */
 function attachStream(
   { kc, namespace }: NamespaceHandle,
@@ -143,20 +184,9 @@ function attachStream(
 
   void new Log(kc)
     .log(namespace, target.podName, containerName, sink, { follow: true })
-    .then((controller) => {
-      // Honors a stop that landed while the request was still opening — the listener below would never fire for an abort that already happened.
-      if (abort.signal.aborted) {
-        controller.abort();
-
-        return;
-      }
-      abort.signal.addEventListener("abort", () => controller.abort());
-    })
-    .catch((err) => {
-      console.error(
-        `[cluster-agent] pod-log stream failed for ${target.podName}:`,
-        errorMessage(err),
-      );
+    .then((controller) => bindAbort(controller, abort))
+    .catch((err: unknown) => {
+      reportOpenFailure(target.podName, err);
       finish("stream could not be opened");
     });
 }
@@ -196,6 +226,22 @@ export class PodLogInput implements EventInput {
     return Promise.resolve();
   }
 
+  // Opens a stream for every running agent not already followed. Page by page, holding NOTHING between them — accumulating the namespace into one array OOM-killed a satellite's cluster-agent for 21h and stranded its Agent-CR watch.
+  private async followAllRunning(emit: Emit): Promise<void> {
+    const kc = kubeConfig();
+    const namespace = agentsNamespace();
+    const core = coreApi();
+
+    await forEachAgentPage(customObjectsApi(), namespace, async (page) => {
+      for (const agent of followTargets(
+        page as FollowableAgent[],
+        new Set(this.followers.keys()),
+      )) {
+        await this.followOne({ kc, namespace }, core, agent, emit);
+      }
+    });
+  }
+
   /** One discovery pass: open a stream for every running agent not already followed. Failures are logged, never thrown. */
   private async discover(emit: Emit): Promise<void> {
     if (this.discovering) {
@@ -204,19 +250,7 @@ export class PodLogInput implements EventInput {
     this.discovering = true;
 
     try {
-      const kc = kubeConfig();
-      const namespace = agentsNamespace();
-      const core = coreApi();
-
-      // Page by page, holding NOTHING between them — accumulating the namespace into one array OOM-killed a satellite's cluster-agent for 21h and stranded its Agent-CR watch.
-      await forEachAgentPage(customObjectsApi(), namespace, async (page) => {
-        for (const agent of followTargets(
-          page as FollowableAgent[],
-          new Set(this.followers.keys()),
-        )) {
-          await this.followOne({ kc, namespace }, core, agent, emit);
-        }
-      });
+      await this.followAllRunning(emit);
     } catch (err) {
       console.error(
         "[cluster-agent] pod-log discovery failed:",
@@ -227,6 +261,11 @@ export class PodLogInput implements EventInput {
     }
   }
 
+  // Whether this agent should still be followed. Re-checked against the LIVE map, not the filtered page: a pod list was awaited since then, and stop() may have run too.
+  private stillWanted(agentCrName: string): boolean {
+    return this.running && !this.followers.has(agentCrName);
+  }
+
   /** Find the pod for one agent and open its stream. */
   private async followOne(
     cluster: NamespaceHandle,
@@ -234,16 +273,9 @@ export class PodLogInput implements EventInput {
     agent: { agentCrName: string; jobName: string },
     emit: Emit,
   ): Promise<void> {
-    const { namespace } = cluster;
-    const pods = await core.listNamespacedPod({
-      namespace,
-      labelSelector: podSelectorForJob(agent.jobName),
-    });
-    // The CONTAINER is resolved here too, not defaulted — an empty container name 400s the log request.
-    const chosen = pickPodToFollow(pods.items);
+    const chosen = await podToFollow(core, cluster.namespace, agent.jobName);
 
-    // Re-checked against the LIVE map, not the filtered page — a pod list was awaited since then, and stop() may have run too.
-    if (!chosen || !this.running || this.followers.has(agent.agentCrName)) {
+    if (!chosen || this.stillWanted(agent.agentCrName) === false) {
       return;
     }
     this.follow(
@@ -254,6 +286,19 @@ export class PodLogInput implements EventInput {
     );
   }
 
+  // Closes out one follower. A pod finishing is the ORDINARY case — without this the idle timer keeps draining a dead batch forever and the follower entry never leaves the map.
+  private finisher(
+    target: PodLogTarget,
+    batcher: PodLogBatcher,
+    timer: ReturnType<typeof setInterval>,
+  ): (why: string) => void {
+    return (why: string) => {
+      batcher.flushFinal(why);
+      clearInterval(timer);
+      this.followers.delete(target.agentCrName);
+    };
+  }
+
   /** Open one pod's stream and emit its chunks until it ends or we stop. */
   private follow(
     { kc, namespace }: NamespaceHandle,
@@ -262,25 +307,12 @@ export class PodLogInput implements EventInput {
     emit: Emit,
   ): void {
     const batcher = new PodLogBatcher(target, emit);
-
     const sink = batchingSink(batcher);
-
     const timer = setInterval(() => batcher.flushIdle(), IDLE_FLUSH_MS);
-
     const abort = new AbortController();
+    const finish = this.finisher(target, batcher, timer);
 
-    // A pod finishing is the ordinary case — without this the idle timer keeps draining a dead batch forever and the follower entry never leaves the map.
-    const finish = (why: string) => {
-      batcher.flushFinal(why);
-      clearInterval(timer);
-      this.followers.delete(target.agentCrName);
-    };
-
-    sink.once("finish", () => finish("stream ended"));
-    sink.once("error", (err: Error) =>
-      finish(`stream errored: ${err.message}`),
-    );
-
+    endsWith(sink, finish);
     this.followers.set(target.agentCrName, { abort, timer });
 
     attachStream({ kc, namespace }, target, containerName, {
