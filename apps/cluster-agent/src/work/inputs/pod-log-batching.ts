@@ -33,7 +33,9 @@ export function emptyBatch(): PendingBatch {
 
 /** The wire form: newline-terminated, so chunks concatenate back into a log. */
 function render(batch: PendingBatch): string {
-  return batch.lines.map((line) => `${line}\n`).join("");
+  const { lines } = batch;
+
+  return lines.map((line) => `${line}\n`).join("");
 }
 
 /** Take one line, say whether that completes a chunk. The line is always ADDED before limits are checked, so an oversized line flushes on its own rather than wedging the batch. */
@@ -153,7 +155,9 @@ function newestPodName(pod: FollowablePod | undefined): string | undefined {
 function firstContainerName(
   pod: FollowablePod | undefined,
 ): string | undefined {
-  return pod?.spec?.containers?.[0]?.name;
+  const containers = pod?.spec?.containers;
+
+  return containers?.[0]?.name;
 }
 
 /** Which pod to stream, and WHICH CONTAINER — the container is not optional (`Log.log(ns, pod, "", …)` 400s); the FIRST container is the workload, anything after it a sidecar. */

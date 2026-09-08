@@ -46,12 +46,19 @@ type QueryRow = z.infer<typeof QueryResponse>["rows"] extends
   ? Row
   : never;
 
+/** One cell out of BigQuery's positional row shape, named once so neither reader navigates it. */
+function cell(row: QueryRow, index: number): string | null | undefined {
+  const cells = row.f;
+
+  return cells[index]?.v;
+}
+
 function cellText(row: QueryRow, index: number): string {
-  return row.f[index]?.v ?? "";
+  return cell(row, index) ?? "";
 }
 
 function cellNumber(row: QueryRow, index: number): number {
-  return Number(row.f[index]?.v ?? 0);
+  return Number(cell(row, index) ?? 0);
 }
 
 function toBillingRow(row: QueryRow): GcpCostDailyRow {

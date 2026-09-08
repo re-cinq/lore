@@ -156,9 +156,9 @@ function summaryExtras(summary: IngestGraphSummary): Record<string, string> {
   };
 
   if (summary.failed > 0) {
-    extras["Lore-Ingest-Failed-Files"] = summary.failedFiles
-      .join(", ")
-      .slice(0, FAILED_FILES_MAX);
+    const failed = summary.failedFiles.join(", ");
+
+    extras["Lore-Ingest-Failed-Files"] = failed.slice(0, FAILED_FILES_MAX);
   }
 
   return extras;

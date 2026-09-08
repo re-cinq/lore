@@ -22,7 +22,11 @@ import type { Station } from "../../domain/station.js";
 
 const hasHttpTrigger = (mod: {
   manifest: { triggers: readonly { kind: string }[] };
-}) => mod.manifest.triggers.some((t) => t.kind === "http");
+}) => {
+  const { triggers } = mod.manifest;
+
+  return triggers.some((t) => t.kind === "http");
+};
 
 let memo: ReadonlyMap<string, Station> | undefined;
 

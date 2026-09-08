@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { parse as parseYaml } from "yaml";
+import type { ZodError } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { validateAssemblyLine } from "./assembly-line-validate.js";
 import {
@@ -34,16 +35,22 @@ function readYaml(yamlSrc: string, source: string): unknown {
   }
 }
 
+/** Reads a zod failure into one line — the navigation of someone else's error shape, named once. */
+function zodIssueText(error: ZodError): string {
+  const { issues } = error;
+
+  return issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+}
+
 // Shape only — the graph checks come after. Every issue is reported at once rather than the first: a hand-authored definition usually has more than one, and one round trip per field is a poor way to learn the schema.
 function checkSchema(raw: unknown, source: string): AssemblyLine {
   const parsed = AssemblyLineSchema.safeParse(raw);
 
   if (!parsed.success) {
-    const issues = parsed.error.issues
-      .map((i) => `${i.path.join(".")}: ${i.message}`)
-      .join("; ");
-
-    throw new AssemblyLineLoadError(`Schema violation: ${issues}`, source);
+    throw new AssemblyLineLoadError(
+      `Schema violation: ${zodIssueText(parsed.error)}`,
+      source,
+    );
   }
 
   return parsed.data;

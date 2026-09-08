@@ -46,7 +46,10 @@ const decCovered = vscode.window.createTextEditorDecorationType({
 });
 
 function workspaceRoot(): string | null {
-  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
+  const { workspaceFolders } = vscode.workspace;
+  const folder: vscode.WorkspaceFolder | undefined = workspaceFolders?.[0];
+
+  return folder?.uri.fsPath ?? null;
 }
 
 /** Repo-relative, forward-slashed path for an absolute file, or null if outside the root. */
@@ -153,9 +156,10 @@ function applyToEditor(editor: vscode.TextEditor): void {
   if (!root) {
     return;
   }
-  const rel = toRepoRelative(root, editor.document.uri.fsPath);
+  const { document } = editor;
+  const rel = toRepoRelative(root, document.uri.fsPath);
   const entries = entriesForPath(state.index, rel);
-  const lastLine = editor.document.lineCount - 1;
+  const lastLine = document.lineCount - 1;
   const { implemented, covered } = partitionByLayer(entries);
 
   editor.setDecorations(

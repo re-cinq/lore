@@ -84,8 +84,8 @@ function jsonRpcError(res: ServerResponse, status: number, message: string) {
 function evictOldestWhenFull(
   sessions: Map<string, StreamableHTTPServerTransport>,
 ): void {
-  const oldest =
-    sessions.size >= MAX_SESSIONS ? sessions.keys().next().value : undefined;
+  const [oldestKey] = sessions.keys();
+  const oldest = sessions.size >= MAX_SESSIONS ? oldestKey : undefined;
 
   if (!oldest) {
     return;

@@ -29,9 +29,9 @@ function escalationInputFrom(
 // Best-effort by design: a Slack outage must not fail a step whose whole job is telling a human, but it must still be attempted — so the failure is logged and swallowed rather than thrown.
 function notifyPort(repo: string) {
   return async (message: string) => {
-    await (
-      await projectFor(repo)
-    ).notify
+    const { notify } = await projectFor(repo);
+
+    await notify
       .notify("escalation", message)
       .catch((err: Error) =>
         console.warn(`[escalation] notify failed for ${repo}:`, err.message),

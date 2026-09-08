@@ -27,13 +27,20 @@ export const PublishedNode = z.object({
 
 export type PublishedNode = z.infer<typeof PublishedNode>;
 
+/** Reads a zod failure into one line — the navigation of someone else's error shape, named once. */
+function zodIssueText(error: z.ZodError): string {
+  const { issues } = error;
+
+  return issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ");
+}
+
 export function parsePublishedNode(payload: unknown): PublishedNode {
   const parsed = PublishedNode.safeParse(payload);
 
   enforceTrue(
     parsed.success,
     Error,
-    `station.run payload is not a node: ${parsed.success ? "" : parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`,
+    `station.run payload is not a node: ${parsed.success ? "" : zodIssueText(parsed.error)}`,
   );
 
   return parsed.data;

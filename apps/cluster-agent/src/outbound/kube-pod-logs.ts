@@ -1,7 +1,7 @@
 // The Kubernetes half of pod-log reading, moved out of the Floor. `podLog` takes the tail at the source and returns a bounded string; the pure orchestration around it stays on the Floor.
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import type { V1Pod } from "@kubernetes/client-node";
+import type { V1Container, V1Pod } from "@kubernetes/client-node";
 import {
   agentsNamespace,
   type AgentPodInfo,
@@ -14,10 +14,11 @@ import { coreApi, customObjectsApi } from "./kube-clients.js";
 import { isMissing } from "../lib/k8s-errors.js";
 
 // The AGENT container's requests are the cost driver — init containers finish before the bill starts and this stack runs no sidecars.
-function agentContainer(pod: V1Pod) {
+function agentContainer(pod: V1Pod): V1Container | undefined {
+  const containers = pod.spec?.containers ?? [];
+
   return (
-    pod.spec?.containers.find((container) => container.name === "agent") ??
-    pod.spec?.containers[0]
+    containers.find((container) => container.name === "agent") ?? containers[0]
   );
 }
 
@@ -125,7 +126,9 @@ export class KubePodLogs implements PodLogSource {
     const api = coreApi();
     const res = await api.listNamespacedPod({ namespace: this.namespace() });
 
-    return res.items.filter(isLiveRunningPod).map(toRunningPodInfo);
+    const { items: pods } = res;
+
+    return pods.filter(isLiveRunningPod).map(toRunningPodInfo);
   }
 
   async podLog(podName: string, tailLines?: number): Promise<string> {

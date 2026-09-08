@@ -87,15 +87,18 @@ export function registerLocalRunnerTools(server: McpServer) {
 function wrongRepoWarning(description: string, repo: string): string | null {
   const repoRefMatch = description.match(/\b([\w-]+\/[\w-]+)(?:#|\s)/);
 
+  const referenced = repoRefMatch?.[1];
+
   if (
-    !repoRefMatch ||
-    repoRefMatch[1] === repo ||
+    !referenced ||
+    referenced === repo ||
     description.toLowerCase().includes(repo)
   ) {
     return null;
   }
+  const repoDir = referenced.split("/")[1];
 
-  return `Warning: This task references ${repoRefMatch[1]} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoRefMatch[1].split("/")[1]} && claude`;
+  return `Warning: This task references ${referenced} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoDir} && claude`;
 }
 
 /** The id is already resolved by the caller because the pipeline row must exist before the process does — a run with no id is invisible to the org. */

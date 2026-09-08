@@ -111,9 +111,8 @@ export function uncoveredOutcomes(
   if (node.id === wf.exit) {
     return [];
   }
-  const covered = new Set(
-    wf.edges.filter((e) => e.from === node.id).map((e) => e.on),
-  );
+  const outgoing = wf.edges.filter((e) => e.from === node.id);
+  const covered = new Set(outgoing.map((e) => e.on));
 
   if (covered.has("always")) {
     return [];

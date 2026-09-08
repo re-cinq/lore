@@ -469,6 +469,11 @@ export default tseslint.config(
       // Zero comments in tests: the test NAME carries the meaning. Queue hit
       // zero on 2026-09-04, so this is an error.
       "re-lint/max-comment-lines": ["error", { max: 0 }],
+      // An assertion reaching into data the test itself captured
+      // (`expect(calls[0].init.headers)`) is navigation, not the reach-through
+      // between collaborators the rule is about. 1023 of 1356 findings were
+      // this; leaving them in would bury the 332 that are real.
+      "re-lint/max-member-chain": "off",
       // A recording double IS half data and half behaviour: the code under
       // test writes the field and the test reads it. That is the point.
       "re-lint/no-hybrid-class": "off",

@@ -53,7 +53,8 @@ function commitAndPush(task: LocalTask, branchTail: string): void {
 
 /** Commit, push, and open the PR through `gh` — the developer's own auth, never the platform's. */
 function pushAndOpenPr(task: LocalTask): string {
-  const branchTail = task.branch.split("/").pop() || task.taskId;
+  const { branch } = task;
+  const branchTail = branch.split("/").pop() || task.taskId;
   const body = prBody(task);
 
   commitAndPush(task, branchTail);
