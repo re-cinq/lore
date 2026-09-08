@@ -44,7 +44,9 @@ function specTableStatusValueRaw(content: string): string | null {
       continue;
     }
 
-    return cells[2].replace(/\*/g, "").trim();
+    const cell = cells[2];
+
+    return cell.replace(/\*/g, "").trim();
   }
 
   return null;
@@ -65,7 +67,9 @@ function adrFrontmatterStatusValueRaw(content: string): string | null {
     const keyValue = line.match(/^status\s*:\s*(.+?)\s*$/i);
 
     if (keyValue) {
-      return keyValue[1].replace(/["']/g, "").trim();
+      const value = keyValue[1];
+
+      return value.replace(/["']/g, "").trim();
     }
   }
 
@@ -94,10 +98,9 @@ const MAX_LABEL = 24;
 
 /** Trims a spec's `| Status |` cell to its leading phrase: "Shipped (v3) — supersedes v1" → "Shipped". */
 function pillLabel(raw: string): string {
-  const label = raw
-    .split(/\s+[—–-]\s+/)[0]
-    .split(" (")[0]
-    .trim();
+  const head = raw.split(/\s+[—–-]\s+/)[0];
+  const [phrase] = head.split(" (");
+  const label = phrase.trim();
 
   return (label || raw).slice(0, MAX_LABEL);
 }

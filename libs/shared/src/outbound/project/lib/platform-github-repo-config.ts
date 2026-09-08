@@ -1,6 +1,7 @@
 import type { Octokit } from "octokit";
 import type { CheckRunInput } from "./github-port.js";
 import { split } from "./platform-github-support.js";
+import type { ChecksApi } from "./platform-github-api.js";
 
 /** Repo-level config writes (Actions variables/secrets, check runs) — consumed by the settings adapter. */
 
@@ -16,18 +17,18 @@ function checkRunFields(input: CheckRunInput) {
 
 /** The check run this commit already carries under this name, if any. Keyed on head sha AND name so a re-run updates its own row instead of stacking a second check beside it. */
 async function findCheckRun(
-  ok: Octokit,
+  checks: ChecksApi,
   { owner, name }: { owner: string; name: string },
   input: CheckRunInput,
 ) {
-  const { data: checks } = await ok.rest.checks.listForRef({
+  const { data: page } = await checks.listForRef({
     owner,
     repo: name,
     ref: input.headSha,
     check_name: input.name,
   });
 
-  return checks.check_runs.at(0);
+  return page.check_runs.at(0);
 }
 
 export async function upsertCheckRun(
@@ -36,24 +37,25 @@ export async function upsertCheckRun(
   input: CheckRunInput,
 ): Promise<void> {
   const [owner, name] = split(repo);
-  const existing = await findCheckRun(ok, { owner, name }, input);
+  const { checks } = ok.rest;
+  const existing = await findCheckRun(checks, { owner, name }, input);
 
   if (existing) {
-    await updateCheckRun(ok, { owner, name }, existing.id, input);
+    await updateCheckRun(checks, { owner, name }, existing.id, input);
 
     return;
   }
-  await createCheckRun(ok, { owner, name }, input);
+  await createCheckRun(checks, { owner, name }, input);
 }
 
 /** Rewrites the check run this commit already carries, leaving its identity (sha + name) alone. */
 async function updateCheckRun(
-  ok: Octokit,
+  checks: ChecksApi,
   { owner, name }: { owner: string; name: string },
   checkRunId: number,
   input: CheckRunInput,
 ): Promise<void> {
-  await ok.rest.checks.update({
+  await checks.update({
     owner,
     repo: name,
     check_run_id: checkRunId,
@@ -63,11 +65,11 @@ async function updateCheckRun(
 
 /** Files the first check run for this sha under this name. */
 async function createCheckRun(
-  ok: Octokit,
+  checks: ChecksApi,
   { owner, name }: { owner: string; name: string },
   input: CheckRunInput,
 ): Promise<void> {
-  await ok.rest.checks.create({
+  await checks.create({
     owner,
     repo: name,
     name: input.name,
@@ -84,11 +86,12 @@ export async function setRepoVariable(
 ): Promise<void> {
   const [owner, repoName] = split(repo);
   const variable = { owner, repo: repoName, name, value };
+  const { actions } = ok.rest;
 
   try {
-    await ok.rest.actions.updateRepoVariable(variable);
+    await actions.updateRepoVariable(variable);
   } catch {
-    await ok.rest.actions.createRepoVariable(variable);
+    await actions.createRepoVariable(variable);
   }
 }
 
@@ -123,12 +126,13 @@ export async function setRepoSecret(
   value: string,
 ): Promise<void> {
   const [owner, repoName] = split(repo);
-  const { data: pubKey } = await ok.rest.actions.getRepoPublicKey({
+  const { actions } = ok.rest;
+  const { data: pubKey } = await actions.getRepoPublicKey({
     owner,
     repo: repoName,
   });
 
-  await ok.rest.actions.createOrUpdateRepoSecret({
+  await actions.createOrUpdateRepoSecret({
     owner,
     repo: repoName,
     secret_name: name,

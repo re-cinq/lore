@@ -2,6 +2,7 @@ import type { Octokit } from "octokit";
 import type { FileChange } from "./github-port.js";
 import { enforceTrue } from "../../../lib/enforce.js";
 import { split, defaultBranch } from "./platform-github-support.js";
+import type { GitApi, ReposApi } from "./platform-github-api.js";
 
 /** Repo tree/content/branch/commit read+write paths for PlatformGitHub. */
 
@@ -16,9 +17,10 @@ export async function getFileContent(
   ref?: string,
 ): Promise<string | null> {
   const [owner, name] = split(repo);
+  const { repos } = ok.rest;
 
   try {
-    const { data: content } = await ok.rest.repos.getContent({
+    const { data: content } = await repos.getContent({
       owner,
       repo: name,
       path,
@@ -46,9 +48,10 @@ export async function listDirectory(
   path: string,
 ): Promise<string[]> {
   const [owner, name] = split(repo);
+  const { repos } = ok.rest;
 
   try {
-    const { data: entries } = await ok.rest.repos.getContent({
+    const { data: entries } = await repos.getContent({
       owner,
       repo: name,
       path,
@@ -67,7 +70,8 @@ export async function listTree(
 ): Promise<string[]> {
   const [owner, name] = split(repo);
   const branch = ref ?? (await defaultBranch(ok, repo));
-  const { data: tree } = await ok.rest.git.getTree({
+  const { git } = ok.rest;
+  const { data: tree } = await git.getTree({
     owner,
     repo: name,
     tree_sha: branch,
@@ -91,7 +95,9 @@ function treeBlobPaths(
     `Recursive tree fetch for ${repo} was truncated by GitHub — refusing to return a partial file list`,
   );
 
-  return tree.tree
+  const entries = tree.tree;
+
+  return entries
     .filter((e) => e.type === "blob" && typeof e.path === "string")
     .map((e) => e.path as string);
 }
@@ -102,7 +108,8 @@ export async function listCommitsSince(
   since: string,
 ): Promise<Array<{ sha: string; files: string[] }>> {
   const [owner, name] = split(repo);
-  const commits = await ok.paginate(ok.rest.repos.listCommits, {
+  const { repos } = ok.rest;
+  const commits = await ok.paginate(repos.listCommits, {
     owner,
     repo: name,
     since,
@@ -111,7 +118,7 @@ export async function listCommitsSince(
   const result: Array<{ sha: string; files: string[] }> = [];
 
   for (const c of commits) {
-    result.push({ sha: c.sha, files: await commitFiles(ok, repo, c.sha) });
+    result.push({ sha: c.sha, files: await commitFiles(repos, repo, c.sha) });
   }
 
   return result;
@@ -119,14 +126,14 @@ export async function listCommitsSince(
 
 /** The changed paths of one commit; a commit whose detail cannot be read contributes none. */
 async function commitFiles(
-  ok: Octokit,
+  repos: ReposApi,
   repo: string,
   sha: string,
 ): Promise<string[]> {
   const [owner, name] = split(repo);
 
   try {
-    const { data: detail } = await ok.rest.repos.getCommit({
+    const { data: detail } = await repos.getCommit({
       owner,
       repo: name,
       ref: sha,
@@ -144,9 +151,10 @@ export async function branchExists(
   branch: string,
 ): Promise<boolean> {
   const [owner, name] = split(repo);
+  const { git } = ok.rest;
 
   try {
-    await ok.rest.git.getRef({ owner, repo: name, ref: `heads/${branch}` });
+    await git.getRef({ owner, repo: name, ref: `heads/${branch}` });
 
     return true;
   } catch (err) {
@@ -164,25 +172,26 @@ export async function createBranch(
   branch: string,
   base = "main",
 ): Promise<void> {
-  const sha = await baseSha(ok, repo, base);
-  const create = refCreator(ok, repo, branch, sha);
+  const { git } = ok.rest;
+  const sha = await baseSha(git, repo, base);
+  const create = refCreator(git, repo, branch, sha);
 
   try {
     await create();
   } catch (err) {
-    await deleteConflictingRef(ok, repo, branch, err);
+    await deleteConflictingRef(git, repo, branch, err);
     await create();
   }
 }
 
 /** The head sha of the base branch a new branch forks from. */
 async function baseSha(
-  ok: Octokit,
+  git: GitApi,
   repo: string,
   base: string,
 ): Promise<string> {
   const [owner, name] = split(repo);
-  const { data: ref } = await ok.rest.git.getRef({
+  const { data: ref } = await git.getRef({
     owner,
     repo: name,
     ref: `heads/${base}`,
@@ -193,7 +202,7 @@ async function baseSha(
 
 /** A thunk that creates `branch` at `sha`, so the same create can be retried after a conflicting ref is cleared. */
 function refCreator(
-  ok: Octokit,
+  git: GitApi,
   repo: string,
   branch: string,
   sha: string,
@@ -201,7 +210,7 @@ function refCreator(
   const [owner, name] = split(repo);
 
   return () =>
-    ok.rest.git.createRef({
+    git.createRef({
       owner,
       repo: name,
       ref: `refs/heads/${branch}`,
@@ -211,7 +220,7 @@ function refCreator(
 
 /** 422 means the branch is already there. A retry of the same task must start from base again, so the old ref is deleted rather than reused — resuming on top of a half-finished attempt is how a run inherits work it never did. */
 async function deleteConflictingRef(
-  ok: Octokit,
+  git: GitApi,
   repo: string,
   branch: string,
   err: unknown,
@@ -221,7 +230,7 @@ async function deleteConflictingRef(
   }
   const [owner, name] = split(repo);
 
-  await ok.rest.git.deleteRef({ owner, repo: name, ref: `heads/${branch}` });
+  await git.deleteRef({ owner, repo: name, ref: `heads/${branch}` });
 }
 
 interface BlobLocation {
@@ -232,12 +241,12 @@ interface BlobLocation {
 
 /** The sha of the file as it already exists, from the first of `refs` that has it. GitHub rejects an update that does not name the blob being replaced, and main is checked after the branch so a file that exists upstream but not yet on the branch is still an UPDATE rather than a create that 422s. */
 async function existingBlobSha(
-  ok: Octokit,
+  repos: ReposApi,
   loc: BlobLocation,
   refs: string[],
 ): Promise<string | undefined> {
   for (const ref of refs) {
-    const sha = await blobShaAtRef(ok, loc, ref);
+    const sha = await blobShaAtRef(repos, loc, ref);
 
     if (sha) {
       return sha;
@@ -249,12 +258,12 @@ async function existingBlobSha(
 
 /** The blob sha at one ref, or undefined when the path is absent or is a directory there. */
 async function blobShaAtRef(
-  ok: Octokit,
+  repos: ReposApi,
   loc: BlobLocation,
   ref: string,
 ): Promise<string | undefined> {
   try {
-    const { data: existing } = await ok.rest.repos.getContent({
+    const { data: existing } = await repos.getContent({
       owner: loc.owner,
       repo: loc.name,
       path: loc.path,
@@ -276,10 +285,11 @@ export async function commitFile(
   { path, content, message }: FileChange,
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { repos } = ok.rest;
   const refs = [branch, "main"];
-  const sha = await existingBlobSha(ok, { owner, name, path }, refs);
+  const sha = await existingBlobSha(repos, { owner, name, path }, refs);
 
-  await ok.rest.repos.createOrUpdateFileContents({
+  await repos.createOrUpdateFileContents({
     owner,
     repo: name,
     path,

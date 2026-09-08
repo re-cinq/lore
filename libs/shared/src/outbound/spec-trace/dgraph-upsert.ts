@@ -2,6 +2,7 @@
 
 import type { DgraphClientPort, DgraphTxn } from "./deps.js";
 import { withBackoff } from "../../lib/backoff.js";
+import { firstOf } from "../../lib/row.js";
 
 /** Node types in the spec-traceability graph, all upserted by xid through {@link upsertByXid}. */
 export type SpecTraceNodeType =
@@ -63,8 +64,10 @@ export async function withTxn<T>(
 
 /** Extracts the assigned uid of a blank node from a commitNow mutation result. */
 export function newUid(mutateResult: unknown, label: string): string {
-  return (mutateResult as { data?: { uids?: Record<string, string> } }).data
-    ?.uids?.[label] as string;
+  const result = mutateResult as { data?: { uids?: Record<string, string> } };
+  const assigned = result.data?.uids;
+
+  return assigned?.[label] as string;
 }
 
 /** Dgraph corrupts empty-string scalars sent via JSON `set` (stored as literal `"[]"`); they round-trip correctly only via N-Quads, so split them out for a dedicated N-Quads write. */
@@ -242,7 +245,7 @@ export async function upsertByXid(
       `query find($xid: string) { found(func: eq(${nodeType}.xid, $xid), first: 1) { uid } }`,
       { $xid: xid },
     );
-    const existing = res.data.found?.[0]?.uid as string | undefined;
+    const existing = firstOf(res.data.found)?.uid as string | undefined;
     const uid = existing
       ? await updateNode(txn, existing, jsonFields)
       : await createNode(txn, nodeType, xid, jsonFields);

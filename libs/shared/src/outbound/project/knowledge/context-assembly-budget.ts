@@ -142,7 +142,7 @@ export interface FetchedSection {
 function computeNonEmptyWeight(fetched: FetchedSection[]): number {
   return (
     fetched
-      .filter((f) => f.res.sources.length > 0)
+      .filter(({ res }) => res.sources.length > 0)
       .reduce((sum, f) => sum + (6 - f.section.priority), 0) || 1
   );
 }

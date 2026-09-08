@@ -79,6 +79,11 @@ export function acceptEitherSpelling<T>(
   return row;
 }
 
+// The first row of a result set, or undefined when it has none — the honest read of a query that may match nothing, where `rows[0]` claims a row that is not there.
+export function firstOf<T>(rows: T[] | undefined): T | undefined {
+  return (rows ?? [])[0];
+}
+
 /** Type-only: `Assert<Check>` fails `tsc` when `Check` is not `true`. */
 export type Assert<Check extends true> = Check;
 

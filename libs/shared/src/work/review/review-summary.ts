@@ -43,11 +43,12 @@ export function budgetSkipBody(model?: string): string {
 }
 
 function tally(output: ReviewOutput): string {
-  const mustFix = output.findings.filter(
+  const { findings } = output;
+  const mustFix = findings.filter(
     (f) => f.label === "issue" && f.decoration === "blocking",
   ).length;
-  const nits = output.findings.filter((f) => f.label === "nit").length;
-  const consider = output.findings.filter(
+  const nits = findings.filter((f) => f.label === "nit").length;
+  const consider = findings.filter(
     (f) =>
       f.label !== "nit" &&
       f.label !== "praise" &&

@@ -18,6 +18,8 @@ export function newUid(
   mutateResult: unknown,
   label: string,
 ): string | undefined {
-  return (mutateResult as { data?: { uids?: Record<string, string> } }).data
-    ?.uids?.[label];
+  const result = mutateResult as { data?: { uids?: Record<string, string> } };
+  const assigned = result.data?.uids;
+
+  return assigned?.[label];
 }

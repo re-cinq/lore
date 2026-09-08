@@ -245,7 +245,7 @@ async function gcFeatureIfOrphan(
       }`,
       { $uid: featureUid },
     );
-    const owners = (res.data.node?.[0]?.owners ?? []) as UidRef[];
+    const owners = (firstOf(res.data.node)?.owners ?? []) as UidRef[];
     const remaining = owners.filter((owner) => owner.uid !== excludedSpecUid);
 
     if (remaining.length === 0) {

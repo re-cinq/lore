@@ -17,7 +17,8 @@ export async function listReviews(
   number: number,
 ): Promise<PullReview[]> {
   const [owner, name] = split(repo);
-  const reviews = await ok.paginate(ok.rest.pulls.listReviews, {
+  const { pulls } = ok.rest;
+  const reviews = await ok.paginate(pulls.listReviews, {
     owner,
     repo: name,
     pull_number: number,
@@ -38,7 +39,8 @@ export async function listComments(
   number: number,
 ): Promise<ReviewComment[]> {
   const [owner, name] = split(repo);
-  const comments = await ok.paginate(ok.rest.pulls.listReviewComments, {
+  const { pulls } = ok.rest;
+  const comments = await ok.paginate(pulls.listReviewComments, {
     owner,
     repo: name,
     pull_number: number,
@@ -97,13 +99,15 @@ function pushThreadPage(
     NonNullable<ReviewThreadsResponse["repository"]>["pullRequest"]
   >["reviewThreads"],
 ): void {
-  page.nodes.forEach((n) => {
-    warnIfThreadTruncated(n, repo, number);
+  page.nodes.forEach((node) => {
+    warnIfThreadTruncated(node, repo, number);
+    const { id, isResolved, isOutdated, comments } = node;
+
     threads.push({
-      id: n.id,
-      isResolved: n.isResolved,
-      isOutdated: n.isOutdated,
-      comments: n.comments.nodes.map((c) => ({ databaseId: c.databaseId })),
+      id,
+      isResolved,
+      isOutdated,
+      comments: comments.nodes.map((c) => ({ databaseId: c.databaseId })),
     });
   });
 }
@@ -114,7 +118,9 @@ function warnIfThreadTruncated(
   repo: string,
   number: number,
 ): void {
-  if (node.comments.pageInfo?.hasNextPage) {
+  const { comments } = node;
+
+  if (comments.pageInfo?.hasNextPage) {
     console.warn(
       `[github] review thread ${node.id} on ${repo}#${number} has >100 comments — late comments will not join by databaseId`,
     );
@@ -178,7 +184,9 @@ async function reviewThreadsPage(
     { owner, name, number, cursor },
   );
 
-  return response.repository?.pullRequest?.reviewThreads;
+  const { repository } = response;
+
+  return repository?.pullRequest?.reviewThreads;
 }
 
 export async function listIssueComments(
@@ -187,7 +195,8 @@ export async function listIssueComments(
   number: number,
 ): Promise<IssueComment[]> {
   const [owner, name] = split(repo);
-  const comments = await ok.paginate(ok.rest.issues.listComments, {
+  const { issues } = ok.rest;
+  const comments = await ok.paginate(issues.listComments, {
     owner,
     repo: name,
     issue_number: number,
@@ -224,7 +233,8 @@ export async function checkRuns(
   ref: string,
 ): Promise<CheckRun[]> {
   const [owner, name] = split(repo);
-  const runs = await ok.paginate(ok.rest.checks.listForRef, {
+  const { checks } = ok.rest;
+  const runs = await ok.paginate(checks.listForRef, {
     owner,
     repo: name,
     ref,

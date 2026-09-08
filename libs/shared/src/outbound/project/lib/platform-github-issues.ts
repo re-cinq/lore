@@ -6,6 +6,7 @@ import type {
   CloseReason,
 } from "./github-port.js";
 import { split } from "./platform-github-support.js";
+import type { IssuesApi } from "./platform-github-api.js";
 
 /** GitHub Issues read/write paths for PlatformGitHub — the non-PR half of GitHubPort. */
 
@@ -25,7 +26,8 @@ export async function listIssues(
   filter?: IssueFilter,
 ): Promise<IssueRef[]> {
   const [owner, name] = split(repo);
-  const issues = await ok.paginate(ok.rest.issues.listForRepo, {
+  const { issues } = ok.rest;
+  const rows = await ok.paginate(issues.listForRepo, {
     owner,
     repo: name,
     state: filter?.state ?? "open",
@@ -33,7 +35,7 @@ export async function listIssues(
     per_page: 100,
   });
 
-  return issues
+  return rows
     .filter((i) => !i.pull_request)
     .map((i) => toListedIssueRef(repo, i));
 }
@@ -75,9 +77,10 @@ export async function getIssue(
   number: number,
 ): Promise<IssueRef | null> {
   const [owner, name] = split(repo);
+  const { issues } = ok.rest;
 
   try {
-    const { data: issue } = await ok.rest.issues.get({
+    const { data: issue } = await issues.get({
       owner,
       repo: name,
       issue_number: number,
@@ -95,7 +98,8 @@ export async function getIssueLabels(
   number: number,
 ): Promise<string[]> {
   const [owner, name] = split(repo);
-  const { data: issue } = await ok.rest.issues.get({
+  const { issues } = ok.rest;
+  const { data: issue } = await issues.get({
     owner,
     repo: name,
     issue_number: number,
@@ -116,7 +120,10 @@ export async function createIssue(
   draft: IssueDraft,
 ): Promise<IssueRef> {
   const labels = draft.labels ?? ["lore-managed"];
-  const created = await createIssueRow(ok, repo, { ...draft, labels });
+  const created = await createIssueRow(ok.rest.issues, repo, {
+    ...draft,
+    labels,
+  });
 
   return {
     repo,
@@ -130,12 +137,12 @@ export async function createIssue(
 
 /** The raw create call; the caller projects the IssueRef so the labels it asked for are the ones it reports. */
 async function createIssueRow(
-  ok: Octokit,
+  issues: IssuesApi,
   repo: string,
   { title, body, labels }: { title: string; body: string; labels: string[] },
 ): Promise<{ number: number; html_url: string }> {
   const [owner, name] = split(repo);
-  const { data: created } = await ok.rest.issues.create({
+  const { data: created } = await issues.create({
     owner,
     repo: name,
     title,
@@ -148,7 +155,8 @@ async function createIssueRow(
 
 export async function listLabels(ok: Octokit, repo: string): Promise<string[]> {
   const [owner, name] = split(repo);
-  const labels = await ok.paginate(ok.rest.issues.listLabelsForRepo, {
+  const { issues } = ok.rest;
+  const labels = await ok.paginate(issues.listLabelsForRepo, {
     owner,
     repo: name,
     per_page: 100,
@@ -162,21 +170,23 @@ export async function createLabels(
   repo: string,
   labels: Array<{ name: string; color?: string; description?: string }>,
 ): Promise<void> {
+  const { issues } = ok.rest;
+
   for (const label of labels) {
-    await createLabel(ok, repo, label);
+    await createLabel(issues, repo, label);
   }
 }
 
 /** Creates one label, tolerating the 422 that means it already exists. */
 async function createLabel(
-  ok: Octokit,
+  issues: IssuesApi,
   repo: string,
   label: { name: string; color?: string; description?: string },
 ): Promise<void> {
   const [owner, name] = split(repo);
 
   try {
-    await ok.rest.issues.createLabel({
+    await issues.createLabel({
       owner,
       repo: name,
       name: label.name,
@@ -197,8 +207,9 @@ export async function commentOnIssue(
   body: string,
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { issues } = ok.rest;
 
-  await ok.rest.issues.createComment({
+  await issues.createComment({
     owner,
     repo: name,
     issue_number: number,
@@ -213,8 +224,9 @@ export async function closeIssue(
   reason: CloseReason = "completed",
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { issues } = ok.rest;
 
-  await ok.rest.issues.update({
+  await issues.update({
     owner,
     repo: name,
     issue_number: number,
@@ -230,8 +242,9 @@ export async function addIssueLabel(
   label: string,
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { issues } = ok.rest;
 
-  await ok.rest.issues.addLabels({
+  await issues.addLabels({
     owner,
     repo: name,
     issue_number: number,
@@ -246,9 +259,10 @@ export async function removeIssueLabel(
   label: string,
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { issues } = ok.rest;
 
   try {
-    await ok.rest.issues.removeLabel({
+    await issues.removeLabel({
       owner,
       repo: name,
       issue_number: number,

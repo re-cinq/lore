@@ -10,6 +10,7 @@ import {
   type ImpactStatement,
 } from "./impact-statement.js";
 import type { OrphanStatement } from "./impact-types.js";
+import { firstOf } from "./uid-refs.js";
 
 interface GraphImplChunk {
   "CodeChunk.start_line"?: number;
@@ -124,7 +125,7 @@ export async function validatedByImpact(
   });
 
   const overlapping = covs.filter((cov) => {
-    const covered = parseRanges(cov.file?.[0]?.["file|ranges"] ?? "");
+    const covered = parseRanges(firstOf(cov.file)?.["file|ranges"] ?? "");
 
     return covered.some(([cs, ce]) =>
       ranges.some(([s, e]) => intervalsOverlap(cs, ce, s, e)),

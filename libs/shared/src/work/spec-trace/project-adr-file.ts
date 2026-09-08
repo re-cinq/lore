@@ -14,6 +14,7 @@ import {
   deletePredicate,
 } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { adrNumberFromPath } from "./adr-refs.js";
+import { firstOf } from "./uid-refs.js";
 
 function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
@@ -30,7 +31,7 @@ async function readAdrContentHash(
       { $xid: xid },
     );
 
-    return res.data.found?.[0]?.["ADR.content_hash"] as string | undefined;
+    return firstOf(res.data.found)?.["ADR.content_hash"] as string | undefined;
   });
 }
 

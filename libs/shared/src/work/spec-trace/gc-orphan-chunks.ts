@@ -2,6 +2,7 @@
 
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
+import { firstOf } from "./uid-refs.js";
 
 /** A garbage-collectable chunk-like node and its ownership edges. */
 type GcNodeType = "TestChunk" | "CodeChunk" | "File";
@@ -48,7 +49,7 @@ async function hasOtherOwner(
       `query q($uid: string) { node(func: uid($uid)) { ${blocks} } }`,
       { $uid: uid },
     );
-    const node = (res.data.node?.[0] ?? {}) as Record<string, unknown>;
+    const node = (firstOf(res.data.node) ?? {}) as Record<string, unknown>;
     const isCountedOwner = (value: unknown): boolean => {
       if (value == null) {
         return false;

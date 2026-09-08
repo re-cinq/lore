@@ -92,8 +92,9 @@ export function serializeDocument(
 }
 
 export function serializeSection(section: SerializedSection): string {
-  const lastIndex = section.documents.length - 1;
-  const inner = section.documents
+  const { documents } = section;
+  const lastIndex = documents.length - 1;
+  const inner = documents
     .map((it, i) =>
       serializeDocument(it, {
         truncated: section.truncated && i === lastIndex,

@@ -1,4 +1,5 @@
 import type { DgraphTxn } from "./memory-store.js";
+import { firstOf } from "../lib/row.js";
 
 // ── Latest-live-Memory query ─────────────────────────────────────────
 
@@ -65,7 +66,7 @@ export async function findLatestLive(
     $key: key,
     $now: new Date().toISOString(),
   });
-  const row = res.data.latest?.[0];
+  const row = firstOf(res.data.latest);
 
   return row ? toMemoryRow(row) : null;
 }
@@ -108,5 +109,5 @@ export function extractMemoryRows(
 }
 
 export function extractTotalCount(res: DgraphQueryResult): number {
-  return (res.data.total?.[0]?.count as number | undefined) ?? 0;
+  return (firstOf(res.data.total)?.count as number | undefined) ?? 0;
 }

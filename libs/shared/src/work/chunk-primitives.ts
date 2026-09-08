@@ -64,5 +64,7 @@ export function wholeFileChunk(
 
 /** Line count of the file's real content — a trailing newline terminates the last line rather than opening a phantom empty one. */
 export function lineCount(content: string): number {
-  return content.replace(/\n$/, "").split("\n").length;
+  const lines = content.replace(/\n$/, "").split("\n");
+
+  return lines.length;
 }

@@ -2,6 +2,7 @@
 
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
+import { firstOf } from "./uid-refs.js";
 
 type StatementVerification = {
   validated_by?: Array<{
@@ -29,7 +30,7 @@ async function readVerification(
       { $sx: statementXid },
     );
 
-    return (res.data.stmt?.[0] ?? {}) as StatementVerification;
+    return (firstOf(res.data.stmt) ?? {}) as StatementVerification;
   });
 }
 

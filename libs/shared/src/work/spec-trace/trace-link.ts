@@ -6,6 +6,7 @@ import {
   withTxn,
 } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { verifyCoverageLink } from "./verify-coverage.js";
+import { firstOf } from "./uid-refs.js";
 
 export type EvidenceTier =
   | "execution-verified"
@@ -42,7 +43,8 @@ async function raisedEvidence(
       { $x: xid },
     );
 
-    return res.data.tl?.[0]?.["TraceLink.evidence"] as EvidenceTier | undefined;
+    return firstOf(res.data.tl)?.["TraceLink.evidence"] as
+      EvidenceTier | undefined;
   });
 
   return existing ? (highestTier([existing, incoming]) ?? incoming) : incoming;
@@ -97,7 +99,7 @@ async function readStatementEdges(
       { $sx: statementXid },
     );
 
-    return res.data.stmt?.[0] as StatementEdges | undefined;
+    return firstOf(res.data.stmt) as StatementEdges | undefined;
   });
 }
 

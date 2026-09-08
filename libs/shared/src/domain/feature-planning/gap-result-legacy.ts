@@ -69,8 +69,10 @@ function architectureContent(arch: GapArchitecture): string {
 type MockupsForSection = (key: string) => GapMockup[] | undefined;
 
 function deriveMockups(o: Record<string, unknown>): GapMockup[] {
-  return Array.isArray(o.mockups)
-    ? o.mockups.map(parseMockup).filter((m): m is GapMockup => m !== null)
+  const { mockups } = o;
+
+  return Array.isArray(mockups)
+    ? mockups.map(parseMockup).filter((m): m is GapMockup => m !== null)
     : [];
 }
 
@@ -113,10 +115,12 @@ function deriveUserFlowsSection(
   o: Record<string, unknown>,
   mockupsTagged: MockupsForSection,
 ): GapSection | null {
-  if (!Array.isArray(o.user_flows) || !o.user_flows.length) {
+  const { user_flows: userFlows } = o;
+
+  if (!Array.isArray(userFlows) || !userFlows.length) {
     return null;
   }
-  const content = o.user_flows.map(userFlowContent).join("\n\n");
+  const content = userFlows.map(userFlowContent).join("\n\n");
   const m = mockupsTagged("user_flows");
 
   return {

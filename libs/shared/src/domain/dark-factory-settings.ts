@@ -148,13 +148,17 @@ function taskOverrideImage(
     return undefined;
   }
 
-  return overrides[taskType]?.execution?.image;
+  const override = overrides[taskType];
+
+  return override?.execution?.image;
 }
 
 function darkFactoryImage(
   settings: ExecutionImageSettings | null | undefined,
 ): string | undefined {
-  return settings?.dark_factory?.execution?.image;
+  const darkFactory = settings?.dark_factory;
+
+  return darkFactory?.execution?.image;
 }
 
 /** Resolves a task's Station image, newest-wins: per-task-type override → per-repo dark_factory.execution.image → platform default (ADR-025). */
