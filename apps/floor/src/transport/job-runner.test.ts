@@ -1,11 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 
-const EXPECTED_JOBS = [
-  "context_reindex",
-  "eval_runner",
-  "context_core_builder",
-  "consolidation",
-];
+const EXPECTED_JOBS = ["eval_runner", "context_core_builder", "consolidation"];
 
 vi.mock("../outbound/db.js", () => ({
   query: vi.fn(),
@@ -30,14 +25,14 @@ describe("dispatch map", () => {
     expect(typeof handler).toBe("function");
   });
 
-  it("exposes exactly the 4 batch jobs left after detection (ADR-019) and single-op jobs (#1348-1351) moved off K8s CronJobs", () => {
+  it("exposes exactly the 3 batch jobs left after detection (ADR-019), the single-op jobs (#1348-1351) and the nightly reindex (2026-09-08) moved off K8s CronJobs", () => {
     expect(Object.keys(dispatch).sort()).toEqual([...EXPECTED_JOBS].sort());
   });
 });
 
 describe("resolveJob", () => {
   it("returns the handler for a known name", () => {
-    expect(resolveJob("context_reindex")).toBe(dispatch.context_reindex);
+    expect(resolveJob("eval_runner")).toBe(dispatch.eval_runner);
   });
 
   it("returns null for an unknown name", () => {

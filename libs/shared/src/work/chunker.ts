@@ -16,7 +16,7 @@ export {
   lineCount,
 } from "./chunk-primitives.js";
 
-/** Bumped whenever chunking output shape changes, so the nightly reindex can spot and re-ingest files chunked by an older chunker. */
+/** Bumped whenever chunking output shape changes; stamped on every chunk as `metadata.chunker_version` so a reader can tell which shape it holds. */
 export const CHUNKER_VERSION = 2;
 
 // ── Lazy parser + grammar cache ──────────────────────────────────────

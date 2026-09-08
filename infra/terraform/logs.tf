@@ -73,7 +73,7 @@ resource "google_service_account_iam_member" "ui_wi" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-ui/lore-ui]"
 }
 
-# --- Floor GCP SA: batch jobs (reindex/ingest) + on-demand task work ---
+# --- Floor GCP SA: batch jobs (ingest) + on-demand task work ---
 #
 # The Floor Deployment and the K8s CronJob batch pods run as KSA
 # `lore-floor` in the `lore-floor` namespace (created by the Floor Helm
@@ -91,10 +91,10 @@ resource "google_service_account_iam_member" "ui_wi" {
 
 resource "google_service_account" "lore_agent" {
   account_id   = "lore-agent"
-  display_name = "Lore Floor — batch reindex/ingest, Vertex embeddings, job logs"
+  display_name = "Lore Floor — batch ingest, Vertex embeddings, job logs"
 }
 
-# Vertex AI — generate text-embedding-005 embeddings during reindex/ingest.
+# Vertex AI — generate text-embedding-005 embeddings during ingest.
 resource "google_project_iam_member" "lore_agent_aiplatform" {
   project = var.project_id
   role    = "roles/aiplatform.user"

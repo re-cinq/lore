@@ -7,7 +7,6 @@ import { Llm } from "@re-cinq/lore-shared";
 import { contextCoreBuilderJob } from "../work/context-jobs/context-core-builder/index.js";
 import { evalRunnerJob } from "../work/context-jobs/eval-runner/index.js";
 import { consolidationJob } from "../work/memory/memory-lifecycle/index.js";
-import { reindexJob } from "../work/context-jobs/reindex/index.js";
 import {
   startJobRun,
   completeJobRun,
@@ -22,7 +21,6 @@ type JobHandler = () => Promise<string>;
 
 // The detection family left this table: their cron ticks fan out per-repo assembly-line runs instead (ADR-019 amendment).
 export const dispatch: Record<string, JobHandler> = {
-  context_reindex: reindexJob,
   eval_runner: evalRunnerJob,
   context_core_builder: contextCoreBuilderJob,
   consolidation: consolidationJob,

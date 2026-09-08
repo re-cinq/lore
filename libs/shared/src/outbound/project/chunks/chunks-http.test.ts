@@ -40,20 +40,17 @@ describe("ChunksHttp", () => {
     expect(calls[0].headers.authorization).toBe("Bearer tok");
   });
 
-  it("maps hasChunk and staleChunkCount to their query endpoints", async () => {
+  it("maps hasChunk to its query endpoint", async () => {
     const { fetchImpl, calls } = fakeFetch({
       "/api/repos/o/r/chunks/has?content_type=doc&file_suffix=CLAUDE.md": {
         has: true,
       },
-      "/api/repos/o/r/chunks/stale?days=90": { count: 13 },
     });
     const http = new ChunksHttp("https://api", "o/r", undefined, fetchImpl);
 
     expect(await http.hasChunk("o/r", "doc", "CLAUDE.md")).toBe(true);
-    expect(await http.staleChunkCount("o/r", 90)).toBe(13);
     expect(calls.map((c) => c.url)).toEqual([
       "https://api/api/repos/o/r/chunks/has?content_type=doc&file_suffix=CLAUDE.md",
-      "https://api/api/repos/o/r/chunks/stale?days=90",
     ]);
   });
 

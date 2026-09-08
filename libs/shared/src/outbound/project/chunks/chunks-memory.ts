@@ -1,4 +1,4 @@
-import { ReindexChunkStore } from "./chunks-memory-reindex.js";
+import { LegacyRelocationStore } from "./chunks-memory-relocate.js";
 import { enforceSchema, type ChunkRow } from "./chunk-row-memory.js";
 import type {
   ChunksPort,
@@ -34,16 +34,16 @@ function specDocumentOrder(a: ChunkRow, b: ChunkRow): number {
   return new Date(a.ingestedAt).getTime() - new Date(b.ingestedAt).getTime();
 }
 
-/** In-memory ChunksPort — behavioral spec of the Pg adapter over rows keyed by (schema, repo, file_path, id); lets reindex/context-core jobs test without a live {schema}.chunks table. */
+/** In-memory ChunksPort — behavioral spec of the Pg adapter over rows keyed by (schema, repo, file_path, id); lets context-core jobs and stations test without a live {schema}.chunks table. */
 export class InMemoryChunks implements ChunksPort {
   private seq = 0;
-  private readonly reindex: ReindexChunkStore;
+  private readonly relocation: LegacyRelocationStore;
 
   constructor(
     public readonly rows: ChunkRow[] = [],
     public readonly schemas: Set<string> = new Set(["org_shared"]),
   ) {
-    this.reindex = new ReindexChunkStore(this);
+    this.relocation = new LegacyRelocationStore(this);
   }
 
   async schemaExists(schema: string): Promise<boolean> {
@@ -170,10 +170,6 @@ export class InMemoryChunks implements ChunksPort {
     );
   }
 
-  staleChunkCount(repo: string, olderThanDays: number): Promise<number> {
-    return this.reindex.staleChunkCount(repo, olderThanDays);
-  }
-
   // Double stores a repo's chunks in one schema, so "resolved schema" reads are just repo-scoped reads across whatever schema the fixture used.
   private forRepo(repo: string): ChunkRow[] {
     return this.rows.filter((row) => row.repo === repo);
@@ -228,49 +224,10 @@ export class InMemoryChunks implements ChunksPort {
       }));
   }
 
-  reindexOwnedFilePaths(schema: string, repo: string): Promise<string[]> {
-    return this.reindex.reindexOwnedFilePaths(schema, repo);
-  }
-
-  chunkedFilePaths(schema: string, repo: string): Promise<string[]> {
-    return this.reindex.chunkedFilePaths(schema, repo);
-  }
-
-  staleChunkerFiles(
-    schema: string,
-    repo: string,
-    version: number,
-    limit: number,
-  ): Promise<string[]> {
-    return this.reindex.staleChunkerFiles(schema, repo, version, limit);
-  }
-
-  touchChunksForFiles(
-    schema: string,
-    repo: string,
-    filePaths: string[],
-    minAgeDays: number,
-  ): Promise<number> {
-    return this.reindex.touchChunksForFiles(
-      schema,
-      repo,
-      filePaths,
-      minAgeDays,
-    );
-  }
-
-  pruneChunksForFiles(
-    schema: string,
-    repo: string,
-    filePaths: string[],
-  ): Promise<number> {
-    return this.reindex.pruneChunksForFiles(schema, repo, filePaths);
-  }
-
   relocateLegacyChunks(
     schema: string,
     repo: string,
   ): Promise<{ moved: number; dropped: number }> {
-    return this.reindex.relocateLegacyChunks(schema, repo);
+    return this.relocation.relocateLegacyChunks(schema, repo);
   }
 }

@@ -23,8 +23,6 @@ afterEach(() => {
 });
 
 const REPO = "octo/repo";
-const OLD = "2025-09-23T00:00:00.000Z";
-
 let nextId = 0;
 
 function row(overrides: Partial<ChunkRow>): ChunkRow {
@@ -49,12 +47,6 @@ function presenceRows(): ChunkRow[] {
     row({ contentType: "adr", filePath: "adrs/adr-1.md" }),
     row({ contentType: "spec", filePath: "specs/spec.md" }),
   ];
-}
-
-function staleRows(count: number): ChunkRow[] {
-  return Array.from({ length: count }, (_, i) =>
-    row({ filePath: `specs/stale-${i}.md`, ingestedAt: OLD }),
-  );
 }
 
 function taskStoreStub(existingOpen = 0): {
@@ -141,49 +133,9 @@ describe("gapDetectJob", () => {
     ]);
   });
 
-  it("files a stale-content task when 11 chunks exceed the floor of 10", async () => {
-    const { project, created } = buildProject([
-      ...presenceRows(),
-      ...staleRows(11),
-    ]);
-
-    await gapDetectJob({ repoFilter: REPO, project });
-
-    expect(created).toHaveLength(1);
-    expect(created[0]).toMatchObject({
-      description: `Gap: stale-content — ${REPO} has 11 chunks not verified by reindex in >90 days`,
-      taskType: "gap-fill",
-      targetRepo: REPO,
-      createdBy: "gap-detect",
-    });
-  });
-
-  it("files no stale-content task at exactly the floor of 10", async () => {
-    const { project, created } = buildProject([
-      ...presenceRows(),
-      ...staleRows(10),
-    ]);
-
-    await gapDetectJob({ repoFilter: REPO, project });
-
-    expect(created).toHaveLength(0);
-  });
-
-  it("ignores stale api-ingested chunks", async () => {
-    const apiStale = staleRows(11).map((chunk) => ({
-      ...chunk,
-      metadata: { ingested_by: "api" },
-    }));
-    const { project, created } = buildProject([...presenceRows(), ...apiStale]);
-
-    await gapDetectJob({ repoFilter: REPO, project });
-
-    expect(created).toHaveLength(0);
-  });
-
   it("dedups against an already open gap-fill task", async () => {
     const { project, created } = buildProject(
-      [...presenceRows(), ...staleRows(11)],
+      presenceRows().filter((chunk) => chunk.contentType !== "spec"),
       { existingOpen: 1 },
     );
 

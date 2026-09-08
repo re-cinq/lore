@@ -92,14 +92,6 @@ export class ChunksHttp implements ChunksPort {
     return (await this.get<{ has: boolean }>("has", q)).has;
   }
 
-  async staleChunkCount(_repo: string, olderThanDays: number): Promise<number> {
-    return (
-      await this.get<{ count: number }>("stale", {
-        days: String(olderThanDays),
-      })
-    ).count;
-  }
-
   // ── Floor-only write surface (unused in a station) ──
   async schemaExists(_schema: string): Promise<boolean> {
     throw new Error(WRITE_ONLY_FLOOR);
@@ -131,38 +123,6 @@ export class ChunksHttp implements ChunksPort {
     throw new Error(WRITE_ONLY_FLOOR);
   }
   async countChunksByTeam(_team: string): Promise<number> {
-    throw new Error(WRITE_ONLY_FLOOR);
-  }
-  async reindexOwnedFilePaths(
-    _schema: string,
-    _repo: string,
-  ): Promise<string[]> {
-    throw new Error(WRITE_ONLY_FLOOR);
-  }
-  async chunkedFilePaths(_schema: string, _repo: string): Promise<string[]> {
-    throw new Error(WRITE_ONLY_FLOOR);
-  }
-  async staleChunkerFiles(
-    _schema: string,
-    _repo: string,
-    _version: number,
-    _limit: number,
-  ): Promise<string[]> {
-    throw new Error(WRITE_ONLY_FLOOR);
-  }
-  async touchChunksForFiles(
-    _schema: string,
-    _repo: string,
-    _filePaths: string[],
-    _minAgeDays: number,
-  ): Promise<number> {
-    throw new Error(WRITE_ONLY_FLOOR);
-  }
-  async pruneChunksForFiles(
-    _schema: string,
-    _repo: string,
-    _filePaths: string[],
-  ): Promise<number> {
     throw new Error(WRITE_ONLY_FLOOR);
   }
   async relocateLegacyChunks(

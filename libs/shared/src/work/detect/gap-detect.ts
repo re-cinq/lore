@@ -7,10 +7,6 @@ interface GapReport {
   detail: string;
 }
 
-const STALE_DAYS = 90;
-/** More than this many stale chunks trips the stale-content gap. */
-const STALE_CHUNK_FLOOR = 10;
-
 export interface GapDetectOptions {
   /** The onboarded repo this run covers (per-repo assembly-line fan-out). */
   repoFilter: string;
@@ -18,7 +14,7 @@ export interface GapDetectOptions {
   project: Project;
 }
 
-/** Gap Detection Job: the `detect` node of `gap-detect`, fanned out weekly per repo by cron.gap_detection.tick; checks CLAUDE.md/ADRs/specs presence + stale reindex content (>90d unverified), through the Project facade so it runs unchanged on the Floor or in a station pod. */
+/** Gap Detection Job: the `detect` node of `gap-detect`, fanned out weekly per repo by cron.gap_detection.tick; checks CLAUDE.md/ADRs/specs presence through the Project facade so it runs unchanged on the Floor or in a station pod. */
 export async function gapDetectJob(opts: GapDetectOptions): Promise<string> {
   const repo = opts.repoFilter;
   const project = opts.project;
@@ -67,24 +63,6 @@ async function missingContent(
     .map(([type, , detail]) => ({ repo, type, detail }));
 }
 
-/** Content the reindex has not re-verified lately. A FLOOR rather than any staleness at all: a handful of untouched chunks is normal in a quiet repo, and reporting those would train people to ignore the gap report. */
-async function staleContent(
-  repo: string,
-  project: Project,
-): Promise<GapReport[]> {
-  const staleCount = await project.chunks.staleChunkCount(STALE_DAYS);
-
-  return staleCount > STALE_CHUNK_FLOOR
-    ? [
-        {
-          repo,
-          type: "stale-content" as const,
-          detail: `${repo} has ${staleCount} chunks not verified by reindex in >${STALE_DAYS} days`,
-        },
-      ]
-    : [];
-}
-
 async function detectGaps(
   repo: string,
   project: Project,
@@ -93,7 +71,6 @@ async function detectGaps(
 
   try {
     gaps.push(...(await missingContent(repo, project)));
-    gaps.push(...(await staleContent(repo, project)));
   } catch (err) {
     console.error(`[job] gap-detect: error checking ${repo}:`, err);
   }

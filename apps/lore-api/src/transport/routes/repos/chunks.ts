@@ -15,7 +15,6 @@ const CHUNK_KINDS = new Set([
   "spec-backfill",
   "code-backfill",
   "has",
-  "stale",
 ]);
 
 /** One route per chunk KIND; the body is whichever collection the kind names. */
@@ -30,12 +29,6 @@ async function hasChunkResult(chunks: ChunksProject, q: ChunkQuery) {
   enforceTrue(contentType, apiError(400), "content_type required");
 
   return { has: await chunks.hasChunk(contentType, q.file_suffix) };
-}
-
-async function staleChunkResult(chunks: ChunksProject, q: ChunkQuery) {
-  const days = Number(q.days ?? "90");
-
-  return { count: await chunks.staleChunkCount(days) };
 }
 
 const CHUNK_COLLECTION_BY_KIND: Record<
@@ -66,7 +59,9 @@ async function chunkCollection(
   chunks: ChunksProject,
   q: ChunkQuery,
 ): Promise<Record<string, unknown>> {
-  const resolve = CHUNK_COLLECTION_BY_KIND[kind] ?? staleChunkResult;
+  const resolve = CHUNK_COLLECTION_BY_KIND[kind];
+
+  enforceTrue(resolve, apiError(404), `unknown chunk kind: ${kind}`);
 
   return resolve(chunks, q);
 }
