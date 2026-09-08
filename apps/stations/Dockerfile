@@ -8,6 +8,10 @@ COPY libs/assembly-lines/package.json ./libs/assembly-lines/
 COPY apps/stations/package.json ./apps/stations/
 RUN npm ci --ignore-scripts --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-assembly-lines --workspace=@re-cinq/lore-stations
 
+# npm creates this only when a dependency will not hoist, so make it unconditional:
+# the runtime COPY below must not depend on which way npm resolved the tree.
+RUN mkdir -p /app/libs/shared/node_modules
+
 COPY libs/shared/tsconfig.json ./libs/shared/
 COPY libs/shared/src ./libs/shared/src
 RUN npm run build --workspace=@re-cinq/lore-shared
@@ -30,6 +34,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules
+# libs/shared keeps its own node_modules whenever npm cannot hoist a dependency to
+# the root (web-tree-sitter, after the 2026-09-08 sweep). The builder resolves it
+# either way; the runtime stage only does if both are copied.
+COPY --from=builder /app/libs/shared/node_modules ./libs/shared/node_modules
 COPY --from=builder /app/libs/assembly-lines/dist ./libs/assembly-lines/dist
 COPY --from=builder /app/libs/assembly-lines/package.json ./libs/assembly-lines/
 COPY --from=builder /app/libs/shared/dist ./libs/shared/dist

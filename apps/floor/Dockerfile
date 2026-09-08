@@ -11,6 +11,10 @@ COPY apps/stations/package.json ./apps/stations/
 COPY apps/floor/package.json ./apps/floor/
 RUN npm ci --ignore-scripts --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-assembly-lines --workspace=@re-cinq/lore-stations --workspace=@re-cinq/lore-floor
 
+# npm creates this only when a dependency will not hoist, so make it unconditional:
+# the runtime COPY below must not depend on which way npm resolved the tree.
+RUN mkdir -p /app/libs/shared/node_modules
+
 # Build shared
 COPY libs/shared/tsconfig.json ./libs/shared/
 COPY libs/shared/src ./libs/shared/src
@@ -51,6 +55,10 @@ COPY --from=builder /app/apps/stations/dist ./apps/stations/dist
 COPY --from=builder /app/apps/stations/package.json ./apps/stations/
 COPY --from=builder /app/apps/floor/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
+# libs/shared keeps its own node_modules whenever npm cannot hoist a dependency to
+# the root (web-tree-sitter, after the 2026-09-08 sweep). The builder resolves it
+# either way; the runtime stage only does if both are copied.
+COPY --from=builder /app/libs/shared/node_modules ./libs/shared/node_modules
 COPY --from=builder /app/apps/floor/package.json ./
 EXPOSE 8080
 CMD ["node", "dist/index.js"]

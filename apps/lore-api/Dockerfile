@@ -12,6 +12,10 @@ COPY apps/stations/package.json ./apps/stations/
 COPY apps/lore-api/package.json ./apps/lore-api/
 RUN npm ci --ignore-scripts --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-server-core --workspace=@re-cinq/lore-assembly-lines --workspace=@re-cinq/lore-stations --workspace=@re-cinq/lore-api
 
+# npm creates this only when a dependency will not hoist, so make it unconditional:
+# the runtime COPY below must not depend on which way npm resolved the tree.
+RUN mkdir -p /app/libs/shared/node_modules
+
 # Build shared
 COPY libs/shared/tsconfig.json ./libs/shared/
 COPY libs/shared/src ./libs/shared/src
@@ -68,6 +72,10 @@ COPY --from=builder /app/apps/stations/dist ./apps/stations/dist
 COPY --from=builder /app/apps/stations/package.json ./apps/stations/
 COPY --from=builder /app/apps/lore-api/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
+# libs/shared keeps its own node_modules whenever npm cannot hoist a dependency to
+# the root (web-tree-sitter, after the 2026-09-08 sweep). The builder resolves it
+# either way; the runtime stage only does if both are copied.
+COPY --from=builder /app/libs/shared/node_modules ./libs/shared/node_modules
 COPY --from=builder /app/apps/lore-api/dist ./dist
 # Served at GET /dist/lore-code-trace/<os>-<arch> (+ /checksums.txt).
 COPY --from=gobuilder /out ./dist-bin

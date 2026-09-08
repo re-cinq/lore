@@ -11,6 +11,10 @@ COPY apps/mcp-server/package.json ./apps/mcp-server/
 # --ignore-scripts: dependency lifecycle scripts are the #1062 supply-chain vector.
 RUN npm ci --ignore-scripts --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-server-core --workspace=@re-cinq/lore-mcp
 
+# npm creates this only when a dependency will not hoist, so make it unconditional:
+# the runtime COPY below must not depend on which way npm resolved the tree.
+RUN mkdir -p /app/libs/shared/node_modules
+
 # Build shared
 COPY libs/shared/tsconfig.json ./libs/shared/
 COPY libs/shared/src ./libs/shared/src
@@ -43,6 +47,10 @@ ENV LORE_MCP_PORT=8080
 COPY --from=builder /app/libs ./libs
 COPY --from=builder /app/apps/mcp-server/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
+# libs/shared keeps its own node_modules whenever npm cannot hoist a dependency to
+# the root (web-tree-sitter, after the 2026-09-08 sweep). The builder resolves it
+# either way; the runtime stage only does if both are copied.
+COPY --from=builder /app/libs/shared/node_modules ./libs/shared/node_modules
 COPY --from=builder /app/apps/mcp-server/dist ./dist
 # loadTaskTypes() reads scripts/task-types.yaml from cwd (falls back to empty).
 COPY scripts/task-types.yaml ./scripts/task-types.yaml
