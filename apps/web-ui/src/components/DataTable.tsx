@@ -18,19 +18,44 @@ export interface DataTableProps<T> {
   empty?: ReactNode;
 }
 
-export default function DataTable<T>({
-  title,
-  columns,
-  rows,
-  rowKey,
+/** One row's cells. Keyed by COLUMN name rather than by position, so a table whose columns change identity does not reuse a cell's DOM node for different data. */
+function Cells({
   cells,
-  monoColumns = [],
-  rowClass,
-  empty = "No data",
-}: DataTableProps<T>) {
+  columns,
+  mono,
+}: {
+  cells: ReactNode[];
+  columns: string[];
+  mono: number[];
+}) {
+  return cells.map((cell, index) => (
+    <td
+      key={columns[index]}
+      className={mono.includes(index) ? styles.mono : undefined}
+    >
+      {cell}
+    </td>
+  ));
+}
+
+/** The no-rows state, spanning the full width so it reads as a statement about the table rather than a value in its first column. */
+function EmptyRow({ span, children }: { span: number; children: ReactNode }) {
+  return (
+    <tr>
+      <td colSpan={span} className={`meta ${styles.center}`}>
+        {children}
+      </td>
+    </tr>
+  );
+}
+
+export default function DataTable<T>(props: DataTableProps<T>) {
+  const { columns, rows, rowKey, cells } = props;
+  const { monoColumns = [], rowClass, empty = "No data" } = props;
+
   return (
     <>
-      {title ? <h2>{title}</h2> : null}
+      {props.title ? <h2>{props.title}</h2> : null}
       <table>
         <thead>
           <tr>
@@ -42,24 +67,11 @@ export default function DataTable<T>({
         <tbody>
           {rows.map((row, index) => (
             <tr key={rowKey(row, index)} className={rowClass?.(row)}>
-              {cells(row).map((cell, index) => (
-                <td
-                  key={columns[index]}
-                  className={
-                    monoColumns.includes(index) ? styles.mono : undefined
-                  }
-                >
-                  {cell}
-                </td>
-              ))}
+              <Cells cells={cells(row)} columns={columns} mono={monoColumns} />
             </tr>
           ))}
           {rows.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className={`meta ${styles.center}`}>
-                {empty}
-              </td>
-            </tr>
+            <EmptyRow span={columns.length}>{empty}</EmptyRow>
           ) : null}
         </tbody>
       </table>

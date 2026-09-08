@@ -48,30 +48,22 @@ function applyToDom(family: ThemeFamily, resolved: ResolvedScheme): void {
   window.__loreFamily = family;
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Seed from inline script to avoid flash/hydration mismatch.
-  const [family, setFamilyState] = useState<ThemeFamily>(() =>
-    typeof window !== "undefined"
-      ? (window.__loreFamily ??
-        parseFamily(document.documentElement.getAttribute("data-theme-family")))
-      : DEFAULT_FAMILY,
+/** A setter that also writes the choice to localStorage, so the inline seed script can restore it on the next load before React runs. */
+function usePersisted<T extends string>(
+  setState: React.Dispatch<React.SetStateAction<T>>,
+  key: string,
+): (next: T) => void {
+  return useCallback(
+    (next: T) => {
+      setState(next);
+      localStorage.setItem(key, next);
+    },
+    [setState, key],
   );
-  const [scheme, setSchemeState] = useState<ColorSchemePref>(() =>
-    typeof window !== "undefined"
-      ? parseSchemePref(window.localStorage.getItem(SCHEME_KEY))
-      : DEFAULT_SCHEME,
-  );
+}
 
-  const setFamily = useCallback((next: ThemeFamily) => {
-    setFamilyState(next);
-    localStorage.setItem(FAMILY_KEY, next);
-  }, []);
-
-  const setScheme = useCallback((next: ColorSchemePref) => {
-    setSchemeState(next);
-    localStorage.setItem(SCHEME_KEY, next);
-  }, []);
-
+/** Keeps the document in step with the choice. The second effect exists only for `auto`: the OS can change scheme while the page is open, and nothing re-renders when it does, so the media query has to push the change to the DOM itself. */
+function useThemeDom(family: ThemeFamily, scheme: ColorSchemePref): void {
   useEffect(() => {
     applyToDom(family, resolveColorScheme(scheme, systemPrefersDark()));
   }, [family, scheme]);
@@ -87,7 +79,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     return () => media.removeEventListener("change", onChange);
   }, [scheme, family]);
+}
 
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  // Seed from inline script to avoid flash/hydration mismatch.
+  const [family, setFamilyState] = useState<ThemeFamily>(() =>
+    typeof window !== "undefined"
+      ? (window.__loreFamily ??
+        parseFamily(document.documentElement.getAttribute("data-theme-family")))
+      : DEFAULT_FAMILY,
+  );
+  const [scheme, setSchemeState] = useState<ColorSchemePref>(() =>
+    typeof window !== "undefined"
+      ? parseSchemePref(window.localStorage.getItem(SCHEME_KEY))
+      : DEFAULT_SCHEME,
+  );
+
+  const setFamily = usePersisted(setFamilyState, FAMILY_KEY);
+  const setScheme = usePersisted(setSchemeState, SCHEME_KEY);
+
+  useThemeDom(family, scheme);
   const resolvedScheme = resolveColorScheme(scheme, systemPrefersDark());
 
   return (

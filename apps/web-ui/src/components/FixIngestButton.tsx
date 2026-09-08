@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
 import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
 
-/** Reports how many PRs opened and, critically, why any repo failed — "opened 0 PRs" with no reason is how a missing App permission stayed invisible. */
 /** What the button says, in the order the states actually occur: working, then the outcome, then the invitation. The outcome keeps the failure count beside the success count, so a partial run does not read as a clean one. */
 function buttonText({
   pending,
@@ -36,20 +35,33 @@ function buttonText({
   );
 }
 
+interface FixWorkflowButtonProps {
+  repos: string[];
+  action: (repos: string[]) => Promise<FixWorkflowResult>;
+  label: string;
+  title: string;
+}
+
+/** Per-repo failures as a tooltip, or null when the run had none. The repo name rides with each message because one click covers many repos, and "failed" without saying which is not actionable. */
+function failureTitle(done: FixWorkflowResult | null): string | null {
+  if (!done || done.failed.length === 0) {
+    return null;
+  }
+
+  return done.failed.map((f) => `${f.repo}: ${f.error}`).join("\n");
+}
+
+/** Reports how many PRs opened and, critically, why any repo failed — "opened 0 PRs" with no reason is how a missing App permission stayed invisible. */
 export function FixWorkflowButton({
   repos,
   action,
   label,
   title,
-}: {
-  repos: string[];
-  action: (repos: string[]) => Promise<FixWorkflowResult>;
-  label: string;
-  title: string;
-}) {
+}: FixWorkflowButtonProps) {
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState<FixWorkflowResult | null>(null);
 
+  // Nothing to fix is not a disabled button: an always-present control invites a click that can do nothing.
   if (repos.length === 0) {
     return null;
   }
@@ -63,11 +75,7 @@ export function FixWorkflowButton({
           setDone(await action(repos));
         })
       }
-      title={
-        done && done.failed.length > 0
-          ? done.failed.map((f) => `${f.repo}: ${f.error}`).join("\n")
-          : title
-      }
+      title={failureTitle(done) ?? title}
     >
       {buttonText({ pending, done, label, count: repos.length })}
     </button>

@@ -63,15 +63,8 @@ function positionsFromAngles(
   return positions;
 }
 
-/** Radial-tree seed positions; depth→radius, leaves spread evenly. */
-export function radialTree(
-  root: string,
-  childrenOf: Map<string, string[]>,
-  opts: RadialTreeOptions,
-): Map<string, Point> {
-  const { center, ringGap } = opts;
-  const { angleStart, angleEnd } = resolveAngleRange(opts);
-
+/** Depth-first walk of the graph as a tree. The `visited` set is what makes a graph safe to treat as one: a node already placed is not descended into again, so a cycle terminates and a diamond is drawn under whichever parent reached it first. Post-order is recorded because a parent's angle is the mean of its children's, which cannot be known until they are placed. */
+function walkTree(root: string, childrenOf: Map<string, string[]>) {
   const depth = new Map<string, number>();
   const postOrder: string[] = [];
   const leaves: string[] = [];
@@ -98,6 +91,19 @@ export function radialTree(
 
   visit(root, 0);
 
+  return { depth, postOrder, leaves };
+}
+
+/** Radial-tree seed positions; depth→radius, leaves spread evenly. */
+export function radialTree(
+  root: string,
+  childrenOf: Map<string, string[]>,
+  opts: RadialTreeOptions,
+): Map<string, Point> {
+  const { center, ringGap } = opts;
+  const { angleStart, angleEnd } = resolveAngleRange(opts);
+
+  const { depth, postOrder, leaves } = walkTree(root, childrenOf);
   const span = angleEnd - angleStart;
   const leafCount = Math.max(leaves.length, 1);
   const angle = new Map<string, number>();

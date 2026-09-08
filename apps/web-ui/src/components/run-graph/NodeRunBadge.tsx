@@ -20,36 +20,49 @@ function fitted(text: string) {
   return { shown, full: shown === text ? null : text };
 }
 
+/** Text clipped to the node box, with the untruncated value as a `<title>` so hovering still gives the whole thing. SVG text neither wraps nor ellipsizes on its own, so a long node id would otherwise run straight out of its box and across the graph. */
+function FittedText({
+  className,
+  textX,
+  textY,
+  text,
+}: {
+  className: string;
+  textX: number;
+  textY: number;
+  text: string;
+}) {
+  const { shown, full } = fitted(text);
+
+  return (
+    <text className={className} x={textX} y={textY} textAnchor="start">
+      {full && <title>{full}</title>}
+      {shown}
+    </text>
+  );
+}
+
 export default function NodeRunBadge({
   title,
   badge,
   leftEdge,
   centerY,
 }: NodeRunBadgeProps) {
-  const name = fitted(title);
-  const verdict = fitted(badge.label);
-
   return (
     <>
       <StatusIcon tone={badge.tone} cx={leftEdge + 24} cy={centerY} />
-      <text
+      <FittedText
         className={styles.nodeId}
-        x={leftEdge + 40}
-        y={centerY - 2}
-        textAnchor="start"
-      >
-        {name.full && <title>{name.full}</title>}
-        {name.shown}
-      </text>
-      <text
+        textX={leftEdge + 40}
+        textY={centerY - 2}
+        text={title}
+      />
+      <FittedText
         className={classes(styles.statusLabel, textFillClass(badge.tone))}
-        x={leftEdge + 40}
-        y={centerY + 13}
-        textAnchor="start"
-      >
-        {verdict.full && <title>{verdict.full}</title>}
-        {verdict.shown}
-      </text>
+        textX={leftEdge + 40}
+        textY={centerY + 13}
+        text={badge.label}
+      />
     </>
   );
 }

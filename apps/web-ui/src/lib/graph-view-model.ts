@@ -81,6 +81,30 @@ function terminalIds(definition: AssemblyLineDefinition): Set<string> {
   );
 }
 
+/** One connector per distinct TARGET. Outcomes that lead to the same node collapse into a single neutral edge — drawing one arrow per verdict would suggest branching where the line does not actually fork; a target reached by exactly one outcome keeps that outcome's tone. */
+function connectorsFor(
+  from: string,
+  outgoing: AssemblyLineDefinition["edges"],
+): VisibleEdge[] {
+  const targets = [...new Set(outgoing.map((edge) => edge.to))];
+
+  if (targets.length === 1) {
+    return [{ from, to: targets[0], tone: "neutral" }];
+  }
+
+  return targets.map((to) => {
+    const ons = outgoing
+      .filter((edge) => edge.to === to)
+      .map((edge) => edge.on);
+
+    return {
+      from,
+      to,
+      tone: ons.length === 1 ? outcomeTone(ons[0]) : "neutral",
+    };
+  });
+}
+
 /** Definition mode: collapse same-target outcomes, branch different-target ones. */
 function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
   const edges: VisibleEdge[] = [];
@@ -88,32 +112,14 @@ function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
 
   for (const node of definition.nodes) {
     const outgoing = definition.edges.filter((edge) => edge.from === node.id);
-    const targets = [...new Set(outgoing.map((edge) => edge.to))];
 
-    // Outcomes live in source node; connector never repeats verdict.
+    // Outcomes are listed on the SOURCE node, so a connector never repeats a verdict the node already states.
     outcomesByNode.set(
       node.id,
       outgoing.map((edge) => edge.on),
     );
-
-    if (targets.length === 1) {
-      edges.push({ from: node.id, to: targets[0], tone: "neutral" });
-      continue;
-    }
-
-    targets.forEach((to) => {
-      const ons = outgoing
-        .filter((edge) => edge.to === to)
-        .map((edge) => edge.on);
-
-      edges.push({
-        from: node.id,
-        to,
-        tone: ons.length === 1 ? outcomeTone(ons[0]) : "neutral",
-      });
-    });
+    edges.push(...connectorsFor(node.id, outgoing));
   }
-
   const nodes = definition.nodes.map((node) => ({
     id: node.id,
     type: node.type,
@@ -126,15 +132,11 @@ function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
   return { mode: "definition", nodes, edges };
 }
 
-/** Run mode: whole line with each step's current state; path so far stands out. */
-function runGraph(
-  definition: AssemblyLineDefinition,
-  run: RunData,
-): VisibleGraph {
+/** Which nodes and hops the run actually went through. Collected BEFORE the connectors are built, because several conditions can share one hop — a node counts as reached if any outcome led into or out of it. */
+function walkedPath(definition: AssemblyLineDefinition, run: RunData) {
   const reached = new Set(run.executed);
   const takenPairs = new Set<string>();
 
-  // Collected before connectors built; several conditions can share one hop.
   for (const edge of definition.edges) {
     if (run.taken.has(edgeKey(edge))) {
       takenPairs.add(pairKey(edge.from, edge.to));
@@ -143,25 +145,43 @@ function runGraph(
     }
   }
 
-  const seen = new Set<string>();
-  const edges: VisibleEdge[] = [];
+  return { reached, takenPairs };
+}
 
-  for (const edge of definition.edges) {
+/** One connector per distinct hop, marked with whether the run took it. Deduped on the node PAIR, since two outcomes between the same nodes are one arrow on screen. */
+function runConnectors(
+  definition: AssemblyLineDefinition,
+  takenPairs: Set<string>,
+): VisibleEdge[] {
+  const seen = new Set<string>();
+
+  return definition.edges.flatMap((edge) => {
     const pair = pairKey(edge.from, edge.to);
 
     if (seen.has(pair)) {
-      continue;
+      return [];
     }
 
     seen.add(pair);
-    edges.push({
-      from: edge.from,
-      to: edge.to,
-      tone: "neutral",
-      taken: takenPairs.has(pair),
-    });
-  }
 
+    return [
+      {
+        from: edge.from,
+        to: edge.to,
+        tone: "neutral" as const,
+        taken: takenPairs.has(pair),
+      },
+    ];
+  });
+}
+
+/** Run mode: whole line with each step's current state; path so far stands out. */
+function runGraph(
+  definition: AssemblyLineDefinition,
+  run: RunData,
+): VisibleGraph {
+  const { reached, takenPairs } = walkedPath(definition, run);
+  const edges = runConnectors(definition, takenPairs);
   const terminals = terminalIds(definition);
   const nodes = definition.nodes.map((node) => ({
     id: node.id,

@@ -66,28 +66,20 @@ function RepoDocList({
   );
 }
 
-export default function GlobalDocsView({
-  docs,
-  statuses = {},
-  emptyHint,
-  noMatchHint,
-  kind = "spec",
-}: {
+interface GlobalDocsViewProps {
   docs: Array<{ repo: string; filePath: string }>;
   statuses?: Record<string, SpecStatusInfo>;
   emptyHint: string;
   noMatchHint: string;
   kind?: DocKind;
-}) {
-  const [filter, setFilter] = useState<SpecStatusFilter>("all");
-  const [query, setQuery] = useState("");
+}
 
-  if (docs.length === 0) {
-    return <p className={styles.hint}>{emptyHint}</p>;
-  }
-
-  const statusOf = (repo: string, filePath: string) =>
-    statuses[`${repo}::${filePath}`];
+/** The docs this filter and query admit, grouped by repo. Counts come from the FULL set, not the visible one — the status chips have to keep reporting how many of each there are, or selecting one would make the others look empty. */
+function visibleDocs(
+  docs: GlobalDocsViewProps["docs"],
+  statusOf: (repo: string, filePath: string) => SpecStatusInfo | undefined,
+  { filter, query }: { filter: SpecStatusFilter; query: string },
+) {
   const { counts, visible } = filterDocCards(
     docs,
     (doc) => statusOf(doc.repo, doc.filePath),
@@ -95,7 +87,48 @@ export default function GlobalDocsView({
     { query, textOf: (doc) => `${doc.repo} ${doc.filePath}` },
   );
 
-  const byRepo = groupByRepo(visible);
+  return { counts, byRepo: groupByRepo(visible) };
+}
+
+/** One list per repo holding a matching doc, or the no-match hint. Grouped by repo rather than flat because a path alone (`specs/spec.md`) does not say which repo it belongs to, and several repos use the same names. */
+function RepoDocLists({
+  byRepo,
+  kind,
+  statusOf,
+  noMatchHint,
+}: {
+  byRepo: Map<string, string[]>;
+  kind: DocKind;
+  statusOf: (repo: string, filePath: string) => SpecStatusInfo | undefined;
+  noMatchHint: string;
+}) {
+  if (byRepo.size === 0) {
+    return <p className={styles.hint}>{noMatchHint}</p>;
+  }
+
+  return [...byRepo.entries()].map(([repo, paths]) => (
+    <RepoDocList
+      key={repo}
+      repo={repo}
+      paths={paths}
+      kind={kind}
+      statusOf={statusOf}
+    />
+  ));
+}
+
+export default function GlobalDocsView(props: GlobalDocsViewProps) {
+  const { docs, statuses = {}, kind = "spec" } = props;
+  const [filter, setFilter] = useState<SpecStatusFilter>("all");
+  const [query, setQuery] = useState("");
+
+  // Nothing at all and nothing MATCHING are different answers: the first means the org has no specs yet, the second that this filter is too narrow.
+  if (docs.length === 0) {
+    return <p className={styles.hint}>{props.emptyHint}</p>;
+  }
+  const statusOf = (repo: string, filePath: string) =>
+    statuses[`${repo}::${filePath}`];
+  const { counts, byRepo } = visibleDocs(docs, statusOf, { filter, query });
 
   return (
     <div>
@@ -107,16 +140,12 @@ export default function GlobalDocsView({
         onChange={setFilter}
         kind={kind}
       />
-      {[...byRepo.entries()].map(([repo, paths]) => (
-        <RepoDocList
-          key={repo}
-          repo={repo}
-          paths={paths}
-          kind={kind}
-          statusOf={statusOf}
-        />
-      ))}
-      {byRepo.size === 0 && <p className={styles.hint}>{noMatchHint}</p>}
+      <RepoDocLists
+        byRepo={byRepo}
+        kind={kind}
+        statusOf={statusOf}
+        noMatchHint={props.noMatchHint}
+      />
     </div>
   );
 }

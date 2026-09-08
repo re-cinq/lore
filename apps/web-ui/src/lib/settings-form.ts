@@ -176,20 +176,29 @@ function executionChanges(
   return execution;
 }
 
+/** The auto-merge allowlist, recorded only when the field was submitted AND differs. Absence is not emptiness: a form that never rendered the field must not read as clearing the allowlist, which would widen what auto-merge is permitted to touch. */
+function recordPaths(
+  changes: Record<string, unknown>,
+  formData: FormData,
+  current: string[],
+): void {
+  const paths = text(formData, "df_am_paths")
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (formData.has("df_am_paths") && !sameArray(paths, current)) {
+    changes.paths = paths;
+  }
+}
+
 function autoMergeChanges(
   formData: FormData,
   am: NonNullable<NonNullable<CurrentSettings["dark_factory"]>["auto_merge"]>,
 ): Record<string, unknown> {
   const changes: Record<string, unknown> = {};
 
-  const paths = text(formData, "df_am_paths")
-    .split(/[\n,]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (formData.has("df_am_paths") && !sameArray(paths, am.paths ?? [])) {
-    changes.paths = paths;
-  }
+  recordPaths(changes, formData, am.paths ?? []);
   recordText(
     changes,
     "min_trust",

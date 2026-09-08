@@ -224,6 +224,39 @@ export async function getReadme(repo: string): Promise<RepoReadme | null> {
   }
 }
 
+/** Checks and reviews for a PR. Both degrade to empty rather than failing the whole read: the PR itself is the point of this call, and a card that renders without its check list beats one that does not render at all. */
+async function prSignals(
+  ok: Awaited<ReturnType<typeof octokit>>,
+  {
+    owner,
+    repoName,
+    prNumber,
+    headSha,
+  }: { owner: string; repoName: string; prNumber: number; headSha: string },
+) {
+  const [checksResult, reviewsResult] = await Promise.all([
+    ok.rest.checks
+      .listForRef({ owner, repo: repoName, ref: headSha })
+      .catch(() => ({ data: { check_runs: [] } })),
+    ok.rest.pulls
+      .listReviews({ owner, repo: repoName, pull_number: prNumber })
+      .catch(() => ({ data: [] })),
+  ]);
+
+  return {
+    checks: checksResult.data.check_runs.map((c) => ({
+      name: c.name,
+      status: c.status,
+      conclusion: c.conclusion ?? null,
+    })),
+    reviews: reviewsResult.data.map((r) => ({
+      user: r.user?.login || "unknown",
+      state: r.state,
+      submitted_at: r.submitted_at || "",
+    })),
+  };
+}
+
 export async function getPRDetails(
   repo: string,
   prNumber: number,
@@ -237,26 +270,12 @@ export async function getPRDetails(
     pull_number: prNumber,
   });
 
-  const [checksResult, reviewsResult] = await Promise.all([
-    ok.rest.checks
-      .listForRef({ owner, repo: repoName, ref: pr.head.sha })
-      .catch(() => ({ data: { check_runs: [] } })),
-    ok.rest.pulls
-      .listReviews({ owner, repo: repoName, pull_number: prNumber })
-      .catch(() => ({ data: [] })),
-  ]);
-
-  const checks = checksResult.data.check_runs.map((c) => ({
-    name: c.name,
-    status: c.status,
-    conclusion: c.conclusion ?? null,
-  }));
-
-  const reviews = reviewsResult.data.map((r) => ({
-    user: r.user?.login || "unknown",
-    state: r.state,
-    submitted_at: r.submitted_at || "",
-  }));
+  const { checks, reviews } = await prSignals(ok, {
+    owner,
+    repoName,
+    prNumber,
+    headSha: pr.head.sha,
+  });
 
   return {
     number: pr.number,

@@ -59,27 +59,30 @@ function CheckCopy({ check }: { check: Check }) {
   );
 }
 
-function CheckRow({
-  check,
-  reonboardAction,
-  setupWebhookAction,
-}: {
+interface CheckRowProps {
   check: Check;
   reonboardAction?: () => Promise<void>;
   setupWebhookAction?: () => Promise<void>;
-}) {
-  const s = STATUS[check.status];
+}
+
+/** The pass/fail marker. Colour rides through a CSS variable rather than a class per status, so a new status needs a STATUS entry and no stylesheet change. */
+function CheckStatusIcon({ status }: { status: Check["status"] }) {
+  const shown = STATUS[status];
 
   return (
-    <div className="enroll-row">
-      <span
-        className={styles.statusIcon}
-        style={{ ["--status-color" as string]: s.color }}
-      >
-        <Icon name={s.icon} size={14} />
-      </span>
-      <span className={styles.label}>{check.label}</span>
-      <span className="enroll-dots" />
+    <span
+      className={styles.statusIcon}
+      style={{ ["--status-color" as string]: shown.color }}
+    >
+      <Icon name={shown.icon} size={14} />
+    </span>
+  );
+}
+
+/** What this check found, and where to go look. Both are optional: a passing check usually has nothing to add, and saying so would be noise on every row. */
+function CheckDetail({ check }: { check: Check }) {
+  return (
+    <>
       {check.detail && (
         <span className={`meta ${styles.detail}`}>{check.detail}</span>
       )}
@@ -93,6 +96,21 @@ function CheckRow({
           {check.link.text}
         </a>
       )}
+    </>
+  );
+}
+
+function CheckRow({
+  check,
+  reonboardAction,
+  setupWebhookAction,
+}: CheckRowProps) {
+  return (
+    <div className="enroll-row">
+      <CheckStatusIcon status={check.status} />
+      <span className={styles.label}>{check.label}</span>
+      <span className="enroll-dots" />
+      <CheckDetail check={check} />
       <ReonboardAction check={check} reonboardAction={reonboardAction} />
       <SetupWebhookAction
         check={check}
@@ -150,11 +168,7 @@ export default function EnrollmentSection({
   checks,
   reonboardAction,
   setupWebhookAction,
-}: {
-  checks: Check[];
-  reonboardAction?: () => Promise<void>;
-  setupWebhookAction?: () => Promise<void>;
-}) {
+}: EnrollmentSectionProps) {
   const { passed, total } = passSummary(checks);
 
   return (
@@ -169,19 +183,38 @@ export default function EnrollmentSection({
 
       <div className={`meta ${styles.groupLabel}`}>Repo integration</div>
       <div className={styles.checks}>
-        {checks.map((c) => (
-          <CheckRow
-            key={c.id}
-            check={c}
-            reonboardAction={reonboardAction}
-            setupWebhookAction={setupWebhookAction}
-          />
-        ))}
+        <CheckRows
+          checks={checks}
+          reonboardAction={reonboardAction}
+          setupWebhookAction={setupWebhookAction}
+        />
       </div>
 
       <LocalSetupSteps />
     </div>
   );
+}
+
+interface EnrollmentSectionProps {
+  checks: Check[];
+  reonboardAction?: () => Promise<void>;
+  setupWebhookAction?: () => Promise<void>;
+}
+
+/** Every repo-integration check, each carrying whichever fix action applies to it. */
+function CheckRows({
+  checks,
+  reonboardAction,
+  setupWebhookAction,
+}: EnrollmentSectionProps) {
+  return checks.map((check) => (
+    <CheckRow
+      key={check.id}
+      check={check}
+      reonboardAction={reonboardAction}
+      setupWebhookAction={setupWebhookAction}
+    />
+  ));
 }
 
 function EnrollmentHelp() {
@@ -213,30 +246,37 @@ function EnrollmentHelp() {
   );
 }
 
+/** The three commands a developer runs once per machine. Ordered because they depend on each other — the install registers the MCP server the second step then loads. */
+function SetupSteps() {
+  return (
+    <ol className={styles.steps}>
+      <Step
+        label="Install Lore (once per machine) — configures the MCP server, skills, hooks, statusline, and agent ID."
+        note="Needs git, Node.js ≥18, and the Claude Code CLI. Clones into ~/.re-cinq/lore, builds the MCP server, and registers it in your Claude config. Idempotent — safe to re-run."
+        command={INSTALL_CMD}
+        alt={{
+          label: "…or without cloning (private repo needs SSH/token access):",
+          command: CURL_CMD,
+        }}
+      />
+      <Step
+        label="Open this repo and start Claude Code — org context loads automatically."
+        command="claude"
+      />
+      <Step
+        label="Verify context loads."
+        command={'claude "how do we handle auth in this repo?"'}
+      />
+    </ol>
+  );
+}
+
 /** The half nobody can verify for you: these run on your machine, and step 2 is what eventually flips the MCP check green. */
 function LocalSetupSteps() {
   return (
     <>
       <div className={`meta ${styles.groupLabel}`}>Your local setup</div>
-      <ol className={styles.steps}>
-        <Step
-          label="Install Lore (once per machine) — configures the MCP server, skills, hooks, statusline, and agent ID."
-          note="Needs git, Node.js ≥18, and the Claude Code CLI. Clones into ~/.re-cinq/lore, builds the MCP server, and registers it in your Claude config. Idempotent — safe to re-run."
-          command={INSTALL_CMD}
-          alt={{
-            label: "…or without cloning (private repo needs SSH/token access):",
-            command: CURL_CMD,
-          }}
-        />
-        <Step
-          label="Open this repo and start Claude Code — org context loads automatically."
-          command="claude"
-        />
-        <Step
-          label="Verify context loads."
-          command={'claude "how do we handle auth in this repo?"'}
-        />
-      </ol>
+      <SetupSteps />
       <p className={`meta ${styles.footnote}`}>
         These run on your machine and aren&apos;t auto-verified — completing
         step 2 flips <strong>Used locally via MCP</strong> green once a session
