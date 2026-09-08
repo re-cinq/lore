@@ -74,7 +74,6 @@ export interface RunHistory {
   setStreamUnavailable: (next: boolean) => void;
 }
 
-/** Runs once per run; a rejection degrades to the seeded graph plus an Offline chip rather than an unhandled rejection or a blank page. */
 /** Reads every page of the run's history, dispatching each row as it arrives so the reducer folds them in order. `isCancelled` is checked between pages: a run change must not let the previous run's later pages land in the new run's state. */
 async function loadAllPages(
   runId: string,
@@ -146,6 +145,7 @@ async function foldHistory(
   }
 }
 
+/** Runs once per run; a rejection degrades to the seeded graph plus an Offline chip rather than an unhandled rejection or a blank page. */
 export function useRunHistory(
   runId: string,
   dispatch: (event: RunStreamEvent) => void,

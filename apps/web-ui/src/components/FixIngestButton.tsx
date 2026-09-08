@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
 import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
 
-/** Reports how many PRs opened and, critically, why any repo failed — "opened 0 PRs" with no reason is how a missing App permission stayed invisible. */
 /** What the button says, in the order the states actually occur: working, then the outcome, then the invitation. The outcome keeps the failure count beside the success count, so a partial run does not read as a clean one. */
 function buttonText({
   pending,
@@ -52,6 +51,7 @@ function failureTitle(done: FixWorkflowResult | null): string | null {
   return done.failed.map((f) => `${f.repo}: ${f.error}`).join("\n");
 }
 
+/** Reports how many PRs opened and, critically, why any repo failed — "opened 0 PRs" with no reason is how a missing App permission stayed invisible. */
 export function FixWorkflowButton({
   repos,
   action,

@@ -246,7 +246,6 @@ function EnrollmentHelp() {
   );
 }
 
-/** The half nobody can verify for you: these run on your machine, and step 2 is what eventually flips the MCP check green. */
 /** The three commands a developer runs once per machine. Ordered because they depend on each other — the install registers the MCP server the second step then loads. */
 function SetupSteps() {
   return (
@@ -272,6 +271,7 @@ function SetupSteps() {
   );
 }
 
+/** The half nobody can verify for you: these run on your machine, and step 2 is what eventually flips the MCP check green. */
 function LocalSetupSteps() {
   return (
     <>

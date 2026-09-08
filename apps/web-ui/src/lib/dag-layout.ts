@@ -183,7 +183,6 @@ function edgeKind(edge: DefinitionEdge, layers: Map<string, number>): EdgeKind {
     : "back";
 }
 
-/** Positions, SVG path data for definition; forward/back/self-loop edges. */
 /** One node per row within its layer, in declaration order. Deterministic by construction — no sorting and no crossing minimization — because a layout that reshuffles between renders makes a live run look like it changed when only the renderer did. */
 function placeNodes(
   def: AssemblyLineDefinition,
@@ -208,6 +207,7 @@ function placeNodes(
   });
 }
 
+/** Positions, SVG path data for definition; forward/back/self-loop edges. */
 export function layoutAssemblyLine(
   def: AssemblyLineDefinition,
   options: LayoutOptions = {},

@@ -97,7 +97,6 @@ function TaskAgentsToggle({
   );
 }
 
-/** Shared sessions/agents table for `/agents` and the per-repo Agents tab; pure presentation, the container tags each row's `kind` via `classifyAgent`. */
 /** One agent's row. The "why" cell is present only when some agent HAS a reason — a column of dashes says less than no column. */
 function agentCells(
   a: AgentsTableProps["agents"][number],
@@ -152,6 +151,7 @@ function AgentRows({
   );
 }
 
+/** Shared sessions/agents table for `/agents` and the per-repo Agents tab; pure presentation, the container tags each row's `kind` via `classifyAgent`. */
 export default function AgentsTable({
   agents,
   intro,
