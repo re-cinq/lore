@@ -14,7 +14,7 @@ Two boundaries are load-bearing and enforced by credentials rather than conventi
 
 <p align="center"><img src="../../badges/architecture.svg" width="720" alt="System topology: developer machine, the nine GKE services, GitHub and Slack" /></p>
 
-> **Webhook cutover, in progress.** The event-router's public ingress serves `/api/events` and is standing, but `LORE_WEBHOOK_URL` still points onboarded repos at the Floor's `/api/webhook/github`. Either door is correct today — the Floor's route no longer writes to the database, it reports through the router like every other producer — and the repos get re-pointed before that route is deleted. Reversing that order would drop deliveries.
+> **Webhook cutover, done (2026-09-08).** GitHub delivers to the event-router's `/api/events`; that is the URL lore-api installs on a repo and classifies against (`LORE_WEBHOOK_URL`). The Floor's `/api/webhook/github` route is gone, but the URL is not: the Floor-host ingress rewrites that exact path onto the router, so a repo onboarded before the cutover keeps delivering until lore-api repoints its hook (ensure / the repo page). Nothing forces the migration and GitHub never sees a 404.
 
 ## Task lifecycle
 

@@ -30,12 +30,12 @@ github_org       = "your-github-org"
 # omitted). Set it to turn agent MCP access on.
 lore_mcp_url = "https://lore-mcp.example.com"
 
-# GitHub-webhook ingress host for the Floor. Empty ("") disables that ingress.
-# Retired once webhooks are re-pointed at the event router (ADR-044).
+# Floor /api/webhook ingress host: CI ingest doors plus the legacy
+# /api/webhook/github alias (rewritten to the event-router). Empty ("")
+# disables that ingress.
 lore_webhook_hostname = "lore-webhook.example.com"
 
-# Where GitHub delivers webhooks under ADR-044. Stand this up and re-point the
-# repos' webhooks BEFORE retiring lore_webhook_hostname.
+# The event-router front door: the canonical GitHub webhook URL (ADR-044).
 lore_event_router_hostname = "lore-events.example.com"
 
 # The Floor's agent-telemetry ingress, which registered SATELLITE clusters

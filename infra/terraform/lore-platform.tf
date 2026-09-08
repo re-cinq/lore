@@ -97,7 +97,6 @@ resource "helm_release" "lore_platform" {
       }
       ingestTokenSecret   = { name = "lore-ingest-token", key = "token" }
       internalTokenSecret = { name = "lore-agent-internal-token", key = "token" }
-      webhookSecret       = { name = "lore-floor-webhook-secret", key = "secret" }
     }
 
     # ---- Lore API (lore-api namespace) ----
@@ -130,7 +129,10 @@ resource "helm_release" "lore_platform" {
         # LORE_AGENT_EVENTS_URL was read by the code and set NOWHERE, so the http sink
         # never materialised on a UI-authored recipe.
         LORE_AGENT_EVENTS_URL = "http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events"
-        LORE_WEBHOOK_URL      = var.lore_webhook_hostname != "" ? "https://${var.lore_webhook_hostname}/api/webhook/github" : ""
+        # The canonical repo-hook URL lore-api installs and classifies against
+        # (ADR-044 step 2): the event-router front door. lore_webhook_hostname
+        # still serves /api/webhook/ci-ingest|ci-tests and the legacy hook alias.
+        LORE_WEBHOOK_URL = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}/api/events" : ""
         # The connect-a-cluster hand-out (#1572): lore-api serves its own
         # public URL + the event-router front door to satellite installers.
         LORE_API_URL                 = var.lore_api_url

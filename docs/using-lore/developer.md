@@ -76,7 +76,7 @@ An issue carrying more than one `priority:*` label is skipped rather than resolv
 
 If an active task already exists for the Issue, Lore comments with the existing task ID instead of starting a duplicate. Issue templates ("Lore: Implementation", "Lore: Review", "Lore: General Task") are added during onboarding.
 
-This requires a webhook on the GitHub App — `POST https://LORE_API_DOMAIN/api/webhook/github` with the HMAC secret from `LORE_WEBHOOK_SECRET` — subscribed to:
+This requires a webhook on the repo — `POST https://LORE_EVENTS_DOMAIN/api/events` (the event-router front door; `lore_onboard_repo` installs it) signed with the HMAC secret from `LORE_WEBHOOK_SECRET` — subscribed to:
 
 - **Issues** — label dispatch (above)
 - **Pull request** — spec-PR merge detection and review-reactor wake-up on sync/open/reopen

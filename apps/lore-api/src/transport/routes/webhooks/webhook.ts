@@ -12,8 +12,8 @@ import type {
 } from "@hapi/hapi";
 import { listRepoWebhooks } from "../../../work/webhook/webhook-manage.js";
 import {
-  ensureFloorWebhook,
-  type EnsureFloorWebhookResult,
+  ensureLoreWebhook,
+  type EnsureLoreWebhookResult,
   type WebhookSkipReason,
 } from "../../../work/webhook/webhook-ensure.js";
 import { classifyWebhook } from "../../../work/webhook/webhook-status.js";
@@ -125,7 +125,7 @@ const ENSURE_SKIP_STATUS: Partial<
 // A named skip reason maps to its status; any other (e.g. `ensure_failed`) falls back to 500 + detail.
 function ensureSkipResponse(
   h: ResponseToolkit,
-  result: Extract<EnsureFloorWebhookResult, { ok: false }>,
+  result: Extract<EnsureLoreWebhookResult, { ok: false }>,
 ) {
   const mapped = ENSURE_SKIP_STATUS[result.reason];
 
@@ -158,8 +158,8 @@ export function webhookEnsureRoute(): ServerRoute {
     }),
     handler: async (request, h) => {
       const repo = repoOf(request);
-      // Shared with onboarding: ensureFloorWebhook reads LORE_WEBHOOK_URL/SECRET.
-      const result = await ensureFloorWebhook(repo);
+      // Shared with onboarding: ensureLoreWebhook reads LORE_WEBHOOK_URL/SECRET.
+      const result = await ensureLoreWebhook(repo);
 
       if (!result.ok) {
         return ensureSkipResponse(h, result);

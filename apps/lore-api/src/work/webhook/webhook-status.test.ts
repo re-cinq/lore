@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   classifyWebhook,
+  isLoreHook,
+  LORE_HOOK_PATHS,
   REQUIRED_EVENTS,
   type RepoHook,
 } from "./webhook-status.js";
 
-const URL = "https://lore-webhook.gcp.re-cinq.com/api/webhook/github";
+const URL = "https://lore-events.gcp.re-cinq.com/api/events";
+const LEGACY_URL = "https://lore-webhook.gcp.re-cinq.com/api/webhook/github";
 
 function hook(overrides: Partial<RepoHook> = {}): RepoHook {
   return {
@@ -32,7 +35,7 @@ describe("classifyWebhook", () => {
     );
   });
 
-  it("returns missing when no hook targets the Floor webhook path", () => {
+  it("returns missing when no hook is at either Lore hook path", () => {
     expect(
       classifyWebhook(
         [hook({ config: { url: "https://example.com/other" } })],
@@ -44,12 +47,27 @@ describe("classifyWebhook", () => {
     });
   });
 
-  it("returns wrong_url when a Floor-path hook still points at the old host", () => {
-    const old = "https://lore-api.gcp.re-cinq.com/api/webhook/github";
+  it("returns wrong_url when a legacy hook at lore-webhook.gcp.re-cinq.com/api/webhook/github is still installed", () => {
+    expect(
+      classifyWebhook([hook({ config: { url: LEGACY_URL } })], URL),
+    ).toMatchObject({ state: "wrong_url", url: LEGACY_URL, hookId: 1 });
+  });
+
+  it("returns wrong_url when an /api/events hook points at another host", () => {
+    const other = "https://lore-events.example.com/api/events";
 
     expect(
-      classifyWebhook([hook({ config: { url: old } })], URL),
-    ).toMatchObject({ state: "wrong_url", url: old });
+      classifyWebhook([hook({ config: { url: other } })], URL),
+    ).toMatchObject({ state: "wrong_url", url: other });
+  });
+
+  it("prefers the canonical-URL hook when a legacy hook is installed alongside it", () => {
+    expect(
+      classifyWebhook(
+        [hook({ id: 1, config: { url: LEGACY_URL } }), hook({ id: 2 })],
+        URL,
+      ),
+    ).toMatchObject({ state: "configured", hookId: 2 });
   });
 
   it("returns inactive when the hook is disabled", () => {
@@ -94,5 +112,29 @@ describe("classifyWebhook", () => {
 
   it("returns missing when a non-matching hook has no config url at all", () => {
     expect(classifyWebhook([hook({ config: {} })], URL).state).toBe("missing");
+  });
+});
+
+describe("isLoreHook", () => {
+  it("lists /api/events and the legacy /api/webhook/github as Lore hook paths", () => {
+    expect([...LORE_HOOK_PATHS]).toEqual([
+      "/api/events",
+      "/api/webhook/github",
+    ]);
+  });
+
+  it("accepts a hook at /api/events", () => {
+    expect(isLoreHook({ config: { url: URL } })).toBe(true);
+  });
+
+  it("accepts a hook at the legacy /api/webhook/github path", () => {
+    expect(isLoreHook({ config: { url: LEGACY_URL } })).toBe(true);
+  });
+
+  it("rejects https://example.com/other and a hook with no url", () => {
+    expect(isLoreHook({ config: { url: "https://example.com/other" } })).toBe(
+      false,
+    );
+    expect(isLoreHook({ config: {} })).toBe(false);
   });
 });

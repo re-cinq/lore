@@ -20,8 +20,8 @@ import { REPO_COLUMNS, type Repo } from "@re-cinq/lore-shared/models/repo.js";
 
 import { getOctokit } from "../../outbound/github-client.js";
 import {
-  ensureFloorWebhook,
-  type EnsureFloorWebhookResult,
+  ensureLoreWebhook,
+  type EnsureLoreWebhookResult,
 } from "../webhook/webhook-ensure.js";
 
 // ── Installation repos ──────────────────────────────────────────────
@@ -137,7 +137,7 @@ export interface OnboardResult {
   task_id: string;
   status: string;
   /** Outcome of pointing the repo's GitHub webhook at the Floor ingress (with HMAC secret). */
-  webhook: EnsureFloorWebhookResult;
+  webhook: EnsureLoreWebhookResult;
 }
 
 /** Returned instead of `OnboardResult` when the guard refuses the submission. */
@@ -235,7 +235,7 @@ async function writeOnboard(
 
 /** Webhook wiring is best-effort — a skip is worth a warning, never a failure. */
 function logWebhookOutcome(
-  webhook: EnsureFloorWebhookResult,
+  webhook: EnsureLoreWebhookResult,
   fullName: string,
 ): void {
   if (webhook.ok) {
@@ -293,7 +293,7 @@ export async function onboardRepo(
   }
 
   // Point the repo's GitHub webhook at the Floor ingress WITH the HMAC secret (best-effort).
-  const webhook = await ensureFloorWebhook(fullName);
+  const webhook = await ensureLoreWebhook(fullName);
 
   logWebhookOutcome(webhook, fullName);
 

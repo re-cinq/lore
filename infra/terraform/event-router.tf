@@ -11,13 +11,11 @@
 # lore-api) is an ordinary in-cluster Deployment and uses the ClusterIP via
 # `local.event_router_in_cluster`.
 #
-# CUTOVER — the order matters and is not reversible without dropping deliveries:
-#   1. Apply this, so the router is standing and answering on its own host.
-#   2. Re-point every repo's webhook at <lore_event_router_hostname>/api/events
-#      (the `/webhook/ensure` mechanism used for the 2026-08 rollout).
-#   3. ONLY THEN retire the Floor's own /api/webhook ingress and route.
-# Deleting the Floor's route before step 2 leaves deliveries 404ing at a host
-# nothing serves, and GitHub does not redeliver indefinitely.
+# CUTOVER (done 2026-09-08): the Floor's /api/webhook/github route is gone, and
+# lore-api installs hooks at <lore_event_router_hostname>/api/events. Repos not
+# yet re-pointed keep delivering to the old URL, which the Floor ingress
+# rewrites onto this Service (see lore-floor.tf) — so a hook is never wrong,
+# only legacy, and GitHub never 404s a delivery it would not redeliver.
 #
 # The path is `/api/events`, not `/api/webhook/github`: the router has one front
 # door and GitHub is simply one of the callers through it.

@@ -1,4 +1,4 @@
-// HTTP client for mcp-server webhook status/ensure API (IO glue, excluded from coverage).
+// HTTP client for lore-api's webhook status/ensure API (IO glue, excluded from coverage).
 
 export interface WebhookStatus {
   state:

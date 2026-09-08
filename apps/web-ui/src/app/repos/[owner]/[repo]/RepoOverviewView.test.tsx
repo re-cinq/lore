@@ -19,12 +19,12 @@ const checks: Check[] = [
   },
   {
     id: "webhook",
-    label: "GitHub webhook → Floor",
+    label: "GitHub webhook → Lore",
     status: "warn",
     detail: "last delivery 401 — secret mismatch; re-set up",
     action: { kind: "setup-webhook", text: "set up" },
     copy: {
-      value: "https://lore-webhook.gcp.re-cinq.com/api/webhook/github",
+      value: "https://lore-events.gcp.re-cinq.com/api/events",
       label: "set this URL",
     },
   },
@@ -97,9 +97,7 @@ describe("RepoOverviewView", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "set up" })).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "https://lore-webhook.gcp.re-cinq.com/api/webhook/github",
-      ),
+      screen.getByText("https://lore-events.gcp.re-cinq.com/api/events"),
     ).toBeInTheDocument();
   });
 

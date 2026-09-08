@@ -42,7 +42,7 @@ that's plumbing, not duplication.
 ## Webhooks (HMAC-authenticated)
 | Route | Spec | Auth | Purpose |
 |-------|------|------|---------|
-| `POST /api/webhook/github` | [spec](webhook-github/spec.md) | HMAC `sha256=` | PR/review/comment/issue events → review-reactor / auto-merge / task. |
+| `POST /api/events` (event-router, GitHub branch; legacy `POST /api/webhook/github` rewritten to it by the Floor ingress) | [spec](webhook-github/spec.md) | HMAC `sha256=` | PR/review/comment/issue events → `github.*` rows on `pipeline.events`. |
 | `POST /api/webhook/slack` | [spec](webhook-slack/spec.md) | HMAC `v0=` | `/lore` slash command → create/retry tasks. |
 | `POST /api/webhook/incident` | [spec](webhook-incident/spec.md) | path-exempt, repo-gated | PagerDuty/Opsgenie → `settings.incidents`. |
 

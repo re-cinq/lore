@@ -85,11 +85,11 @@ backs up dies with it.
   in `assembly-runs-pg.ts` write `assembly_run.start` inside the same CTE as
   the run row; they compose the shared insert clause, and CI fails any insert
   site that does neither (ADR-044 amendment).
-- **Webhook cutover in progress.** Onboarded repos' `LORE_WEBHOOK_URL` still
-  points at the Floor's `POST /api/webhook/github`, which now reports through
-  the router like any other producer. The router's GitHub branch is live; the
-  Floor route can be deleted only after every webhook is re-pointed —
-  reversing that order drops deliveries.
+- **Webhook cutover done (2026-09-08).** `LORE_WEBHOOK_URL` is this
+  service's `/api/events`; the Floor's `POST /api/webhook/github` route is
+  deleted. The legacy URL still resolves here — the Floor-host ingress
+  rewrites that exact path onto the router — so a repo onboarded before the
+  cutover delivers until lore-api repoints it, and GitHub never 404s.
 
 ## Develop
 
