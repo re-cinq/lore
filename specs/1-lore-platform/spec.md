@@ -414,7 +414,7 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
   content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L123))
 - FR-7.6: Nightly re-index MUST hard-delete chunks whose source
   file, PR, or ADR no longer exists or has been superseded. No
-  stale content is retained. ([validated by `verify.test.ts:69`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L69), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L398))
+  stale content is retained. ([validated by `verify.test.ts:71`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L71), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L398))
 
 ### FR-8: Observability (Phase 1)
 

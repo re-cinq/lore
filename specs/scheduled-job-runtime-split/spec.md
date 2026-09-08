@@ -357,7 +357,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    tree get `ingested_at` re-stamped so the stale count clears, chunks of files missing from the
    tree are pruned, api-ingested chunks are never touched or pruned, an empty tree skips the
    sweep entirely, and re-stamping skips files verified within the last 30 days to keep
-   steady-state nights from rewriting every row. ([validated by `verify.test.ts:55`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L55), [`verify.test.ts:69`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L69), [`verify.test.ts:87`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L87), [`verify.test.ts:99`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L99), [`verify.test.ts:109`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L109))
+   steady-state nights from rewriting every row. ([validated by `verify.test.ts:55`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L55), [`verify.test.ts:71`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L71), [`verify.test.ts:89`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L89), [`verify.test.ts:101`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L101), [`verify.test.ts:111`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L111))
    - Each team-resolved per-repo pass also begins with legacy relocation (issue #979, FR-20.21
      in `specs/1-lore-platform/spec.md`): before counting the repo's chunks — so a newly
      team-resolved repo adopts its history instead of reading as empty and re-seeding — any rows
@@ -366,7 +366,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    - Pruning leaves an audit trail: the verification pass returns the distinct pruned file
      paths (a hard DELETE has no other record of what vanished), and the reindex job writes a
      `reindex_prune` row to `pipeline.audit_log` per repo with the row count and the path list
-     capped at 500 entries plus a truncation flag ([validated by `verify.test.ts:69`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L69), [`verify.test.ts:99`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L99))
+     capped at 500 entries plus a truncation flag ([validated by `verify.test.ts:71`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L71), [`verify.test.ts:101`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L101))
    - Each pass also runs a chunker-upgrade heal sweep (issue #995): `staleChunkerFiles` returns
      the repo's distinct code file paths whose chunks carry a `metadata.chunker_version` older
      than the current `CHUNKER_VERSION` (absent counts as 0), sorted and capped, and the sweep
