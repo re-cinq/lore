@@ -21,7 +21,8 @@ function isNumericVersion(version: string | number | undefined): boolean {
   );
 }
 
-function listScope(
+/** The `WHERE` prefix and bound params a memory listing is scoped by — repo wins over agent, and an unscoped list binds only the page. */
+export function memoryListScope(
   repo: string | undefined,
   agentId: string | undefined,
   limit: number,
@@ -199,7 +200,7 @@ export class PostgresMemoryStore implements MemoryStore {
     const limit = opts.limit ?? 50;
     const offset = opts.offset ?? 0;
     // Scope by repo (preferred) or agent_id
-    const { filter, params } = listScope(repo, agentId, limit, offset);
+    const { filter, params } = memoryListScope(repo, agentId, limit, offset);
     const { rows } = await this.pool.query(
       listMemoriesSql(filter, params),
       params,

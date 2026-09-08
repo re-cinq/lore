@@ -36,7 +36,7 @@ export const TXN_ABORT_DELAYS_MS: readonly number[] = [
 ];
 
 /** One attempt: a fresh txn, discarded whatever happens. */
-async function runInTxn<T>(
+export async function runInTxn<T>(
   dgraph: DgraphClientPort,
   fn: (txn: DgraphTxn) => Promise<T>,
 ): Promise<T> {

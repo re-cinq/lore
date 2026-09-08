@@ -1,4 +1,5 @@
 import { enforceTrue } from "../../../lib/enforce.js";
+import { bearerJsonHeaders } from "./http-auth.js";
 import type { FileChange } from "./github-port.js";
 import type { PullDraft } from "../pulls/pull-requests-port.js";
 import { Project } from "./project.js";
@@ -27,7 +28,7 @@ interface HttpConfig {
 
 /** A station pod holds no database and no App credentials (D7), so every read and write it makes is one of these two calls against the repo-scoped API. */
 function makeHttp(cfg: HttpConfig) {
-  const headers = requestHeaders(cfg);
+  const headers = bearerJsonHeaders(cfg.token);
   const base = `${cfg.baseUrl}/api/repos/${cfg.repo}`;
 
   const call = { fetchImpl: cfg.fetchImpl, base, headers };
@@ -70,13 +71,6 @@ function httpPost<T>(call: HttpCall, path: string, body: unknown): Promise<T> {
     }),
     `POST ${path}`,
   );
-}
-
-function requestHeaders(cfg: HttpConfig): Record<string, string> {
-  return {
-    "content-type": "application/json",
-    ...(cfg.token ? { authorization: `Bearer ${cfg.token}` } : {}),
-  };
 }
 
 /** The parsed body, or a throw naming the call that failed. The status alone is what the caller gets — a station's failures surface as pod logs, and a bare `404` there says nothing about which read produced it. */

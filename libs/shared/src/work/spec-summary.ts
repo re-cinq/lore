@@ -1,6 +1,7 @@
 /** Pure helpers for deriving a title/summary from a spec's markdown and reassembling a spec from stored chunks; canonical home, imported by the spec-coverage API (mcp-server) via @re-cinq/lore-shared. */
 
 import type { Chunk } from "../domain/models/chunk.js";
+import { specFeatureSlug } from "../domain/spec-judge-signals.js";
 
 const TITLE_PREFIX_RE =
   /^(?:feature\s+specification|spec(?:ification)?)\s*:\s*/i;
@@ -13,22 +14,7 @@ export function parseSpecTitle(content: string, filePath: string): string {
     return h1.replace(/^#\s+/, "").replace(TITLE_PREFIX_RE, "").trim();
   }
 
-  return featureDir(filePath) ?? filePath;
-}
-
-function featureDir(filePath: string): string | null {
-  const parts = filePath.split("/").filter(Boolean);
-  const specsIdx = parts.indexOf("specs");
-
-  if (specsIdx >= 0 && parts.length > specsIdx + 2) {
-    return parts[specsIdx + 1];
-  }
-
-  if (parts.length >= 2) {
-    return parts[parts.length - 2];
-  }
-
-  return null;
+  return specFeatureSlug(filePath) ?? filePath;
 }
 
 function paragraphLines(block: string): string[] {
@@ -108,4 +94,20 @@ export function reassembleSpec(chunks: SpecChunk[]): string {
   }
 
   return parts.join("\n\n");
+}
+
+/** A spec is stored as several chunks, so every pass over a repo's chunks starts by putting each file's back together. */
+export function groupChunksByPath<T extends { filePath: string }>(
+  chunks: T[],
+): Map<string, T[]> {
+  const byPath = new Map<string, T[]>();
+
+  for (const chunk of chunks) {
+    const list = byPath.get(chunk.filePath) ?? [];
+
+    list.push(chunk);
+    byPath.set(chunk.filePath, list);
+  }
+
+  return byPath;
 }

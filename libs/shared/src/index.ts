@@ -172,7 +172,10 @@ export {
   type DgraphClientPort,
   type DgraphTxn,
 } from "./domain/memory-store-types.js";
-export { PostgresMemoryStore } from "./outbound/postgres-memory-store.js";
+export {
+  PostgresMemoryStore,
+  memoryListScope,
+} from "./outbound/postgres-memory-store.js";
 export { ShadowMemoryStore } from "./outbound/shadow-memory-store.js";
 export {
   DgraphMemoryStore,

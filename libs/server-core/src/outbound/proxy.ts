@@ -58,16 +58,24 @@ function refusalResult(
   return { ok: false, reason: "unreachable", detail, status, body: errorBody };
 }
 
+/** The URL and token every proxied call needs, or null when this process was never pointed at an API. */
+function apiTarget(): { apiUrl: string; apiToken: string } | null {
+  const apiUrl = process.env.LORE_API_URL;
+  const apiToken = process.env.LORE_INGEST_TOKEN;
+
+  return apiUrl && apiToken ? { apiUrl, apiToken } : null;
+}
+
 export async function proxyToApi(
   endpoint: string,
   body: Record<string, unknown>,
 ): Promise<ProxyResult> {
-  const apiUrl = process.env.LORE_API_URL;
-  const apiToken = process.env.LORE_INGEST_TOKEN;
+  const target = apiTarget();
 
-  if (!apiUrl || !apiToken) {
+  if (!target) {
     return { ok: false, reason: "not_configured" };
   }
+  const { apiUrl, apiToken } = target;
 
   return requestWithRetry(
     () => postJson(`${apiUrl}${endpoint}`, apiToken, body),
@@ -171,12 +179,12 @@ export async function withReadCache(
 
 // GET sibling of proxyToApi for read-only routes; same gate/budget/shape, no body.
 export async function proxyGetApi(path: string): Promise<ProxyResult> {
-  const apiUrl = process.env.LORE_API_URL;
-  const apiToken = process.env.LORE_INGEST_TOKEN;
+  const target = apiTarget();
 
-  if (!apiUrl || !apiToken) {
+  if (!target) {
     return { ok: false, reason: "not_configured" };
   }
+  const { apiUrl, apiToken } = target;
 
   return requestWithRetry(
     () =>

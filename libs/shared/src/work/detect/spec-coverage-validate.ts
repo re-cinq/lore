@@ -9,7 +9,7 @@ import {
 } from "../../domain/spec-link-parser.js";
 import { type SpecChunkWithIngest } from "../../outbound/project/chunks/chunks-port.js";
 import { type Project } from "../../outbound/project/lib/project.js";
-import { reassembleSpec } from "../spec-summary.js";
+import { groupChunksByPath, reassembleSpec } from "../spec-summary.js";
 import { formatBrokenLinksReport } from "./spec-coverage-validate-report.js";
 
 // A `chunks` projection: file_path/ingested_at are model columns, start_line/end_line come from the chunker's metadata JSONB.
@@ -203,22 +203,6 @@ export interface ValidateOptions {
   project: Project;
 }
 
-/** Group a repo's spec chunks by file path so multi-chunk specs reassemble. */
-function specsByPath(
-  specs: SpecChunkWithIngest[],
-): Map<string, SpecChunkWithIngest[]> {
-  const byPath = new Map<string, SpecChunkWithIngest[]>();
-
-  for (const s of specs) {
-    const list = byPath.get(s.filePath) ?? [];
-
-    list.push(s);
-    byPath.set(s.filePath, list);
-  }
-
-  return byPath;
-}
-
 /** Newest ingest stamp across a spec's chunks, compared against test-chunk stamps to spot index lag. */
 function latestIngest(chunks: SpecChunkWithIngest[]): string | Date | null {
   const stamps = chunks
@@ -282,7 +266,7 @@ async function scanSpecs(
   const broken: BrokenLink[] = [];
   let totalSpecs = 0;
 
-  for (const [specPath, chunks] of specsByPath(specs)) {
+  for (const [specPath, chunks] of groupChunksByPath(specs)) {
     totalSpecs++;
     broken.push(...brokenLinksForSpec(specPath, chunks, testChunks));
   }

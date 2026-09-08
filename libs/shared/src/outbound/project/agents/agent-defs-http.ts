@@ -3,6 +3,7 @@ import {
   type AgentDefinitionInput,
   type AgentDefsPort,
 } from "./agent-defs-port.js";
+import { bearerJsonHeaders } from "../lib/http-auth.js";
 
 // AgentDefsPort over Lore HTTP API — RUNNER/Station adapter for pods without Postgres access (NetworkPolicy).
 
@@ -17,13 +18,7 @@ export class AgentDefsHttp implements AgentDefsPort {
   ) {}
 
   private headers(): Record<string, string> {
-    const h: Record<string, string> = { "content-type": "application/json" };
-
-    if (this.token) {
-      h["authorization"] = `Bearer ${this.token}`;
-    }
-
-    return h;
+    return bearerJsonHeaders(this.token);
   }
 
   async resolve(repo: string, name: string): Promise<AgentDefinition | null> {

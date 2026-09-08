@@ -19,17 +19,6 @@ export class HttpEventDeliveries
   extends HttpEventReporter
   implements EventDeliveriesPort
 {
-  private async call<T>(path: string, body?: unknown): Promise<T> {
-    const res = await this.post(path, body);
-
-    if (!res.ok) {
-      throw new Error(`${path} failed: ${res.status}`);
-    }
-
-    // 204 is the ack/fail/dead answer: no body to .json() on.
-    return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
-  }
-
   async subscribe(
     subscriber: string,
     subscriptions: EventSubscription[],
