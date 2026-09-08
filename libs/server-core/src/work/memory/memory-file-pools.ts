@@ -29,22 +29,6 @@ export interface SharedWriteResult {
   created_at: string;
 }
 
-// A pool entry never expires and is never soft-deleted: a shared pool is what several agents agreed on, so retiring an entry is a decision for whoever wrote it, not a TTL.
-function sharedRecord(
-  value: string,
-  version: number,
-  now: string,
-): MemoryRecord {
-  return {
-    value,
-    version,
-    created_at: now,
-    ttl_seconds: null,
-    is_deleted: false,
-    expires_at: null,
-  };
-}
-
 export function sharedWriteFile(
   pool: string,
   key: string,
@@ -59,7 +43,15 @@ export function sharedWriteFile(
 
   const nextVersion = nextVersionFor(memories[key]);
 
-  memories[key] = sharedRecord(value, nextVersion, now);
+  memories[key] = {
+    value,
+    version: nextVersion,
+    created_at: now,
+    ttl_seconds: null,
+    is_deleted: false,
+    expires_at: null,
+  };
+
   writeJson(filePath, memories);
 
   appendAudit({
