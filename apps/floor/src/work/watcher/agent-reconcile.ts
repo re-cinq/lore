@@ -43,8 +43,10 @@ export async function reconcileAgents(
 
     for (const [i, outcome] of settled.entries()) {
       if (outcome.status === "rejected") {
+        const { metadata } = agents[i];
+
         console.warn(
-          `[agent-reconcile] ${agents[i].metadata?.name} not reconciled:`,
+          `[agent-reconcile] ${metadata?.name} not reconciled:`,
           errorMessage(outcome.reason),
         );
       }

@@ -75,9 +75,8 @@ export async function resolveTaskPlan(
 ) {
   const repoSettings = await readRepoSettings(targetRepo);
   // Resolved project → org → yaml through the one project.agentDefs seam.
-  const agentDef = await project.agentDefs
-    .resolve(task.task_type)
-    .catch(() => null);
+  const { agentDefs } = project;
+  const agentDef = await agentDefs.resolve(task.task_type).catch(() => null);
   const repoOverrides = repoSettings.task_overrides?.[task.task_type];
   const contextBundle = (task.context_bundle || {}) as TaskContextBundle;
 

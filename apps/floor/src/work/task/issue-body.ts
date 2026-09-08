@@ -31,11 +31,16 @@ interface MissingSymbolView {
   description?: string;
 }
 
+function renderLink(l: DriftLinkView): string {
+  return l.path
+    ? `${l.label} (${l.path}${l.line ? `#L${l.line}` : ""})`
+    : (l.label ?? "");
+}
+
 function renderStatement(s: DriftStatementView): string {
   const where = s.section ? ` _(${s.section})_` : "";
-  const links = s.links?.length
-    ? ` — ${s.links.map((l) => (l.path ? `${l.label} (${l.path}${l.line ? `#L${l.line}` : ""})` : (l.label ?? ""))).join(", ")}`
-    : "";
+  const rendered = (s.links ?? []).map(renderLink);
+  const links = rendered.length > 0 ? ` — ${rendered.join(", ")}` : "";
 
   return `- [${s.reason ?? "drifted"}]${where} ${s.text ?? ""}${links}`.trimEnd();
 }

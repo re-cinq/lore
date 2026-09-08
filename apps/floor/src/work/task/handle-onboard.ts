@@ -202,8 +202,9 @@ async function openOnboardingPr(input: {
   committed: string[];
   attention: string;
 }) {
-  const { project, branchName, targetRepo, task, issueNumber } = input;
-  const fileList = input.committed.map((f) => `- \`${f}\``).join("\n");
+  const { project, branchName, targetRepo, task, issueNumber, committed } =
+    input;
+  const fileList = committed.map((f) => `- \`${f}\``).join("\n");
   const attention = input.attention ? `\n${input.attention}` : "";
 
   return await project.pulls.open(branchName, {

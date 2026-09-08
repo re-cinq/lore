@@ -73,8 +73,9 @@ async function commitMissingStaticFiles(
   ledger: { committed: string[]; failures: StepFailure[] },
 ): Promise<void> {
   for (const sf of ONBOARD_STATIC_FILES) {
+    const [topDir] = sf.path.split("/");
     const alreadyThere =
-      existingFiles.has(sf.path) || existingFiles.has(sf.path.split("/")[0]);
+      existingFiles.has(sf.path) || existingFiles.has(topDir);
 
     if (alreadyThere) {
       continue;
@@ -120,12 +121,9 @@ async function commitGenerated(
   text: string,
   ledger: { committed: string[] },
 ): Promise<void> {
-  await ctx.project.repo.commitFile(
-    ctx.branchName,
-    path,
-    text,
-    `lore: add ${path}`,
-  );
+  const { repo } = ctx.project;
+
+  await repo.commitFile(ctx.branchName, path, text, `lore: add ${path}`);
   ledger.committed.push(path);
   console.log(`[floor] Onboard: committed ${path} (${text.length} chars)`);
 }

@@ -23,7 +23,8 @@ export async function reapGraphlessRun(
   row: AssemblyRunRecord,
   ctx: GraphlessSweepContext,
 ): Promise<"queue-timeout" | "requeued" | "swept" | null> {
-  const singleCrNodes = await ctx.deps.assemblyRuns.listStationRuns(row.id);
+  const { assemblyRuns } = ctx.deps;
+  const singleCrNodes = await assemblyRuns.listStationRuns(row.id);
   const singleCrOpen = singleCrNodes.find((n) => n.outcome === null);
 
   // A `claimed` row that stops reporting is the WATCHER's to settle — owning its timeout here too would race it.

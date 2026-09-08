@@ -59,10 +59,12 @@ const TRUST_ORDER: Record<string, number> = {
 function buildBaseRule(
   inputs: AutoMergePolicyInputs,
 ): AutoMergeDecision["rule"] {
+  const matchedPaths = inputs.changedPaths.filter(
+    (p) => matchingPatterns(p, inputs.autoMerge.paths).length > 0,
+  );
+
   return {
-    path_match_count: inputs.changedPaths.filter(
-      (p) => matchingPatterns(p, inputs.autoMerge.paths).length > 0,
-    ).length,
+    path_match_count: matchedPaths.length,
     trust_level: inputs.trustLevel ?? null,
     ci_status: inputs.ciSucceeded ? "success" : "failed",
     bot_review_state: inputs.botApproved ? "APPROVED" : "CHANGES_REQUESTED",

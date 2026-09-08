@@ -82,15 +82,13 @@ async function escalateStaleTask(
   if (!task.issue_number) {
     return;
   }
-  const project = await projectFor(task.target_repo);
+  const { issues } = await projectFor(task.target_repo);
 
-  await project.issues
+  await issues
     .comment(
       task.issue_number,
       `Task has been in \`running\` status for ${ageHoursRounded}h — exceeded the ${STALE_THRESHOLD_HOURS}h safety-net threshold. Auto-escalated to \`needs-human-help\`. Task id: \`${task.id}\`.`,
     )
     .catch(() => {});
-  await project.issues
-    .addLabel(task.issue_number, "needs-human-help")
-    .catch(() => {});
+  await issues.addLabel(task.issue_number, "needs-human-help").catch(() => {});
 }

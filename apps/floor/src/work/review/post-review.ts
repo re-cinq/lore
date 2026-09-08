@@ -114,11 +114,12 @@ const FALLBACK_NOTE =
 /** The whole review as one top-level comment — the never-drop fallback for a rejected inline post (e.g. an out-of-hunk line 422). */
 function fallbackComment(output: ReviewOutput, model?: string): string {
   const summary = `${FALLBACK_NOTE}\n\n${buildReviewSummary(output, { model })}`;
+  const { findings } = output;
 
-  if (output.findings.length === 0) {
+  if (findings.length === 0) {
     return summary;
   }
-  const all = output.findings.map(renderOutOfDiff).join("\n\n");
+  const all = findings.map(renderOutOfDiff).join("\n\n");
 
   return `${summary}\n\n${all}`;
 }

@@ -26,7 +26,8 @@ function groupFactsByRepo(
   const byRepo = new Map<string, string[]>();
 
   for (const f of facts) {
-    const repo = f.repo.split("/").slice(0, 2).join("/") || "unknown";
+    const segments = f.repo.split("/");
+    const repo = segments.slice(0, 2).join("/") || "unknown";
     const bucket = byRepo.get(repo) ?? [];
 
     bucket.push(f.fact_text);

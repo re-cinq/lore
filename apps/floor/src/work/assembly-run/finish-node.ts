@@ -96,8 +96,9 @@ function nextNodeTypeAfter(
     return undefined;
   }
   const toId = selectEdge(graph, fromNodeId, outcome)?.to;
+  const next = graph.nodes.find((n) => n.id === toId);
 
-  return graph.nodes.find((n) => n.id === toId)?.type;
+  return next?.type;
 }
 
 /** Flips the PR out of draft when the finished step hands off to the human wait; never fails the run — a draft PR is recoverable, discarding finished work is not. */

@@ -219,7 +219,9 @@ async function claimTask(
   }
   const pipelineUrl = taskPageUrl(task.id, process.env.LORE_UI_URL);
 
-  await project.issues
+  const { issues } = project;
+
+  await issues
     .comment(
       issueNumber,
       `Agent \`${agentId}\` picked up this task.` +

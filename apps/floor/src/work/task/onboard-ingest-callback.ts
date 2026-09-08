@@ -16,7 +16,9 @@ async function setIngestVariable(
 
     return;
   }
-  await project.settings
+  const { settings } = project;
+
+  await settings
     .setRepoVariable("LORE_INGEST_URL", url)
     .catch((err: unknown) =>
       failures.push(
@@ -38,7 +40,9 @@ async function setIngestSecret(
 
     return;
   }
-  await project.settings
+  const { settings } = project;
+
+  await settings
     .setRepoSecret("LORE_INGEST_TOKEN", token)
     .catch((err: unknown) =>
       failures.push(

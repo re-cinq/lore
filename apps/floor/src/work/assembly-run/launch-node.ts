@@ -4,7 +4,7 @@ import { resolveRequiredTags } from "@re-cinq/lore-shared/project/cluster-agents
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { isHumanStation, type NodeVisit } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
-import { nodeStationFor } from "@re-cinq/lore-stations";
+import { nodeTriggersFor } from "./node-station-triggers.js";
 import {
   nodeAgentName,
   stationNodeParams,
@@ -25,9 +25,9 @@ import { taskFromAssemblyRun } from "./walk-state.js";
 
 /** True when this node type's station runs in the pooled service, not a pod. */
 const isServiceNode = (nodeType: string): boolean =>
-  nodeStationFor(nodeType)?.manifest.triggers.some(
+  nodeTriggersFor(nodeType).some(
     (t) => t.kind === "node" && t.runtime === "service",
-  ) === true;
+  );
 
 /** One node the walk decided to launch, and everything the launch reads. */
 export interface NodeLaunch {

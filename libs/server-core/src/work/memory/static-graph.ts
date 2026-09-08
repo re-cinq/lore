@@ -47,21 +47,14 @@ function readJsonSafe<T>(path: string): T | null {
 }
 
 function entityMatchesQuery(entity: GraphEntity, lowerQuery: string): boolean {
-  if (entity.name.toLowerCase().includes(lowerQuery)) {
-    return true;
-  }
+  const haystacks = [
+    entity.name,
+    entity.id,
+    entity.type,
+    ...(entity.aliases ?? []),
+  ];
 
-  if (entity.id.toLowerCase().includes(lowerQuery)) {
-    return true;
-  }
-
-  if (entity.type.toLowerCase().includes(lowerQuery)) {
-    return true;
-  }
-
-  return (entity.aliases ?? []).some((alias) =>
-    alias.toLowerCase().includes(lowerQuery),
-  );
+  return haystacks.some((text) => text.toLowerCase().includes(lowerQuery));
 }
 
 function formatEntity(entity: GraphEntity): string {
@@ -226,11 +219,10 @@ export const getDomainSummaryInputSchema = {
 /** The answer for one query: the entities that matched and what they reach. Bare seed labels are dropped when longer chains already contain them — but only then, so a match with no relationships still reports itself rather than reading as no match at all. */
 function describeMatches(graph: Graph, query: string, depth: number): string {
   const lowerQuery = query.toLowerCase();
-  const matchingIds = new Set(
-    graph.entities
-      .filter((entity) => entityMatchesQuery(entity, lowerQuery))
-      .map((entity) => entity.id),
+  const matching = graph.entities.filter((entity) =>
+    entityMatchesQuery(entity, lowerQuery),
   );
+  const matchingIds = new Set(matching.map((entity) => entity.id));
 
   if (matchingIds.size === 0) {
     return `No entities found matching "${query}". Try a broader search term.`;

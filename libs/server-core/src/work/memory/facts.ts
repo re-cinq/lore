@@ -152,8 +152,10 @@ export async function extractFacts(
 
 // One extraction call, retried. Returns the raw text — parsing is the caller's, because a model that answered unparseably is a different problem from one that could not be reached.
 async function completeExtraction(value: string): Promise<string> {
+  const llm = Llm.instance;
+
   return withRetry(() =>
-    Llm.instance
+    llm
       .complete({
         systemPrompt: EXTRACTION_PROMPT,
         prompt: value,

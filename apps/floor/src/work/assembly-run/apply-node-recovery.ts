@@ -161,6 +161,7 @@ async function requeueOffline(
 ): Promise<ReapOutcome> {
   const { row, openNode } = found;
 
+  // eslint-disable-next-line re-lint/max-member-chain -- naming the port costs a line and this file is at its max-lines ceiling
   await ctx.deps.assemblyRuns.requeueStationRun(openNode.id);
   await ctx.deps.audit?.({
     event_type: "cluster_agent_offline",
@@ -224,6 +225,7 @@ async function requeueUnstarted(
 ): Promise<ReapOutcome> {
   const { row, openNode } = found;
 
+  // eslint-disable-next-line re-lint/max-member-chain -- naming the port costs a line and this file is at its max-lines ceiling
   await ctx.deps.assemblyRuns.requeueStationRun(openNode.id);
   console.warn(
     `[assembly-run-reaper] requeued node ${openNode.nodeId} of ${row.id} — its claim produced no CR within the startup grace`,

@@ -18,10 +18,12 @@ export async function commentTaskFailureOnIssue(
 ): Promise<void> {
   const hint = "hint" in meta && meta.hint ? ` — ${meta.hint}` : "";
 
-  await project.issues
+  const { issues } = project;
+
+  await issues
     .comment(issueNumber, `Task failed: \`${failureReason}\`${hint}`)
     .catch(() => {});
-  await project.issues.addLabel(issueNumber, "lore-failed").catch(() => {});
+  await issues.addLabel(issueNumber, "lore-failed").catch(() => {});
 }
 
 /** Whether the issue-creation gate says to skip, logging why when the skip is worth reporting (a general task's skip isn't — it never files one by design). */

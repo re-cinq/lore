@@ -12,14 +12,15 @@ export async function revertFeatureAfterFailure(
   project: Pick<Project, "features">,
   featureId: string,
 ): Promise<void> {
-  const feature = await project.features.get(featureId);
+  const { features } = project;
+  const feature = await features.get(featureId);
 
   if (!feature) {
     return;
   }
 
   if (!feature.iterations.some((i) => i.gap_result)) {
-    await project.features.transitionStatus(featureId, "draft").catch(() => {});
+    await features.transitionStatus(featureId, "draft").catch(() => {});
   }
 }
 
@@ -138,7 +139,9 @@ async function markPlanningResultMissing(
     (tail ? `\n\n${tail}` : "");
 
   if (featureId && iteration != null) {
-    await project.features
+    const { features } = project;
+
+    await features
       .setIterationResult(featureId, iteration, null, "failed")
       .catch(() => {});
     await revertFeatureAfterFailure(project, featureId);
@@ -222,7 +225,9 @@ async function markFailedPlanningIteration(
   ) {
     return;
   }
-  await project.features
+  const { features } = project;
+
+  await features
     .setIterationResult(
       task.context_bundle.feature_id as string,
       task.context_bundle.iteration as number,
