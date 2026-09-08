@@ -50,7 +50,7 @@ function SectionCard({
   );
 }
 
-function NoSectionsFallback({ draft }: { draft: string }) {
+function EmptySections({ draft }: { draft: string }) {
   if (draft) {
     return (
       <SectionCard title="Draft specification" highlight>
@@ -238,7 +238,7 @@ export default function GapSections({
   return (
     <div>
       {sections.length === 0 && (
-        <NoSectionsFallback draft={gap.draft_spec_markdown?.trim() ?? ""} />
+        <EmptySections draft={gap.draft_spec_markdown?.trim() ?? ""} />
       )}
       <SectionList
         sections={sections}

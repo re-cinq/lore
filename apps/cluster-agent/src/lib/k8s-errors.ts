@@ -50,7 +50,7 @@ export function statusOf(err: unknown): number | undefined {
   return statusFromMessage(message);
 }
 
-export function isNotFound(err: unknown): boolean {
+export function isMissing(err: unknown): boolean {
   return statusOf(err) === 404;
 }
 

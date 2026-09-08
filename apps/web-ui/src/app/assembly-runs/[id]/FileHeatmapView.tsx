@@ -2,7 +2,7 @@
 import CollapsibleCard from "@/components/CollapsibleCard";
 import {
   aggregateFileTouches,
-  hiddenTouchCount,
+  remainderTouchCount,
   stripWorkspacePrefix,
   truncateMiddle,
   type FileTouch,
@@ -89,7 +89,7 @@ export default function FileHeatmapView({
   onToggleShowAll,
 }: FileHeatmapViewProps) {
   const ranked = aggregateFileTouches(touches, showAll ? undefined : TOP_N);
-  const hidden = hiddenTouchCount(touches, TOP_N);
+  const hidden = remainderTouchCount(touches, TOP_N);
 
   return (
     <CollapsibleCard

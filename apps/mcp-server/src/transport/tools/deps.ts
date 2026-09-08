@@ -10,7 +10,7 @@ export {
   withReadCache,
   unreachableError,
   deniedError,
-  notConfiguredError,
+  unconfiguredError,
   textResult,
   PROXY_RETRY_DELAYS_MS,
   type ProxyResult,

@@ -19,7 +19,7 @@ interface AdrSummary {
 }
 
 /** Not an error state: ADRs reach the graph through CI, so an empty list means nothing has been pushed since the workflow was installed. */
-function NoAdrsYet() {
+function EmptyAdrs() {
   return (
     <p className="muted">
       No ADRs in the graph yet. ADRs are projected automatically by CI on every
@@ -106,7 +106,7 @@ export default function AdrListView(props: AdrListViewProps) {
   const view = useAdrListView();
 
   if (adrs.length === 0) {
-    return <NoAdrsYet />;
+    return <EmptyAdrs />;
   }
   const statusOf = (adr: AdrSummary) => statuses[adr.filePath];
   const { counts, visible } = filterDocCards(adrs, statusOf, view.filter, {

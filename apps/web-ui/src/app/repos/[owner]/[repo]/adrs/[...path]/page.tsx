@@ -6,7 +6,7 @@ import SpecDocument from "../../specs/[...path]/SpecDocument";
 import AdrMetaView from "./AdrMetaView";
 
 /** Why this ADR is blank, and when it will not be. Nothing here is for the reader to do: the projection runs on the next push to `main`, so the note says to come back rather than offering an action. */
-function NoGraphData({ filePath }: { filePath: string }) {
+function EmptyGraphData({ filePath }: { filePath: string }) {
   return (
     <p className="muted">
       No graph data for <code>{filePath}</code>. ADRs are projected
@@ -41,7 +41,7 @@ export default async function RepoAdrDetail({
           <SpecDocument repo={fullName} content={body} statements={[]} />
         </>
       ) : (
-        <NoGraphData filePath={filePath} />
+        <EmptyGraphData filePath={filePath} />
       )}
     </div>
   );

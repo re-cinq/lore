@@ -66,13 +66,13 @@ export async function handlePrCreationFailure(
   const msg = String(errorMessage(err) || err);
 
   console.error(`[agent-watcher] Failed to create PR for ${taskId}: ${msg}`);
-  const isNoCommits = /No commits between/i.test(msg);
+  const isEmptyDiff = /No commits between/i.test(msg);
   const isPrExists = /A pull request already exists/i.test(msg);
 
-  if (!(isNoCommits || isPrExists)) {
+  if (!(isEmptyDiff || isPrExists)) {
     return;
   }
-  const reason = isNoCommits ? "no-code-changes" : "pr-already-exists";
+  const reason = isEmptyDiff ? "no-code-changes" : "pr-already-exists";
 
   await markNeedsHuman(taskId, reason, msg);
   await escalate(ctx, reason, msg);

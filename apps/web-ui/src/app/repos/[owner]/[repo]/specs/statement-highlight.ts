@@ -138,8 +138,8 @@ function isMatchableBlock(node: Element): boolean {
   return node.tagName === "p" || node.tagName === "li";
 }
 
-function hasNoChildren(node: Element): boolean {
-  return node.children.length === 0;
+function hasChildren(node: Element): boolean {
+  return node.children.length > 0;
 }
 
 function isBlockMatchCandidate(
@@ -151,7 +151,7 @@ function isBlockMatchCandidate(
 
 /** Fallback: wrap element's children when its rendered text matches a statement (split by code/bold). */
 function tryBlockMatch(state: HighlightState, node: Element): boolean {
-  if (!isMatchableBlock(node) || hasNoChildren(node)) {
+  if (!isMatchableBlock(node) || !hasChildren(node)) {
     return false;
   }
   const rendered = renderedText(node).replace(/\s+/g, " ").trim();

@@ -26,7 +26,7 @@ export interface RefinementInput {
 export interface RefinementRoundDeps {
   /** The errors the CALLER wants thrown — the sequence knows the fault, only the caller knows its status code (400/409), so an HTTP route can delegate ordering here. */
   invalidBasis: ErrorType;
-  notParked(runId: string | null): ErrorType;
+  unparked(runId: string | null): ErrorType;
   parkedNode(featureId: string): Promise<ParkedAuthorNode>;
   appendIteration(
     featureId: string,
@@ -67,7 +67,7 @@ async function awaitingNode(deps: RefinementRoundDeps, featureId: string) {
 
   enforceTrue(
     parked,
-    deps.notParked(runId),
+    deps.unparked(runId),
     "no planning round is waiting on you — a refinement reports to the author node, and this feature's line is not parked there",
   );
 

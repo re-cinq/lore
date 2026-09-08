@@ -152,7 +152,7 @@ const fileEntry = (content: string) => ({
   type: "file",
   content: Buffer.from(content).toString("base64"),
 });
-const notFoundErr = () => {
+const missingErr = () => {
   const err = new Error("not found") as Error & { status?: number };
 
   err.status = 404;
@@ -200,7 +200,7 @@ describe("ingestFiles", () => {
   it("falls back to HEAD when the commit is unknown to the repo", async () => {
     const octokit = queuedOctokit([
       () => {
-        throw notFoundErr();
+        throw missingErr();
       },
       () => ({ data: fileEntry("const a = 1;") }),
     ]);
@@ -230,7 +230,7 @@ describe("ingestFiles", () => {
   it("marks a file deleted (no HEAD retry) when the commit is already HEAD and the file 404s", async () => {
     const octokit = queuedOctokit([
       () => {
-        throw notFoundErr();
+        throw missingErr();
       },
     ]);
 
@@ -309,7 +309,7 @@ describe("ingestFiles", () => {
     const octokit = queuedOctokit([
       () => ({ data: fileEntry("const a = 1;") }),
       () => {
-        throw notFoundErr();
+        throw missingErr();
       },
       () => {
         throw serverErr();

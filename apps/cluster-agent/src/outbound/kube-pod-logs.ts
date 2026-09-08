@@ -11,7 +11,7 @@ import {
 } from "@re-cinq/lore-shared";
 import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "../domain/crd.js";
 import { coreApi, customObjectsApi } from "./kube-clients.js";
-import { isNotFound } from "../lib/k8s-errors.js";
+import { isMissing } from "../lib/k8s-errors.js";
 
 // The AGENT container's requests are the cost driver — init containers finish before the bill starts and this stack runs no sidecars.
 function agentContainer(pod: V1Pod) {
@@ -99,7 +99,7 @@ export class KubePodLogs implements PodLogSource {
 
       return agentPodInfoOf(agent);
     } catch (err) {
-      if (isNotFound(err)) {
+      if (isMissing(err)) {
         return null;
       }
       throw err;

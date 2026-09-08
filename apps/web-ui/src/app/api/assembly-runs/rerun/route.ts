@@ -157,7 +157,7 @@ async function startFork(
 }
 
 /** The deployment is missing its lore-api credentials. A 500 rather than a 502: nothing upstream was asked, and the fix is on this side. */
-function notConfigured() {
+function unconfigured() {
   return NextResponse.json(
     { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
     { status: 500 },
@@ -179,7 +179,7 @@ export async function POST(req: Request) {
     const apiConfig = resolveLoreApiConfig();
 
     if (!apiConfig) {
-      return notConfigured();
+      return unconfigured();
     }
     const { apiUrl, token } = apiConfig;
     const headers = { Authorization: `Bearer ${token}` };

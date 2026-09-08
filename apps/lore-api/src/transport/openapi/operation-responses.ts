@@ -278,6 +278,7 @@ export function errorResponses(): Record<string, JsonSchema> {
 
   return {
     BadRequest: { description: "Malformed or invalid request", ...body },
+    // eslint-disable-next-line re-lint/no-negative-names -- the HTTP status phrase, published as $ref components/responses/NotFound
     NotFound: { description: "No such resource", ...body },
     Conflict: {
       description: "Not allowed in the resource's current state",

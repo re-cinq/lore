@@ -8,7 +8,7 @@ import {
   AGENT_DEFINITION_PLURAL as DEF_PLURAL,
   STATION_PLURAL,
 } from "../domain/crd.js";
-import { isConflict, isNotFound } from "../lib/k8s-errors.js";
+import { isConflict, isMissing } from "../lib/k8s-errors.js";
 import { customObjectsApi } from "./kube-clients.js";
 import type { CatalogApi } from "./kube-token-provisioner.js";
 
@@ -75,7 +75,7 @@ export class KubeCatalogApi implements CatalogApi {
         name,
       })) as T;
     } catch (err) {
-      if (isNotFound(err)) {
+      if (isMissing(err)) {
         return null;
       }
       throw err;
@@ -118,7 +118,7 @@ export class KubeCatalogApi implements CatalogApi {
         name,
       });
     } catch (err) {
-      if (!isNotFound(err)) {
+      if (!isMissing(err)) {
         throw err;
       }
     }

@@ -26,7 +26,7 @@ function roundDeps(
 ): Parameters<typeof startRefinementRound>[2] {
   return {
     invalidBasis: apiError(400),
-    notParked: (runId) => apiError(409, runIdBothSpellings(runId)),
+    unparked: (runId) => apiError(409, runIdBothSpellings(runId)),
     parkedNode: (featureId) =>
       findParkedAuthorNode(project.assemblyRuns, featureId),
     appendIteration: (featureId, roundAnswers, basisIteration) =>

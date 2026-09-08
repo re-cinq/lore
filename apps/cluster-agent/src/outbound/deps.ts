@@ -11,7 +11,7 @@ import {
   KubeSecretKeyWriter,
 } from "./kube-token-provisioner.js";
 import type { ClusterDeps } from "../domain/cluster-deps.js";
-import { isNotFound, describeK8sError } from "../lib/k8s-errors.js";
+import { isMissing, describeK8sError } from "../lib/k8s-errors.js";
 import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "../domain/crd.js";
 import { customObjectsApi } from "./kube-clients.js";
 import { applyCatalogPair } from "./paired-writes.js";
@@ -45,7 +45,7 @@ const getAgentCr: AgentsApi["get"] = async (name) => {
     })) as never;
   } catch (err) {
     // Only a 404 means "no such CR" — laundering an RBAC denial or 5xx into found:false is how the Floor's missing delete verb stayed invisible for 40 days.
-    enforceTrue(isNotFound(err), Error, describeK8sError("get", name, err));
+    enforceTrue(isMissing(err), Error, describeK8sError("get", name, err));
 
     return null;
   }
@@ -82,11 +82,7 @@ const removeAgentCr: AgentsApi["remove"] = async (name) => {
     })
     .catch((err) => {
       // A delete that lost a race is a success — the CR is gone either way; the caller swallows prune failures by design, so this log is the only visibility.
-      enforceTrue(
-        isNotFound(err),
-        Error,
-        describeK8sError("delete", name, err),
-      );
+      enforceTrue(isMissing(err), Error, describeK8sError("delete", name, err));
     });
 };
 

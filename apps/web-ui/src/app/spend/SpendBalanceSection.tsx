@@ -33,7 +33,7 @@ function BudgetOutlookNote({ budget }: { budget: NonNullable<BudgetRow> }) {
 }
 
 /** An em dash, not $0.00. An unrecorded balance is not an exhausted one, and the difference matters: one of them means someone has to go and enter a figure. */
-function NoBalanceRecorded() {
+function EmptyBalance() {
   return (
     <div className={`spec-card ${styles.balanceCard}`}>
       <div className="meta">Credits remaining</div>
@@ -49,7 +49,7 @@ function NoBalanceRecorded() {
 /** The recorded balance, or an em dash. Deliberately NOT $0.00 when nothing has been recorded: an unrecorded balance is not an exhausted one, and Anthropic publishes usage and cost but no credit figure, so the starting number has to be entered by hand once. */
 function BalanceCard({ budget }: { budget: SpendWindow["budget"] }) {
   if (!budget) {
-    return <NoBalanceRecorded />;
+    return <EmptyBalance />;
   }
 
   return (

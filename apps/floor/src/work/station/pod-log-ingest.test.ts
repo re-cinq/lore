@@ -37,8 +37,8 @@ describe("parsePodLogAppended", () => {
       noPod: parsePodLogAppended({ ...params, podName: undefined }),
       noJob: parsePodLogAppended({ ...params, jobName: "" }),
       noChunks: parsePodLogAppended({ ...params, chunks: [] }),
-      notAnObject: parsePodLogAppended("nonsense"),
-    }).toEqual({ noPod: [], noJob: [], noChunks: [], notAnObject: [] });
+      nonObject: parsePodLogAppended("nonsense"),
+    }).toEqual({ noPod: [], noJob: [], noChunks: [], nonObject: [] });
   });
 
   it("drops a chunk whose seq or lines are the wrong shape, keeping the rest", () => {

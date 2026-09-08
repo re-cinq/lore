@@ -10,7 +10,7 @@ import {
 import AgentForm from "../../../repos/[owner]/[repo]/agents/AgentForm";
 
 /** No org-default row under this name. Not a 404: the name may be a repo-scoped definition, or one that has not been created at org level yet, and both are reachable from the list this page links back to. */
-function NotFound({ agentName }: { agentName: string }) {
+function MissingAgent({ agentName }: { agentName: string }) {
   return (
     <div className="empty-state">
       <p>Agent definition &quot;{agentName}&quot; not found.</p>
@@ -64,7 +64,7 @@ export default async function EditOrgAgent({
           orgScope
         />
       ) : (
-        <NotFound agentName={agentName} />
+        <MissingAgent agentName={agentName} />
       )}
     </div>
   );

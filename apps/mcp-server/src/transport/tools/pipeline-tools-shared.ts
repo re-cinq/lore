@@ -2,7 +2,7 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import {
   unreachableError,
   deniedError,
-  notConfiguredError,
+  unconfiguredError,
   textResult,
   type ProxyResult,
 } from "./deps.js";
@@ -71,7 +71,7 @@ function describeProxyFailure(
   subject?: string,
 ): ToolText {
   if (proxied.reason === "not_configured") {
-    return notConfiguredError(op);
+    return unconfiguredError(op);
   }
 
   if (proxied.reason === "denied") {

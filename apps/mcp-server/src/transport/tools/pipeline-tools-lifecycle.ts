@@ -5,7 +5,7 @@ import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-
 import {
   unreachableError,
   deniedError,
-  notConfiguredError,
+  unconfiguredError,
   textResult,
   proxyGetApi,
 } from "./deps.js";
@@ -106,7 +106,7 @@ async function createPipelineTask(args: CreateTaskArgs) {
   const creds = resolveApiCredentials();
 
   if (!creds) {
-    return notConfiguredError("creating a pipeline task");
+    return unconfiguredError("creating a pipeline task");
   }
   // The adapter holds no pool: the remote API is the only writer.
   const resolvedRepo = resolveTaskRepo(args.target_repo);
@@ -135,7 +135,7 @@ async function fetchPipelineStatusText(taskId: string): Promise<ToolText> {
   const creds = resolveApiCredentials();
 
   if (!creds) {
-    return notConfiguredError("getting pipeline status");
+    return unconfiguredError("getting pipeline status");
   }
 
   let res: Response;
@@ -197,7 +197,7 @@ function registerGetPrStatusTool(server: McpServer) {
         }
 
         if (proxied.reason === "not_configured") {
-          return notConfiguredError("getting PR status");
+          return unconfiguredError("getting PR status");
         }
 
         if (proxied.reason === "denied") {
