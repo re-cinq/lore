@@ -4,6 +4,46 @@ import type { EventQueueRepository, EventRow } from "./event-queue-port.js";
 const MAX_ERROR_LEN = 2000;
 const at = (ms: number): string => new Date(ms).toISOString();
 
+/** A freshly captured row: pending, unattempted, immediately due. */
+function pendingRow(id: string, input: EventInsert, iso: string): EventRow {
+  return {
+    id,
+    event_name: input.eventName,
+    source: input.source,
+    params: input.params ?? {},
+    repo: eventRepo(input.params),
+    dedupe_key: input.dedupeKey ?? null,
+    status: "pending",
+    attempts: 0,
+    error: null,
+    captured_at: iso,
+    claimed_at: null,
+    next_attempt_at: iso,
+    handled_at: null,
+  };
+}
+
+/** Due rows in the store's claim order (next_attempt_at, then id), capped at the limit. */
+function claimableRows(
+  rows: EventRow[],
+  window: { now: number; limit: number; exclude: string[] },
+): EventRow[] {
+  return rows
+    .filter(
+      (r) =>
+        (r.status === "pending" || r.status === "failed") &&
+        new Date(r.next_attempt_at).getTime() <= window.now &&
+        !window.exclude.includes(r.event_name),
+    )
+    .sort((a, b) => {
+      const an = new Date(a.next_attempt_at).getTime();
+      const bn = new Date(b.next_attempt_at).getTime();
+
+      return an !== bn ? an - bn : Number(a.id) - Number(b.id);
+    })
+    .slice(0, window.limit);
+}
+
 /** In-memory EventQueueRepository: behavioral spec with injectable clock for deterministic tests. */
 export class InMemoryEventQueue implements EventQueueRepository {
   private seq = 0;
@@ -20,23 +60,8 @@ export class InMemoryEventQueue implements EventQueueRepository {
     ) {
       return;
     }
-    const iso = at(this.now());
 
-    this.rows.push({
-      id: String(++this.seq),
-      event_name: input.eventName,
-      source: input.source,
-      params: input.params ?? {},
-      repo: eventRepo(input.params),
-      dedupe_key: input.dedupeKey ?? null,
-      status: "pending",
-      attempts: 0,
-      error: null,
-      captured_at: iso,
-      claimed_at: null,
-      next_attempt_at: iso,
-      handled_at: null,
-    });
+    this.rows.push(pendingRow(String(++this.seq), input, at(this.now())));
   }
 
   async claimBatch(
@@ -44,20 +69,11 @@ export class InMemoryEventQueue implements EventQueueRepository {
     excludeEventNames: string[] = [],
   ): Promise<EventRow[]> {
     const now = this.now();
-    const claimable = this.rows
-      .filter(
-        (r) =>
-          (r.status === "pending" || r.status === "failed") &&
-          new Date(r.next_attempt_at).getTime() <= now &&
-          !excludeEventNames.includes(r.event_name),
-      )
-      .sort((a, b) => {
-        const an = new Date(a.next_attempt_at).getTime();
-        const bn = new Date(b.next_attempt_at).getTime();
-
-        return an !== bn ? an - bn : Number(a.id) - Number(b.id);
-      })
-      .slice(0, limit);
+    const claimable = claimableRows(this.rows, {
+      now,
+      limit,
+      exclude: excludeEventNames,
+    });
     const iso = at(now);
 
     for (const r of claimable) {

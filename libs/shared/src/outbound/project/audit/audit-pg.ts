@@ -28,21 +28,7 @@ export class PgAudit implements AuditPort {
     eventType: string,
     limit: number,
   ): Promise<StoredAuditLogEntry[]> {
-    const { rows } = await this.pool.query<{
-      event_type: string;
-      task_id: string | null;
-      repo: string | null;
-      actor: string | null;
-      payload: Record<string, unknown>;
-      created_at: Date;
-    }>(
-      `SELECT event_type, task_id, repo, actor, payload, created_at
-         FROM pipeline.audit_log
-        WHERE event_type = $1
-        ORDER BY created_at DESC
-        LIMIT $2`,
-      [eventType, limit],
-    );
+    const rows = await selectRecentByType(this.pool, eventType, limit);
 
     return rows.map((row) => ({
       event_type: row.event_type,
@@ -54,3 +40,27 @@ export class PgAudit implements AuditPort {
     }));
   }
 }
+
+/** The newest `pipeline.audit_log` rows of one event type, newest first. */
+async function selectRecentByType(
+  pool: PgPool,
+  eventType: string,
+  limit: number,
+) {
+  const { rows } = await pool.query<{
+    event_type: string;
+    task_id: string | null;
+    repo: string | null;
+    actor: string | null;
+    payload: Record<string, unknown>;
+    created_at: Date;
+  }>(RECENT_BY_TYPE_SQL, [eventType, limit]);
+
+  return rows;
+}
+
+const RECENT_BY_TYPE_SQL = `SELECT event_type, task_id, repo, actor, payload, created_at
+   FROM pipeline.audit_log
+  WHERE event_type = $1
+  ORDER BY created_at DESC
+  LIMIT $2`;

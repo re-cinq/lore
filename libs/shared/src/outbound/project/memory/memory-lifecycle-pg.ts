@@ -128,20 +128,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
     minAgeDays: number,
   ): Promise<number> {
     const { rows } = await this.pool.query(
-      // Fact has no agent_id; resolve via memory_id or episode_id.
-      `WITH oldest AS (
-         SELECT f.id
-         FROM memory.facts f
-         LEFT JOIN memory.memories m ON m.id = f.memory_id
-         LEFT JOIN memory.episodes e ON e.id = f.episode_id
-         WHERE COALESCE(m.agent_id, e.agent_id) = $1
-           AND f.valid_to IS NOT NULL
-           AND f.valid_to < now() - interval '${minAgeDays} days'
-         ORDER BY f.valid_to ASC
-         LIMIT $2
-       )
-       DELETE FROM memory.facts WHERE id IN (SELECT id FROM oldest)
-       RETURNING id`,
+      deleteOldestInvalidatedSql(minAgeDays),
       [agentId, limit],
     );
 
@@ -247,4 +234,21 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
 
     return (rows[0]?.id as string) || null;
   }
+}
+
+/** A fact carries no agent_id, so the oldest-first cut resolves ownership through memory_id or episode_id. */
+function deleteOldestInvalidatedSql(minAgeDays: number): string {
+  return `WITH oldest AS (
+         SELECT f.id
+         FROM memory.facts f
+         LEFT JOIN memory.memories m ON m.id = f.memory_id
+         LEFT JOIN memory.episodes e ON e.id = f.episode_id
+         WHERE COALESCE(m.agent_id, e.agent_id) = $1
+           AND f.valid_to IS NOT NULL
+           AND f.valid_to < now() - interval '${minAgeDays} days'
+         ORDER BY f.valid_to ASC
+         LIMIT $2
+       )
+       DELETE FROM memory.facts WHERE id IN (SELECT id FROM oldest)
+       RETURNING id`;
 }

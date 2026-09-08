@@ -45,6 +45,19 @@ function isStaleCandidate(f: FactRow): boolean {
   );
 }
 
+/** The scoring projection of one memory row: what the decay job needs and nothing else. */
+function toDecayCandidate(row: MemoryLifecycleRow): DecayCandidate {
+  return {
+    id: row.id,
+    key: row.key,
+    value: row.value,
+    created_at: row.created_at,
+    last_retrieved_at: row.last_retrieved_at,
+    half_life_days: row.half_life_days,
+    retrieval_count: row.retrieval_count,
+  };
+}
+
 /** Applies `adjust` to every item whose id is in `ids`, defaulting an absent half-life to `defaultDays` first. Shared by boost (merge success) and penalize (rejection). */
 function adjustHalfLife<
   T extends { id: string; half_life_days: number | null },
@@ -114,15 +127,7 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
       )
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
       .slice(0, limit)
-      .map((m) => ({
-        id: m.id,
-        key: m.key,
-        value: m.value,
-        created_at: m.created_at,
-        last_retrieved_at: m.last_retrieved_at,
-        half_life_days: m.half_life_days,
-        retrieval_count: m.retrieval_count,
-      }));
+      .map(toDecayCandidate);
   }
 
   async softDeleteMemories(ids: string[]): Promise<void> {

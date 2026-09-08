@@ -53,6 +53,25 @@ export type SeedRepoSettings = Record<
   { trust?: { level?: string } } | undefined
 >;
 
+/** The create-time fields resolved from a {@link CreateTaskInput} before the row is built. */
+type CreateFields = {
+  taskType: string;
+  repo: string | undefined;
+  createdBy: string;
+  priority: string;
+  createdAt: string;
+};
+
+function createdFrom(fields: CreateFields, id: string): CreatedTask {
+  return {
+    task_id: id,
+    task_type: fields.taskType,
+    status: "pending",
+    priority: fields.priority,
+    created_at: fields.createdAt,
+  };
+}
+
 /** In-memory TaskStorePort — behavioral spec of the Pg adapter (four inline queries + delegated pipeline-tasks.ts CRUD) over seeded rows; JSONB stored parsed (matching node-pg). now is injectable for deterministic ordering. */
 export class InMemoryTaskStore implements TaskStorePort {
   readonly events: StoredTaskEvent[] = [];
@@ -104,13 +123,7 @@ export class InMemoryTaskStore implements TaskStorePort {
 
   private buildTaskRow(
     input: CreateTaskInput,
-    fields: {
-      taskType: string;
-      repo: string | undefined;
-      createdBy: string;
-      priority: string;
-      createdAt: string;
-    },
+    fields: CreateFields,
   ): SeedStoreTask {
     const task: SeedStoreTask = {
       id: randomUUID(),
@@ -126,11 +139,9 @@ export class InMemoryTaskStore implements TaskStorePort {
       updated_at: fields.createdAt,
     };
 
-    if (input.taskGroupId) {
-      task.task_group_id = input.taskGroupId;
-    }
-
-    return task;
+    return input.taskGroupId
+      ? { ...task, task_group_id: input.taskGroupId }
+      : task;
   }
 
   private applyContextRefs(task: SeedStoreTask, input: CreateTaskInput): void {
@@ -158,36 +169,26 @@ export class InMemoryTaskStore implements TaskStorePort {
   }
 
   async create(input: CreateTaskInput): Promise<CreatedTask> {
-    const taskType = input.taskType ?? "general";
-    const repo = input.targetRepo;
-    const createdBy = input.createdBy ?? "ui";
-    const priority = input.priority === "immediate" ? "immediate" : "normal";
-    const createdAt = this.now().toISOString();
+    const fields: CreateFields = {
+      taskType: input.taskType ?? "general",
+      repo: input.targetRepo,
+      createdBy: input.createdBy ?? "ui",
+      priority: input.priority === "immediate" ? "immediate" : "normal",
+      createdAt: this.now().toISOString(),
+    };
 
-    this.enforceCreatable(input, repo, taskType);
+    this.enforceCreatable(input, fields.repo, fields.taskType);
 
-    const task = this.buildTaskRow(input, {
-      taskType,
-      repo,
-      createdBy,
-      priority,
-      createdAt,
-    });
+    const task = this.buildTaskRow(input, fields);
 
     this.tasks.push(task);
     this.applyContextRefs(task, input);
     await this.transitions.recordEvent(task.id, null, "pending", {
-      created_by: createdBy,
-      priority,
+      created_by: fields.createdBy,
+      priority: fields.priority,
     });
 
-    return {
-      task_id: task.id,
-      task_type: taskType,
-      status: "pending",
-      priority,
-      created_at: createdAt,
-    };
+    return createdFrom(fields, task.id);
   }
 
   async retry(id: string): Promise<RetriedTask> {

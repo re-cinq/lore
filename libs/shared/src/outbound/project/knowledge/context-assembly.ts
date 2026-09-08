@@ -3,11 +3,7 @@
 import { searchMemories } from "./memory-search.js";
 import type { DgraphClientPort, PgPool } from "../../memory-store.js";
 import { serializeContext } from "./context-assembly-format.js";
-import {
-  getTemplate,
-  loadTemplates,
-  type Template,
-} from "./context-assembly-templates.js";
+import { getTemplate, loadTemplates } from "./context-assembly-templates.js";
 import type { TemplateSection } from "./context-assembly-templates.js";
 import { collectContextRefIds } from "./context-assembly-items.js";
 import { fetchCouplingSource } from "./context-assembly-coupling.js";
@@ -19,13 +15,17 @@ import {
 import {
   computeFreshness,
   resolveFreshness,
-  type FreshnessInfo,
 } from "./context-assembly-freshness.js";
 import type {
   FetchStatus,
   FetchResult,
   TraceSection,
 } from "./context-assembly-types.js";
+import {
+  buildAssemblyTrace,
+  type AssemblyTrace,
+  type DebugTraceInput,
+} from "./context-assembly-trace.js";
 
 export { loadTemplates, computeFreshness, fetchers, fetchCouplingSource };
 export {
@@ -35,24 +35,7 @@ export {
 } from "./context-assembly-items.js";
 export { hybridChunkItems } from "./context-assembly-chunk-search.js";
 export { formatCouplingItems } from "./context-assembly-coupling.js";
-export type { FetchStatus, FetchResult, TraceSection };
-
-export interface AssemblyTrace {
-  query: string;
-  template: string;
-  effectiveBudget: number;
-  crossRepo: boolean;
-  templateSections: {
-    header: string;
-    source: string;
-    priority: number;
-    max_tokens?: number;
-  }[];
-  sections: TraceSection[];
-  budget: { total: number; used: number; leftover: number };
-  freshness: { state: string; message: string };
-  timingsMs: { total: number; perSource: Record<string, number> };
-}
+export type { FetchStatus, FetchResult, TraceSection, AssemblyTrace };
 
 export interface AssembledResult {
   text: string;
@@ -167,50 +150,6 @@ function applyContextRefs(result: AssembledResult, refs: AssembledRefs): void {
   }
 }
 
-interface DebugTraceInput {
-  query: string;
-  templateName: string;
-  minTokens: number;
-  crossRepo: boolean | undefined;
-  template: Template;
-  traceSections: TraceSection[];
-  sections: { header: string; tokens: number; truncated: boolean }[];
-  freshness: FreshnessInfo;
-  startedAt: number;
-  timings: Record<string, number>;
-}
-
-function buildAssemblyTrace(input: DebugTraceInput): AssemblyTrace {
-  const used = input.sections.reduce((sum, s) => sum + s.tokens, 0);
-
-  return {
-    query: input.query,
-    template: input.templateName,
-    effectiveBudget: input.minTokens,
-    crossRepo: !!input.crossRepo,
-    templateSections: input.template.sections.map((s) => ({
-      header: s.header,
-      source: s.source,
-      priority: s.priority,
-      max_tokens: s.max_tokens,
-    })),
-    sections: input.traceSections,
-    budget: {
-      total: input.minTokens,
-      used,
-      leftover: Math.max(0, input.minTokens - used),
-    },
-    freshness: {
-      state: input.freshness.state,
-      message: input.freshness.warning.trim(),
-    },
-    timingsMs: {
-      total: Date.now() - input.startedAt,
-      perSource: input.timings,
-    },
-  };
-}
-
 export interface AssembleOptions {
   templateName?: string;
   maxTokens?: number;
@@ -225,6 +164,17 @@ export interface AssembleOptions {
 /** Never below 2000 tokens: a budget small enough to fit nothing still costs a request, and an agent that receives an empty block cannot tell it from a repo with no context at all. */
 function assemblyBudget(templateName: string, maxTokens?: number): number {
   return Math.max(resolveEffectiveMax(templateName, maxTokens), 2000);
+}
+
+/** Per-section token counts as the caller sees them — one entry per section that made it into the block. */
+function sectionTokenCounts(
+  serialized: Parameters<typeof serializeContext>[1],
+) {
+  return serialized.map((s) => ({
+    header: s.header,
+    tokens: s.documents.reduce((sum, i) => sum + i.tokens, 0),
+    truncated: s.truncated,
+  }));
 }
 
 /** The XML-tagged text an agent receives, plus the per-section token counts. An assembly that found NOTHING still returns the freshness warning on its own — silence would read as "your context is fine" rather than "there is none". */
@@ -244,11 +194,7 @@ function composeAssembled(
 
   return {
     text: serialized.length > 0 ? freshness.warning + body : freshness.warning,
-    sections: serialized.map((s) => ({
-      header: s.header,
-      tokens: s.documents.reduce((sum, i) => sum + i.tokens, 0),
-      truncated: s.truncated,
-    })),
+    sections: sectionTokenCounts(serialized),
   };
 }
 
@@ -281,17 +227,15 @@ function annotate(
   return result;
 }
 
+interface AssemblyRequest {
+  template: ReturnType<typeof getTemplate>;
+  templateName: string;
+  minTokens: number;
+}
+
 /** Every section fetched, packed into the budget, and serialized into one block. */
 async function assembleSections(
-  {
-    template,
-    templateName,
-    minTokens,
-  }: {
-    template: ReturnType<typeof getTemplate>;
-    templateName: string;
-    minTokens: number;
-  },
+  { template, templateName, minTokens }: AssemblyRequest,
   sources: Parameters<typeof fetchSections>[1],
   fetchOptions: Parameters<typeof fetchSections>[2],
 ) {
@@ -301,15 +245,46 @@ async function assembleSections(
     await fetchSections(template, sources, fetchOptions),
     minTokens,
   );
+  const result = composeAssembled(
+    { query: sources.query, templateName, minTokens },
+    serialized,
+    freshness,
+  );
+
+  return { result, traceSections, freshness };
+}
+
+/** One assembly's parameters, fixed before any source is read: which template, how big a budget, and the clock the timings are measured against. */
+interface AssemblyRun extends AssemblyRequest {
+  query: string;
+  crossRepo: boolean | undefined;
+  startedAt: number;
+  timings: Record<string, number>;
+}
+
+function assemblyRun(query: string, options: AssembleOptions): AssemblyRun {
+  const templateName = options.templateName ?? "default";
 
   return {
-    result: composeAssembled(
-      { query: sources.query, templateName, minTokens },
-      serialized,
-      freshness,
-    ),
-    traceSections,
-    freshness,
+    query,
+    templateName,
+    minTokens: assemblyBudget(templateName, options.maxTokens),
+    crossRepo: options.crossRepo,
+    template: getTemplate(templateName),
+    startedAt: Date.now(),
+    timings: {},
+  };
+}
+
+function traceInput(
+  run: AssemblyRun,
+  assembled: Awaited<ReturnType<typeof assembleSections>>,
+): DebugTraceInput {
+  return {
+    ...run,
+    traceSections: assembled.traceSections,
+    sections: assembled.result.sections,
+    freshness: assembled.freshness,
   };
 }
 
@@ -318,29 +293,18 @@ export async function assembleContext(
   query: string,
   options: AssembleOptions = {},
 ): Promise<AssembledResult> {
-  const { templateName = "default", repo, agentId, crossRepo } = options;
-  const { includeIds, debug, dgraph } = options;
-  const startedAt = Date.now();
-  const template = getTemplate(templateName);
-  const minTokens = assemblyBudget(templateName, options.maxTokens);
-  const timings: Record<string, number> = {};
-  const { result, traceSections, freshness } = await assembleSections(
-    { template, templateName, minTokens },
+  const { repo, agentId, includeIds, debug, dgraph } = options;
+  const run = assemblyRun(query, options);
+  const assembled = await assembleSections(
+    run,
     { pool, dgraph, query, repo, agentId },
-    { crossRepo, timings },
+    { crossRepo: run.crossRepo, timings: run.timings },
   );
+  const refs = includeIds
+    ? await collectAssembledRefs(pool, query, agentId)
+    : emptyAssembledRefs;
 
-  return annotate(
-    result,
-    debug
-      ? {
-          ...{ query, templateName, minTokens, crossRepo, template },
-          ...{ traceSections, sections: result.sections, freshness },
-          ...{ startedAt, timings },
-        }
-      : null,
-    includeIds
-      ? await collectAssembledRefs(pool, query, agentId)
-      : emptyAssembledRefs,
-  );
+  const trace = debug ? traceInput(run, assembled) : null;
+
+  return annotate(assembled.result, trace, refs);
 }

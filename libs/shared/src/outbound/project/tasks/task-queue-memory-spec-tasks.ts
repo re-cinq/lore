@@ -35,6 +35,35 @@ function dependencySatisfied(
   return specTasks.some((dep) => isSatisfyingDependency(dep, task, depId));
 }
 
+function isReadySpecTask(
+  specTasks: SeedTask[],
+  task: SeedTask,
+  repo?: string,
+): boolean {
+  if (task.status !== "pending" || (repo && task.target_repo !== repo)) {
+    return false;
+  }
+  const deps = (task.context_bundle?.depends_on as string[] | undefined) ?? [];
+
+  return deps.every((depId) => dependencySatisfied(specTasks, task, depId));
+}
+
+function bySpecTaskId(a: SeedTask, b: SeedTask): number {
+  return String(a.context_bundle?.spec_task_id ?? "").localeCompare(
+    String(b.context_bundle?.spec_task_id ?? ""),
+  );
+}
+
+function toReadySpecTask(t: SeedTask): ReadySpecTask {
+  return {
+    id: t.id,
+    description: t.description ?? "",
+    context_bundle: t.context_bundle ?? null,
+    target_repo: t.target_repo ?? "",
+    task_group_id: t.task_group_id ?? null,
+  };
+}
+
 /** The spec-task DAG dispatch mechanics of {@link InMemoryTaskQueue} — readiness (dependencies satisfied), per-group running counts, claim, and completion-unblocks-next. Shares the SAME `tasks` array reference the main queue owns. */
 export class SpecTaskStore {
   constructor(private readonly tasks: SeedTask[]) {}
@@ -43,31 +72,9 @@ export class SpecTaskStore {
     const specTasks = this.tasks.filter((t) => t.task_type === "spec-task");
 
     return specTasks
-      .filter((t) => {
-        if (t.status !== "pending") {
-          return false;
-        }
-
-        if (repo && t.target_repo !== repo) {
-          return false;
-        }
-        const deps =
-          (t.context_bundle?.depends_on as string[] | undefined) ?? [];
-
-        return deps.every((depId) => dependencySatisfied(specTasks, t, depId));
-      })
-      .sort((a, b) =>
-        String(a.context_bundle?.spec_task_id ?? "").localeCompare(
-          String(b.context_bundle?.spec_task_id ?? ""),
-        ),
-      )
-      .map((t) => ({
-        id: t.id,
-        description: t.description ?? "",
-        context_bundle: t.context_bundle ?? null,
-        target_repo: t.target_repo ?? "",
-        task_group_id: t.task_group_id ?? null,
-      }));
+      .filter((t) => isReadySpecTask(specTasks, t, repo))
+      .sort(bySpecTaskId)
+      .map(toReadySpecTask);
   }
 
   async countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]> {

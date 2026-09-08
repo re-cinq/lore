@@ -41,38 +41,41 @@ function detectEntities(results: MemorySearchResult[]): string[] {
   return [...found].slice(0, 5); // Max 5 entities to augment
 }
 
+/** Exactly what {@link neighborEdges} returns — derived from it rather than restated, so the query and its reader cannot drift apart. */
+type EdgeRows = Awaited<ReturnType<typeof neighborEdges>>;
+
+/** How one edge reads in the results: source, relation, target, each with its entity type. */
+function edgeDescription(row: EdgeRows[number]): string {
+  return `${row.source_name} (${row.source_type}) --${row.relation_type}--> ${row.target_name} (${row.target_type})`;
+}
+
+function graphResult(entity: string, desc: string): MemorySearchResult {
+  return {
+    key: entity,
+    value: desc,
+    score: 0, // Will be set by caller
+    agent_id: "graph",
+    source: "graph",
+  };
+}
+
 /** Append one graph result per edge description not already in `seen`. */
 function addUniqueEdgeResults(
   entity: string,
-  rows: Array<{
-    source_name: string;
-    source_type: string;
-    relation_type: string;
-    target_name: string;
-    target_type: string;
-  }>,
+  rows: EdgeRows,
   seen: Set<string>,
   results: MemorySearchResult[],
 ): void {
   for (const row of rows) {
-    const desc = `${row.source_name} (${row.source_type}) --${row.relation_type}--> ${row.target_name} (${row.target_type})`;
+    const desc = edgeDescription(row);
 
     if (seen.has(desc)) {
       continue;
     }
     seen.add(desc);
-    results.push({
-      key: entity,
-      value: desc,
-      score: 0, // Will be set by caller
-      agent_id: "graph",
-      source: "graph",
-    });
+    results.push(graphResult(entity, desc));
   }
 }
-
-/** Exactly what {@link addUniqueEdgeResults} consumes — derived from it rather than restated, so the query and its reader cannot drift apart. */
-type EdgeRows = Parameters<typeof addUniqueEdgeResults>[1];
 
 const NEIGHBOR_EDGES_SQL = `SELECT s.name as source_name, s.entity_type as source_type,
                 e.relation_type, t.name as target_name, t.entity_type as target_type
@@ -84,11 +87,15 @@ const NEIGHBOR_EDGES_SQL = `SELECT s.name as source_name, s.entity_type as sourc
          LIMIT 10`;
 
 /** This entity's current 1-hop edges, or none. Augmentation is a bonus on top of a result set that already stands on its own, so one entity whose lookup fails costs its neighbors and nothing else. */
-async function neighborEdges(pool: PgPool, entity: string): Promise<EdgeRows> {
+async function neighborEdges(pool: PgPool, entity: string) {
   try {
-    const { rows } = await pool.query<EdgeRows[number]>(NEIGHBOR_EDGES_SQL, [
-      entity,
-    ]);
+    const { rows } = await pool.query<{
+      source_name: string;
+      source_type: string;
+      relation_type: string;
+      target_name: string;
+      target_type: string;
+    }>(NEIGHBOR_EDGES_SQL, [entity]);
 
     return rows;
   } catch {

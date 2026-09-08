@@ -30,8 +30,8 @@ export interface Incident {
   url?: string;
 }
 
-/** Reciprocal Rank Fusion over two independent legs — nearest-neighbour and keyword — joined FULL OUTER so a chunk that only one leg finds still scores. The 60 is RRF's usual damping: it stops a single leg's top hit from dominating a chunk both legs rank moderately. */
-function hybridSql(schema: string): string {
+/** The two independent ranking legs — nearest-neighbour and keyword — as CTEs, each capped at 20 candidates before fusion. */
+function hybridLegsSql(schema: string): string {
   return `WITH vec AS (
          SELECT id, content, file_path, content_type, ingested_at,
                 ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
@@ -46,7 +46,12 @@ function hybridSql(schema: string): string {
          WHERE repo = $1 AND content_type = ANY($3)
            AND search_tsv @@ websearch_to_tsquery('english', $4)
          LIMIT 20
-       )
+       )`;
+}
+
+/** Reciprocal Rank Fusion over the two legs, joined FULL OUTER so a chunk that only one leg finds still scores. The 60 is RRF's usual damping: it stops a single leg's top hit from dominating a chunk both legs rank moderately. */
+function hybridSql(schema: string): string {
+  return `${hybridLegsSql(schema)}
        SELECT COALESCE(v.content, k.content) AS content,
               COALESCE(v.file_path, k.file_path) AS file_path,
               COALESCE(v.content_type, k.content_type) AS content_type,
@@ -78,6 +83,46 @@ function keywordOnlySql(schema: string): string {
      ORDER BY score DESC NULLS LAST, ingested_at DESC LIMIT $4`;
 }
 
+interface ChunkQuery {
+  repo: string;
+  keywordQuery: string;
+  contentTypes: string[];
+  limit: number;
+}
+
+async function hybridRankedItems(
+  pool: PgPool,
+  schema: string,
+  embedding: number[],
+  chunkQuery: ChunkQuery,
+): Promise<SourceItem[]> {
+  const { rows } = await pool.query<ChunkSearchHit>(hybridSql(schema), [
+    chunkQuery.repo,
+    `[${embedding.join(",")}]`,
+    chunkQuery.contentTypes,
+    chunkQuery.keywordQuery,
+    chunkQuery.limit,
+  ]);
+
+  return toItems(rows, chunkQuery.contentTypes);
+}
+
+/** Keyword-only fallback: with no embedding the vector leg has nothing to compare against, so ranking falls back to text relevance alone. */
+async function keywordRankedItems(
+  pool: PgPool,
+  schema: string,
+  chunkQuery: ChunkQuery,
+): Promise<SourceItem[]> {
+  const { rows } = await pool.query<ChunkSearchHit>(keywordOnlySql(schema), [
+    chunkQuery.repo,
+    chunkQuery.keywordQuery,
+    chunkQuery.contentTypes,
+    chunkQuery.limit,
+  ]);
+
+  return toItems(rows, chunkQuery.contentTypes);
+}
+
 export async function hybridChunkItems(
   pool: PgPool,
   query: string,
@@ -90,26 +135,9 @@ export async function hybridChunkItems(
   ]);
   // Keyword leg searches distinctive terms (OR'd) rather than the whole paragraph, which would AND every filler word.
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
+  const chunkQuery = { repo, keywordQuery, contentTypes, limit };
 
-  if (embedding) {
-    const { rows } = await pool.query<ChunkSearchHit>(hybridSql(schema), [
-      repo,
-      `[${embedding.join(",")}]`,
-      contentTypes,
-      keywordQuery,
-      limit,
-    ]);
-
-    return toItems(rows, contentTypes);
-  }
-
-  // Keyword-only fallback: with no embedding the vector leg has nothing to compare against, so ranking falls back to text relevance alone.
-  const { rows } = await pool.query<ChunkSearchHit>(keywordOnlySql(schema), [
-    repo,
-    keywordQuery,
-    contentTypes,
-    limit,
-  ]);
-
-  return toItems(rows, contentTypes);
+  return embedding
+    ? hybridRankedItems(pool, schema, embedding, chunkQuery)
+    : keywordRankedItems(pool, schema, chunkQuery);
 }

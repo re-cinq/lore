@@ -9,18 +9,9 @@ import type { StationBackend } from "./station-port.js";
 import { runClaudeCli } from "./claude-cli.js";
 
 // Agent execution routing to injected providers: local (claude --print), cluster (Station via StationBackend), direct (LlmPort).
-/** What the backend is asked to run. Only the three fields the pipeline itself owns get defaults here — a task type, a description, and the branch its work lands on; every other option passes through as given, because the backend, not this router, decides what a missing one means. */
-function launchSpec(
-  { repo, taskId, prompt }: { repo: string; taskId: string; prompt: string },
-  runOpts: AgentRunOpts,
-) {
+/** Every option the router has no opinion about, forwarded verbatim: the backend, not this router, decides what a missing one means. */
+function passthroughOpts(runOpts: AgentRunOpts) {
   return {
-    taskId,
-    taskType: runOpts.taskType ?? "general",
-    description: runOpts.description ?? "",
-    prompt,
-    targetRepo: repo,
-    branch: runOpts.branch ?? `lore/task-${taskId}`,
     model: runOpts.model,
     timeoutMinutes: runOpts.timeoutMinutes,
     prNumber: runOpts.prNumber,
@@ -32,6 +23,33 @@ function launchSpec(
     roundFeedback: runOpts.roundFeedback,
     resumeFromTask: runOpts.resumeFromTask,
     lineArgs: runOpts.lineArgs,
+  };
+}
+
+/** The cluster mode's one precondition: without a backend there is nothing to launch on. */
+function requireStation(station: StationBackend | undefined): StationBackend {
+  enforceTrue(
+    station,
+    Error,
+    'agents.run mode "cluster" needs a StationBackend provider',
+  );
+
+  return station;
+}
+
+/** What the backend is asked to run. Only the three fields the pipeline itself owns get defaults here — a task type, a description, and the branch its work lands on. */
+function launchSpec(
+  { repo, taskId, prompt }: { repo: string; taskId: string; prompt: string },
+  runOpts: AgentRunOpts,
+) {
+  return {
+    taskId,
+    taskType: runOpts.taskType ?? "general",
+    description: runOpts.description ?? "",
+    prompt,
+    targetRepo: repo,
+    branch: runOpts.branch ?? `lore/task-${taskId}`,
+    ...passthroughOpts(runOpts),
   };
 }
 
@@ -87,24 +105,19 @@ export class AgentRunner implements AgentRunnerPort {
     prompt: string,
     runOpts: AgentRunOpts,
   ): Promise<AgentRunResult> {
-    const station = this.providers.station;
+    const station = requireStation(this.providers.station);
 
-    enforceTrue(
-      station,
-      Error,
-      'agents.run mode "cluster" needs a StationBackend provider',
-    );
-    const res = await station.launch(
+    // Sync backends (docker) carry completion; async backends (k8s) omit it (watcher resolves).
+    const { launched, joinedRun, completion } = await station.launch(
       launchSpec({ repo, taskId, prompt }, runOpts),
     );
 
-    // Sync backends (docker) carry completion; async backends (k8s) omit it (watcher resolves).
     return {
       taskId,
       mode: "cluster",
-      started: res.launched,
-      joinedRun: res.joinedRun,
-      completion: res.completion,
+      started: launched,
+      joinedRun,
+      completion,
     };
   }
 

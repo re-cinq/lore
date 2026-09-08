@@ -13,18 +13,13 @@ const specTaskIdOf = (task: SpecTaskContextFields): string | undefined =>
 const specSlugOf = (task: SpecTaskContextFields): string | undefined =>
   task.context_bundle?.spec_slug as string | undefined;
 
-/** The spec-task DAG dispatch queries of {@link PgTaskQueue} — readiness (dependencies satisfied), per-group running counts, claim, and completion-unblocks-next. */
-export class PgSpecTaskQueries {
-  constructor(private readonly pool: PgPool) {}
-
-  async findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]> {
-    const { rows } = await this.pool.query<ReadySpecTask>(
-      `SELECT t.id, t.description, t.context_bundle, t.target_repo, t.task_group_id
+const READY_SPEC_TASKS_HEAD = `SELECT t.id, t.description, t.context_bundle, t.target_repo, t.task_group_id
          FROM pipeline.tasks t
         WHERE t.task_type = 'spec-task'
-          AND t.status = 'pending'
-          ${repo ? "AND t.target_repo = $1" : ""}
-          AND NOT EXISTS (
+          AND t.status = 'pending'`;
+
+/** No dependency of the row is still un-done: the outer NOT EXISTS walks `depends_on`, the inner one looks for that dependency completed or merged within the same repo and spec slug. */
+const DEPENDENCIES_SATISFIED = `AND NOT EXISTS (
             SELECT 1
             FROM jsonb_array_elements_text(t.context_bundle->'depends_on') AS dep_id
             WHERE NOT EXISTS (
@@ -35,8 +30,24 @@ export class PgSpecTaskQueries {
                 AND d.context_bundle->>'spec_slug' = t.context_bundle->>'spec_slug'
                 AND d.status IN ('completed', 'merged')
             )
-          )
-        ORDER BY t.context_bundle->>'spec_task_id'`,
+          )`;
+
+function readySpecTasksSql(repo?: string): string {
+  const repoFilter = repo ? "AND t.target_repo = $1" : "";
+
+  return `${READY_SPEC_TASKS_HEAD}
+          ${repoFilter}
+          ${DEPENDENCIES_SATISFIED}
+        ORDER BY t.context_bundle->>'spec_task_id'`;
+}
+
+/** The spec-task DAG dispatch queries of {@link PgTaskQueue} — readiness (dependencies satisfied), per-group running counts, claim, and completion-unblocks-next. */
+export class PgSpecTaskQueries {
+  constructor(private readonly pool: PgPool) {}
+
+  async findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]> {
+    const { rows } = await this.pool.query<ReadySpecTask>(
+      readySpecTasksSql(repo),
       repo ? [repo] : [],
     );
 
@@ -83,27 +94,35 @@ export class PgSpecTaskQueries {
     return rows.length > 0;
   }
 
-  async completeSpecTask(id: string): Promise<CompletedSpecTask> {
-    const { rows } = await this.pool.query(
+  /** The row behind `id` when it is still running — completion is a no-op for a task in any other state. */
+  private async runningSpecTask(id: string) {
+    const { rows } = await this.pool.query<{
+      context_bundle: Record<string, unknown> | null;
+      target_repo: string;
+      status: string;
+    }>(
       `SELECT context_bundle, target_repo, status FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
-    const task = rows[0] as
-      | {
-          context_bundle: Record<string, unknown> | null;
-          target_repo: string;
-          status: string;
-        }
-      | undefined;
+    const task = rows.at(0);
 
-    if (!task || task.status !== "running") {
-      return { completed: false, unblocked: [] };
-    }
+    return task?.status === "running" ? task : null;
+  }
 
+  private async markCompleted(id: string): Promise<void> {
     await this.pool.query(
       `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`,
       [id],
     );
+  }
+
+  async completeSpecTask(id: string): Promise<CompletedSpecTask> {
+    const task = await this.runningSpecTask(id);
+
+    if (!task) {
+      return { completed: false, unblocked: [] };
+    }
+    await this.markCompleted(id);
 
     const specTaskId = specTaskIdOf(task);
     const specSlug = specSlugOf(task);
@@ -111,7 +130,6 @@ export class PgSpecTaskQueries {
     if (!specTaskId || !specSlug) {
       return { completed: true, unblocked: [] };
     }
-
     const ready = await this.findReadySpecTasks(task.target_repo);
 
     return {

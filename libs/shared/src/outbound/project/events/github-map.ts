@@ -55,6 +55,15 @@ function commentParams(comment?: {
   };
 }
 
+/** The single-event shape every mapper below returns; the source is always `github` here. */
+function oneEvent(
+  eventName: string,
+  params: Record<string, unknown>,
+  key: string,
+): EventInput[] {
+  return [{ eventName, source: "github", params, dedupeKey: key }];
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub webhook payload; shape varies by event type and is navigated defensively below
 type GitHubPayload = any;
 
@@ -102,21 +111,18 @@ function closedPrEvent(
   key: string,
 ): EventInput[] {
   // Emit for merged AND unmerged: specPrMerge guards on `merged`, code-review's onClose finishes on any.
-  return [
+  return oneEvent(
+    "github.pull_request.closed",
     {
-      eventName: "github.pull_request.closed",
-      source: "github",
-      params: {
-        repo,
-        pr_number: prNumber,
-        merged: pr.merged === true,
-        branch: pr.head?.ref ?? "",
-        merge_commit_sha: pr.merge_commit_sha ?? null,
-        labels: labelNames(pr.labels),
-      },
-      dedupeKey: key,
+      repo,
+      pr_number: prNumber,
+      merged: pr.merged === true,
+      branch: pr.head?.ref ?? "",
+      merge_commit_sha: pr.merge_commit_sha ?? null,
+      labels: labelNames(pr.labels),
     },
-  ];
+    key,
+  );
 }
 
 function reviewTriggerEvent(
@@ -125,14 +131,11 @@ function reviewTriggerEvent(
   repo: string,
   key: string,
 ): EventInput[] {
-  return [
-    {
-      eventName: `github.pull_request.${action}`,
-      source: "github",
-      params: { repo, pr_number: prNumber },
-      dedupeKey: key,
-    },
-  ];
+  return oneEvent(
+    `github.pull_request.${action}`,
+    { repo, pr_number: prNumber },
+    key,
+  );
 }
 
 function mapPullRequest(
@@ -193,18 +196,19 @@ function mapPullRequestReview(
     return [];
   }
 
-  return [
-    {
-      eventName: "github.pull_request_review.submitted",
-      source: "github",
-      params: {
-        repo,
-        pr_number: prNumber,
-        ...reviewFields(payload.review),
-      },
-      dedupeKey: key,
-    },
-  ];
+  return oneEvent(
+    "github.pull_request_review.submitted",
+    { repo, pr_number: prNumber, ...reviewFields(payload.review) },
+    key,
+  );
+}
+
+function checkPullRequests(
+  payload: GitHubPayload,
+): Array<{ number?: number } | null | undefined> {
+  return (
+    payload.check_run?.pull_requests ?? payload.check_suite?.pull_requests ?? []
+  );
 }
 
 function mapCheckCompleted(
@@ -216,12 +220,8 @@ function mapCheckCompleted(
   if (payload.action !== "completed") {
     return [];
   }
-  const prList: Array<{ number?: number } | null | undefined> =
-    payload.check_run?.pull_requests ??
-    payload.check_suite?.pull_requests ??
-    [];
 
-  return prList
+  return checkPullRequests(payload)
     .filter((pr): pr is { number: number } => typeof pr?.number === "number")
     .map((pr) => ({
       eventName: `github.${eventType}.completed`,
@@ -246,18 +246,11 @@ function mapIssueComment(
     return [];
   }
 
-  return [
-    {
-      eventName: "github.issue_comment.created",
-      source: "github",
-      params: {
-        repo,
-        pr_number: prNumber,
-        ...commentParams(payload.comment),
-      },
-      dedupeKey: key,
-    },
-  ];
+  return oneEvent(
+    "github.issue_comment.created",
+    { repo, pr_number: prNumber, ...commentParams(payload.comment) },
+    key,
+  );
 }
 
 function mapReviewComment(
@@ -271,20 +264,17 @@ function mapReviewComment(
     return [];
   }
 
-  return [
+  return oneEvent(
+    "github.pull_request_review_comment.created",
     {
-      eventName: "github.pull_request_review_comment.created",
-      source: "github",
-      params: {
-        repo,
-        pr_number: prNumber,
-        ...commentParams(payload.comment),
-        // Thread root for reply hanging; GitHub replies endpoint keys on it.
-        in_reply_to_id: payload.comment?.in_reply_to_id ?? null,
-      },
-      dedupeKey: key,
+      repo,
+      pr_number: prNumber,
+      ...commentParams(payload.comment),
+      // Thread root for reply hanging; GitHub replies endpoint keys on it.
+      in_reply_to_id: payload.comment?.in_reply_to_id ?? null,
     },
-  ];
+    key,
+  );
 }
 
 function issueSummary(issue: GitHubPayload): {
@@ -318,16 +308,9 @@ function mapIssueLabeled(
     return [];
   }
 
-  return [
-    {
-      eventName: "github.issues.labeled",
-      source: "github",
-      params: {
-        repo,
-        label,
-        issue: issueSummary(issue),
-      },
-      dedupeKey: key,
-    },
-  ];
+  return oneEvent(
+    "github.issues.labeled",
+    { repo, label, issue: issueSummary(issue) },
+    key,
+  );
 }

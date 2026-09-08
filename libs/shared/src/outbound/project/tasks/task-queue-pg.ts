@@ -19,6 +19,42 @@ import type {
 } from "./task-queue-port.js";
 import { PgSpecTaskQueries } from "./task-queue-pg-spec-tasks.js";
 
+/** The INSERT column list and its matching value list, with the always-present three first and the optional columns appended in a stable order. */
+function insertColumnsAndValues(input: InsertTaskInput): {
+  cols: string[];
+  vals: unknown[];
+} {
+  const optional = optionalTaskColumns(input);
+
+  return {
+    cols: [
+      "description",
+      "task_type",
+      "target_repo",
+      ...optional.map(([key]) => key),
+    ],
+    vals: [
+      input.description,
+      input.taskType,
+      input.targetRepo,
+      ...optional.map(([, value]) => value),
+    ],
+  };
+}
+
+/** `key = $n` assignments plus their positional values, numbered from $1 so the caller can bind the id at $n+1. */
+function setClausesFor(columns: Record<string, unknown>): {
+  clauses: string[];
+  params: unknown[];
+} {
+  const entries = Object.entries(columns);
+
+  return {
+    clauses: entries.map(([key], i) => `${key} = $${i + 1}`),
+    params: entries.map(([, value]) => value),
+  };
+}
+
 function optionalTaskColumns(input: InsertTaskInput): [string, unknown][] {
   const candidates: [string, unknown][] = [
     ["status", input.status],
@@ -212,19 +248,7 @@ export class PgTaskQueue implements TaskQueueRepository {
   }
 
   async insertTask(input: InsertTaskInput): Promise<string | null> {
-    const optional = optionalTaskColumns(input);
-    const cols = [
-      "description",
-      "task_type",
-      "target_repo",
-      ...optional.map(([key]) => key),
-    ];
-    const vals: unknown[] = [
-      input.description,
-      input.taskType,
-      input.targetRepo,
-      ...optional.map(([, value]) => value),
-    ];
+    const { cols, vals } = insertColumnsAndValues(input);
     const placeholders = vals.map((_, i) => `$${i + 1}`).join(", ");
     const { rows } = await this.pool.query(
       `INSERT INTO pipeline.tasks (${cols.join(", ")}) VALUES (${placeholders}) ON CONFLICT DO NOTHING RETURNING id`,
@@ -239,23 +263,14 @@ export class PgTaskQueue implements TaskQueueRepository {
     columns: Record<string, unknown>,
   ): Promise<void> {
     enforceSettableTaskColumns(columns);
-    const setClauses: string[] = [];
-    const params: unknown[] = [];
-    let idx = 1;
+    const { clauses, params } = setClausesFor(columns);
 
-    for (const [key, value] of Object.entries(columns)) {
-      setClauses.push(`${key} = $${idx}`);
-      params.push(value);
-      idx++;
-    }
-
-    if (setClauses.length === 0) {
+    if (clauses.length === 0) {
       return;
     }
-    params.push(taskId);
     await this.pool.query(
-      `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idx}`,
-      params,
+      `UPDATE pipeline.tasks SET ${clauses.join(", ")} WHERE id = $${clauses.length + 1}`,
+      [...params, taskId],
     );
   }
 

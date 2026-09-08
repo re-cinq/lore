@@ -233,24 +233,23 @@ export async function findOpenByPr(
   return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
 }
 
+/** null $4 means "every definition" — callers that own only part of the PR lifecycle pass their own family so closing a PR can't close an unrelated line. */
+const FINISH_OPEN_BY_PR_SQL = `UPDATE pipeline.assembly_runs
+        SET status = 'finished', outcome = $1, finished_at = now()
+      WHERE repo = $2
+        AND (args->>'pr_number')::int = $3
+        AND status IN ('queued', 'running')
+        AND ($4::text[] IS NULL OR blueprint_name = ANY($4::text[]))
+    RETURNING id, task_id`;
+
 export async function finishOpenByPr(
   pool: PgPool,
   repo: string,
   prNumber: number,
   closing: { outcome: string; definitions?: readonly string[] },
 ): Promise<ClosedRunRef[]> {
-  // null $4 means "every definition" — callers that own only part of the PR lifecycle pass their own family so closing a PR can't close an unrelated line.
-  const { rows } = await pool.query<{
-    id: string;
-    task_id: string | null;
-  }>(
-    `UPDATE pipeline.assembly_runs
-        SET status = 'finished', outcome = $1, finished_at = now()
-      WHERE repo = $2
-        AND (args->>'pr_number')::int = $3
-        AND status IN ('queued', 'running')
-        AND ($4::text[] IS NULL OR blueprint_name = ANY($4::text[]))
-    RETURNING id, task_id`,
+  const { rows } = await pool.query<{ id: string; task_id: string | null }>(
+    FINISH_OPEN_BY_PR_SQL,
     [
       closing.outcome,
       repo,

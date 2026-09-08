@@ -44,16 +44,29 @@ export async function listComments(
     pull_number: number,
   });
 
-  return comments.map((c) => ({
+  return comments.map(toReviewComment);
+}
+
+/** The `user` parameter is optional here because GitHub returns null for comments from deleted accounts, which octokit's types do not admit. */
+function toReviewComment(c: {
+  id: number;
+  path: string;
+  line?: number | null;
+  original_line?: number | null;
+  body: string;
+  user?: { login?: string } | null;
+  created_at: string;
+  pull_request_review_id?: number | null;
+}): ReviewComment {
+  return {
     id: c.id,
     path: c.path,
     line: c.line ?? c.original_line ?? null,
     body: c.body,
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- octokit types `user` as required, but GitHub returns null for comments from deleted accounts
     user: c.user?.login ?? "unknown",
     created_at: c.created_at,
     review_id: c.pull_request_review_id ?? null,
-  }));
+  };
 }
 
 /** The reviewThreads GraphQL response — only the fields the mapper reads. */
@@ -85,12 +98,7 @@ function pushThreadPage(
   >["reviewThreads"],
 ): void {
   page.nodes.forEach((n) => {
-    // 100+-comment threads are out of scope; warn so a failed databaseId join reads as "past the cap", not "no thread".
-    if (n.comments.pageInfo?.hasNextPage) {
-      console.warn(
-        `[github] review thread ${n.id} on ${repo}#${number} has >100 comments — late comments will not join by databaseId`,
-      );
-    }
+    warnIfThreadTruncated(n, repo, number);
     threads.push({
       id: n.id,
       isResolved: n.isResolved,
@@ -98,6 +106,19 @@ function pushThreadPage(
       comments: n.comments.nodes.map((c) => ({ databaseId: c.databaseId })),
     });
   });
+}
+
+/** 100+-comment threads are out of scope; warn so a failed databaseId join reads as "past the cap", not "no thread". */
+function warnIfThreadTruncated(
+  node: { id: string; comments: { pageInfo?: { hasNextPage: boolean } } },
+  repo: string,
+  number: number,
+): void {
+  if (node.comments.pageInfo?.hasNextPage) {
+    console.warn(
+      `[github] review thread ${node.id} on ${repo}#${number} has >100 comments — late comments will not join by databaseId`,
+    );
+  }
 }
 
 /** Review threads with their comment ids. GraphQL rather than REST because resolution state (`isResolved`, `isOutdated`) is a thread-level fact the REST review-comments endpoint does not report at all. */
@@ -125,17 +146,12 @@ export async function listReviewThreads(
   repo: string,
   number: number,
 ): Promise<ReviewThread[]> {
-  const [owner, name] = split(repo);
   const threads: ReviewThread[] = [];
   let cursor: string | null = null;
   let hasNextPage = true;
 
   while (hasNextPage) {
-    const response: ReviewThreadsResponse = await ok.graphql(
-      REVIEW_THREADS_QUERY,
-      { owner, name, number, cursor },
-    );
-    const page = response.repository?.pullRequest?.reviewThreads;
+    const page = await reviewThreadsPage(ok, repo, number, cursor);
 
     if (!page) {
       break;
@@ -147,6 +163,22 @@ export async function listReviewThreads(
   }
 
   return threads;
+}
+
+/** One page of review threads, or undefined when the PR is gone from the response. */
+async function reviewThreadsPage(
+  ok: Octokit,
+  repo: string,
+  number: number,
+  cursor: string | null,
+) {
+  const [owner, name] = split(repo);
+  const response: ReviewThreadsResponse = await ok.graphql(
+    REVIEW_THREADS_QUERY,
+    { owner, name, number, cursor },
+  );
+
+  return response.repository?.pullRequest?.reviewThreads;
 }
 
 export async function listIssueComments(
@@ -161,18 +193,28 @@ export async function listIssueComments(
     issue_number: number,
   });
 
-  return comments
-    .filter(
-      (c) =>
-        !c.body?.startsWith("PR created:") &&
-        !c.body?.startsWith("Agent ") &&
-        !c.body?.startsWith("Task "),
-    )
-    .map((c) => ({
-      body: c.body ?? "",
-      user: c.user?.login ?? "unknown",
-      created_at: c.created_at,
-    }));
+  return comments.filter(isHumanComment).map(toIssueComment);
+}
+
+/** Lore's own status chatter is not review feedback, so it never reaches the thread a reader sees. */
+function isHumanComment(c: { body?: string }): boolean {
+  return (
+    !c.body?.startsWith("PR created:") &&
+    !c.body?.startsWith("Agent ") &&
+    !c.body?.startsWith("Task ")
+  );
+}
+
+function toIssueComment(c: {
+  body?: string;
+  user?: { login?: string } | null;
+  created_at: string;
+}): IssueComment {
+  return {
+    body: c.body ?? "",
+    user: c.user?.login ?? "unknown",
+    created_at: c.created_at,
+  };
 }
 
 /** All check runs for a ref, paginated once — source for both ciConclusion and the raw listChecks the auto-merge gate reads. */
@@ -196,6 +238,15 @@ export async function checkRuns(
   }));
 }
 
+/** Check-run conclusions that make the whole ref red. */
+const FAILED_CONCLUSIONS = new Set([
+  "failure",
+  "cancelled",
+  "timed_out",
+  "action_required",
+  "stale",
+]);
+
 export async function ciConclusion(
   ok: Octokit,
   repo: string,
@@ -210,17 +261,15 @@ export async function ciConclusion(
   if (runs.some((r) => r.status !== "completed")) {
     return "pending";
   }
-  const failed = new Set([
-    "failure",
-    "cancelled",
-    "timed_out",
-    "action_required",
-    "stale",
-  ]);
 
-  if (runs.some((r) => r.conclusion != null && failed.has(r.conclusion))) {
+  if (runs.some(isFailedRun)) {
     return "failure";
   }
 
   return "success";
+}
+
+/** A completed run whose conclusion makes the ref red; a null conclusion is not a failure. */
+function isFailedRun(run: CheckRun): boolean {
+  return run.conclusion != null && FAILED_CONCLUSIONS.has(run.conclusion);
 }

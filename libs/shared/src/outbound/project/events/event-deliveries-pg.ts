@@ -10,6 +10,38 @@ import type {
 /** Errors are truncated before storage to keep the row bounded. */
 const MAX_ERROR_LEN = 2000;
 
+/** One statement via UNNEST (not a loop): registration happens at boot before draining, so a partial apply would silently under-deliver. */
+const UPSERT_SUBSCRIPTIONS_SQL = `INSERT INTO pipeline.event_subscriptions
+        (subscriber, event_name, visibility_timeout_seconds)
+ SELECT $1, name, COALESCE(timeout, 600)
+   FROM UNNEST($2::text[], $3::int[]) AS t(name, timeout)
+ ON CONFLICT (subscriber, event_name)
+ DO UPDATE SET visibility_timeout_seconds = EXCLUDED.visibility_timeout_seconds`;
+
+/** Boot registration declares the subscriber's whole set — a name absent is a removed handler; left behind it keeps drawing deliveries nobody runs. Scoped to this subscriber only. */
+const PRUNE_SUBSCRIPTIONS_SQL = `DELETE FROM pipeline.event_subscriptions
+  WHERE subscriber = $1
+    AND event_name <> ALL($2::text[])`;
+
+/** Same shape as the queue's claim (FOR UPDATE SKIP LOCKED) so replicas get disjoint batches; join carries the payload since a delivery with no event has nothing to act on. */
+const CLAIM_DELIVERIES_SQL = `UPDATE pipeline.event_deliveries d
+    SET status = 'processing', attempts = d.attempts + 1, claimed_at = now()
+  WHERE d.id IN (
+    SELECT id FROM pipeline.event_deliveries
+     WHERE subscriber = $1
+       AND status IN ('pending', 'failed')
+       AND next_attempt_at <= now()
+       AND event_name <> ALL($3::text[])
+     ORDER BY next_attempt_at, id
+     FOR UPDATE SKIP LOCKED
+     LIMIT $2)
+  RETURNING d.id, d.event_id, d.subscriber, d.event_name, d.status,
+            d.attempts, d.error, d.claimed_at, d.next_attempt_at,
+            d.handled_at, d.visibility_timeout_seconds,
+            (SELECT e.source     FROM pipeline.events e WHERE e.id = d.event_id) AS source,
+            (SELECT e.params     FROM pipeline.events e WHERE e.id = d.event_id) AS params,
+            (SELECT e.repo       FROM pipeline.events e WHERE e.id = d.event_id) AS repo`;
+
 /** Postgres-backed EventDeliveriesPort; insert delegates to the shared insertEvent so the fan-out clause is defined exactly once. */
 export class PgEventDeliveries implements EventDeliveriesPort {
   constructor(private readonly pool: PgPool) {}
@@ -23,28 +55,16 @@ export class PgEventDeliveries implements EventDeliveriesPort {
       return;
     }
 
-    // One statement via UNNEST (not a loop): registration happens at boot before draining, so a partial apply would silently under-deliver.
-    await this.pool.query(
-      `INSERT INTO pipeline.event_subscriptions
-              (subscriber, event_name, visibility_timeout_seconds)
-       SELECT $1, name, COALESCE(timeout, 600)
-         FROM UNNEST($2::text[], $3::int[]) AS t(name, timeout)
-       ON CONFLICT (subscriber, event_name)
-       DO UPDATE SET visibility_timeout_seconds = EXCLUDED.visibility_timeout_seconds`,
-      [
-        subscriber,
-        subscriptions.map((s) => s.eventName),
-        subscriptions.map((s) => s.visibilityTimeoutSeconds ?? null),
-      ],
-    );
+    await this.pool.query(UPSERT_SUBSCRIPTIONS_SQL, [
+      subscriber,
+      subscriptions.map((s) => s.eventName),
+      subscriptions.map((s) => s.visibilityTimeoutSeconds ?? null),
+    ]);
 
-    // Boot registration declares the subscriber's whole set — a name absent is a removed handler; left behind it keeps drawing deliveries nobody runs. Scoped to this subscriber only.
-    await this.pool.query(
-      `DELETE FROM pipeline.event_subscriptions
-        WHERE subscriber = $1
-          AND event_name <> ALL($2::text[])`,
-      [subscriber, subscriptions.map((s) => s.eventName)],
-    );
+    await this.pool.query(PRUNE_SUBSCRIPTIONS_SQL, [
+      subscriber,
+      subscriptions.map((s) => s.eventName),
+    ]);
   }
 
   insert(input: EventInsert): Promise<void> {
@@ -56,25 +76,8 @@ export class PgEventDeliveries implements EventDeliveriesPort {
     limit: number,
     excludeEventNames: string[] = [],
   ): Promise<EventDeliveryRow[]> {
-    // Same shape as the queue's claim (FOR UPDATE SKIP LOCKED) so replicas get disjoint batches; join carries the payload since a delivery with no event has nothing to act on.
     const { rows } = await this.pool.query<EventDeliveryRow>(
-      `UPDATE pipeline.event_deliveries d
-          SET status = 'processing', attempts = d.attempts + 1, claimed_at = now()
-        WHERE d.id IN (
-          SELECT id FROM pipeline.event_deliveries
-           WHERE subscriber = $1
-             AND status IN ('pending', 'failed')
-             AND next_attempt_at <= now()
-             AND event_name <> ALL($3::text[])
-           ORDER BY next_attempt_at, id
-           FOR UPDATE SKIP LOCKED
-           LIMIT $2)
-        RETURNING d.id, d.event_id, d.subscriber, d.event_name, d.status,
-                  d.attempts, d.error, d.claimed_at, d.next_attempt_at,
-                  d.handled_at, d.visibility_timeout_seconds,
-                  (SELECT e.source     FROM pipeline.events e WHERE e.id = d.event_id) AS source,
-                  (SELECT e.params     FROM pipeline.events e WHERE e.id = d.event_id) AS params,
-                  (SELECT e.repo       FROM pipeline.events e WHERE e.id = d.event_id) AS repo`,
+      CLAIM_DELIVERIES_SQL,
       [subscriber, limit, excludeEventNames],
     );
 

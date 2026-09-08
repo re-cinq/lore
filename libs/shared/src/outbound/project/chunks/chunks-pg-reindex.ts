@@ -57,8 +57,18 @@ export async function touchChunksForFiles(
   opts: { repo: string; filePaths: string[]; minAgeDays: number },
 ): Promise<number> {
   enforceSchema(schema);
-  const { rows } = await pool.query(
-    `WITH due AS (
+  const { rows } = await pool.query(touchSql(schema), [
+    opts.repo,
+    opts.filePaths,
+    String(opts.minAgeDays),
+  ]);
+
+  return rows.length;
+}
+
+/** Re-stamps `ingested_at` on the reindex-job chunks of the named files, but only those whose oldest chunk is already older than the age threshold. */
+function touchSql(schema: string): string {
+  return `WITH due AS (
        SELECT file_path
        FROM ${schema}.chunks
        WHERE repo = $1 AND file_path = ANY($2::text[])
@@ -70,11 +80,7 @@ export async function touchChunksForFiles(
      SET ingested_at = NOW()
      WHERE c.repo = $1 AND c.file_path IN (SELECT file_path FROM due)
        AND c.metadata->>'ingested_by' = 'reindex-job'
-     RETURNING c.id`,
-    [opts.repo, opts.filePaths, String(opts.minAgeDays)],
-  );
-
-  return rows.length;
+     RETURNING c.id`;
 }
 
 export async function pruneChunksForFiles(
@@ -107,21 +113,24 @@ ${droppedCte(schema)}
             (SELECT count(*) FROM dropped)::text AS dropped`;
 }
 
-/** Copies each legacy chunk into the team schema, stamping where it came from. The `ingested_by` backfill is only applied to rows that predate that field — a chunk whose ingester IS recorded keeps its own provenance. */
-function movedCte(schema: string): string {
-  return `       INSERT INTO ${schema}.chunks
-         (id, content, embedding, content_type, team, repo, file_path,
-          author, ingested_at, metadata)
-       SELECT o.id, o.content, o.embedding, o.content_type, $2, o.repo,
-         o.file_path, o.author, o.ingested_at,
-         coalesce(o.metadata, '{}'::jsonb)
+/** The provenance stamp a relocated chunk carries. The `ingested_by` backfill is only applied to rows that predate that field — a chunk whose ingester IS recorded keeps its own provenance. */
+const MIGRATED_METADATA_SQL = `coalesce(o.metadata, '{}'::jsonb)
            || jsonb_build_object('migrated_from', 'org_shared')
            || CASE
                 WHEN o.metadata->>'ingested_by' IS NULL
                   AND o.content_type IN ('doc', 'code', 'adr', 'spec')
                 THEN '{"ingested_by": "reindex-job"}'::jsonb
                 ELSE '{}'::jsonb
-              END
+              END`;
+
+/** Copies each legacy chunk into the team schema, stamping where it came from. */
+function movedCte(schema: string): string {
+  return `       INSERT INTO ${schema}.chunks
+         (id, content, embedding, content_type, team, repo, file_path,
+          author, ingested_at, metadata)
+       SELECT o.id, o.content, o.embedding, o.content_type, $2, o.repo,
+         o.file_path, o.author, o.ingested_at,
+         ${MIGRATED_METADATA_SQL}
        FROM org_shared.chunks o
        WHERE o.repo = $1
          AND NOT EXISTS (

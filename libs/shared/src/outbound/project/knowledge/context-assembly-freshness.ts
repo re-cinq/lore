@@ -22,38 +22,37 @@ export interface FreshnessInfo {
   warning: string;
 }
 
+const FIRST_RUN_WARNING = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`lore_onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`lore_ingest_files\` to manually add specific files\n> 3. Call \`lore_search_memory\` to check if others have left learnings\n\n`;
+
+const NEVER_INGESTED_WARNING = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`;
+
 function freshnessForRepo(
   row: { last_ingested_at: string | Date | null } | undefined,
   now: Date,
 ): FreshnessInfo {
   if (!row) {
-    return {
-      state: "first-run",
-      warning: `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`lore_onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`lore_ingest_files\` to manually add specific files\n> 3. Call \`lore_search_memory\` to check if others have left learnings\n\n`,
-    };
+    return { state: "first-run", warning: FIRST_RUN_WARNING };
   }
   const lastIngestedAt = row.last_ingested_at;
   const state = computeFreshness(lastIngestedAt, now);
 
   if (state === "never-ingested") {
-    return {
-      state,
-      warning: `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`,
-    };
+    return { state, warning: NEVER_INGESTED_WARNING };
   }
 
   if (state === "stale" && lastIngestedAt) {
-    const days = Math.floor(
-      (now.getTime() - new Date(lastIngestedAt).getTime()) / 86400000,
-    );
-
-    return {
-      state,
-      warning: `> ⚠ **Context may be stale** — last ingested ${days} days ago.\n\n`,
-    };
+    return { state, warning: staleWarning(lastIngestedAt, now) };
   }
 
   return { state, warning: "" };
+}
+
+function staleWarning(lastIngestedAt: string | Date, now: Date): string {
+  const days = Math.floor(
+    (now.getTime() - new Date(lastIngestedAt).getTime()) / 86400000,
+  );
+
+  return `> ⚠ **Context may be stale** — last ingested ${days} days ago.\n\n`;
 }
 
 export async function resolveFreshness(

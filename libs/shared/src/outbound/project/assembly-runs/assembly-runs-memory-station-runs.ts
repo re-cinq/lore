@@ -39,6 +39,66 @@ function strandNode(node: SeedAssemblyLineNode, now: Date): void {
     "the run finished while this visit was still open — the visit never reported an outcome";
 }
 
+/** The columns a fresh node row starts empty: it has been created, not run. */
+function emptyNodeOutcome(startedAt: Date) {
+  return {
+    clusterAgentId: null,
+    claimedAt: null,
+    outcome: null,
+    failureClass: null,
+    failureDetail: null,
+    commitSha: null,
+    startedAt,
+    finishedAt: null,
+  };
+}
+
+function newNodeRow(
+  id: string,
+  input: StationRunStartInput,
+  startedAt: Date,
+): SeedAssemblyLineNode {
+  return {
+    id,
+    stationRunId: randomUUID(),
+    assemblyRunId: input.assemblyRunId,
+    nodeId: input.nodeId,
+    iteration: input.iteration,
+    agentCrName: input.agentCrName ?? null,
+    input: input.input ?? null,
+    status: input.status ?? "running",
+    requiredTags: input.requiredTags ?? [],
+    ...emptyNodeOutcome(startedAt),
+  };
+}
+
+/** The same visit: one node row is identified by its run, node and iteration — the double's stand-in for the Pg unique key. */
+function isSameVisit(
+  node: SeedAssemblyLineNode,
+  input: StationRunStartInput,
+): boolean {
+  return (
+    node.assemblyRunId === input.assemblyRunId &&
+    node.nodeId === input.nodeId &&
+    node.iteration === input.iteration
+  );
+}
+
+function toClaimed(
+  node: SeedAssemblyLineNode,
+  dispatchSpec: unknown,
+): ClaimedStationRun {
+  return {
+    nodeRowId: node.id,
+    stationRunId: node.stationRunId,
+    assemblyRunId: node.assemblyRunId,
+    nodeId: node.nodeId,
+    iteration: node.iteration,
+    agentCrName: node.agentCrName,
+    dispatchSpec,
+  };
+}
+
 /** In-memory station-run (node-level) rows for one InMemoryAssemblyRuns instance — the "which pod ran which node, claimed by which cluster" half of the double, split out from the assembly-run (line-level) half. */
 export class StationRunStore {
   readonly nodes: SeedAssemblyLineNode[] = [];
@@ -84,25 +144,7 @@ export class StationRunStore {
     if (input.dispatchSpec !== undefined) {
       this.dispatchSpecs.set(id, input.dispatchSpec);
     }
-    this.nodes.push({
-      id,
-      stationRunId: randomUUID(),
-      assemblyRunId: input.assemblyRunId,
-      nodeId: input.nodeId,
-      iteration: input.iteration,
-      agentCrName: input.agentCrName ?? null,
-      input: input.input ?? null,
-      status: input.status ?? "running",
-      clusterAgentId: null,
-      requiredTags: input.requiredTags ?? [],
-      claimedAt: null,
-      outcome: null,
-      failureClass: null,
-      failureDetail: null,
-      commitSha: null,
-      startedAt: this.clock(),
-      finishedAt: null,
-    });
+    this.nodes.push(newNodeRow(id, input, this.clock()));
 
     return id;
   }
@@ -126,14 +168,9 @@ export class StationRunStore {
   async ensureStationRun(
     input: StationRunStartInput,
   ): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
-    const existing = this.nodes.find(
-      (n) =>
-        n.assemblyRunId === input.assemblyRunId &&
-        n.nodeId === input.nodeId &&
-        n.iteration === input.iteration,
-    );
-
     // Converged duplicate returns the existing station run id — minting a fresh one would give the same pod two names.
+    const existing = this.nodes.find((n) => isSameVisit(n, input));
+
     if (existing) {
       return {
         nodeRowId: existing.id,
@@ -161,17 +198,22 @@ export class StationRunStore {
     }
   }
 
-  async claimNextStationRun(claimant: {
-    clusterAgentId: string;
-    tags: string[];
-  }): Promise<ClaimedStationRun | null> {
-    const next = this.nodes.find(
+  /** The first row a cluster agent with these tags may take: queued, unfinished, armed with a dispatch spec, and tag-compatible. */
+  private nextClaimable(tags: string[]): SeedAssemblyLineNode | undefined {
+    return this.nodes.find(
       (n) =>
         n.status === "queued" &&
         n.outcome === null &&
         this.dispatchSpecs.has(n.id) &&
-        (n.requiredTags ?? []).every((tag) => claimant.tags.includes(tag)),
+        (n.requiredTags ?? []).every((tag) => tags.includes(tag)),
     );
+  }
+
+  async claimNextStationRun(claimant: {
+    clusterAgentId: string;
+    tags: string[];
+  }): Promise<ClaimedStationRun | null> {
+    const next = this.nextClaimable(claimant.tags);
 
     if (!next) {
       return null;
@@ -180,15 +222,7 @@ export class StationRunStore {
     next.clusterAgentId = claimant.clusterAgentId;
     next.claimedAt = this.clock();
 
-    return {
-      nodeRowId: next.id,
-      stationRunId: next.stationRunId,
-      assemblyRunId: next.assemblyRunId,
-      nodeId: next.nodeId,
-      iteration: next.iteration,
-      agentCrName: next.agentCrName,
-      dispatchSpec: this.dispatchSpecs.get(next.id) ?? null,
-    };
+    return toClaimed(next, this.dispatchSpecs.get(next.id) ?? null);
   }
 
   async requeueStationRun(nodeRowId: string): Promise<boolean> {

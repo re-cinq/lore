@@ -13,6 +13,54 @@ import {
   type FeaturePatch,
 } from "./features-port.js";
 
+/** The identity and content columns the caller's input decides. */
+function featureContent(input: CreateFeatureInput, slug: string) {
+  return {
+    id: randomUUID(),
+    title: input.title,
+    slug,
+    path: `specs/${slug}`,
+    original_prompt: input.prompt,
+    status: "draft" as const,
+    created_by: input.createdBy ?? "ui",
+  };
+}
+
+/** The columns a fresh draft leaves at the Pg INSERT's own defaults. */
+function featureDefaults() {
+  return {
+    current_iteration: 0,
+    draft_spec_md: null,
+    spec_path: null,
+    spec_pr_url: null,
+    spec_pr_number: null,
+    issue_number: null,
+    issue_url: null,
+  };
+}
+
+/** A fresh `running` iteration row. */
+function newIteration(args: {
+  featureId: string;
+  iteration: number;
+  userAnswers: unknown;
+  parentIteration: number | null;
+  now: string;
+}): FeatureIteration {
+  return {
+    id: randomUUID(),
+    feature_id: args.featureId,
+    iteration: args.iteration,
+    task_id: null,
+    status: "running",
+    user_answers: args.userAnswers ?? null,
+    gap_result: null,
+    parent_iteration: args.parentIteration,
+    created_at: args.now,
+    updated_at: args.now,
+  };
+}
+
 /** In-memory {@link FeaturesPort}: behavioral spec of the Pg adapter; JSONB values stored as their post-round-trip parsed form. `clock` is injectable for deterministic updated_at ordering in tests. */
 export class InMemoryFeatures implements FeaturesPort {
   readonly rows: Feature[] = [];
@@ -25,25 +73,12 @@ export class InMemoryFeatures implements FeaturesPort {
     input: CreateFeatureInput,
     parentFeatureId: string | null,
   ): Feature {
-    const slug = slugifyFeatureTitle(input.title);
     const now = this.clock().toISOString();
     const feature: Feature = {
-      id: randomUUID(),
+      ...featureContent(input, slugifyFeatureTitle(input.title)),
+      ...featureDefaults(),
       repo,
-      title: input.title,
-      slug,
-      path: `specs/${slug}`,
-      original_prompt: input.prompt,
-      status: "draft",
-      current_iteration: 0,
-      draft_spec_md: null,
       parent_feature_id: parentFeatureId,
-      spec_path: null,
-      spec_pr_url: null,
-      spec_pr_number: null,
-      issue_number: null,
-      issue_url: null,
-      created_by: input.createdBy ?? "ui",
       created_at: now,
       updated_at: now,
     };
@@ -94,22 +129,13 @@ export class InMemoryFeatures implements FeaturesPort {
 
     // Mirrors the Pg adapter's unguarded dereference of the UPDATE's returned row — a missing feature throws there too.
     enforceTrue(feature, Error, "appendIteration: feature not found");
-    feature.current_iteration += 1;
-    feature.status = "planning";
-    feature.updated_at = this.clock().toISOString();
-    const now = this.clock().toISOString();
-    const iteration: FeatureIteration = {
-      id: randomUUID(),
-      feature_id: id,
-      iteration: feature.current_iteration,
-      task_id: null,
-      status: "running",
-      user_answers: userAnswers ?? null,
-      gap_result: null,
-      parent_iteration: parentIteration,
-      created_at: now,
-      updated_at: now,
-    };
+    const iteration = newIteration({
+      featureId: id,
+      iteration: this.bumpIteration(feature),
+      userAnswers,
+      parentIteration,
+      now: this.clock().toISOString(),
+    });
 
     this.iterations.push(iteration);
 
@@ -189,6 +215,15 @@ export class InMemoryFeatures implements FeaturesPort {
     }
 
     return true;
+  }
+
+  /** Claims the next iteration number and puts the feature back into `planning`, as the Pg adapter's counter UPDATE does. */
+  private bumpIteration(feature: Feature): number {
+    feature.current_iteration += 1;
+    feature.status = "planning";
+    feature.updated_at = this.clock().toISOString();
+
+    return feature.current_iteration;
   }
 
   private find(repo: string, id: string): Feature | undefined {

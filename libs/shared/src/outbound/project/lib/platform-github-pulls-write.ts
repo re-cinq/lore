@@ -57,13 +57,23 @@ export async function createReview(
     pull_number: number,
     body: input.body,
     event: input.event,
-    comments: input.comments.map((c) => ({
-      path: c.path,
-      line: c.line,
-      ...(c.side ? { side: c.side } : {}),
-      body: c.body,
-    })),
+    comments: input.comments.map(toReviewComment),
   });
+}
+
+/** One inline review comment in the shape createReview takes; side is omitted while absent. */
+function toReviewComment(c: CreateReviewInput["comments"][number]): {
+  path: string;
+  line: number;
+  side?: string;
+  body: string;
+} {
+  return {
+    path: c.path,
+    line: c.line,
+    ...(c.side ? { side: c.side } : {}),
+    body: c.body,
+  };
 }
 
 export async function replyToReviewComment(
@@ -121,10 +131,7 @@ export async function open(
   branch: string,
   { title, body, base, labels = ["agent-generated"], draft = false }: PullDraft,
 ): Promise<PullRef> {
-  const [owner, name] = split(repo);
-  const { data: created } = await ok.rest.pulls.create({
-    owner,
-    repo: name,
+  const created = await createPull(ok, repo, {
     title,
     body,
     head: branch,
@@ -132,16 +139,51 @@ export async function open(
     draft,
   });
 
-  if (labels.length > 0) {
-    await ok.rest.issues.addLabels({
-      owner,
-      repo: name,
-      issue_number: created.number,
-      labels,
-    });
-  }
+  await applyLabels(ok, repo, created.number, labels);
 
   return toPullRef(repo, created);
+}
+
+/** The raw pulls.create call, so `open` reads as create-then-label. */
+async function createPull(
+  ok: Octokit,
+  repo: string,
+  fields: {
+    title: string;
+    body: string;
+    head: string;
+    base: string;
+    draft: boolean;
+  },
+) {
+  const [owner, name] = split(repo);
+  const { data: created } = await ok.rest.pulls.create({
+    owner,
+    repo: name,
+    ...fields,
+  });
+
+  return created;
+}
+
+/** Labels a freshly opened PR; an empty list is a no-op rather than an empty call. */
+async function applyLabels(
+  ok: Octokit,
+  repo: string,
+  number: number,
+  labels: string[],
+): Promise<void> {
+  if (labels.length === 0) {
+    return;
+  }
+  const [owner, name] = split(repo);
+
+  await ok.rest.issues.addLabels({
+    owner,
+    repo: name,
+    issue_number: number,
+    labels,
+  });
 }
 
 export async function update(
@@ -166,21 +208,7 @@ export async function markReady(
   repo: string,
   number: number,
 ): Promise<void> {
-  const [owner, name] = split(repo);
-
-  // Read first: mutation needs the PR's NODE id (PullRef lacks it) and GitHub errors on an already-ready PR — treat "already ready" as success, not an error.
-  const current = (await ok.graphql(
-    `query ($owner: String!, $name: String!, $number: Int!) {
-      repository(owner: $owner, name: $name) {
-        pullRequest(number: $number) { id isDraft }
-      }
-    }`,
-    { owner, name, number },
-  )) as {
-    repository?: { pullRequest?: { id: string; isDraft: boolean } | null };
-  };
-
-  const pr = current.repository?.pullRequest;
+  const pr = await pullRequestNode(ok, repo, number);
 
   if (!pr?.isDraft) {
     return;
@@ -194,6 +222,27 @@ export async function markReady(
     }`,
     { pullRequestId: pr.id },
   );
+}
+
+/** Read first: the mutation needs the PR's NODE id (PullRef lacks it) and GitHub errors on an already-ready PR — treat "already ready" as success, not an error. */
+async function pullRequestNode(
+  ok: Octokit,
+  repo: string,
+  number: number,
+): Promise<{ id: string; isDraft: boolean } | null | undefined> {
+  const [owner, name] = split(repo);
+  const current = (await ok.graphql(
+    `query ($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) { id isDraft }
+      }
+    }`,
+    { owner, name, number },
+  )) as {
+    repository?: { pullRequest?: { id: string; isDraft: boolean } | null };
+  };
+
+  return current.repository?.pullRequest;
 }
 
 export async function resolveReviewThread(

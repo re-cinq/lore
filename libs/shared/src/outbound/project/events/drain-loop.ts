@@ -99,12 +99,36 @@ function groupByFamily(events: EventRow[]): Map<string, EventRow[]> {
   return byFamily;
 }
 
-/** One serial family's events, strictly in order, with the family slot held for the duration. The slot is released on a deadline as well as on completion: a handler that never returns would otherwise keep its whole family unclaimable forever, and the reaper's retry is a better outcome than a permanently stalled queue. */
+/** A rejection here means the mark-op itself failed (e.g. DB down mid-drain); surface it rather than letting it vanish. */
+const logTransitionFailure = (ev: EventRow) => (reason: unknown) =>
+  console.error(
+    `[events] drain: transition failed for ${ev.event_name} (${ev.id}):`,
+    reason,
+  );
+
+/** One serial event, racing its handler against the slot-release deadline: a handler that never returns would otherwise keep its whole family unclaimable forever, and the reaper's retry is a better outcome than a permanently stalled queue. */
+async function handleSerial(
+  ev: EventRow,
+  deps: LoopDeps,
+  deadlineMs: number,
+): Promise<void> {
+  const outcome = await Promise.race([
+    handleOne(ev, deps).catch(logTransitionFailure(ev)),
+    releaseAfter(deadlineMs),
+  ]);
+
+  if (outcome === "deadline") {
+    console.error(
+      `[events] serial handler for ${ev.event_name} (${ev.id}) exceeded ${deadlineMs}ms — releasing the family slot to its reaped retry`,
+    );
+  }
+}
+
+/** One serial family's events, strictly in order, with the family slot held for the duration. */
 async function drainFamily(
   family: string,
   events: EventRow[],
   deps: LoopDeps,
-  logTransitionFailure: (ev: EventRow) => (reason: unknown) => void,
 ): Promise<void> {
   const deadlineMs = deps.serialDeadlineMs ?? SERIAL_DEADLINE_MS;
 
@@ -112,16 +136,7 @@ async function drainFamily(
 
   try {
     for (const ev of events) {
-      const outcome = await Promise.race([
-        handleOne(ev, deps).catch(logTransitionFailure(ev)),
-        releaseAfter(deadlineMs),
-      ]);
-
-      if (outcome === "deadline") {
-        console.error(
-          `[events] serial handler for ${ev.event_name} (${ev.id}) exceeded ${deadlineMs}ms — releasing the family slot to its reaped retry`,
-        );
-      }
+      await handleSerial(ev, deps, deadlineMs);
     }
   } finally {
     busyFamilies.delete(family);
@@ -135,14 +150,6 @@ export async function drainOnce(deps: LoopDeps): Promise<number> {
   if (batch.length === 0) {
     return 0;
   }
-
-  // A rejection here means the mark-op itself failed (e.g. DB down mid-drain); surface it rather than letting it vanish.
-  const logTransitionFailure = (ev: EventRow) => (reason: unknown) =>
-    console.error(
-      `[events] drain: transition failed for ${ev.event_name} (${ev.id}):`,
-      reason,
-    );
-
   const parallel = batch
     .filter((ev) => !serialFamilies.has(ev.event_name))
     .map((ev) => handleOne(ev, deps).catch(logTransitionFailure(ev)));
@@ -151,7 +158,7 @@ export async function drainOnce(deps: LoopDeps): Promise<number> {
     batch.filter((ev) => serialFamilies.has(ev.event_name)),
   );
   const serial = [...serialByFamily.entries()].map(([family, events]) =>
-    drainFamily(family, events, deps, logTransitionFailure),
+    drainFamily(family, events, deps),
   );
 
   await Promise.all([...parallel, ...serial]);

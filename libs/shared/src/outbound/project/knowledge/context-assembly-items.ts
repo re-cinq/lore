@@ -95,41 +95,59 @@ function fitOne(source: SourceItem, limit: number): SourceItem {
   return { ...source, text, tokens: estimateTokens(text) };
 }
 
+interface PackState {
+  kept: SourceItem[];
+  used: number;
+  truncated: boolean;
+}
+
+interface PackBudget {
+  budgetTokens: number;
+  maxPerDocTokens?: number;
+}
+
+/** Pack one source into `state`; false when the budget is spent and packing must stop. */
+function packItem(
+  state: PackState,
+  source: SourceItem,
+  { budgetTokens, maxPerDocTokens }: PackBudget,
+): boolean {
+  const remaining = budgetTokens - state.used;
+
+  if (remaining <= 0) {
+    state.truncated = true;
+
+    return false;
+  }
+  const limit = Math.min(remaining, maxPerDocTokens ?? Infinity);
+  const fitted = fitOne(source, limit);
+
+  state.kept.push(fitted);
+  state.used += fitted.tokens;
+
+  if (fitted !== source) {
+    state.truncated = true;
+  }
+
+  // Stop only when the BUDGET was the binding limit; a per-doc cap leaves room to keep packing.
+  return fitted === source || limit < remaining;
+}
+
 /** Pack sources into a token budget: keep whole sources, truncate the overflow source, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
 export function fitItemsToBudget(
   sources: SourceItem[],
   budgetTokens: number,
   maxPerDocTokens?: number,
 ): { kept: SourceItem[]; truncated: boolean } {
-  const kept: SourceItem[] = [];
-  let used = 0;
-  let truncated = false;
+  const state: PackState = { kept: [], used: 0, truncated: false };
 
-  for (const it of sources) {
-    const remaining = budgetTokens - used;
-
-    if (remaining <= 0) {
-      truncated = true;
-      break;
-    }
-    const limit = Math.min(remaining, maxPerDocTokens ?? Infinity);
-    const fitted = fitOne(it, limit);
-
-    kept.push(fitted);
-    used += fitted.tokens;
-
-    if (fitted === it) {
-      continue;
-    }
-    truncated = true;
-
-    // Stop only when the BUDGET was the binding limit; a per-doc cap leaves room to keep packing.
-    if (limit >= remaining) {
+  for (const source of sources) {
+    if (!packItem(state, source, { budgetTokens, maxPerDocTokens })) {
       break;
     }
   }
 
-  return { kept, truncated };
+  return { kept: state.kept, truncated: state.truncated };
 }
 
 // Common words dropped from the keyword leg so a paragraph-length query matches on its distinctive terms, not filler.

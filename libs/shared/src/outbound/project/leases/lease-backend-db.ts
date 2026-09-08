@@ -1,3 +1,4 @@
+import type { Span } from "@opentelemetry/api";
 import {
   DEFAULT_TTL_SEC,
   leaseSpan,
@@ -40,8 +41,41 @@ const ACQUIRE_SQL = `WITH prev AS (
              WHERE pipeline.task_leases.expires_at < now()
            RETURNING (SELECT prev_holder FROM prev) AS previous_holder`;
 
+const REFRESH_SQL = `UPDATE pipeline.task_leases
+              SET expires_at = now() + ($2::int || ' seconds')::interval,
+                  phase      = COALESCE($3, phase)
+            WHERE branch_name = $1 AND holder = $4`;
+
+/** The arguments a refresh needs, grouped so the private worker stays inside the parameter budget. */
+type RefreshArgs = {
+  branchName: string;
+  holder: string;
+  ttlSec: number;
+  phase?: string;
+};
+
 export class DbLeaseBackend implements LeaseBackend {
   constructor(private readonly pool: LeasePool) {}
+
+  /** The rejected branch of an acquire: read back who holds the branch so the caller learns why it lost. */
+  private async rejectedAcquire(
+    branchName: string,
+    span: Span,
+  ): Promise<AcquireResult> {
+    const cur = await this.pool.query<{ holder: string }>(
+      `SELECT holder FROM pipeline.task_leases WHERE branch_name = $1`,
+      [branchName],
+    );
+    const currentHolder = currentHolderOf(cur.rows);
+
+    span.setAttribute("outcome", "rejected");
+
+    if (currentHolder) {
+      span.setAttribute("current_holder", currentHolder);
+    }
+
+    return { acquired: false, currentHolder };
+  }
 
   async acquire(
     branchName: string,
@@ -57,25 +91,25 @@ export class DbLeaseBackend implements LeaseBackend {
           previous_holder: string | null;
         }>(ACQUIRE_SQL, [branchName, taskId, holder, ttlSec]);
 
-        if (hadEffect(result)) {
-          return acquiredResult(span, previousHolderOf(result.rows));
-        }
-
-        const cur = await this.pool.query<{ holder: string }>(
-          `SELECT holder FROM pipeline.task_leases WHERE branch_name = $1`,
-          [branchName],
-        );
-        const currentHolder = currentHolderOf(cur.rows);
-
-        span.setAttribute("outcome", "rejected");
-
-        if (currentHolder) {
-          span.setAttribute("current_holder", currentHolder);
-        }
-
-        return { acquired: false, currentHolder };
+        return hadEffect(result)
+          ? acquiredResult(span, previousHolderOf(result.rows))
+          : await this.rejectedAcquire(branchName, span);
       },
     );
+  }
+
+  private async refreshLease(span: Span, args: RefreshArgs): Promise<boolean> {
+    const result = await this.pool.query(REFRESH_SQL, [
+      args.branchName,
+      args.ttlSec,
+      args.phase ?? null,
+      args.holder,
+    ]);
+    const refreshed = hadEffect(result);
+
+    span.setAttribute("outcome", refreshed ? "refreshed" : "not_held");
+
+    return refreshed;
   }
 
   async refresh(
@@ -87,20 +121,8 @@ export class DbLeaseBackend implements LeaseBackend {
     return await leaseSpan(
       "refresh",
       { backend: "db", branchName, holder, ttlSec, phase },
-      async (span) => {
-        const result = await this.pool.query(
-          `UPDATE pipeline.task_leases
-              SET expires_at = now() + ($2::int || ' seconds')::interval,
-                  phase      = COALESCE($3, phase)
-            WHERE branch_name = $1 AND holder = $4`,
-          [branchName, ttlSec, phase ?? null, holder],
-        );
-        const refreshed = (result.rowCount ?? 0) > 0;
-
-        span.setAttribute("outcome", refreshed ? "refreshed" : "not_held");
-
-        return refreshed;
-      },
+      async (span) =>
+        await this.refreshLease(span, { branchName, holder, ttlSec, phase }),
     );
   }
 

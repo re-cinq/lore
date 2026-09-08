@@ -4,8 +4,10 @@ import { RUN_START_EVENT } from "./run-events.js";
 import type { RunGraph } from "../../../domain/run-graph.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
+  AssemblyRunRecord,
   AssemblyRunResumeFrom,
   AssemblyRunStartInput,
+  StationRunRecord,
 } from "./assembly-runs-port.js";
 import { isUniqueViolation } from "./assembly-runs-pg-rows.js";
 import { findOpenBySubject, getById } from "./assembly-runs-pg-queries.js";
@@ -13,8 +15,7 @@ import { listStationRuns } from "./assembly-runs-pg-station-runs.js";
 
 /** The plain-start write: row + `assembly_line.start` event in ONE CTE. */
 /** The run row and its start event in ONE statement. Both or neither: a run inserted without its event is queued with nothing to claim it, and an event without its run points at a row that does not exist. The fan-out CTE creates the delivery rows in the same breath, because fan-out reads the subscription set at INSERT time — a second statement would race a subscriber registering between them. */
-function startRunSql(): string {
-  return `WITH al AS (
+const START_RUN_SQL = `WITH al AS (
        INSERT INTO pipeline.assembly_runs (blueprint_name, task_id, repo, branch, subject_key, args)
        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
        RETURNING id
@@ -37,13 +38,12 @@ function startRunSql(): string {
        ${fanOutClause("ev")}
      )
      SELECT id FROM al`;
-}
 
 async function insertStart(
   pool: PgPool,
   input: AssemblyRunStartInput,
 ): Promise<string> {
-  const { rows } = await pool.query(startRunSql(), [
+  const { rows } = await pool.query(START_RUN_SQL, [
     input.blueprintName,
     input.taskId ?? null,
     input.repo,
@@ -94,6 +94,42 @@ const RESUME_START_SQL = `WITH al AS (
      )
      SELECT id FROM al`;
 
+/** The run's own columns ($1-$6): what the fork declares, over what it inherits from the source. */
+function forkedRunParams(
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord,
+): unknown[] {
+  return [
+    input.blueprintName,
+    source.taskId,
+    input.repo,
+    source.branch,
+    JSON.stringify(input.args ?? source.args),
+    source.blueprintHash,
+  ];
+}
+
+/** Where the fork came from ($7-$10). The copy bounds on `n.id <= cutoff` because node-row ids are monotone in walk order. */
+function forkOriginParams(
+  resumeFrom: AssemblyRunResumeFrom,
+  prefix: StationRunRecord[],
+): unknown[] {
+  const cutoffNodeRowId = prefix[prefix.length - 1].id;
+
+  return [resumeFrom.lineId, resumeFrom.nodeId, cutoffNodeRowId, prefix.length];
+}
+
+/** What the fork takes over from the source ($11-$12): its graph, since it replays the source's rows, and its subject key (legal only from a terminal run, so the key is free). */
+function forkInheritedParams(
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord,
+): unknown[] {
+  return [
+    source.graph ? JSON.stringify(source.graph) : null,
+    input.subjectKey ?? source.subjectKey ?? null,
+  ];
+}
+
 async function startResumed(
   pool: PgPool,
   input: AssemblyRunStartInput,
@@ -104,23 +140,10 @@ async function startResumed(
     await getById(pool, resumeFrom.lineId),
     await listStationRuns(pool, resumeFrom.lineId),
   );
-  // Copy bounds on n.id <= cutoff (node-row ids are monotone in walk order); failure_class/detail/agent_cr_name dropped since they describe the finished attempt, not inherited history (replay would otherwise fail the fork on an inherited permanent-failure visit).
-  const cutoffNodeRowId = prefix[prefix.length - 1].id;
   const { rows } = await pool.query(RESUME_START_SQL, [
-    input.blueprintName,
-    source.taskId,
-    input.repo,
-    source.branch,
-    JSON.stringify(input.args ?? source.args),
-    source.blueprintHash,
-    resumeFrom.lineId,
-    resumeFrom.nodeId,
-    cutoffNodeRowId,
-    prefix.length,
-    // A fork replays its source's rows, so it walks the same graph.
-    source.graph ? JSON.stringify(source.graph) : null,
-    // Fork takes over source's subject (legal only from a terminal run, so the key is free); `?? null` since a bound param needs a value, not undefined.
-    input.subjectKey ?? source.subjectKey ?? null,
+    ...forkedRunParams(input, source),
+    ...forkOriginParams(resumeFrom, prefix),
+    ...forkInheritedParams(input, source),
     resumeFrom.iteration ?? null,
   ]);
 

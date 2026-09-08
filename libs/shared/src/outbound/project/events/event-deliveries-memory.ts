@@ -19,6 +19,73 @@ interface StoredEvent {
   captured_at: string;
 }
 
+/** The untouched half of every freshly fanned-out delivery. */
+const UNATTEMPTED = {
+  status: "pending",
+  attempts: 0,
+  error: null,
+  claimed_at: null,
+  handled_at: null,
+} as const;
+
+/** A pending delivery of one event to one subscriber, due immediately at capture time. */
+function newDelivery(
+  id: string,
+  event: StoredEvent,
+  subscriber: string,
+  visibilityTimeoutSeconds: number,
+): EventDeliveryRow {
+  return {
+    ...UNATTEMPTED,
+    id,
+    subscriber,
+    event_id: event.id,
+    event_name: event.event_name,
+    source: event.source,
+    params: event.params,
+    repo: event.repo,
+    next_attempt_at: event.captured_at,
+    visibility_timeout_seconds: visibilityTimeoutSeconds,
+  };
+}
+
+/** The store's claim order: earliest due first, ties broken by insertion id. */
+function byDueThenId(a: EventDeliveryRow, b: EventDeliveryRow): number {
+  if (a.next_attempt_at === b.next_attempt_at) {
+    return Number(a.id) - Number(b.id);
+  }
+
+  return a.next_attempt_at < b.next_attempt_at ? -1 : 1;
+}
+
+/** Claim window: one subscriber's due, unheld, unfinished deliveries. */
+interface ClaimWindow {
+  subscriber: string;
+  now: number;
+  held: Set<string>;
+  limit: number;
+}
+
+function isRunnable(d: EventDeliveryRow, window: ClaimWindow): boolean {
+  return (
+    d.subscriber === window.subscriber &&
+    !window.held.has(d.event_name) &&
+    (d.status === "pending" || d.status === "failed") &&
+    Date.parse(d.next_attempt_at) <= window.now
+  );
+}
+
+/** Due deliveries for one subscriber in claim order, capped at the limit. */
+function runnableDeliveries(
+  deliveries: readonly EventDeliveryRow[],
+  window: ClaimWindow,
+): EventDeliveryRow[] {
+  return deliveries
+    .filter((d) => isRunnable(d, window))
+    .sort(byDueThenId)
+    .slice(0, window.limit);
+}
+
 /** In-memory EventDeliveriesPort — behavioural spec of the Pg adapter over two arrays; now is injectable for deterministic backoff/visibility windows. Fan-out happens inside insert, same as the SQL clause. */
 export class InMemoryEventDeliveries implements EventDeliveriesPort {
   private eventSeq = 0;
@@ -88,22 +155,9 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
         continue;
       }
       created++;
-      this.deliveries.push({
-        id: String(++this.deliverySeq),
-        event_id: event.id,
-        subscriber,
-        event_name: event.event_name,
-        source: event.source,
-        params: event.params,
-        repo: event.repo,
-        status: "pending",
-        attempts: 0,
-        error: null,
-        claimed_at: null,
-        next_attempt_at: event.captured_at,
-        handled_at: null,
-        visibility_timeout_seconds: timeout,
-      });
+      this.deliveries.push(
+        newDelivery(String(++this.deliverySeq), event, subscriber, timeout),
+      );
     }
 
     return created;
@@ -123,23 +177,12 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
     excludeEventNames: string[] = [],
   ): Promise<EventDeliveryRow[]> {
     const now = this.now();
-    const held = new Set(excludeEventNames);
-    const runnable = this.deliveries
-      .filter(
-        (d) =>
-          d.subscriber === subscriber &&
-          !held.has(d.event_name) &&
-          (d.status === "pending" || d.status === "failed") &&
-          Date.parse(d.next_attempt_at) <= now,
-      )
-      .sort((a, b) => {
-        if (a.next_attempt_at === b.next_attempt_at) {
-          return Number(a.id) - Number(b.id);
-        }
-
-        return a.next_attempt_at < b.next_attempt_at ? -1 : 1;
-      })
-      .slice(0, limit);
+    const runnable = runnableDeliveries(this.deliveries, {
+      subscriber,
+      now,
+      held: new Set(excludeEventNames),
+      limit,
+    });
 
     for (const d of runnable) {
       d.status = "processing";

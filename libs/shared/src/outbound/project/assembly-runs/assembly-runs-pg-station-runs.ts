@@ -33,22 +33,30 @@ function ensureParams(input: StationRunStartInput): unknown[] {
   ];
 }
 
-export async function ensureStationRun(
-  pool: PgPool,
+/** The upsert names one visit, so anything but one row back means the ON CONFLICT target no longer identifies it. */
+function enforceSingleUpsertRow(
+  rows: unknown[],
   input: StationRunStartInput,
-): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
-  const { rows } = await pool.query(ENSURE_SQL, ensureParams(input));
-
+): void {
   enforceTrue(
     rows.length === 1,
     Error,
     `ensureStationRun: expected exactly one row for (${input.assemblyRunId}, ${input.nodeId}, ${input.iteration}), got ${rows.length}`,
   );
-  const row = rows[0] as {
+}
+
+export async function ensureStationRun(
+  pool: PgPool,
+  input: StationRunStartInput,
+): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
+  const { rows } = await pool.query<{
     id: number | string;
     station_run_id: string;
     created: boolean;
-  };
+  }>(ENSURE_SQL, ensureParams(input));
+
+  enforceSingleUpsertRow(rows, input);
+  const row = rows[0];
 
   return {
     nodeRowId: String(row.id),

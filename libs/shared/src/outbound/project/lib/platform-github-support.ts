@@ -8,20 +8,20 @@ export function split(repo: string): [string, string] {
   return [owner, name];
 }
 
-export function toPullRef(
-  repo: string,
-  pr: {
-    number: number;
-    title: string;
-    head: { ref: string; sha?: string };
-    state: string;
-    merged_at?: string | null;
-    html_url: string;
-    labels?: Array<{ name: string }>;
-    user?: { login?: string } | null;
-    draft?: boolean;
-  },
-): PullRef {
+/** The octokit pull-request payload fields `toPullRef` reads. */
+interface OctokitPull {
+  number: number;
+  title: string;
+  head: { ref: string; sha?: string };
+  state: string;
+  merged_at?: string | null;
+  html_url: string;
+  labels?: Array<{ name: string }>;
+  user?: { login?: string } | null;
+  draft?: boolean;
+}
+
+export function toPullRef(repo: string, pr: OctokitPull): PullRef {
   return {
     repo,
     number: pr.number,

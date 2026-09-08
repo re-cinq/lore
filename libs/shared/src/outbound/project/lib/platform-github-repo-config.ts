@@ -37,24 +37,42 @@ export async function upsertCheckRun(
 ): Promise<void> {
   const [owner, name] = split(repo);
   const existing = await findCheckRun(ok, { owner, name }, input);
-  const fields = checkRunFields(input);
 
   if (existing) {
-    await ok.rest.checks.update({
-      owner,
-      repo: name,
-      check_run_id: existing.id,
-      ...fields,
-    });
+    await updateCheckRun(ok, { owner, name }, existing.id, input);
 
     return;
   }
+  await createCheckRun(ok, { owner, name }, input);
+}
+
+/** Rewrites the check run this commit already carries, leaving its identity (sha + name) alone. */
+async function updateCheckRun(
+  ok: Octokit,
+  { owner, name }: { owner: string; name: string },
+  checkRunId: number,
+  input: CheckRunInput,
+): Promise<void> {
+  await ok.rest.checks.update({
+    owner,
+    repo: name,
+    check_run_id: checkRunId,
+    ...checkRunFields(input),
+  });
+}
+
+/** Files the first check run for this sha under this name. */
+async function createCheckRun(
+  ok: Octokit,
+  { owner, name }: { owner: string; name: string },
+  input: CheckRunInput,
+): Promise<void> {
   await ok.rest.checks.create({
     owner,
     repo: name,
     name: input.name,
     head_sha: input.headSha,
-    ...fields,
+    ...checkRunFields(input),
   });
 }
 
@@ -65,21 +83,12 @@ export async function setRepoVariable(
   value: string,
 ): Promise<void> {
   const [owner, repoName] = split(repo);
+  const variable = { owner, repo: repoName, name, value };
 
   try {
-    await ok.rest.actions.updateRepoVariable({
-      owner,
-      repo: repoName,
-      name,
-      value,
-    });
+    await ok.rest.actions.updateRepoVariable(variable);
   } catch {
-    await ok.rest.actions.createRepoVariable({
-      owner,
-      repo: repoName,
-      name,
-      value,
-    });
+    await ok.rest.actions.createRepoVariable(variable);
   }
 }
 
