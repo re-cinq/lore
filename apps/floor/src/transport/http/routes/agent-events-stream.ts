@@ -260,7 +260,9 @@ export function agentEventsStreamRoute(deps?: StreamRouteDeps): ServerRoute {
       );
       const run = startRunEventStream(stream, assemblyLineId, after, deps);
 
-      request.raw.req.on("close", run.teardown);
+      const { req } = request.raw;
+
+      req.on("close", run.teardown);
 
       return (
         h

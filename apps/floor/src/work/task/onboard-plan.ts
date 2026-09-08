@@ -51,20 +51,22 @@ async function testInterfaceScaffold(
     return [];
   }
 
-  return check.files
-    .filter((scaffoldPath) => !existingFiles.has(scaffoldPath))
-    .map((scaffoldPath) => ({
-      path: scaffoldPath,
-      prompt:
-        scaffoldPath === ".github/workflows/lore-tests.yml"
-          ? LORE_TESTS_INSTRUCTION
-          : TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
-    }));
+  const missing = check.files.filter(
+    (scaffoldPath) => !existingFiles.has(scaffoldPath),
+  );
+
+  return missing.map((scaffoldPath) => ({
+    path: scaffoldPath,
+    prompt:
+      scaffoldPath === ".github/workflows/lore-tests.yml"
+        ? LORE_TESTS_INSTRUCTION
+        : TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
+  }));
 }
 
 /** The starter ADR set, numbered from 1, for a repo with no decision record yet. */
 function starterAdrs(): { path: string; prompt: string }[] {
-  const today = new Date().toISOString().split("T")[0];
+  const [today] = new Date().toISOString().split("T");
 
   return ADR_TOPICS.map((adr, index) => {
     const adrNum = index + 1;
@@ -87,7 +89,7 @@ export async function planOnboardFiles(
 
   for (const f of ONBOARD_FILES) {
     const present =
-      existingFiles.has(f.path) || existingFiles.has(f.path.split("/").pop()!);
+      existingFiles.has(f.path) || existingFiles.has(basename(f.path));
 
     if (present) {
       console.log(`[floor] Onboard: skipping ${f.path} (already exists)`);
@@ -107,4 +109,11 @@ export async function planOnboardFiles(
   toGenerate.push(...starterAdrs());
 
   return toGenerate;
+}
+
+/** Last path segment; a repo that keeps a standard file at its root still counts as having it. */
+function basename(path: string): string {
+  const segments = path.split("/");
+
+  return segments[segments.length - 1];
 }

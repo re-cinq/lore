@@ -19,6 +19,11 @@ export function isMemoryDbAvailable(): boolean {
   return pool !== null;
 }
 
+// The one row a RETURNING/lookup query is expected to have produced; keeps callers off `result.rows[0].col`.
+export function firstRow<T>(result: { rows: T[] }): T {
+  return result.rows[0];
+}
+
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface WriteResult {

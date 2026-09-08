@@ -45,11 +45,13 @@ function decideHumanWait(input: NodeRecoveryInput): NodeRecovery | null {
 
 /** A `queued` row has no CR/claimant to interrogate; past the queue wait it fails terminally naming its tags. */
 function decideQueuedOutcome(input: NodeRecoveryInput): NodeRecovery | null {
-  if (input.node.status !== "queued") {
+  const { node } = input;
+
+  if (node.status !== "queued") {
     return null;
   }
 
-  return input.nowMs - input.node.startedAt.getTime() > input.queueWaitMs
+  return input.nowMs - node.startedAt.getTime() > input.queueWaitMs
     ? { kind: "queue-timeout" }
     : { kind: "wait" };
 }

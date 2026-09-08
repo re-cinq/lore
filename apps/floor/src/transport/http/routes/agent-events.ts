@@ -76,7 +76,8 @@ async function recordPlanningResults(
           (line) => line.status === "running" || line.status === "queued",
         );
         // Newest first: `listForTask` orders created_at DESC so index 0 is this round's run — the last element would read the OLDEST open run's iteration.
-        const round = open[0]?.args?.iteration;
+        const newest = open.at(0);
+        const round = newest?.args.iteration;
 
         return typeof round === "number" ? round : undefined;
       },
@@ -235,7 +236,9 @@ export function agentEventsRoute(deps: AgentEventsRouteDeps = {}): ServerRoute {
       // A throw here becomes a 500 via hapi, and the request-tracing extension records the exception on the request span — no per-handler try/catch.
       const ingested = await ingestAgentSink(rawBody(request));
 
-      request.app.span?.setAttributes(ingested.attributes);
+      const { span } = request.app;
+
+      span?.setAttributes(ingested.attributes);
 
       return h
         .response({

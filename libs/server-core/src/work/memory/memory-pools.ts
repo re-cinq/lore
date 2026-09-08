@@ -2,6 +2,7 @@ import type { PgPool } from "@re-cinq/lore-shared";
 import { resolveAgentId } from "@re-cinq/lore-shared";
 import {
   getMemoryPool,
+  firstRow,
   runInTransaction,
   toEmbeddingParam,
   auditLog,
@@ -22,7 +23,7 @@ async function getOrCreateSharedPoolId(
   );
 
   if (found.rows.length > 0) {
-    return found.rows[0].id as string;
+    return firstRow(found).id as string;
   }
 
   const created = await tx.query(
@@ -30,7 +31,7 @@ async function getOrCreateSharedPoolId(
     [poolName, agent],
   );
 
-  return created.rows[0].id as string;
+  return firstRow(created).id as string;
 }
 
 // Same atomicity contract as writeMemory (#1154): pool lookup/create, memories insert, and version insert land in one transaction when the pool provides connect(); a query-only pool stays sequential.
@@ -46,13 +47,14 @@ async function insertSharedMemory(
     `INSERT INTO memory.memories (agent_id, key, value, embedding, version, pool_id) VALUES ($1, $2, $3, $4, 1, $5) RETURNING id, created_at`,
     [agent, key, value, embeddingParam, poolId],
   );
+  const inserted = firstRow(result);
 
   await tx.query(
     `INSERT INTO memory.memory_versions (memory_id, version, value, embedding) VALUES ($1, 1, $2, $3)`,
-    [result.rows[0].id, value, embeddingParam],
+    [inserted.id, value, embeddingParam],
   );
 
-  return result.rows[0].created_at as string;
+  return inserted.created_at as string;
 }
 
 export async function sharedWrite(
@@ -114,7 +116,7 @@ export async function sharedRead(poolName: string, key?: string) {
   if (poolResult.rows.length === 0) {
     return key ? null : [];
   }
-  const poolId = poolResult.rows[0].id;
+  const poolId = firstRow(poolResult).id;
 
   return key
     ? readPoolKey(pool, poolId as string, key)

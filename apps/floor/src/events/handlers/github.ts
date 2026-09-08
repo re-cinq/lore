@@ -225,8 +225,10 @@ export const specPrMerge: EventHandler = async (params) => {
     return;
   }
 
+  const { taskQueue } = pipeline();
+
   // already synced
-  if (await pipeline().taskQueue.hasSpecTasksForSlug(repo, specSlug)) {
+  if (await taskQueue.hasSpecTasksForSlug(repo, specSlug)) {
     return;
   }
 
@@ -236,8 +238,8 @@ export const specPrMerge: EventHandler = async (params) => {
     return;
   }
 
-  await pipeline()
-    .taskQueue.markFeatureRequestMergedOnBranch(repo, branch)
+  await taskQueue
+    .markFeatureRequestMergedOnBranch(repo, branch)
     .catch(() => {});
   console.log(
     `[events] spec PR merged: ${repo}/${specSlug} → spec-tasks (group ${taskGroupId})`,

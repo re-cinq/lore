@@ -24,20 +24,25 @@ function signalRank(s: TraceStatement): number {
   return 3;
 }
 
+function includesCaseless(text: string, lowerNeedle: string): boolean {
+  return text.toLowerCase().includes(lowerNeedle);
+}
+
 // Worst first: sorted by SIGNAL then ordinal, so a violated statement outranks a merely untested one wherever it sits in the document.
 function attentionSection(doc: TraceDocument): string[] {
-  const flagged = doc.statements
-    .filter((s) => signalRank(s) < 3)
-    .sort((a, b) => signalRank(a) - signalRank(b) || a.ordinal - b.ordinal);
+  const flagged = doc.statements.filter((s) => signalRank(s) < 3);
 
   if (flagged.length === 0) {
     return ["", "No violated, drifted, or untested statements."];
   }
+  const worstFirst = [...flagged].sort(
+    (a, b) => signalRank(a) - signalRank(b) || a.ordinal - b.ordinal,
+  );
 
   return [
     "",
     "Needs attention:",
-    ...flagged.map((s) => `- [${attentionTag(s)}] #${s.ordinal} ${s.text}`),
+    ...worstFirst.map((s) => `- [${attentionTag(s)}] #${s.ordinal} ${s.text}`),
   ];
 }
 
@@ -129,7 +134,7 @@ function selectStatements(
   }
   const needle = selector.trim().toLowerCase();
 
-  return doc.statements.filter((s) => s.text.toLowerCase().includes(needle));
+  return doc.statements.filter((s) => includesCaseless(s.text, needle));
 }
 
 export function formatTraceQuery(

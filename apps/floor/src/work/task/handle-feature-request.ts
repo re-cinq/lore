@@ -217,9 +217,10 @@ async function specFormatExample(targetRepo: string): Promise<string> {
   try {
     // Through the chunks port, not a hand-rolled second copy of its schema-resolution SELECT — that duplication used to silently swallow errors inside a catch, costing every feature-request its format example.
     const specs = await chunks().specChunks(targetRepo);
+    const firstSpec = specs.at(0);
 
-    return specs.length > 0
-      ? `\n\n## Existing Spec Example (match this format)\n\n${specs[0].content.substring(0, 3000)}`
+    return firstSpec
+      ? `\n\n## Existing Spec Example (match this format)\n\n${firstSpec.content.substring(0, 3000)}`
       : "";
   } catch {
     /* no specs in DB yet, that's fine */
@@ -254,7 +255,9 @@ async function commitOneSpec(
 
     return false;
   }
-  await ctx.project.repo.commitFile(
+  const { repo } = ctx.project;
+
+  await repo.commitFile(
     ctx.branchName,
     file.path,
     text,

@@ -7,12 +7,19 @@ import { isFeatureLifecycleType } from "./task-lifecycle-type.js";
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
 
+// The one reader of the CR's label map; both accessors below go through it.
+function labelOf(agent: AgentCr, label: string): string | undefined {
+  const { labels } = agent.metadata ?? {};
+
+  return labels?.[label];
+}
+
 /** The task id / type from the Agent's labels (set by AgentCrBackend). */
 export function taskIdOf(agent: AgentCr): string | undefined {
-  return agent.metadata?.labels?.[TASK_ID_LABEL];
+  return labelOf(agent, TASK_ID_LABEL);
 }
 export function taskTypeOf(agent: AgentCr): string | undefined {
-  return agent.metadata?.labels?.[TASK_TYPE_LABEL];
+  return labelOf(agent, TASK_TYPE_LABEL);
 }
 
 export type ReviewResult = "approved" | "changes_requested";

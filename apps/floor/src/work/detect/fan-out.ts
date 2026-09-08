@@ -153,7 +153,9 @@ async function startUnderJobRun(
       args: { job_run_id: jobRunId },
     });
   } catch (err) {
-    await deps.jobRuns
+    const { jobRuns } = deps;
+
+    await jobRuns
       .fail(jobRunId, `assembly_line.start failed: ${(err as Error).message}`)
       .catch(() => {});
     throw err;
@@ -172,7 +174,9 @@ async function joinedAnotherTick(
     return false;
   }
 
-  await deps.jobRuns
+  const { jobRuns } = deps;
+
+  await jobRuns
     .fail(jobRunId, `superseded — ${repo} is already running as ${id}`)
     .catch(() => {});
   console.log(

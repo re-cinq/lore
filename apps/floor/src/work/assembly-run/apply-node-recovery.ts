@@ -160,8 +160,9 @@ async function requeueOffline(
   ctx: ReapContext,
 ): Promise<ReapOutcome> {
   const { row, openNode } = found;
+  const { assemblyRuns } = ctx.deps;
 
-  await ctx.deps.assemblyRuns.requeueStationRun(openNode.id);
+  await assemblyRuns.requeueStationRun(openNode.id);
   await ctx.deps.audit?.({
     event_type: "cluster_agent_offline",
     payload: {
@@ -223,8 +224,9 @@ async function requeueUnstarted(
   ctx: ReapContext,
 ): Promise<ReapOutcome> {
   const { row, openNode } = found;
+  const { assemblyRuns } = ctx.deps;
 
-  await ctx.deps.assemblyRuns.requeueStationRun(openNode.id);
+  await assemblyRuns.requeueStationRun(openNode.id);
   console.warn(
     `[assembly-run-reaper] requeued node ${openNode.nodeId} of ${row.id} — its claim produced no CR within the startup grace`,
   );

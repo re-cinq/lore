@@ -4,6 +4,7 @@ import type { PgPool } from "@re-cinq/lore-shared";
 import { resolveAgentId } from "@re-cinq/lore-shared";
 import {
   getMemoryPool,
+  firstRow,
   toEmbeddingParam,
   runInTransaction,
   auditLog,
@@ -115,7 +116,7 @@ async function insertFirst(
      RETURNING id, created_at`,
     [agent, key, value, embeddingParam, ttlSeconds, ttlSeconds, repo || null],
   );
-  const memoryId = result.rows[0].id as string;
+  const memoryId = firstRow(result).id as string;
 
   await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
 
@@ -151,12 +152,12 @@ async function findLiveRow(
     [lookup.value, scope.key],
   );
 
-  return existing.rows.length === 0
-    ? null
-    : {
-        id: existing.rows[0].id as string,
-        version: existing.rows[0].version as number,
-      };
+  if (existing.rows.length === 0) {
+    return null;
+  }
+  const row = firstRow(existing);
+
+  return { id: row.id as string, version: row.version as number };
 }
 
 // A memories row is never written without its version record (#1154).
@@ -185,7 +186,7 @@ async function readCreatedAt(memoryId: string): Promise<string> {
     [memoryId],
   );
 
-  return row.rows[0].created_at as string;
+  return firstRow(row).created_at as string;
 }
 
 export async function writeMemory(
@@ -270,7 +271,7 @@ async function countScoped(
     countParams,
   );
 
-  return countResult.rows[0].total as number;
+  return firstRow(countResult).total as number;
 }
 
 export async function listMemories(

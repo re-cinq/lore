@@ -53,7 +53,8 @@ export function buildCopyPrompt(input: ArtifactCopyInput): string {
 
 /** Deterministic, non-templated copy used when the LLM is unavailable. */
 export function fallbackCopy(input: ArtifactCopyInput): ArtifactCopy {
-  const firstLine = (input.description || input.taskType).split("\n")[0].trim();
+  const [rawFirstLine] = (input.description || input.taskType).split("\n");
+  const firstLine = rawFirstLine.trim();
   const title =
     firstLine.length > 70 ? firstLine.slice(0, 69) + "…" : firstLine;
   const filesNote = input.changedFiles

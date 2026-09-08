@@ -73,14 +73,18 @@ function isInactive(record: MemoryRecord): boolean {
   return record.is_deleted || isExpired(record);
 }
 
+function includesCaseless(text: string, lowerQuery: string): boolean {
+  return text.toLowerCase().includes(lowerQuery);
+}
+
 function matchesQuery(
   key: string,
   record: MemoryRecord,
   lowerQuery: string,
 ): boolean {
   return (
-    key.toLowerCase().includes(lowerQuery) ||
-    record.value.toLowerCase().includes(lowerQuery)
+    includesCaseless(key, lowerQuery) ||
+    includesCaseless(record.value, lowerQuery)
   );
 }
 

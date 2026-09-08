@@ -109,7 +109,8 @@ async function reapGraphNodes(
   graph: NonNullable<Awaited<ReturnType<typeof resolveRunGraph>>>,
   ctx: ReapContext,
 ): Promise<ReapOutcome> {
-  const nodes = await ctx.deps.assemblyRuns.listStationRuns(row.id);
+  const { assemblyRuns } = ctx.deps;
+  const nodes = await assemblyRuns.listStationRuns(row.id);
   const openNode = nodes.find((n) => n.outcome === null);
 
   if (!openNode) {
