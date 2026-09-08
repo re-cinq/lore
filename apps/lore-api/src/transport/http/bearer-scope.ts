@@ -3,7 +3,13 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 import Boom from "@hapi/boom";
 import { apiError } from "./api-error.js";
-import type { Server, ServerAuthScheme, RouteOptions } from "@hapi/hapi";
+import type {
+  Server,
+  ServerAuthScheme,
+  RouteOptions,
+  Request,
+  ResponseToolkit,
+} from "@hapi/hapi";
 import type { Pool } from "pg";
 import { resolveTokenScopes, type TokenScope } from "./auth.js";
 
@@ -20,39 +26,52 @@ export function bearerScope(
 const denied = (statusCode: 401 | 403, error: string): Boom.Boom =>
   apiError(statusCode)(error);
 
+// hapi types the header as string | string[]; only the first value can carry the credential.
+function bearerOf(request: Request): string | undefined {
+  const authHeader = request.headers.authorization;
+
+  return (Array.isArray(authHeader) ? authHeader[0] : authHeader)?.replace(
+    "Bearer ",
+    "",
+  );
+}
+
+// A route that stamps no scope via `bearerScope` accepts any valid token; `admin` satisfies every scope.
+function enforceRouteScope(request: Request, scopes: TokenScope[]): void {
+  const routeConfig = request.route.settings.plugins as Record<
+    string,
+    { scope?: TokenScope } | undefined
+  >;
+  const required = routeConfig[STRATEGY]?.scope;
+
+  enforceTrue(
+    !(required && !scopes.includes("admin") && !scopes.includes(required)),
+    (message) => denied(403, message),
+    "insufficient scope",
+  );
+}
+
+async function authenticateBearer(
+  request: Request,
+  h: ResponseToolkit,
+  pool: Pool | null,
+) {
+  const bearer = bearerOf(request);
+
+  enforceTrue(bearer, (message) => denied(401, message), "unauthorized");
+
+  const scopes = await resolveTokenScopes(pool, bearer);
+
+  enforceTrue(scopes, (message) => denied(403, message), "insufficient scope");
+  enforceRouteScope(request, scopes);
+
+  return h.authenticated({ credentials: { scope: scopes } });
+}
+
 const scheme =
   (getPool: () => Pool | null): ServerAuthScheme =>
   () => ({
-    authenticate: async (request, h) => {
-      const authHeader = request.headers.authorization;
-      const bearer = (
-        Array.isArray(authHeader) ? authHeader[0] : authHeader
-      )?.replace("Bearer ", "");
-
-      enforceTrue(bearer, (message) => denied(401, message), "unauthorized");
-
-      const scopes = await resolveTokenScopes(getPool(), bearer);
-
-      enforceTrue(
-        scopes,
-        (message) => denied(403, message),
-        "insufficient scope",
-      );
-
-      const routeConfig = request.route.settings.plugins as Record<
-        string,
-        { scope?: TokenScope } | undefined
-      >;
-      const required = routeConfig[STRATEGY]?.scope;
-
-      enforceTrue(
-        !(required && !scopes.includes("admin") && !scopes.includes(required)),
-        (message) => denied(403, message),
-        "insufficient scope",
-      );
-
-      return h.authenticated({ credentials: { scope: scopes } });
-    },
+    authenticate: (request, h) => authenticateBearer(request, h, getPool()),
   });
 
 export function registerBearerScope(

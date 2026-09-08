@@ -59,31 +59,40 @@ interface IngestedFileTarget {
   contentType: string;
 }
 
-/** Inserts one chunk and returns its id. Metadata is stamped at insert so a chunk carries where it came from without a join — the search path reads it on every hit. */
+/** Metadata is stamped at insert so a chunk carries where it came from without a join — the search path reads it on every hit. */
+function chunkInsertValues(
+  schema: string,
+  target: IngestedFileTarget,
+  chunk: Awaited<ReturnType<typeof chunkFile>>[number],
+): unknown[] {
+  const metadata = buildIngestedChunkMetadata(chunk, {
+    filePath: target.filePath,
+    ingestedBy: "api",
+    commit: target.commit,
+  });
+
+  return [
+    chunk.content,
+    target.contentType,
+    schema,
+    target.repo,
+    target.filePath,
+    JSON.stringify(metadata),
+  ];
+}
+
+/** Inserts one chunk and returns its id. */
 async function insertChunk(
   pool: Pool,
   schema: string,
   target: IngestedFileTarget,
   chunk: Awaited<ReturnType<typeof chunkFile>>[number],
 ): Promise<string | undefined> {
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<{ id: string }>(
     `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id`,
-    [
-      chunk.content,
-      target.contentType,
-      schema,
-      target.repo,
-      target.filePath,
-      JSON.stringify(
-        buildIngestedChunkMetadata(chunk, {
-          filePath: target.filePath,
-          ingestedBy: "api",
-          commit: target.commit,
-        }),
-      ),
-    ],
+    chunkInsertValues(schema, target, chunk),
   );
 
   return rows[0]?.id;
@@ -176,40 +185,35 @@ async function replaceChunks(
   };
 }
 
-/** What a resolved file becomes. A 404 is a DELETION rather than a failure — the file was ingested once and is gone now, so its chunks go with it — while an unreadable or unclassifiable path is SKIPPED, because neither is a fault in this repo's content. */
+/** Neither an unreadable path nor an unclassifiable one is a fault in this repo's content, so both are skipped rather than reported as errors. */
+function skippedResult(filePath: string, error: string): IngestResult {
+  return { file: filePath, status: "skipped", error };
+}
+
+/** What a resolved file becomes. A 404 is a DELETION rather than a failure — the file was ingested once and is gone now, so its chunks go with it. */
 async function ingestResolved(
   ctx: IngestOneFileContext,
   filePath: string,
   resolved: { content: string | null; missing404: boolean },
 ): Promise<IngestResult> {
+  const { content } = resolved;
+
   if (resolved.missing404) {
     await deleteChunks(ctx, filePath);
 
     return { file: filePath, status: "deleted" };
   }
 
-  if (!resolved.content) {
-    return {
-      file: filePath,
-      status: "skipped",
-      error: "not a file (directory?)",
-    };
+  if (!content) {
+    return skippedResult(filePath, "not a file (directory?)");
   }
   const contentType = classifyFile(filePath);
 
   if (!contentType) {
-    return {
-      file: filePath,
-      status: "skipped",
-      error: "unsupported file type",
-    };
+    return skippedResult(filePath, "unsupported file type");
   }
 
-  return replaceChunks(ctx, {
-    filePath,
-    content: resolved.content,
-    contentType,
-  });
+  return replaceChunks(ctx, { filePath, content, contentType });
 }
 
 async function ingestOneFile(
@@ -235,29 +239,22 @@ async function ingestOneFile(
   }
 }
 
-function tallyIngestResults(results: IngestResult[]): {
+export interface IngestCounts {
   ingested: number;
   deleted: number;
   errors: number;
-} {
-  return results.reduce(
-    (counts, result) => {
-      if (result.status === "ingested") {
-        counts.ingested++;
-      }
+}
 
-      if (result.status === "deleted") {
-        counts.deleted++;
-      }
+/** "skipped" is deliberately uncounted — it is neither work done nor a fault worth reporting. */
+function tallyIngestResults(results: IngestResult[]): IngestCounts {
+  const count = (status: IngestResult["status"]) =>
+    results.filter((result) => result.status === status).length;
 
-      if (result.status === "error") {
-        counts.errors++;
-      }
-
-      return counts;
-    },
-    { ingested: 0, deleted: 0, errors: 0 },
-  );
+  return {
+    ingested: count("ingested"),
+    deleted: count("deleted"),
+    errors: count("error"),
+  };
 }
 
 /** Ingests each file IN ORDER rather than in parallel: they share one schema and one GitHub context, and a burst of concurrent embedding calls is what the 429 backoff exists to avoid. Each file's own failure is already contained by `ingestOneFile`. */
@@ -274,18 +271,29 @@ async function ingestEach(
   return results;
 }
 
+export interface IngestFilesSummary extends IngestCounts {
+  schema: string;
+  results: IngestResult[];
+}
+
+/** Goes to stderr rather than stdout: ingestion runs under CLI entry points whose stdout is a machine-read payload. */
+function logIngestSummary(
+  repo: string,
+  commit: string,
+  schema: string,
+  counts: IngestCounts,
+): void {
+  console.error(
+    `[ingest] ${repo}@${commit.slice(0, 7)}: ${counts.ingested} ingested, ${counts.deleted} deleted, ${counts.errors} errors (schema: ${schema})`,
+  );
+}
+
 export async function ingestFiles(
   pool: Pool,
   files: IngestFile[],
   repo: string,
   commit: string,
-): Promise<{
-  ingested: number;
-  deleted: number;
-  errors: number;
-  schema: string;
-  results: IngestResult[];
-}> {
+): Promise<IngestFilesSummary> {
   const schema = await resolveSchema(pool, repo);
 
   enforceTrue(SCHEMA_RE.test(schema), Error, `Invalid schema name: ${schema}`);
@@ -299,9 +307,7 @@ export async function ingestFiles(
   });
   const counts = tallyIngestResults(results);
 
-  console.error(
-    `[ingest] ${repo}@${commit.slice(0, 7)}: ${counts.ingested} ingested, ${counts.deleted} deleted, ${counts.errors} errors (schema: ${schema})`,
-  );
+  logIngestSummary(repo, commit, schema, counts);
 
   return { ...counts, schema, results };
 }

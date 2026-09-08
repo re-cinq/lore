@@ -10,6 +10,7 @@ import {
   ONBOARD_IN_FLIGHT_TASK_SQL,
   ONBOARD_REPO_STATE_SQL,
   type OnboardBlock,
+  type OnboardDecision,
   type OnboardRepoRow,
   type OnboardState,
   type OnboardTaskRow,
@@ -32,32 +33,38 @@ export interface InstallationRepo {
   name: string;
 }
 
+const INSTALLATION_PAGE_SIZE = 100;
+
+/** GitHub omits the owner login on some installation entries, so the full name is the fallback source for it. */
+async function fetchInstallationPage(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  page: number,
+): Promise<InstallationRepo[]> {
+  const listed = await octokit.rest.apps.listReposAccessibleToInstallation({
+    per_page: INSTALLATION_PAGE_SIZE,
+    page,
+  });
+
+  return listed.data.repositories.map((repo) => ({
+    full_name: repo.full_name,
+    owner: repo.owner.login || repo.full_name.split("/")[0],
+    name: repo.name,
+  }));
+}
+
 /** Lists all repositories the GitHub App installation has access to. */
 export async function getInstallationRepos(): Promise<InstallationRepo[]> {
   const octokit = await getOctokit();
   const repos: InstallationRepo[] = [];
-  let page = 1;
-  const perPage = 100;
 
-  for (;;) {
-    const { data: installed } =
-      await octokit.rest.apps.listReposAccessibleToInstallation({
-        per_page: perPage,
-        page,
-      });
+  for (let page = 1; ; page++) {
+    const batch = await fetchInstallationPage(octokit, page);
 
-    repos.push(
-      ...installed.repositories.map((repo) => ({
-        full_name: repo.full_name,
-        owner: repo.owner.login || repo.full_name.split("/")[0],
-        name: repo.name,
-      })),
-    );
+    repos.push(...batch);
 
-    if (installed.repositories.length < perPage) {
+    if (batch.length < INSTALLATION_PAGE_SIZE) {
       break;
     }
-    page++;
   }
 
   return repos;
@@ -74,13 +81,22 @@ export interface RepoWithCounts extends Repo {
 /** Returns all repos from lore.repos. */
 export async function getOnboardedRepos(pool: Pool): Promise<Repo[]> {
   const { rows } = await pool.query<Record<string, unknown>>(
-    `SELECT ${selectList(REPO_COLUMNS)}
-     FROM lore.repos
-     ORDER BY onboarded_at DESC`,
+    `SELECT ${selectList(REPO_COLUMNS)} FROM lore.repos ORDER BY onboarded_at DESC`,
   );
 
   return rows.map((row) => fromRow<Repo>(REPO_COLUMNS, row));
 }
+
+const TASK_COUNTS_SQL = `SELECT target_repo, COUNT(*) AS task_count,
+        COUNT(DISTINCT agent_id) FILTER (WHERE status = 'running') AS active_agents
+ FROM pipeline.tasks GROUP BY target_repo`;
+
+const REPOS_WITH_COUNTS_SQL = `SELECT ${selectList(REPO_COLUMNS, "r")},
+        COALESCE(tc.task_count, 0)::int AS task_count,
+        COALESCE(tc.active_agents, 0)::int AS active_agents
+ FROM lore.repos r
+ LEFT JOIN (${TASK_COUNTS_SQL}) tc ON tc.target_repo = r.full_name
+ ORDER BY r.onboarded_at DESC LIMIT $1 OFFSET $2`;
 
 /** Returns a page of repos with pipeline task counts plus the unpaged total. */
 export async function getOnboardedReposWithCounts(
@@ -89,21 +105,10 @@ export async function getOnboardedReposWithCounts(
   offset = 0,
 ): Promise<{ repos: RepoWithCounts[]; total: number }> {
   const { rows } = await pool.query<Record<string, unknown>>(
-    `SELECT ${selectList(REPO_COLUMNS, "r")},
-            COALESCE(tc.task_count, 0)::int AS task_count,
-            COALESCE(tc.active_agents, 0)::int AS active_agents
-     FROM lore.repos r
-     LEFT JOIN (
-       SELECT target_repo, COUNT(*) AS task_count,
-              COUNT(DISTINCT agent_id) FILTER (WHERE status = 'running') AS active_agents
-       FROM pipeline.tasks
-       GROUP BY target_repo
-     ) tc ON tc.target_repo = r.full_name
-     ORDER BY r.onboarded_at DESC
-     LIMIT $1 OFFSET $2`,
+    REPOS_WITH_COUNTS_SQL,
     [limit, offset],
   );
-  const { rows: countRows } = await pool.query(
+  const { rows: countRows } = await pool.query<{ total: number }>(
     `SELECT count(*)::int as total FROM lore.repos`,
   );
 
@@ -168,7 +173,6 @@ async function readOnboardState(
 /** What the guarded transaction produced: the two ids, or the refusal. */
 type OnboardWrite = { repoId: string; taskId: string } | OnboardBlockedResult;
 
-/** Runs both writes (repos upsert + task) on ONE connection + transaction, holding per-repo advisory lock to avoid deadlocks and ensure atomicity. */
 interface RepoIdentity {
   fullName: string;
   owner: string;
@@ -181,10 +185,8 @@ async function insertRepoAndTask(
   { fullName, owner, name }: RepoIdentity,
 ): Promise<OnboardWrite> {
   const { rows } = await client.query<{ id: string }>(
-    `INSERT INTO lore.repos (owner, name, full_name)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now()
-       RETURNING id`,
+    `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3)
+       ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now() RETURNING id`,
     [owner, name, fullName],
   );
   const task = await createPipelineTask(client, {
@@ -198,33 +200,45 @@ async function insertRepoAndTask(
   return { repoId: rows[0].id, taskId: task.task_id };
 }
 
+/** The advisory lock is taken INSIDE the transaction so it releases with it — two concurrent submissions for one repo must not both read a clear state. */
+async function beginAndDecide(
+  client: PoolClient,
+  fullName: string,
+  options: { reonboard?: boolean },
+): Promise<OnboardDecision> {
+  await client.query("BEGIN");
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+    onboardLockKey(fullName),
+  ]);
+  const state = await readOnboardState(client, fullName);
+
+  return decideOnboard(fullName, state, options);
+}
+
+/** The transaction is already open when a refusal lands, so the rollback belongs with the message that explains it. */
+async function refuseOnboard(
+  client: PoolClient,
+  fullName: string,
+  decision: Extract<OnboardDecision, { allowed: false }>,
+): Promise<OnboardBlockedResult> {
+  const { block, message, taskId } = decision;
+
+  await client.query("ROLLBACK");
+  console.log(`[onboard] Refused ${fullName} (${block}): ${message}`);
+
+  return { blocked: block, error: message, task_id: taskId };
+}
+
+/** Runs both writes (repos upsert + task) on ONE connection + transaction, holding per-repo advisory lock to avoid deadlocks and ensure atomicity. */
 async function writeOnboard(
   client: PoolClient,
   { fullName, owner, name }: RepoIdentity,
   options: { reonboard?: boolean },
 ): Promise<OnboardWrite> {
-  await client.query("BEGIN");
-  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
-    onboardLockKey(fullName),
-  ]);
-
-  const decision = decideOnboard(
-    fullName,
-    await readOnboardState(client, fullName),
-    options,
-  );
+  const decision = await beginAndDecide(client, fullName, options);
 
   if (!decision.allowed) {
-    await client.query("ROLLBACK");
-    console.log(
-      `[onboard] Refused ${fullName} (${decision.block}): ${decision.message}`,
-    );
-
-    return {
-      blocked: decision.block,
-      error: decision.message,
-      task_id: decision.taskId,
-    };
+    return refuseOnboard(client, fullName, decision);
   }
   const written = await insertRepoAndTask(client, { fullName, owner, name });
 
@@ -268,12 +282,8 @@ async function writeOnboardTx(
   }
 }
 
-/** Onboards a repo by inserting into lore.repos and submitting an onboard task; guarded against duplicates via per-repo advisory lock (#968). */
-export async function onboardRepo(
-  pool: Pool,
-  fullName: string,
-  options: { reonboard?: boolean } = {},
-): Promise<OnboardResult | OnboardBlockedResult> {
+/** Every downstream write keys on both halves, so a name that does not split is refused before any connection is taken. */
+function repoIdentity(fullName: string): RepoIdentity {
   const [owner, name] = fullName.split("/");
 
   enforceTrue(
@@ -282,11 +292,16 @@ export async function onboardRepo(
     `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
   );
 
-  const written = await writeOnboardTx(
-    pool,
-    { fullName, owner, name },
-    options,
-  );
+  return { fullName, owner, name };
+}
+
+/** Onboards a repo by inserting into lore.repos and submitting an onboard task; guarded against duplicates via per-repo advisory lock (#968). */
+export async function onboardRepo(
+  pool: Pool,
+  fullName: string,
+  options: { reonboard?: boolean } = {},
+): Promise<OnboardResult | OnboardBlockedResult> {
+  const written = await writeOnboardTx(pool, repoIdentity(fullName), options);
 
   if ("blocked" in written) {
     return written;
@@ -359,8 +374,7 @@ async function checkOnboardingPr(
 
 export async function checkOnboardingPRs(pool: Pool): Promise<void> {
   const { rows } = await pool.query(
-    `SELECT id, full_name, onboarding_pr_url FROM lore.repos
-     WHERE onboarding_pr_merged = false AND onboarding_pr_url IS NOT NULL`,
+    `SELECT id, full_name, onboarding_pr_url FROM lore.repos WHERE onboarding_pr_merged = false AND onboarding_pr_url IS NOT NULL`,
   );
 
   for (const repo of rows) {

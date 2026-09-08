@@ -185,6 +185,30 @@ export function responsesFor(
   };
 }
 
+/** The sidecar-declared body of a route that validates its payload elsewhere; undefined when the sidecar has no entry either. */
+function sidecarBody(
+  route: ServerRoute,
+  method: string,
+  key: string,
+  coverage: Coverage,
+): JsonSchema | undefined {
+  const domain = domainBody(method, route.path);
+
+  if (domain?.schema) {
+    coverage.lifted.push(key);
+
+    return jsonBody(toRequestSchema(domain.schema));
+  }
+
+  if (domain?.freeform) {
+    coverage.freeform.push(key);
+
+    return jsonBody(FREEFORM_BODY);
+  }
+
+  return undefined;
+}
+
 /** Resolve + classify a write route's request body; records coverage as a side effect. */
 function resolveBody(
   route: ServerRoute,
@@ -199,23 +223,33 @@ function resolveBody(
 
     return jsonBody(toRequestSchema(declared));
   }
-  const domain = domainBody(method, route.path);
+  const sidecar = sidecarBody(route, method, key, coverage);
 
-  if (domain?.schema) {
-    coverage.lifted.push(key);
-
-    return jsonBody(toRequestSchema(domain.schema));
-  }
-
-  if (domain?.freeform) {
-    coverage.freeform.push(key);
-
-    return jsonBody(FREEFORM_BODY);
+  if (sidecar) {
+    return sidecar;
   }
   // No route schema and no sidecar entry: still emit a valid doc, but flag drift.
   coverage.uncovered.push(key);
 
   return jsonBody(FREEFORM_BODY);
+}
+
+/** Two shapes under one component name would silently publish whichever route registered last, so it fails the build instead. */
+function enforceUniqueShape(
+  schemas: Record<string, JsonSchema>,
+  name: string,
+  converted: JsonSchema,
+  key: string,
+): void {
+  const existing = schemas[name];
+
+  enforceTrue(
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Record<string,_> hides that an unregistered name reads back undefined.
+    existing === undefined ||
+      JSON.stringify(existing) === JSON.stringify(converted),
+    Error,
+    `openapi: response schema "${name}" is registered with two different shapes (at ${key})`,
+  );
 }
 
 /** Register response as named component; duplicate with different shape is hard error. */
@@ -233,15 +267,8 @@ export function registerResponse(
     return undefined;
   }
   const converted = toRequestSchema(meta.schema);
-  const existing = schemas[meta.name];
 
-  enforceTrue(
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Record<string,_> hides that an unregistered name reads back undefined.
-    existing === undefined ||
-      JSON.stringify(existing) === JSON.stringify(converted),
-    Error,
-    `openapi: response schema "${meta.name}" is registered with two different shapes (at ${key})`,
-  );
+  enforceUniqueShape(schemas, meta.name, converted, key);
   schemas[meta.name] = converted;
   coverage.responses.push(key);
 
@@ -292,34 +319,37 @@ export function applyRequestBody(
   op.requestBody = resolveBody(route, method, key, coverage);
 }
 
-export function errorResponses(): Record<string, JsonSchema> {
-  const body = {
-    content: {
-      "application/json": { schema: { $ref: "#/components/schemas/Error" } },
-    },
-  };
+const ERROR_BODY = {
+  content: {
+    "application/json": { schema: { $ref: "#/components/schemas/Error" } },
+  },
+};
 
-  return {
-    BadRequest: { description: "Malformed or invalid request", ...body },
-    // eslint-disable-next-line re-lint/no-negative-names -- the HTTP status phrase, published as $ref components/responses/NotFound
-    NotFound: { description: "No such resource", ...body },
-    Conflict: {
-      description: "Not allowed in the resource's current state",
-      ...body,
-    },
-    Unauthorized: { description: "Missing bearer token", ...body },
-    Forbidden: { description: "Token lacks the required scope", ...body },
-    PayloadTooLarge: {
-      description: "Request body exceeds the size cap",
-      ...body,
-    },
-    RateLimited: {
-      description: "Rate limit exceeded (Retry-After: 60)",
-      ...body,
-    },
-    ServiceUnavailable: {
-      description: "Database or a dependency is unavailable",
-      ...body,
-    },
-  };
+const ERROR_RESPONSES: Record<string, JsonSchema> = {
+  BadRequest: { description: "Malformed or invalid request", ...ERROR_BODY },
+  // eslint-disable-next-line re-lint/no-negative-names -- the HTTP status phrase, published as $ref components/responses/NotFound
+  NotFound: { description: "No such resource", ...ERROR_BODY },
+  Conflict: {
+    description: "Not allowed in the resource's current state",
+    ...ERROR_BODY,
+  },
+  Unauthorized: { description: "Missing bearer token", ...ERROR_BODY },
+  Forbidden: { description: "Token lacks the required scope", ...ERROR_BODY },
+  PayloadTooLarge: {
+    description: "Request body exceeds the size cap",
+    ...ERROR_BODY,
+  },
+  RateLimited: {
+    description: "Rate limit exceeded (Retry-After: 60)",
+    ...ERROR_BODY,
+  },
+  ServiceUnavailable: {
+    description: "Database or a dependency is unavailable",
+    ...ERROR_BODY,
+  },
+};
+
+// A fresh outer object per call, so a caller embedding it in a document cannot mutate the catalogue.
+export function errorResponses(): Record<string, JsonSchema> {
+  return { ...ERROR_RESPONSES };
 }

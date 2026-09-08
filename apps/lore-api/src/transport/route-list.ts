@@ -124,8 +124,13 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** Pipeline tasks and the assembly runs that execute them. */
+/** Pipeline tasks and the assembly runs that execute them; the emitted order is the order the OpenAPI generator walks, so the two halves stay concatenated rather than interleaved. */
 function taskRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [...taskRunRoutes(getPool), ...specTaskRoutes(getPool)];
+}
+
+/** One task: its record, the runs that executed it, and the logs those runs left behind. */
+function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     getTaskRoute(),
     listTasksRoute(),
@@ -140,6 +145,12 @@ function taskRoutes(getPool: PoolGetter): ServerRoute[] {
     jobRunLogsRoute(),
     taskPostRoute(getPool),
     taskGroupRoute(getPool),
+  ];
+}
+
+/** The spec-task DAG and the feature backlog above it, plus the transcript sinks a running node writes into. */
+function specTaskRoutes(getPool: PoolGetter): ServerRoute[] {
+  return [
     specTasksSyncRoute(getPool),
     specTasksReadyRoute(getPool),
     specTasksClaimRoute(getPool),

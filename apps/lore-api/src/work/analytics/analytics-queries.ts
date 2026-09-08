@@ -20,13 +20,47 @@ export interface PipelineAnalytics {
   by_type: { task_type: string; tasks: string }[];
 }
 
-/** Task outcomes for the period. `pr-created` and `merged` both count as SUCCEEDED: a task that opened a PR did its job, whether or not a human has merged it yet. */
-function taskCounts(row: { total: string; succeeded: string; failed: string }) {
+/** Token totals for the period. Parsed here rather than cast in SQL: pg returns these as strings because a count can outgrow a JS number, and the API contract is a number. */
+async function readUsage(pool: Pool, periodFilter: string) {
+  const { rows } = await pool.query<{
+    calls: string;
+    input_tokens: string;
+    output_tokens: string;
+  }>(
+    `SELECT count(*) as calls, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM pipeline.llm_calls WHERE ${periodFilter}`,
+  );
+
   return {
-    total: parseInt(row.total),
-    succeeded: parseInt(row.succeeded),
-    failed: parseInt(row.failed),
+    llm_calls: parseInt(rows[0].calls),
+    input_tokens: parseInt(rows[0].input_tokens),
+    output_tokens: parseInt(rows[0].output_tokens),
   };
+}
+
+/** Task outcomes for the period. `pr-created` and `merged` both count as SUCCEEDED: a task that opened a PR did its job, whether or not a human has merged it yet. */
+async function readTaskCounts(pool: Pool, periodFilter: string) {
+  const { rows } = await pool.query<{
+    total: string;
+    succeeded: string;
+    failed: string;
+  }>(
+    `SELECT count(*) as total, count(*) FILTER (WHERE status IN ('pr-created', 'merged')) as succeeded, count(*) FILTER (WHERE status = 'failed') as failed FROM pipeline.tasks WHERE ${periodFilter}`,
+  );
+
+  return {
+    total: parseInt(rows[0].total),
+    succeeded: parseInt(rows[0].succeeded),
+    failed: parseInt(rows[0].failed),
+  };
+}
+
+/** Task volume per type, busiest first — the by-type table is read top-down and only the head matters. */
+async function readCountsByType(pool: Pool, periodFilter: string) {
+  const { rows } = await pool.query<{ task_type: string; tasks: string }>(
+    `SELECT t.task_type, count(DISTINCT t.id) as tasks FROM pipeline.tasks t WHERE ${periodFilter} GROUP BY t.task_type ORDER BY tasks DESC`,
+  );
+
+  return rows;
 }
 
 export async function pipelineAnalytics(
@@ -34,27 +68,11 @@ export async function pipelineAnalytics(
   period: AnalyticsPeriod,
 ): Promise<PipelineAnalytics> {
   const periodFilter = PERIOD_FILTERS[period];
-  const [usageResult, taskResult, byTypeResult] = await Promise.all([
-    pool.query<{ calls: string; input_tokens: string; output_tokens: string }>(
-      `SELECT count(*) as calls, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM pipeline.llm_calls WHERE ${periodFilter}`,
-    ),
-    pool.query<{ total: string; succeeded: string; failed: string }>(
-      `SELECT count(*) as total, count(*) FILTER (WHERE status IN ('pr-created', 'merged')) as succeeded, count(*) FILTER (WHERE status = 'failed') as failed FROM pipeline.tasks WHERE ${periodFilter}`,
-    ),
-    pool.query<{ task_type: string; tasks: string }>(
-      `SELECT t.task_type, count(DISTINCT t.id) as tasks FROM pipeline.tasks t WHERE ${periodFilter} GROUP BY t.task_type ORDER BY tasks DESC`,
-    ),
+  const [usage, tasks, byType] = await Promise.all([
+    readUsage(pool, periodFilter),
+    readTaskCounts(pool, periodFilter),
+    readCountsByType(pool, periodFilter),
   ]);
 
-  return {
-    period,
-    // Parsed here rather than cast in SQL: pg returns these as strings because a count can outgrow a JS number, and the API contract is a number.
-    usage: {
-      llm_calls: parseInt(usageResult.rows[0].calls),
-      input_tokens: parseInt(usageResult.rows[0].input_tokens),
-      output_tokens: parseInt(usageResult.rows[0].output_tokens),
-    },
-    tasks: taskCounts(taskResult.rows[0]),
-    by_type: byTypeResult.rows,
-  };
+  return { period, usage, tasks, by_type: byType };
 }

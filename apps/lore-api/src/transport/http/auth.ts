@@ -47,22 +47,11 @@ export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 
 const ALL_SCOPES: TokenScope[] = ["read", "write", "task", "webhook", "admin"];
 
-// Resolves a bearer token to its granted scopes (null if missing/invalid/revoked/expired); the legacy LORE_INGEST_TOKEN resolves to full access without a DB hit.
-export async function resolveTokenScopes(
-  pool: Pool | null,
-  bearerToken: string,
+// One UPDATE…RETURNING so a lookup also stamps last_used; any DB error resolves to "no scopes" rather than failing the request open.
+async function lookupTokenScopes(
+  pool: Pool,
+  tokenHash: string,
 ): Promise<TokenScope[] | null> {
-  const legacyToken = process.env.LORE_INGEST_TOKEN;
-
-  if (legacyToken && bearerToken === legacyToken) {
-    return ALL_SCOPES;
-  }
-
-  if (!pool) {
-    return null;
-  }
-  const tokenHash = createHash("sha256").update(bearerToken).digest("hex");
-
   try {
     const { rows } = await pool.query(
       `UPDATE pipeline.api_tokens SET last_used = now()
@@ -80,6 +69,25 @@ export async function resolveTokenScopes(
   } catch {
     return null;
   }
+}
+
+// Resolves a bearer token to its granted scopes (null if missing/invalid/revoked/expired); the legacy LORE_INGEST_TOKEN resolves to full access without a DB hit.
+export async function resolveTokenScopes(
+  pool: Pool | null,
+  bearerToken: string,
+): Promise<TokenScope[] | null> {
+  const legacyToken = process.env.LORE_INGEST_TOKEN;
+
+  if (legacyToken && bearerToken === legacyToken) {
+    return ALL_SCOPES;
+  }
+
+  if (!pool) {
+    return null;
+  }
+  const tokenHash = createHash("sha256").update(bearerToken).digest("hex");
+
+  return lookupTokenScopes(pool, tokenHash);
 }
 
 // Validates a per-client token against the DB for a required scope; used by healthz's own optional bearer check (guarded routes use the bearer-scope strategy instead).

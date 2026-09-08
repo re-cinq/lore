@@ -441,7 +441,7 @@ export default tseslint.config(
     files: [
       "apps/web-ui/**/*.{ts,tsx}",
       "apps/floor/**/*.{ts,tsx}",
-      "apps/lore-api/**/*.{ts,tsx}",
+      "apps/lore-api/src/transport/routes/**/*.{ts,tsx}",
       "libs/shared/**/*.{ts,tsx}",
     ],
     rules: {
