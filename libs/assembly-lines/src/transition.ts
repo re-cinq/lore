@@ -89,6 +89,32 @@ function divergenceFailure(
   };
 }
 
+// The retry budget for this edge is gone. The budget is HOW the run ended; the visit is WHY — the reason carries what the station actually said, because "iteration_max reached" alone tells a reader nothing about what kept failing.
+function budgetSpent(
+  assemblyLine: WalkGraph,
+  visit: NodeVisit,
+  chosen: WalkEdge,
+  key: string,
+): Transition {
+  return {
+    kind: "fail",
+    outcome: "iteration_max",
+    reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)} — the ${key} retry budget (${chosen.iteration_max}) is spent`,
+  };
+}
+
+// The node failed in a way no retry can fix, so the edge's budget never comes into it — a definition offering three attempts at an unreachable repo would otherwise spend all three.
+function permanentFailure(
+  assemblyLine: WalkGraph,
+  visit: NodeVisit,
+): Transition {
+  return {
+    kind: "fail",
+    outcome: "error",
+    reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)}`,
+  };
+}
+
 // The account or budget decision for a revisited/budgeted edge: a permanent failure refuses the retry outright, an exhausted budget fails with its own reason, otherwise the edge is spent and the walk advances to its target.
 function budgetOutcome(
   assemblyLine: WalkGraph,
@@ -97,22 +123,13 @@ function budgetOutcome(
   accounting: WalkAccounting,
 ): Transition | { nextId: string } {
   if (isPermanentNodeFailure(visit)) {
-    return {
-      kind: "fail",
-      outcome: "error",
-      reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)}`,
-    };
+    return permanentFailure(assemblyLine, visit);
   }
   const key = `${chosen.from}->${chosen.to}`;
   const count = (accounting.backEdgeCounts.get(key) ?? 0) + 1;
 
   if (chosen.iteration_max !== undefined && count > chosen.iteration_max) {
-    // The budget is HOW the run ended; the visit is WHY — report what the station actually said, not just the exhausted edge.
-    return {
-      kind: "fail",
-      outcome: "iteration_max",
-      reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)} — the ${key} retry budget (${chosen.iteration_max}) is spent`,
-    };
+    return budgetSpent(assemblyLine, visit, chosen, key);
   }
   accounting.backEdgeCounts.set(key, count);
 
@@ -143,6 +160,37 @@ function isUnbudgetedForwardHop(
   );
 }
 
+// The two mutable halves of a replay, carried together: where the walk has got to, and what it has spent getting there. They are always passed as a pair because neither is meaningful without the other.
+interface Walk {
+  state: WalkState;
+  accounting: WalkAccounting;
+}
+
+// Moves the walk along `chosen`, or returns the Transition that ends it. A plain forward hop only sets the node; a revisit additionally bumps the iteration past the highest already recorded, which is what makes a second attempt distinguishable from the first.
+function followEdge(
+  assemblyLine: WalkGraph,
+  visit: NodeVisit,
+  chosen: WalkEdge,
+  walk: Walk,
+): Transition | null {
+  const { state, accounting } = walk;
+
+  if (isUnbudgetedForwardHop(chosen, accounting)) {
+    state.currentId = chosen.to;
+
+    return null;
+  }
+  const outcome = budgetOutcome(assemblyLine, visit, chosen, accounting);
+
+  if (isTransition(outcome)) {
+    return outcome;
+  }
+  state.iteration = (accounting.highestIteration.get(outcome.nextId) ?? 0) + 1;
+  state.currentId = outcome.nextId;
+
+  return null;
+}
+
 // One visit's contribution to the walk: mutates state/accounting toward the next node, or returns the Transition that ends the replay.
 function applyVisit(
   assemblyLine: WalkGraph,
@@ -162,20 +210,7 @@ function applyVisit(
     return noEdgeFailure(assemblyLine, visit);
   }
 
-  if (isUnbudgetedForwardHop(chosen, accounting)) {
-    state.currentId = chosen.to;
-
-    return null;
-  }
-  const outcome = budgetOutcome(assemblyLine, visit, chosen, accounting);
-
-  if (isTransition(outcome)) {
-    return outcome;
-  }
-  state.iteration = (accounting.highestIteration.get(outcome.nextId) ?? 0) + 1;
-  state.currentId = outcome.nextId;
-
-  return null;
+  return followEdge(assemblyLine, visit, chosen, { state, accounting });
 }
 
 function replayVisits(
@@ -195,12 +230,12 @@ function replayVisits(
   return null;
 }
 
-// Replay the visit history for what happens next (sole routing definition, `executeAssemblyLine` retired): a revisited node bumps the iteration, and a budgeted edge additionally fails past its `iteration_max`.
-export function getNextTransition(
+// Why the replay cannot produce a next step. An unfinished visit means the answer is not knowable yet rather than wrong; the node ceiling means the definition is cycling and the walk would never reach exit.
+function replayBlocked(
   assemblyLine: WalkGraph,
   visits: NodeVisit[],
-  maxNodes = DEFAULT_MAX_NODES,
-): Transition {
+  maxNodes: number,
+): Transition | null {
   if (visits.some((v) => v.outcome === null)) {
     return { kind: "await" };
   }
@@ -213,12 +248,33 @@ export function getNextTransition(
     };
   }
 
-  const state: WalkState = { currentId: assemblyLine.entry, iteration: 1 };
-  const accounting: WalkAccounting = {
-    backEdgeCounts: new Map(),
-    highestIteration: new Map(),
-    visited: new Set(),
+  return null;
+}
+
+// A walk that has not started: at the entry node, on its first iteration, having spent nothing. Every replay begins here — the history is what moves it, so nothing is carried over between calls.
+function freshWalk(assemblyLine: WalkGraph): Walk {
+  return {
+    state: { currentId: assemblyLine.entry, iteration: 1 },
+    accounting: {
+      backEdgeCounts: new Map(),
+      highestIteration: new Map(),
+      visited: new Set(),
+    },
   };
+}
+
+// Replay the visit history for what happens next (sole routing definition, `executeAssemblyLine` retired): a revisited node bumps the iteration, and a budgeted edge additionally fails past its `iteration_max`.
+export function getNextTransition(
+  assemblyLine: WalkGraph,
+  visits: NodeVisit[],
+  maxNodes = DEFAULT_MAX_NODES,
+): Transition {
+  const blocked = replayBlocked(assemblyLine, visits, maxNodes);
+
+  if (blocked) {
+    return blocked;
+  }
+  const { state, accounting } = freshWalk(assemblyLine);
   const failure = replayVisits(assemblyLine, visits, state, accounting);
 
   if (failure) {
