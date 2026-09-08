@@ -126,11 +126,9 @@ export async function resolveGithubFetchContext(
   return { octokit, owner, repoName };
 }
 
-/** The content posted inline with the file entry, when the caller sent one. */
+/** The content posted inline with the file entry, when the caller sent one. An empty string is content the caller supplied, not an absent one: treating it as absent sent an inline entry down the GitHub path with no client to fetch with. */
 function inlineContentOf(fileEntry: IngestFile): string | null {
-  return typeof fileEntry !== "string" && fileEntry.content
-    ? fileEntry.content
-    : null;
+  return typeof fileEntry === "string" ? null : fileEntry.content;
 }
 
 /** Resolves a file's content: inline content wins, otherwise fetches from GitHub. */
@@ -142,7 +140,7 @@ export async function resolveFileContent(
 ): Promise<{ content: string | null; missing404: boolean }> {
   const inlineContent = inlineContentOf(fileEntry);
 
-  if (inlineContent) {
+  if (inlineContent !== null) {
     return { content: inlineContent, missing404: false };
   }
 

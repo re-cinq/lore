@@ -13,6 +13,7 @@ vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({
 import { getOctokit, isAppConfigured } from "../../outbound/github-client.js";
 import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
 import { ingestFiles } from "./ingest.js";
+import { resolveFileContent } from "./ingest-github-fetch.js";
 
 describe("classifyFile", () => {
   it("classifies CLAUDE.md as doc", () => {
@@ -331,5 +332,18 @@ describe("ingestFiles", () => {
     expect(result.ingested).toBe(1);
     expect(result.deleted).toBe(1);
     expect(result.errors).toBe(1);
+  });
+});
+
+describe("resolveFileContent", () => {
+  it("returns the empty content of an inline entry without reaching GitHub", async () => {
+    expect(
+      await resolveFileContent(
+        { path: "specs/empty.md", content: "" },
+        null,
+        "specs/empty.md",
+        "abc123",
+      ),
+    ).toEqual({ content: "", missing404: false });
   });
 });
