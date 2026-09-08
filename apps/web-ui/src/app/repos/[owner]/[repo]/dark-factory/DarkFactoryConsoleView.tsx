@@ -107,8 +107,10 @@ function ActivationCard({
 
 /** The policy as label/value pairs. An empty notify list reads as "escalation (implicit)" rather than blank: the platform always escalates, so nothing configured is not the same as nothing happening. */
 function policyRows(config: DarkFactoryConsoleModel["config"]) {
+  const { auto_merge: autoMerge } = config;
+
   return [
-    { label: "Allowlist paths", value: config.auto_merge.paths.join(", ") },
+    { label: "Allowlist paths", value: autoMerge.paths.join(", ") },
     { label: "Min trust", value: config.auto_merge.min_trust },
     {
       label: "Require green CI",

@@ -41,25 +41,24 @@ function documentAttrs(
 
 /** Build nested tag tree for TagBox from trace; included sections only (cards explain omitted). */
 export function buildTagTree(trace: AssemblyTrace): TagNode {
-  const sections = trace.sections
-    .filter((s) => s.included)
-    .map<TagNode>((section) => ({
-      tag: "section",
-      attrs: [
-        ["name", section.header],
-        ["source", section.source],
-        ["priority", String(section.priority)],
-      ],
-      children: section.items.map<TagNode>((document, i) => ({
-        tag: "document",
-        attrs: documentAttrs(
-          document,
-          section.truncated && i === section.items.length - 1,
-        ),
-        content: document.text,
-        contentType: document.content_type,
-      })),
-    }));
+  const included = trace.sections.filter((s) => s.included);
+  const sections = included.map<TagNode>((section) => ({
+    tag: "section",
+    attrs: [
+      ["name", section.header],
+      ["source", section.source],
+      ["priority", String(section.priority)],
+    ],
+    children: section.items.map<TagNode>((document, i) => ({
+      tag: "document",
+      attrs: documentAttrs(
+        document,
+        section.truncated && i === section.items.length - 1,
+      ),
+      content: document.text,
+      contentType: document.content_type,
+    })),
+  }));
 
   return {
     tag: "context",

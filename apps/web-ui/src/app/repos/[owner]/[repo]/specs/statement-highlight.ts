@@ -86,7 +86,9 @@ function renderedText(node: ElementContent | RootContent): string {
   }
 
   if (node.type === "element") {
-    return node.children.map(renderedText).join("");
+    const { children } = node;
+
+    return children.map(renderedText).join("");
   }
 
   return "";

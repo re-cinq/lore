@@ -74,11 +74,9 @@ function pairKey(from: string, to: string): string {
 function terminalIds(definition: AssemblyLineDefinition): Set<string> {
   const hasOutgoing = new Set(definition.edges.map((edge) => edge.from));
 
-  return new Set(
-    definition.nodes
-      .map((node) => node.id)
-      .filter((id) => !hasOutgoing.has(id)),
-  );
+  const nodeIds = definition.nodes.map((node) => node.id);
+
+  return new Set(nodeIds.filter((id) => !hasOutgoing.has(id)));
 }
 
 /** One connector per distinct TARGET. Outcomes that lead to the same node collapse into a single neutral edge — drawing one arrow per verdict would suggest branching where the line does not actually fork; a target reached by exactly one outcome keeps that outcome's tone. */

@@ -29,10 +29,12 @@ function architectureSection(gap: GapResult): GapSection | null {
 }
 
 function userFlowsSection(gap: GapResult): GapSection | null {
-  if (!gap.user_flows?.length) {
+  const flows = gap.user_flows ?? [];
+
+  if (flows.length === 0) {
     return null;
   }
-  const content = gap.user_flows
+  const content = flows
     .map((f) =>
       [`**${f.name}**`, ...f.steps.map((s, i) => `${i + 1}. ${s}`)].join("\n"),
     )

@@ -258,11 +258,13 @@ function detailProps(view: RunView, page: RunDetailPage) {
 }
 
 function RunDetail({ view, page }: { view: RunView; page: RunDetailPage }) {
+  const { visibleGraph } = view.graph;
+
   return (
     <RunDetailSection
       {...detailProps(view, page)}
       selectedState={view.node.selected}
-      visibleNodeCount={view.graph.visibleGraph.nodes.length}
+      visibleNodeCount={visibleGraph.nodes.length}
       timeline={view.displayState.timeline}
       fileTouches={view.displayState.fileTouches}
       onSeek={resolveOnSeek(view.scrubberVisible, view.replay.onSeek)}

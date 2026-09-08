@@ -88,9 +88,8 @@ function seedFeatureTrees(
   boundR: number,
   viewportCenter: Point,
 ): Map<string, Point> {
-  const featureIds = graph.nodes
-    .filter((n) => n.type === "Feature")
-    .map((n) => n.id);
+  const features = graph.nodes.filter((n) => n.type === "Feature");
+  const featureIds = features.map((n) => n.id);
   const localTrees = featureIds.map((id) =>
     radialTree(id, buildChildrenMap(forest), {
       center: { x: 0, y: 0 },

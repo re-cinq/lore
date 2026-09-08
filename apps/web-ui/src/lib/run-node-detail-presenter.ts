@@ -237,8 +237,12 @@ function whyText(
   return WHY_BY_TONE[tone]({ noun, type, input, terminal, duration });
 }
 
+function findNode(input: NodeDetailInput) {
+  return (input.definition?.nodes ?? []).find((n) => n.id === input.nodeId);
+}
+
 export function describeNode(input: NodeDetailInput): NodeDetail {
-  const node = input.definition?.nodes.find((n) => n.id === input.nodeId);
+  const node = findNode(input);
   const nodeType = node?.type;
   const visual = resolveVisual(input.row, input.state, nodeType);
   const terminal = isTerminal(input.definition, input.nodeId);

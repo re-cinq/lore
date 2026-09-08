@@ -56,16 +56,16 @@ export function parseSpecStatus(markdown: string): SpecStatusInfo | null {
     if (cells.length < 3 || cells[1].toLowerCase() !== "status") {
       continue;
     }
-    const value = cells[2].replace(/\*/g, "").trim();
+    const statusCell = cells[2];
+    const value = statusCell.replace(/\*/g, "").trim();
     const bucket = BUCKETS.find((b) => b.re.test(value.toLowerCase()));
 
     if (!bucket) {
       return null;
     }
-    const label = value
-      .split(/\s+[—–-]\s+/)[0]
-      .split(" (")[0]
-      .trim();
+    const [beforeDash] = value.split(/\s+[—–-]\s+/);
+    const [beforeParen] = beforeDash.split(" (");
+    const label = beforeParen.trim();
 
     return {
       status: bucket.status,

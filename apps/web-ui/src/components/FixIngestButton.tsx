@@ -48,7 +48,9 @@ function failureTitle(done: FixWorkflowResult | null): string | null {
     return null;
   }
 
-  return done.failed.map((f) => `${f.repo}: ${f.error}`).join("\n");
+  const { failed } = done;
+
+  return failed.map((f) => `${f.repo}: ${f.error}`).join("\n");
 }
 
 /** Reports how many PRs opened and, critically, why any repo failed — "opened 0 PRs" with no reason is how a missing App permission stayed invisible. */

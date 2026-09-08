@@ -44,10 +44,12 @@ export async function listAllRepos(): Promise<
     }
     const { total } = page.data;
 
-    repos.push(...page.data.repos);
+    const { repos: pageRepos } = page.data;
+
+    repos.push(...pageRepos);
 
     // An empty page ends the walk even when `total` disagrees — a stale count (repo deleted mid-read) would otherwise loop forever.
-    if (page.data.repos.length === 0 || repos.length >= total) {
+    if (pageRepos.length === 0 || repos.length >= total) {
       return { status: "ok", data: { repos, total } };
     }
   }

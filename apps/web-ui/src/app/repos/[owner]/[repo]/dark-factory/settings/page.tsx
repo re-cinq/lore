@@ -59,12 +59,13 @@ export default async function RepoDarkFactory({
   }
   const settings = repoSettingsOf(repoData);
   const resolved = resolveDarkFactorySettings(settings.dark_factory ?? null);
+  const execution = settings.dark_factory?.execution;
 
   return (
     <DarkFactoryView
       fullName={fullName}
       resolved={resolved}
-      rawImage={settings.dark_factory?.execution?.image}
+      rawImage={execution?.image}
       defaultExecutionImage={DEFAULT_EXECUTION_IMAGE}
       saveAction={saveDarkFactory}
     />

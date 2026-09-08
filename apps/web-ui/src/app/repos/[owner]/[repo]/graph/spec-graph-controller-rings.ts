@@ -16,7 +16,9 @@ export function applyRingState(c: GraphController): void {
       c.ringPinned.add(s.uid);
     });
   });
-  c.nodeG
+  const { nodeG } = c;
+
+  nodeG
     .selectAll<SVGGElement, SimNode>("g")
     .style("display", (d) => (c.ringPinned.has(d.id) ? "none" : ""));
 }
@@ -110,9 +112,8 @@ export function renderRings(
   c: GraphController,
   coverageTint: (t: number) => string,
 ): void {
-  const sel = c.ringG
-    .selectAll<SVGGElement, [string, ExpandData]>("g.ring")
-    .data([...c.expanded.entries()], (d) => d[0]);
+  const rings = c.ringG.selectAll<SVGGElement, [string, ExpandData]>("g.ring");
+  const sel = rings.data([...c.expanded.entries()], (d) => d[0]);
 
   sel.exit().remove();
   sel
@@ -139,7 +140,8 @@ export function collapseSpecNode(
   d.fy = null;
   applyRingState(c);
   renderRings(c, coverageTint);
-  c.sim.alpha(0.4).restart();
+  c.sim.alpha(0.4);
+  c.sim.restart();
   c.saveState();
 }
 
@@ -170,7 +172,8 @@ async function expandSpecNode(
   c.expanded.set(d.id, computeRing(d.path, ring));
   applyRingState(c);
   renderRings(c, coverageTint);
-  c.sim.alpha(0.5).restart();
+  c.sim.alpha(0.5);
+  c.sim.restart();
   c.saveState();
 }
 

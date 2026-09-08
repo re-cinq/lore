@@ -37,8 +37,9 @@ export function splitMarkdownSections(source: string): Section[] {
 }
 
 function buildSection(lines: string[]): Section {
-  const heading = HEADING_LINE.test(lines[0])
-    ? lines[0].replace(HEADING_LINE, "").trim()
+  const [first] = lines;
+  const heading = HEADING_LINE.test(first)
+    ? first.replace(HEADING_LINE, "").trim()
     : null;
 
   return { heading, body: lines.join("\n") };

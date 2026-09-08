@@ -45,5 +45,7 @@ export function segmentLabel(segment: TurnSegment): string | null {
 
 /** Segment as NDJSON blob (one envelope per line). */
 export function segmentRawLog(segment: TurnSegment): string {
-  return segment.turns.map((turn) => JSON.stringify(turn.envelope)).join("\n");
+  const { turns } = segment;
+
+  return turns.map((turn) => JSON.stringify(turn.envelope)).join("\n");
 }

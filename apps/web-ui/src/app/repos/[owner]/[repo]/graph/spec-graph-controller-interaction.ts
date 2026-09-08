@@ -37,9 +37,14 @@ export function createZoom(
 }
 
 function leafHitNodes(c: GraphController, collapsing: boolean) {
-  return c.nodes
-    .filter((n) => visibleLeaf(n, c.aggHidden, collapsing))
-    .map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0, r: radiusOf(n.type) }));
+  const leaves = c.nodes.filter((n) => visibleLeaf(n, c.aggHidden, collapsing));
+
+  return leaves.map((n) => ({
+    id: n.id,
+    x: n.x ?? 0,
+    y: n.y ?? 0,
+    r: radiusOf(n.type),
+  }));
 }
 
 // SVG covers canvas: background click inverts pointer, hit-tests leaf dots.
@@ -127,8 +132,9 @@ function placeStatementSpokes(
       mid: statement.mid,
     });
     let placed = 0;
+    const neighbours = c.adj.get(statement.uid);
 
-    c.adj.get(statement.uid)?.forEach((neighbourId) => {
+    neighbours?.forEach((neighbourId) => {
       const leaf = spokeableLeaf(c, neighbourId);
 
       if (!leaf) {
@@ -165,15 +171,22 @@ export function renderFrame(c: GraphController): void {
       c.ringDiscs.push({ x: spec.x ?? 0, y: spec.y ?? 0, r: exp.outerR1 });
     }
   }
-  c.nodeG
+  applyGroupTransforms(c);
+  c.drawer.draw(drawState(c));
+}
+
+/** Move the node groups and the ring groups to their current simulation positions. */
+function applyGroupTransforms(c: GraphController): void {
+  const { nodeG, ringG } = c;
+
+  nodeG
     .selectAll<SVGGElement, { x?: number; y?: number }>("g")
     .attr("transform", (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
-  c.ringG
+  ringG
     .selectAll<SVGGElement, [string, ExpandData]>("g.ring")
     .attr("transform", (entry) => {
       const spec = c.nodeById.get(entry[0]);
 
       return `translate(${spec?.x ?? 0},${spec?.y ?? 0})`;
     });
-  c.drawer.draw(drawState(c));
 }

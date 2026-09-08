@@ -67,9 +67,9 @@ export default async function RepoSettings({
     settings: record.data.settings as RepoSettingsShape | null,
   };
 
-  const repoList = reposOrThrow(await listAllRepos());
-  const allRepos: Repo[] = repoList.repos
-    .filter((r) => r.full_name !== fullName)
+  const { repos } = reposOrThrow(await listAllRepos());
+  const others = repos.filter((r) => r.full_name !== fullName);
+  const allRepos: Repo[] = others
     .map((r) => ({ full_name: r.full_name }))
     .sort((a, b) => a.full_name.localeCompare(b.full_name));
 

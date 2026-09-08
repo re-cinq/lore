@@ -32,16 +32,14 @@ export interface AssembledContextViewProps {
 
 /** Assembled context view: form + assembly trace + final prompt tree. */
 export default function AssembledContextView(props: AssembledContextViewProps) {
-  const { owner, repo, result, loading, error } = props;
+  const { owner, repo, result, loading, error, query } = props;
   const [raw, setRaw] = useState(false);
+  const hasQuery = query.trim().length > 0;
 
   return (
     <div>
       <AssembledHeader />
-      <QueryForm
-        {...props}
-        canSubmit={props.query.trim().length > 0 && !loading}
-      />
+      <QueryForm {...props} canSubmit={hasQuery && !loading} />
       {loading && <Alert>Assembling context…</Alert>}
       {error && <p className={styles.error}>Context unavailable: {error}</p>}
       {!loading && !error && (
