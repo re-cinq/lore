@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { AgentDefinition } from "@/lib/agents-mirror";
 import type {
@@ -6,6 +5,7 @@ import type {
   AgentUsage,
   AgentUsageRef,
 } from "@/lib/agents-api";
+import ActionsCell, { type RemoveOverride } from "./ActionsCell";
 import styles from "./agents.module.css";
 
 // Group per blueprint; dedupe (line, node) pairs; collapse duplicate refs.
@@ -117,6 +117,7 @@ export default function AgentList({
   agents,
   usage = null,
   orgEditable = false,
+  remove,
 }: AgentListProps) {
   return (
     <div>
@@ -131,6 +132,7 @@ export default function AgentList({
           agents={agents}
           usage={usage}
           showEdit={base !== null || orgEditable}
+          remove={base === null ? undefined : remove}
         />
       )}
     </div>
@@ -145,6 +147,8 @@ interface AgentListProps {
   usage?: AgentUsage | null;
   /** With base null: link to global org editor (/agents/edit/[name]). */
   orgEditable?: boolean;
+  /** Drops a repo override so the org default resolves again; omitted where there is no repo to remove one from. */
+  remove?: RemoveOverride;
 }
 
 function TableHead({ showEdit }: { showEdit: boolean }) {
@@ -170,7 +174,10 @@ function AgentTable({
   agents,
   usage,
   showEdit,
-}: Pick<AgentListProps, "base" | "agents" | "usage"> & { showEdit: boolean }) {
+  remove,
+}: Pick<AgentListProps, "base" | "agents" | "usage" | "remove"> & {
+  showEdit: boolean;
+}) {
   return (
     <div className={styles.tableWrap}>
       <table>
@@ -182,6 +189,7 @@ function AgentTable({
               agent={agent}
               usage={usage ?? null}
               editHref={showEdit ? editHref(base, agent.name) : null}
+              remove={remove}
             />
           ))}
         </tbody>
@@ -197,6 +205,7 @@ function RepoScopeHint() {
       Per-repo agent definitions. An <strong>org</strong> definition is the
       organisation default; editing one creates a <strong>project</strong>{" "}
       definition for this repo, and later edits update that project definition.
+      Removing a <strong>project</strong> definition restores the org default.
     </p>
   );
 }
@@ -257,20 +266,6 @@ function ScopePill({ isProject }: { isProject: boolean }) {
   );
 }
 
-function EditCell({ href }: { href: string | null }) {
-  if (!href) {
-    return null;
-  }
-
-  return (
-    <td>
-      <Link className="btn-secondary" href={href}>
-        Edit
-      </Link>
-    </td>
-  );
-}
-
 function usageClass(dormant: boolean): string {
   return `${styles.detail} ${dormant ? styles.detailDormant : ""}`;
 }
@@ -312,24 +307,22 @@ function rowCells(agent: AgentDefinition, usage: AgentUsage | null) {
   };
 }
 
-function AgentRow({
-  agent,
-  usage,
-  editHref,
-}: {
+interface AgentRowProps {
   agent: AgentDefinition;
   usage: AgentUsage | null;
   editHref: string | null;
-}) {
+  remove?: RemoveOverride;
+}
+
+function AgentRow({ agent, usage, editHref, remove }: AgentRowProps) {
   const { use, mode, rollout } = rowCells(agent, usage);
+  const isProject = agent.project_id != null && agent.project_id !== "";
 
   return (
     <tr>
       <td className={styles.name}>{agent.name}</td>
       <td>
-        <ScopePill
-          isProject={agent.project_id != null && agent.project_id !== ""}
-        />
+        <ScopePill isProject={isProject} />
       </td>
       <td className={styles.detail}>{agent.model ?? "(inherit)"}</td>
       <td className={styles.detail}>{agent.timeout_minutes ?? "–"}m</td>
@@ -338,7 +331,12 @@ function AgentRow({
       </td>
       <StatusCell kind="usage" name={agent.name} cell={use} />
       <StatusCell kind="rollout" name={agent.name} cell={rollout} />
-      <EditCell href={editHref} />
+      <ActionsCell
+        href={editHref}
+        name={agent.name}
+        isProject={isProject}
+        remove={remove}
+      />
     </tr>
   );
 }

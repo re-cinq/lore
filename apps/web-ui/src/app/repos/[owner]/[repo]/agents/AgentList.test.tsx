@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import AgentList from "./AgentList";
 import type { AgentDefinition } from "@/lib/agents-mirror";
@@ -67,6 +67,34 @@ describe("AgentList", () => {
     );
 
     expect(hrefs).toContain(`${base}/agents/general/edit`);
+  });
+
+  it("offers Remove on the project-scoped row only — an org default has no override to drop", () => {
+    const { container } = render(
+      <AgentList base={base} agents={[org, project]} remove={vi.fn()} />,
+    );
+    const rows = Array.from(container.querySelectorAll("tbody tr"));
+    const removeIn = (row: Element) =>
+      Array.from(row.querySelectorAll("button")).map((b) => b.textContent);
+
+    expect(removeIn(rows[0])).toEqual([]);
+    expect(removeIn(rows[1])).toEqual(["Remove"]);
+  });
+
+  it("renders no Remove when the page passes no remove action", () => {
+    const { queryByText } = render(
+      <AgentList base={base} agents={[project]} />,
+    );
+
+    expect(queryByText("Remove")).toBeNull();
+  });
+
+  it("renders no Remove in the org catalog, where a definition belongs to no repo", () => {
+    const { queryByText } = render(
+      <AgentList base={null} agents={[project]} orgEditable />,
+    );
+
+    expect(queryByText("Remove")).toBeNull();
   });
 
   it("shows an empty state when there are no agent definitions", () => {
