@@ -86,10 +86,9 @@ async function fixAndRevalidate(
 function failedStepNames(
   retry: Awaited<ReturnType<typeof runValidation>>,
 ): string {
-  return retry.steps
-    .filter((s) => !s.passed)
-    .map((s) => s.name)
-    .join(", ");
+  const failed = retry.steps.filter((step) => !step.passed);
+
+  return failed.map((step) => step.name).join(", ");
 }
 
 /** The task log is the only artifact a human inherits, so the retry output is appended before any status write can fail. */
@@ -134,9 +133,10 @@ async function validateOrSkip(
   if (tooling.quickChecks.length === 0) {
     return null;
   }
-  console.log(
-    `[lore] local-runner: running ${tooling.language} validation (${tooling.quickChecks.map((s) => s.name).join(", ")})`,
-  );
+  const { language, quickChecks } = tooling;
+  const names = quickChecks.map((step) => step.name).join(", ");
+
+  console.log(`[lore] local-runner: running ${language} validation (${names})`);
 
   return runValidation(task.worktreePath, tooling.quickChecks, changedFiles);
 }

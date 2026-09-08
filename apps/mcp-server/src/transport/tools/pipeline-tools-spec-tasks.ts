@@ -146,8 +146,11 @@ function renderCompletion(body: unknown, task_id: string): string {
     return `Could not complete task ${task_id}. It may not be in 'running' state.`;
   }
 
-  return result.unblocked.length > 0
-    ? `Task ${task_id} completed.\n\nNewly unblocked tasks:\n${result.unblocked.map((u) => `- ${u}`).join("\n")}`
+  const { unblocked } = result;
+  const list = unblocked.map((task) => `- ${task}`).join("\n");
+
+  return unblocked.length > 0
+    ? `Task ${task_id} completed.\n\nNewly unblocked tasks:\n${list}`
     : `Task ${task_id} completed.`;
 }
 
