@@ -47,7 +47,7 @@ ever rides in a pod.
 The `Llm` singleton (`llm.ts`) over vendor providers — `anthropic-provider.ts`
 (with the two-breakpoint **prompt caching** from `prompt-cache.ts`:
 `getCacheControl(jobName)`, prefix hashing, cache-break classification),
-openai, ollama, a CLI fallback, `fake-llm.ts` for tests, and the `NoLlm`
+gemini, ollama, a CLI fallback, `fake-llm.ts` for tests, and the `NoLlm`
 guard that fails loudly when no credential is configured.
 
 ### `src/detect/` — the detector cores

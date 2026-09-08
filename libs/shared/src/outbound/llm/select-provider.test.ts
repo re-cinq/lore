@@ -14,10 +14,8 @@ describe("selectProvider", () => {
     expect(selectProvider({ LORE_LLM_PROVIDER: "cli" }).vendor).toBe("cli");
   });
 
-  it("picks openai for LORE_LLM_PROVIDER=openai", () => {
-    expect(selectProvider({ LORE_LLM_PROVIDER: "openai" }).vendor).toBe(
-      "openai",
-    );
+  it("falls back to cli for a vendor with no provider, like openai", () => {
+    expect(selectProvider({ LORE_LLM_PROVIDER: "openai" }).vendor).toBe("cli");
   });
 
   it("picks ollama for LORE_LLM_PROVIDER=ollama", () => {
@@ -38,8 +36,8 @@ describe("selectProvider", () => {
 
   it("lets LORE_LLM_PROVIDER win over LORE_FACT_LLM", () => {
     expect(
-      selectProvider({ LORE_LLM_PROVIDER: "openai", LORE_FACT_LLM: "ollama" })
+      selectProvider({ LORE_LLM_PROVIDER: "gemini", LORE_FACT_LLM: "ollama" })
         .vendor,
-    ).toBe("openai");
+    ).toBe("gemini");
   });
 });

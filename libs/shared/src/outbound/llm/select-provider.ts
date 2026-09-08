@@ -3,7 +3,6 @@
 import type { LlmProvider } from "./llm-provider.js";
 import type { UsagePort } from "../project/usage/usage-port.js";
 import { AnthropicProvider } from "./anthropic-provider.js";
-import { OpenAiProvider } from "./openai-provider.js";
 import { OllamaProvider } from "./ollama-provider.js";
 import { GeminiProvider } from "./gemini-provider.js";
 import { CliProvider } from "./cli-provider.js";
@@ -33,8 +32,6 @@ type ProviderFactory = (
 ) => LlmProvider;
 
 const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
-  openai: (env) =>
-    new OpenAiProvider({ model: env.LORE_FACT_MODEL || "gpt-4o-mini" }),
   ollama: (env) =>
     new OllamaProvider({ model: env.LORE_FACT_MODEL || "llama3" }),
   gemini: (env, opts) =>

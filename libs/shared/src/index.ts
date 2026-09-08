@@ -87,7 +87,6 @@ export { selectProvider } from "./outbound/llm/select-provider.js";
 export { NoLlmProvider } from "./outbound/llm/no-llm-provider.js";
 export { FakeLlm } from "./outbound/llm/fake-llm.js";
 export { AnthropicProvider } from "./outbound/llm/anthropic-provider.js";
-export { OpenAiProvider } from "./outbound/llm/openai-provider.js";
 export { OllamaProvider } from "./outbound/llm/ollama-provider.js";
 export { CliProvider } from "./outbound/llm/cli-provider.js";
 export type {
