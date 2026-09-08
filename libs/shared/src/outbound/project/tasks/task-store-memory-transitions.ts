@@ -130,7 +130,7 @@ export class TaskTransitionStore {
     const claimedBy = action === "claim" ? (meta?.agentId ?? null) : null;
 
     task.status = NEXT_STATUS[action];
-    // claimed_by = COALESCE($3, claimed_by)
+    // Pg coalesces the new owner over the old, so a null agentId keeps it.
     task.claimed_by = claimedBy ?? task.claimed_by;
     task.updated_at = this.now().toISOString();
 

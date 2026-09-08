@@ -80,7 +80,10 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: "^_",
         },
       ],
-      "re-lint/prefer-enforce-true": ["error", { enforceModule: ENFORCE_MODULE }],
+      "re-lint/prefer-enforce-true": [
+        "error",
+        { enforceModule: ENFORCE_MODULE },
+      ],
       "re-lint/no-catch-as-control-flow": "error",
       "re-lint/no-forwarding-class": "error",
       "re-lint/require-colocated-tests": "error",
@@ -210,7 +213,9 @@ export default tseslint.config(
       // the PR that empties it, like every queue above. Sizes at introduction
       // are recorded in the cutover PR.
       "re-lint/no-flag-params": "warn",
-      "re-lint/no-commented-out-code": "warn",
+      // Error since 2026-09-08: the queue was one comment — a SQL fragment
+      // quoted in an in-memory double — and it is reworded as prose.
+      "re-lint/no-commented-out-code": "error",
       "re-lint/no-closing-brace-comments": "warn",
       "re-lint/no-negative-names": "warn",
       "re-lint/prefer-polymorphism": "warn",
