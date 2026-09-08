@@ -9,11 +9,11 @@ import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent
 import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 import {
   parseAgentPatch,
   imageFieldTouched,
 } from "../../../work/agents/agents-schema.js";
+import { withPool } from "../with-pool.js";
 
 // Upserts the ORG-DEFAULT row (project_id IS NULL); `image` is refused here since the two-key ceremony is CODEOWNERS-scoped per repo.
 
@@ -111,13 +111,10 @@ async function orgUpdateOutcome(
 
 /** The org-default write. Anything past the body parse is either a guard's own refusal (which already carries its status) or an unexpected failure. */
 async function serveOrgUpdate(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const name = request.params.name as string;
 
   try {
@@ -143,7 +140,7 @@ export function orgAgentDefinitionUpdateRoute(
       description: "The updated org-default definition",
       errors: [400],
     }),
-    handler: (request, h) => serveOrgUpdate(getPool, request, h),
+    handler: withPool(getPool, serveOrgUpdate),
   };
 }
 

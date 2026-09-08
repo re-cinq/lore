@@ -17,7 +17,7 @@ import type {
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 /** What the page needs of a run: enough to label it and attach a stream. */
 const TASK_RUN_COLUMNS = pickColumns(ASSEMBLY_RUN_COLUMNS, [
@@ -70,13 +70,10 @@ async function enforceTaskExists(
 }
 
 async function serveTaskRuns(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const taskId = request.params.id;
 
   const missing = await enforceTaskExists(pool, taskId, h);
@@ -122,6 +119,6 @@ export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {
       description: "The task's per-attempt runs, newest first",
       errors: [404],
     }),
-    handler: (request, h) => serveTaskRuns(getPool, request, h),
+    handler: withPool(getPool, serveTaskRuns),
   };
 }

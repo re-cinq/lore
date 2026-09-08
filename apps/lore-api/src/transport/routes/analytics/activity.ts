@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Pool } from "pg";
 import type {
   Request,
@@ -25,12 +23,8 @@ import {
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import {
-  clampedLimit,
-  offsetParam,
-  optionalBool,
-  DB_UNAVAILABLE,
-} from "../common-schemas.js";
+import { clampedLimit, offsetParam, optionalBool } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 // Activity reads behind the audit/gaps/events/job-run views, moved out of web-ui (ADR-032); one file since all three are the same shape of paged read.
 
@@ -141,13 +135,10 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
 
 /** A page of memory-audit entries — who wrote or read which memory, which is the only record of an agent touching org-wide state. */
 async function serveMemoryAudit(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const query = request.query as unknown as MemoryAuditQuery;
 
   return h.response(await memoryAuditPage(pool, query));
@@ -187,7 +178,7 @@ function memoryAuditRoute(getPool: () => Pool | null): ServerRoute {
         description: "A page of memory-audit entries",
       },
     ),
-    handler: (request, h) => serveMemoryAudit(getPool, request, h),
+    handler: withPool(getPool, serveMemoryAudit),
   };
 }
 
@@ -244,13 +235,10 @@ function pushEquals(clause: {
 
 /** A repo's recent bus events, newest first: what the Floor was asked to do, and in which order. */
 async function serveRepoEvents(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const query = request.query as unknown as EventsQuery;
 
   try {
@@ -289,7 +277,7 @@ function eventsRoute(getPool: () => Pool | null): ServerRoute {
       EventListSchema,
       { name: "RepoEventList", description: "A repo's recent events" },
     ),
-    handler: (request, h) => serveRepoEvents(getPool, request, h),
+    handler: withPool(getPool, serveRepoEvents),
   };
 }
 
@@ -302,18 +290,15 @@ function jobRunRoute(getPool: () => Pool | null): ServerRoute {
       description: "One scheduled-job run",
       errors: [404],
     }),
-    handler: (request, h) => serveJobRun(getPool, request, h),
+    handler: withPool(getPool, serveJobRun),
   };
 }
 
 async function serveJobRun(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { rows } = await pool.query(
     `SELECT ${selectList(JOB_RUN_COLUMNS)}
        FROM pipeline.job_runs WHERE id = $1`,
@@ -336,13 +321,10 @@ async function sevenDayCounts(pool: Pool, repo: string) {
 }
 
 async function serveActivityCounts(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const repo = `${request.params.owner}/${request.params.repo}`;
 
   return h.response(await sevenDayCounts(pool, repo));
@@ -356,6 +338,6 @@ function activityCountsRoute(getPool: () => Pool | null): ServerRoute {
       name: "RepoActivityCounts",
       description: "Seven-day activity counters for a repo",
     }),
-    handler: (request, h) => serveActivityCounts(getPool, request, h),
+    handler: withPool(getPool, serveActivityCounts),
   };
 }

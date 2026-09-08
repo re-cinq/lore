@@ -25,6 +25,7 @@ import {
   AuditLogPageSchema,
 } from "./task-views-schemas.js";
 import { TASK_EVENT_COLUMNS } from "@re-cinq/lore-shared/models/task-event.js";
+import { withPool } from "../with-pool.js";
 
 // Task-shaped reads dashboards need (ADR-032), distinct from `/api/tasks` (the MCP's task LIST) — these answer per-screen questions.
 
@@ -78,13 +79,10 @@ export function taskViewRoutes(getPool: () => Pool | null): ServerRoute[] {
 
 /** A repo's recent tasks, newest first. */
 async function serveRepoTasks(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { repo, limit } = request.query as unknown as RepoTasksQuery;
 
   const tasks = await rowsOrEmpty(() =>
@@ -106,7 +104,7 @@ function repoTasksRoute(getPool: () => Pool | null): ServerRoute {
       RepoTaskListSchema,
       { name: "RepoTaskList", description: "A repo's recent tasks" },
     ),
-    handler: (request, h) => serveRepoTasks(getPool, request, h),
+    handler: withPool(getPool, serveRepoTasks),
   };
 }
 
@@ -182,13 +180,10 @@ function agentActivitySql(repo: string | undefined): string {
 
 /** Per-agent activity rolled up across both the task and the memory side. */
 async function serveAgentActivity(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { repo } = request.query as unknown as AgentActivityQuery;
 
   const { rows } = await pool.query(agentActivitySql(repo), repo ? [repo] : []);
@@ -208,19 +203,16 @@ function agentActivityRoute(getPool: () => Pool | null): ServerRoute {
       AgentActivitySchema,
       { name: "AgentActivity", description: "Per-agent activity roll-up" },
     ),
-    handler: (request, h) => serveAgentActivity(getPool, request, h),
+    handler: withPool(getPool, serveAgentActivity),
   };
 }
 
 /** A task's transitions and the LLM calls it made, both in creation order. */
 async function serveTaskRuntime(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const taskId = request.params.id;
 
   const { rows: events } = await pool.query(TASK_EVENTS_SQL, [taskId]);
@@ -237,19 +229,16 @@ function taskRuntimeRoute(getPool: () => Pool | null): ServerRoute {
       name: "TaskRuntime",
       description: "A task's transitions and LLM calls",
     }),
-    handler: (request, h) => serveTaskRuntime(getPool, request, h),
+    handler: withPool(getPool, serveTaskRuntime),
   };
 }
 
 /** The audit trail: every auto-merge decision, dark-factory settings change and escalation, which is the record a rollback is reconstructed from. */
 async function serveAuditLog(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { repo, event_types, limit } =
     request.query as unknown as AuditLogQuery;
 
@@ -276,6 +265,6 @@ function auditLogRoute(getPool: () => Pool | null): ServerRoute {
         description: "Recent audit entries for a repo",
       },
     ),
-    handler: (request, h) => serveAuditLog(getPool, request, h),
+    handler: withPool(getPool, serveAuditLog),
   };
 }

@@ -28,6 +28,7 @@ export {
   memorySearchRoute,
   listMemoriesRoute,
 } from "./memory-search-routes.js";
+import { withPool } from "../with-pool.js";
 
 // Memory browse reads (ADR-032), shaped per SCREEN not per table — one round trip per page.
 
@@ -104,13 +105,10 @@ async function readEdgesFor(
 
 /** Entities and edges of the knowledge graph, for browsing rather than querying — the whole neighbourhood, not the answer to a question. */
 async function serveGraphBrowse(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { entity, type, show_invalid } =
     request.query as unknown as GraphBrowseQuery;
 
@@ -141,7 +139,7 @@ function graphBrowseRoute(getPool: () => Pool | null): ServerRoute {
         description: "Entities and edges of the knowledge graph",
       },
     ),
-    handler: (request, h) => serveGraphBrowse(getPool, request, h),
+    handler: withPool(getPool, serveGraphBrowse),
   };
 }
 
@@ -196,13 +194,10 @@ async function readPoolEntries(pool: Pool, poolId: unknown) {
 
 /** One shared pool and what it holds. Pools are how memory crosses agent boundaries, so the count is what tells a reader whether anyone is actually using it. */
 async function servePoolDetail(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { rows } = await pool.query(
     `SELECT id, name, created_by, created_at
        FROM memory.shared_pools WHERE name = $1`,
@@ -226,7 +221,7 @@ function poolDetailRoute(getPool: () => Pool | null): ServerRoute {
       description: "One pool and the live entries in it",
       errors: [404],
     }),
-    handler: (request, h) => servePoolDetail(getPool, request, h),
+    handler: withPool(getPool, servePoolDetail),
   };
 }
 
@@ -275,13 +270,10 @@ function episodePageSql(where: string, paramCount: number): string {
 
 /** Recent episodes — the raw text facts were extracted FROM, which is what makes an extracted fact auditable. */
 async function serveEpisodeList(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { source, agent, limit, offset } =
     request.query as unknown as EpisodesQuery;
   const { where, params } = episodeFilter(source, agent);
@@ -306,6 +298,6 @@ function listEpisodesRoute(getPool: () => Pool | null): ServerRoute {
       EpisodePageSchema,
       { name: "EpisodePage", description: "A page of ingested episodes" },
     ),
-    handler: (request, h) => serveEpisodeList(getPool, request, h),
+    handler: withPool(getPool, serveEpisodeList),
   };
 }

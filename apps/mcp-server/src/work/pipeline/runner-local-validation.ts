@@ -1,7 +1,5 @@
 // Deterministic validation (Minions-inspired) for the local runner: run lint/typecheck after a task, retry once with a fix prompt, and hand off to a human when the retry still fails.
-import { spawn } from "node:child_process";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import {
   detectTooling,
   runValidation,
@@ -14,25 +12,8 @@ import {
   waitForExit,
   writeTasks,
 } from "./runner-local-storage.js";
-import { errFileFor, persistRunArtifacts } from "./runner-local-turns.js";
-
-/** Headless streaming JSON, permissions skipped — the worktree is disposable and the run is unattended. */
-export function claudeArgs(
-  model: string | undefined,
-  prompt: string,
-): string[] {
-  return [
-    "--print",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--dangerously-skip-permissions",
-    "--model",
-    model || "claude-sonnet-4-6",
-    "--",
-    prompt,
-  ];
-}
+import { persistRunArtifacts } from "./runner-local-turns.js";
+import { spawnClaude } from "./runner-local-claude.js";
 
 /** Detached so the fix survives this process; its output appends to the task's own log rather than opening a second one. */
 function spawnFixRun(task: LocalTask, fixOutput: string): number | undefined {
@@ -42,20 +23,14 @@ function spawnFixRun(task: LocalTask, fixOutput: string): number | undefined {
     "",
     fixOutput,
   ].join("\n");
-  const logFd = fs.openSync(task.logFile, "a");
-  const errFd = fs.openSync(errFileFor(task.logFile), "a");
-  const child = spawn("claude", claudeArgs(readConfig().model, fixPrompt), {
+
+  return spawnClaude({
     cwd: task.worktreePath,
-    detached: true,
-    stdio: ["ignore", logFd, errFd],
-    env: { ...process.env, HOME: os.homedir() },
+    logFile: task.logFile,
+    logMode: "a",
+    model: readConfig().model,
+    prompt: fixPrompt,
   });
-
-  child.unref();
-  fs.closeSync(logFd);
-  fs.closeSync(errFd);
-
-  return child.pid;
 }
 
 // Spawns a Claude Code fix retry for a failed validation and re-validates; returns null when the fix child never got a pid.

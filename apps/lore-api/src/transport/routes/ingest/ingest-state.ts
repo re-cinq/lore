@@ -10,8 +10,9 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
+import { withPool } from "../with-pool.js";
+import { storedCommit } from "./ingest-delta-state.js";
 
 /** GET ingest-state (CI half of incremental-ingest handshake); null = full-ingest signal. */
 
@@ -20,44 +21,12 @@ const IngestStateSchema = z.object({
   commit: z.string().nullable(),
 });
 
-const UNDEFINED_TABLE = "42P01";
-
-function isUndefinedTableError(err: unknown): boolean {
-  return err instanceof Error && "code" in err && err.code === UNDEFINED_TABLE;
-}
-
-async function lastIngestedCommit(
-  pool: Pool,
-  repo: string,
-  kind: string,
-): Promise<string | null> {
-  try {
-    const { rows } = await pool.query<{ commit_sha: string }>(
-      `SELECT commit_sha FROM pipeline.ingest_state
-        WHERE repo = $1 AND kind = $2`,
-      [repo, kind],
-    );
-
-    return rows[0]?.commit_sha ?? null;
-  } catch (err) {
-    // Unmigrated cluster → full ingest (correct behavior).
-    if (!isUndefinedTableError(err)) {
-      throw err;
-    }
-
-    return null;
-  }
-}
-
 /** The last commit ingested for the requested kind, or null when nothing has landed yet. */
 async function serveIngestState(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const kind = (request.query as { kind?: string }).kind ?? "";
 
   enforceTrue(
@@ -66,7 +35,7 @@ async function serveIngestState(
     `unknown kind "${kind}" — expected one of ${[...INGEST_DELTA_KINDS].join(", ")}`,
   );
   const repo = `${request.params.owner}/${request.params.repo}`;
-  const commit = await lastIngestedCommit(pool, repo, kind);
+  const commit = await storedCommit(pool, repo, kind);
 
   return h.response({ kind, commit });
 }
@@ -80,6 +49,6 @@ export function ingestStateRoute(getPool: () => Pool | null): ServerRoute {
       description: "The last commit ingested for a repo and kind",
       errors: [400],
     }),
-    handler: (request, h) => serveIngestState(getPool, request, h),
+    handler: withPool(getPool, serveIngestState),
   };
 }

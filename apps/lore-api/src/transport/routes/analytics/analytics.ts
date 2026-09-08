@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
@@ -12,11 +10,11 @@ import type {
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 import {
   ANALYTICS_PERIODS,
   pipelineAnalytics,
 } from "../../../work/analytics/analytics-queries.js";
+import { withPool } from "../with-pool.js";
 
 const AnalyticsQuery = z.object({
   period: z.enum(ANALYTICS_PERIODS).default("month"),
@@ -39,19 +37,15 @@ export function analyticsRoute(getPool: () => Pool | null): ServerRoute {
       PipelineAnalyticsSchema,
       { name: "PipelineAnalytics", description: "Org-wide pipeline analytics" },
     ),
-    handler: (request, h) => serveAnalytics(getPool, request, h),
+    handler: withPool(getPool, serveAnalytics),
   };
 }
 
 async function serveAnalytics(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   const { period } = request.query as unknown as AnalyticsQuery;
 
   try {

@@ -11,7 +11,6 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
 import { defaultDeps, type IngestDeltaDeps } from "./ingest-delta-deps.js";
 import {
@@ -19,6 +18,7 @@ import {
   storedCommit,
   type DeltaCommit,
 } from "./ingest-delta-state.js";
+import { withPool } from "../with-pool.js";
 
 export type { IngestDeltaDeps } from "./ingest-delta-deps.js";
 
@@ -240,14 +240,11 @@ async function applyDelta(
 
 /** Guard, project, then settle the stored pointer — in that order, so a refused delta writes nothing. */
 async function serveIngestDelta(
-  getPool: () => Pool | null,
+  pool: Pool,
   deps: IngestDeltaDeps,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const body = request.payload as IngestDeltaBody;
   const repo = `${request.params.owner}/${request.params.repo}`;
 
@@ -271,6 +268,8 @@ export function ingestDeltaRoute(
     method: "POST",
     path: "/api/repos/{owner}/{repo}/ingest",
     options: INGEST_DELTA_OPTIONS,
-    handler: (request, h) => serveIngestDelta(getPool, deps, request, h),
+    handler: withPool(getPool, (pool, request, h) =>
+      serveIngestDelta(pool, deps, request, h),
+    ),
   };
 }

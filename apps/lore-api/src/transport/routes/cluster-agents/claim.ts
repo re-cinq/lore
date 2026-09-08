@@ -1,6 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type {
   Request,
   ResponseObject,
@@ -11,12 +9,16 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
-import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 import { mayClaim } from "@re-cinq/lore-shared/project/cluster-agents/capacity.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
+import {
+  authenticateClusterAgent,
+  type ClusterAgentRefusal,
+} from "./cluster-agent-auth.js";
+import type { ClusterAgent } from "@re-cinq/lore-shared/models/cluster-agent.js";
 
 // A cluster-agent pulls its next queued station run (FR3, specs/running-stations-in-any-k8s-cluster); per-agent bearer token (not bearer-scope) so A's token against B's id is a 403; no queued run is a 204 idle-poll signal.
 
@@ -36,15 +38,8 @@ export interface ClaimDeps {
   runs: Pick<AssemblyRunsPort, "claimNextStationRun">;
 }
 
-/** The registered agent behind a presented token. */
-type ClaimantAgent = Awaited<
-  ReturnType<ClaimDeps["agents"]["findByTokenHash"]>
-> &
-  object;
-
 /** Every way a claim ends without work being handed over. */
-type ClaimRefusal =
-  { code: 401 | 403; body: { error: string } } | { code: 204 };
+type ClaimRefusal = ClusterAgentRefusal | { code: 204 };
 
 /** The handler core, injectable for tests: authenticate, match, claim. */
 /** Who is asking, and whether they may claim at all. A PAUSED agent gets the same 204 as "nothing queued" — it needs no new client behaviour, just its existing idle backoff — and the check lives here because pausing is a fact about the registry, not about the queue. */
@@ -52,17 +47,14 @@ async function authorizeClaimant(
   deps: ClaimDeps,
   bearer: string | undefined,
   agentId: string,
-): Promise<{ agent: ClaimantAgent } | ClaimRefusal> {
-  if (!bearer) {
-    return { code: 401, body: { error: "unauthorized" } };
-  }
-  const agent = await deps.agents.findByTokenHash(hashAgentToken(bearer));
+): Promise<{ agent: ClusterAgent } | ClaimRefusal> {
+  const auth = await authenticateClusterAgent(deps.agents, bearer, agentId);
 
-  if (!agent || agent.id !== agentId) {
-    return { code: 403, body: { error: "forbidden" } };
+  if ("code" in auth) {
+    return auth;
   }
 
-  return mayClaim(agent) ? { agent } : { code: 204 };
+  return mayClaim(auth.agent) ? auth : { code: 204 };
 }
 
 /** What a claiming agent is handed. The `spec` rides ALONG with the ids: the claim armed it, and re-deriving it in the cluster would let a re-dispatch build something different from what was claimed. */
@@ -85,7 +77,7 @@ function claimBody(
 /** The next queued run for this agent's tags, or the 204 that tells it to keep polling. */
 async function claimNextRun(
   deps: ClaimDeps,
-  agent: ClaimantAgent,
+  agent: ClusterAgent,
 ): Promise<{ code: 200; body: z.infer<typeof ClaimResponse> } | { code: 204 }> {
   const claimed = await deps.runs.claimNextStationRun({
     clusterAgentId: agent.id,
@@ -119,14 +111,10 @@ export async function handleClaim(
 
 /** A cluster-agent asking for work. Dispatch is PULL-only, so this is the one path by which a run reaches any cluster — including the platform's own. */
 async function serveClaim(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   const result = await handleClaim(
     { agents: new PgClusterAgents(pool), runs: new PgAssemblyRuns(pool) },
     extractBearer(request.headers.authorization),
@@ -157,6 +145,6 @@ export function clusterAgentClaimRoute(
           "The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable",
       },
     ),
-    handler: (request, h) => serveClaim(getPool, request, h),
+    handler: withPool(getPool, serveClaim),
   };
 }

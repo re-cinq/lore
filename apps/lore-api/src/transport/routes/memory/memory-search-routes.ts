@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Pool } from "pg";
 import type {
   Request,
@@ -10,13 +8,13 @@ import type {
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 import {
   MemorySearchQuery,
   MemoriesQuery,
   MemorySearchSchema,
   MemoryListSchema,
 } from "./memory-browse-schemas.js";
+import { withPool } from "../with-pool.js";
 
 // Lexical + listing reads over memories/facts — the search-and-list half of memory browse.
 
@@ -91,13 +89,10 @@ async function withHistory(
 
 /** Memories and facts ranked lexically against one query, in that order. */
 async function serveMemorySearch(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { q } = request.query as unknown as MemorySearchQuery;
 
   const [{ rows: memories }, { rows: facts }] = await Promise.all([
@@ -123,7 +118,7 @@ export function memorySearchRoute(getPool: () => Pool | null): ServerRoute {
         description: "Ranked memories and facts",
       },
     ),
-    handler: (request, h) => serveMemorySearch(getPool, request, h),
+    handler: withPool(getPool, serveMemorySearch),
   };
 }
 
@@ -137,13 +132,10 @@ const MEMORY_LIST_SQL = `SELECT m.id, m.key, m.value, m.version, m.created_at, m
 
 /** An agent's memories with their versions and extracted facts — the browse view behind the memory page. */
 async function serveMemoryList(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { agent, limit } = request.query as unknown as MemoriesQuery;
 
   const { rows: memories } = await pool.query<{
@@ -169,6 +161,6 @@ export function listMemoriesRoute(getPool: () => Pool | null): ServerRoute {
         description: "An agent's memories with versions and facts",
       },
     ),
-    handler: (request, h) => serveMemoryList(getPool, request, h),
+    handler: withPool(getPool, serveMemoryList),
   };
 }

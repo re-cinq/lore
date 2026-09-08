@@ -1,7 +1,5 @@
 import type { CatalogApplyReport } from "@re-cinq/lore-shared/project/agents/catalog-status-port.js";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type {
   Request,
   ResponseObject,
@@ -12,12 +10,12 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
-import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 import type { CatalogStatusRepository } from "@re-cinq/lore-shared/project/agents/catalog-status-port.js";
 import { PgCatalogStatus } from "@re-cinq/lore-shared/project/agents/catalog-status-pg.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
+import { authenticateClusterAgent } from "./cluster-agent-auth.js";
 
 // A cluster-agent reports what it DID with entries it read (applied/refused/skipped/deleted) — previously lived only in pod stdout and died with it (a 2026-09-01 refusal went 2h unrecorded). Reported SEPARATELY from the (GET) ack so a report failure costs visibility, never delivery.
 
@@ -42,29 +40,6 @@ export interface CatalogStatusDeps {
 }
 
 /** The handler core, injectable for tests: authenticate, then record. */
-/** The agent behind the bearer, or the refusal. The id in the path must match the token's own agent — a valid token for a DIFFERENT agent is a 403, not a 401, because the caller is authenticated and simply not this agent. */
-async function authorizeAgent(
-  deps: CatalogStatusDeps,
-  bearer: string | undefined,
-  agentId: string,
-): Promise<
-  | {
-      agent: NonNullable<
-        Awaited<ReturnType<CatalogStatusDeps["agents"]["findByTokenHash"]>>
-      >;
-    }
-  | { code: 401 | 403; body: { error: string } }
-> {
-  if (!bearer) {
-    return { code: 401, body: { error: "unauthorized" } };
-  }
-  const agent = await deps.agents.findByTokenHash(hashAgentToken(bearer));
-
-  return !agent || agent.id !== agentId
-    ? { code: 403, body: { error: "forbidden" } }
-    : { agent };
-}
-
 /** One reported catalog entry, in the store's own spelling. `reason` rides along even for a success: a recipe that applied with a warning is what makes a later failure legible. */
 function toRecord(
   r: z.infer<typeof ReportSchema>["reports"][number],
@@ -108,7 +83,11 @@ export async function handleCatalogStatus(
   | { code: 200; body: z.infer<typeof StatusRecorded> }
   | { code: 400 | 401 | 403; body: { error: string } }
 > {
-  const authorized = await authorizeAgent(deps, bearer, agentId);
+  const authorized = await authenticateClusterAgent(
+    deps.agents,
+    bearer,
+    agentId,
+  );
 
   if ("code" in authorized) {
     return authorized;
@@ -119,14 +98,10 @@ export async function handleCatalogStatus(
 
 /** A cluster-agent reporting what it applied. The cursor moves only on this report, so a failed apply is retried rather than skipped. */
 async function serveCatalogStatus(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   const result = await handleCatalogStatus(
     {
       agents: new PgClusterAgents(pool),
@@ -155,6 +130,6 @@ export function clusterAgentCatalogStatusRoute(
           "Record what this cluster did with each catalog entry it read — applied, refused (with the reason), skipped or deleted",
       },
     ),
-    handler: (request, h) => serveCatalogStatus(getPool, request, h),
+    handler: withPool(getPool, serveCatalogStatus),
   };
 }

@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
@@ -19,7 +17,8 @@ import {
 } from "@re-cinq/lore-server-core/features/pipeline/tasks.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE, repoFullName } from "../common-schemas.js";
+import { repoFullName } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 // Spec-task DAG (sync→ready→claim→complete) over HTTP for the MCP tools — local adapter holds no pool (ADR-032), so queue mechanics + tasks.md parsing run here.
 
@@ -74,19 +73,16 @@ export function specTasksSyncRoute(getPool: () => Pool | null): ServerRoute {
         description: "How many spec tasks the sync parsed and created",
       },
     ),
-    handler: (request, h) => serveSpecTaskSync(getPool, request, h),
+    handler: withPool(getPool, serveSpecTaskSync),
   };
 }
 
 /** Parses a tasks.md and upserts each checklist item. Idempotent by design: it runs again on every re-sync of the same spec, and must converge rather than duplicate. */
 async function serveSpecTaskSync(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const body = request.payload as SyncBody;
 
   return respondOr500(h, () => syncedCounts(pool, body));
@@ -127,18 +123,15 @@ export function specTasksReadyRoute(getPool: () => Pool | null): ServerRoute {
         description: "Spec tasks whose dependencies have merged",
       },
     ),
-    handler: (request, h) => serveSpecTasksReady(getPool, request, h),
+    handler: withPool(getPool, serveSpecTasksReady),
   };
 }
 
 async function serveSpecTasksReady(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { repo } = request.query as unknown as ReadyQuery;
 
   return respondOr500(h, async () => ({
@@ -165,18 +158,15 @@ export function specTasksClaimRoute(getPool: () => Pool | null): ServerRoute {
       SpecClaimSchema,
       { name: "SpecTaskClaimed", description: "Whether the claim succeeded" },
     ),
-    handler: (request, h) => serveSpecTaskClaim(getPool, request, h),
+    handler: withPool(getPool, serveSpecTaskClaim),
   };
 }
 
 async function serveSpecTaskClaim(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { task_id, agent_id } = request.payload as ClaimBody;
 
   return respondOr500(h, async () => ({
@@ -206,18 +196,15 @@ export function specTasksCompleteRoute(
         description: "The completed task's new state",
       },
     ),
-    handler: (request, h) => serveSpecTaskComplete(getPool, request, h),
+    handler: withPool(getPool, serveSpecTaskComplete),
   };
 }
 
 async function serveSpecTaskComplete(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { task_id } = request.payload as CompleteBody;
 
   return respondOr500(h, () => completeTask(pool, task_id));

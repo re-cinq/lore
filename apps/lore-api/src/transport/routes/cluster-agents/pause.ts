@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type {
   Request,
   ResponseObject,
@@ -13,7 +11,7 @@ import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/clu
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
 
 /** Stop-switch: pauses a cluster without taking it down; stays active and finishes claimed work (FR9). */
 
@@ -54,14 +52,10 @@ export async function handleSetPaused(
 
 /** Pauses or resumes one cluster-agent. A paused agent keeps heartbeating — it is still healthy, just not claiming — so its runs are not reaped out from under it. */
 async function servePause(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   const result = await handleSetPaused(
     { agents: new PgClusterAgents(pool) },
     request.params.id,
@@ -92,6 +86,6 @@ export function clusterAgentPauseRoute(
     method: "PUT",
     path: "/api/cluster-agents/{id}/paused",
     options: PAUSE_OPTIONS,
-    handler: (request, h) => servePause(getPool, request, h),
+    handler: withPool(getPool, servePause),
   };
 }

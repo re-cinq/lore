@@ -1,5 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
@@ -12,8 +10,8 @@ import type {
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { agentUsage } from "../../../work/analytics/usage-queries.js";
+import { withPool } from "../with-pool.js";
 
 // Required, not resolved server-side: agent identity lives on the caller's machine, resolving it here would report the pod's identity instead.
 const UsageQuery = z.object({ agent_id: z.string().min(1).max(200) });
@@ -35,19 +33,15 @@ export function usageRoute(getPool: () => Pool | null): ServerRoute {
       AgentUsageSchema,
       { name: "AgentUsage", description: "Token and cost usage for an agent" },
     ),
-    handler: (request, h) => serveUsage(getPool, request, h),
+    handler: withPool(getPool, serveUsage),
   };
 }
 
 async function serveUsage(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   const { agent_id } = request.query as unknown as UsageQuery;
 
   try {

@@ -1,6 +1,4 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type {
   Request,
   ResponseObject,
@@ -13,10 +11,10 @@ import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/clust
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { DB_UNAVAILABLE } from "../common-schemas.js";
+import { withPool } from "../with-pool.js";
+import { authenticateClusterAgent } from "./cluster-agent-auth.js";
 
 /** Release a failed claim: requeues it for another cluster to try instead of letting it linger. */
 
@@ -61,32 +59,24 @@ export async function handleRelease(
   agentId: string,
   body: z.infer<typeof ReleaseBody>,
 ): Promise<ReleaseResult> {
-  if (!bearer) {
-    return { code: 401, body: { error: "unauthorized" } };
-  }
+  const auth = await authenticateClusterAgent(deps.agents, bearer, agentId);
 
-  const agent = await deps.agents.findByTokenHash(hashAgentToken(bearer));
-
-  if (!agent || agent.id !== agentId) {
-    return { code: 403, body: { error: "forbidden" } };
+  if ("code" in auth) {
+    return auth;
   }
 
   return {
     code: 200,
-    body: { status: await requeueAndLog(deps, agent.name, body) },
+    body: { status: await requeueAndLog(deps, auth.agent.name, body) },
   };
 }
 
 /** A cluster-agent handing back work it could not start. */
 async function serveRelease(
-  getPool: () => Pool | null,
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
   const result = await handleRelease(
     { agents: new PgClusterAgents(pool), runs: new PgAssemblyRuns(pool) },
     extractBearer(request.headers.authorization),
@@ -112,6 +102,6 @@ export function clusterAgentReleaseRoute(
           "Whether the unlaunched visit went back on the queue or had already settled",
       },
     ),
-    handler: (request, h) => serveRelease(getPool, request, h),
+    handler: withPool(getPool, serveRelease),
   };
 }
