@@ -11,9 +11,8 @@ import {
 
 type Refresh = () => void | Promise<void>;
 
-/** Which panels exist and which are currently worth refreshing. A panel deregisters by calling what `register` returned, so an unmounted panel cannot be ticked. */
-export function usePanelRegistry() {
-  const registryRef = useRef(new Map<string, Refresh>());
+/** Which panel ids are worth ticking, as both state and a ref. The ref exists so the tick callback can read the current set without being rebuilt — and therefore without restarting the interval — every time a panel comes or goes. */
+function useActiveIds() {
   const [activeIds, setActiveIds] = useState<ReadonlySet<string>>(new Set());
   const activeIdsRef = useRef(activeIds);
 
@@ -24,6 +23,14 @@ export function usePanelRegistry() {
   const setActive = useCallback((id: string, active: boolean) => {
     setActiveIds((prev) => withMember(prev, id, active));
   }, []);
+
+  return { activeIds, activeIdsRef, setActive };
+}
+
+/** Which panels exist and which are currently worth refreshing. A panel deregisters by calling what `register` returned, so an unmounted panel cannot be ticked. */
+export function usePanelRegistry() {
+  const registryRef = useRef(new Map<string, Refresh>());
+  const { activeIds, activeIdsRef, setActive } = useActiveIds();
   const register = useCallback(
     (id: string, refresh: Refresh) => {
       registryRef.current.set(id, refresh);
@@ -39,7 +46,7 @@ export function usePanelRegistry() {
     for (const id of activeIdsRef.current) {
       void registryRef.current.get(id)?.();
     }
-  }, []);
+  }, [activeIdsRef]);
 
   return {
     register,
@@ -71,6 +78,28 @@ export function withMember(
   return next;
 }
 
+/** Now, or once at the throttle boundary. A burst that arrives inside the window schedules ONE trailing refresh and every later event in that burst is absorbed by it — the timer being non-null is what says a refresh is already owed. */
+function scheduleBurst(
+  lastRefreshAtRef: { current: number },
+  trailingTimerRef: { current: ReturnType<typeof setTimeout> | null },
+  run: () => void,
+) {
+  const delayMs = eventRefreshDelayMs(lastRefreshAtRef.current, Date.now());
+
+  if (delayMs === 0) {
+    run();
+
+    return;
+  }
+
+  if (trailingTimerRef.current === null) {
+    trailingTimerRef.current = setTimeout(() => {
+      trailingTimerRef.current = null;
+      run();
+    }, delayMs);
+  }
+}
+
 /** Coalesces an event burst: refresh immediately when past the throttle, otherwise once at the boundary. Seeded at mount so stream catch-up does not fire a duplicate wave. */
 export function useCoalescedRefresh(
   refreshAll: () => void,
@@ -93,30 +122,17 @@ export function useCoalescedRefresh(
     (event: RunStreamEvent) => {
       setAfterId((prev) => maxEventId(prev, event.id));
 
-      const delayMs = eventRefreshDelayMs(lastRefreshAtRef.current, Date.now());
       const run = () => {
         lastRefreshAtRef.current = Date.now();
         refreshAll();
       };
 
-      if (delayMs === 0) {
-        run();
-
-        return;
-      }
-
-      if (trailingTimerRef.current === null) {
-        trailingTimerRef.current = setTimeout(() => {
-          trailingTimerRef.current = null;
-          run();
-        }, delayMs);
-      }
+      scheduleBurst(lastRefreshAtRef, trailingTimerRef, run);
     },
     [refreshAll, setAfterId],
   );
 }
 
-/** The polling half: refresh every panel on a tick and — while discovery is active — re-read the task's runs to attach a fresh live run or detach a terminal one. */
 /** Single-flight run discovery. A poll slower than its interval must NOT stack requests behind itself, so an in-flight lookup skips the next tick rather than queueing; a cancelled discovery drops its result instead of reporting a run the page has navigated away from. A failed lookup is silent — the next tick retries. */
 export function runDiscovery(
   taskId: string,
@@ -151,6 +167,49 @@ export function runDiscovery(
   };
 }
 
+/** The interval itself, and how to stop it. Discovery is read from a ref rather than taken as a value so that turning it on or off does not tear down and restart the interval mid-cycle. */
+function startTicker({
+  intervalMs,
+  taskId,
+  refreshAll,
+  discoveryActiveRef,
+  liveRunIdRef,
+  onLiveRunFound,
+}: {
+  intervalMs: number;
+  taskId: string;
+  refreshAll: () => void;
+  discoveryActiveRef: { current: boolean };
+  liveRunIdRef: { current: string | null };
+  onLiveRunFound: (runId: string | null) => void;
+}) {
+  const discovery = runDiscovery(taskId, liveRunIdRef, onLiveRunFound);
+  const handle = setInterval(() => {
+    refreshAll();
+
+    if (discoveryActiveRef.current) {
+      void discovery.run();
+    }
+  }, intervalMs);
+
+  return () => {
+    discovery.cancel();
+    clearInterval(handle);
+  };
+}
+
+/** The polling half: refresh every panel on a tick and — while discovery is active — re-read the task's runs to attach a fresh live run or detach a terminal one. */
+interface RefreshTickerOptions {
+  /** null stops the ticker entirely — a terminal task is not polled. */
+  intervalMs: number | null;
+  taskId: string;
+  refreshAll: () => void;
+  /** Whether to also look for a run that has since become live. */
+  discoveryActive: boolean;
+  liveRunId: string | null;
+  onLiveRunFound: (runId: string | null) => void;
+}
+
 export function useRefreshTicker({
   intervalMs,
   taskId,
@@ -158,14 +217,7 @@ export function useRefreshTicker({
   discoveryActive,
   liveRunId,
   onLiveRunFound,
-}: {
-  intervalMs: number | null;
-  taskId: string;
-  refreshAll: () => void;
-  discoveryActive: boolean;
-  liveRunId: string | null;
-  onLiveRunFound: (runId: string | null) => void;
-}): void {
+}: RefreshTickerOptions): void {
   const discoveryActiveRef = useRef(discoveryActive);
   const liveRunIdRef = useRef(liveRunId);
 
@@ -179,19 +231,14 @@ export function useRefreshTicker({
       return;
     }
 
-    const discovery = runDiscovery(taskId, liveRunIdRef, onLiveRunFound);
-    const handle = setInterval(() => {
-      refreshAll();
-
-      if (discoveryActiveRef.current) {
-        void discovery.run();
-      }
-    }, intervalMs);
-
-    return () => {
-      discovery.cancel();
-      clearInterval(handle);
-    };
+    return startTicker({
+      intervalMs,
+      taskId,
+      refreshAll,
+      discoveryActiveRef,
+      liveRunIdRef,
+      onLiveRunFound,
+    });
   }, [intervalMs, taskId, refreshAll, onLiveRunFound]);
 }
 

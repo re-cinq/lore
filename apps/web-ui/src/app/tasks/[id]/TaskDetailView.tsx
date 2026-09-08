@@ -1,10 +1,7 @@
 import Link from "next/link";
-import PRStatusPanel from "./PRStatusPanel";
 import TaskRefreshProvider from "./TaskRefreshProvider";
-import { CancelTaskButton } from "./CancelTaskButton";
+import TaskSummaryCard from "./TaskSummaryCard";
 import FailurePanel from "./FailurePanel";
-import Linkified from "@/components/Linkified";
-import { isCancellable } from "@/lib/task-status";
 import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
@@ -48,120 +45,6 @@ export interface TaskDetailViewProps {
   submitFeedback: (formData: FormData) => void | Promise<void>;
 }
 
-function PriorityBadge({ priority }: { priority: string }) {
-  return (
-    <span className={priority === "immediate" ? "badge badge-red" : "meta"}>
-      {priority || "normal"}
-    </span>
-  );
-}
-
-function AgentRow({ agentId }: { agentId: string | null }) {
-  if (!agentId) {
-    return null;
-  }
-
-  return (
-    <p>
-      <strong>Agent:</strong> {agentId}
-    </p>
-  );
-}
-
-function PrLinkRow({ prUrl }: { prUrl: string | null }) {
-  if (!prUrl) {
-    return null;
-  }
-
-  return (
-    <p>
-      <strong>PR:</strong>{" "}
-      <a href={prUrl} target="_blank">
-        {prUrl}
-      </a>
-    </p>
-  );
-}
-
-function PrStatusSection({
-  taskId,
-  prUrl,
-  prNumber,
-}: {
-  taskId: string;
-  prUrl: string | null;
-  prNumber: number | null;
-}) {
-  if (!prUrl || !prNumber) {
-    return null;
-  }
-
-  return <PRStatusPanel taskId={taskId} prUrl={prUrl} />;
-}
-
-function FailureRow({
-  failureReason,
-  repo,
-}: {
-  failureReason: string | null;
-  repo: string;
-}) {
-  if (!failureReason) {
-    return null;
-  }
-
-  return (
-    <p>
-      <strong>Failure:</strong>{" "}
-      <span className={styles.failureText}>
-        <Linkified text={failureReason} repo={repo} />
-      </span>
-    </p>
-  );
-}
-
-function ReviewIterationsRow({ reviewIteration }: { reviewIteration: number }) {
-  if (reviewIteration <= 0) {
-    return null;
-  }
-
-  return (
-    <p>
-      <strong>Review iterations:</strong> {reviewIteration}
-    </p>
-  );
-}
-
-function RunNowAction({
-  taskId,
-  status,
-  priority,
-}: {
-  taskId: string;
-  status: string;
-  priority: string;
-}) {
-  if (status !== "pending" || (priority || "normal") !== "normal") {
-    return null;
-  }
-
-  return (
-    <form action={`/api/tasks/${taskId}/run-now`} method="POST">
-      <button type="submit" className={styles.runNowBtn}>
-        Run Now
-      </button>
-    </form>
-  );
-}
-
-function CancelAction({ taskId, status }: { taskId: string; status: string }) {
-  if (!isCancellable(status)) {
-    return null;
-  }
-
-  return <CancelTaskButton taskId={taskId} />;
-}
-
 function TaskFailurePanel({
   status,
   failedEvent,
@@ -179,6 +62,31 @@ function TaskFailurePanel({
 }
 
 const TERMINAL_TASK_STATUSES = ["merged", "cancelled"];
+
+/** What the reader tells the agent to change. The placeholder is a worked example rather than a prompt: feedback that names the approach produces a revision, feedback that says "fix it" produces another guess. */
+function FeedbackForm({
+  taskId,
+  submitFeedback,
+}: {
+  taskId: string;
+  submitFeedback: (formData: FormData) => void | Promise<void>;
+}) {
+  return (
+    <form action={submitFeedback}>
+      <input type="hidden" name="task_id" value={taskId} />
+      <textarea
+        name="feedback"
+        rows={3}
+        required
+        placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
+        className={styles.feedbackTextarea}
+      />
+      <button type="submit" className={styles.feedbackBtn}>
+        Request Revision
+      </button>
+    </form>
+  );
+}
 
 /** Visible when the task has a PR and isn't in a terminal state. */
 function FeedbackSection({
@@ -203,19 +111,7 @@ function FeedbackSection({
         Tell the agent what to change. A revision task will be created on the
         same branch.
       </p>
-      <form action={submitFeedback}>
-        <input type="hidden" name="task_id" value={taskId} />
-        <textarea
-          name="feedback"
-          rows={3}
-          required
-          placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
-          className={styles.feedbackTextarea}
-        />
-        <button type="submit" className={styles.feedbackBtn}>
-          Request Revision
-        </button>
-      </form>
+      <FeedbackForm taskId={taskId} submitFeedback={submitFeedback} />
     </div>
   );
 }
@@ -247,57 +143,6 @@ function RunsSection({ runs }: { runs: TaskRunRow[] }) {
         ))}
       </ul>
     </section>
-  );
-}
-
-/** Everything true of the task itself, above the panels that report on its run. */
-function TaskSummaryCard({ task }: { task: TaskDetailViewProps["task"] }) {
-  return (
-    <div className="spec-card">
-      <p>
-        <strong>Type:</strong> <span className="badge">{task.task_type}</span>
-      </p>
-      <p>
-        <strong>Status:</strong>{" "}
-        <span className={`op-badge op-${task.status}`}>
-          {formatEnumLabel(task.status)}
-        </span>
-      </p>
-      <p>
-        <strong>Priority:</strong> <PriorityBadge priority={task.priority} />
-      </p>
-      <p>
-        <strong>Repo:</strong> {task.target_repo}
-      </p>
-      <p>
-        <strong>Description:</strong>{" "}
-        <Linkified text={task.description} repo={task.target_repo} />
-      </p>
-      <AgentRow agentId={task.agent_id} />
-      <PrLinkRow prUrl={task.pr_url} />
-      <PrStatusSection
-        taskId={task.id}
-        prUrl={task.pr_url}
-        prNumber={task.pr_number}
-      />
-      <FailureRow failureReason={task.failure_reason} repo={task.target_repo} />
-      <ReviewIterationsRow reviewIteration={task.review_iteration} />
-      <p>
-        <strong>Created by:</strong> {task.created_by}
-      </p>
-      <p className="meta">
-        Created: <TimeAgo date={task.created_at} inline /> · Updated:{" "}
-        <TimeAgo date={task.updated_at} inline />
-      </p>
-      <div className={styles.actions}>
-        <RunNowAction
-          taskId={task.id}
-          status={task.status}
-          priority={task.priority}
-        />
-        <CancelAction taskId={task.id} status={task.status} />
-      </div>
-    </div>
   );
 }
 

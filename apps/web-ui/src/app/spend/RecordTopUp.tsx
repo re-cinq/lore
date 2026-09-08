@@ -70,6 +70,37 @@ function LandedFields() {
   );
 }
 
+/** What was added and, optionally, why. The note is free text on purpose: a top-up is reconciled against an invoice or a person, and neither fits a field this page could validate. */
+function AmountAndNote() {
+  return (
+    <>
+      <label htmlFor="amount_usd">Amount (USD)</label>
+      <input
+        id="amount_usd"
+        name="amount_usd"
+        type="number"
+        step="0.01"
+        placeholder="100"
+        required
+        autoComplete="off"
+      />
+
+      <LandedFields />
+
+      <label htmlFor="note">
+        Note <span className="meta">— optional</span>
+      </label>
+      <input
+        id="note"
+        name="note"
+        type="text"
+        placeholder="who added it, invoice reference…"
+        autoComplete="off"
+      />
+    </>
+  );
+}
+
 export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
   const [state, formAction] = useActionState(recordAction, null);
   const copy = topUpCopy(first);
@@ -81,29 +112,7 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
       <form action={formAction} className={styles.recordForm}>
         <p className={`meta ${styles.subnote}`}>{copy.description}</p>
 
-        <label htmlFor="amount_usd">Amount (USD)</label>
-        <input
-          id="amount_usd"
-          name="amount_usd"
-          type="number"
-          step="0.01"
-          placeholder="100"
-          required
-          autoComplete="off"
-        />
-
-        <LandedFields />
-
-        <label htmlFor="note">
-          Note <span className="meta">— optional</span>
-        </label>
-        <input
-          id="note"
-          name="note"
-          type="text"
-          placeholder="who added it, invoice reference…"
-          autoComplete="off"
-        />
+        <AmountAndNote />
 
         {first && <input type="hidden" name="kind" value="opening" />}
 

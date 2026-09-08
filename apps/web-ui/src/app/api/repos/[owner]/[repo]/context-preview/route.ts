@@ -17,6 +17,35 @@ function parsePreviewParams(url: URL): {
   return { query, template, debug };
 }
 
+/** The session gate and the upstream credentials, or the refusal to send back. Deliberately no per-repo GitHub check: this preview shows the same org-wide context every repo tab already shows. */
+async function authorizeContextPreview() {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const apiConfig = resolveLoreApiConfig();
+
+  if (!apiConfig) {
+    return NextResponse.json(
+      { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
+      { status: 500 },
+    );
+  }
+
+  return apiConfig;
+}
+
+/** The assembled context, passed through unread. The status is NOT remapped: this route proxies the same endpoint a task runner hydrates from, so what the reader sees is byte-for-byte what a dev session receives on turn 1. */
+async function upstreamJson(upstream: Response) {
+  const body = await upstream.text();
+
+  return new NextResponse(body, {
+    status: upstream.status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ owner: string; repo: string }> },
@@ -30,24 +59,12 @@ export async function GET(
   }
 
   try {
-    // Same session gate as every repo tab; deliberately no per-repo GitHub check — this preview is the same org-wide context those tabs already show.
-    const session = await getServerSession(authOptions);
+    const gate = await authorizeContextPreview();
 
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (gate instanceof NextResponse) {
+      return gate;
     }
-
-    // Proxy to the same MCP endpoint the task runners hydrate from — preview is byte-for-byte what a dev session receives on turn 1.
-    const apiConfig = resolveLoreApiConfig();
-
-    if (!apiConfig) {
-      return NextResponse.json(
-        { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
-        { status: 500 },
-      );
-    }
-
-    const { apiUrl, token } = apiConfig;
+    const { apiUrl, token } = gate;
     const upstream = await fetch(
       `${apiUrl}/api/context?repo=${encodeURIComponent(fullName)}&query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}${debug}`,
       {
@@ -55,12 +72,8 @@ export async function GET(
         headers: { Authorization: `Bearer ${token}` },
       },
     );
-    const body = await upstream.text();
 
-    return new NextResponse(body, {
-      status: upstream.status,
-      headers: { "Content-Type": "application/json" },
-    });
+    return upstreamJson(upstream);
   } catch (err) {
     return serverError("context-preview", err);
   }

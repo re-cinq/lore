@@ -4,6 +4,28 @@ import { formatEnumLabel } from "@/lib/enum-label";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
 import styles from "./TaskDetailView.module.css";
 
+/** One transition. The `from` status is shown only when there is one — the first event of a task comes from nothing, and an arrow pointing at a blank would read as missing data rather than as a beginning. */
+function EventRow({ event }: { event: TaskRuntimeEvent }) {
+  return (
+    <div className={`version ${styles.event}`}>
+      <span className={`op-badge op-${event.to_status}`}>
+        {formatEnumLabel(event.to_status)}
+      </span>
+      {event.from_status && (
+        <span className="meta"> ← {formatEnumLabel(event.from_status)}</span>
+      )}
+      <span className={`meta ${styles.eventTime}`}>
+        <TimeAgo date={event.created_at} />
+      </span>
+      {event.metadata && (
+        <pre className={styles.eventMeta}>
+          {JSON.stringify(event.metadata, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 /** Status-transition timeline (pipeline.task_events). Pure render. */
 export default function EventTimeline({
   events,
@@ -19,25 +41,7 @@ export default function EventTimeline({
       {events.length === 0 ? null : (
         <div className="memory-list">
           {events.map((e) => (
-            <div key={e.id} className={`version ${styles.event}`}>
-              <span className={`op-badge op-${e.to_status}`}>
-                {formatEnumLabel(e.to_status)}
-              </span>
-              {e.from_status && (
-                <span className="meta">
-                  {" "}
-                  ← {formatEnumLabel(e.from_status)}
-                </span>
-              )}
-              <span className={`meta ${styles.eventTime}`}>
-                <TimeAgo date={e.created_at} />
-              </span>
-              {e.metadata && (
-                <pre className={styles.eventMeta}>
-                  {JSON.stringify(e.metadata, null, 2)}
-                </pre>
-              )}
-            </div>
+            <EventRow key={e.id} event={e} />
           ))}
         </div>
       )}

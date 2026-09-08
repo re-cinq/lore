@@ -6,6 +6,15 @@ import { serverError } from "@/lib/api-error";
 const MAX_LINES = 60;
 const DEFAULT_WINDOW = 24;
 
+/** The line range to return, clamped. `MAX_LINES` is a ceiling on the answer rather than a validation error: a caller asking for a whole file gets a preview, not a refusal. */
+function lineWindow(url: URL): { start: number; end: number } {
+  const start = Math.max(1, Number(url.searchParams.get("start")) || 1);
+  const requestedEnd =
+    Number(url.searchParams.get("end")) || start + DEFAULT_WINDOW;
+
+  return { start, end: Math.min(start + MAX_LINES - 1, requestedEnd) };
+}
+
 /** Returns a line slice of a repo file as plain text — powers the TestChunk code preview. */
 export async function GET(
   req: Request,
@@ -21,10 +30,7 @@ export async function GET(
       { status: 400 },
     );
   }
-  const start = Math.max(1, Number(url.searchParams.get("start")) || 1);
-  const requestedEnd =
-    Number(url.searchParams.get("end")) || start + DEFAULT_WINDOW;
-  const end = Math.min(start + MAX_LINES - 1, requestedEnd);
+  const { start, end } = lineWindow(url);
 
   try {
     const content = await getRepoFileContent(`${owner}/${repo}`, path);

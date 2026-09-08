@@ -118,6 +118,26 @@ function SearchResultCard({ result: r }: { result: SearchResult }) {
   );
 }
 
+/** The query and the repo it is scoped to. A plain GET form, so a search lands in the URL and can be shared or bookmarked. */
+function SearchForm({
+  q,
+  repo,
+  repos,
+}: Pick<SearchViewProps, "q" | "repo" | "repos">) {
+  return (
+    <form method="get" className="search-form">
+      <RepoFilterSelect repo={repo} repos={repos} />
+      <input
+        type="text"
+        name="q"
+        defaultValue={q || ""}
+        placeholder="Search memories, facts, and ingested docs..."
+      />
+      <button type="submit">Search</button>
+    </form>
+  );
+}
+
 /** Cross-source search page: pure render of merged/scored memory/fact/chunk results. */
 export default function SearchView({
   q,
@@ -128,16 +148,7 @@ export default function SearchView({
   return (
     <div>
       <h1>Search Memories</h1>
-      <form method="get" className="search-form">
-        <RepoFilterSelect repo={repo} repos={repos} />
-        <input
-          type="text"
-          name="q"
-          defaultValue={q || ""}
-          placeholder="Search memories, facts, and ingested docs..."
-        />
-        <button type="submit">Search</button>
-      </form>
+      <SearchForm q={q} repo={repo} repos={repos} />
       <ResultCountLine q={q} repo={repo} count={results.length} />
       {results.map((r, i) => (
         <SearchResultCard key={i} result={r} />

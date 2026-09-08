@@ -5,6 +5,20 @@ import type { components } from "@/lib/api/schema";
 
 type PoolInfo = components["schemas"]["SharedPoolDetail"]["pool"];
 
+/** The pool and its entries, or null. A pool that does not exist and one this deployment cannot reach are the same answer here: the view has a found={false} state that says so without a 404. */
+async function readPool(poolName: string) {
+  const result = await getPool(poolName);
+
+  if (result.status !== "ok") {
+    return null;
+  }
+
+  return {
+    pool: result.data.pool as unknown as PoolInfo,
+    entries: result.data.entries as unknown as PoolEntryRow[],
+  };
+}
+
 export default async function PoolDetailPage({
   params,
 }: {
@@ -13,9 +27,9 @@ export default async function PoolDetailPage({
   const { name } = await params;
   const poolName = decodeURIComponent(name);
 
-  const result = await getPool(poolName);
+  const found = await readPool(poolName);
 
-  if (result.status !== "ok") {
+  if (!found) {
     return (
       <PoolDetailView
         poolName={poolName}
@@ -26,16 +40,14 @@ export default async function PoolDetailPage({
       />
     );
   }
-  const pool = result.data.pool as unknown as PoolInfo;
-  const entries = result.data.entries as unknown as PoolEntryRow[];
 
   return (
     <PoolDetailView
       poolName={poolName}
       found={true}
-      createdBy={pool.created_by}
-      createdAt={pool.created_at}
-      entries={entries}
+      createdBy={found.pool.created_by}
+      createdAt={found.pool.created_at}
+      entries={found.entries}
     />
   );
 }

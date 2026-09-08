@@ -7,6 +7,28 @@ export interface RestartClusterButtonProps {
   restart: () => Promise<void>;
 }
 
+/** The second click. A restart kills whatever the cluster is running mid-process, so it is confirmed rather than fired from one press. */
+function ConfirmRow({
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  pending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <>
+      <button className="button" disabled={pending} onClick={onConfirm}>
+        Confirm restart
+      </button>{" "}
+      <button className="button" disabled={pending} onClick={onCancel}>
+        Cancel
+      </button>
+    </>
+  );
+}
+
 /** Central cluster restart (pulls latest); needs confirmation (kills mid-process). */
 export default function RestartClusterButton({
   restart,
@@ -16,22 +38,11 @@ export default function RestartClusterButton({
 
   if (confirming) {
     return (
-      <>
-        <button
-          className="button"
-          disabled={pending}
-          onClick={() => startTransition(() => restart())}
-        >
-          Confirm restart
-        </button>{" "}
-        <button
-          className="button"
-          disabled={pending}
-          onClick={() => setConfirming(false)}
-        >
-          Cancel
-        </button>
-      </>
+      <ConfirmRow
+        pending={pending}
+        onConfirm={() => startTransition(() => restart())}
+        onCancel={() => setConfirming(false)}
+      />
     );
   }
 

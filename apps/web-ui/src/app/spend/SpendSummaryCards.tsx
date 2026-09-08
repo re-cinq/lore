@@ -30,22 +30,21 @@ function Subnote({ children }: { children: ReactNode }) {
   return <div className={`meta ${styles.subnote}`}>{children}</div>;
 }
 
-/** The headline figures: what Lore computed from token counts, what each vendor actually billed, and what the pods cost. A billed card appears only once that vendor has synced. */
-export function SummaryCards({
-  interval,
-  llm,
-  billed,
-  gcp,
-  compute,
-}: {
+interface SummaryCardsProps {
   interval: SpendWindow["interval"];
   llm: SpendWindow["llm"];
   billed: SpendWindow["billed"];
   gcp: SpendWindow["gcp"];
   compute: SpendWindow["compute"];
-}) {
+}
+
+/** What Lore metered itself, over the chosen interval. Marked an estimate throughout: these are computed from token counts, and the vendor's invoice beside them is the authority. */
+function LoreComputedCards({
+  interval,
+  llm,
+}: Pick<SummaryCardsProps, "interval" | "llm">) {
   return (
-    <div className={styles.cards}>
+    <>
       <StatCard
         label={`Lore-computed cost ${day(interval.from)} → ${day(interval.to)}`}
         figure={usd(llm.total_usd)}
@@ -56,6 +55,21 @@ export function SummaryCards({
       <StatCard label="API calls" figure={num(llm.calls)} />
       <StatCard label="Input tokens" figure={num(llm.input_tokens)} />
       <StatCard label="Output tokens" figure={num(llm.output_tokens)} />
+    </>
+  );
+}
+
+/** The headline figures: what Lore computed from token counts, what each vendor actually billed, and what the pods cost. A billed card appears only once that vendor has synced. */
+export function SummaryCards({
+  interval,
+  llm,
+  billed,
+  gcp,
+  compute,
+}: SummaryCardsProps) {
+  return (
+    <div className={styles.cards}>
+      <LoreComputedCards interval={interval} llm={llm} />
       {billed.available && <AnthropicBilledCard billed={billed} />}
       <StatCard
         label="Kubernetes (estimated)"

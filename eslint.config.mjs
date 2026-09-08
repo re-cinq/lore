@@ -80,7 +80,10 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: "^_",
         },
       ],
-      "re-lint/prefer-enforce-true": ["error", { enforceModule: ENFORCE_MODULE }],
+      "re-lint/prefer-enforce-true": [
+        "error",
+        { enforceModule: ENFORCE_MODULE },
+      ],
       "re-lint/no-catch-as-control-flow": "error",
       "re-lint/no-forwarding-class": "error",
       "re-lint/require-colocated-tests": "error",
@@ -134,16 +137,16 @@ export default tseslint.config(
       "max-params": ["error", { max: 4 }],
       "re-lint/max-comment-lines": ["error", { max: 1 }],
       "re-lint/no-vague-names": "error",
-      // 30 by default, with the packages still draining held at 50 in the
-      // override below — a RATCHET per package rather than one for the whole
-      // repo, because 50 → 30 is 619 functions and a single global step can only
-      // move when every package is ready at once. Each PR empties one package's
-      // queue and deletes it from that override; when the list is empty this is
-      // simply 30. A rule carries ONE severity, so nothing under the applicable
-      // bound is reported — to see what is left against a lower target, set `max`
-      // here and run eslint, then put it back. Inline disables carry the reason
-      // they are not split (an iterative graph walk, a d3 canvas renderer, a test
-      // harness whose closures share state, and a composition root).
+      // 30 everywhere, with no override left. 50 → 30 was 619 functions, which
+      // no single global step could make: it was drained as a RATCHET, one
+      // package (then, for web-ui, one route group) per PR, each PR emptying a
+      // queue and deleting its entry from an override held at 50 meanwhile. The
+      // last entry went with the web-ui route groups on 2026-09-08, so the bound
+      // is simply 30. A rule carries ONE severity, so nothing under the bound is
+      // reported — to see what a lower target would cost, set `max` here and run
+      // eslint, then put it back. Inline disables carry the reason they are not
+      // split (an iterative graph walk, a d3 canvas renderer, a test harness
+      // whose closures share state, and a composition root).
       "max-lines-per-function": [
         "error",
         { max: 30, skipBlankLines: true, skipComments: true },
@@ -410,40 +413,6 @@ export default tseslint.config(
   // Tests run syntactically (some live outside their package's tsconfig, e.g.
   // lore-station excludes *.test.ts) and may lean on `any` for doubles. Keep the
   // custom + syntactic rules on; drop the type-aware ones.
-  {
-    // Draining toward 30, one package per PR (100 → 50 landed 2026-09-07). These
-    // stay red at 50 meanwhile: a package is removed from this list in the same
-    // PR that empties its queue, so no bound is ever unenforced.
-    files: ["apps/web-ui/**/*.{ts,tsx}"],
-    rules: {
-      "max-lines-per-function": [
-        "error",
-        { max: 50, skipBlankLines: true, skipComments: true },
-      ],
-    },
-  },
-
-  {
-    // web-ui is drained route group by route group rather than in one 147-file
-    // change. A group joins this list in the PR that empties it, so the block
-    // above only ever covers what is genuinely still outstanding.
-    files: [
-      "apps/web-ui/src/app/assembly-runs/**/*.{ts,tsx}",
-      "apps/web-ui/src/components/**/*.{ts,tsx}",
-      "apps/web-ui/src/lib/**/*.{ts,tsx}",
-      "apps/web-ui/src/app/repos/*/*/features/**/*.{ts,tsx}",
-      "apps/web-ui/src/app/repos/*/*/graph/**/*.{ts,tsx}",
-      "apps/web-ui/src/app/repos/*/*/agents/**/*.{ts,tsx}",
-      "apps/web-ui/src/app/repos/**/*.{ts,tsx}",
-    ],
-    rules: {
-      "max-lines-per-function": [
-        "error",
-        { max: 30, skipBlankLines: true, skipComments: true },
-      ],
-    },
-  },
-
   {
     files: ["**/*.test.{ts,tsx}"],
     languageOptions: {

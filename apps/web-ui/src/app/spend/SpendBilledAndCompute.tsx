@@ -3,7 +3,31 @@ import type { SpendWindow } from "./SpendView";
 import { usd, num, day } from "./spend-format";
 import { CostTable } from "./CostTable";
 
-/** What the two vendors actually billed. Each half renders only once that vendor has synced — an absent section means "never synced", not "spent nothing". */
+/** The invoice split by model. A row with no model name is billing that is not per-token — it is labelled rather than hidden, because it still comes out of the same balance. */
+function BilledByModel({
+  byModel,
+}: {
+  byModel: SpendWindow["billed"]["by_model"];
+}) {
+  return (
+    <CostTable
+      title="Anthropic Billed by Model"
+      columns={["Model", "Billed Cost", "Input Tokens", "Output Tokens"]}
+      rows={byModel}
+      rowKey={(r) => r.model || "(non-token)"}
+      monoColumns={[2, 3]}
+      cells={(r) => [
+        <span className="badge" key="model">
+          {r.model || "(non-token)"}
+        </span>,
+        usd(r.cost_usd),
+        num(r.input_tokens),
+        num(r.output_tokens),
+      ]}
+    />
+  );
+}
+
 /** Anthropic's own invoice, shown only where the billing export is wired up — an unavailable export is a deployment fact, not an empty month. */
 function AnthropicBilled({ billed }: { billed: SpendWindow["billed"] }) {
   if (!billed.available) {
@@ -12,21 +36,7 @@ function AnthropicBilled({ billed }: { billed: SpendWindow["billed"] }) {
 
   return (
     <>
-      <CostTable
-        title="Anthropic Billed by Model"
-        columns={["Model", "Billed Cost", "Input Tokens", "Output Tokens"]}
-        rows={billed.by_model}
-        rowKey={(r) => r.model || "(non-token)"}
-        monoColumns={[2, 3]}
-        cells={(r) => [
-          <span className="badge" key="model">
-            {r.model || "(non-token)"}
-          </span>,
-          usd(r.cost_usd),
-          num(r.input_tokens),
-          num(r.output_tokens),
-        ]}
-      />
+      <BilledByModel byModel={billed.by_model} />
 
       <CostTable
         title="Anthropic Daily Billed"
@@ -66,6 +76,7 @@ function GcpBilled({ gcp }: { gcp: SpendWindow["gcp"] }) {
   );
 }
 
+/** What the two vendors actually billed. Each half renders only once that vendor has synced — an absent section means "never synced", not "spent nothing". */
 export function BilledBreakdowns({
   billed,
   gcp,
@@ -83,6 +94,26 @@ export function BilledBreakdowns({
 
 /** Pods burning money right now, and the hours already spent in the interval. */
 /** What is burning money right now, as opposed to the interval totals below it. */
+/** One running pod and what it has cost so far. */
+function LivePodRow({
+  pod,
+}: {
+  pod: SpendWindow["compute"]["live_pods"][number];
+}) {
+  return (
+    <tr>
+      <td>{pod.name}</td>
+      <td>
+        {/* requests is a `{[key: string]: string}` index signature — cpu/memory keys aren't guaranteed present. */}
+        {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
+        {pod.requests.cpu ?? "—"} cpu · {pod.requests.memory ?? "—"}
+      </td>
+      <td>{usd(pod.usd_per_hour)}</td>
+      <td>{usd(pod.usd_so_far)}</td>
+    </tr>
+  );
+}
+
 function LivePods({ pods }: { pods: SpendWindow["compute"]["live_pods"] }) {
   return (
     <>
@@ -101,16 +132,7 @@ function LivePods({ pods }: { pods: SpendWindow["compute"]["live_pods"] }) {
           </thead>
           <tbody>
             {pods.map((pod) => (
-              <tr key={pod.name}>
-                <td>{pod.name}</td>
-                <td>
-                  {/* requests is a `{[key: string]: string}` index signature — cpu/memory keys aren't guaranteed present. */}
-                  {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
-                  {pod.requests.cpu ?? "—"} cpu · {pod.requests.memory ?? "—"}
-                </td>
-                <td>{usd(pod.usd_per_hour)}</td>
-                <td>{usd(pod.usd_so_far)}</td>
-              </tr>
+              <LivePodRow key={pod.name} pod={pod} />
             ))}
           </tbody>
         </table>

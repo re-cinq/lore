@@ -32,20 +32,24 @@ function BudgetOutlookNote({ budget }: { budget: NonNullable<BudgetRow> }) {
   );
 }
 
-/** What is left of the recorded credits. Not interval-scoped: money persists, so this subtracts spend since the anchor from the amount on record. */
+/** An em dash, not $0.00. An unrecorded balance is not an exhausted one, and the difference matters: one of them means someone has to go and enter a figure. */
+function NoBalanceRecorded() {
+  return (
+    <div className={`spec-card ${styles.balanceCard}`}>
+      <div className="meta">Credits remaining</div>
+      <div className={styles.figure}>—</div>
+      <div className={`meta ${styles.subnote}`}>
+        No balance recorded yet. Anthropic publishes usage and cost but not a
+        credit balance, so the starting figure has to be entered once.
+      </div>
+    </div>
+  );
+}
+
 /** The recorded balance, or an em dash. Deliberately NOT $0.00 when nothing has been recorded: an unrecorded balance is not an exhausted one, and Anthropic publishes usage and cost but no credit figure, so the starting number has to be entered by hand once. */
 function BalanceCard({ budget }: { budget: SpendWindow["budget"] }) {
   if (!budget) {
-    return (
-      <div className={`spec-card ${styles.balanceCard}`}>
-        <div className="meta">Credits remaining</div>
-        <div className={styles.figure}>—</div>
-        <div className={`meta ${styles.subnote}`}>
-          No balance recorded yet. Anthropic publishes usage and cost but not a
-          credit balance, so the starting figure has to be entered once.
-        </div>
-      </div>
-    );
+    return <NoBalanceRecorded />;
   }
 
   return (
@@ -71,6 +75,7 @@ function BalanceCard({ budget }: { budget: SpendWindow["budget"] }) {
   );
 }
 
+/** What is left of the recorded credits. Not interval-scoped: money persists, so this subtracts spend since the anchor from the amount on record. */
 export function BalanceSection({
   budget,
   hasClusterSpend,

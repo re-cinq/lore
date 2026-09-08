@@ -39,6 +39,45 @@ const groups: NavGroup[] = [
   },
 ];
 
+/** The group's links, each knowing whether it is the current page. Active is computed here rather than per link so one pass over the pathname answers for the whole group. */
+function navLinks(group: NavGroup, pathname: string) {
+  return group.links.map(({ href, label }) => (
+    <NavLink
+      key={href}
+      href={href}
+      label={label}
+      active={isNavActive(pathname, href, "/")}
+    />
+  ));
+}
+
+/** The group's own toggle. A button rather than a heading because it does something, and `aria-expanded` reports which way it is currently pointing. */
+function GroupHeader({
+  label,
+  collapsed,
+  onToggle,
+}: {
+  label: string;
+  collapsed: boolean;
+  onToggle: (label: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={styles.groupLabel}
+      onClick={() => onToggle(label)}
+      aria-expanded={!collapsed}
+    >
+      {label}
+      <Icon
+        name="chevron"
+        size={12}
+        className={collapsed ? styles.chevronCollapsed : styles.chevron}
+      />
+    </button>
+  );
+}
+
 /** A labelled group collapses; an unlabelled one is always open, which is how the top-level links render without a header. */
 function NavGroupSection({
   group,
@@ -51,14 +90,7 @@ function NavGroupSection({
   collapsed: boolean;
   onToggle: (label: string) => void;
 }) {
-  const links = group.links.map(({ href, label }) => (
-    <NavLink
-      key={href}
-      href={href}
-      label={label}
-      active={isNavActive(pathname, href, "/")}
-    />
-  ));
+  const links = navLinks(group, pathname);
 
   if (!group.label) {
     return <div className={styles.group}>{links}</div>;
@@ -66,20 +98,32 @@ function NavGroupSection({
 
   return (
     <div className={styles.group}>
-      <button
-        type="button"
-        className={styles.groupLabel}
-        onClick={() => onToggle(group.label!)}
-        aria-expanded={!collapsed}
-      >
-        {group.label}
-        <Icon
-          name="chevron"
-          size={12}
-          className={collapsed ? styles.chevronCollapsed : styles.chevron}
-        />
-      </button>
+      <GroupHeader
+        label={group.label}
+        collapsed={collapsed}
+        onToggle={onToggle}
+      />
       {!collapsed && links}
+    </div>
+  );
+}
+
+/** The two links that sit below the groups rather than in one. Neither belongs to a section of the app — settings is org-wide, and adding a repo is how the list itself grows. */
+function NavFooter({ pathname }: { pathname: string }) {
+  return (
+    <div className={styles.footer}>
+      <NavLink
+        href="/settings"
+        label="Settings"
+        active={isNavActive(pathname, "/settings", "/")}
+        className={styles.footerLink}
+      />
+      <NavLink
+        href="/onboard"
+        label="+ Add Repo"
+        active={isNavActive(pathname, "/onboard", "/")}
+        className={styles.addRepo}
+      />
     </div>
   );
 }
@@ -104,20 +148,7 @@ export default function SidebarNav() {
           />
         ))}
       </nav>
-      <div className={styles.footer}>
-        <NavLink
-          href="/settings"
-          label="Settings"
-          active={isNavActive(pathname, "/settings", "/")}
-          className={styles.footerLink}
-        />
-        <NavLink
-          href="/onboard"
-          label="+ Add Repo"
-          active={isNavActive(pathname, "/onboard", "/")}
-          className={styles.addRepo}
-        />
-      </div>
+      <NavFooter pathname={pathname} />
     </>
   );
 }

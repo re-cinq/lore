@@ -31,6 +31,42 @@ function PoolNotFound({ poolName }: { poolName: string }) {
   );
 }
 
+/** The entry columns. */
+function EntriesHead() {
+  return (
+    <thead>
+      <tr>
+        <th>Key</th>
+        <th>Value</th>
+        <th>Agent</th>
+        <th>Version</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+  );
+}
+
+/** One entry, at the version currently in the pool. The agent's full id is in the title attribute; the cell shows the shortened form so the column stays readable. */
+function EntryRow({
+  entry,
+}: {
+  entry: PoolDetailViewProps["entries"][number];
+}) {
+  return (
+    <tr>
+      <td>
+        <strong>{entry.key}</strong>
+      </td>
+      <PoolValueCell value={entry.value} />
+      <td title={entry.agent_id}>{displayAgentId(entry.agent_id)}</td>
+      <td>v{entry.version}</td>
+      <td>
+        <TimeAgo date={entry.created_at} />
+      </td>
+    </tr>
+  );
+}
+
 function PoolEntriesTable({
   entries,
 }: {
@@ -38,28 +74,10 @@ function PoolEntriesTable({
 }) {
   return (
     <table>
-      <thead>
-        <tr>
-          <th>Key</th>
-          <th>Value</th>
-          <th>Agent</th>
-          <th>Version</th>
-          <th>Created</th>
-        </tr>
-      </thead>
+      <EntriesHead />
       <tbody>
-        {entries.map((e) => (
-          <tr key={e.id}>
-            <td>
-              <strong>{e.key}</strong>
-            </td>
-            <PoolValueCell value={e.value} />
-            <td title={e.agent_id}>{displayAgentId(e.agent_id)}</td>
-            <td>v{e.version}</td>
-            <td>
-              <TimeAgo date={e.created_at} />
-            </td>
-          </tr>
+        {entries.map((entry) => (
+          <EntryRow key={entry.id} entry={entry} />
         ))}
         {entries.length === 0 && (
           <tr>

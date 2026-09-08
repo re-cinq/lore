@@ -42,6 +42,38 @@ function ContextEmptyState({ filtered }: { filtered: boolean }) {
   );
 }
 
+/** Says which context this is. Worth saying because the per-repo view looks the same and answers a narrower question — a reader who arrived here from a repo page would otherwise read another repo's chunks as that repo's. */
+function GlobalScopeNotice() {
+  return (
+    <div className={styles.notice}>
+      <p className={`meta ${styles.noticeText}`}>
+        This is the global view across all repos. For repo-specific context,
+        visit <a href="/">Repositories</a> and select a repo.
+      </p>
+    </div>
+  );
+}
+
+/** One chunk, labelled with the repo it came from. A chunk with no `file_path` came from a source with no file behind it — a memory or a fact — so it gets no detail link rather than one that would 404. */
+function GlobalChunkCard({
+  chunk,
+}: {
+  chunk: ContextViewProps["chunks"][number];
+}) {
+  return (
+    <ContextCard
+      chunk={chunk}
+      repo={chunk.repo ?? ""}
+      repoLabel={chunk.repo ?? undefined}
+      detailHref={
+        chunk.file_path
+          ? `/context/${encodeURIComponent(chunk.file_path)}`
+          : undefined
+      }
+    />
+  );
+}
+
 export default function ContextView({
   type,
   q,
@@ -51,12 +83,7 @@ export default function ContextView({
   return (
     <div>
       <h1>Context</h1>
-      <div className={styles.notice}>
-        <p className={`meta ${styles.noticeText}`}>
-          This is the global view across all repos. For repo-specific context,
-          visit <a href="/">Repositories</a> and select a repo.
-        </p>
-      </div>
+      <GlobalScopeNotice />
 
       <ContextFilters
         basePath="/context"
@@ -68,19 +95,7 @@ export default function ContextView({
       {chunks.length === 0 ? (
         <ContextEmptyState filtered={Boolean(q || type)} />
       ) : (
-        chunks.map((c) => (
-          <ContextCard
-            key={c.id}
-            chunk={c}
-            repo={c.repo ?? ""}
-            repoLabel={c.repo ?? undefined}
-            detailHref={
-              c.file_path
-                ? `/context/${encodeURIComponent(c.file_path)}`
-                : undefined
-            }
-          />
-        ))
+        chunks.map((chunk) => <GlobalChunkCard key={chunk.id} chunk={chunk} />)
       )}
     </div>
   );

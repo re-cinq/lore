@@ -35,40 +35,60 @@ interface CostTableProps<T> {
   empty?: string;
 }
 
-export function CostTable<T>({
-  title,
-  columns,
-  rows,
-  rowKey,
+/** The column headings. Keyed by their own text, which is also what each cell below is keyed by — the two must agree or a cell lands under the wrong heading. */
+function CostHead({ columns }: { columns: string[] }) {
+  return (
+    <thead>
+      <tr>
+        {columns.map((column) => (
+          <th key={column}>{column}</th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+/** One row of figures. Cells are keyed by their column name rather than by index, so a table whose columns change between renders does not reuse a cell under a heading it no longer belongs to. */
+function CostRow({
   cells,
-  monoColumns = [],
-  empty = "No data",
-}: CostTableProps<T>) {
+  columns,
+  monoColumns,
+}: {
+  cells: ReactNode[];
+  columns: string[];
+  monoColumns: number[];
+}) {
+  return (
+    <tr>
+      {cells.map((cell, index) => (
+        <td
+          key={columns[index]}
+          className={monoColumns.includes(index) ? styles.mono : undefined}
+        >
+          {cell}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+export function CostTable<T>(props: CostTableProps<T>) {
+  const { title, columns, rows, rowKey, cells } = props;
+  const { monoColumns = [], empty = "No data" } = props;
+
   return (
     <>
       <h2>{title}</h2>
       <table>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column}>{column}</th>
-            ))}
-          </tr>
-        </thead>
+        <CostHead columns={columns} />
         <tbody>
           {rows.map((row) => (
-            <tr key={rowKey(row)}>
-              {cells(row).map((cell, index) => (
-                <td
-                  key={columns[index]}
-                  className={
-                    monoColumns.includes(index) ? styles.mono : undefined
-                  }
-                >
-                  {cell}
-                </td>
-              ))}
-            </tr>
+            <CostRow
+              key={rowKey(row)}
+              cells={cells(row)}
+              columns={columns}
+              monoColumns={monoColumns}
+            />
           ))}
           <EmptyRow
             when={rows.length === 0}

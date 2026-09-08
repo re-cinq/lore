@@ -110,6 +110,22 @@ async function readAuthorizedSourceRun(
   return line;
 }
 
+/** What the fork asks lore-api for. `iteration` is omitted rather than sent as null when the reader picked a node instead of one of its attempts — an absent key means "the latest", which a null would not. */
+function forkBody(
+  line: { repo: string; blueprintName: string },
+  { runId, nodeId, iteration }: RerunRequest,
+): string {
+  return JSON.stringify({
+    definition: line.blueprintName,
+    repo: line.repo,
+    resume_from: {
+      run_id: runId,
+      node_id: nodeId,
+      ...(iteration === undefined ? {} : { iteration }),
+    },
+  });
+}
+
 /** Start the fork. A refusal comes back as 4xx with a reason in `error`, passed through verbatim; only a reasonless answer degrades to 502. */
 async function startFork(
   apiUrl: string,
@@ -121,15 +137,7 @@ async function startFork(
     signal: AbortSignal.timeout(30_000),
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      definition: line.blueprintName,
-      repo: line.repo,
-      resume_from: {
-        run_id: runId,
-        node_id: nodeId,
-        ...(iteration === undefined ? {} : { iteration }),
-      },
-    }),
+    body: forkBody(line, { runId, nodeId, iteration }),
   });
 
   if (!upstream.ok) {
@@ -148,6 +156,14 @@ async function startFork(
   return NextResponse.json({ id });
 }
 
+/** The deployment is missing its lore-api credentials. A 500 rather than a 502: nothing upstream was asked, and the fix is on this side. */
+function notConfigured() {
+  return NextResponse.json(
+    { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
+    { status: 500 },
+  );
+}
+
 export async function POST(req: Request) {
   try {
     const accessToken = await resolveSessionAccessToken();
@@ -163,10 +179,7 @@ export async function POST(req: Request) {
     const apiConfig = resolveLoreApiConfig();
 
     if (!apiConfig) {
-      return NextResponse.json(
-        { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
-        { status: 500 },
-      );
+      return notConfigured();
     }
     const { apiUrl, token } = apiConfig;
     const headers = { Authorization: `Bearer ${token}` };
