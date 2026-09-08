@@ -37,28 +37,28 @@ const INSTALLATION_PAGE_SIZE = 100;
 
 /** GitHub omits the owner login on some installation entries, so the full name is the fallback source for it. */
 async function fetchInstallationPage(
-  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  apps: Awaited<ReturnType<typeof getOctokit>>["rest"]["apps"],
   page: number,
 ): Promise<InstallationRepo[]> {
-  const listed = await octokit.rest.apps.listReposAccessibleToInstallation({
+  const { data: listed } = await apps.listReposAccessibleToInstallation({
     per_page: INSTALLATION_PAGE_SIZE,
     page,
   });
 
-  return listed.data.repositories.map((repo) => ({
-    full_name: repo.full_name,
-    owner: repo.owner.login || repo.full_name.split("/")[0],
-    name: repo.name,
+  return listed.repositories.map(({ full_name, owner, name }) => ({
+    full_name,
+    owner: owner.login || full_name.split("/")[0],
+    name,
   }));
 }
 
 /** Lists all repositories the GitHub App installation has access to. */
 export async function getInstallationRepos(): Promise<InstallationRepo[]> {
-  const octokit = await getOctokit();
+  const { rest } = await getOctokit();
   const repos: InstallationRepo[] = [];
 
   for (let page = 1; ; page++) {
-    const batch = await fetchInstallationPage(octokit, page);
+    const batch = await fetchInstallationPage(rest.apps, page);
 
     repos.push(...batch);
 
@@ -358,8 +358,8 @@ async function checkOnboardingPr(
     return;
   }
   const [owner, name] = repo.full_name.split("/");
-  const octokit = await getOctokit();
-  const { data: pr } = await octokit.rest.pulls.get({
+  const { rest } = await getOctokit();
+  const { data: pr } = await rest.pulls.get({
     owner,
     repo: name,
     pull_number: parseInt(match[1]),

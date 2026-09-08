@@ -30,9 +30,11 @@ function classifyFetchError(
   return ref === commit && commit !== "HEAD" ? "retry" : "missing";
 }
 
+type ReposApi = Awaited<ReturnType<typeof getOctokit>>["rest"]["repos"];
+
 type GetContentEntry = Awaited<
   ReturnType<
-    Awaited<ReturnType<typeof getOctokit>>["rest"]["repos"]["getContent"]
+    ReposApi["getContent"]
   >
 >["data"];
 
@@ -68,12 +70,12 @@ function settleRefFetchError(
 
 /** One ref's attempt, separated from the ref sequence so the fallback reads as a loop over refs rather than a nested catch. */
 async function fetchAtRef(
-  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  repos: ReposApi,
   target: GitHubFileTarget,
   ref: string,
 ): Promise<FetchedFile | null> {
   try {
-    const { data: entry } = await octokit.rest.repos.getContent({
+    const { data: entry } = await repos.getContent({
       owner: target.owner,
       repo: target.repoName,
       path: target.filePath,
@@ -88,11 +90,11 @@ async function fetchAtRef(
 
 /** Fetches file content at the commit, falling back to HEAD when the commit is unknown to the repo. */
 async function fetchFileWithHeadFallback(
-  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  repos: ReposApi,
   target: GitHubFileTarget,
 ): Promise<FetchedFile> {
   for (const ref of [target.commit, "HEAD"]) {
-    const fetched = await fetchAtRef(octokit, target, ref);
+    const fetched = await fetchAtRef(repos, target, ref);
 
     if (fetched) {
       return fetched;
@@ -144,10 +146,8 @@ export async function resolveFileContent(
     return { content: inlineContent, missing404: false };
   }
 
-  return fetchFileWithHeadFallback(githubCtx!.octokit, {
-    owner: githubCtx!.owner,
-    repoName: githubCtx!.repoName,
-    filePath,
-    commit,
-  });
+  const { octokit, owner, repoName } = githubCtx!;
+  const { repos } = octokit.rest;
+
+  return fetchFileWithHeadFallback(repos, { owner, repoName, filePath, commit });
 }
