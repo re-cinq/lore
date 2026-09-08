@@ -63,7 +63,7 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
   for.
 - GitHub is recognised by its own `X-Hub-Signature-256` header and
   authenticated by HMAC over the raw body — it carries no bearer token and is
-  never asked for one. ([validated by captures a signed webhook without any bearer token](apps/event-router/src/transport/routes/events.test.ts#L37))
+  never asked for one. ([validated by captures a signed webhook without any bearer token](apps/event-router/src/transport/routes/events.test.ts#L39))
 - A Floor calling any of the three new services presents the SERVICE-TO-SERVICE
   token (`LORE_AGENT_INTERNAL_TOKEN`), not the org-wide ingest token, falling
   back to the latter only for local dev where one token serves both ends. The
@@ -77,21 +77,21 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
   therefore a named, tested function rather than an env read at the call site.
   ([validated by prefers the service-to-service token over the org ingest token](libs/shared/src/lib/internal-token.test.ts#L5), [`internal-token.test.ts:14`](libs/shared/src/lib/internal-token.test.ts#L14), [`internal-token.test.ts:18`](libs/shared/src/lib/internal-token.test.ts#L18), [`internal-token.test.ts:22`](libs/shared/src/lib/internal-token.test.ts#L22), [presents the service-to-service token the cluster-agent's guard mounts](apps/lore-api/src/work/agents/agent-crd-k8s.test.ts#L5), [`agent-crd-k8s.test.ts:18`](apps/lore-api/src/work/agents/agent-crd-k8s.test.ts#L18), [`agent-crd-k8s.test.ts:30`](apps/lore-api/src/work/agents/agent-crd-k8s.test.ts#L30))
 - A webhook whose signature does not verify is refused and writes nothing.
-  ([validated by refuses a webhook whose signature does not match the secret](apps/event-router/src/transport/routes/events.test.ts#L60))
+  ([validated by refuses a webhook whose signature does not match the secret](apps/event-router/src/transport/routes/events.test.ts#L118))
 - Every other producer authenticates with a bearer token and reports the
-  generic shape, which is inserted unchanged. ([validated by inserts a reported event verbatim for a valid bearer token](apps/event-router/src/transport/routes/events.test.ts#L86))
+  generic shape, which is inserted unchanged. ([validated by inserts a reported event verbatim for a valid bearer token](apps/event-router/src/transport/routes/events.test.ts#L144))
 - A reported event with no bearer token is refused, so the trusted branch
   cannot be reached by omitting credentials rather than presenting bad ones.
-  ([validated by refuses a reported event carrying no bearer token](apps/event-router/src/transport/routes/events.test.ts#L98))
+  ([validated by refuses a reported event carrying no bearer token](apps/event-router/src/transport/routes/events.test.ts#L156))
 - A source outside the known vocabulary is refused at the door. An event whose
   source is a typo reaches no handler and would be discovered only by its
-  absence. ([validated by refuses a source outside the known vocabulary](apps/event-router/src/transport/routes/events.test.ts#L109))
+  absence. ([validated by refuses a source outside the known vocabulary](apps/event-router/src/transport/routes/events.test.ts#L167))
 - A malformed body is refused with the parser's own complaint, which names the
-  offending position. ([validated by refuses a body that is not JSON](apps/event-router/src/transport/routes/events.test.ts#L121))
+  offending position. ([validated by refuses a body that is not JSON](apps/event-router/src/transport/routes/events.test.ts#L179))
 - A rejection that belongs to no field names the body itself rather than an
-  empty path. ([validated by names the body itself when the payload is not even an object](apps/event-router/src/transport/routes/events.test.ts#L161))
+  empty path. ([validated by names the body itself when the payload is not even an object](apps/event-router/src/transport/routes/events.test.ts#L219))
 - One webhook may carry several events — a check suite fans out to one per
-  backing PR — and every one is reported. ([validated by reports every event a single webhook fans out to](apps/event-router/src/transport/routes/events.test.ts#L136))
+  backing PR — and every one is reported. ([validated by reports every event a single webhook fans out to](apps/event-router/src/transport/routes/events.test.ts#L194))
 
 ### The watch reports what it observes
 
@@ -432,6 +432,40 @@ now `emit`, so a router blip retries instead of dropping.
   pool-less process must be able to hold one. In local mode the event sink is
   the pool-backed reporter with a single attempt, since a failed same-process
   Postgres insert is not a wire blip. ([validated by never resolves the local queue when a router is configured, so a pool-less process can hold one](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L132), [presents a token thunk per call, so a rotated per-agent credential is picked up](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L102))
+
+## Amendment (2026-09-08): GitHub delivers to the router; the Floor route is gone
+
+Step 2 of the cutover ran the other way round from the order this ADR first
+wrote down, and that is why it could be done in one change.
+
+- The canonical repo-hook URL is the router's front door: `LORE_WEBHOOK_URL`
+  on lore-api resolves to `https://<lore_event_router_hostname>/api/events`,
+  and that is what `ensureLoreWebhook` installs and `classifyWebhook` reports
+  against. The Floor's `POST /api/webhook/github` route, its `LORE_WEBHOOK_SECRET`
+  and the `lore-floor-webhook-secret` ExternalSecret are deleted.
+- The legacy URL is not. Every repo onboarded before this carries
+  `https://<lore_webhook_hostname>/api/webhook/github`, and GitHub does not
+  redeliver what 404s — so the Floor-host ingress keeps an Exact-match rule
+  for that path that rewrites it to `/api/events` on the router, through an
+  ExternalName Service (an Ingress can only name a Service in its own
+  namespace). The alias lives in nginx rather than as a second route on the
+  router so the router keeps exactly one endpoint, which is the property this
+  ADR exists for. Because the alias is infrastructure, it applies BEFORE the
+  route deletion deploys: traffic moves while both doors still stand, and the
+  deletion has no window.
+- lore-api treats a hook at either path as Lore's (`LORE_HOOK_PATHS`,
+  `isLoreHook`). A legacy hook classifies `wrong_url` — repointable from the
+  repo page or `POST /api/repos/:o/:r/webhook/ensure` — and `ensureRepoWebhook`
+  PATCHes it in place. Before this, the match keyed on the Floor path alone, so
+  a hook already at `/api/events` would have read as `missing` and the next
+  ensure would have created a second hook delivering every event twice. The
+  legacy path stays in the list for as long as any repo may still carry it;
+  nothing forces the migration.
+  ([validated by lists /api/events and the legacy /api/webhook/github as Lore hook paths](apps/lore-api/src/work/webhook/webhook-status.test.ts#L119), [updates a hook already at /api/events in place instead of creating a second one](apps/lore-api/src/work/webhook/webhook-manage.test.ts#L55), [returns wrong_url when a legacy hook at lore-webhook.gcp.re-cinq.com/api/webhook/github is still installed](apps/lore-api/src/work/webhook/webhook-status.test.ts#L50))
+- `lore_webhook_hostname` and the Floor's `/api/webhook` ingress stay: the
+  `/api/webhook/ci-ingest` and `/api/webhook/ci-tests` doors ride that prefix,
+  and consumer repos' Actions variable `vars.LORE_WEBHOOK_URL` — a different
+  variable that happens to share the name — is that host.
 
 ## Alternatives considered
 
