@@ -58,6 +58,31 @@ async function createHook(
   return created.id;
 }
 
+/** Matched on the Lore delivery paths rather than a stored id, so a hook an earlier deployment left pointing at another host is repointed instead of duplicated. */
+async function findLoreHook(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  target: { owner: string; name: string },
+) {
+  const { data: hooks } = await octokit.rest.repos.listWebhooks({
+    owner: target.owner,
+    repo: target.name,
+    per_page: 100,
+  });
+
+  return hooks.find(isLoreHook);
+}
+
+/** Pinged so a misconfigured secret shows up NOW, in the delivery log, rather than on the first real event. Swallowed: the hook exists either way. */
+async function pingHook(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  target: { owner: string; name: string },
+  hookId: number,
+): Promise<void> {
+  await octokit.rest.repos
+    .pingWebhook({ owner: target.owner, repo: target.name, hook_id: hookId })
+    .catch(() => {});
+}
+
 export async function ensureRepoWebhook(
   repo: string,
   url: string,
@@ -66,26 +91,14 @@ export async function ensureRepoWebhook(
 ): Promise<{ hookId: number; created: boolean }> {
   const octokit = await getOctokit();
   const [owner, name] = ownerRepo(repo);
-  const config = { url, content_type: "json", secret };
-
-  const { data: hooks } = await octokit.rest.repos.listWebhooks({
-    owner,
-    repo: name,
-    per_page: 100,
-  });
-  const existing = hooks.find(isLoreHook);
-
+  const target = { owner, name };
+  const spec = { config: { url, content_type: "json", secret }, events };
+  const existing = await findLoreHook(octokit, target);
   const hookId = existing
-    ? await updateHook(octokit, { owner, name }, existing.id, {
-        config,
-        events,
-      })
-    : await createHook(octokit, { owner, name }, { config, events });
+    ? await updateHook(octokit, target, existing.id, spec)
+    : await createHook(octokit, target, spec);
 
-  // Pinged so a misconfigured secret shows up NOW, in the delivery log, rather than on the first real event. Swallowed: the hook exists either way.
-  await octokit.rest.repos
-    .pingWebhook({ owner, repo: name, hook_id: hookId })
-    .catch(() => {});
+  await pingHook(octokit, target, hookId);
 
   return { hookId, created: !existing };
 }

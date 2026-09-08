@@ -1,7 +1,7 @@
 /** Per-request telemetry for lore-api HTTP server via OTel spans and metrics. */
 
 import Boom from "@hapi/boom";
-import type { Server } from "@hapi/hapi";
+import type { Request, Server } from "@hapi/hapi";
 import { trace, SpanStatusCode, type Span } from "@opentelemetry/api";
 import { traceHttp } from "@re-cinq/lore-server-core/platform/otel.js";
 
@@ -46,23 +46,28 @@ function closeRequestSpan(server: Server): void {
 
     const span = request.app.span;
 
-    if (!span) {
-      return h.continue;
+    if (span) {
+      finishSpan(span, request, statusCode);
     }
-    const route = request.route.path;
-
-    span.updateName(`${request.method.toUpperCase()} ${route}`);
-    span.setAttribute("http.route", route);
-    span.setAttribute("http.status_code", statusCode);
-
-    if (Boom.isBoom(res)) {
-      span.recordException(res);
-      span.setStatus({ code: SpanStatusCode.ERROR, message: res.message });
-    }
-    span.end();
 
     return h.continue;
   });
+}
+
+/** Runs only after hapi has matched, which is the earliest the route name and the Boom-or-response status are both known. */
+function finishSpan(span: Span, request: Request, statusCode: number): void {
+  const res = request.response;
+  const route = request.route.path;
+
+  span.updateName(`${request.method.toUpperCase()} ${route}`);
+  span.setAttribute("http.route", route);
+  span.setAttribute("http.status_code", statusCode);
+
+  if (Boom.isBoom(res)) {
+    span.recordException(res);
+    span.setStatus({ code: SpanStatusCode.ERROR, message: res.message });
+  }
+  span.end();
 }
 
 export function registerRequestTracing(server: Server): void {

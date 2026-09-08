@@ -38,7 +38,16 @@ export async function shutdownGracefully(
       console.warn(`[lore-api] server stop failed: ${(err as Error).message}`),
     );
 
-  // Drain queued events before telemetry flush (in-flight events must reach queue before drain).
+  await drainEvents(flushEvents);
+  await flushTelemetry().catch((err) =>
+    console.warn(`[otel] shutdown flush failed: ${(err as Error).message}`),
+  );
+}
+
+/** Runs before the telemetry flush and swallows its own failure — a stuck drain must not cost the flush that follows it. */
+async function drainEvents(
+  flushEvents: (timeoutMs: number) => Promise<number>,
+): Promise<void> {
   const undrained = await flushEvents(EVENT_DRAIN_TIMEOUT_MS).catch((err) => {
     console.warn(`[lore-api] event drain failed: ${(err as Error).message}`);
 
@@ -50,7 +59,4 @@ export async function shutdownGracefully(
       `[lore-api] exiting with ${undrained} undelivered event(s) — the reconcile pass is what re-emits them`,
     );
   }
-  await flushTelemetry().catch((err) =>
-    console.warn(`[otel] shutdown flush failed: ${(err as Error).message}`),
-  );
 }

@@ -42,33 +42,60 @@ function extractEntryContent(entry: GetContentEntry): string | null {
     : null;
 }
 
+interface FetchedFile {
+  content: string | null;
+  missing404: boolean;
+}
+
+/** Null means "try the next ref" — the only outcome that is neither an answer nor a failure. */
+function settleRefFetchError(
+  err: unknown,
+  ref: string,
+  commit: string,
+): FetchedFile | null {
+  const outcome = classifyFetchError(
+    (err as { status?: number }).status,
+    ref,
+    commit,
+  );
+
+  if (outcome === "throw") {
+    throw err;
+  }
+
+  return outcome === "missing" ? { content: null, missing404: true } : null;
+}
+
+/** One ref's attempt, separated from the ref sequence so the fallback reads as a loop over refs rather than a nested catch. */
+async function fetchAtRef(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  target: GitHubFileTarget,
+  ref: string,
+): Promise<FetchedFile | null> {
+  try {
+    const { data: entry } = await octokit.rest.repos.getContent({
+      owner: target.owner,
+      repo: target.repoName,
+      path: target.filePath,
+      ref,
+    });
+
+    return { content: extractEntryContent(entry), missing404: false };
+  } catch (err) {
+    return settleRefFetchError(err, ref, target.commit);
+  }
+}
+
 /** Fetches file content at the commit, falling back to HEAD when the commit is unknown to the repo. */
 async function fetchFileWithHeadFallback(
   octokit: Awaited<ReturnType<typeof getOctokit>>,
   target: GitHubFileTarget,
-): Promise<{ content: string | null; missing404: boolean }> {
+): Promise<FetchedFile> {
   for (const ref of [target.commit, "HEAD"]) {
-    try {
-      const { data: entry } = await octokit.rest.repos.getContent({
-        owner: target.owner,
-        repo: target.repoName,
-        path: target.filePath,
-        ref,
-      });
+    const fetched = await fetchAtRef(octokit, target, ref);
 
-      return { content: extractEntryContent(entry), missing404: false };
-    } catch (err) {
-      const status = (err as { status?: number }).status;
-      const outcome = classifyFetchError(status, ref, target.commit);
-
-      if (outcome === "retry") {
-        continue;
-      }
-
-      if (outcome === "missing") {
-        return { content: null, missing404: true };
-      }
-      throw err;
+    if (fetched) {
+      return fetched;
     }
   }
 

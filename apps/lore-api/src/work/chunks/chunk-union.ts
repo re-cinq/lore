@@ -64,6 +64,22 @@ function buildBranches(
   return { parts, allParams };
 }
 
+// The outer ORDER BY/LIMIT repeats each branch's own clause: branches prune first, then the merged set is re-ordered.
+function composeUnion(
+  parts: string[],
+  order: ChunkUnionOrder | undefined,
+): string {
+  const unionSql = parts.join(" UNION ALL ");
+
+  return order ? `${unionSql}${orderClause(order)}` : unionSql;
+}
+
+// orderBy and limit are interpolated, not bound, so both are validated before they reach the SQL.
+function enforceSafeOrder(order: ChunkUnionOrder): void {
+  enforcePositiveInteger(order.limit);
+  enforceOrderByTerms(order.orderBy);
+}
+
 // UNION ALL across schemas with per-branch pruning; orderBy/limit validated, null when no schemas.
 export function buildChunkUnionQuery(
   schemas: string[],
@@ -72,8 +88,7 @@ export function buildChunkUnionQuery(
   order?: ChunkUnionOrder,
 ): { sql: string; params: unknown[] } | null {
   if (order) {
-    enforcePositiveInteger(order.limit);
-    enforceOrderByTerms(order.orderBy);
+    enforceSafeOrder(order);
   }
 
   const { parts, allParams } = buildBranches(
@@ -86,8 +101,6 @@ export function buildChunkUnionQuery(
   if (parts.length === 0) {
     return null;
   }
-  const unionSql = parts.join(" UNION ALL ");
-  const sql = order ? `${unionSql}${orderClause(order)}` : unionSql;
 
-  return { sql, params: allParams };
+  return { sql: composeUnion(parts, order), params: allParams };
 }

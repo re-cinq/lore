@@ -141,28 +141,42 @@ interface DocumentBuild {
 }
 
 /** The fields an operation carries only sometimes. They are set rather than always-present-and-empty because the generated client reads the DOCUMENT: an empty `parameters` array and an absent one produce different types. */
-function applyOptionalFields(
-  op: Operation,
-  extras: {
-    scope: string | undefined;
-    params: Operation["parameters"] extends (infer P)[] | undefined
-      ? P[]
-      : never;
-    hasOptional: boolean;
-  },
-): void {
-  if (extras.scope) {
-    op["x-required-scope"] = extras.scope;
+function applyOptionalFields(op: Operation, route: ServerRoute): void {
+  const { params, hasOptional } = pathParameters(route.path);
+  const scope = scopeOf(route);
+
+  if (scope) {
+    op["x-required-scope"] = scope;
   }
 
-  if (extras.params.length) {
-    op.parameters = extras.params;
+  if (params.length) {
+    op.parameters = params;
   }
 
-  if (extras.hasOptional) {
+  if (hasOptional) {
     op.description =
       "A trailing path parameter is optional; omit it for the collection form.";
   }
+}
+
+/** The always-present half of an operation; the sometimes-present fields are layered on by `applyOptionalFields`. */
+function baseOperation(
+  route: ServerRoute,
+  method: string,
+  normPath: string,
+  success: ReturnType<typeof registerResponse>,
+): Operation {
+  const publicOp = isPublic(route);
+  const hasBody = WRITE_METHODS.has(method);
+
+  return {
+    operationId: operationId(method, normPath),
+    summary: `${method} ${normPath}`,
+    tags: [tagFor(normPath)],
+    security: publicOp ? [] : [{ bearerAuth: [] }],
+    "x-rate-limit-bucket": bucketFor(route.path),
+    responses: responsesFor(publicOp, hasBody, success),
+  };
 }
 
 function buildOperation(
@@ -171,28 +185,13 @@ function buildOperation(
   normPath: string,
   { coverage, schemas }: DocumentBuild,
 ): Operation {
-  const { params, hasOptional } = pathParameters(route.path);
-  const publicOp = isPublic(route);
-  const scope = scopeOf(route);
-  const hasBody = WRITE_METHODS.has(method);
-  const success = registerResponse(
-    route,
-    `${method} ${route.path}`,
-    schemas,
-    coverage,
-  );
-  const op: Operation = {
-    operationId: operationId(method, normPath),
-    summary: `${method} ${normPath}`,
-    tags: [tagFor(normPath)],
-    security: publicOp ? [] : [{ bearerAuth: [] }],
-    "x-rate-limit-bucket": bucketFor(route.path),
-    responses: responsesFor(publicOp, hasBody, success),
-  };
+  const key = `${method} ${route.path}`;
+  const success = registerResponse(route, key, schemas, coverage);
+  const op = baseOperation(route, method, normPath, success);
 
-  applyOptionalFields(op, { scope, params, hasOptional });
+  applyOptionalFields(op, route);
 
-  if (hasBody) {
+  if (WRITE_METHODS.has(method)) {
     applyRequestBody(op, route, method, coverage);
   }
 
@@ -233,7 +232,6 @@ function emptyCoverage(): Coverage {
   };
 }
 
-/** Everything about the API that is NOT derived from walking the routes: its title, its description, and where it is served. */
 /** The document's own preamble — what this contract is generated from, and what the two OpenAPI extensions mean. Kept beside the builder because it describes THIS generator's conventions, not the API's behaviour. */
 const DOCUMENT_DESCRIPTION =
   "Generated from the lore-api hapi route zod schemas (ADR-035). This document " +
@@ -245,6 +243,18 @@ const DOCUMENT_DESCRIPTION =
   "Per-route required scope is the `x-required-scope` extension (HTTP bearer has no " +
   "scope list); the rate-limit bucket is `x-rate-limit-bucket`.";
 
+/** The reusable half of the document: the auth scheme, the response schemas registered while walking the routes, and the shared error envelopes. */
+function documentComponents(
+  schemas: Record<string, JsonSchema>,
+): OpenApiDocument["components"] {
+  return {
+    securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },
+    schemas: byKey(schemas),
+    responses: errorResponses(),
+  };
+}
+
+/** Everything about the API that is NOT derived from walking the routes: its title, its description, and where it is served. */
 function openApiDocument(input: {
   opts: GenerateOptions;
   usedTags: Set<string>;
@@ -265,37 +275,37 @@ function openApiDocument(input: {
     // Only categories actually in use, in canonical sidebar order.
     tags: CATEGORY_ORDER.filter((c) => usedTags.has(c.name)),
     paths: byKey(paths),
-    components: {
-      securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },
-      schemas: byKey(schemas),
-      responses: errorResponses(),
-    },
+    components: documentComponents(schemas),
   };
+}
+
+const ERROR_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: { error: { type: "string" } },
+  required: ["error"],
+};
+
+/** Walks every route into `build`, recording the ones deliberately left out of the contract. */
+function collectPaths(routes: ServerRoute[], build: DocumentBuild): void {
+  for (const route of routes) {
+    if (isExcludedPath(route.path)) {
+      build.coverage.excluded.push(route.path);
+      continue;
+    }
+
+    addRouteOperations(route, normalizePath(route.path), build);
+  }
 }
 
 export function generateOpenApi(
   routes: ServerRoute[],
   opts: GenerateOptions = {},
 ): { document: OpenApiDocument; coverage: Coverage } {
-  const schemas: Record<string, JsonSchema> = {
-    Error: {
-      type: "object",
-      properties: { error: { type: "string" } },
-      required: ["error"],
-    },
-  };
+  const schemas: Record<string, JsonSchema> = { Error: ERROR_SCHEMA };
   const paths: Record<string, Record<string, Operation>> = {};
   const coverage = emptyCoverage();
 
-  for (const route of routes) {
-    if (isExcludedPath(route.path)) {
-      coverage.excluded.push(route.path);
-      continue;
-    }
-    const normPath = normalizePath(route.path);
-
-    addRouteOperations(route, normPath, { coverage, schemas, paths });
-  }
+  collectPaths(routes, { coverage, schemas, paths });
 
   const usedTags = new Set<string>(
     Object.values(paths).flatMap((pathItem) =>

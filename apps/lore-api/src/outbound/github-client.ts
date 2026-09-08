@@ -20,17 +20,8 @@ export function isAppConfigured(): boolean {
 
 // Authenticated Octokit; prefers App auth, falls back to personal token
 export async function getOctokit(): Promise<Octokit> {
-  if (APP_ID && PRIVATE_KEY && INSTALLATION_ID) {
-    return withoutBlindRetryOnCreates(
-      new Octokit({
-        authStrategy: createAppAuth,
-        auth: {
-          appId: APP_ID,
-          privateKey: PRIVATE_KEY,
-          installationId: INSTALLATION_ID,
-        },
-      }),
-    );
+  if (isAppConfigured()) {
+    return appAuthOctokit();
   }
   const token = process.env.GITHUB_TOKEN;
 
@@ -39,6 +30,20 @@ export async function getOctokit(): Promise<Octokit> {
   }
   throw new Error(
     "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN",
+  );
+}
+
+// App auth mints its own installation token per call, so no token is read from the environment here.
+function appAuthOctokit(): Octokit {
+  return withoutBlindRetryOnCreates(
+    new Octokit({
+      authStrategy: createAppAuth,
+      auth: {
+        appId: APP_ID,
+        privateKey: PRIVATE_KEY,
+        installationId: INSTALLATION_ID,
+      },
+    }),
   );
 }
 
@@ -197,6 +202,15 @@ export async function fetchPrStatus(
 
   const { pr, checks, reviewList } = await readPr(token, repo, prNumber);
 
+  return toPrStatus(pr, checks, reviewList);
+}
+
+/** The wire shape the UI badge reads; the field names are GitHub's own, so they stay snake_case. */
+function toPrStatus(
+  pr: Record<string, unknown>,
+  checks: PrCheck[],
+  reviews: PrReview[],
+): Record<string, unknown> {
   return {
     number: pr.number,
     title: pr.title,
@@ -206,8 +220,8 @@ export async function fetchPrStatus(
     mergeable: pr.mergeable ?? null,
     html_url: pr.html_url,
     checks,
-    reviews: reviewList,
-    computed_status: deriveComputedStatus(pr, checks, reviewList),
+    reviews,
+    computed_status: deriveComputedStatus(pr, checks, reviews),
   };
 }
 

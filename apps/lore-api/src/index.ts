@@ -25,31 +25,42 @@ async function main() {
     );
   }
 
-  if (dbHost) {
-    const dbPool = new pg.Pool({
-      host: dbHost,
-      port: parseInt(process.env.LORE_DB_PORT || "5432", 10),
-      database: process.env.LORE_DB_NAME || "lore",
-      user: process.env.LORE_DB_USER || "postgres",
-      password: process.env.LORE_DB_PASSWORD,
-    });
-
-    dbPool.on("error", (err) => {
-      console.error("[lore-api] pg pool error (idle client):", err);
-    });
-
-    setPool(dbPool);
-    setMemoryPool(dbPool);
-    setPipelinePool(dbPool);
-    Llm.configure({ usage: new PgUsage(dbPool) });
-    state.pool = dbPool;
-    console.error(`[lore-api] Database mode: PostgreSQL at ${dbHost}`);
-  }
+  state.pool = dbHost ? connectDatabase(dbHost) : null;
 
   loadTaskTypes();
   loadDefaultTemplates();
 
   await startHttpServer(getPool);
+}
+
+/** One pool reaches four consumers: the three server-core module singletons plus the LLM usage sink. */
+function connectDatabase(dbHost: string): Pool {
+  const dbPool = createPool(dbHost);
+
+  setPool(dbPool);
+  setMemoryPool(dbPool);
+  setPipelinePool(dbPool);
+  Llm.configure({ usage: new PgUsage(dbPool) });
+  console.error(`[lore-api] Database mode: PostgreSQL at ${dbHost}`);
+
+  return dbPool;
+}
+
+function createPool(dbHost: string): Pool {
+  const dbPool = new pg.Pool({
+    host: dbHost,
+    port: parseInt(process.env.LORE_DB_PORT || "5432", 10),
+    database: process.env.LORE_DB_NAME || "lore",
+    user: process.env.LORE_DB_USER || "postgres",
+    password: process.env.LORE_DB_PASSWORD,
+  });
+
+  // An idle client's error surfaces on the pool rather than a query, and unhandled it takes the process down.
+  dbPool.on("error", (err) => {
+    console.error("[lore-api] pg pool error (idle client):", err);
+  });
+
+  return dbPool;
 }
 
 main().catch((err) => {

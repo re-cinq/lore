@@ -10,29 +10,42 @@ export interface AgentStatsBundle {
   [key: string]: unknown;
 }
 
-/** The agent's five most recent episodes, with a preview and each one's fact count. Both reads are best-effort: an agent with no episode history at all is still worth reporting on, and a missing history must not cost the health and stats beside it. */
-async function readRecentEpisodes(pool: Pool, agentId: string) {
-  const latest = await pool
-    .query(
-      `SELECT e.id, e.source, e.ref, e.created_at,
-                LEFT(e.content, 200) as content_preview,
-                (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count
-         FROM memory.episodes e
-         WHERE e.agent_id = $1
-         ORDER BY e.created_at DESC
-         LIMIT 5`,
-      [agentId],
-    )
+// LEFT(content, 200) keeps the row small: episode bodies are unbounded and only a preview is ever rendered.
+const RECENT_EPISODES_SQL = `SELECT e.id, e.source, e.ref, e.created_at,
+          LEFT(e.content, 200) as content_preview,
+          (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count
+   FROM memory.episodes e
+   WHERE e.agent_id = $1
+   ORDER BY e.created_at DESC
+   LIMIT 5`;
+
+const EPISODE_COUNT_SQL = `SELECT count(*)::int as total FROM memory.episodes WHERE agent_id = $1`;
+
+/** Best-effort: an agent with no episode history at all is still worth reporting on, so a failed read yields an empty list rather than sinking the health and stats beside it. */
+async function readLatestEpisodes(pool: Pool, agentId: string) {
+  const result = await pool
+    .query(RECENT_EPISODES_SQL, [agentId])
     .catch(() => ({ rows: [] }));
-  const total = await pool
-    .query<{ total: number }>(
-      `SELECT count(*)::int as total FROM memory.episodes WHERE agent_id = $1`,
-      [agentId],
-    )
+
+  return result.rows;
+}
+
+/** Best-effort for the same reason as the listing above. */
+async function countEpisodes(pool: Pool, agentId: string): Promise<number> {
+  return pool
+    .query<{ total: number }>(EPISODE_COUNT_SQL, [agentId])
     .then(({ rows }) => rows[0]?.total ?? 0)
     .catch(() => 0);
+}
 
-  return { total_count: total, latest: latest.rows };
+/** The agent's five most recent episodes, with a preview and each one's fact count. */
+async function readRecentEpisodes(pool: Pool, agentId: string) {
+  const [latest, total] = await Promise.all([
+    readLatestEpisodes(pool, agentId),
+    countEpisodes(pool, agentId),
+  ]);
+
+  return { total_count: total, latest };
 }
 
 export async function agentStatsBundle(

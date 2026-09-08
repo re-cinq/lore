@@ -62,6 +62,25 @@ interface PrLookup {
   prRef: string;
 }
 
+interface RepoRef {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+}
+
+/** Every failure to read the approval PR is fatal and never degrades into "unapproved": a 404 is reported as a missing PR, anything else as an opaque API error, so a transient GitHub outage can never be mistaken for a completed ceremony. */
+function throwApprovalPrFetchError(err: unknown, prRef: string): never {
+  enforceTrue(
+    (err as { status?: number }).status !== 404,
+    (message) => new TwoKeyError(message, "pr_not_found"),
+    `Approval PR ${prRef} not found`,
+  );
+  throw new TwoKeyError(
+    `GitHub API error fetching ${prRef}: ${(err as Error).message}`,
+    "github_api",
+  );
+}
+
 async function fetchApprovalPr({
   octokit,
   owner,
@@ -72,15 +91,7 @@ async function fetchApprovalPr({
   try {
     return await octokit.rest.pulls.get({ owner, repo, pull_number: number });
   } catch (err) {
-    enforceTrue(
-      (err as { status?: number }).status !== 404,
-      (message) => new TwoKeyError(message, "pr_not_found"),
-      `Approval PR ${prRef} not found`,
-    );
-    throw new TwoKeyError(
-      `GitHub API error fetching ${prRef}: ${(err as Error).message}`,
-      "github_api",
-    );
+    throwApprovalPrFetchError(err, prRef);
   }
 }
 
@@ -153,6 +164,28 @@ function enforceSameRepo(
   }
 }
 
+/** Reached only when the approver did not match; the team-handle case is refused under its OWN code first, because reporting it as "not a codeowner" would blame the approver for a lookup this checker does not implement. */
+function throwApproverRejected(rejection: {
+  codeowners: Array<{ pattern: string; owners: string[] }>;
+  approver: string;
+  targetRepo: string;
+}): never {
+  const { codeowners, approver, targetRepo } = rejection;
+
+  enforceTrue(
+    !isTeamOnlyCodeowners(codeowners),
+    (message) => new TwoKeyError(message, "team_membership_unresolved"),
+    `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
+      `team-membership lookup is not implemented in v1. Add an explicit ` +
+      `@user owner for the approver, or wait for the per-path team ` +
+      `resolution follow-up.`,
+  );
+  throw new TwoKeyError(
+    `${approver} is not a CODEOWNERS member of ${targetRepo}`,
+    "approver_not_codeowner",
+  );
+}
+
 /** The person who applied the label must own the code. A CODEOWNERS file of only team handles is refused EXPLICITLY rather than treated as "no owners": team-membership lookup is not implemented, and silently failing closed would read as the approver being unauthorized when the real problem is this checker. */
 async function enforceApproverIsCodeowner(check: {
   octokit: Octokit;
@@ -168,18 +201,7 @@ async function enforceApproverIsCodeowner(check: {
     return;
   }
 
-  enforceTrue(
-    !isTeamOnlyCodeowners(codeowners),
-    (message) => new TwoKeyError(message, "team_membership_unresolved"),
-    `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
-      `team-membership lookup is not implemented in v1. Add an explicit ` +
-      `@user owner for the approver, or wait for the per-path team ` +
-      `resolution follow-up.`,
-  );
-  throw new TwoKeyError(
-    `${approver} is not a CODEOWNERS member of ${targetRepo}`,
-    "approver_not_codeowner",
-  );
+  throwApproverRejected({ codeowners, approver, targetRepo });
 }
 
 /** The approval PR, which must still be OPEN. A merged or closed PR would let one approval authorize changes indefinitely; requiring it open is what makes the ceremony a live decision rather than a past one. */
@@ -202,6 +224,18 @@ async function fetchOpenApprovalPr(target: {
   return pr;
 }
 
+/** The approver is whoever APPLIED the label, read from the issue-events log: the label's presence alone names nobody, and the ceremony has to attribute the approval to an account it can then check against CODEOWNERS. */
+async function resolveLabelApprover(target: PrLookup): Promise<string> {
+  const { octokit, owner, repo, number, prRef } = target;
+  const labelEvent = findApprovalLabelEvent(
+    await fetchApprovalEvents(octokit, owner, repo, number),
+  );
+
+  assertLabelPresent(labelEvent, prRef);
+
+  return labelEvent.actor.login;
+}
+
 /** Verify the approval ceremony; returns evidence or throws TwoKeyError. Approval PR must match targetRepo (FR3.9). */
 export async function verifyApproval(opts: {
   octokit: Octokit;
@@ -213,13 +247,9 @@ export async function verifyApproval(opts: {
 
   enforceSameRepo(prRef, `${owner}/${repo}`, targetRepo);
 
-  const pr = await fetchOpenApprovalPr({ octokit, owner, repo, number, prRef });
-  const labelEvent = findApprovalLabelEvent(
-    await fetchApprovalEvents(octokit, owner, repo, number),
-  );
-
-  assertLabelPresent(labelEvent, prRef);
-  const approver = labelEvent.actor.login;
+  const target = { octokit, owner, repo, number, prRef };
+  const pr = await fetchOpenApprovalPr(target);
+  const approver = await resolveLabelApprover(target);
 
   await enforceApproverIsCodeowner({
     octokit,
@@ -229,43 +259,59 @@ export async function verifyApproval(opts: {
     approver,
   });
 
-  return {
-    prRef,
-    approver,
-    prUrl: pr.data.html_url,
-  };
+  return { prRef, approver, prUrl: pr.data.html_url };
+}
+
+const CODEOWNERS_CANDIDATES = [
+  ".github/CODEOWNERS",
+  "CODEOWNERS",
+  "docs/CODEOWNERS",
+];
+
+/** Undefined covers "no decodable file here" — a directory or a non-base64 payload is not a CODEOWNERS file, so the caller moves on to the next candidate path. */
+async function fetchRepoFileText(
+  ref: RepoRef,
+  path: string,
+): Promise<string | undefined> {
+  const res = await ref.octokit.rest.repos.getContent({
+    owner: ref.owner,
+    repo: ref.repo,
+    path,
+  });
+  const file = res.data;
+
+  return "content" in file && file.encoding === "base64"
+    ? Buffer.from(file.content, "base64").toString("utf-8")
+    : undefined;
+}
+
+/** Only a 404 may be swallowed — it just means this candidate path is not the one. Any OTHER read failure is fatal, because a CODEOWNERS we cannot read must never degrade into "this repo has no owners". */
+async function readCodeownersCandidate(
+  ref: RepoRef,
+  filepath: string,
+): Promise<string | undefined> {
+  try {
+    return await fetchRepoFileText(ref, filepath);
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) {
+      return undefined;
+    }
+    throw new TwoKeyError(
+      `CODEOWNERS unparseable: ${(err as Error).message}`,
+      "codeowners_unparseable",
+    );
+  }
 }
 
 /** Fetch CODEOWNERS file (.github/, root, docs/); returns [pattern, owners[]] or empty array. */
-async function fetchCodeowners(opts: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-}): Promise<Array<{ pattern: string; owners: string[] }>> {
-  const candidates = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
+async function fetchCodeowners(
+  ref: RepoRef,
+): Promise<Array<{ pattern: string; owners: string[] }>> {
+  for (const filepath of CODEOWNERS_CANDIDATES) {
+    const text = await readCodeownersCandidate(ref, filepath);
 
-  for (const filepath of candidates) {
-    try {
-      const r = await opts.octokit.rest.repos.getContent({
-        owner: opts.owner,
-        repo: opts.repo,
-        path: filepath,
-      });
-      const pull = r.data;
-
-      if ("content" in pull && pull.encoding === "base64") {
-        const text = Buffer.from(pull.content, "base64").toString("utf-8");
-
-        return parseCodeowners(text);
-      }
-    } catch (err) {
-      if ((err as { status?: number }).status === 404) {
-        continue;
-      }
-      throw new TwoKeyError(
-        `CODEOWNERS unparseable: ${(err as Error).message}`,
-        "codeowners_unparseable",
-      );
+    if (text !== undefined) {
+      return parseCodeowners(text);
     }
   }
 

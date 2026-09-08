@@ -33,11 +33,19 @@ function decodeContent(encoded: string): string {
   return Buffer.from(encoded, "base64").toString("utf-8");
 }
 
+type Octokit = Awaited<ReturnType<typeof getOctokit>>;
+
 type GetContentResult = Awaited<
-  ReturnType<
-    Awaited<ReturnType<typeof getOctokit>>["rest"]["repos"]["getContent"]
-  >
+  ReturnType<Octokit["rest"]["repos"]["getContent"]>
 >["data"];
+
+interface SampledRepoRef {
+  owner: string;
+  repo: string;
+  fullName: string;
+}
+
+type RepoFileEntry = { name: string; path: string; type: string };
 
 /** Extracts file content from a GitHub `getContent` response, or null for a dir/empty file. */
 function fileContentIfPresent(content: GetContentResult): string | null {
@@ -51,7 +59,7 @@ function fileContentIfPresent(content: GetContentResult): string | null {
 }
 
 async function fetchTopLevelTree(
-  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  octokit: Octokit,
   owner: string,
   repo: string,
   fullName: string,
@@ -73,33 +81,54 @@ async function fetchTopLevelTree(
   }
 }
 
+/** A 404 is SILENT — most repos hold only some of these paths, and logging every absent one would bury the errors that matter. */
+async function getContentOrNull(
+  octokit: Octokit,
+  target: SampledRepoRef,
+  path: string,
+): Promise<GetContentResult | null> {
+  const { owner, repo, fullName } = target;
+
+  try {
+    const fetched = await octokit.rest.repos.getContent({ owner, repo, path });
+
+    return fetched.data;
+  } catch (err) {
+    if ((err as { status?: number }).status !== 404) {
+      console.error(
+        `[onboard] Error fetching ${fullName}/${path}: ${errorMessage(err)}`,
+      );
+    }
+
+    return null;
+  }
+}
+
+async function fetchOptionalFile(
+  octokit: Octokit,
+  target: SampledRepoRef,
+  path: string,
+): Promise<string | null> {
+  const content = await getContentOrNull(octokit, target, path);
+
+  return content ? fileContentIfPresent(content) : null;
+}
+
 async function fetchKeyFiles(
-  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  octokit: Octokit,
   owner: string,
   repo: string,
   fullName: string,
 ): Promise<Record<string, string>> {
   const files: Record<string, string> = {};
+  const ref = { owner, repo, fullName };
 
   await Promise.all(
     KEY_FILES.map(async (path) => {
-      try {
-        const { data: content } = await octokit.rest.repos.getContent({
-          owner,
-          repo,
-          path,
-        });
-        const decoded = fileContentIfPresent(content);
+      const decoded = await fetchOptionalFile(octokit, ref, path);
 
-        if (decoded) {
-          files[path] = decoded;
-        }
-      } catch (err) {
-        if ((err as { status?: number }).status !== 404) {
-          console.error(
-            `[onboard] Error fetching ${fullName}/${path}: ${errorMessage(err)}`,
-          );
-        }
+      if (decoded) {
+        files[path] = decoded;
       }
     }),
   );
@@ -107,17 +136,22 @@ async function fetchKeyFiles(
   return files;
 }
 
-interface SampledRepoRef {
-  owner: string;
-  repo: string;
-  fullName: string;
+/** 200 lines is enough to read a repo's style, which is all a sample is for. */
+async function fetchSampleHead(
+  octokit: Octokit,
+  ref: SampledRepoRef,
+  path: string,
+): Promise<string | null> {
+  const full = await fetchOptionalFile(octokit, ref, path);
+
+  return full ? full.split("\n").slice(0, 200).join("\n") : null;
 }
 
 /** Fills `samples` (up to 3 entries) with the first 200 lines of each listed file. */
 async function sampleSourceFiles(
-  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  octokit: Octokit,
   ref: SampledRepoRef,
-  entries: Array<{ name: string; path: string; type: string }>,
+  entries: RepoFileEntry[],
   samples: Record<string, string>,
 ): Promise<void> {
   for (const entry of entries) {
@@ -125,73 +159,44 @@ async function sampleSourceFiles(
       break;
     }
 
-    try {
-      const { data: content } = await octokit.rest.repos.getContent({
-        owner: ref.owner,
-        repo: ref.repo,
-        path: entry.path,
-      });
-      const full = fileContentIfPresent(content);
+    const head = await fetchSampleHead(octokit, ref, entry.path);
 
-      if (full) {
-        samples[entry.path] = full.split("\n").slice(0, 200).join("\n");
-      }
-    } catch (err) {
-      console.error(
-        `[onboard] Error fetching sample ${ref.fullName}/${entry.path}: ${errorMessage(err)}`,
-      );
+    if (head) {
+      samples[entry.path] = head;
     }
   }
 }
 
-/** The files in one directory, or none. A 404 is SILENT — most repos have only some of these directories, and logging every absent one would bury the errors that matter. */
+/** The files in one directory, or none. */
 async function listFilesIn(
-  octokit: Awaited<ReturnType<typeof getOctokit>>,
-  target: { owner: string; repo: string; fullName: string },
+  octokit: Octokit,
+  target: SampledRepoRef,
   dir: string,
-): Promise<Array<{ name: string; path: string; type: string }>> {
-  try {
-    const { data: content } = await octokit.rest.repos.getContent({
-      owner: target.owner,
-      repo: target.repo,
-      path: dir,
-    });
+): Promise<RepoFileEntry[]> {
+  const content = await getContentOrNull(octokit, target, dir);
 
-    return Array.isArray(content)
-      ? content.filter((e) => e.type === "file")
-      : [];
-  } catch (err) {
-    if ((err as { status?: number }).status !== 404) {
-      console.error(
-        `[onboard] Error listing ${target.fullName}/${dir}: ${errorMessage(err)}`,
-      );
-    }
-
-    return [];
-  }
+  return Array.isArray(content)
+    ? content.filter((entry) => entry.type === "file")
+    : [];
 }
 
 async function fetchSamples(
-  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  octokit: Octokit,
   owner: string,
   repo: string,
   fullName: string,
 ): Promise<Record<string, string>> {
   const samples: Record<string, string> = {};
+  const ref = { owner, repo, fullName };
 
   for (const dir of SAMPLE_DIRS) {
     if (Object.keys(samples).length >= 3) {
       break;
     }
 
-    const entries = await listFilesIn(octokit, { owner, repo, fullName }, dir);
+    const entries = await listFilesIn(octokit, ref, dir);
 
-    await sampleSourceFiles(
-      octokit,
-      { owner, repo, fullName },
-      entries,
-      samples,
-    );
+    await sampleSourceFiles(octokit, ref, entries, samples);
   }
 
   return samples;
