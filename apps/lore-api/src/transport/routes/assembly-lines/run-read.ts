@@ -24,9 +24,9 @@ import { bearerScope } from "../../http/bearer-scope.js";
 
 // The ENRICHED run read (FR6.40a): each node joined to what the run's OWN graph says (FR6.38, resolved at clone time); graph facts are null only when the run predates clones AND its blueprint is gone.
 const RunReadSchema = z.object({
-  line: z.record(z.unknown()),
+  line: z.record(z.string(), z.unknown()),
   definitionKnown: z.boolean(),
-  nodes: z.array(z.record(z.unknown())),
+  nodes: z.array(z.record(z.string(), z.unknown())),
 });
 
 interface NodeGraphFields {

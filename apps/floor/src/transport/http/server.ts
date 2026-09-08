@@ -1,3 +1,4 @@
+import "@re-cinq/lore-shared/http/hapi-params.js";
 /** Floor's HTTP server (hapi): webhook ingress, agent-telemetry sink, /healthz probe; routes in ./routes/. */
 
 import Hapi from "@hapi/hapi";

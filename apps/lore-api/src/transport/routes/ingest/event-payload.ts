@@ -14,7 +14,7 @@ import { bearerScope } from "../../http/bearer-scope.js";
 
 /** Ingest station's payload-by-reference fetch (~1MB too large for argv). */
 /** The stored event params, verbatim — shape varies by event name. */
-const EventPayloadSchema = z.record(z.unknown());
+const EventPayloadSchema = z.record(z.string(), z.unknown());
 
 /** The body of one scheduling event, fetched BY REFERENCE: an ingest pod is handed an event id rather than a payload, so a large report never rides through the dispatch. */
 async function serveEventPayload(

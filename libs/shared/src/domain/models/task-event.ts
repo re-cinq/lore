@@ -8,7 +8,7 @@ export const TaskEventSchema = z.object({
   taskId: z.string(),
   fromStatus: z.string().nullable(),
   toStatus: z.string(),
-  metadata: z.record(z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
   createdAt: z.date(),
 });
 

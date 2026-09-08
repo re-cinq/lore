@@ -15,7 +15,7 @@ export const RepoSchema = z.object({
   onboardingPrUrl: z.string().nullable(),
   onboardingPrMerged: z.boolean(),
   settings: RepoSettingsSchema.nullable(),
-  outcomeStats: z.record(z.unknown()).nullable(),
+  outcomeStats: z.record(z.string(), z.unknown()).nullable(),
 });
 
 export type Repo = z.infer<typeof RepoSchema>;

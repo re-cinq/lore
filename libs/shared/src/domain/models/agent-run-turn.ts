@@ -12,7 +12,7 @@ export const AgentRunTurnSchema = z.object({
   nodeId: z.string().nullable(),
   iteration: z.number().nullable(),
   eventType: z.string().nullable(),
-  envelope: z.record(z.unknown()),
+  envelope: z.record(z.string(), z.unknown()),
   createdAt: z.date(),
 });
 

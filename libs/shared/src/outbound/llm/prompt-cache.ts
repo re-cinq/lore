@@ -2,10 +2,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 
-/** Local extension of CacheControlEphemeral: @anthropic-ai/sdk ≤ 0.39 types don't expose the API's 1h TTL; remove once the SDK pin is bumped past the types refresh. */
-export type CacheControl = Anthropic.CacheControlEphemeral & {
-  ttl?: "5m" | "1h";
-};
+export type CacheControl = Anthropic.CacheControlEphemeral;
 
 // ── 1-hour TTL eligibility ─────────────────────────────────────────
 

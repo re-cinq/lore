@@ -9,7 +9,7 @@ export const DarkFactoryBaselineSchema = z.object({
   capturedAt: z.date(),
   windowStart: z.date(),
   windowEnd: z.date(),
-  counters: z.record(z.unknown()),
+  counters: z.record(z.string(), z.unknown()),
 });
 
 export type DarkFactoryBaseline = z.infer<typeof DarkFactoryBaselineSchema>;

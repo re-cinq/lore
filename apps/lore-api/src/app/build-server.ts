@@ -1,3 +1,4 @@
+import "@re-cinq/lore-shared/http/hapi-params.js";
 /** Lore-api HTTP server construction (hapi, ADR-033); shared by production and tests via buildServer. */
 
 import type { Pool } from "pg";

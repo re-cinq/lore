@@ -31,7 +31,7 @@ export const RepoSettingsSchema = z
     dark_factory: DarkFactorySettingsSchema.optional(),
     trust: TrustSettingsSchema.optional(),
     task_types: z.array(z.string()).optional(),
-    task_overrides: z.record(TaskOverrideSchema).optional(),
+    task_overrides: z.record(z.string(), TaskOverrideSchema).optional(),
     auto_review: z.boolean().optional(),
     // Top-level on purpose; stays outside two-key dark_factory ceremony (FR7).
     implementation_loop: z

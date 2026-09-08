@@ -14,7 +14,7 @@ export const MemoryEntrySchema = z.object({
   ttlSeconds: z.number().nullable(),
   expiresAt: z.date().nullable(),
   createdAt: z.date(),
-  metadata: z.record(z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
   repo: z.string().nullable(),
   retrievalCount: z.number().nullable(),
   lastRetrievedAt: z.date().nullable(),

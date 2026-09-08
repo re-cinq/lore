@@ -16,7 +16,7 @@ export const EventSchema = z.object({
   eventName: z.string(),
   source: z.string(),
   repo: z.string().nullable(),
-  params: z.record(z.unknown()),
+  params: z.record(z.string(), z.unknown()),
   dedupeKey: z.string().nullable(),
   status: EventStatusSchema,
   attempts: z.number(),

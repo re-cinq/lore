@@ -24,7 +24,7 @@ const TaskBody = z.object({
   description: z.string(),
   taskType: z.string(),
   createdBy: z.string().optional(),
-  contextBundle: z.record(z.unknown()).optional(),
+  contextBundle: z.record(z.string(), z.unknown()).optional(),
 });
 
 /** What `tasks.create` answers with — the queued task's identity, not its row. */

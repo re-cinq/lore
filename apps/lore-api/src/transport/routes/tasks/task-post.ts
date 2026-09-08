@@ -106,7 +106,7 @@ async function updateTaskStatus(
 }
 
 // One POST multiplexes create/cancel/retry/run-now/revise/set-priority; the contract is the union of what those answer.
-const TaskWriteSchema = z.record(z.unknown());
+const TaskWriteSchema = z.record(z.string(), z.unknown());
 
 async function retryAction(
   h: ResponseToolkit,

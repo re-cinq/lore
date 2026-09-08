@@ -4,8 +4,10 @@ import path from "node:path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // Sass can't see the "@/" TS alias; src/ on the load path lets `@use "styles/tokens"` skip the ../ hops.
-  sassOptions: { includePaths: [path.join(process.cwd(), "src")] },
+  // Next 16 type-checks tests during build; they reach into libs/**, which the image and web-ui-build CI job lack.
+  typescript: { tsconfigPath: "tsconfig.build.json" },
+  // Sass can't see the "@/" TS alias; src/ on the load path lets `@use "styles/tokens"` skip the ../ hops. Turbopack reads the modern API's loadPaths, not the legacy includePaths.
+  sassOptions: { loadPaths: [path.join(process.cwd(), "src")] },
   serverExternalPackages: [
     "@google-cloud/storage",
     "octokit",

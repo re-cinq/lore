@@ -8,7 +8,7 @@ export const GraphEdgeSchema = z.object({
   sourceId: z.string(),
   targetId: z.string(),
   relationType: z.string(),
-  properties: z.record(z.unknown()).nullable(),
+  properties: z.record(z.string(), z.unknown()).nullable(),
   validFrom: z.date(),
   validTo: z.date().nullable(),
   sourceEpisodeId: z.string().nullable(),

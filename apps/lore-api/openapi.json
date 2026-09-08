@@ -299,13 +299,13 @@
                     ]
                   },
                   "execution_mode": {
+                    "default": "claude-code",
                     "type": "string",
-                    "enum": ["claude-code", "graph-ingest", "station"],
-                    "default": "claude-code"
+                    "enum": ["claude-code", "graph-ingest", "station"]
                   },
                   "review_required": {
-                    "type": "boolean",
-                    "default": false
+                    "default": false,
+                    "type": "boolean"
                   },
                   "pod_resources": {
                     "anyOf": [
@@ -314,6 +314,9 @@
                         "properties": {
                           "requests": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string",
                               "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTPE]i?)?$"
@@ -321,6 +324,9 @@
                           },
                           "limits": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string",
                               "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTPE]i?)?$"
@@ -787,6 +793,9 @@
                   },
                   "args": {
                     "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
                     "additionalProperties": {}
                   },
                   "resume_from": {
@@ -804,7 +813,8 @@
                       },
                       "iteration": {
                         "type": "integer",
-                        "minimum": 1
+                        "minimum": 1,
+                        "maximum": 9007199254740991
                       }
                     },
                     "required": ["run_id", "node_id"],
@@ -1272,25 +1282,28 @@
                     "maxLength": 200
                   },
                   "tags": {
+                    "default": [],
+                    "maxItems": 50,
                     "type": "array",
                     "items": {
                       "type": "string",
                       "maxLength": 100
-                    },
-                    "maxItems": 50,
-                    "default": []
+                    }
                   },
                   "cluster_info": {
+                    "default": null,
                     "anyOf": [
                       {
                         "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
                         "additionalProperties": {}
                       },
                       {
                         "type": "null"
                       }
-                    ],
-                    "default": null
+                    ]
                   },
                   "current_token": {
                     "type": "string"
@@ -1384,6 +1397,7 @@
                 "type": "object",
                 "properties": {
                   "reports": {
+                    "maxItems": 2000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -1405,8 +1419,7 @@
                       },
                       "required": ["name", "project_id", "state", "reason"],
                       "additionalProperties": false
-                    },
-                    "maxItems": 2000
+                    }
                   }
                 },
                 "required": ["reports"],
@@ -2311,7 +2324,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
+                "oneOf": [
                   {
                     "type": "object",
                     "properties": {
@@ -2335,8 +2348,8 @@
                         "type": "string"
                       },
                       "extract_facts": {
-                        "type": "boolean",
-                        "default": false
+                        "default": false,
+                        "type": "boolean"
                       }
                     },
                     "required": ["action", "key", "value"],
@@ -2382,12 +2395,12 @@
                         "type": "number"
                       },
                       "include_invalidated": {
-                        "type": "boolean",
-                        "default": false
+                        "default": false,
+                        "type": "boolean"
                       },
                       "graph_augment": {
-                        "type": "boolean",
-                        "default": false
+                        "default": false,
+                        "type": "boolean"
                       }
                     },
                     "required": ["action", "query"],
@@ -2423,12 +2436,13 @@
                       "limit": {
                         "type": "integer",
                         "exclusiveMinimum": 0,
-                        "default": 50
+                        "maximum": 9007199254740991
                       },
                       "offset": {
+                        "default": 0,
                         "type": "integer",
                         "minimum": 0,
-                        "default": 0
+                        "maximum": 9007199254740991
                       }
                     },
                     "required": ["action"],
@@ -3130,13 +3144,13 @@
                     ]
                   },
                   "execution_mode": {
+                    "default": "claude-code",
                     "type": "string",
-                    "enum": ["claude-code", "graph-ingest", "station"],
-                    "default": "claude-code"
+                    "enum": ["claude-code", "graph-ingest", "station"]
                   },
                   "review_required": {
-                    "type": "boolean",
-                    "default": false
+                    "default": false,
+                    "type": "boolean"
                   },
                   "pod_resources": {
                     "anyOf": [
@@ -3145,6 +3159,9 @@
                         "properties": {
                           "requests": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string",
                               "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTPE]i?)?$"
@@ -3152,6 +3169,9 @@
                           },
                           "limits": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string",
                               "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTPE]i?)?$"
@@ -3368,13 +3388,13 @@
                     ]
                   },
                   "execution_mode": {
+                    "default": "claude-code",
                     "type": "string",
-                    "enum": ["claude-code", "graph-ingest", "station"],
-                    "default": "claude-code"
+                    "enum": ["claude-code", "graph-ingest", "station"]
                   },
                   "review_required": {
-                    "type": "boolean",
-                    "default": false
+                    "default": false,
+                    "type": "boolean"
                   },
                   "pod_resources": {
                     "anyOf": [
@@ -3383,6 +3403,9 @@
                         "properties": {
                           "requests": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string",
                               "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTPE]i?)?$"
@@ -3390,6 +3413,9 @@
                           },
                           "limits": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string",
                               "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTPE]i?)?$"
@@ -5091,11 +5117,13 @@
                   },
                   "seq": {
                     "type": "integer",
-                    "minimum": 1
+                    "minimum": 1,
+                    "maximum": 9007199254740991
                   },
                   "total": {
                     "type": "integer",
-                    "minimum": 1
+                    "minimum": 1,
+                    "maximum": 9007199254740991
                   },
                   "files": {
                     "type": "array",
@@ -5754,6 +5782,9 @@
                   },
                   "settings": {
                     "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
                     "additionalProperties": {}
                   }
                 },
@@ -5899,11 +5930,11 @@
                     "type": "object",
                     "properties": {
                       "paths": {
+                        "maxItems": 32,
                         "type": "array",
                         "items": {
                           "type": "string"
-                        },
-                        "maxItems": 32
+                        }
                       },
                       "min_trust": {
                         "type": "string",
@@ -6026,6 +6057,9 @@
                   },
                   "contextBundle": {
                     "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
                     "additionalProperties": {}
                   }
                 },
@@ -6455,7 +6489,7 @@
                             "type": "string"
                           }
                         },
-                        "additionalProperties": true
+                        "additionalProperties": {}
                       }
                     ]
                   },
@@ -6560,6 +6594,7 @@
                 "type": "object",
                 "properties": {
                   "entries": {
+                    "minItems": 1,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -6574,8 +6609,7 @@
                       },
                       "required": ["key", "value"],
                       "additionalProperties": false
-                    },
-                    "minItems": 1
+                    }
                   }
                 },
                 "required": ["entries"],
@@ -6885,17 +6919,17 @@
                     "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
                   },
                   "kind": {
+                    "default": "topup",
                     "type": "string",
-                    "enum": ["opening", "topup", "correction"],
-                    "default": "topup"
+                    "enum": ["opening", "topup", "correction"]
                   },
                   "note": {
-                    "type": "string",
-                    "default": ""
+                    "default": "",
+                    "type": "string"
                   },
                   "recorded_by": {
-                    "type": "string",
-                    "default": ""
+                    "default": "",
+                    "type": "string"
                   }
                 },
                 "required": ["amount_usd"],
@@ -7855,6 +7889,9 @@
             "type": "array",
             "items": {
               "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
               "additionalProperties": {}
             }
           }
@@ -7971,12 +8008,18 @@
                         "properties": {
                           "requests": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string"
                             }
                           },
                           "limits": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string"
                             }
@@ -8014,12 +8057,18 @@
                       },
                       "env": {
                         "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
                         "additionalProperties": {
                           "type": "string"
                         }
                       },
                       "pod_labels": {
                         "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
                         "additionalProperties": {
                           "type": "string"
                         }
@@ -8028,7 +8077,7 @@
                         "type": "boolean"
                       }
                     },
-                    "additionalProperties": true
+                    "additionalProperties": {}
                   },
                   {
                     "type": "null"
@@ -8097,12 +8146,18 @@
                               "properties": {
                                 "requests": {
                                   "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
                                   "additionalProperties": {
                                     "type": "string"
                                   }
                                 },
                                 "limits": {
                                   "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
                                   "additionalProperties": {
                                     "type": "string"
                                   }
@@ -8140,12 +8195,18 @@
                             },
                             "env": {
                               "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
                               "additionalProperties": {
                                 "type": "string"
                               }
                             },
                             "pod_labels": {
                               "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
                               "additionalProperties": {
                                 "type": "string"
                               }
@@ -8154,7 +8215,7 @@
                               "type": "boolean"
                             }
                           },
-                          "additionalProperties": true
+                          "additionalProperties": {}
                         },
                         {
                           "type": "null"
@@ -8297,12 +8358,18 @@
                         "properties": {
                           "requests": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string"
                             }
                           },
                           "limits": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string"
                             }
@@ -8340,12 +8407,18 @@
                       },
                       "env": {
                         "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
                         "additionalProperties": {
                           "type": "string"
                         }
                       },
                       "pod_labels": {
                         "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
                         "additionalProperties": {
                           "type": "string"
                         }
@@ -8354,7 +8427,7 @@
                         "type": "boolean"
                       }
                     },
-                    "additionalProperties": true
+                    "additionalProperties": {}
                   },
                   {
                     "type": "null"
@@ -8398,10 +8471,16 @@
       },
       "AgentStats": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "AgentUsage": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "AnalyticsOverview": {
@@ -8775,6 +8854,9 @@
         "properties": {
           "line": {
             "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
             "additionalProperties": {}
           },
           "definitionKnown": {
@@ -8784,6 +8866,9 @@
             "type": "array",
             "items": {
               "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
               "additionalProperties": {}
             }
           }
@@ -8838,6 +8923,9 @@
                 },
                 "payload": {
                   "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
                   "additionalProperties": {}
                 },
                 "created_at": {
@@ -8885,6 +8973,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -8928,6 +9019,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -9048,12 +9142,18 @@
                                   "properties": {
                                     "requests": {
                                       "type": "object",
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
                                       "additionalProperties": {
                                         "type": "string"
                                       }
                                     },
                                     "limits": {
                                       "type": "object",
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
                                       "additionalProperties": {
                                         "type": "string"
                                       }
@@ -9091,12 +9191,18 @@
                                 },
                                 "env": {
                                   "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
                                   "additionalProperties": {
                                     "type": "string"
                                   }
                                 },
                                 "pod_labels": {
                                   "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
                                   "additionalProperties": {
                                     "type": "string"
                                   }
@@ -9105,7 +9211,7 @@
                                   "type": "boolean"
                                 }
                               },
-                              "additionalProperties": true
+                              "additionalProperties": {}
                             },
                             {
                               "type": "null"
@@ -9183,7 +9289,8 @@
           "assembly_run_id",
           "node_id",
           "iteration",
-          "agent_cr_name"
+          "agent_cr_name",
+          "spec"
         ],
         "additionalProperties": false
       },
@@ -9611,6 +9718,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -9622,6 +9732,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -9633,6 +9746,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -9797,6 +9913,9 @@
       },
       "EventPayload": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "Feature": {
@@ -9832,7 +9951,9 @@
             ]
           },
           "current_iteration": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "draft_spec_md": {
             "type": ["string", "null"]
@@ -9849,7 +9970,9 @@
           "spec_pr_number": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               },
               {
                 "type": "null"
@@ -9859,7 +9982,9 @@
           "issue_number": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               },
               {
                 "type": "null"
@@ -9943,7 +10068,7 @@
                           "type": "number"
                         }
                       },
-                      "additionalProperties": true
+                      "additionalProperties": {}
                     },
                     {
                       "type": "null"
@@ -9997,7 +10122,9 @@
                   ]
                 },
                 "current_iteration": {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 },
                 "draft_spec_md": {
                   "type": ["string", "null"]
@@ -10014,7 +10141,9 @@
                 "spec_pr_number": {
                   "anyOf": [
                     {
-                      "type": "integer"
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     },
                     {
                       "type": "null"
@@ -10024,7 +10153,9 @@
                 "issue_number": {
                   "anyOf": [
                     {
-                      "type": "integer"
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     },
                     {
                       "type": "null"
@@ -10107,7 +10238,9 @@
                 ]
               },
               "current_iteration": {
-                "type": "integer"
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               },
               "draft_spec_md": {
                 "type": ["string", "null"]
@@ -10124,7 +10257,9 @@
               "spec_pr_number": {
                 "anyOf": [
                   {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
                   },
                   {
                     "type": "null"
@@ -10134,7 +10269,9 @@
               "issue_number": {
                 "anyOf": [
                   {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
                   },
                   {
                     "type": "null"
@@ -10188,7 +10325,9 @@
                     "type": "string"
                   },
                   "iteration": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
                   },
                   "task_id": {
                     "type": ["string", "null"]
@@ -10204,6 +10343,9 @@
                         "properties": {
                           "sections": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "object",
                               "properties": {
@@ -10220,6 +10362,9 @@
                           },
                           "questions": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string"
                             }
@@ -10464,7 +10609,9 @@
                   "parent_iteration": {
                     "anyOf": [
                       {
-                        "type": "integer"
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
                       },
                       {
                         "type": "null"
@@ -10509,7 +10656,9 @@
                     "type": "string"
                   },
                   "iteration": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
                   },
                   "task_id": {
                     "type": ["string", "null"]
@@ -10525,6 +10674,9 @@
                         "properties": {
                           "sections": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "object",
                               "properties": {
@@ -10541,6 +10693,9 @@
                           },
                           "questions": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string"
                             }
@@ -10785,7 +10940,9 @@
                   "parent_iteration": {
                     "anyOf": [
                       {
-                        "type": "integer"
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
                       },
                       {
                         "type": "null"
@@ -10867,7 +11024,9 @@
             ]
           },
           "current_iteration": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "draft_spec_md": {
             "type": ["string", "null"]
@@ -10884,7 +11043,9 @@
           "spec_pr_number": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               },
               {
                 "type": "null"
@@ -10894,7 +11055,9 @@
           "issue_number": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               },
               {
                 "type": "null"
@@ -10925,7 +11088,9 @@
                   "type": "string"
                 },
                 "iteration": {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 },
                 "task_id": {
                   "type": ["string", "null"]
@@ -10941,6 +11106,9 @@
                       "properties": {
                         "sections": {
                           "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
                           "additionalProperties": {
                             "type": "object",
                             "properties": {
@@ -10957,6 +11125,9 @@
                         },
                         "questions": {
                           "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
                           "additionalProperties": {
                             "type": "string"
                           }
@@ -11201,7 +11372,9 @@
                 "parent_iteration": {
                   "anyOf": [
                     {
-                      "type": "integer"
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     },
                     {
                       "type": "null"
@@ -11377,14 +11550,23 @@
       },
       "GraphQuery": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "ImpactBase": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "ImpactReport": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "ImplementationLoop": {
@@ -11399,7 +11581,9 @@
                 "type": "object",
                 "properties": {
                   "issue_number": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
                   },
                   "issue_url": {
                     "type": ["string", "null"]
@@ -11477,7 +11661,9 @@
               "type": "object",
               "properties": {
                 "issue_number": {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 },
                 "issue_url": {
                   "type": ["string", "null"]
@@ -11548,7 +11734,9 @@
               "type": "object",
               "properties": {
                 "issue_number": {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 },
                 "issue_url": {
                   "type": ["string", "null"]
@@ -11684,6 +11872,9 @@
       },
       "IngestResult": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "IngestState": {
@@ -11801,6 +11992,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -11839,6 +12033,9 @@
             "type": "array",
             "items": {
               "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
               "additionalProperties": {}
             }
           }
@@ -12021,6 +12218,9 @@
             "type": "array",
             "items": {
               "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
               "additionalProperties": {}
             }
           }
@@ -12155,6 +12355,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -12166,6 +12369,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -12177,6 +12383,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -12288,12 +12497,18 @@
                         "properties": {
                           "requests": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string"
                             }
                           },
                           "limits": {
                             "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
                             "additionalProperties": {
                               "type": "string"
                             }
@@ -12331,12 +12546,18 @@
                       },
                       "env": {
                         "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
                         "additionalProperties": {
                           "type": "string"
                         }
                       },
                       "pod_labels": {
                         "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
                         "additionalProperties": {
                           "type": "string"
                         }
@@ -12345,7 +12566,7 @@
                         "type": "boolean"
                       }
                     },
-                    "additionalProperties": true
+                    "additionalProperties": {}
                   },
                   {
                     "type": "null"
@@ -12418,12 +12639,18 @@
                           "properties": {
                             "requests": {
                               "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
                               "additionalProperties": {
                                 "type": "string"
                               }
                             },
                             "limits": {
                               "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
                               "additionalProperties": {
                                 "type": "string"
                               }
@@ -12461,12 +12688,18 @@
                         },
                         "env": {
                           "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
                           "additionalProperties": {
                             "type": "string"
                           }
                         },
                         "pod_labels": {
                           "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
                           "additionalProperties": {
                             "type": "string"
                           }
@@ -12475,7 +12708,7 @@
                           "type": "boolean"
                         }
                       },
-                      "additionalProperties": true
+                      "additionalProperties": {}
                     },
                     {
                       "type": "null"
@@ -12506,6 +12739,9 @@
         "properties": {
           "settings": {
             "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
             "additionalProperties": {}
           },
           "repo_count": {
@@ -12528,6 +12764,9 @@
       },
       "PipelineAnalytics": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "PlatformLlmStatus": {
@@ -12781,7 +13020,7 @@
                         "type": "number"
                       }
                     },
-                    "additionalProperties": true
+                    "additionalProperties": {}
                   },
                   "task_types": {
                     "type": "array",
@@ -12791,6 +13030,9 @@
                   },
                   "task_overrides": {
                     "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
                     "additionalProperties": {
                       "type": "object",
                       "properties": {
@@ -12816,7 +13058,7 @@
                           "additionalProperties": false
                         }
                       },
-                      "additionalProperties": true
+                      "additionalProperties": {}
                     }
                   },
                   "auto_review": {
@@ -12829,7 +13071,7 @@
                         "type": "boolean"
                       }
                     },
-                    "additionalProperties": true
+                    "additionalProperties": {}
                   },
                   "cross_repo": {
                     "type": "boolean"
@@ -12855,7 +13097,7 @@
                     "items": {}
                   }
                 },
-                "additionalProperties": true
+                "additionalProperties": {}
               },
               {
                 "type": "null"
@@ -12866,6 +13108,9 @@
             "anyOf": [
               {
                 "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
                 "additionalProperties": {}
               },
               {
@@ -12923,6 +13168,9 @@
       },
       "RepoChunks": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "RepoCiConclusion": {
@@ -12955,6 +13203,9 @@
                 },
                 "params": {
                   "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
                   "additionalProperties": {}
                 },
                 "status": {
@@ -13190,7 +13441,7 @@
                               "type": "number"
                             }
                           },
-                          "additionalProperties": true
+                          "additionalProperties": {}
                         },
                         "task_types": {
                           "type": "array",
@@ -13200,6 +13451,9 @@
                         },
                         "task_overrides": {
                           "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
                           "additionalProperties": {
                             "type": "object",
                             "properties": {
@@ -13225,7 +13479,7 @@
                                 "additionalProperties": false
                               }
                             },
-                            "additionalProperties": true
+                            "additionalProperties": {}
                           }
                         },
                         "auto_review": {
@@ -13238,7 +13492,7 @@
                               "type": "boolean"
                             }
                           },
-                          "additionalProperties": true
+                          "additionalProperties": {}
                         },
                         "cross_repo": {
                           "type": "boolean"
@@ -13264,7 +13518,7 @@
                           "items": {}
                         }
                       },
-                      "additionalProperties": true
+                      "additionalProperties": {}
                     },
                     {
                       "type": "null"
@@ -13275,6 +13529,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -13520,7 +13777,9 @@
         "type": "object",
         "properties": {
           "iteration": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "task_id": {
             "type": ["string", "null"]
@@ -13722,6 +13981,9 @@
             "type": "array",
             "items": {
               "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
               "additionalProperties": {}
             }
           }
@@ -13747,6 +14009,9 @@
       },
       "SpecTaskCompleted": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "SpecTasksReady": {
@@ -13756,6 +14021,9 @@
             "type": "array",
             "items": {
               "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
               "additionalProperties": {}
             }
           }
@@ -14180,6 +14448,9 @@
               },
               "assumed_profile": {
                 "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
                 "additionalProperties": {
                   "type": "string"
                 }
@@ -14225,6 +14496,9 @@
                     },
                     "requests": {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {
                         "type": "string"
                       }
@@ -14307,6 +14581,9 @@
                           "anyOf": [
                             {
                               "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
                               "additionalProperties": {
                                 "type": "string"
                               }
@@ -14444,6 +14721,9 @@
             "anyOf": [
               {
                 "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
                 "additionalProperties": {}
               },
               {
@@ -14455,6 +14735,9 @@
             "anyOf": [
               {
                 "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
                 "additionalProperties": {}
               },
               {
@@ -14466,6 +14749,9 @@
             "anyOf": [
               {
                 "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
                 "additionalProperties": {}
               },
               {
@@ -14540,6 +14826,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -14610,6 +14899,9 @@
             "type": "array",
             "items": {
               "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
               "additionalProperties": {}
             }
           }
@@ -14654,6 +14946,9 @@
             "type": "array",
             "items": {
               "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
               "additionalProperties": {}
             }
           },
@@ -14725,6 +15020,9 @@
                   "anyOf": [
                     {
                       "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
                       "additionalProperties": {}
                     },
                     {
@@ -14838,6 +15136,9 @@
             "type": "array",
             "items": {
               "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
               "additionalProperties": {}
             }
           },
@@ -14848,6 +15149,9 @@
             "anyOf": [
               {
                 "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
                 "additionalProperties": {}
               },
               {
@@ -14870,6 +15174,9 @@
       },
       "TaskWriteResult": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "TokenList": {
@@ -14989,6 +15296,9 @@
       },
       "TraceRead": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {}
       },
       "TurnsRelayed": {

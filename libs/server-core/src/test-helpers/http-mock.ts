@@ -2,6 +2,7 @@
 import { Readable } from "node:stream";
 import { beforeEach, afterEach, vi } from "vitest";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Mock } from "vitest";
 
 export interface MockReqInit {
   url: string;
@@ -80,8 +81,19 @@ export function makeRes(): MockRes {
   return res as unknown as MockRes;
 }
 
+export interface MockPoolClient {
+  query: Mock;
+  release: Mock;
+}
+
+export interface MockPool {
+  query: Mock;
+  connect: Mock;
+  __client: MockPoolClient;
+}
+
 /** A pg Pool mock — `query` is a vi.fn; `connect` returns a client mock. */
-export function makePool() {
+export function makePool(): MockPool {
   const client = {
     query: vi.fn(),
     release: vi.fn(),
@@ -95,8 +107,16 @@ export function makePool() {
   return pool;
 }
 
+export interface MockOctokit {
+  rest: {
+    repos: { listCommits: Mock };
+    pulls: { get: Mock };
+    git: { getCommit: Mock };
+  };
+}
+
 /** An Octokit mock with the rest endpoints routes.ts calls. */
-export function makeOctokit() {
+export function makeOctokit(): MockOctokit {
   return {
     rest: {
       repos: { listCommits: vi.fn() },

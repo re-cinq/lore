@@ -97,13 +97,14 @@ export const SectionDirectionSchema = z.enum(["keep", "refine", "redirect"]);
 export const SectionAnswersSchema = z.object({
   sections: z
     .record(
+      z.string(),
       z.object({
         comment: z.string().optional(),
         direction: SectionDirectionSchema.optional(),
       }),
     )
     .optional(),
-  questions: z.record(z.string()).optional(),
+  questions: z.record(z.string(), z.string()).optional(),
   free_form: z.string().optional(),
 });
 

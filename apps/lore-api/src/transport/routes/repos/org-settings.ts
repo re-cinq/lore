@@ -27,7 +27,7 @@ type SettingsBody = z.infer<typeof SettingsBody>;
 
 /** The org-wide settings document plus how many repos it governs. */
 const OrgSettingsSchema = z.object({
-  settings: z.record(z.unknown()),
+  settings: z.record(z.string(), z.unknown()),
   repo_count: z.number(),
 });
 

@@ -30,7 +30,7 @@ export const AgentRunEventSchema = z.object({
   isError: z.boolean(),
   filePaths: z.array(z.string()),
   summary: z.string().nullable(),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
   createdAt: z.date(),
 });
 

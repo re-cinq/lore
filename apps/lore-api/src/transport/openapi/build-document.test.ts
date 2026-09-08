@@ -69,9 +69,9 @@ describe("generateOpenApi — coverage", () => {
 });
 
 describe("generateOpenApi — request bodies", () => {
-  it("renders the memory discriminated union as anyOf", () => {
+  it("renders the memory discriminated union as oneOf", () => {
     expect(bodySchema(document.paths["/api/memory"].post)).toMatchObject({
-      anyOf: expect.any(Array),
+      oneOf: expect.any(Array),
     });
     expect(
       bodySchema(document.paths["/api/memory"].post).$schema,

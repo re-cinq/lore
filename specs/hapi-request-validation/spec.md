@@ -132,7 +132,7 @@ today. Validation errors surface only for authenticated requests.
 - **FR3** Validation failures return HTTP `400` with body `{ error: <message> }`
   (the existing convention), never hapi's default `{ statusCode, error, message }`
   envelope. The message names the offending field (dotted path) where zod provides
-  it, falling back to `invalid request` when there are no issues. ([validated by `zod-validate.test.ts:63`](apps/lore-api/src/transport/http/zod-validate.test.ts#L63), [validated by `zod-validate.test.ts:23`](apps/lore-api/src/transport/http/zod-validate.test.ts#L23), [validated by `zod-validate.test.ts:43`](apps/lore-api/src/transport/http/zod-validate.test.ts#L43), [validated by `zod-validate.test.ts:55`](apps/lore-api/src/transport/http/zod-validate.test.ts#L55))
+  it, falling back to `invalid request` when there are no issues. ([validated by `zod-validate.test.ts:63`](apps/lore-api/src/transport/http/zod-validate.test.ts#L65), [validated by `zod-validate.test.ts:23`](apps/lore-api/src/transport/http/zod-validate.test.ts#L23), [validated by `zod-validate.test.ts:43`](apps/lore-api/src/transport/http/zod-validate.test.ts#L43), [validated by `zod-validate.test.ts:55`](apps/lore-api/src/transport/http/zod-validate.test.ts#L57))
 - **FR4** hapi parses request payloads natively (`parse: true`); handlers receive
   a typed, validated `request.payload`. No native-route handler calls `JSON.parse`,
   `rawBody`, or `parseJsonBodyCapped`. Those helpers are deleted when unused. A

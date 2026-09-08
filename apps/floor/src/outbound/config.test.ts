@@ -96,13 +96,17 @@ describe("loadTaskTypes drift reporting", () => {
       "task_types:\n  general:\n    prompt_template: Do {description}\n",
     );
 
-    expect(warned).toContain("task_types.general: timeout_minutes — Required");
+    expect(warned).toContain(
+      "task_types.general: timeout_minutes — Invalid input: expected number, received undefined",
+    );
   });
 
   it("names the entry itself when an entry has no body at all", () => {
     const warned = loadFixture("bodyless.yaml", "task_types:\n  general:\n");
 
-    expect(warned).toContain("task_types.general: <entry> — Expected object");
+    expect(warned).toContain(
+      "task_types.general: <entry> — Invalid input: expected object",
+    );
   });
 
   it("reads an entry with no body as empty rather than as null", () => {

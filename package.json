@@ -2,7 +2,7 @@
   "name": "lore",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "workspaces": [
     "libs/*",
@@ -19,9 +19,9 @@
     "start": "bash scripts/dev-local.sh",
     "build": "npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-api && npm run build -w @re-cinq/lore-mcp && npm run build -w @re-cinq/lore-floor && npm run build -w @re-cinq/lore-event-router && npm run build -w @re-cinq/lore-cluster-agent",
     "typecheck:drift": "tsc -p scripts/type-drift/tsconfig.drift.json",
-    "lint": "eslint .",
+    "lint": "NODE_OPTIONS=--max-old-space-size=8192 eslint .",
     "dup": "jscpd",
-    "format": "eslint . --fix && prettier --write \"apps/**/*.{ts,tsx,mjs,cjs,js,json}\" \"libs/**/*.{ts,tsx,mjs,cjs,js,json}\" \"scripts/**/*.{ts,mts,cts,mjs,cjs,js}\"",
+    "format": "NODE_OPTIONS=--max-old-space-size=8192 eslint . --fix && prettier --write \"apps/**/*.{ts,tsx,mjs,cjs,js,json}\" \"libs/**/*.{ts,tsx,mjs,cjs,js,json}\" \"scripts/**/*.{ts,mts,cts,mjs,cjs,js}\"",
     "format:check": "prettier --check \"apps/**/*.{ts,tsx,mjs,cjs,js,json}\" \"libs/**/*.{ts,tsx,mjs,cjs,js,json}\" \"scripts/**/*.{ts,mts,cts,mjs,cjs,js}\"",
     "db:up": "docker start lore-postgres 2>/dev/null || (mkdir -p .lore-pgdata && docker run --name lore-postgres -e POSTGRES_PASSWORD=lore -e POSTGRES_DB=lore -v \"$PWD/.lore-pgdata:/var/lib/postgresql/data\" -p 5432:5432 -d pgvector/pgvector:pg16)",
     "db:down": "docker rm -f lore-postgres",
@@ -44,7 +44,7 @@
     "eslint-plugin-import-x": "^4.17.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",
-    "jscpd": "^5.1.2",
+    "jscpd": "^5.2.0",
     "prettier": "^3.9.6",
     "typescript-eslint": "^8.70.0",
     "yaml": "^2.9.0"

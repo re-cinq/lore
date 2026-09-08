@@ -10,7 +10,7 @@ export const StationInputSchema = z.object({
   branch: z.string().min(1),
   /** Null for task-less runs (detection assembly lines). */
   task_id: z.string().nullable(),
-  params: z.record(z.string()).default({}),
+  params: z.record(z.string(), z.string()).default({}),
 });
 
 export type StationInput = z.infer<typeof StationInputSchema>;

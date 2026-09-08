@@ -14,21 +14,20 @@
     "start:watch": "node --watch-path=./dist --watch-path=../../libs/shared/dist dist/index.js"
   },
   "dependencies": {
-    "@hapi/hapi": "21.4.9",
-    "@octokit/auth-app": "^7.1.0",
+    "@hapi/hapi": "21.4.10",
+    "@octokit/auth-app": "^8.3.1",
     "@re-cinq/lore-shared": "*",
-    "octokit": "^4.1.0",
-    "pg": "^8.13.0",
-    "zod": "^3.24.2",
+    "octokit": "^5.0.5",
+    "pg": "^8.23.0",
+    "zod": "^4.5.4",
     "@re-cinq/lore-assembly-lines": "*"
   },
   "devDependencies": {
-    "@types/hapi__hapi": "^20.0.13",
-    "@types/node": "^22.13.10",
-    "@types/pg": "^8.11.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@types/node": "^22.20.1",
+    "@types/pg": "^8.23.1",
+    "@vitest/coverage-v8": "^5.0.0",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.0"
   },
   "exports": {
     ".": {

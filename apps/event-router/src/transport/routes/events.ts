@@ -19,7 +19,7 @@ import type { ReporterAuthDeps } from "./reporter-auth.js";
 const ReportedEvent = z.object({
   eventName: z.string().min(1),
   source: z.enum(SOURCES),
-  params: z.record(z.unknown()).optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
   dedupeKey: z.string().min(1).optional(),
 });
 

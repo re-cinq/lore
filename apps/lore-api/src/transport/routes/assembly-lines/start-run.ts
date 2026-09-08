@@ -28,7 +28,7 @@ const StartBody = z
     definition: z.string().min(1).max(200),
     repo: repoFullName,
     branch: z.string().min(1).max(300).optional(),
-    args: z.record(z.unknown()).optional(),
+    args: z.record(z.string(), z.unknown()).optional(),
     // Fork-and-rerun (specs/fork-rerun-from-node): copy the source run's rows through node_id's latest completed visit and resume at its successor.
     resume_from: z
       .object({

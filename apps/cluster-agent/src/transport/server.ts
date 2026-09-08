@@ -1,3 +1,4 @@
+import "@re-cinq/lore-shared/http/hapi-params.js";
 // The cluster agent's HTTP server (hapi): this cluster's Kubernetes surface, and the probe. `buildServer` does not listen (tests use `inject()`) and builds no Kubernetes client until first use.
 
 import Hapi from "@hapi/hapi";

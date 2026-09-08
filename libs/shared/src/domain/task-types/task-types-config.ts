@@ -33,9 +33,9 @@ export const StationConfigSchema = z.object({
   command: z.array(z.string()),
   timeout_minutes: z.number(),
   /** Plain env for the station pod (e.g. def-ingest's LORE_DGRAPH_HTTP). */
-  env: z.record(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
   /** Pod-template labels a NetworkPolicy selects — must ride the template, since the per-task triple renames the Station to `pt-<id>`. */
-  pod_labels: z.record(z.string()).optional(),
+  pod_labels: z.record(z.string(), z.string()).optional(),
   /** This station calls a model and needs the LLM credential; off by default since a missing credential once made comment-triage silently swallow every PR comment. */
   needs_model: z.boolean().optional(),
 });

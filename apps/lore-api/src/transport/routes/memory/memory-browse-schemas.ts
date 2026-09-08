@@ -129,10 +129,10 @@ export const GraphBrowseSchema = z.object({
 
 /** Memories and facts, ranked together — the two carry different fields. */
 export const MemorySearchSchema = z.object({
-  results: z.array(z.record(z.unknown())),
+  results: z.array(z.record(z.string(), z.unknown())),
 });
 
 /** One agent's memories, each with its version history and extracted facts. */
 export const MemoryListSchema = z.object({
-  memories: z.array(z.record(z.unknown())),
+  memories: z.array(z.record(z.string(), z.unknown())),
 });

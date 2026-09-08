@@ -1,3 +1,4 @@
+import "@re-cinq/lore-shared/http/hapi-params.js";
 // The stations service's hapi server: one route to run a station by name, plus the health probe. buildServer doesn't listen (tests use inject()); process lifecycle belongs solely to index.ts.
 
 import Hapi from "@hapi/hapi";

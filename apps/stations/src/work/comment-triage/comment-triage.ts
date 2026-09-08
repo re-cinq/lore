@@ -18,7 +18,7 @@ function commentToClassify(input: StationInput) {
   const p = input.params;
 
   return {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- params is z.record(z.string()); zod does not guarantee this specific key was present in the wire JSON
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- params is z.record(z.string(), z.string()); zod does not guarantee this specific key was present in the wire JSON
     body: p.comment_body ?? "",
     isReply: Boolean(p.in_reply_to_id),
     prNumber: Number(p.pr_number) || 0,

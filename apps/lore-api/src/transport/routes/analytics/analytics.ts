@@ -20,7 +20,7 @@ const AnalyticsQuery = z.object({
 type AnalyticsQuery = z.infer<typeof AnalyticsQuery>;
 
 /** Org-wide pipeline analytics for a period — a roll-up, not a row. */
-const PipelineAnalyticsSchema = z.record(z.unknown());
+const PipelineAnalyticsSchema = z.record(z.string(), z.unknown());
 
 export function analyticsRoute(getPool: () => Pool | null): ServerRoute {
   return {

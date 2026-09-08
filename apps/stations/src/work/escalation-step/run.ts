@@ -10,7 +10,7 @@ import { projectFor } from "../../outbound/project-boot.js";
 function escalationInputFrom(
   input: StationInput,
 ): (taskId: string) => Promise<EscalateInput> {
-  // input.params is z.record(z.string()) — zod guarantees string VALUES, not that these specific keys were present in the wire JSON.
+  // input.params is z.record(z.string(), z.string()) — zod guarantees string VALUES, not that these specific keys were present in the wire JSON.
   const params = input.params as Record<string, string | undefined>;
 
   return async (taskId) => {

@@ -6,7 +6,9 @@ import { bearerScope } from "../../http/bearer-scope.js";
 
 /** GET /api/trace/adrs — cross-repo ADR list for the global viewer (not per-repo, so not via Project). */
 /** Every ADR the graph holds; empty when no graph is configured. */
-const AdrListSchema = z.object({ adrs: z.array(z.record(z.unknown())) });
+const AdrListSchema = z.object({
+  adrs: z.array(z.record(z.string(), z.unknown())),
+});
 
 export function traceAdrsRoute(): ServerRoute {
   return {

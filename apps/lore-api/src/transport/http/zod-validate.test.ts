@@ -22,7 +22,7 @@ describe("zodValidate", () => {
 
   it("throws with the offending field named for an invalid value", async () => {
     await expect(zodValidate(schema)({ count: "3" })).rejects.toThrow(
-      "name: Required",
+      "name: Invalid input: expected string, received undefined",
     );
   });
 
@@ -48,7 +48,9 @@ describe("formatZodError", () => {
     expect(err.success).toBe(false);
 
     if (!err.success) {
-      expect(formatZodError(err.error)).toBe("a.b: Required");
+      expect(formatZodError(err.error)).toBe(
+        "a.b: Invalid input: expected string, received undefined",
+      );
     }
   });
 

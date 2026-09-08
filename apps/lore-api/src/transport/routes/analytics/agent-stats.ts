@@ -17,7 +17,7 @@ const AgentStatsQuery = z.object({ agent_id: z.string().min(1).max(200) });
 type AgentStatsQuery = z.infer<typeof AgentStatsQuery>;
 
 /** An agent's health bundle: memory, episode, fact and search counters. */
-const AgentStatsSchema = z.record(z.unknown());
+const AgentStatsSchema = z.record(z.string(), z.unknown());
 
 export function agentStatsRoute(getPool: () => Pool | null): ServerRoute {
   return {

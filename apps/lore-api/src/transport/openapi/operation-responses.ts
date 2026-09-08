@@ -1,8 +1,7 @@
 /** Shapes an operation's request body and response envelope (ADR-035): the Zod-derived contract half of the document. */
 
 import type { ServerRoute, RouteOptions } from "@hapi/hapi";
-import type { ZodType } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z, type ZodType } from "zod";
 import { getZodSchema } from "../http/zod-validate.js";
 import {
   getResponseMeta,
@@ -70,11 +69,35 @@ const jsonBody = (schema: JsonSchema): JsonSchema => ({
   content: { "application/json": { schema } },
 });
 
+/** zod's own generator drops two things the contract has always published: a `z.date()` becomes an empty schema rather than the date-time string JSON actually carries, and a closed object no longer says so. */
+function restoreLegacyShape({
+  zodSchema,
+  jsonSchema,
+}: {
+  zodSchema: { _zod: { def: { type: string } } };
+  jsonSchema: Record<string, unknown>;
+}): void {
+  if (zodSchema._zod.def.type === "date") {
+    jsonSchema.type = "string";
+    jsonSchema.format = "date-time";
+  }
+
+  if (
+    zodSchema._zod.def.type === "object" &&
+    jsonSchema.additionalProperties === undefined
+  ) {
+    jsonSchema.additionalProperties = false;
+  }
+}
+
 /** zod → JSON Schema for embedding in a requestBody; draft-7 output, `$schema` stripped. */
 export function toRequestSchema(schema: ZodType): JsonSchema {
-  const out = zodToJsonSchema(schema, {
-    $refStrategy: "none",
-    target: "jsonSchema7",
+  const out = z.toJSONSchema(schema, {
+    reused: "inline",
+    target: "draft-07",
+    io: "input",
+    unrepresentable: "any",
+    override: restoreLegacyShape,
   }) as JsonSchema;
 
   delete out.$schema;
