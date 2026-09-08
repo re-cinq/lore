@@ -36,7 +36,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@eslint/markdown": "^8.0.3",
-    "@re-cinq/eslint-plugin-re-lint": "file:../re-lint/re-cinq-eslint-plugin-re-lint-0.1.0.tgz",
+    "@re-cinq/eslint-plugin-re-lint": "^1.0.0",
     "@stylistic/eslint-plugin": "^5.4.0",
     "concurrently": "^9.1.0",
     "eslint": "^10.7.0",

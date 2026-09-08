@@ -92,21 +92,21 @@ are now consequences of the four rules above.
 
 <!--
   Link the rule's cases inline (v3):
-  `The rule <behaviour>. ([validated by `no-cross-layer-import.test.mjs:NN`](https://github.com/re-cinq/re-lint/blob/v0.1.1/src/rules/no-cross-layer-import.test.mjs#LNN))`
+  `The rule <behaviour>. ([validated by `no-cross-layer-import.test.mjs:NN`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/no-cross-layer-import.test.mjs#LNN))`
 -->
 
-A folder with no entry in a governed package may import nothing, so a folder added without a declaration is reported rather than silently unconstrained. ([validated by `no-cross-layer-import.test.mjs:173`](https://github.com/re-cinq/re-lint/blob/v0.1.1/src/rules/no-cross-layer-import.test.mjs#L173))
+A folder with no entry in a governed package may import nothing, so a folder added without a declaration is reported rather than silently unconstrained. ([validated by `no-cross-layer-import.test.mjs:173`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/no-cross-layer-import.test.mjs#L173))
 
-A dissolved horizontal layer (`adapters`/`application`/`data`/`ports`) can never resolve as an import target again, because nothing lists it and an unlisted target is denied. ([validated by `no-cross-layer-import.test.mjs:145`](https://github.com/re-cinq/re-lint/blob/v0.1.1/src/rules/no-cross-layer-import.test.mjs#L145))
+A dissolved horizontal layer (`adapters`/`application`/`data`/`ports`) can never resolve as an import target again, because nothing lists it and an unlisted target is denied. ([validated by `no-cross-layer-import.test.mjs:145`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/no-cross-layer-import.test.mjs#L145))
 
-`kernel/` — the shared substrate — imports nothing outside itself, keeping it the bottom tier that everything imports and that imports nothing above it. ([validated by `no-cross-layer-import.test.mjs:152`](https://github.com/re-cinq/re-lint/blob/v0.1.1/src/rules/no-cross-layer-import.test.mjs#L152))
+`kernel/` — the shared substrate — imports nothing outside itself, keeping it the bottom tier that everything imports and that imports nothing above it. ([validated by `no-cross-layer-import.test.mjs:152`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/no-cross-layer-import.test.mjs#L152))
 
-Only the root `index.ts` entry may import `delivery/`, keeping the entry-point tier (`dist/transport/*` deploy contract) imported by nothing but the root entry — and it holds because no other entry lists it, not because a rule names it. ([validated by `no-cross-layer-import.test.mjs:180`](https://github.com/re-cinq/re-lint/blob/v0.1.1/src/rules/no-cross-layer-import.test.mjs#L180))
+Only the root `index.ts` entry may import `delivery/`, keeping the entry-point tier (`dist/transport/*` deploy contract) imported by nothing but the root entry — and it holds because no other entry lists it, not because a rule names it. ([validated by `no-cross-layer-import.test.mjs:180`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/no-cross-layer-import.test.mjs#L180))
 
-`jobs/lib/` imports only `kernel/` and shared, keeping the cross-cutting job-services leaf from reaching back into a sibling job domain. ([validated by `no-cross-layer-import.test.mjs:166`](https://github.com/re-cinq/re-lint/blob/v0.1.1/src/rules/no-cross-layer-import.test.mjs#L166))
+`jobs/lib/` imports only `kernel/` and shared, keeping the cross-cutting job-services leaf from reaching back into a sibling job domain. ([validated by `no-cross-layer-import.test.mjs:166`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/no-cross-layer-import.test.mjs#L166))
 
-Movement inside a layer is free, so a file may reach an ancestor or a descendant of its own folder without an entry naming it. ([validated by `no-cross-layer-import.test.mjs:131`](https://github.com/re-cinq/re-lint/blob/v0.1.1/src/rules/no-cross-layer-import.test.mjs#L131))
+Movement inside a layer is free, so a file may reach an ancestor or a descendant of its own folder without an entry naming it. ([validated by `no-cross-layer-import.test.mjs:131`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/no-cross-layer-import.test.mjs#L131))
 
 Where the substrate needs something only a job domain can build, the dependency is inverted rather than the boundary widened: `kernel/project-boot.ts` owns `projectFor` and the composition root injects the station backend, so `kernel` still imports nothing above it. Reaching either before the root has wired it names the composition root instead of failing obscurely, and a failed build is retried rather than cached. ([validated by `names the composition root when projectFor runs before anything wired it`](apps/floor/src/outbound/project-boot.test.ts#L17), [validated by `names the composition root when stationBackendNow runs before anything wired it`](apps/floor/src/outbound/project-boot.test.ts#L23), [validated by `hands back the backend the composition root registered`](apps/floor/src/outbound/project-boot.test.ts#L29), [validated by `retries the build after a rejection rather than caching the failure`](apps/floor/src/outbound/project-boot.test.ts#L35))
 
-A package absent from `layers.yaml` is not checked at all, so the declaration is adopted one package at a time. ([validated by `no-cross-layer-import.test.mjs:89`](https://github.com/re-cinq/re-lint/blob/v0.1.1/src/rules/no-cross-layer-import.test.mjs#L89))
+A package absent from `layers.yaml` is not checked at all, so the declaration is adopted one package at a time. ([validated by `no-cross-layer-import.test.mjs:89`](https://github.com/re-cinq/re-lint/blob/v1.0.0/src/rules/no-cross-layer-import.test.mjs#L89))
