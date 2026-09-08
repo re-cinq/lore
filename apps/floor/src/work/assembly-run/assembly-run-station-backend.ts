@@ -49,9 +49,16 @@ export class AssemblyLineStationBackend implements StationBackend {
     });
 
     // Only a subject-keyed start can have joined, so an unkeyed one asks nothing.
-    if (!subjectKey) {
-      return { ref: assemblyLineId, launched: true };
-    }
+    return subjectKey
+      ? this.launchResultFor(assemblyLineId, spec.taskId)
+      : { ref: assemblyLineId, launched: true };
+  }
+
+  /** start() is start-or-JOIN — a joined task owns no CR of its own and will never complete, so the caller must settle it. */
+  private async launchResultFor(
+    assemblyLineId: string,
+    taskId: string,
+  ): Promise<StationLaunchResult> {
     const run = await this.assemblyRuns.getById(assemblyLineId);
 
     enforceTrue(
@@ -60,8 +67,7 @@ export class AssemblyLineStationBackend implements StationBackend {
       `assembly run ${assemblyLineId} is missing immediately after start`,
     );
 
-    // start() is start-or-JOIN — a joined task owns no CR of its own and will never complete, so the caller must settle it.
-    return run.taskId === spec.taskId
+    return run.taskId === taskId
       ? { ref: assemblyLineId, launched: true }
       : { ref: assemblyLineId, launched: false, joinedRun: assemblyLineId };
   }

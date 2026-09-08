@@ -112,23 +112,7 @@ async function readPrCheckState(
   botLogin: string,
 ): Promise<PrCheckState> {
   try {
-    // All three reads are paginated inside the shared adapter (an uncapped single page would silently truncate); independent, so run them together.
-    const pulls = await deps.pullsFor(row.target_repo!);
-    const ref = row.target_branch ?? `pull/${row.pr_number}/head`;
-    const [files, checkRuns, reviews] = await Promise.all([
-      pulls.listFiles(row.pr_number!),
-      pulls.listChecks(ref),
-      pulls.listReviews(row.pr_number!),
-    ]);
-
-    return {
-      changedPaths: files,
-      ciSucceeded: ciIsGreen(checkRuns),
-      botApproved: botHasApproved(reviews, botLogin),
-      humanChangesRequested: reviews.some(
-        (r) => r.state === "CHANGES_REQUESTED" && !r.user.endsWith("[bot]"),
-      ),
-    };
+    return await fetchPrCheckState(deps, row, botLogin);
   } catch (err) {
     console.warn(
       "[pr-policy] PR state lookup failed; auto-merge will likely defer:",
@@ -137,6 +121,37 @@ async function readPrCheckState(
 
     return DEFAULT_PR_CHECK_STATE;
   }
+}
+
+async function fetchPrCheckState(
+  deps: PrPolicyDeps,
+  row: TaskPrInfo,
+  botLogin: string,
+): Promise<PrCheckState> {
+  // All three reads are paginated inside the shared adapter (an uncapped single page would silently truncate); independent, so run them together.
+  const pulls = await deps.pullsFor(row.target_repo!);
+  const ref = row.target_branch ?? `pull/${row.pr_number}/head`;
+  const [files, checkRuns, reviews] = await Promise.all([
+    pulls.listFiles(row.pr_number!),
+    pulls.listChecks(ref),
+    pulls.listReviews(row.pr_number!),
+  ]);
+
+  return {
+    changedPaths: files,
+    ciSucceeded: ciIsGreen(checkRuns),
+    botApproved: botHasApproved(reviews, botLogin),
+    humanChangesRequested: humanRequestedChanges(reviews),
+  };
+}
+
+/** A human (not a bot account) asked for changes — a hard block on auto-merge. */
+function humanRequestedChanges(
+  reviews: { user: string; state: string }[],
+): boolean {
+  return reviews.some(
+    (r) => r.state === "CHANGES_REQUESTED" && !r.user.endsWith("[bot]"),
+  );
 }
 
 /** Defers auto-merge while a review-family line is open for this PR — the required lore/code-review check does the same for human merges; this guards Lore's own. */
@@ -183,11 +198,7 @@ async function observePr(
 export async function resolvePrForTaskFromDb(
   taskId: string,
   darkFactorySettings: ResolvedDarkFactorySettings,
-  deps: PrPolicyDeps = {
-    tasks: pipeline().taskQueue,
-    repos: settings(),
-    pullsFor: defaultPullsFor,
-  },
+  deps: PrPolicyDeps = defaultPrPolicyDeps(),
 ): Promise<PrForAutoMerge | null> {
   const row = await deps.tasks.prInfo(taskId);
 
@@ -195,21 +206,36 @@ export async function resolvePrForTaskFromDb(
     return null;
   }
 
-  const observed = await observePr(deps, row);
-
   return {
     repo: row.target_repo,
     prNumber: row.pr_number,
     policy: {
-      darkFactoryEnabled: darkFactorySettings.enabled,
-      autoMerge: {
-        paths: darkFactorySettings.auto_merge.paths,
-        min_trust: darkFactorySettings.auto_merge.min_trust,
-        require_green_ci: darkFactorySettings.auto_merge.require_green_ci,
-        require_bot_approval:
-          darkFactorySettings.auto_merge.require_bot_approval,
-      },
-      ...observed,
+      ...configuredPolicy(darkFactorySettings),
+      ...(await observePr(deps, row)),
+    },
+  };
+}
+
+/** Resolved lazily per call: `pipeline()`/`settings()` require an initialized pool. */
+function defaultPrPolicyDeps(): PrPolicyDeps {
+  return {
+    tasks: pipeline().taskQueue,
+    repos: settings(),
+    pullsFor: defaultPullsFor,
+  };
+}
+
+/** What policy ASKS of the PR, as opposed to what is observed about it. */
+function configuredPolicy(
+  darkFactorySettings: ResolvedDarkFactorySettings,
+): Pick<PrForAutoMerge["policy"], "darkFactoryEnabled" | "autoMerge"> {
+  return {
+    darkFactoryEnabled: darkFactorySettings.enabled,
+    autoMerge: {
+      paths: darkFactorySettings.auto_merge.paths,
+      min_trust: darkFactorySettings.auto_merge.min_trust,
+      require_green_ci: darkFactorySettings.auto_merge.require_green_ci,
+      require_bot_approval: darkFactorySettings.auto_merge.require_bot_approval,
     },
   };
 }

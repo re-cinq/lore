@@ -49,8 +49,16 @@ export async function maybeAlertAgentConfig(
     return false;
   }
 
+  return await sendAgentConfigAlert(ports.notify, message);
+}
+
+// Reports whether the operator actually heard about it: a notify throw is logged and answered `false`, never propagated.
+async function sendAgentConfigAlert(
+  notify: AgentConfigAlertPorts["notify"],
+  message: string,
+): Promise<boolean> {
   try {
-    await ports.notify("escalation", message);
+    await notify("escalation", message);
 
     return true;
   } catch (err) {

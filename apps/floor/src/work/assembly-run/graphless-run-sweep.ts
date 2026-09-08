@@ -84,20 +84,7 @@ async function settleUnclaimedSingleCr(
   singleCrOpen: StationRunRecord,
   ctx: GraphlessSweepContext,
 ): Promise<"queue-timeout" | "requeued" | null> {
-  const { offlineAgents, queueWaitMs, nowMs } = ctx;
-  // With no graph there is no node budget and no walk to notice — the queue wait is the only bound.
-  const recovery = decideNodeRecovery({
-    claimantOffline:
-      singleCrOpen.clusterAgentId !== null &&
-      offlineAgents.has(singleCrOpen.clusterAgentId),
-    node: singleCrOpen,
-    timeoutMinutes: undefined,
-    status: null,
-    nodeType: "agent",
-    crVisible: false,
-    queueWaitMs,
-    nowMs,
-  });
+  const recovery = recoveryForSingleCr(singleCrOpen, ctx);
 
   if (recovery.kind === "queue-timeout") {
     await failUnclaimed(row, singleCrOpen, ctx);
@@ -114,21 +101,36 @@ async function settleUnclaimedSingleCr(
   return null;
 }
 
+/** With no graph there is no node budget and no walk to notice — the queue wait is the only bound. */
+function recoveryForSingleCr(
+  singleCrOpen: StationRunRecord,
+  ctx: GraphlessSweepContext,
+): ReturnType<typeof decideNodeRecovery> {
+  const { offlineAgents, queueWaitMs, nowMs } = ctx;
+
+  return decideNodeRecovery({
+    claimantOffline:
+      singleCrOpen.clusterAgentId !== null &&
+      offlineAgents.has(singleCrOpen.clusterAgentId),
+    node: singleCrOpen,
+    timeoutMinutes: undefined,
+    status: null,
+    nodeType: "agent",
+    crVisible: false,
+    queueWaitMs,
+    nowMs,
+  });
+}
+
 /** The crash case: a crash between the task status write and the watcher's close (or a dropped terminal event) leaves the row open forever, so close it from the backing task's status when terminal. */
 async function sweepTerminalSingleCr(
   row: AssemblyRunRecord,
   singleCrOpen: StationRunRecord | undefined,
   deps: AssemblyLineReaperDeps,
 ): Promise<"swept" | null> {
-  if (!row.taskId) {
-    return null;
-  }
-  const taskStatus = await deps.taskStatus(row.taskId);
-  const terminal =
-    taskStatus !== null &&
-    !["running", "queued", "pending"].includes(taskStatus);
+  const taskStatus = await terminalTaskStatus(row, deps);
 
-  if (!terminal) {
+  if (taskStatus === null) {
     return null;
   }
 
@@ -143,4 +145,20 @@ async function sweepTerminalSingleCr(
   await finishLine(row, runOutcomeFromTaskStatus(taskStatus), undefined, deps);
 
   return "swept";
+}
+
+/** The backing task's status once it has settled; null while it still runs, and null for a task-less row that can never be swept this way. */
+async function terminalTaskStatus(
+  row: AssemblyRunRecord,
+  deps: AssemblyLineReaperDeps,
+): Promise<string | null> {
+  if (!row.taskId) {
+    return null;
+  }
+  const taskStatus = await deps.taskStatus(row.taskId);
+  const settled =
+    taskStatus !== null &&
+    !["running", "queued", "pending"].includes(taskStatus);
+
+  return settled ? taskStatus : null;
 }

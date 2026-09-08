@@ -40,22 +40,25 @@ export interface NodeLaunch {
   deps: AdvanceDeps;
 }
 
-/** Required tags for the cluster-agent claim (FR3) — only a POD-dispatched node's row carries them; the repo-settings read is paid only when it matters. */
-async function requiredTagsForPod(
+/** Claim fields only a POD-dispatched node's row carries (FR3): `queued` parks it for a cluster-agent claim while human/service rows keep `running`, and the repo-settings read behind its required tags is paid only when it matters. */
+async function podClaimFields(
   dispatchedAsPod: boolean,
   node: RunGraphNode,
   repo: string,
   deps: AdvanceDeps,
-): Promise<string[] | undefined> {
+): Promise<{ status?: "queued"; requiredTags?: string[] }> {
   if (!dispatchedAsPod) {
-    return undefined;
+    return {};
   }
 
-  return resolveRequiredTags(
-    node.type,
-    node.required_tags,
-    await deps.repoSettings(repo),
-  );
+  return {
+    status: "queued",
+    requiredTags: resolveRequiredTags(
+      node.type,
+      node.required_tags,
+      await deps.repoSettings(repo),
+    ),
+  };
 }
 
 // Row before CR: a crash between them leaves an open row the reaper resolves by reading the deterministically named CR; the row also MINTS the station-run id so a converged duplicate reuses it. A service node names no CR (null), so the reaper never mistakes it for the crash-between-row-and-launch case and relaunches it as a duplicate pod.
@@ -74,14 +77,7 @@ async function ensureStationRunFor(
       ? null
       : nodeAgentName(assemblyLineId, node.id, iteration),
     input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
-    // Only a POD node's row parks `queued` for a cluster-agent's claim (FR3) — human/service rows keep `running` and are never claimable.
-    status: dispatchedAsPod ? "queued" : undefined,
-    requiredTags: await requiredTagsForPod(
-      dispatchedAsPod,
-      node,
-      assemblyRun.repo,
-      deps,
-    ),
+    ...(await podClaimFields(dispatchedAsPod, node, assemblyRun.repo, deps)),
   });
 }
 

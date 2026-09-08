@@ -17,24 +17,23 @@ export function parsePodLogAppended(params: unknown): PodLogChunkInsert[] {
   if (!agentCrName || !jobName || !podName) {
     return [];
   }
-  const chunks = Array.isArray(event.chunks) ? event.chunks : [];
 
-  return (
-    chunks
-      .map((chunk) => (chunk ?? {}) as Record<string, unknown>)
-      // Drop malformed chunks (invalid seq or non-string lines); batch unnesting needs int[]
-      .filter(
-        (chunk) =>
-          Number.isInteger(chunk.seq) && typeof chunk.lines === "string",
-      )
-      .map((chunk) => ({
-        agentCrName,
-        jobName,
-        podName,
-        seq: chunk.seq as number,
-        lines: chunk.lines as string,
-      }))
-  );
+  return storableChunks(event.chunks).map((chunk) => ({
+    agentCrName,
+    jobName,
+    podName,
+    seq: chunk.seq as number,
+    lines: chunk.lines as string,
+  }));
+}
+
+// Drop malformed chunks (invalid seq or non-string lines); batch unnesting needs int[]
+function storableChunks(raw: unknown): Record<string, unknown>[] {
+  return (Array.isArray(raw) ? raw : [])
+    .map((chunk) => (chunk ?? {}) as Record<string, unknown>)
+    .filter(
+      (chunk) => Number.isInteger(chunk.seq) && typeof chunk.lines === "string",
+    );
 }
 
 export async function ingestPodLogChunks(

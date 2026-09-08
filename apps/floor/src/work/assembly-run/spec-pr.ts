@@ -176,7 +176,6 @@ async function ensurePr(input: EnsurePrInput): Promise<PullRef> {
   );
 }
 
-/** Ensure PR on branch, record on line; stamp before feature transition (safer if transition fails). */
 /** Moves the feature to `pr-open`. Warned rather than thrown: the PR exists and its args are recorded by this point, so a rejected transition (a feature already past this state, say) must not undo a run that succeeded. */
 async function markFeaturePrOpen(
   feature: Awaited<ReturnType<typeof loadFeature>>,
@@ -200,6 +199,22 @@ async function markFeaturePrOpen(
   }
 }
 
+/** Records the opened PR on the line BEFORE moving the feature, so a rejected transition cannot lose a PR the run already opened. */
+async function recordOpenedPr(
+  row: AssemblyRunRecord,
+  pr: PullRef,
+  feature: Feature | null,
+  ports: SpecPrPorts,
+): Promise<void> {
+  await ports.assemblyRuns.mergeArgs(row.id, {
+    pr_number: pr.number,
+    pr_url: pr.url,
+  });
+
+  await markFeaturePrOpen(feature, pr, ports);
+}
+
+/** Ensure PR on branch, record on line; stamp before feature transition (safer if transition fails). */
 export async function stampLinePr(
   row: AssemblyRunRecord,
   ports: SpecPrPorts,
@@ -217,12 +232,7 @@ export async function stampLinePr(
   });
   const pr = await ensurePr({ branch, ports, title, feature, row });
 
-  await ports.assemblyRuns.mergeArgs(row.id, {
-    pr_number: pr.number,
-    pr_url: pr.url,
-  });
-
-  await markFeaturePrOpen(feature, pr, ports);
+  await recordOpenedPr(row, pr, feature, ports);
 }
 
 function issueNumberArg(args: Record<string, unknown>): number | null {

@@ -83,29 +83,30 @@ export interface ConversationVisit {
   priorOutcome: string | null;
 }
 
-function newConversationId(deps: ResolveConversationDeps): string {
-  return (deps.newId ?? randomUUID)();
-}
-
-function priorConversationId(
-  prior: { conversationId: string } | null | undefined,
-): string {
-  return prior?.conversationId ?? "";
-}
-
-/** Picks the conversation to continue and reserves the id this run will save as. Two rules ride here: the run NEVER continues its own execution — (line, iteration) is excluded, or a re-dispatch would resume itself — and the new id is reserved in ADVANCE, so the pod is told what to save as rather than choosing a path the Floor would then have to discover. */
-async function pinConversation(
+/** The conversation this run continues, or "" when there is none. The run NEVER continues its own execution — (line, iteration) is excluded, or a re-dispatch would resume itself. */
+async function priorConversationId(
   thread: ConversationThread,
   task: FloorAssemblyRunTask,
   iteration: number,
   deps: ResolveConversationDeps,
-): Promise<LoreTaskSpec["conversation"]> {
+): Promise<string> {
   const from = await rewindTarget(task, deps);
   const prior = await deps.conversations.latestFor(thread, {
     exclude: { assemblyLineId: task.assemblyLineId, iteration },
     ...(from ? { from } : {}),
   });
-  const pin = newConversationId(deps);
+
+  return prior?.conversationId ?? "";
+}
+
+/** Reserves the id this run will save as, in ADVANCE, so the pod is told what to save as rather than choosing a path the Floor would then have to discover. */
+async function reserveSaveId(
+  thread: ConversationThread,
+  task: FloorAssemblyRunTask,
+  iteration: number,
+  deps: ResolveConversationDeps,
+): Promise<string> {
+  const pin = (deps.newId ?? randomUUID)();
 
   await deps.conversations.reserve({
     thread,
@@ -114,12 +115,37 @@ async function pinConversation(
     iteration,
   });
 
+  return pin;
+}
+
+/** Picks the conversation to continue and reserves the id this run will save as. */
+async function pinConversation(
+  thread: ConversationThread,
+  task: FloorAssemblyRunTask,
+  iteration: number,
+  deps: ResolveConversationDeps,
+): Promise<LoreTaskSpec["conversation"]> {
+  const id = await priorConversationId(thread, task, iteration, deps);
+  const pin = await reserveSaveId(thread, task, iteration, deps);
+
   return {
     source: deps.registryUrl,
-    id: priorConversationId(prior),
+    id,
     pin,
     headersSecret: deps.headersSecret,
   };
+}
+
+/** The thread this node's `continues` declaration names, resolved against the run's identity. */
+function threadFor(
+  continues: NonNullable<RunGraphNode["continues"]>,
+  task: FloorAssemblyRunTask,
+): ReturnType<typeof resolveThread> {
+  return resolveThread(continues.key, continues.node, {
+    assemblyLineId: task.assemblyLineId,
+    taskId: task.pipelineTaskId,
+    args: taskArgs(task),
+  });
 }
 
 export async function resolveConversation(
@@ -131,11 +157,7 @@ export async function resolveConversation(
   if (!node.continues || !mayContinue(priorOutcome)) {
     return undefined;
   }
-  const resolved = resolveThread(node.continues.key, node.continues.node, {
-    assemblyLineId: task.assemblyLineId,
-    taskId: task.pipelineTaskId,
-    args: taskArgs(task),
-  });
+  const resolved = threadFor(node.continues, task);
 
   if (!resolved.ok) {
     console.warn(

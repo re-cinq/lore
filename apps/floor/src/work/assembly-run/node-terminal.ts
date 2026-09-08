@@ -77,11 +77,7 @@ async function resolveVisitModel(
 ): Promise<string | undefined> {
   try {
     const visits = await deps.assemblyRuns.listStationRuns(input.row.id);
-    const visit = visits.find(
-      (v) =>
-        v.nodeId === input.nodeId &&
-        (input.iteration === undefined || v.iteration === input.iteration),
-    );
+    const visit = visits.find((candidate) => isVisitFor(candidate, input));
     const models = visit?.stationRunId
       ? await (modelsUsed ?? ((id) => usage().modelsUsed(id)))(
           visit.stationRunId,
@@ -92,6 +88,17 @@ async function resolveVisitModel(
   } catch {
     return input.node.model;
   }
+}
+
+/** The station run for this exact visit: the same node, and — when the caller knows which revisit fired — the same iteration. */
+function isVisitFor(
+  visit: { nodeId: string; iteration: number },
+  input: NodeTerminalInput,
+): boolean {
+  return (
+    visit.nodeId === input.nodeId &&
+    (input.iteration === undefined || visit.iteration === input.iteration)
+  );
 }
 
 /** A review visit that failed on an exhausted LLM budget must not block the PR — an empty account is an operator problem, not the author's — so post an APPROVE saying loudly that no review happened (deduped by the same per-visit marker as a real review) and record the visit as success. */
@@ -131,14 +138,23 @@ export async function postBudgetSkipReview(
   if (marker && (await reviewAlreadyPosted(pulls, prNumber, marker))) {
     return "already_posted";
   }
-  await pulls.createReview(prNumber, {
-    event: "APPROVE",
-    body: withReviewMarker(budgetSkipBody(ports.model), marker),
-    comments: [],
-  });
+  await approveWithNotice(pulls, prNumber, { marker, model: ports.model });
   await auditBudgetSkip(row, prNumber, ports);
 
   return "posted";
+}
+
+/** The APPROVE nobody's model produced: the body says loudly that no review happened, and carries the same per-visit marker a real review would. */
+async function approveWithNotice(
+  pulls: Awaited<ReturnType<typeof resolvePoster>>,
+  prNumber: number,
+  notice: { marker: string | undefined; model?: string },
+): Promise<void> {
+  await pulls.createReview(prNumber, {
+    event: "APPROVE",
+    body: withReviewMarker(budgetSkipBody(notice.model), notice.marker),
+    comments: [],
+  });
 }
 
 /** Out of budget: approve-with-notice and finish as SUCCESS. A retry cannot help — only a topup can — so failing the node would spend the run's remaining iterations re-hitting the same wall. Returns false when this is not a credit failure, or the node is not one that reviews. */
@@ -147,10 +163,7 @@ async function handledAsBudgetSkip(
   model: string | undefined,
   deps: AdvanceDeps,
 ): Promise<boolean> {
-  if (
-    input.result.outcome !== "failed" ||
-    input.result.failureClass !== "anthropic-credit"
-  ) {
+  if (!isCreditFailure(input.result)) {
     return false;
   }
   const posted = await postBudgetSkipReview(input.row, input.node, {
@@ -162,6 +175,23 @@ async function handledAsBudgetSkip(
     return false;
   }
 
+  await finishAsSuccess(input, deps);
+
+  return true;
+}
+
+/** An exhausted LLM budget, the one failure a retry cannot clear. */
+function isCreditFailure(result: NodeResult): boolean {
+  return (
+    result.outcome === "failed" && result.failureClass === "anthropic-credit"
+  );
+}
+
+/** Records the visit as SUCCESS and publishes the check, so the run moves on instead of spending its remaining iterations re-hitting the same wall. */
+async function finishAsSuccess(
+  input: NodeTerminalInput,
+  deps: AdvanceDeps,
+): Promise<void> {
   await finishNodeAndAdvance(
     {
       assemblyLineId: input.row.id,
@@ -172,8 +202,6 @@ async function handledAsBudgetSkip(
     deps,
   );
   await publishCheck(input.row.id, deps);
-
-  return true;
 }
 
 /** Post the review, record the outcome + advance, then publish the PR check. */
@@ -186,14 +214,7 @@ export async function finishNodeTerminal(
   if (await handledAsBudgetSkip(input, model, deps)) {
     return;
   }
-  const post = await postReviewFromNode(input.row, input.node, input.output, {
-    iteration: input.iteration,
-    model,
-  });
-
-  await postReplyFromNode(input.row, input.node, input.output, {
-    iteration: input.iteration,
-  });
+  const post = await postNodeArtifacts(input, model);
 
   await finishNodeAndAdvance(
     {
@@ -206,6 +227,23 @@ export async function finishNodeTerminal(
   );
 
   await publishCheck(input.row.id, deps);
+}
+
+/** Posts both PR artifacts a terminal node can carry — the review and the in-thread reply — returning what the review post did, since that alone can override the node outcome. */
+async function postNodeArtifacts(
+  input: NodeTerminalInput,
+  model: string | undefined,
+): Promise<Awaited<ReturnType<typeof postReviewFromNode>>> {
+  const post = await postReviewFromNode(input.row, input.node, input.output, {
+    iteration: input.iteration,
+    model,
+  });
+
+  await postReplyFromNode(input.row, input.node, input.output, {
+    iteration: input.iteration,
+  });
+
+  return post;
 }
 
 // Publish the line's current state as a PR check (in_progress while running, terminal once finished); best-effort — a missing `checks: write` never blocks.

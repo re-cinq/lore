@@ -17,6 +17,18 @@ import type { AdvanceDeps } from "./advance-deps.js";
 import { advanceLine } from "./advance-line.js";
 import { finishLine } from "./finish-line.js";
 
+/** One node's terminal outcome, addressed to the run and the revisit it belongs to. */
+interface NodeCompletion {
+  assemblyLineId: string;
+  nodeId: string;
+  iteration?: number;
+  result: NodeResult;
+}
+
+type StationRunView = Awaited<
+  ReturnType<AdvanceDeps["assemblyRuns"]["listStationRuns"]>
+>[number];
+
 /** The node matching `nodeId` in the run's current graph, or undefined when the run has no graph or the graph does not carry that id. */
 async function findRunNode(
   row: AssemblyRunRecord,
@@ -40,28 +52,38 @@ async function reactToNodeFinished(
   }
 
   try {
-    const row = await deps.assemblyRuns.getById(assemblyLineId);
-
-    if (!row) {
-      return;
-    }
-    const node = await findRunNode(row, nodeId, deps);
-
-    if (!node) {
-      // A node the graph does not know is a wiring bug (snapshot graph disagrees with the finished id) — logged rather than silently dropped, since silence is the exact failure this hook was re-keyed to prevent.
-      console.warn(
-        `[assembly-run] ${assemblyLineId}: node ${nodeId} is not in the run's graph — node-finished reaction skipped`,
-      );
-
-      return;
-    }
-    await deps.onNodeFinished(row, node, result);
+    await runNodeFinishedReaction(assemblyLineId, nodeId, result, deps);
   } catch (err) {
     console.warn(
       `[assembly-run] node-finished reaction failed for ${nodeId}:`,
       (err as Error).message,
     );
   }
+}
+
+/** Hands the finished node's row and graph node to the reaction; a node the graph does not know is a wiring bug, logged rather than silently dropped. */
+async function runNodeFinishedReaction(
+  assemblyLineId: string,
+  nodeId: string,
+  result: NodeResult,
+  deps: AdvanceDeps,
+): Promise<void> {
+  const row = await deps.assemblyRuns.getById(assemblyLineId);
+
+  if (!row) {
+    return;
+  }
+  const node = await findRunNode(row, nodeId, deps);
+
+  if (!node) {
+    console.warn(
+      `[assembly-run] ${assemblyLineId}: node ${nodeId} is not in the run's graph — node-finished reaction skipped`,
+    );
+
+    return;
+  }
+
+  await deps.onNodeFinished?.(row, node, result);
 }
 
 /** The type of the node the walk lands on next from `fromNodeId`, following this outcome's edge; undefined without a graph or a matching edge. */
@@ -111,18 +133,28 @@ async function maybeMarkPrReady(
   }
 
   try {
-    if (!(await shouldMarkReady(assemblyRun, nodeId, result, deps))) {
-      return;
-    }
-
-    await deps.markPrReady(assemblyRun, result);
-    // Written AFTER the flip so a fix-ci round-trip doesn't rewrite the PR body twice; a crash between the two costs one redundant idempotent flip.
-    await deps.assemblyRuns.mergeArgs(assemblyLineId, {
-      pr_ready_flipped: true,
-    });
+    await flipPrReady(assemblyRun, nodeId, result, deps);
   } catch (err) {
     console.error("[spec-pr] mark-ready failed:", (err as Error).message);
   }
+}
+
+/** Takes the PR out of draft, then records the flip. */
+async function flipPrReady(
+  assemblyRun: AssemblyRunRecord,
+  nodeId: string,
+  result: NodeResult,
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (!(await shouldMarkReady(assemblyRun, nodeId, result, deps))) {
+    return;
+  }
+
+  await deps.markPrReady?.(assemblyRun, result);
+  // Written AFTER the flip so a fix-ci round-trip doesn't rewrite the PR body twice; a crash between the two costs one redundant idempotent flip.
+  await deps.assemblyRuns.mergeArgs(assemblyRun.id, {
+    pr_ready_flipped: true,
+  });
 }
 
 /** An empty-branch stamp failure (#1330) fails the line outright — otherwise the wait node downstream parks forever on a PR that cannot exist. Any other failure is transient and left for the reaper to re-drive. */
@@ -163,43 +195,42 @@ async function maybeStampPr(
   }
 
   try {
-    const node = await findRunNode(assemblyRun, nodeId, deps);
-
-    if (
-      !decidePrStamp({
-        promptRef: node?.prompt_ref,
-        outcome: result.outcome,
-        args: assemblyRun.args,
-      })
-    ) {
-      return;
-    }
-
-    await deps.stampPr(assemblyRun);
+    await stampPrIfDue(assemblyRun, nodeId, result, deps);
   } catch (err) {
     await handleStampFailure(err, assemblyRun, deps);
   }
 }
 
+/** Stamps the PR only when the finished node is the `push` one and its outcome says the branch carries work. */
+async function stampPrIfDue(
+  assemblyRun: AssemblyRunRecord,
+  nodeId: string,
+  result: NodeResult,
+  deps: AdvanceDeps,
+): Promise<void> {
+  const node = await findRunNode(assemblyRun, nodeId, deps);
+
+  if (
+    !decidePrStamp({
+      promptRef: node?.prompt_ref,
+      outcome: result.outcome,
+      args: assemblyRun.args,
+    })
+  ) {
+    return;
+  }
+
+  await deps.stampPr?.(assemblyRun);
+}
+
 /** Record one node's terminal outcome (CAS — first writer decides) and advance the line; `iteration` targets the exact revisit whose CR fired so a late duplicate event can't overwrite the current one. */
 /** Closes exactly one open row for this node, and says whether THIS delivery is the one that closed it. A missing target or a lost CAS both mean another delivery got there first — its follow-up has already fired, and firing again would re-route a result that was just routed. */
 async function closeNodeRow(
-  input: {
-    assemblyLineId: string;
-    nodeId: string;
-    iteration?: number;
-    result: NodeResult;
-  },
+  input: NodeCompletion,
   deps: AdvanceDeps,
 ): Promise<boolean> {
   const nodes = await deps.assemblyRuns.listStationRuns(input.assemblyLineId);
-  const forNode = nodes.filter((n) => n.nodeId === input.nodeId);
-  const target =
-    input.iteration !== undefined
-      ? forNode.find(
-          (n) => n.iteration === input.iteration && n.outcome === null,
-        )
-      : forNode.filter((n) => n.outcome === null).at(-1);
+  const target = openRowForNode(nodes, input);
 
   return (
     target !== undefined &&
@@ -215,13 +246,20 @@ async function closeNodeRow(
   );
 }
 
+/** The exact revisit whose CR fired: an explicit iteration targets that row, otherwise the latest still-open row for the node wins, so a late duplicate event cannot overwrite the current one. */
+function openRowForNode(
+  nodes: StationRunView[],
+  input: NodeCompletion,
+): StationRunView | undefined {
+  const forNode = nodes.filter((n) => n.nodeId === input.nodeId);
+
+  return input.iteration !== undefined
+    ? forNode.find((n) => n.iteration === input.iteration && n.outcome === null)
+    : forNode.filter((n) => n.outcome === null).at(-1);
+}
+
 export async function finishNodeAndAdvance(
-  input: {
-    assemblyLineId: string;
-    nodeId: string;
-    iteration?: number;
-    result: NodeResult;
-  },
+  input: NodeCompletion,
   deps: AdvanceDeps,
 ): Promise<void> {
   const { assemblyLineId, nodeId, result } = input;

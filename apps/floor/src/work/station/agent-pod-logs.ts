@@ -73,32 +73,43 @@ interface ReadJobPodLogsParams {
 }
 
 /** Reads the job's latest pod's logs, falling back to the archive on a missing pod or a TOCTOU 404. */
-async function readJobPodLogs({
-  source,
-  jobName,
-  phase,
-  opts,
-  archive,
-}: ReadJobPodLogsParams): Promise<AgentLogsResult> {
+async function readJobPodLogs(
+  params: ReadJobPodLogsParams,
+): Promise<AgentLogsResult> {
+  const { jobName, phase, opts, archive } = params;
+
   try {
-    const pod = pickLatestPod(await source.podsForJob(jobName));
-
-    if (!pod) {
-      return archivedOrNoPod(jobName, phase, opts, archive);
-    }
-
-    return {
-      available: true,
-      logs: await source.podLog(pod.name, opts.tailLines),
-      phase,
-      podName: pod.name,
-    };
+    return (
+      (await readLivePodLogs(params)) ??
+      (await archivedOrNoPod(jobName, phase, opts, archive))
+    );
   } catch (err) {
     if (isMissing(err)) {
       return archivedOrNoPod(jobName, phase, opts, archive);
     }
     throw err;
   }
+}
+
+/** The live pod's stdout, or null when the job has no pod left to read. */
+async function readLivePodLogs({
+  source,
+  jobName,
+  phase,
+  opts,
+}: ReadJobPodLogsParams): Promise<AgentLogsResult | null> {
+  const pod = pickLatestPod(await source.podsForJob(jobName));
+
+  if (!pod) {
+    return null;
+  }
+
+  return {
+    available: true,
+    logs: await source.podLog(pod.name, opts.tailLines),
+    phase,
+    podName: pod.name,
+  };
 }
 
 /** The pod is gone; serve the durable archive if it has anything, else report `no-pod`. */
@@ -179,26 +190,46 @@ export class CloudLoggingPodLogs implements PodLogArchive {
     opts: { tailLines?: number } = {},
   ): Promise<string | null> {
     try {
-      const { GoogleAuth } = await import("google-auth-library");
-      const auth = new GoogleAuth({ scopes: LOGGING_READ_SCOPE });
-      const [projectId, client] = await Promise.all([
-        auth.getProjectId(),
-        auth.getClient(),
-      ]);
-      const res = await client.request<{ entries?: LogEntry[] }>({
-        url: LOGGING_ENTRIES_URL,
-        method: "POST",
-        data: {
-          resourceNames: [`projects/${projectId}`],
-          filter: podLogFilter(this.namespace, jobName),
-          orderBy: "timestamp desc",
-          pageSize: opts.tailLines ?? DEFAULT_ARCHIVE_LINES,
-        },
-      });
+      const entries = await fetchLogEntries(
+        podLogFilter(this.namespace, jobName),
+        opts.tailLines ?? DEFAULT_ARCHIVE_LINES,
+      );
 
-      return assembleArchivedLog(res.data.entries ?? []);
+      return assembleArchivedLog(entries);
     } catch {
       return null;
     }
   }
+}
+
+/** One `entries:list` call against Cloud Logging, authenticated by Workload Identity. */
+async function fetchLogEntries(
+  filter: string,
+  pageSize: number,
+): Promise<LogEntry[]> {
+  const { projectId, client } = await loggingClient();
+  const res = await client.request<{ entries?: LogEntry[] }>({
+    url: LOGGING_ENTRIES_URL,
+    method: "POST",
+    data: {
+      resourceNames: [`projects/${projectId}`],
+      filter,
+      orderBy: "timestamp desc",
+      pageSize,
+    },
+  });
+
+  return res.data.entries ?? [];
+}
+
+/** The Workload-Identity-authenticated client plus the project the entries are read from. */
+async function loggingClient() {
+  const { GoogleAuth } = await import("google-auth-library");
+  const auth = new GoogleAuth({ scopes: LOGGING_READ_SCOPE });
+  const [projectId, client] = await Promise.all([
+    auth.getProjectId(),
+    auth.getClient(),
+  ]);
+
+  return { projectId, client };
 }

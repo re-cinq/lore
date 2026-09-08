@@ -36,30 +36,42 @@ export function assemblyLineCheck(
   uiUrl?: string,
 ): CheckRunInput | null {
   const prNumber = Number(line.args.pr_number);
-  const headSha = headShaArg(line);
 
-  if (!prNumber || !headSha) {
+  if (!prNumber || !headShaArg(line)) {
     return null;
   }
+
+  return { ...checkIdentity(line, uiUrl), ...checkState(line, nodes) };
+}
+
+/** The fields that name the check run and point back at the run page. */
+function checkIdentity(
+  line: AssemblyRunRecord,
+  uiUrl?: string,
+): Pick<CheckRunInput, "headSha" | "name" | "title" | "detailsUrl"> {
   const displayName = checkName(line.blueprintName);
-  const base = {
-    headSha,
+
+  return {
+    headSha: headShaArg(line),
     name: `lore/${displayName}`,
     title: `Lore ${displayName}`,
     ...(uiUrl ? { detailsUrl: `${uiUrl}/assembly-runs/${line.id}` } : {}),
   };
+}
 
+/** Whether the check is still running, and what it concluded once it is not. */
+function checkState(
+  line: AssemblyRunRecord,
+  nodes: readonly StationRunRecord[],
+): Pick<CheckRunInput, "status" | "conclusion" | "summary"> {
   if (line.status === "queued" || line.status === "running") {
     return {
-      ...base,
       status: "in_progress",
       summary: `Running — ${line.blueprintName}.`,
     };
   }
 
-  const { conclusion, summary } = terminal(line, nodes);
-
-  return { ...base, status: "completed", conclusion, summary };
+  return { ...terminal(line, nodes), status: "completed" };
 }
 
 type TerminalResult = {
@@ -149,19 +161,25 @@ export async function publishPrCheck(
   try {
     await repo.upsertCheckRun(check);
   } catch (err) {
-    const message = (err as Error).message;
-
-    // Non-fatal but never silent: "Resource not accessible by integration" means the App is missing `checks`, so the merge gate is absent, not clean.
-    console.error("[pr-check] publish failed:", message);
-    await writeAuditLog({
-      event_type: "pr_check_publish_failed",
-      repo: line.repo,
-      payload: {
-        assembly_run_id: line.id,
-        definition: line.blueprintName,
-        check: check.name,
-        error: message,
-      },
-    });
+    await recordPublishFailure(line, check.name, err as Error);
   }
+}
+
+/** Non-fatal but never silent: "Resource not accessible by integration" means the App is missing `checks`, so the merge gate is absent, not clean. */
+async function recordPublishFailure(
+  line: AssemblyRunRecord,
+  checkRunName: string,
+  err: Error,
+): Promise<void> {
+  console.error("[pr-check] publish failed:", err.message);
+  await writeAuditLog({
+    event_type: "pr_check_publish_failed",
+    repo: line.repo,
+    payload: {
+      assembly_run_id: line.id,
+      definition: line.blueprintName,
+      check: checkRunName,
+      error: err.message,
+    },
+  });
 }

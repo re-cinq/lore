@@ -90,11 +90,6 @@ function reviewGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
 
 /** Guards about the CHANGE itself: what it touches, and whether this repo is trusted that far. A zero-file PR would pass the path allowlist vacuously and then 422 on GitHub's own merge call, so it is refused here where the audit log can say why. */
 function changeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
-  const minTrust = TRUST_ORDER[inputs.autoMerge.min_trust] ?? 1;
-  const actualTrust = inputs.trustLevel
-    ? (TRUST_ORDER[inputs.trustLevel] ?? 0)
-    : 0;
-
   return [
     {
       failed: inputs.changedPaths.length === 0,
@@ -108,8 +103,18 @@ function changeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
       failed: !allPathsMatch(inputs.changedPaths, inputs.autoMerge.paths),
       outcome: "deferred:path_outside_allowlist",
     },
-    { failed: actualTrust < minTrust, outcome: "deferred:trust_too_low" },
+    { failed: trustBelowMinimum(inputs), outcome: "deferred:trust_too_low" },
   ];
+}
+
+/** An unset trust level scores 0 — below every configured minimum, so an unconfigured repo never auto-merges. */
+function trustBelowMinimum(inputs: AutoMergePolicyInputs): boolean {
+  const minTrust = TRUST_ORDER[inputs.autoMerge.min_trust] ?? 1;
+  const actualTrust = inputs.trustLevel
+    ? (TRUST_ORDER[inputs.trustLevel] ?? 0)
+    : 0;
+
+  return actualTrust < minTrust;
 }
 
 function autoMergeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {

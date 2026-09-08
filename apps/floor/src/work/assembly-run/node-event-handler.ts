@@ -13,7 +13,10 @@ import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { isDeliveringRecipe } from "@re-cinq/lore-shared/task-types/delivering-recipes.js";
 import { agentCrVisible } from "./cr-visibility.js";
 import { artifactsFromTerminalOutput } from "../agent/artifact-args.js";
-import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type {
+  AssemblyRunRecord,
+  StationRunRecord,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
@@ -80,23 +83,21 @@ async function resolveRawStatus(
   );
 }
 
-/** What happens once a node's terminal status is known: artifacts are merged into the run's args FIRST, because the artifact sink is a separate racing HTTP post and the next station would otherwise miss an arg its predecessor already produced (a re-merge is a no-op). */
+/** The run and node one agent_node event is about. */
+interface EventTarget {
+  row: AssemblyRunRecord;
+  node: RunGraphNode;
+}
+
+/** What happens once a node's terminal status is known. */
 async function settleTerminalNode(
-  event: { nodeId: string; iteration?: number },
-  target: NonNullable<Awaited<ReturnType<typeof resolveEventTarget>>>,
+  event: NodeEvent,
+  target: EventTarget,
   rawStatus: AgentNodeStatus,
   deps: NodeEventDeps,
 ): Promise<void> {
   const status = normalizeAgentStatus(rawStatus);
-  const result = await deliverTerminalArtifacts(
-    target.row,
-    target.node,
-    rawStatus,
-    deps,
-  );
-
-  await alertOnFailure(target, result, status, deps);
-  tripGateOnAccountOutage(result, deps);
+  const result = await terminalNodeResult(target, rawStatus, status, deps);
 
   await finishNodeTerminal(
     {
@@ -109,6 +110,22 @@ async function settleTerminalNode(
     },
     deps,
   );
+}
+
+/** Artifacts are merged into the run's args FIRST, because the artifact sink is a separate racing HTTP post and the next station would otherwise miss an arg its predecessor already produced (a re-merge is a no-op). */
+async function terminalNodeResult(
+  target: EventTarget,
+  rawStatus: AgentNodeStatus,
+  status: ReturnType<typeof normalizeAgentStatus>,
+  deps: NodeEventDeps,
+): Promise<NodeResult> {
+  const { row, node } = target;
+  const result = await deliverTerminalArtifacts(row, node, rawStatus, deps);
+
+  await alertOnFailure(target, result, status, deps);
+  tripGateOnAccountOutage(result, deps);
+
+  return result;
 }
 
 export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
@@ -164,7 +181,7 @@ function readNodeEvent(params: Record<string, unknown>): NodeEvent {
 async function resolveEventTarget(
   event: NodeEvent,
   deps: NodeEventDeps,
-): Promise<{ row: AssemblyRunRecord; node: RunGraphNode } | null> {
+): Promise<EventTarget | null> {
   const row = await deps.assemblyRuns.getById(event.assemblyLineId);
 
   if (!row || row.status !== "running") {
@@ -178,7 +195,7 @@ async function resolveEventTarget(
 
 /** An account-out-of-credits failure downs every LLM node at once, and a missing skills_source strands every Claude-agent node on the CLUSTER — both are surfaced once to operators, ahead of the per-line failure notice. */
 async function alertOnFailure(
-  target: { row: AssemblyRunRecord; node: RunGraphNode },
+  target: EventTarget,
   result: { outcome: string },
   status: ReturnType<typeof normalizeAgentStatus>,
   deps: NodeEventDeps,
@@ -198,35 +215,37 @@ async function alertOnFailure(
 
 /** True when the terminal CR was claimed by a cluster this Floor cannot read — the node stays open for the cluster-aware reaper rather than fabricating an outcome. */
 async function claimUnreadableFromThisFloor(
-  params: {
-    assemblyLineId: string;
-    nodeId: string;
-    iteration: number | undefined;
-    agentName: string;
-  },
+  event: NodeEvent,
   deps: NodeEventDeps,
 ): Promise<boolean> {
-  const { assemblyLineId, nodeId, iteration, agentName } = params;
-  const openRow = (
-    await deps.assemblyRuns.listStationRuns(assemblyLineId)
-  ).find(
-    (row) =>
-      row.nodeId === nodeId &&
-      row.outcome === null &&
-      (iteration === undefined || row.iteration === iteration),
-  );
+  const openRow = await openStationRun(event, deps);
   const centralClusterAgentId = (await deps.centralClusterAgentId?.()) ?? null;
 
   if (!openRow || agentCrVisible(openRow, centralClusterAgentId)) {
     return false;
   }
   console.warn(
-    `[assembly-run] ${assemblyLineId} node ${nodeId}: terminal status unreadable — ` +
-      `the Agent CR ${agentName} was claimed by cluster ${openRow.clusterAgentId ?? "(none)"}, ` +
+    `[assembly-run] ${event.assemblyLineId} node ${event.nodeId}: terminal status unreadable — ` +
+      `the Agent CR ${event.agentName} was claimed by cluster ${openRow.clusterAgentId ?? "(none)"}, ` +
       `which this Floor cannot read; leaving the node open for the reaper`,
   );
 
   return true;
+}
+
+/** The still-open station_runs row this event reports on, if any. */
+async function openStationRun(
+  event: NodeEvent,
+  deps: NodeEventDeps,
+): Promise<StationRunRecord | undefined> {
+  const rows = await deps.assemblyRuns.listStationRuns(event.assemblyLineId);
+
+  return rows.find(
+    (row) =>
+      row.nodeId === event.nodeId &&
+      row.outcome === null &&
+      (event.iteration === undefined || row.iteration === event.iteration),
+  );
 }
 
 /** Merges declared artifacts then decides outcome; shared by both terminal doors (node event + reaper resolve) since a dropped event means only one will ever see this output. A declared-but-unproduced artifact FAILS the node — else the next station reads an empty bag as "predecessor decided nothing." */

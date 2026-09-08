@@ -11,7 +11,7 @@ import type {
   ReviewComment,
   ReviewThread,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import { findThreadForComment } from "@re-cinq/lore-shared/project/pulls/review-threads.js";
+import { resolveRepliedThread } from "./reply-thread-resolve.js";
 
 // The narrow PR surface the reply post touches; the dedupe-probe reads are optional — a poster without them just skips the probe (fail open: a rare duplicate beats a dropped reply).
 export interface ReplyPoster {
@@ -46,114 +46,6 @@ function replyRunMarker(
   iteration: number,
 ): string {
   return `<!-- lore-reply-run: ${assemblyLineId}/${nodeId}/${iteration} -->`;
-}
-
-type ThreadResolveAudit = (
-  payload: Record<string, unknown>,
-  resolved: boolean,
-) => Promise<void>;
-
-/** Looks up the thread the reply landed in, auditing (and swallowing) a lookup failure or an unmatched comment. */
-async function findRepliedThread(
-  listReviewThreads: NonNullable<ReplyPoster["listReviewThreads"]>,
-  prNumber: number,
-  inReplyTo: number,
-  audit: ThreadResolveAudit,
-): Promise<ReviewThread | null> {
-  try {
-    const thread = findThreadForComment(
-      await listReviewThreads(prNumber),
-      inReplyTo,
-    );
-
-    if (!thread) {
-      await audit({ reason: "no_thread_for_comment" }, false);
-    }
-
-    return thread;
-  } catch (err) {
-    await audit(
-      { reason: "list_failed", error: (err as Error).message },
-      false,
-    );
-
-    return null;
-  }
-}
-
-/** Resolves the thread, auditing success or a swallowed resolve failure. */
-async function resolveThreadSafely(
-  resolveReviewThread: NonNullable<ReplyPoster["resolveReviewThread"]>,
-  thread: ReviewThread,
-  audit: ThreadResolveAudit,
-): Promise<void> {
-  try {
-    await resolveReviewThread(thread.id);
-    await audit({ thread_id: thread.id }, true);
-  } catch (err) {
-    await audit(
-      {
-        reason: "resolve_failed",
-        thread_id: thread.id,
-        error: (err as Error).message,
-      },
-      false,
-    );
-  }
-}
-
-// Resolve the thread a reply just landed in, best-effort (FR5): only on `address` intent (an `answer` leaves the human's thread open on purpose), joining the REST reply's comment id to GraphQL's databaseId via findThreadForComment; never fails the post that already succeeded.
-/** Records both halves of the attempt — resolved and failed-to-resolve — under the same key set, so an unresolved thread is visible as a decision rather than as silence. */
-function threadResolveAudit(
-  row: AssemblyRunRecord,
-  target: { prNumber: number; inReplyTo: number },
-  ports: ReplyPorts,
-): ThreadResolveAudit {
-  return (payload, resolved) =>
-    writeAuditLog(
-      {
-        event_type: resolved
-          ? "review_thread_resolved"
-          : "review_thread_resolve_failed",
-        repo: row.repo,
-        payload: {
-          pr_number: target.prNumber,
-          assembly_run_id: row.id,
-          in_reply_to_id: target.inReplyTo,
-          ...payload,
-        },
-      },
-      ports.audit,
-    );
-}
-
-async function resolveRepliedThread(
-  row: AssemblyRunRecord,
-  pulls: ReplyPoster,
-  { prNumber, inReplyTo }: { prNumber: number; inReplyTo: number },
-  ports: ReplyPorts,
-): Promise<void> {
-  if (row.args.intent !== "address") {
-    return;
-  }
-
-  const { listReviewThreads, resolveReviewThread } = pulls;
-
-  if (!listReviewThreads || !resolveReviewThread) {
-    return;
-  }
-  const audit = threadResolveAudit(row, { prNumber, inReplyTo }, ports);
-  const thread = await findRepliedThread(
-    listReviewThreads,
-    prNumber,
-    inReplyTo,
-    audit,
-  );
-
-  if (!thread) {
-    return;
-  }
-  await resolveThreadSafely(resolveReviewThread, thread, audit);
 }
 
 /** Which PR a reply targets, or null when this node isn't a reply-shaped one at all. */
@@ -204,25 +96,25 @@ function replyIdentity(
   return { inReplyTo, marker };
 }
 
-interface DeliverReplyParams {
+/** One reply-shaped node visit: the run, the node whose output carries the reply, and the PR it is addressed to. */
+interface ReplyDelivery {
   row: AssemblyRunRecord;
+  node: RunGraphNode;
   prNumber: number;
-  inReplyTo: number;
-  marker: string | undefined;
-  body: string;
+  output: string | undefined;
   ports: ReplyPorts;
 }
 
 /** Posts the reply (or skips it as a dedupe) and, when it landed in a thread, resolves that thread. */
 async function deliverReply(
-  params: DeliverReplyParams,
+  params: ReplyDelivery,
+  body: string,
 ): Promise<ReplyPostOutcome> {
-  const { row, prNumber, inReplyTo, marker, body, ports } = params;
+  const { row, node, prNumber, ports } = params;
+  const { inReplyTo, marker } = replyIdentity(row, node, ports);
   const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
 
-  if (marker && (await replyAlreadyPosted(pulls, prNumber, marker))) {
-    await auditDedupedReply(row, prNumber, marker, ports);
-
+  if (await alreadyDelivered(pulls, marker, params)) {
     return "already_posted";
   }
   // The marker LEADS the comment because the body is agent-authored — trailing it risks an opening prefix that platform-github's listIssueComments filter drops.
@@ -237,6 +129,21 @@ async function deliverReply(
   await pulls.comment(prNumber, stamped);
 
   return "posted";
+}
+
+/** True when this run's marker is already on the PR, and audits the skip so a deduped reply is visible rather than silent. */
+async function alreadyDelivered(
+  pulls: ReplyPoster,
+  marker: string | undefined,
+  params: ReplyDelivery,
+): Promise<boolean> {
+  if (!marker || !(await replyAlreadyPosted(pulls, params.prNumber, marker))) {
+    return false;
+  }
+
+  await auditDedupedReply(params.row, params.prNumber, marker, params.ports);
+
+  return true;
 }
 
 async function auditReplyPostFailed(
@@ -271,6 +178,15 @@ export async function postReplyFromNode(
   if (prNumber === null) {
     return "not_reply";
   }
+
+  return await postParsedReply({ row, node, prNumber, output, ports });
+}
+
+/** Parses the fenced REVIEW_REPLY block and delivers it; an absent block or a throw is audited, never fatal. */
+async function postParsedReply(
+  params: ReplyDelivery,
+): Promise<ReplyPostOutcome> {
+  const { row, prNumber, output, ports } = params;
   const body = parseReviewReply(output ?? "");
 
   if (!body) {
@@ -278,17 +194,9 @@ export async function postReplyFromNode(
 
     return "no_reply";
   }
-  const { inReplyTo, marker } = replyIdentity(row, node, ports);
 
   try {
-    return await deliverReply({
-      row,
-      prNumber,
-      inReplyTo,
-      marker,
-      body,
-      ports,
-    });
+    return await deliverReply(params, body);
   } catch (err) {
     await auditReplyPostFailed(row, prNumber, err as Error, ports);
 
@@ -307,15 +215,7 @@ async function replyAlreadyPosted(
   }
 
   try {
-    const [threads, comments] = await Promise.all([
-      pulls.listComments(prNumber),
-      pulls.listIssueComments(prNumber),
-    ]);
-
-    return (
-      threads.some((thread) => thread.body.includes(marker)) ||
-      comments.some((comment) => comment.body.includes(marker))
-    );
+    return await markerOnPr(pulls, prNumber, marker);
   } catch (err) {
     console.warn(
       `[code-review-refine] reply dedupe probe failed (${(err as Error).message}); posting anyway`,
@@ -323,6 +223,23 @@ async function replyAlreadyPosted(
 
     return false;
   }
+}
+
+/** Either delivery shape counts: a review-thread reply or a plain issue comment carrying the marker. */
+async function markerOnPr(
+  pulls: ReplyPoster,
+  prNumber: number,
+  marker: string,
+): Promise<boolean> {
+  const [threads, comments] = await Promise.all([
+    pulls.listComments?.(prNumber) ?? [],
+    pulls.listIssueComments?.(prNumber) ?? [],
+  ]);
+
+  return (
+    threads.some((thread) => thread.body.includes(marker)) ||
+    comments.some((comment) => comment.body.includes(marker))
+  );
 }
 
 // The reply-side twin of `review_post_deduped` (#1004): this run's marker is already on the PR, so the reply post was skipped.

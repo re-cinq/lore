@@ -9,7 +9,11 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { agentCrVisible } from "./cr-visibility.js";
-import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
+import {
+  finishNodeTerminal,
+  normalizeAgentStatus,
+  type NodeTerminalInput,
+} from "./node-terminal.js";
 import { deliverTerminalArtifacts } from "./node-event-handler.js";
 import {
   decideNodeRecovery,
@@ -87,16 +91,18 @@ async function reportFailure(
   }
 }
 
+interface ResolvedNodeSettlement {
+  row: AssemblyRunRecord;
+  node: RunGraphNode;
+  openNode: StationRunRecord;
+  terminalStatus: AgentNodeStatus;
+}
+
 async function settleResolvedNode(
-  params: {
-    row: AssemblyRunRecord;
-    node: RunGraphNode;
-    openNode: StationRunRecord;
-    terminalStatus: AgentNodeStatus;
-  },
+  params: ResolvedNodeSettlement,
   deps: AssemblyLineReaperDeps,
 ): Promise<void> {
-  const { row, node, openNode, terminalStatus } = params;
+  const { row, node, terminalStatus } = params;
   const status = normalizeAgentStatus(terminalStatus);
   const result = await deliverTerminalArtifacts(
     row,
@@ -107,16 +113,24 @@ async function settleResolvedNode(
 
   await reportFailure({ row, node, status }, result, deps);
   await finishNodeTerminal(
-    {
-      row,
-      node,
-      nodeId: openNode.nodeId,
-      iteration: openNode.iteration,
-      result,
-      output: status.output,
-    },
+    terminalInputFor(params, { result, output: status.output }),
     deps,
   );
+}
+
+// Widens the reaper's open-node view into the terminal input `finishNodeTerminal` takes.
+function terminalInputFor(
+  params: ResolvedNodeSettlement,
+  settled: { result: NodeResult; output?: string },
+): NodeTerminalInput {
+  return {
+    row: params.row,
+    node: params.node,
+    nodeId: params.openNode.nodeId,
+    iteration: params.openNode.iteration,
+    result: settled.result,
+    output: settled.output,
+  };
 }
 
 function nodeKind(node: RunGraphNode): string {
@@ -223,30 +237,45 @@ export async function applyRecovery(
   found: OpenNodeContext,
   ctx: ReapContext,
 ): Promise<ReapOutcome> {
-  const { row, node, openNode } = found;
-
   if (recovery.kind === "resolve") {
-    await settleResolvedNode(
-      { row, node, openNode, terminalStatus: recovery.status },
-      ctx.deps,
-    );
-
-    return "resolved";
+    return await resolveOpenNode(found, ctx, recovery.status);
   }
 
-  if (recovery.kind === "timeout") {
+  return await applyShelfRecovery(recovery.kind, found, ctx);
+}
+
+/** The one verdict that carries a terminal CR status: the node is settled from what the pod actually reported. */
+async function resolveOpenNode(
+  found: OpenNodeContext,
+  ctx: ReapContext,
+  terminalStatus: AgentNodeStatus,
+): Promise<ReapOutcome> {
+  const { row, node, openNode } = found;
+
+  await settleResolvedNode({ row, node, openNode, terminalStatus }, ctx.deps);
+
+  return "resolved";
+}
+
+/** The verdicts that need no CR status: each either ends the open node or puts its row back on the shelf. */
+async function applyShelfRecovery(
+  kind: ReturnType<typeof decideNodeRecovery>["kind"],
+  found: OpenNodeContext,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  if (kind === "timeout") {
     return await applyTimeoutRecovery(found, ctx);
   }
 
-  if (recovery.kind === "queue-timeout") {
+  if (kind === "queue-timeout") {
     return await failUnclaimed(found, ctx);
   }
 
-  if (recovery.kind === "requeue-offline") {
+  if (kind === "requeue-offline") {
     return await requeueOffline(found, ctx);
   }
 
-  if (recovery.kind === "requeue") {
+  if (kind === "requeue") {
     return await requeueUnstarted(found, ctx);
   }
 
@@ -270,15 +299,28 @@ async function readNodeState(
 
   return {
     crVisible,
-    status:
-      crVisible && openNode.agentCrName
-        ? await ctx.deps.readAgentStatus(openNode.agentCrName)
-        : null,
-    budgetMinutes: nodeTimeoutMinutes({
-      yaml: node.timeout_minutes,
-      manifest: stationBudgetFor(node.type),
-    }),
+    status: await readVisibleCrStatus(openNode, crVisible, ctx),
+    budgetMinutes: nodeBudgetMinutes(node),
   };
+}
+
+/** Null for a CR this Floor cannot see — reading a satellite's CR back as null would be read as "requeue" and double-launch work that is still running. */
+async function readVisibleCrStatus(
+  openNode: StationRunRecord,
+  crVisible: boolean,
+  ctx: ReapContext,
+): Promise<Awaited<ReturnType<ReapContext["deps"]["readAgentStatus"]>> | null> {
+  return crVisible && openNode.agentCrName
+    ? await ctx.deps.readAgentStatus(openNode.agentCrName)
+    : null;
+}
+
+/** The budget actually applied to this node, so a timeout message names it rather than the global default. */
+function nodeBudgetMinutes(node: RunGraphNode): number | undefined {
+  return nodeTimeoutMinutes({
+    yaml: node.timeout_minutes,
+    manifest: stationBudgetFor(node.type),
+  });
 }
 
 /** Reads the node's live state — CR status, claimant health, applicable budget — and applies whatever `decideNodeRecovery` makes of it. */
@@ -291,23 +333,34 @@ export async function recoverOpenNode(
   ctx: ReapContext,
 ): Promise<ReapOutcome> {
   const { row, node, openNode } = found;
-  const { crVisible, status, budgetMinutes } = await readNodeState(found, ctx);
-  const recovery = decideNodeRecovery({
+  const state = await readNodeState(found, ctx);
+  const recovery = decideRecoveryFor(found, state, ctx);
+
+  return await applyRecovery(
+    recovery,
+    { row, node, openNode, budgetMinutes: state.budgetMinutes },
+    ctx,
+  );
+}
+
+/** Joins the node's live state with the reaper's clock and offline set — the whole input the pure decision reads. */
+function decideRecoveryFor(
+  found: { node: RunGraphNode; openNode: StationRunRecord },
+  state: Awaited<ReturnType<typeof readNodeState>>,
+  ctx: ReapContext,
+): ReturnType<typeof decideNodeRecovery> {
+  const { node, openNode } = found;
+
+  return decideNodeRecovery({
     claimantOffline:
       openNode.clusterAgentId !== null &&
       ctx.offlineAgents.has(openNode.clusterAgentId),
     node: openNode,
-    timeoutMinutes: budgetMinutes,
-    status,
+    timeoutMinutes: state.budgetMinutes,
+    status: state.status,
     nodeType: node.type,
-    crVisible,
+    crVisible: state.crVisible,
     queueWaitMs: ctx.queueWaitMs,
     nowMs: ctx.nowMs,
   });
-
-  return await applyRecovery(
-    recovery,
-    { row, node, openNode, budgetMinutes },
-    ctx,
-  );
 }

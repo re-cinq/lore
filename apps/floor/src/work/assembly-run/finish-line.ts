@@ -92,12 +92,8 @@ export async function finishLine(
   reason: string | undefined,
   deps: AdvanceDeps,
 ): Promise<void> {
-  const jobRunId = assemblyRun.args.job_run_id;
-
   // Settled BEFORE closing the row: after the row closes, advanceLine's retry early-returns on the terminal row, orphaning the job_run open forever.
-  if (typeof jobRunId === "string" && jobRunId.length > 0) {
-    await settleJobRun(jobRunId, assemblyRun, { outcome, reason }, deps);
-  }
+  await settleJobRunIfNamed(assemblyRun, { outcome, reason }, deps);
 
   const closedNow = await deps.assemblyRuns.finish(
     assemblyRun.id,
@@ -112,7 +108,29 @@ export async function finishLine(
     return;
   }
 
-  // Winner-gated below — an event-vs-reaper race can otherwise write one run's episode twice.
+  await runWinnerHooks(assemblyRun, outcome, reason, deps);
+}
+
+/** No-ops for a run the detect fan-out never gave a job_run to. */
+async function settleJobRunIfNamed(
+  assemblyRun: AssemblyRunRecord,
+  { outcome, reason }: { outcome: string; reason: string | undefined },
+  deps: AdvanceDeps,
+): Promise<void> {
+  const jobRunId = assemblyRun.args.job_run_id;
+
+  if (typeof jobRunId === "string" && jobRunId.length > 0) {
+    await settleJobRun(jobRunId, assemblyRun, { outcome, reason }, deps);
+  }
+}
+
+/** Only the racer that actually closed the row runs these — an event-vs-reaper race can otherwise write one run's episode twice. */
+async function runWinnerHooks(
+  assemblyRun: AssemblyRunRecord,
+  outcome: string,
+  reason: string | undefined,
+  deps: AdvanceDeps,
+): Promise<void> {
   await recordRunEpisodeIfOwned(assemblyRun, outcome, reason, deps);
 
   // Without this a line-backed task stays `running` forever — the watcher's post-completion path returns early for node CRs.
