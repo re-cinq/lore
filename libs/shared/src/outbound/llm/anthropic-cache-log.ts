@@ -11,19 +11,19 @@ function orUnknown(value: string | number | undefined): string | number {
   return value ?? "?";
 }
 
+const TAG_BY_STATUS: Record<
+  CacheBreakAnalysis["status"],
+  (a: CacheBreakAnalysis) => string
+> = {
+  hit: () => "hit",
+  "first-call": () => "first-call",
+  "prompt-changed": (a) => `break:${orUnknown(a.reason)}`,
+  "ttl-expired": (a) => `break:ttl(${orUnknown(a.ageMinutes)}m)`,
+  "unknown-miss": () => "miss:?",
+};
+
 export function formatBreakLogTag(a: CacheBreakAnalysis): string {
-  switch (a.status) {
-    case "hit":
-      return "hit";
-    case "first-call":
-      return "first-call";
-    case "prompt-changed":
-      return `break:${orUnknown(a.reason)}`;
-    case "ttl-expired":
-      return `break:ttl(${orUnknown(a.ageMinutes)}m)`;
-    case "unknown-miss":
-      return "miss:?";
-  }
+  return TAG_BY_STATUS[a.status](a);
 }
 
 /** The cache prefix is system + tool schemas; hashing it is how a break is attributed to one or the other. */

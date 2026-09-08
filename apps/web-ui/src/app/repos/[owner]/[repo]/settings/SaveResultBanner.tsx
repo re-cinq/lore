@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import type { PrivilegedSaveResult } from "@/lib/mcp-settings";
 import styles from "./page.module.css";
 
@@ -68,24 +69,29 @@ function PrivilegedError({ message }: { message: string }) {
   );
 }
 
-function renderPrivileged(privileged: PrivilegedSaveResult) {
-  switch (privileged.status) {
-    case "ok":
-      return <PrivilegedOk />;
-    case "two_key_required":
-      return <PrivilegedTwoKeyRequired fieldPaths={privileged.fieldPaths} />;
-    case "codeowners_failed":
-      return (
-        <PrivilegedCodeownersFailed
-          code={privileged.code}
-          detail={privileged.detail}
-        />
-      );
-    case "unconfigured":
-      return <PrivilegedUnconfigured />;
-    case "error":
-      return <PrivilegedError message={privileged.message} />;
-  }
+const BANNER_BY_STATUS: {
+  [K in PrivilegedSaveResult["status"]]: (
+    privileged: Extract<PrivilegedSaveResult, { status: K }>,
+  ) => ReactElement;
+} = {
+  ok: () => <PrivilegedOk />,
+  two_key_required: (privileged) => (
+    <PrivilegedTwoKeyRequired fieldPaths={privileged.fieldPaths} />
+  ),
+  codeowners_failed: (privileged) => (
+    <PrivilegedCodeownersFailed
+      code={privileged.code}
+      detail={privileged.detail}
+    />
+  ),
+  unconfigured: () => <PrivilegedUnconfigured />,
+  error: (privileged) => <PrivilegedError message={privileged.message} />,
+};
+
+function renderPrivileged<K extends PrivilegedSaveResult["status"]>(
+  privileged: Extract<PrivilegedSaveResult, { status: K }>,
+) {
+  return BANNER_BY_STATUS[privileged.status](privileged);
 }
 
 function PrivilegedFeedback({

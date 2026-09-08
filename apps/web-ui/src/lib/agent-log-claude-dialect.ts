@@ -174,23 +174,25 @@ function toolResultBlockEntry(block: Record<string, unknown>): LogEntry {
   };
 }
 
+const ENTRY_BY_BLOCK_TYPE: Record<
+  string,
+  | ((block: Record<string, unknown>, role: unknown) => LogEntry | null)
+  | undefined
+> = {
+  thinking: (block) => thinkingBlockEntry(block),
+  text: (block, role) => textBlockEntry(block, role),
+  tool_use: (block) => toolUseBlockEntry(block),
+  tool_result: (block) => toolResultBlockEntry(block),
+};
+
 function blockEntry(block: unknown, role: unknown): LogEntry | null {
   if (!isRecord(block)) {
     return null;
   }
 
-  switch (block.type) {
-    case "thinking":
-      return thinkingBlockEntry(block);
-    case "text":
-      return textBlockEntry(block, role);
-    case "tool_use":
-      return toolUseBlockEntry(block);
-    case "tool_result":
-      return toolResultBlockEntry(block);
-    default:
-      return null;
-  }
+  const entry = ENTRY_BY_BLOCK_TYPE[String(block.type)];
+
+  return entry ? entry(block, role) : null;
 }
 
 function messageEntries(value: Record<string, unknown>): LogEntry[] {

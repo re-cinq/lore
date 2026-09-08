@@ -27,17 +27,22 @@ function renderThinking(
     : null;
 }
 
-function renderContentPart(block: ContentBlock): string | null {
-  switch (block.type) {
-    case "text":
-      return renderText(block);
-    case "thinking":
-      return renderThinking(block);
-    case "tool_use":
-      return toolSummary(block);
-    default:
-      return null;
-  }
+const RENDER_BY_TYPE: {
+  [K in ContentBlock["type"]]?: (
+    block: Extract<ContentBlock, { type: K }>,
+  ) => string | null;
+} = {
+  text: renderText,
+  thinking: renderThinking,
+  tool_use: toolSummary,
+};
+
+function renderContentPart<K extends ContentBlock["type"]>(
+  block: Extract<ContentBlock, { type: K }>,
+): string | null {
+  const render = RENDER_BY_TYPE[block.type];
+
+  return render ? render(block) : null;
 }
 
 function assistantParts(content: ContentBlock[]): string[] {

@@ -85,14 +85,19 @@ function becauseWedged(agents: ClusterAgent[]): string {
   return `${count} capable ${noun} (${names}) ${verb} active but did not claim it; ${they} may be wedged`;
 }
 
-function becauseOf(verdict: CapacityVerdict): string {
-  switch (verdict.kind) {
-    case "registry-empty":
-      return "no cluster-agent has ever registered";
-    case "none-registered":
-    case "all-unavailable":
-      return verdict.reason;
-    case "capable":
-      return becauseWedged(verdict.agents);
-  }
+const REASON_BY_KIND: {
+  [K in CapacityVerdict["kind"]]: (
+    verdict: Extract<CapacityVerdict, { kind: K }>,
+  ) => string;
+} = {
+  "registry-empty": () => "no cluster-agent has ever registered",
+  "none-registered": (verdict) => verdict.reason,
+  "all-unavailable": (verdict) => verdict.reason,
+  capable: (verdict) => becauseWedged(verdict.agents),
+};
+
+function becauseOf<K extends CapacityVerdict["kind"]>(
+  verdict: Extract<CapacityVerdict, { kind: K }>,
+): string {
+  return REASON_BY_KIND[verdict.kind](verdict);
 }
