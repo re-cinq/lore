@@ -22,22 +22,20 @@ export {
   type EdgeConditionValue,
 } from "./assembly-line-schema.js";
 
-// Parses and fully validates an assembly line definition; throws AssemblyLineLoadError on malformed YAML, schema violation, dangling/unreachable nodes, non-exit terminal nodes, uncovered outcomes, or unbounded back-edges.
-export function parseAssemblyLine(
-  yamlSrc: string,
-  source = "<inline>",
-): AssemblyLine {
-  let raw: unknown;
-
+// YAML syntax only. The parser's own message is kept and tagged with the file, since "bad indentation at line 12" is the whole diagnosis and rewording it would lose the line number.
+function readYaml(yamlSrc: string, source: string): unknown {
   try {
-    raw = parseYaml(yamlSrc);
+    return parseYaml(yamlSrc);
   } catch (err) {
     throw new AssemblyLineLoadError(
       `Invalid YAML: ${(err as Error).message}`,
       source,
     );
   }
+}
 
+// Shape only — the graph checks come after. Every issue is reported at once rather than the first: a hand-authored definition usually has more than one, and one round trip per field is a poor way to learn the schema.
+function checkSchema(raw: unknown, source: string): AssemblyLine {
   const parsed = AssemblyLineSchema.safeParse(raw);
 
   if (!parsed.success) {
@@ -48,7 +46,15 @@ export function parseAssemblyLine(
     throw new AssemblyLineLoadError(`Schema violation: ${issues}`, source);
   }
 
-  const wf = parsed.data;
+  return parsed.data;
+}
+
+// Parses and fully validates an assembly line definition; throws AssemblyLineLoadError on malformed YAML, schema violation, dangling/unreachable nodes, non-exit terminal nodes, uncovered outcomes, or unbounded back-edges.
+export function parseAssemblyLine(
+  yamlSrc: string,
+  source = "<inline>",
+): AssemblyLine {
+  const wf = checkSchema(readYaml(yamlSrc, source), source);
 
   validateAssemblyLine(wf, source);
 
@@ -63,23 +69,27 @@ export async function loadAssemblyLineFile(
   return parseAssemblyLine(yamlSrc, filepath);
 }
 
-// Loads every `*.yaml`/`*.yml` file under `dir` into a map keyed by assembly-line name; fail-fast on any invalid file or duplicate name.
-export async function loadAssemblyLineDir(
-  dir: string,
-): Promise<Map<string, AssemblyLine>> {
+// The YAML files in `dir`, or none when the directory does not exist. A missing directory is not an error: a deployment with no custom definitions has nothing to load, which is different from a directory it could not read.
+async function listYamlFiles(dir: string): Promise<string[]> {
   let entries: string[];
 
   try {
     entries = await fs.readdir(dir);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return new Map();
+      return [];
     }
     throw err;
   }
-  const yamls = entries.filter(
-    (e) => e.endsWith(".yaml") || e.endsWith(".yml"),
-  );
+
+  return entries.filter((e) => e.endsWith(".yaml") || e.endsWith(".yml"));
+}
+
+// Loads every `*.yaml`/`*.yml` file under `dir` into a map keyed by assembly-line name; fail-fast on any invalid file or duplicate name.
+export async function loadAssemblyLineDir(
+  dir: string,
+): Promise<Map<string, AssemblyLine>> {
+  const yamls = await listYamlFiles(dir);
   const out = new Map<string, AssemblyLine>();
 
   for (const f of yamls) {

@@ -142,6 +142,28 @@ export function isThreadKey(key: string): boolean {
   );
 }
 
+// One node's `continues`: the node it names must exist and the thread key must resolve.
+function validateContinues(
+  wf: AssemblyLine,
+  n: AssemblyLine["nodes"][number],
+  nodeIds: Set<string>,
+  loadError: LoadErrorFactory,
+): void {
+  const continues = n.continues!;
+
+  enforceTrue(
+    nodeIds.has(continues.node),
+    loadError,
+    `node "${n.id}" in assembly line "${wf.name}" continues unknown node "${continues.node}"`,
+  );
+  enforceTrue(
+    isThreadKey(continues.key),
+    loadError,
+    `node "${n.id}" in assembly line "${wf.name}" has invalid continues.key "${continues.key}" ` +
+      `(expected "line", "task" or "args.<name>")`,
+  );
+}
+
 // A `continues` reference must name a real node and a resolvable thread key — fail at LOAD, since an unresolvable reference would otherwise silently start a fresh conversation indistinguishable from one that remembers nothing.
 function validateContinuesReferences(
   wf: AssemblyLine,
@@ -149,21 +171,9 @@ function validateContinuesReferences(
   loadError: LoadErrorFactory,
 ): void {
   for (const n of wf.nodes) {
-    if (!n.continues) {
-      continue;
+    if (n.continues) {
+      validateContinues(wf, n, nodeIds, loadError);
     }
-
-    enforceTrue(
-      nodeIds.has(n.continues.node),
-      loadError,
-      `node "${n.id}" in assembly line "${wf.name}" continues unknown node "${n.continues.node}"`,
-    );
-    enforceTrue(
-      isThreadKey(n.continues.key),
-      loadError,
-      `node "${n.id}" in assembly line "${wf.name}" has invalid continues.key "${n.continues.key}" ` +
-        `(expected "line", "task" or "args.<name>")`,
-    );
   }
 }
 
@@ -230,6 +240,7 @@ function dfsWalker(
   color: Map<string, number>,
   assertBackEdgeBounded: (e: AssemblyLineEdge) => void,
 ): (startId: string) => void {
+  // eslint-disable-next-line max-lines-per-function -- the traversal itself, for the reason on dfsWalker above: the stack discipline and the three colour transitions are one algorithm.
   return (startId) => {
     const stack: Array<{ id: string; edgeIndex: number }> = [
       { id: startId, edgeIndex: 0 },
