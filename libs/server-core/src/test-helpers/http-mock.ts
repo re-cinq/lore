@@ -50,29 +50,47 @@ export interface MockRes extends ServerResponse {
   readonly json: unknown;
 }
 
+// The mutable half of the mock — what the two methods below read and write through `this`.
+interface MockResState {
+  statusCode: number;
+  headers: Record<string, string>;
+  body: string;
+  ended: boolean;
+}
+
+// Records the status and merges headers, exactly as ServerResponse does — a second writeHead adds to the headers rather than replacing them.
+function writeHead(
+  this: MockResState,
+  code: number,
+  headers?: Record<string, string>,
+) {
+  this.statusCode = code;
+
+  if (headers) {
+    Object.assign(this.headers, headers);
+  }
+
+  return this;
+}
+
+// Appends the chunk and marks the response finished. A null or undefined chunk ends the response without writing "null" into the body.
+function end(this: MockResState, chunk?: unknown) {
+  if (chunk !== undefined && chunk !== null) {
+    this.body += String(chunk);
+  }
+  this.ended = true;
+
+  return this;
+}
+
 export function makeRes(): MockRes {
   const res = {
     statusCode: 0,
     headers: {},
     body: "",
     ended: false,
-    writeHead(code: number, headers?: Record<string, string>) {
-      this.statusCode = code;
-
-      if (headers) {
-        Object.assign(this.headers, headers);
-      }
-
-      return this;
-    },
-    end(chunk?: unknown) {
-      if (chunk !== undefined && chunk !== null) {
-        this.body += String(chunk);
-      }
-      this.ended = true;
-
-      return this;
-    },
+    writeHead,
+    end,
     get json() {
       return JSON.parse(this.body);
     },

@@ -3,6 +3,7 @@
 import { getQueryEmbedding } from "../../outbound/db.js";
 import { Llm } from "@re-cinq/lore-shared";
 import type { PgPool } from "@re-cinq/lore-shared";
+import { invalidateContradictions } from "./fact-contradictions.js";
 
 // Provider selection (Anthropic/OpenAI/Ollama) + cost logging live behind the shared `Llm` singleton (LORE_LLM_PROVIDER / LORE_FACT_LLM); fact extraction just calls `Llm.instance.complete`.
 
@@ -36,25 +37,32 @@ async function withRetry<T>(
 
 // ── Response parsing ────────────────────────────────────────────────
 
-export function parseFacts(raw: string): string[] {
-  // Try JSON parse first
+// The model's array, when it produced one. Fences are stripped first because the model wraps JSON in markdown as often as not; anything that still will not parse returns null so the caller falls back to reading it line by line.
+function parseFactArray(raw: string): string[] | null {
   try {
-    // The LLM may wrap the array in markdown code fences
     const cleaned = raw
       .replace(/```json?\s*/g, "")
       .replace(/```/g, "")
       .trim();
     const parsed = JSON.parse(cleaned);
 
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter(
-          (f): f is string => typeof f === "string" && f.trim().length > 0,
-        )
-        .slice(0, 10);
+    if (!Array.isArray(parsed)) {
+      return null;
     }
+
+    return parsed
+      .filter((f): f is string => typeof f === "string" && f.trim().length > 0)
+      .slice(0, 10);
   } catch {
-    // Fall through to newline fallback
+    return null;
+  }
+}
+
+export function parseFacts(raw: string): string[] {
+  const parsed = parseFactArray(raw);
+
+  if (parsed) {
+    return parsed;
   }
 
   // Fallback: split by newlines, strip list markers
@@ -63,117 +71,6 @@ export function parseFacts(raw: string): string[] {
     .map((line) => line.replace(/^\s*[-*\d.)\]]+\s*/, "").trim())
     .filter((line) => line.length > 0)
     .slice(0, 10);
-}
-
-// ── Contradiction detection ─────────────────────────────────────────
-
-const SIMILARITY_THRESHOLD = parseFloat(
-  process.env.LORE_FACT_SIMILARITY_THRESHOLD || "0.92",
-);
-
-// Finds existing valid facts semantically similar to a new fact and invalidates them (valid_to, invalidated_by); fail-open — on any error the new fact is still inserted.
-interface ContradictingFact {
-  id: string;
-  similarity: number;
-}
-
-async function findContradicting(
-  pool: PgPool,
-  newFactId: string,
-  embeddingStr: string,
-): Promise<ContradictingFact[]> {
-  const { rows } = await pool.query(
-    `SELECT id, fact_text, 1 - (embedding <=> $1::vector) AS similarity
-       FROM memory.facts f
-       WHERE f.valid_to IS NULL
-         AND f.id != $2
-         AND f.embedding IS NOT NULL
-         AND 1 - (f.embedding <=> $1::vector) >= $3
-       ORDER BY similarity DESC
-       LIMIT 5`,
-    [embeddingStr, newFactId, SIMILARITY_THRESHOLD],
-  );
-
-  return rows.map((r) => ({
-    id: r.id as string,
-    similarity: r.similarity as number,
-  }));
-}
-
-/** The conflict is recorded BEFORE the fact is invalidated, so a crash between the two leaves evidence of the disagreement rather than a silently retired fact. */
-async function invalidateFact(
-  pool: PgPool,
-  newFactId: string,
-  contradicted: ContradictingFact,
-): Promise<void> {
-  await pool
-    .query(
-      `INSERT INTO memory.fact_conflicts (old_fact_id, new_fact_id, similarity)
-         VALUES ($1, $2, $3)
-         ON CONFLICT DO NOTHING`,
-      [contradicted.id, newFactId, contradicted.similarity],
-    )
-    .catch(() => {});
-
-  await pool.query(
-    `UPDATE memory.facts
-         SET valid_to = now(), invalidated_by = $1
-         WHERE id = $2 AND valid_to IS NULL`,
-    [newFactId, contradicted.id],
-  );
-}
-
-async function auditInvalidation(
-  pool: PgPool,
-  agentId: string,
-  newFactId: string,
-  invalidated: ContradictingFact[],
-): Promise<void> {
-  await pool
-    .query(
-      `INSERT INTO memory.audit_log (agent_id, operation, metadata)
-         VALUES ($1, 'fact_invalidation', $2)`,
-      [
-        agentId,
-        JSON.stringify({
-          new_fact_id: newFactId,
-          invalidated: invalidated.map((r) => ({
-            id: r.id,
-            similarity: r.similarity,
-          })),
-        }),
-      ],
-    )
-    .catch(() => {});
-}
-
-async function invalidateContradictions(
-  pool: PgPool,
-  newFactId: string,
-  embeddingStr: string,
-  agentId: string | null,
-): Promise<number> {
-  try {
-    const rows = await findContradicting(pool, newFactId, embeddingStr);
-
-    if (rows.length === 0) {
-      return 0;
-    }
-
-    for (const row of rows) {
-      await invalidateFact(pool, newFactId, row);
-    }
-
-    if (agentId) {
-      await auditInvalidation(pool, agentId, newFactId, rows);
-    }
-
-    return rows.length;
-  } catch (err) {
-    console.warn("[facts] Contradiction detection failed (non-fatal):", err);
-
-    return 0;
-  }
 }
 
 async function getAgentIdForMemory(
@@ -194,6 +91,44 @@ async function getAgentIdForMemory(
 
 // ── Main entry point ────────────────────────────────────────────────
 
+// Whether there is anything to store. An EMPTY array is warned about but a null is not: null means the model was unreachable and has already been logged, while empty means it answered and found nothing worth recording, which is worth noticing.
+function hasFacts(facts: string[] | null): facts is string[] {
+  if (facts?.length === 0) {
+    console.warn("[facts] No facts extracted from LLM response");
+  }
+
+  return Boolean(facts && facts.length > 0);
+}
+
+// Inserts one extracted fact against its memory. Confidence is `inferred`, not `observed`: a memory is something an agent chose to write down, so a fact derived from it is one step further from what was actually seen.
+function memoryFactInsert(pool: PgPool, memoryId: string): FactInsert {
+  return (factText, embedding) =>
+    pool.query(
+      `INSERT INTO memory.facts (memory_id, fact_text, embedding, valid_from, confidence)
+         VALUES ($1, $2, $3, now(), 'inferred')
+         RETURNING id`,
+      [memoryId, factText, embedding],
+    );
+}
+
+// Stores the batch and says what it did. Both entry points share this — a memory and an episode differ only in which column the fact hangs off and what the log line calls it.
+async function storeAndReport(
+  pool: PgPool,
+  facts: string[],
+  target: { agentId: string | null; insert: FactInsert; subject: string },
+): Promise<void> {
+  const invalidated = await storeFacts(
+    pool,
+    facts,
+    target.agentId,
+    target.insert,
+  );
+
+  console.log(
+    `[facts] Extracted and stored ${facts.length} facts for ${target.subject}${invalidatedNote(invalidated)}`,
+  );
+}
+
 export async function extractFacts(
   memoryId: string,
   value: string,
@@ -202,29 +137,40 @@ export async function extractFacts(
   try {
     const facts = await extractFactTexts(value, "memory");
 
-    if (facts?.length === 0) {
-      console.warn("[facts] No facts extracted from LLM response");
-    }
-
-    if (!facts || facts.length === 0) {
+    if (!hasFacts(facts)) {
       return;
     }
-    const agentId = await getAgentIdForMemory(pool, memoryId);
-    const invalidated = await storeFacts(pool, facts, agentId, (factText, e) =>
-      pool.query(
-        `INSERT INTO memory.facts (memory_id, fact_text, embedding, valid_from, confidence)
-           VALUES ($1, $2, $3, now(), 'inferred')
-           RETURNING id`,
-        [memoryId, factText, e],
-      ),
-    );
-
-    console.log(
-      `[facts] Extracted and stored ${facts.length} facts for memory ${memoryId}${invalidatedNote(invalidated)}`,
-    );
+    await storeAndReport(pool, facts, {
+      agentId: await getAgentIdForMemory(pool, memoryId),
+      insert: memoryFactInsert(pool, memoryId),
+      subject: `memory ${memoryId}`,
+    });
   } catch (err) {
     console.warn("[facts] Unexpected error during fact extraction:", err);
   }
+}
+
+// One extraction call, retried. Returns the raw text — parsing is the caller's, because a model that answered unparseably is a different problem from one that could not be reached.
+async function completeExtraction(value: string): Promise<string> {
+  return withRetry(() =>
+    Llm.instance
+      .complete({
+        systemPrompt: EXTRACTION_PROMPT,
+        prompt: value,
+        jobName: "fact-extraction",
+      })
+      .then((r) => r.text),
+  );
+}
+
+// The model could not be reached. Named by source so the log says which write lost its facts — the write itself already succeeded either way.
+function warnUnreachable(source: "memory" | "episode", err: unknown): void {
+  console.warn(
+    source === "memory"
+      ? "[facts] LLM unreachable after 3 attempts, skipping fact extraction:"
+      : "[facts] LLM unreachable for episode extraction:",
+    err,
+  );
 }
 
 /** The facts an LLM finds in one blob, or null when it could not be reached. An unreachable model costs the extraction, never the write that triggered it. */
@@ -233,24 +179,9 @@ async function extractFactTexts(
   source: "memory" | "episode",
 ): Promise<string[] | null> {
   try {
-    const raw = await withRetry(() =>
-      Llm.instance
-        .complete({
-          systemPrompt: EXTRACTION_PROMPT,
-          prompt: value,
-          jobName: "fact-extraction",
-        })
-        .then((r) => r.text),
-    );
-
-    return parseFacts(raw);
+    return parseFacts(await completeExtraction(value));
   } catch (err) {
-    console.warn(
-      source === "memory"
-        ? "[facts] LLM unreachable after 3 attempts, skipping fact extraction:"
-        : "[facts] LLM unreachable for episode extraction:",
-      err,
-    );
+    warnUnreachable(source, err);
 
     return null;
   }
@@ -266,6 +197,29 @@ function toEmbeddingStr(embedding: number[] | null): string | null {
 }
 
 /** Inserts one fact and lets it invalidate what it contradicts, returning how many older facts it retired. A failure here is logged and swallowed — one bad fact must not sink the batch. */
+// Inserts one fact and lets it retire what it disagrees with. Contradiction detection needs the EMBEDDING, so a fact stored without one is still written — it just cannot contradict anything, and returns zero rather than being treated as a failure.
+async function insertAndContradict(
+  pool: PgPool,
+  factText: string,
+  agentId: string | null,
+  insert: FactInsert,
+): Promise<number> {
+  const embeddingStr = toEmbeddingStr(await getQueryEmbedding(factText));
+  const { rows } = await insert(factText, embeddingStr);
+  const factId = embeddingStr ? rows[0]?.id : undefined;
+
+  if (!factId) {
+    return 0;
+  }
+
+  return invalidateContradictions(
+    pool,
+    factId as string,
+    embeddingStr as string,
+    agentId,
+  );
+}
+
 async function storeSingleFact(
   pool: PgPool,
   factText: string,
@@ -273,21 +227,7 @@ async function storeSingleFact(
   insert: FactInsert,
 ): Promise<number> {
   try {
-    const embedding = await getQueryEmbedding(factText);
-    const embeddingStr = toEmbeddingStr(embedding);
-    const { rows } = await insert(factText, embeddingStr);
-    const factId = embeddingStr ? rows[0]?.id : undefined;
-
-    if (!factId) {
-      return 0;
-    }
-
-    return await invalidateContradictions(
-      pool,
-      factId as string,
-      embeddingStr as string,
-      agentId,
-    );
+    return await insertAndContradict(pool, factText, agentId, insert);
   } catch (err) {
     console.warn(
       `[facts] Failed to insert fact "${factText.substring(0, 50)}...":`,
@@ -318,6 +258,17 @@ function invalidatedNote(count: number): string {
   return count > 0 ? `, invalidated ${count} stale facts` : "";
 }
 
+// Inserts one extracted fact against its episode. No `confidence` column here — the default is `observed`, because an episode is raw text something actually did or said rather than a conclusion an agent drew.
+function episodeFactInsert(pool: PgPool, episodeId: string): FactInsert {
+  return (factText, embedding) =>
+    pool.query(
+      `INSERT INTO memory.facts (episode_id, fact_text, embedding, valid_from)
+         VALUES ($1, $2, $3, now())
+         RETURNING id`,
+      [episodeId, factText, embedding],
+    );
+}
+
 // Extract facts from an episode (same pipeline, different source column).
 export async function extractFactsFromEpisode(
   episodeId: string,
@@ -331,18 +282,11 @@ export async function extractFactsFromEpisode(
     if (!facts || facts.length === 0) {
       return;
     }
-    const invalidated = await storeFacts(pool, facts, agentId, (factText, e) =>
-      pool.query(
-        `INSERT INTO memory.facts (episode_id, fact_text, embedding, valid_from)
-           VALUES ($1, $2, $3, now())
-           RETURNING id`,
-        [episodeId, factText, e],
-      ),
-    );
-
-    console.log(
-      `[facts] Extracted ${facts.length} facts from episode ${episodeId}${invalidatedNote(invalidated)}`,
-    );
+    await storeAndReport(pool, facts, {
+      agentId,
+      insert: episodeFactInsert(pool, episodeId),
+      subject: `episode ${episodeId}`,
+    });
   } catch (err) {
     console.warn("[facts] Unexpected error during episode extraction:", err);
   }

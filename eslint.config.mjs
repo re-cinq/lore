@@ -439,7 +439,6 @@ export default tseslint.config(
       "apps/lore-api/**/*.{ts,tsx}",
       "apps/mcp-server/**/*.{ts,tsx}",
       "libs/shared/**/*.{ts,tsx}",
-      "libs/server-core/**/*.{ts,tsx}",
     ],
     rules: {
       "max-lines-per-function": [

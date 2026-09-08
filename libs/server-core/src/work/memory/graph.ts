@@ -30,6 +30,35 @@ const GRAPH_EXTRACTION_PROMPT =
   "Only include clearly stated relationships. Maximum 10 entities and 10 edges. " +
   "Normalize entity names to lowercase. Return only the JSON object.";
 
+// Entities, lowercased and capped. The case fold is what makes the graph converge: "Floor" and "floor" named by two different episodes have to reach the same node or the graph grows a synonym per writer.
+function normalizeEntities(
+  raw: Array<{ name?: unknown; type?: unknown }> | undefined,
+): ExtractedGraphEntity[] {
+  return (raw || [])
+    .filter((e) => e.name && e.type)
+    .map((e) => ({
+      name: String(e.name).toLowerCase().trim(),
+      type: String(e.type).toLowerCase().trim(),
+    }))
+    .slice(0, 10);
+}
+
+// Edges, on the same terms — an edge naming an entity in another case would point at a node that does not exist.
+function normalizeEdges(
+  raw:
+    | Array<{ source?: unknown; target?: unknown; relation?: unknown }>
+    | undefined,
+): ExtractedGraphEdge[] {
+  return (raw || [])
+    .filter((e) => e.source && e.target && e.relation)
+    .map((e) => ({
+      source: String(e.source).toLowerCase().trim(),
+      target: String(e.target).toLowerCase().trim(),
+      relation: String(e.relation).toLowerCase().trim(),
+    }))
+    .slice(0, 10);
+}
+
 export function parseGraphExtraction(raw: string): GraphExtractionResult {
   try {
     const cleaned = raw
@@ -40,23 +69,11 @@ export function parseGraphExtraction(raw: string): GraphExtractionResult {
       entities?: Array<{ name?: unknown; type?: unknown }>;
       edges?: Array<{ source?: unknown; target?: unknown; relation?: unknown }>;
     };
-    const entities: ExtractedGraphEntity[] = (parsed.entities || [])
-      .filter((e) => e.name && e.type)
-      .map((e) => ({
-        name: String(e.name).toLowerCase().trim(),
-        type: String(e.type).toLowerCase().trim(),
-      }))
-      .slice(0, 10);
-    const edges: ExtractedGraphEdge[] = (parsed.edges || [])
-      .filter((e) => e.source && e.target && e.relation)
-      .map((e) => ({
-        source: String(e.source).toLowerCase().trim(),
-        target: String(e.target).toLowerCase().trim(),
-        relation: String(e.relation).toLowerCase().trim(),
-      }))
-      .slice(0, 10);
 
-    return { entities, edges };
+    return {
+      entities: normalizeEntities(parsed.entities),
+      edges: normalizeEdges(parsed.edges),
+    };
   } catch {
     return { entities: [], edges: [] };
   }
@@ -112,18 +129,26 @@ async function upsertEdge(
     return;
   }
 
-  // Invalidate contradictory edges (same source + relation, different target)
+  await retireContradictoryEdges(pool, sourceId, relationType, targetId);
+  await pool.query(
+    `INSERT INTO memory.edges (source_id, target_id, relation_type, source_episode_id, source_memory_id)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [sourceId, targetId, relationType, sourceEpisodeId, sourceMemoryId],
+  );
+}
+
+// Retires edges that disagree with the one about to be written: same source and relation, different target. Closed by `valid_to` rather than deleted — that a relationship USED to hold is part of what the graph records.
+async function retireContradictoryEdges(
+  pool: PgPool,
+  sourceId: string,
+  relationType: string,
+  targetId: string,
+): Promise<void> {
   await pool.query(
     `UPDATE memory.edges
      SET valid_to = now()
      WHERE source_id = $1 AND relation_type = $2 AND target_id != $3 AND valid_to IS NULL`,
     [sourceId, relationType, targetId],
-  );
-
-  await pool.query(
-    `INSERT INTO memory.edges (source_id, target_id, relation_type, source_episode_id, source_memory_id)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [sourceId, targetId, relationType, sourceEpisodeId, sourceMemoryId],
   );
 }
 
@@ -150,6 +175,19 @@ async function upsertEntities(
   return entityIds;
 }
 
+// The edge's two ends as entity ids, or null when either was not written. An entity that failed its own upsert leaves every edge touching it unwritable — dropped quietly, because the failure was already logged where it happened.
+function edgeEndpoints(
+  edge: ExtractedGraphEdge,
+  entityIds: Map<string, string>,
+): { sourceId: string; targetId: string; relationType: string } | null {
+  const sourceId = entityIds.get(edge.source);
+  const targetId = entityIds.get(edge.target);
+
+  return sourceId && targetId
+    ? { sourceId, targetId, relationType: edge.relation }
+    : null;
+}
+
 /** Upserts each edge whose endpoints resolved to an entity id, skipping (and logging) any that fails; returns how many were written. */
 async function upsertEdges(
   pool: PgPool,
@@ -160,29 +198,55 @@ async function upsertEdges(
   let edgeCount = 0;
 
   for (const edge of edges) {
-    const sourceId = entityIds.get(edge.source);
-    const targetId = entityIds.get(edge.target);
+    const ids = edgeEndpoints(edge, entityIds);
 
-    if (!sourceId || !targetId) {
-      continue;
-    }
-
-    try {
-      await upsertEdge(
-        pool,
-        { sourceId, targetId, relationType: edge.relation },
-        provenance,
-      );
+    if (ids && (await tryUpsertEdge(pool, edge, ids, provenance))) {
       edgeCount++;
-    } catch (err) {
-      console.warn(
-        `[graph] Failed to upsert edge "${edge.source}" -${edge.relation}-> "${edge.target}":`,
-        err,
-      );
     }
   }
 
   return edgeCount;
+}
+
+// Whether this edge landed. One bad edge is skipped and logged rather than abandoning the batch — the entities are already written, and half a graph is more use than none.
+async function tryUpsertEdge(
+  pool: PgPool,
+  edge: ExtractedGraphEdge,
+  ids: { sourceId: string; targetId: string; relationType: string },
+  provenance: GraphProvenance,
+): Promise<boolean> {
+  try {
+    await upsertEdge(pool, ids, provenance);
+
+    return true;
+  } catch (err) {
+    console.warn(
+      `[graph] Failed to upsert edge "${edge.source}" -${edge.relation}-> "${edge.target}":`,
+      err,
+    );
+
+    return false;
+  }
+}
+
+// Writes the entities, then the edges between them. Entities FIRST because an edge names its ends by id, and an edge written against an entity that does not exist yet has nothing to point at.
+async function applyExtraction(
+  pool: PgPool,
+  extraction: GraphExtractionResult,
+  repo: string | null,
+  provenance: GraphProvenance,
+): Promise<void> {
+  const entityIds = await upsertEntities(pool, extraction.entities, repo);
+  const edgeCount = await upsertEdges(
+    pool,
+    extraction.edges,
+    entityIds,
+    provenance,
+  );
+
+  console.log(
+    `[graph] Updated graph: ${extraction.entities.length} entities, ${edgeCount} edges`,
+  );
 }
 
 // Extract entities and relationships from text and update the graph; called after fact extraction in the ingestion pipeline.
@@ -199,13 +263,7 @@ export async function extractAndUpdateGraph(
     if (entities.length === 0) {
       return;
     }
-
-    const entityIds = await upsertEntities(pool, entities, repo);
-    const edgeCount = await upsertEdges(pool, edges, entityIds, provenance);
-
-    console.log(
-      `[graph] Updated graph: ${entities.length} entities, ${edgeCount} edges`,
-    );
+    await applyExtraction(pool, { entities, edges }, repo, provenance);
   } catch (err) {
     console.warn("[graph] Entity extraction failed (non-fatal):", err);
   }

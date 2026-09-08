@@ -4,17 +4,26 @@ import { getMemoryPool, auditLog } from "./memory-core.js";
 
 // Snapshots (PostgreSQL-backed): point-in-time capture and restore of an agent's memories.
 
-export async function createSnapshot(agentId?: string) {
-  const agent = resolveAgentId(agentId);
-  const pool = getMemoryPool()!;
-  const { rows: memories } = await pool.query(
+// The memories this snapshot pins, as (id, version) refs. Expired and deleted rows are excluded: a snapshot restores what the agent HAD, and reviving something that had already lapsed would be a change rather than a restore.
+async function liveMemoryRefs(
+  pool: NonNullable<ReturnType<typeof getMemoryPool>>,
+  agent: string,
+): Promise<Array<{ memory_id: string; version: number }>> {
+  const { rows } = await pool.query(
     `SELECT id, version FROM memory.memories WHERE agent_id = $1 AND is_deleted = FALSE AND (expires_at IS NULL OR expires_at > now())`,
     [agent],
   );
-  const memoryRefs = memories.map((m) => ({
-    memory_id: m.id,
-    version: m.version,
+
+  return rows.map((m) => ({
+    memory_id: m.id as string,
+    version: m.version as number,
   }));
+}
+
+export async function createSnapshot(agentId?: string) {
+  const agent = resolveAgentId(agentId);
+  const pool = getMemoryPool()!;
+  const memoryRefs = await liveMemoryRefs(pool, agent);
   const { rows } = await pool.query(
     `INSERT INTO memory.snapshots (agent_id, memory_refs, trigger) VALUES ($1, $2, 'manual') RETURNING id, created_at`,
     [agent, JSON.stringify(memoryRefs)],
@@ -53,27 +62,43 @@ async function revertToVersions(
   }
 }
 
-export async function restoreSnapshot(snapshotId: string) {
-  const pool = getMemoryPool()!;
+// The snapshot row, or a refusal. A missing snapshot is an error rather than a no-op: the caller asked to restore a specific point in time, and silently restoring nothing would look like it worked.
+async function loadSnapshot(
+  pool: NonNullable<ReturnType<typeof getMemoryPool>>,
+  snapshotId: string,
+) {
   const { rows: snaps } = await pool.query(
     `SELECT agent_id, memory_refs, created_at FROM memory.snapshots WHERE id = $1`,
     [snapshotId],
   );
 
   enforceTrue(snaps.length !== 0, Error, "Snapshot not found");
-  const snap = snaps[0];
+
+  return snaps[0];
+}
+
+// Soft-deletes memories written after the snapshot that it does not name. Bounded by `created_at`, so a memory that predates the snapshot but was left out of it — one that had expired, say — is not swept along with the new ones.
+async function pruneCreatedAfter(
+  pool: NonNullable<ReturnType<typeof getMemoryPool>>,
+  snap: Record<string, unknown>,
+  refs: Array<{ memory_id: string; version: number }>,
+): Promise<void> {
+  await pool.query(
+    `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND id != ALL($2::uuid[]) AND created_at > $3`,
+    [snap.agent_id, refs.map((r) => r.memory_id), snap.created_at],
+  );
+}
+
+export async function restoreSnapshot(snapshotId: string) {
+  const pool = getMemoryPool()!;
+  const snap = await loadSnapshot(pool, snapshotId);
   const refs = snap.memory_refs as Array<{
     memory_id: string;
     version: number;
   }>;
-  const refIds = refs.map((r) => r.memory_id);
 
   await revertToVersions(pool, refs);
-  // Soft-delete memories created after snapshot that aren't in refs
-  await pool.query(
-    `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND id != ALL($2::uuid[]) AND created_at > $3`,
-    [snap.agent_id, refIds, snap.created_at],
-  );
+  await pruneCreatedAfter(pool, snap, refs);
   await auditLog(snap.agent_id as string, "restore", null, {
     snapshot_id: snapshotId,
     restored_count: refs.length,

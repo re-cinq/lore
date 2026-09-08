@@ -77,6 +77,33 @@ export async function sharedWrite(
   };
 }
 
+// One key's latest live value, or null. Ordered by VERSION, not time: a rewritten entry keeps its created_at, so the newest row is not always the newest value.
+async function readPoolKey(
+  pool: NonNullable<ReturnType<typeof getMemoryPool>>,
+  poolId: string,
+  key: string,
+) {
+  const { rows } = await pool.query(
+    `SELECT key, value, agent_id, version, created_at FROM memory.memories WHERE pool_id = $1 AND key = $2 AND is_deleted = FALSE ORDER BY version DESC LIMIT 1`,
+    [poolId, key],
+  );
+
+  return rows[0] || null;
+}
+
+// The pool's most recent entries. Capped at 100 — a pool is browsed, not exported, and an unbounded read of a busy pool is a page nobody finishes.
+async function readPoolEntries(
+  pool: NonNullable<ReturnType<typeof getMemoryPool>>,
+  poolId: string,
+) {
+  const { rows } = await pool.query(
+    `SELECT key, value, agent_id, version, created_at FROM memory.memories WHERE pool_id = $1 AND is_deleted = FALSE ORDER BY created_at DESC LIMIT 100`,
+    [poolId],
+  );
+
+  return rows;
+}
+
 export async function sharedRead(poolName: string, key?: string) {
   const pool = getMemoryPool()!;
   const poolResult = await pool.query(
@@ -89,18 +116,7 @@ export async function sharedRead(poolName: string, key?: string) {
   }
   const poolId = poolResult.rows[0].id;
 
-  if (key) {
-    const { rows } = await pool.query(
-      `SELECT key, value, agent_id, version, created_at FROM memory.memories WHERE pool_id = $1 AND key = $2 AND is_deleted = FALSE ORDER BY version DESC LIMIT 1`,
-      [poolId, key],
-    );
-
-    return rows[0] || null;
-  }
-  const { rows } = await pool.query(
-    `SELECT key, value, agent_id, version, created_at FROM memory.memories WHERE pool_id = $1 AND is_deleted = FALSE ORDER BY created_at DESC LIMIT 100`,
-    [poolId],
-  );
-
-  return rows;
+  return key
+    ? readPoolKey(pool, poolId as string, key)
+    : readPoolEntries(pool, poolId as string);
 }

@@ -27,6 +27,37 @@ export type ProxyResult =
 
 export { PROXY_RETRY_DELAYS_MS };
 
+// The ingest token on a JSON POST.
+function postHeaders(apiToken: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${apiToken}`,
+    "Content-Type": "application/json",
+  };
+}
+
+// One POST to the API, bearing the ingest token. Rebuilt per attempt rather than captured: a Request body cannot be replayed, so the retry loop needs a fresh one each time.
+function postJson(
+  url: string,
+  apiToken: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  return fetch(url, {
+    method: "POST",
+    headers: postHeaders(apiToken),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+}
+
+// A non-retriable 4xx. Carries the server's own message, status and body through, so the caller can tell a refusal from an unreachable API rather than seeing both as "it did not work".
+function refusalResult(
+  status: number,
+  detail: string,
+  errorBody: string,
+): ProxyResult {
+  return { ok: false, reason: "unreachable", detail, status, body: errorBody };
+}
+
 export async function proxyToApi(
   endpoint: string,
   body: Record<string, unknown>,
@@ -39,25 +70,9 @@ export async function proxyToApi(
   }
 
   return requestWithRetry(
-    () =>
-      fetch(`${apiUrl}${endpoint}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(15_000),
-      }),
+    () => postJson(`${apiUrl}${endpoint}`, apiToken, body),
     `proxy ${endpoint}`,
-    // Non-retriable 4xx: surface server message + status/body so caller recognizes refusal.
-    (status, detail, errorBody) => ({
-      ok: false,
-      reason: "unreachable",
-      detail,
-      status,
-      body: errorBody,
-    }),
+    refusalResult,
   );
 }
 

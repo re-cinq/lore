@@ -78,6 +78,25 @@ function auditSnapshot(
   });
 }
 
+// A snapshot records REFS, not values: restoring rolls each key back to a version that is still in its own history, so the snapshot stays small and cannot disagree with the version files.
+function snapshotOf(
+  id: string,
+  now: string,
+  memoryRefs: SnapshotRecord["memory_refs"],
+): SnapshotRecord {
+  return {
+    snapshot_id: randomUUID(),
+    agent_id: id,
+    created_at: now,
+    memory_refs: memoryRefs,
+  };
+}
+
+// Where this snapshot lands. The timestamp is the filename with `:` and `.` replaced — both are legal in an ISO instant and neither is safe in a path on every filesystem.
+function snapshotPathFor(id: string, now: string): string {
+  return join(snapshotsDir(id), `${now.replace(/[:.]/g, "-")}.json`);
+}
+
 export function createSnapshotFile(agentId?: string): {
   snapshot_path: string;
   memory_count: number;
@@ -85,32 +104,17 @@ export function createSnapshotFile(agentId?: string): {
 } {
   const id = resolveAgentId(agentId);
   const now = new Date().toISOString();
-  const timestamp = now.replace(/[:.]/g, "-");
-  const snapshotPath = join(snapshotsDir(id), `${timestamp}.json`);
-
+  const snapshotPath = snapshotPathFor(id, now);
   const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
-
   const memoryRefs = liveRefs(memories);
+  const memoryCount = Object.keys(memoryRefs).length;
 
-  const snapshot: SnapshotRecord = {
-    snapshot_id: randomUUID(),
-    agent_id: id,
-    created_at: now,
-    memory_refs: memoryRefs,
-  };
-
-  writeJson(snapshotPath, snapshot);
-
-  auditSnapshot(
-    "create_snapshot",
-    id,
-    snapshotPath,
-    Object.keys(memoryRefs).length,
-  );
+  writeJson(snapshotPath, snapshotOf(id, now, memoryRefs));
+  auditSnapshot("create_snapshot", id, snapshotPath, memoryCount);
 
   return {
     snapshot_path: snapshotPath,
-    memory_count: Object.keys(memoryRefs).length,
+    memory_count: memoryCount,
     created_at: now,
   };
 }

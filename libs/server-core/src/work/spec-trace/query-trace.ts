@@ -24,6 +24,23 @@ function signalRank(s: TraceStatement): number {
   return 3;
 }
 
+// Worst first: sorted by SIGNAL then ordinal, so a violated statement outranks a merely untested one wherever it sits in the document.
+function attentionSection(doc: TraceDocument): string[] {
+  const flagged = doc.statements
+    .filter((s) => signalRank(s) < 3)
+    .sort((a, b) => signalRank(a) - signalRank(b) || a.ordinal - b.ordinal);
+
+  if (flagged.length === 0) {
+    return ["", "No violated, drifted, or untested statements."];
+  }
+
+  return [
+    "",
+    "Needs attention:",
+    ...flagged.map((s) => `- [${attentionTag(s)}] #${s.ordinal} ${s.text}`),
+  ];
+}
+
 function summary(doc: TraceDocument): string {
   if (doc.statements.length === 0) {
     return `No graph data for ${doc.filePath} (not ingested, or the graph is empty on main).`;
@@ -33,20 +50,8 @@ function summary(doc: TraceDocument): string {
     `# ${doc.title || doc.filePath}`,
     `Coverage: ${covered}/${testable} testable (${Math.round(ratio * 100)}%)`,
   ];
-  const flagged = doc.statements
-    .filter((s) => signalRank(s) < 3)
-    .sort((a, b) => signalRank(a) - signalRank(b) || a.ordinal - b.ordinal);
 
-  if (flagged.length === 0) {
-    lines.push("", "No violated, drifted, or untested statements.");
-
-    return lines.join("\n");
-  }
-  lines.push("", "Needs attention:");
-
-  for (const s of flagged) {
-    lines.push(`- [${attentionTag(s)}] #${s.ordinal} ${s.text}`);
-  }
+  lines.push(...attentionSection(doc));
 
   return lines.join("\n");
 }
@@ -72,35 +77,42 @@ function linkLine(link: TraceLinkRef): string {
   return link.detail ? `${loc} — ${link.detail}` : loc;
 }
 
-function detail(statement: TraceStatement): string {
+// Flags are ADDITIVE to the state, never replacing it — a covered statement that has since drifted is still covered, and hiding that would misreport the coverage figure.
+function statementHeader(statement: TraceStatement): string {
   const flags = [
     statement.violated && "⚠ violated",
     statement.drifted && "⚠ drifted",
   ].filter(Boolean);
-  const lines = [
-    `#${statement.ordinal} (${statement.state}${flags.length ? `, ${flags.join(", ")}` : ""})`,
-    statement.text,
-  ];
+
+  return `#${statement.ordinal} (${statement.state}${flags.length ? `, ${flags.join(", ")}` : ""})`;
+}
+
+// In the order a reader asks: what proves it, what implements it, what decided it. An empty kind is omitted rather than shown as a heading with nothing under it.
+function linkSections(statement: TraceStatement): string[] {
   const groups: Array<[TraceLinkRef["kind"], string]> = [
     ["test", "validated by"],
     ["code", "implemented by"],
     ["adr", "decided by"],
   ];
+  const out: string[] = [];
 
   for (const [kind, heading] of groups) {
     const links = statement.links.filter((l) => l.kind === kind);
 
-    if (links.length === 0) {
-      continue;
+    if (links.length > 0) {
+      out.push("", `${heading}:`, ...links.map((l) => `- ${linkLine(l)}`));
     }
-    lines.push(
-      "",
-      `${heading}:`,
-      ...links.map((link) => `- ${linkLine(link)}`),
-    );
   }
 
-  return lines.join("\n");
+  return out;
+}
+
+function detail(statement: TraceStatement): string {
+  return [
+    statementHeader(statement),
+    statement.text,
+    ...linkSections(statement),
+  ].join("\n");
 }
 
 /** A statement matches when the selector equals its ordinal, else case-insensitive substring of its text. */

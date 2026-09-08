@@ -100,7 +100,8 @@ function normalizePath(path: string): string {
     .join("/");
 }
 
-export function traceRetrieval(params: {
+// One span per retrieval, carrying what was asked and how well it was answered. `gap_candidate` is recorded ON the span as well as counted, so a trace explains its own metric.
+function recordRetrievalSpan(params: {
   query: string;
   namespace: string;
   topScore: number;
@@ -116,7 +117,15 @@ export function traceRetrieval(params: {
     "lore.gap_candidate": isGapCandidate(params.topScore),
   });
   span.end();
+}
 
+export function traceRetrieval(params: {
+  query: string;
+  namespace: string;
+  topScore: number;
+  resultCount: number;
+}): void {
+  recordRetrievalSpan(params);
   retrievalHistogram.record(params.topScore, {
     namespace: params.namespace,
   });
