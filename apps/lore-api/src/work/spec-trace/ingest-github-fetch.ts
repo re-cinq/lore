@@ -32,11 +32,7 @@ function classifyFetchError(
 
 type ReposApi = Awaited<ReturnType<typeof getOctokit>>["rest"]["repos"];
 
-type GetContentEntry = Awaited<
-  ReturnType<
-    ReposApi["getContent"]
-  >
->["data"];
+type GetContentEntry = Awaited<ReturnType<ReposApi["getContent"]>>["data"];
 
 function extractEntryContent(entry: GetContentEntry): string | null {
   return "content" in entry
@@ -149,5 +145,10 @@ export async function resolveFileContent(
   const { octokit, owner, repoName } = githubCtx!;
   const { repos } = octokit.rest;
 
-  return fetchFileWithHeadFallback(repos, { owner, repoName, filePath, commit });
+  return fetchFileWithHeadFallback(repos, {
+    owner,
+    repoName,
+    filePath,
+    commit,
+  });
 }
