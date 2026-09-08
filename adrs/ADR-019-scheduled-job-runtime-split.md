@@ -180,6 +180,37 @@ as K8s CronJobs — the carve-out still holds where runs are org-wide, memory-he
 or hours long. The detection pattern (`detect` node + tick fan-out) is the
 intended porting path for any of them that can be made per-repo.
 
+## Amendment (2026-09-08): `context_reindex` is retired
+
+The nightly full re-index CronJob had failed on every run for at least four
+nights, and nothing noticed — because nothing depended on it any more.
+Ingestion had already become merge-time only: the `ci-ingest` hook starts
+the ingest assembly line, whose station chunks and embeds (through
+`POST /api/embed`) on its own. The job, its `cronJobs` entry, the
+`apps/floor/src/work/context-jobs/reindex/` module, and the reindex-only
+chunk-port surface (`reindexOwnedFilePaths`, `chunkedFilePaths`,
+`staleChunkerFiles`, `touchChunksForFiles`, `pruneChunksForFiles`,
+`staleChunkCount`) are deleted, together with the `stale` chunk kind on
+lore-api and the stale-content gap in gap detection.
+
+The 2026-07 amendment below is therefore history, not policy: with no sweep,
+`ingested_at` again means "last written", the `ingested_by = 'reindex-job'`
+marker on existing rows is provenance only, and the stale-content signal —
+defined there as "reindex has stopped covering the repo" — would have read
+true for every repo forever, refiling the same `gap-fill` weekly, which is the
+exact defect that amendment had fixed. It is removed rather than re-owned.
+
+Accepted consequences, recorded so they are not rediscovered as bugs:
+
+- Chunks of a file deleted from the repo are not pruned automatically.
+- A `CHUNKER_VERSION` bump no longer reaches files that never change.
+- A file no merge has touched since onboarding stays unindexed until one does.
+
+Legacy relocation (`relocateLegacyChunks`, FR-20.21) survives, driven only by
+`internal.repo.team_changed`; the nightly self-healing pass that also called
+it is gone, so a team assigned outside the settings route no longer converges
+on its own.
+
 ## Amendment (2026-07): `context_reindex` verification sweep — `ingested_at` becomes a verification stamp (issue #967)
 
 `gap_detection`'s stale-content signal was born broken and no prior ADR or spec
@@ -277,7 +308,7 @@ their schedules:
 
 | Job | Shape | New home |
 |---|---|---|
-| `context_reindex` | tree-sitter chunking + embeddings over a checkout | the **ingest assembly line**, which already owns a chunking path |
+| `context_reindex` | tree-sitter chunking + embeddings over a checkout | **retired 2026-09-08** — no replacement; the merge-time ingest assembly line is the only ingestion |
 | `eval_runner` | shells out to the `promptfoo` binary, reads `EVALS_DIR` off disk | a **Station** |
 | `context_core_builder` | same promptfoo shell-out, plus promote/reject thresholds | a **Station** — sequenced after the eval line by an edge instead of by two cron times |
 | `consolidation` | Haiku pattern-extraction over recent facts | a **Station** |
