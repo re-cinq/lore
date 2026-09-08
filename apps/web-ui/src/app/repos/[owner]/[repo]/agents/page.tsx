@@ -5,6 +5,7 @@ import { classifyAgent } from "@/lib/agent-classify";
 import { fetchAgentUsage, listAgents } from "@/lib/agents-api";
 import AgentsTable, { type AgentRow } from "@/components/AgentsTable";
 import AgentList from "./AgentList";
+import { removeAgentOverrideAction } from "./actions";
 import styles from "./agents.module.css";
 import type { components } from "@/lib/api/schema";
 
@@ -13,16 +14,14 @@ type RepoAgentQueryRow =
   components["schemas"]["AgentActivity"]["agents"][number];
 
 interface DefinitionsSectionProps {
-  owner: string;
-  repo: string;
+  fullName: string;
   agents: Awaited<ReturnType<typeof listAgents>>;
   usage: Awaited<ReturnType<typeof fetchAgentUsage>>;
 }
 
 /** The recipes each task type runs FROM — config, not a run — which is the distinction the Sessions section below it depends on. Org defaults are shown already overlaid with this repo's overrides, so what is listed is what a dispatch will actually resolve. */
 async function DefinitionsSection({
-  owner,
-  repo,
+  fullName,
   agents,
   usage,
 }: DefinitionsSectionProps) {
@@ -33,7 +32,7 @@ async function DefinitionsSection({
           <h2 className={styles.sectionTitle}>Agent definitions</h2>
           <span className="count-pill">{agents.length}</span>
         </div>
-        <Link href={`/repos/${owner}/${repo}/agents/new`}>
+        <Link href={`/repos/${fullName}/agents/new`}>
           <button>+ New definition</button>
         </Link>
       </div>
@@ -43,9 +42,10 @@ async function DefinitionsSection({
         overrides.
       </p>
       <AgentList
-        base={`/repos/${owner}/${repo}`}
+        base={`/repos/${fullName}`}
         agents={agents}
         usage={usage}
+        remove={removeAgentOverrideAction.bind(null, fullName)}
       />
     </section>
   );
@@ -96,12 +96,7 @@ export default async function RepoAgents({
 
   return (
     <div>
-      <DefinitionsSection
-        owner={owner}
-        repo={repo}
-        agents={agents}
-        usage={usage}
-      />
+      <DefinitionsSection fullName={fullName} agents={agents} usage={usage} />
       <SessionsSection activity={await repoActivity(fullName)} />
     </div>
   );
