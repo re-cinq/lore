@@ -45,10 +45,6 @@ export function modelFamily(model: string): string | null {
     return "gemini";
   }
 
-  if (model.startsWith("gpt") || /^o\d/.test(model)) {
-    return "openai";
-  }
-
   return null;
 }
 
@@ -100,7 +96,7 @@ function validateLlmEntry(
   const family = def.model ? modelFamily(def.model) : "anthropic";
 
   if (family === null) {
-    return `model "${def.model}" belongs to no known credential family (anthropic/gemini/openai)`;
+    return `model "${def.model}" belongs to no known credential family (anthropic/gemini)`;
   }
 
   return checkFamilies && !keys[family]

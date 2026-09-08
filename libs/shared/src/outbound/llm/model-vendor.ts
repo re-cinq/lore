@@ -1,4 +1,4 @@
-/** Which account a model's cost lands on; unknown models default to Anthropic to understate remaining balance safely. */
+/** Which account a model's cost lands on; unknown models default to Anthropic to understate remaining balance safely. `openai` stays a vendor here after the provider was deleted: this classifies HISTORICAL pipeline.llm_calls rows, and dropping the gpt/o1/o3 patterns would bill those rows to Anthropic and overstate what it is owed. */
 
 export type ModelVendor = "anthropic" | "gemini" | "openai" | "local";
 

@@ -5,7 +5,7 @@ import { Llm } from "@re-cinq/lore-shared";
 import type { PgPool } from "@re-cinq/lore-shared";
 import { invalidateContradictions } from "./fact-contradictions.js";
 
-// Provider selection (Anthropic/OpenAI/Ollama) + cost logging live behind the shared `Llm` singleton (LORE_LLM_PROVIDER / LORE_FACT_LLM); fact extraction just calls `Llm.instance.complete`.
+// Provider selection (Anthropic/Gemini/Ollama) + cost logging live behind the shared `Llm` singleton (LORE_LLM_PROVIDER / LORE_FACT_LLM); fact extraction just calls `Llm.instance.complete`.
 
 const EXTRACTION_PROMPT =
   "Extract individual factual statements from the following text. " +

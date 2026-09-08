@@ -328,11 +328,11 @@ describe("agentDefToCrds station recipes", () => {
 });
 
 describe("modelFamily", () => {
-  it("maps claude to anthropic, gemini to gemini, gpt/oN to openai, and anything else to null", () => {
+  it("maps claude to anthropic, gemini to gemini, and anything else to null", () => {
     expect(modelFamily("claude-sonnet-4-6")).toEqual("anthropic");
     expect(modelFamily("gemini-2.5-pro")).toEqual("gemini");
-    expect(modelFamily("gpt-5")).toEqual("openai");
-    expect(modelFamily("o3-mini")).toEqual("openai");
+    expect(modelFamily("gpt-5")).toBeNull();
+    expect(modelFamily("o3-mini")).toBeNull();
     expect(modelFamily("llama-3")).toBeNull();
   });
 });

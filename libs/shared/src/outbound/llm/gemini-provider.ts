@@ -1,4 +1,4 @@
-// Google Gemini provider: raw `fetch` (mirrors `openai-provider.ts`, no `@google/generative-ai` dep); structured output uses `responseMimeType: "application/json"` since Gemini has no `tool_choice`-equivalent forced-tool-call primitive.
+// Google Gemini provider: raw `fetch`, no `@google/generative-ai` dep; structured output uses `responseMimeType: "application/json"` since Gemini has no `tool_choice`-equivalent forced-tool-call primitive.
 
 import { enforceTrue } from "../../lib/enforce.js";
 import type { LlmCallRecord, UsagePort } from "../project/usage/usage-port.js";

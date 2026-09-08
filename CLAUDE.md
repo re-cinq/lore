@@ -255,7 +255,7 @@ relationships. Updated incrementally on every lore_write_episode call.
 Replaces the static `graphrag/graph.json` for new deployments.
 
 Fact extraction via configurable LLM (`LORE_FACT_LLM` env:
-claude/openai/ollama) breaks unstructured text into individually
+claude/gemini/ollama) breaks unstructured text into individually
 searchable facts with embeddings.
 
 Agent ID resolved from: explicit parameter, `LORE_AGENT_ID` env,
