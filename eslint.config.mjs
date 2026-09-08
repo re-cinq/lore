@@ -306,6 +306,25 @@ export default tseslint.config(
             "**/node_modules/**",
             "**/schema.d.ts",
             "**/fixtures/**",
+            // web-ui builds in isolation and is not an npm workspace, so it
+            // cannot import @re-cinq/lore-shared; these files are deliberate
+            // hand mirrors, each named as one in its own header and held to
+            // its source by a *.parity.test.ts or a drift-check script. That
+            // guard compares behaviour or bytes, which is strictly stronger
+            // than token similarity, so reporting them here only buries the
+            // duplication that is nobody's decision.
+            "apps/web-ui/src/lib/agents-mirror.ts",
+            "apps/web-ui/src/lib/dark-factory-resolve.ts",
+            "apps/web-ui/src/lib/github.ts",
+            "apps/web-ui/src/lib/ingest-workflow.ts",
+            "apps/web-ui/src/lib/octokit-retry-policy.ts",
+            "apps/web-ui/src/lib/references.ts",
+            "apps/web-ui/src/lib/run-graph.ts",
+            "apps/web-ui/src/lib/spec-graph.ts",
+            "apps/web-ui/src/lib/spec-status.ts",
+            "apps/web-ui/src/lib/trace-impact-workflow.ts",
+            "apps/web-ui/src/lib/trace-types.ts",
+            "apps/web-ui/src/app/repos/**/assembled/trace-types.ts",
           ],
         },
       ],
