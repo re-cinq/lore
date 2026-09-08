@@ -10,6 +10,32 @@ export interface RepoTasksViewProps {
   runs: AssemblyRun[];
 }
 
+/** What a run on this tab actually is. Answers the three questions the table raises but cannot: what one row represents, where the work happens, and why some task types are missing from this repo. */
+function AssemblyLineHelp() {
+  return (
+    <HelpPopover label="How assembly lines work">
+      <p>
+        An assembly line is one execution attempt: a graph of nodes (agent and
+        station steps) that produces one PR, tracked per attempt.
+      </p>
+      <ul>
+        <li>
+          Each task runs the pipeline: pull repo context → agent works →
+          deterministic validation (lint/typecheck) → branch + PR.
+        </li>
+        <li>
+          Simple types run via direct API calls; <strong>implementation</strong>{" "}
+          and <strong>review</strong> run in ephemeral Job pods.
+        </li>
+        <li>
+          Which types are allowed is gated by the repo&apos;s{" "}
+          <strong>trust level</strong> (see Settings).
+        </li>
+      </ul>
+    </HelpPopover>
+  );
+}
+
 /** Per-repo assembly-runs tab: pure render of runs via shared <AssemblyRunsTable>. */
 export default function RepoTasksView({
   owner,
@@ -21,27 +47,7 @@ export default function RepoTasksView({
       <div className={styles.header}>
         <div className={styles.heading}>
           <h2 className={styles.title}>Assembly Runs</h2>
-          <HelpPopover label="How assembly lines work">
-            <p>
-              An assembly line is one execution attempt: a graph of nodes (agent
-              and station steps) that produces one PR, tracked per attempt.
-            </p>
-            <ul>
-              <li>
-                Each task runs the pipeline: pull repo context → agent works →
-                deterministic validation (lint/typecheck) → branch + PR.
-              </li>
-              <li>
-                Simple types run via direct API calls;{" "}
-                <strong>implementation</strong> and <strong>review</strong> run
-                in ephemeral Job pods.
-              </li>
-              <li>
-                Which types are allowed is gated by the repo&apos;s{" "}
-                <strong>trust level</strong> (see Settings).
-              </li>
-            </ul>
-          </HelpPopover>
+          <AssemblyLineHelp />
         </div>
         <Link href={`/repos/${owner}/${repo}/tasks/create`}>
           <button>+ New Task</button>

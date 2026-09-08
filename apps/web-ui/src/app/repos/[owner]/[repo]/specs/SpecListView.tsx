@@ -101,44 +101,71 @@ function SpecCards({
   );
 }
 
+interface SpecListViewProps {
+  owner: string;
+  repo: string;
+  specs: SpecSummaryInput[];
+  statuses?: Record<string, SpecStatusInfo>;
+}
+
+/** What the reader has narrowed the list to. Defaults to every spec, ordered by path — the ordering a reader can predict before the page loads. */
+function useSpecListView() {
+  const [filter, setFilter] = useState<SpecStatusFilter>("all");
+  const [query, setQuery] = useState("");
+  const [order, setOrder] = useState<DocSortOrder>("path");
+
+  return { filter, setFilter, query, setQuery, order, setOrder };
+}
+
+/** Search, sort and the status chips. Counts come from the FULL set rather than the visible one: selecting a status must not make the other statuses look empty. */
+function ListControls({
+  view,
+  counts,
+  groupCount,
+}: {
+  view: ReturnType<typeof useSpecListView>;
+  counts: ReturnType<typeof visibleSpecs>["counts"];
+  groupCount: number;
+}) {
+  return (
+    <>
+      <DocListControls
+        query={view.query}
+        onQueryChange={view.setQuery}
+        sort={view.order}
+        onSortChange={view.setOrder}
+      />
+      <SpecStatusChips
+        counts={counts}
+        total={groupCount}
+        active={view.filter}
+        onChange={view.setFilter}
+      />
+    </>
+  );
+}
+
 export default function SpecListView({
   owner,
   repo,
   specs,
   statuses = {},
-}: {
-  owner: string;
-  repo: string;
-  specs: SpecSummaryInput[];
-  statuses?: Record<string, SpecStatusInfo>;
-}) {
-  const [filter, setFilter] = useState<SpecStatusFilter>("all");
-  const [query, setQuery] = useState("");
-  const [order, setOrder] = useState<DocSortOrder>("path");
+}: SpecListViewProps) {
+  const view = useSpecListView();
 
+  // No specs at all and none MATCHING are different answers: the first says the repo has none, the second that this filter is too narrow.
   if (specs.length === 0) {
     return <NoSpecsYet />;
   }
   const { counts, visible, ordered, statusOf, groupCount } = visibleSpecs(
     specs,
     statuses,
-    { filter, query, order },
+    view,
   );
 
   return (
     <div>
-      <DocListControls
-        query={query}
-        onQueryChange={setQuery}
-        sort={order}
-        onSortChange={setOrder}
-      />
-      <SpecStatusChips
-        counts={counts}
-        total={groupCount}
-        active={filter}
-        onChange={setFilter}
-      />
+      <ListControls view={view} counts={counts} groupCount={groupCount} />
       <SpecCards
         groups={ordered}
         statusOf={statusOf}

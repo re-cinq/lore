@@ -15,8 +15,7 @@ export type ContextCardChunk = Pick<
 
 export interface ContextCardProps {
   chunk: ContextCardChunk;
-  /** Link to the per-file detail route. */
-  /** Absent when the chunk has no `file_path` — there is no detail page for it. */
+  /** Link to the per-file detail route. Absent when the chunk has no `file_path` — there is no detail page for it. */
   detailHref?: string;
   /** owner/name of the chunk's repo, for GitHub links inside the preview. */
   repo: string;

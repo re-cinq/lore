@@ -340,6 +340,7 @@ export default tseslint.config(
       "apps/web-ui/src/app/repos/*/*/features/**/*.{ts,tsx}",
       "apps/web-ui/src/app/repos/*/*/graph/**/*.{ts,tsx}",
       "apps/web-ui/src/app/repos/*/*/agents/**/*.{ts,tsx}",
+      "apps/web-ui/src/app/repos/**/*.{ts,tsx}",
     ],
     rules: {
       "max-lines-per-function": [

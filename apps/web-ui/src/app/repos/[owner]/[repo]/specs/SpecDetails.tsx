@@ -13,115 +13,10 @@ import { resolveHref } from "@/lib/github-links";
 import { buildHighlighter } from "./statement-highlight";
 import readme from "../ReadmeBox.module.css";
 import styles from "./SpecDetails.module.css";
+import { StatementPopover } from "./StatementPopover";
 
 // Re-exported for backward compatibility (helper moved to github-links module).
 export { resolveHref };
-
-/** Tooltip inner content: drift notice + state block (narrative/untested/tested); needs repo/branch for links. */
-/** The tests that validate this statement, each linking to its exact line. The rationale under each link repeats the file and line as WRITTEN, so a reader can see what the link claims without following it. */
-function TestedState({
-  statement,
-  repo,
-  branch,
-}: {
-  statement: StatementInfo;
-  repo: string;
-  branch: string;
-}) {
-  return (
-    <div className={styles.popoverTested}>
-      <strong>
-        {statement.testLinks.length} test
-        {statement.testLinks.length === 1 ? "" : "s"} validate this
-      </strong>
-      <ul className={styles.popoverTestList}>
-        {statement.testLinks.map((t, i) => (
-          <li key={`${t.path}-${t.line ?? ""}-${i}`}>
-            <a
-              href={
-                resolveHref(
-                  `${t.path}${t.line ? `#L${t.line}` : ""}`,
-                  repo,
-                  branch,
-                ).href
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t.label}
-            </a>
-            <div className={styles.popoverRationale}>
-              {t.path}
-              {t.line ? `:${t.line}` : ""}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** What is known about this statement's coverage. Narrative is NOT a gap — it is excluded from the denominator because it states context rather than a verifiable requirement — so it reads differently from untested, which is a gap and says how to close it. */
-function StatementState({
-  statement,
-  repo,
-  branch,
-}: {
-  statement: StatementInfo;
-  repo: string;
-  branch: string;
-}) {
-  if (statement.state === "narrative") {
-    return (
-      <div className={styles.popoverNarrative}>
-        <strong>Narrative</strong>
-        {statement.category ? ` · ${statement.category}` : ""}
-        <div className={styles.popoverHint}>
-          Excluded from the coverage denominator — context, not a verifiable
-          requirement.
-        </div>
-      </div>
-    );
-  }
-
-  if (statement.state === "untested") {
-    return (
-      <div className={styles.popoverUntested}>
-        <strong>Untested</strong>
-        <div className={styles.popoverHint}>
-          Add an inline test link at end of this statement:{" "}
-          <code>([label](path/to/test.ts#L42))</code>
-        </div>
-      </div>
-    );
-  }
-
-  return <TestedState statement={statement} repo={repo} branch={branch} />;
-}
-
-function StatementPopover({
-  statement,
-  repo,
-  branch,
-}: {
-  statement: StatementInfo;
-  repo: string;
-  branch: string;
-}) {
-  return (
-    <>
-      {statement.drifted && (
-        <div className={styles.popoverDrift}>
-          <strong>Drifted</strong>
-          <div className={styles.popoverHint}>
-            The implementation changed since the validating test last passed.
-          </div>
-        </div>
-      )}
-      <StatementState statement={statement} repo={repo} branch={branch} />
-    </>
-  );
-}
 
 interface SpecDetailsProps {
   content: string;
@@ -174,15 +69,77 @@ function useStatementHighlighting(statements: StatementInfo[]) {
   return { statementsByOrdinal, rehypePlugins };
 }
 
-export default function SpecDetails(props: SpecDetailsProps) {
-  const { content, statements, repo, branch } = resolveSpecDetailsProps(props);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+/** The spec itself, with the statement-highlighting plugins applied. Those plugins are what put the hover targets in the rendered HTML, so the popover has something to attach to. */
+function SpecMarkdown({
+  content,
+  rehypePlugins,
+  components,
+}: {
+  content: string;
+  rehypePlugins: ReturnType<typeof useStatementHighlighting>["rehypePlugins"];
+  components: ReturnType<typeof useGithubLinks>;
+}) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rehypePlugins={rehypePlugins as any}
+      components={components}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
+
+/** The tooltip, positioned by CSS variables rather than inline top/left so the stylesheet keeps ownership of how it is offset from the text. */
+function HoverPopover({
+  at,
+  statement,
+  repo,
+  branch,
+}: {
+  at: { x: number; y: number };
+  statement: StatementInfo;
+  repo: string;
+  branch: string;
+}) {
+  return (
+    <div
+      className={styles.popover}
+      style={{
+        ["--popover-x" as string]: `${at.x}px`,
+        ["--popover-y" as string]: `${at.y}px`,
+      }}
+      role="tooltip"
+    >
+      <StatementPopover statement={statement} repo={repo} branch={branch} />
+    </div>
+  );
+}
+
+/** Which statement the pointer is over, and everything needed to say something about it. The ordinal is the join: the rehype plugins stamp it into the rendered HTML, the mouse handler reads it back off the hovered element, and this lookup turns it into the statement's coverage record. */
+function useHoveredStatement(
+  wrapperRef: React.RefObject<HTMLDivElement | null>,
+  statements: StatementInfo[],
+) {
   const { hover, onMouseOver, onMouseLeave } = useStatementHover(wrapperRef);
   const { statementsByOrdinal, rehypePlugins } =
     useStatementHighlighting(statements);
-  const hovered = hover ? statementsByOrdinal.get(hover.ordinal) : null;
 
-  const mdComponents = useGithubLinks(repo, branch);
+  return {
+    hover,
+    hovered: hover ? statementsByOrdinal.get(hover.ordinal) : null,
+    rehypePlugins,
+    onMouseOver,
+    onMouseLeave,
+  };
+}
+
+export default function SpecDetails(props: SpecDetailsProps) {
+  const { content, statements, repo, branch } = resolveSpecDetailsProps(props);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const { hover, hovered, rehypePlugins, onMouseOver, onMouseLeave } =
+    useHoveredStatement(wrapperRef, statements);
 
   return (
     <div>
@@ -192,25 +149,18 @@ export default function SpecDetails(props: SpecDetailsProps) {
         onMouseOver={onMouseOver}
         onMouseLeave={onMouseLeave}
       >
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          rehypePlugins={rehypePlugins as any}
-          components={mdComponents}
-        >
-          {content}
-        </ReactMarkdown>
+        <SpecMarkdown
+          content={content}
+          rehypePlugins={rehypePlugins}
+          components={useGithubLinks(repo, branch)}
+        />
         {hover && hovered && (
-          <div
-            className={styles.popover}
-            style={{
-              ["--popover-x" as string]: `${hover.x}px`,
-              ["--popover-y" as string]: `${hover.y}px`,
-            }}
-            role="tooltip"
-          >
-            <StatementPopover statement={hovered} repo={repo} branch={branch} />
-          </div>
+          <HoverPopover
+            at={hover}
+            statement={hovered}
+            repo={repo}
+            branch={branch}
+          />
         )}
       </div>
     </div>

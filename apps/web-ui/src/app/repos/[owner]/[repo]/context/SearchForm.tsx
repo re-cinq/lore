@@ -12,6 +12,26 @@ export interface SearchFormProps {
   q?: string;
 }
 
+/** The URL this search asks for. Carries the active type filter along with the query, so searching does not silently widen the list back to every content type. */
+function searchHref(
+  basePath: string,
+  value: string,
+  activeType: string | undefined,
+): string {
+  const params = new URLSearchParams();
+
+  if (value) {
+    params.set("q", value);
+  }
+
+  if (activeType) {
+    params.set("type", activeType);
+  }
+  const qs = params.toString();
+
+  return qs ? `${basePath}?${qs}` : basePath;
+}
+
 /** Keyword search box; client-side nav via router transition preserves active type filter. */
 export default function SearchForm({
   basePath,
@@ -24,18 +44,7 @@ export default function SearchForm({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const params = new URLSearchParams();
-
-    if (value) {
-      params.set("q", value);
-    }
-
-    if (activeType) {
-      params.set("type", activeType);
-    }
-    const qs = params.toString();
-
-    startTransition(() => router.push(qs ? `${basePath}?${qs}` : basePath));
+    startTransition(() => router.push(searchHref(basePath, value, activeType)));
   };
 
   return (

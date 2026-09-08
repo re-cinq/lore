@@ -92,7 +92,6 @@ export interface ChunkBodyProps {
   preview?: boolean;
 }
 
-/** Render ingested chunk: prose→ReactMarkdown with GitHub links, code→highlight.js. */
 /** Rewrites a chunk's links against the repo they were written in: a relative path becomes a blob URL on this branch, and anything leaving the site opens in a new tab with `noopener`. */
 function useResolvedLinks(repo: string, branch: string) {
   const mdComponents = useMemo(
@@ -121,6 +120,49 @@ function useResolvedLinks(repo: string, branch: string) {
   return mdComponents;
 }
 
+/** Where this chunk lives on GitHub. A code chunk carries its line range into the fragment so the link lands on the chunk rather than the top of the file; prose chunks have no range to point at. */
+function ghHrefFor({
+  repo,
+  branch,
+  filePath,
+  isCode,
+  metadata,
+}: {
+  repo: string;
+  branch: string;
+  filePath: string;
+  isCode: boolean;
+  metadata?: ChunkMeta;
+}) {
+  return blobUrl(repo, branch, filePath, codeLineRange(isCode, metadata));
+}
+
+/** The chunk's body. Code arrives already fenced by `markdownFor`, so both content kinds go through the same markdown renderer and differ only in the plugins they carry. */
+function ChunkMarkdown({
+  markdown,
+  rehypePlugins,
+  components,
+  className,
+}: {
+  markdown: string;
+  rehypePlugins: React.ComponentProps<typeof ReactMarkdown>["rehypePlugins"];
+  components: React.ComponentProps<typeof ReactMarkdown>["components"];
+  className: string;
+}) {
+  return (
+    <div className={className}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={rehypePlugins}
+        components={components}
+      >
+        {markdown}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+/** Render ingested chunk: prose→ReactMarkdown with GitHub links, code→highlight.js. */
 export default function ChunkBody({
   content,
   contentType,
@@ -136,25 +178,17 @@ export default function ChunkBody({
   const markdown = markdownFor(isCode, content, filePath);
   const rehypePlugins = rehypePluginsFor(isCode);
   const headerLabel = chunkHeader(contentType, metadata);
-  const ghHref = blobUrl(
-    repo,
-    branch,
-    filePath,
-    codeLineRange(isCode, metadata),
-  );
+  const ghHref = ghHrefFor({ repo, branch, filePath, isCode, metadata });
 
   return (
     <div>
       {!preview && <ChunkHeader headerLabel={headerLabel} ghHref={ghHref} />}
-      <div className={wrapperClass(preview)}>
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={rehypePlugins}
-          components={mdComponents}
-        >
-          {markdown}
-        </ReactMarkdown>
-      </div>
+      <ChunkMarkdown
+        markdown={markdown}
+        rehypePlugins={rehypePlugins}
+        components={mdComponents}
+        className={wrapperClass(preview)}
+      />
     </div>
   );
 }

@@ -32,7 +32,6 @@ function basename(filePath: string): string {
   return filePath.split("/").pop() || filePath;
 }
 
-/** Per-file context detail: full chunks rendered richly via ChunkBody (per-repo or global). */
 /** The same path can be absent while the page itself is valid — a file ingested under another repo, or one removed since. */
 function FileNotFound({
   filePath,
@@ -54,6 +53,47 @@ function FileNotFound({
   );
 }
 
+/** Which repo these chunks came from, and the way back to it. The link is absent in the per-repo view, where the reader is already there. */
+function GroupHeader({ group }: { group: ContextFileGroup }) {
+  return (
+    <div className={styles.groupHeader}>
+      <span className="meta">repo: {group.repo}</span>
+      {group.repoHref && (
+        <Link href={group.repoHref} className="meta">
+          view in repo →
+        </Link>
+      )}
+    </div>
+  );
+}
+
+/** One chunk, with the rule that separates it from the next. The last chunk in a repo takes no rule — the group's own boundary rule follows it instead. */
+function ChunkWithRule({
+  chunk,
+  group,
+  filePath,
+  ruled,
+}: {
+  chunk: ContextFileChunk;
+  group: ContextFileGroup;
+  filePath: string;
+  ruled: boolean;
+}) {
+  return (
+    <div>
+      <ChunkBody
+        content={chunk.content}
+        contentType={contentTypeOf(chunk.content_type)}
+        filePath={filePath}
+        repo={group.repo}
+        branch={group.branch ?? "main"}
+        metadata={chunk.metadata ?? undefined}
+      />
+      {ruled && <hr className={`${styles.hr} ${styles.chunkRule}`} />}
+    </div>
+  );
+}
+
 /** One repo's chunks for this path. The header appears only when there is more than one repo to tell apart, and the rules separate chunks WITHIN a repo from the boundary between repos. */
 function RepoChunkGroup({
   group: g,
@@ -68,36 +108,22 @@ function RepoChunkGroup({
 }) {
   return (
     <div key={g.repo} className={styles.group}>
-      {showHeader && (
-        <div className={styles.groupHeader}>
-          <span className="meta">repo: {g.repo}</span>
-          {g.repoHref && (
-            <Link href={g.repoHref} className="meta">
-              view in repo →
-            </Link>
-          )}
-        </div>
-      )}
+      {showHeader && <GroupHeader group={g} />}
       {g.chunks.map((c, i) => (
-        <div key={c.id}>
-          <ChunkBody
-            content={c.content}
-            contentType={contentTypeOf(c.content_type)}
-            filePath={filePath}
-            repo={g.repo}
-            branch={g.branch ?? "main"}
-            metadata={c.metadata ?? undefined}
-          />
-          {i < g.chunks.length - 1 && (
-            <hr className={`${styles.hr} ${styles.chunkRule}`} />
-          )}
-        </div>
+        <ChunkWithRule
+          key={c.id}
+          chunk={c}
+          group={g}
+          filePath={filePath}
+          ruled={i < g.chunks.length - 1}
+        />
       ))}
       {!lastGroup && <hr className={`${styles.hr} ${styles.groupRule}`} />}
     </div>
   );
 }
 
+/** Per-file context detail: full chunks rendered richly via ChunkBody (per-repo or global). */
 export default function ContextFileView({
   filePath,
   contextLink,

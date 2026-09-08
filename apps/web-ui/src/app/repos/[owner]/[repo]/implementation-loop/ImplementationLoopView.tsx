@@ -50,7 +50,6 @@ export function timeAgo(iso: string | null, now: Date = new Date()): string {
   return match ? formatTimeAgo(seconds, match[0], match[1]) : "";
 }
 
-/** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */
 /** How a ticket enters the loop and what it does with it. Kept beside the queues because the priority label IS the whole opt-in, and a reader looking at an empty backlog needs to know that before anything appears. */
 function LoopExplainer() {
   return (
@@ -69,6 +68,52 @@ function LoopExplainer() {
   );
 }
 
+/** What the loop is, and the one control that runs it. The button is disabled for the length of the transition so a double click cannot send two conflicting toggles. */
+function LoopHeader({
+  enabled,
+  toggle,
+}: {
+  enabled: boolean;
+  toggle: (enabled: boolean) => Promise<void>;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <div className={styles.header}>
+      <p className="meta">
+        The implementation loop works this repo&apos;s backlog one ticket at a
+        time.
+      </p>
+      <button
+        className="button"
+        disabled={pending}
+        onClick={() => startTransition(() => toggle(!enabled))}
+      >
+        {enabled ? "Disable loop" : "Enable loop"}
+      </button>
+    </div>
+  );
+}
+
+/** One stage of the backlog. Each empty text says what would put a ticket here rather than just "none", because an empty section usually means the reader has something to do. */
+function LoopSection({
+  heading,
+  tickets,
+  emptyText,
+}: {
+  heading: string;
+  tickets: ImplementationLoop["next"];
+  emptyText: string;
+}) {
+  return (
+    <section className={styles.section}>
+      <h2>{heading}</h2>
+      <TicketTable tickets={tickets} emptyText={emptyText} />
+    </section>
+  );
+}
+
+/** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */
 export default function ImplementationLoopView({
   loop,
   toggle,
@@ -76,46 +121,26 @@ export default function ImplementationLoopView({
   loop: ImplementationLoop;
   toggle: (enabled: boolean) => Promise<void>;
 }) {
-  const [pending, startTransition] = useTransition();
-
   return (
     <div>
-      <div className={styles.header}>
-        <p className="meta">
-          The implementation loop works this repo&apos;s backlog one ticket at a
-          time.
-        </p>
-        <button
-          className="button"
-          disabled={pending}
-          onClick={() => startTransition(() => toggle(!loop.enabled))}
-        >
-          {loop.enabled ? "Disable loop" : "Enable loop"}
-        </button>
-      </div>
-
+      <LoopHeader enabled={loop.enabled} toggle={toggle} />
       <LoopExplainer />
 
-      <section className={styles.section}>
-        <h2>Current</h2>
-        <TicketTable
-          tickets={loop.current ? [loop.current] : []}
-          emptyText="No ticket is being worked right now."
-        />
-      </section>
-
-      <section className={styles.section}>
-        <h2>Next up</h2>
-        <TicketTable
-          tickets={loop.next}
-          emptyText="The backlog is empty. Label an issue priority:high, priority:medium, or priority:low to queue it."
-        />
-      </section>
-
-      <section className={styles.section}>
-        <h2>Recently addressed</h2>
-        <TicketTable tickets={loop.recent} emptyText="Nothing addressed yet." />
-      </section>
+      <LoopSection
+        heading="Current"
+        tickets={loop.current ? [loop.current] : []}
+        emptyText="No ticket is being worked right now."
+      />
+      <LoopSection
+        heading="Next up"
+        tickets={loop.next}
+        emptyText="The backlog is empty. Label an issue priority:high, priority:medium, or priority:low to queue it."
+      />
+      <LoopSection
+        heading="Recently addressed"
+        tickets={loop.recent}
+        emptyText="Nothing addressed yet."
+      />
     </div>
   );
 }
