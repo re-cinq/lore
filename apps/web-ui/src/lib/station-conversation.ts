@@ -37,10 +37,10 @@ const RENDER_BY_TYPE: {
   tool_use: toolSummary,
 };
 
-function renderContentPart(block: ContentBlock): string | null {
-  // Keyed by type, so this entry takes this variant; the index loses that.
-  const render = RENDER_BY_TYPE[block.type] as
-    ((b: ContentBlock) => string | null) | undefined;
+function renderContentPart<K extends ContentBlock["type"]>(
+  block: Extract<ContentBlock, { type: K }>,
+): string | null {
+  const render = RENDER_BY_TYPE[block.type];
 
   return render ? render(block) : null;
 }

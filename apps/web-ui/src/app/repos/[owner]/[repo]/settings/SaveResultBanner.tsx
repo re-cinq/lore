@@ -88,13 +88,10 @@ const BANNER_BY_STATUS: {
   error: (privileged) => <PrivilegedError message={privileged.message} />,
 };
 
-function renderPrivileged(privileged: PrivilegedSaveResult) {
-  // Keyed by status, so this entry takes this variant; the index loses that.
-  const banner = BANNER_BY_STATUS[privileged.status] as (
-    p: PrivilegedSaveResult,
-  ) => ReactElement;
-
-  return banner(privileged);
+function renderPrivileged<K extends PrivilegedSaveResult["status"]>(
+  privileged: Extract<PrivilegedSaveResult, { status: K }>,
+) {
+  return BANNER_BY_STATUS[privileged.status](privileged);
 }
 
 function PrivilegedFeedback({

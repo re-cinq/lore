@@ -96,9 +96,8 @@ const REASON_BY_KIND: {
   capable: (verdict) => becauseWedged(verdict.agents),
 };
 
-function becauseOf(verdict: CapacityVerdict): string {
-  // Keyed by kind, so this entry takes this variant; the index loses that.
-  const reason = REASON_BY_KIND[verdict.kind] as (v: CapacityVerdict) => string;
-
-  return reason(verdict);
+function becauseOf<K extends CapacityVerdict["kind"]>(
+  verdict: Extract<CapacityVerdict, { kind: K }>,
+): string {
+  return REASON_BY_KIND[verdict.kind](verdict);
 }
