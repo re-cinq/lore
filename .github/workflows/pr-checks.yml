@@ -173,8 +173,10 @@ jobs:
           # include check-eslint-rules-registered (every re-lint rule is switched
           # on somewhere in eslint.config.mjs) and check-spec-parser-parity (the
           # spec parsers vendored into @re-cinq/eslint-plugin-re-lint still agree
-          # with libs/shared on this repo's own corpus).
+          # with libs/shared on this repo's own corpus; that one imports the
+          # compiled @re-cinq/lore-shared, hence the build).
           - name: scripts
+            build: npm run build -w @re-cinq/lore-shared
             test: find scripts -name '*.test.mjs' -print0 | xargs -0 node --test
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
