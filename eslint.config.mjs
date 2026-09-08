@@ -495,6 +495,15 @@ export default tseslint.config(
       // between collaborators the rule is about. 1023 of 1356 findings were
       // this; leaving them in would bury the 332 that are real.
       "re-lint/max-member-chain": "off",
+      // A test states its arrangement in full so it can be read on its own,
+      // so a small arrange-act-assert shape recurring is the style working,
+      // not a defect. The repo also anchors spec statements at individual
+      // test lines: 1420 of the rule's 1422 test findings sit in files a
+      // spec links by line, and the fix jscpd asks for — one table-driven
+      // test instead of twenty — would delete the very call sites those
+      // links point at. Duplication that matters between tests is a shared
+      // fixture, which is a judgement the author makes, not a token count.
+      "re-lint/no-duplicate-code": "off",
       // A recording double IS half data and half behaviour: the code under
       // test writes the field and the test reads it. That is the point.
       "re-lint/no-hybrid-class": "off",
