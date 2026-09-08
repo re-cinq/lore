@@ -7,6 +7,7 @@ import type {
   CiConclusion,
   CheckRun,
 } from "../pulls/pull-requests-port.js";
+import { ciConclusionOf } from "../pulls/check-runs.js";
 import { split } from "./platform-github-support.js";
 
 /** PR review/comment/CI reads for PlatformGitHub — everything downstream of a PR's review state. */
@@ -245,41 +246,15 @@ export async function checkRuns(
     name: r.name,
     status: r.status,
     conclusion: r.conclusion,
+    // Projected, not spread: the output also carries `text` and the annotation counters, none of which a prompt has room for.
+    output: { title: r.output.title, summary: r.output.summary },
   }));
 }
-
-/** Check-run conclusions that make the whole ref red. */
-const FAILED_CONCLUSIONS = new Set([
-  "failure",
-  "cancelled",
-  "timed_out",
-  "action_required",
-  "stale",
-]);
 
 export async function ciConclusion(
   ok: Octokit,
   repo: string,
   ref: string,
 ): Promise<CiConclusion> {
-  const runs = await checkRuns(ok, repo, ref);
-
-  if (runs.length === 0) {
-    return "none";
-  }
-
-  if (runs.some((r) => r.status !== "completed")) {
-    return "pending";
-  }
-
-  if (runs.some(isFailedRun)) {
-    return "failure";
-  }
-
-  return "success";
-}
-
-/** A completed run whose conclusion makes the ref red; a null conclusion is not a failure. */
-function isFailedRun(run: CheckRun): boolean {
-  return run.conclusion != null && FAILED_CONCLUSIONS.has(run.conclusion);
+  return ciConclusionOf(await checkRuns(ok, repo, ref));
 }
