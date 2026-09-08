@@ -18,7 +18,7 @@
   "dependencies": {
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": "^0.22.0",
     "@google-cloud/opentelemetry-cloud-trace-exporter": "^3.1.0",
-    "@google-cloud/storage": "^7.22.0",
+    "@google-cloud/storage": "^8.0.1",
     "@hapi/boom": "^10.0.1",
     "@hapi/hapi": "21.4.10",
     "@octokit/auth-app": "^8.3.1",
