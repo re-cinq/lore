@@ -28,6 +28,7 @@ import { zodValidate } from "../../http/zod-validate.js";
 import {
   clampedLimit,
   offsetParam,
+  optionalBool,
   DB_UNAVAILABLE,
 } from "../common-schemas.js";
 
@@ -42,7 +43,7 @@ const MemoryAuditQuery = z.object({
   agent: z.string().max(200).optional(),
   operation: z.string().max(40).optional(),
   // The gap view's lens: filter server-side, or paging in Node would page over the wrong set.
-  zero_results: z.coerce.boolean().optional(),
+  zero_results: optionalBool,
   limit: clampedLimit.default(50),
   offset: offsetParam,
 });

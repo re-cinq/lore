@@ -18,7 +18,7 @@ import { repoFullName } from "../common-schemas.js";
 
 const PrStatusQuery = z.object({
   repo: repoFullName,
-  pr_number: z.coerce.number().int().positive(),
+  pr_number: z.coerce.number().int().positive(), // eslint-disable-line re-lint/max-member-chain -- pipeline over a value already in hand
 });
 
 type PrStatusQuery = z.infer<typeof PrStatusQuery>;

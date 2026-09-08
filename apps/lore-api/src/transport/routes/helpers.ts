@@ -12,10 +12,16 @@ export function makeGraphLlmCall(
     return undefined;
   }
 
-  return (prompt: string) =>
-    Llm.instance
-      .complete({ prompt, jobName: "graph-extraction" })
-      .then((r) => r.text);
+  const llm = Llm.instance;
+
+  return async (prompt: string) => {
+    const { text } = await llm.complete({
+      prompt,
+      jobName: "graph-extraction",
+    });
+
+    return text;
+  };
 }
 
 // ── Post-ingest producers (Floor event bus) ─────────────────────────

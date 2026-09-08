@@ -107,8 +107,9 @@ export function pipelineOf(
     return null;
   }
   const latest = latestVisitByNode(run.id, nodeRows);
+  const { nodes } = run.graph;
 
-  return run.graph.nodes.map((node) => nodeState(node, latest.get(node.id)));
+  return nodes.map((node) => nodeState(node, latest.get(node.id)));
 }
 
 function runSummary(run: LoopRunRow | undefined): {
@@ -119,7 +120,7 @@ function runSummary(run: LoopRunRow | undefined): {
 }
 
 function ticketTitle(issue: IssueRef | undefined, row: LoopTaskRow): string {
-  return issue?.title ?? row.description.split("\n")[0];
+  return issue?.title ?? row.description.split("\n")[0]; // eslint-disable-line re-lint/max-member-chain -- pipeline over a value already in hand
 }
 
 export function taskTicket(

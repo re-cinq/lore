@@ -38,9 +38,10 @@ type Trace = ProjectResult["trace"];
 
 // lore.features is source of truth for Feature nodes (ADR-027); tolerate 42P01.
 async function graphWithFeatures(trace: Trace, project: ProjectResult) {
+  const { features: featureStore } = project;
   const [graph, features] = await Promise.all([
     trace.graph(),
-    project.features.list().catch((err) => {
+    featureStore.list().catch((err) => {
       if ((err as { code?: string }).code === "42P01") {
         return [];
       }

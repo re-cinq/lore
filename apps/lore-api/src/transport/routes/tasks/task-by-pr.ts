@@ -52,24 +52,24 @@ async function taskIdFromGithub(
   repoName: string,
   prNumber: number,
 ): Promise<PrTrailerResult> {
-  const octokit = await getOctokit();
-  const pr = await octokit.rest.pulls.get({
+  const { pulls, git } = (await getOctokit()).rest;
+  const { data: pr } = await pulls.get({
     owner,
     repo: repoName,
     pull_number: prNumber,
   });
 
-  const fromBody = pr.data.body?.match(LORE_TASK_TRAILER_RE);
+  const fromBody = pr.body?.match(LORE_TASK_TRAILER_RE);
 
   if (fromBody) {
     return { task_id: fromBody[1], trailer_source: "pr_body" };
   }
 
   // Final commit on the PR head branch.
-  const commit = await octokit.rest.git.getCommit({
+  const commit = await git.getCommit({
     owner,
     repo: repoName,
-    commit_sha: pr.data.head.sha,
+    commit_sha: pr.head.sha,
   });
   const trailers = parseTrailers(commit.data.message);
   const taskId = trailers?.taskId;

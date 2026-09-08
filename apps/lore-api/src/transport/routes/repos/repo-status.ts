@@ -33,7 +33,9 @@ const RepoStatusSchema = z.object({
 const STALE_AFTER_MS = 7 * 86400000;
 
 function rowCount(result: { rows: Array<{ c?: string | number }> }): number {
-  return Number(result.rows[0]?.c ?? 0);
+  const { rows } = result;
+
+  return Number(rows[0]?.c ?? 0);
 }
 
 function isStale(lastIngested: string | null): boolean {

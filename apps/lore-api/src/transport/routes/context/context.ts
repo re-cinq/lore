@@ -25,7 +25,7 @@ const ContextQuery = z.object({
     .default("default"),
   debug: boolFlag,
   // .max(128000) keeps unbounded chunks from re-opening on agent CR size limit.
-  max_tokens: z.coerce
+  max_tokens: z.coerce // eslint-disable-line re-lint/max-member-chain -- pipeline over a value already in hand
     .number()
     .int()
     .positive()

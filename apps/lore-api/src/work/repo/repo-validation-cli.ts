@@ -47,10 +47,10 @@ console.error(
 );
 
 const filesIdx = args.indexOf("--files");
-const changedFiles =
-  filesIdx >= 0 && args[filesIdx + 1]
-    ? args[filesIdx + 1].split(/\s+/).filter(Boolean)
-    : undefined;
+const filesArg = filesIdx >= 0 ? args[filesIdx + 1] : undefined;
+const changedFiles = filesArg
+  ? filesArg.split(/\s+/).filter(Boolean)
+  : undefined;
 
 const result = await runValidation(repoRoot, steps, changedFiles);
 

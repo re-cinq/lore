@@ -120,5 +120,7 @@ export function configWithPodResources(
 
 /** Image is two-key gated (ADR-025): a write that sets a non-empty image needs the approval PR. */
 export function imageFieldTouched(input: { image?: string | null }): boolean {
-  return typeof input.image === "string" && input.image.trim().length > 0;
+  const { image } = input;
+
+  return typeof image === "string" && image.trim().length > 0;
 }

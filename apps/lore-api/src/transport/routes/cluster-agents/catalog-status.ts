@@ -97,12 +97,11 @@ export async function handleCatalogStatus(
     return { code: 400, body: { error: "invalid report" } };
   }
 
-  await deps.status.record(agent.agent.id, parsed.data.reports.map(toRecord));
+  const { reports } = parsed.data;
 
-  return {
-    code: 200,
-    body: { ok: true, recorded: parsed.data.reports.length },
-  };
+  await deps.status.record(agent.agent.id, reports.map(toRecord));
+
+  return { code: 200, body: { ok: true, recorded: reports.length } };
 }
 
 /** A cluster-agent reporting what it applied. The cursor moves only on this report, so a failed apply is retried rather than skipped. */

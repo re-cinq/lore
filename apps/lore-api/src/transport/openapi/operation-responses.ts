@@ -77,15 +77,14 @@ function restoreLegacyShape({
   zodSchema: { _zod: { def: { type: string } } };
   jsonSchema: Record<string, unknown>;
 }): void {
-  if (zodSchema._zod.def.type === "date") {
+  const { def } = zodSchema._zod;
+
+  if (def.type === "date") {
     jsonSchema.type = "string";
     jsonSchema.format = "date-time";
   }
 
-  if (
-    zodSchema._zod.def.type === "object" &&
-    jsonSchema.additionalProperties === undefined
-  ) {
+  if (def.type === "object" && jsonSchema.additionalProperties === undefined) {
     jsonSchema.additionalProperties = false;
   }
 }
