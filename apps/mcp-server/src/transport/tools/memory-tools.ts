@@ -207,12 +207,13 @@ function registerDeleteMemoryTool(server: McpServer) {
 function listReadSpec(
   agent_id: string | undefined,
   limit: number,
+  offset: number,
   repo: string | undefined,
 ) {
   return {
     tool: "lore_list_memories" as const,
     op: "list" as const,
-    args: { agent_id: agent_id || undefined, limit, repo },
+    args: { agent_id: agent_id || undefined, limit, offset, repo },
     repo,
   };
 }
@@ -241,8 +242,9 @@ async function listMemoriesHandler({
   const repo = detectCurrentRepo() || undefined;
 
   try {
-    return await cachedMemoryRead(listReadSpec(agent_id, limit, repo), () =>
-      listFromFile(agent_id, limit, offset),
+    return await cachedMemoryRead(
+      listReadSpec(agent_id, limit, offset, repo),
+      () => listFromFile(agent_id, limit, offset),
     );
   } catch (err) {
     return textResult(`Error listing memories: ${errorMessage(err)}`);
