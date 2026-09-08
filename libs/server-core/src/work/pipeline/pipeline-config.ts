@@ -16,9 +16,9 @@ let config: Record<string, TaskTypeRecipe> = {};
 
 // ── Public API ───────────────────────────────────────────────────────
 
-export function loadTaskTypes(): void {
-  // Look for task-types.yaml in several locations
-  const paths = [
+// Where task-types.yaml might be, most specific first: an explicit override, the working tree, the mounted context, then a developer's install.
+function candidatePaths(): string[] {
+  return [
     process.env.TASK_TYPES_PATH || "",
     join(process.cwd(), "scripts", "task-types.yaml"),
     join(process.env.CONTEXT_PATH || "", "scripts", "task-types.yaml"),
@@ -30,21 +30,31 @@ export function loadTaskTypes(): void {
       "task-types.yaml",
     ),
   ].filter(Boolean);
+}
 
-  for (const p of paths) {
-    try {
-      const { taskTypes, drift } = parseTaskTypesFile(readFileSync(p, "utf-8"));
+// One candidate. A malformed or missing file is skipped so the next path gets a turn — but drift in a file that DID parse is warned about rather than ignored, the same #866 ConfigMap risk the Floor's reader carries.
+function tryLoad(path: string): boolean {
+  try {
+    const { taskTypes, drift } = parseTaskTypesFile(
+      readFileSync(path, "utf-8"),
+    );
 
-      config = taskTypes;
-      console.log(
-        `[pipeline] Loaded ${Object.keys(config).length} task types from ${p}`,
-      );
-      // Same #866 ConfigMap risk as Floor's reader — warn rather than ignore.
-      warnOnDrift("[pipeline]", p, drift);
+    config = taskTypes;
+    console.log(
+      `[pipeline] Loaded ${Object.keys(config).length} task types from ${path}`,
+    );
+    warnOnDrift("[pipeline]", path, drift);
 
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadTaskTypes(): void {
+  for (const path of candidatePaths()) {
+    if (tryLoad(path)) {
       return;
-    } catch {
-      // ignore malformed candidate; try the next path
     }
   }
   console.warn("[pipeline] No task-types.yaml found, using empty config");

@@ -73,35 +73,37 @@ export interface CreateTaskInput {
   contextRefs?: { fact_ids: string[]; memory_ids: string[] };
 }
 
-export function createTask({
-  description,
-  taskType = "general",
-  targetRepo,
-  createdBy = "ui",
-  contextBundle,
-  priority = "normal",
-  taskGroupId,
-  contextRefs,
-}: CreateTaskInput): Promise<{
-  task_id: string;
-  task_type: string;
-  status: string;
-  priority: string;
-  created_at: string;
-}> {
+export function createTask(
+  input: CreateTaskInput,
+): Promise<Awaited<ReturnType<typeof createPipelineTask>>> {
+  const taskType = input.taskType ?? "general";
+
   return createPipelineTask(getPool(), {
-    description,
+    ...input,
     taskType,
-    targetRepo: targetRepo || getDefaultRepo(taskType),
-    createdBy,
-    contextBundle,
-    priority,
-    taskGroupId,
-    contextRefs,
+    // A task with no repo of its own goes to the task type's default — the pipeline cannot dispatch one that names no repo at all.
+    targetRepo: input.targetRepo || getDefaultRepo(taskType),
+    createdBy: input.createdBy ?? "ui",
+    priority: input.priority ?? "normal",
   });
 }
 
 // ── Review iteration (T025) ─────────────────────────────────────────
+
+// Another pass at the same PR. `immediate` because this closes an ACTIVE feedback loop — the reviewer is waiting on a PR that already exists, not queueing new work behind it.
+function revisionTask(
+  task: { task_type: unknown; target_repo: string; target_branch?: string },
+  comments: string,
+): CreateTaskInput {
+  return {
+    description: `Address review feedback on PR: ${comments.substring(0, 200)}`,
+    taskType: task.task_type as string,
+    targetRepo: task.target_repo,
+    createdBy: "review-agent",
+    contextBundle: { branch: task.target_branch, review_comments: comments },
+    priority: "immediate",
+  };
+}
 
 /** A second round of changes goes to a human: two agent-driven iterations on the same PR have not converged, and a third would spend tokens re-litigating the same comments. */
 async function escalateOrIterate(
@@ -120,18 +122,18 @@ async function escalateOrIterate(
     return;
   }
 
-  // `immediate` because this closes an active feedback loop — the reviewer is waiting on the same PR, not queueing new work.
-  await createTask({
-    description: `Address review feedback on PR: ${comments.substring(0, 200)}`,
-    taskType: task.task_type as string,
-    targetRepo: task.target_repo,
-    createdBy: "review-agent",
-    contextBundle: { branch: task.target_branch, review_comments: comments },
-    priority: "immediate",
-  });
+  await createTask(revisionTask(task, comments));
   await updateTaskStatus(taskId, "review", {
     review_result: "changes-requested",
     iteration,
+  });
+}
+
+// Agent approval is RECORDED, not acted on — a human still merges. Writing it here is what lets the PR page say the review passed without the pipeline treating that as permission.
+async function recordApproval(taskId: string, comments: string): Promise<void> {
+  await updateTaskStatus(taskId, "review", {
+    review_result: "approved",
+    comments,
   });
 }
 
@@ -147,11 +149,7 @@ export async function handleReviewResult(
   }
 
   if (approved) {
-    // Agent approval is recorded, not acted on — a human still merges.
-    await updateTaskStatus(taskId, "review", {
-      review_result: "approved",
-      comments,
-    });
+    await recordApproval(taskId, comments);
 
     return;
   }

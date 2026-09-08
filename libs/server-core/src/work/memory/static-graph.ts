@@ -98,6 +98,49 @@ function adjacencyOf(
   return adjacency;
 }
 
+// Walks the queue until it empties, appending each new chain as it is reached. One visit per entity, so a chain is its SHORTEST path — a second route to the same entity says nothing the first did not.
+function drainQueue(
+  queue: TraversalNode[],
+  chains: string[],
+  depth: number,
+  ctx: {
+    adjacency: Map<string, { relType: string; neighborId: string }[]>;
+    entityById: Map<string, GraphEntity>;
+    visited: Set<string>;
+  },
+): void {
+  while (queue.length > 0) {
+    const node = queue.shift()!;
+    const next =
+      node.hops < depth
+        ? unvisitedNeighbors(node, ctx.adjacency, ctx.entityById, ctx.visited)
+        : [];
+
+    chains.push(...next.map((n) => n.chain));
+    queue.push(...next);
+  }
+}
+
+// The seeds as traversal nodes, marked visited. Each seed is itself a RESULT, not only a starting point — an entity the query named is part of the answer even when it has no neighbours.
+function seedQueue(
+  seedIds: Set<string>,
+  entityById: Map<string, GraphEntity>,
+  visited: Set<string>,
+): TraversalNode[] {
+  const queue: TraversalNode[] = [];
+
+  for (const seedId of seedIds) {
+    const entity = entityById.get(seedId);
+
+    if (entity) {
+      queue.push({ entityId: seedId, chain: formatEntity(entity), hops: 0 });
+      visited.add(seedId);
+    }
+  }
+
+  return queue;
+}
+
 /** BFS out from the seeds, up to `depth` hops, collecting the chain of labels walked to reach each entity; one visit per entity, so a chain is its shortest path. */
 function traverseGraph(
   graph: Graph,
@@ -106,35 +149,31 @@ function traverseGraph(
 ): string[] {
   const entityById = new Map(graph.entities.map((e) => [e.id, e]));
   const adjacency = adjacencyOf(graph);
-  const chains: string[] = [];
   const visited = new Set<string>();
-  const queue: TraversalNode[] = [];
+  const queue = seedQueue(seedIds, entityById, visited);
+  const chains = queue.map((node) => node.chain);
 
-  for (const seedId of seedIds) {
-    const entity = entityById.get(seedId);
-
-    if (entity) {
-      const label = formatEntity(entity);
-
-      queue.push({ entityId: seedId, chain: label, hops: 0 });
-      visited.add(seedId);
-      // The seed entity is itself a result, not only a starting point.
-      chains.push(label);
-    }
-  }
-
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    const next =
-      node.hops < depth
-        ? unvisitedNeighbors(node, adjacency, entityById, visited)
-        : [];
-
-    chains.push(...next.map((n) => n.chain));
-    queue.push(...next);
-  }
+  drainQueue(queue, chains, depth, {
+    adjacency,
+    entityById,
+    visited,
+  });
 
   return chains;
+}
+
+// One hop further, carrying the path walked to get here. The chain is what makes a result explicable — "auth → depends-on:postgres" says why the entity turned up, which the entity alone does not.
+function step(
+  node: TraversalNode,
+  relType: string,
+  neighborId: string,
+  neighbor: GraphEntity,
+): TraversalNode {
+  return {
+    entityId: neighborId,
+    chain: `${node.chain} → ${relType}:${formatEntity(neighbor)}`,
+    hops: node.hops + 1,
+  };
 }
 
 function unvisitedNeighbors(
@@ -153,11 +192,7 @@ function unvisitedNeighbors(
     visited.add(neighborId);
 
     if (neighbor) {
-      found.push({
-        entityId: neighborId,
-        chain: `${node.chain} → ${relType}:${formatEntity(neighbor)}`,
-        hops: node.hops + 1,
-      });
+      found.push(step(node, relType, neighborId, neighbor));
     }
   }
 
@@ -260,6 +295,24 @@ function loadGraph(): Graph | string {
     : 'Error: graph.json is missing required "entities" or "relationships" fields.';
 }
 
+// The domain's summary, or a miss that names what IS available — which turns a dead end into a usable answer. Matched case-insensitively, because the caller is typing a name a human wrote.
+function domainAnswer(communities: Community[], domain: string): string {
+  const lowerDomain = domain.toLowerCase();
+  const match = communities.find(
+    (c) => c.domain && c.domain.toLowerCase() === lowerDomain,
+  );
+
+  if (match) {
+    return `## Domain: ${match.domain}\n\n${match.summary}`;
+  }
+  const available = communities
+    .map((c) => c.domain)
+    .filter(Boolean)
+    .join(", ");
+
+  return `No community found for domain "${domain}".${available ? ` Available domains: ${available}.` : ""}`;
+}
+
 // get_domain_summary: return the prose summary for a community/domain.
 export async function getDomainSummaryHandler({
   domain,
@@ -272,23 +325,8 @@ export async function getDomainSummaryHandler({
     if (typeof communities === "string") {
       return text(communities);
     }
-    const lowerDomain = domain.toLowerCase();
-    const match = communities.find(
-      (c) => c.domain && c.domain.toLowerCase() === lowerDomain,
-    );
 
-    if (match) {
-      return text(`## Domain: ${match.domain}\n\n${match.summary}`);
-    }
-    // Naming what IS available turns a miss into a usable answer.
-    const available = communities
-      .map((c) => c.domain)
-      .filter(Boolean)
-      .join(", ");
-
-    return text(
-      `No community found for domain "${domain}".${available ? ` Available domains: ${available}.` : ""}`,
-    );
+    return text(domainAnswer(communities, domain));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
 

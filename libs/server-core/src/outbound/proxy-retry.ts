@@ -72,6 +72,16 @@ interface Attempt {
   ) => ProxyResult;
 }
 
+// A credential the API will not accept. Terminal rather than retriable: the token is wrong, and trying again with the same one only spends attempts.
+function denialOutcome(label: string, statusDetail: string): RequestOutcome {
+  console.error(`[lore-mcp] ${label} denied (${statusDetail})`);
+
+  return {
+    done: true,
+    result: { ok: false, reason: "denied", detail: statusDetail },
+  };
+}
+
 /** A non-ok response is one of three answers, and only the middle one is worth another attempt. */
 async function classifyFailure(
   res: Response,
@@ -80,12 +90,7 @@ async function classifyFailure(
   const statusDetail = `HTTP ${res.status} ${res.statusText}`;
 
   if (isAuthDenial(res.status)) {
-    console.error(`[lore-mcp] ${attempt.label} denied (${statusDetail})`);
-
-    return {
-      done: true,
-      result: { ok: false, reason: "denied", detail: statusDetail },
-    };
+    return denialOutcome(attempt.label, statusDetail);
   }
 
   if (isRetriableStatus(res.status)) {
@@ -135,6 +140,35 @@ async function backoff(
   await new Promise((r) => setTimeout(r, delay));
 }
 
+// Every attempt is spent. Reports the LAST failure rather than the first: it is the one that was true when the caller gave up, and the earlier ones were already logged as they happened.
+function exhausted(label: string, lastDetail: string): ProxyResult {
+  console.error(
+    `[lore-mcp] ${label} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`,
+  );
+
+  return { ok: false, reason: "unreachable", detail: lastDetail };
+}
+
+// Attempts until one settles or the delays run out. The backoff sits BETWEEN attempts, never after the last — waiting once more before reporting exhaustion would delay the answer without buying another try.
+async function retryLoop(attempt: Attempt): Promise<RequestOutcome> {
+  let lastDetail = "no attempts made";
+
+  for (let n = 0; n <= PROXY_RETRY_DELAYS_MS.length; n++) {
+    const outcome = await attemptRequest(attempt);
+
+    if (outcome.done) {
+      return outcome;
+    }
+    lastDetail = outcome.detail;
+
+    if (n < PROXY_RETRY_DELAYS_MS.length) {
+      await backoff(n, attempt.label, lastDetail);
+    }
+  }
+
+  return { done: false, detail: lastDetail };
+}
+
 // Shared retry loop behind proxyToApi/proxyGetApi: only the request + non-retriable-4xx shape differ.
 export async function requestWithRetry(
   makeRequest: () => Promise<Response>,
@@ -146,23 +180,7 @@ export async function requestWithRetry(
   ) => ProxyResult,
 ): Promise<ProxyResult> {
   const attempt: Attempt = { makeRequest, label, buildNonRetriableResult };
-  let lastDetail = "no attempts made";
+  const outcome = await retryLoop(attempt);
 
-  for (let n = 0; n <= PROXY_RETRY_DELAYS_MS.length; n++) {
-    const outcome = await attemptRequest(attempt);
-
-    if (outcome.done) {
-      return outcome.result;
-    }
-    lastDetail = outcome.detail;
-
-    if (n < PROXY_RETRY_DELAYS_MS.length) {
-      await backoff(n, label, lastDetail);
-    }
-  }
-  console.error(
-    `[lore-mcp] ${label} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`,
-  );
-
-  return { ok: false, reason: "unreachable", detail: lastDetail };
+  return outcome.done ? outcome.result : exhausted(label, outcome.detail);
 }

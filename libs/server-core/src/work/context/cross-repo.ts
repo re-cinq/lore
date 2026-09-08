@@ -10,6 +10,20 @@ function rowAllowsCrossRepo(rows: RepoSettingsRow[]): boolean {
   return settings?.cross_repo === true;
 }
 
+// What the repo's own settings say. Best-effort: a settings lookup that fails degrades to DISABLED rather than throwing — cross-repo context is an enrichment, and losing it must not cost the caller its own repo's context.
+async function repoAllowsCrossRepo(pool: Pool, repo: string): Promise<boolean> {
+  try {
+    const { rows } = await pool.query<RepoSettingsRow>(
+      `SELECT settings FROM lore.repos WHERE full_name = $1`,
+      [repo],
+    );
+
+    return rowAllowsCrossRepo(rows);
+  } catch {
+    return false;
+  }
+}
+
 // Cross-repo context is enabled by caller cross_repo=true or the repo's settings.cross_repo flag; shared by the MCP tool and /api/context route so both honor the same fallback. Best-effort: a settings lookup failure degrades to disabled rather than throwing.
 export async function resolveCrossRepo(
   pool: Pool | null,
@@ -24,14 +38,5 @@ export async function resolveCrossRepo(
     return false;
   }
 
-  try {
-    const { rows } = await pool.query<RepoSettingsRow>(
-      `SELECT settings FROM lore.repos WHERE full_name = $1`,
-      [repo],
-    );
-
-    return rowAllowsCrossRepo(rows);
-  } catch {
-    return false;
-  }
+  return repoAllowsCrossRepo(pool, repo);
 }

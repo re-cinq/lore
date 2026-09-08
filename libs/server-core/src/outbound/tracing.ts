@@ -29,6 +29,20 @@ function searchTrace(params: TraceParams): object {
   };
 }
 
+// One trace, in the batch envelope the ingestion API expects. A fresh id and timestamp per call — the event is the search that just happened, not the params it happened with.
+function ingestionBatch(params: TraceParams) {
+  return {
+    batch: [
+      {
+        type: "trace-create",
+        body: searchTrace(params),
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
 export async function tracedSearch(params: TraceParams): Promise<void> {
   // tracing disabled
   if (!LANGFUSE_PK || !LANGFUSE_SK) {
@@ -43,16 +57,7 @@ export async function tracedSearch(params: TraceParams): Promise<void> {
         "Content-Type": "application/json",
         Authorization: `Basic ${Buffer.from(`${LANGFUSE_PK}:${LANGFUSE_SK}`).toString("base64")}`,
       },
-      body: JSON.stringify({
-        batch: [
-          {
-            type: "trace-create",
-            body: searchTrace(params),
-            id: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      }),
+      body: JSON.stringify(ingestionBatch(params)),
     });
   } catch {
     // Tracing failures must never block search

@@ -16,6 +16,24 @@ export function getReadyTasks(pool: PgPool, repo: string) {
   return new PgTaskQueue(pool).findReadySpecTasks(repo);
 }
 
+// The claim's audit event. Swallows its own failure: the claim has already landed atomically, and losing the record of it must not make the caller believe it did not.
+async function recordClaim(
+  pool: PgPool,
+  taskId: string,
+  agentId: string,
+): Promise<void> {
+  try {
+    await recordTaskEvent(
+      pool,
+      taskId,
+      { from: "pending", to: "running" },
+      { agent_id: agentId, claimed_by: "lore_claim_task" },
+    );
+  } catch {
+    /* event recording must not block */
+  }
+}
+
 /** Atomically claim a pending spec-task; records the mcp claim audit event. */
 export async function claimTask(
   pool: PgPool,
@@ -25,19 +43,7 @@ export async function claimTask(
   const claimed = await new PgTaskQueue(pool).claimSpecTask(taskId, agentId);
 
   if (claimed) {
-    try {
-      await recordTaskEvent(
-        pool,
-        taskId,
-        { from: "pending", to: "running" },
-        {
-          agent_id: agentId,
-          claimed_by: "lore_claim_task",
-        },
-      );
-    } catch {
-      /* event recording must not block */
-    }
+    await recordClaim(pool, taskId, agentId);
   }
 
   return claimed;

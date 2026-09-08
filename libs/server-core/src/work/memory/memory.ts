@@ -50,6 +50,36 @@ interface UpsertArgs {
 
 type Upsert = { memoryId: string; version: number };
 
+// `ttl_seconds` is bound twice on purpose: the stored value and the interval that derives `expires_at` from it must come from the same number, or a row would advertise a TTL it does not honour.
+const SUPERSEDE_SQL = `UPDATE memory.memories
+   SET value = $1, version = $2, embedding = $3,
+       ttl_seconds = $4, expires_at = now() + make_interval(secs => $5),
+       created_at = now()
+   WHERE id = $6`;
+
+interface RowWrite {
+  value: string;
+  embeddingParam: string | null;
+  ttlSeconds: number | null;
+}
+
+// Overwrites the live row in place. `created_at` is refreshed because decay scores age from the LAST write, not the first — a memory rewritten today is not stale just because it was created a year ago.
+async function supersedeRow(
+  db: Pick<PgPool, "query">,
+  memoryId: string,
+  version: number,
+  write: RowWrite,
+): Promise<void> {
+  await db.query(SUPERSEDE_SQL, [
+    write.value,
+    version,
+    write.embeddingParam,
+    write.ttlSeconds,
+    write.ttlSeconds,
+    memoryId,
+  ]);
+}
+
 /** Supersedes the live row IN PLACE, keeping its id — the version table is what preserves the old value, and a new id here would orphan every fact and episode already pointing at this memory. `created_at` is refreshed because decay scores age from the last write, not the first. */
 async function updateExisting(
   db: Pick<PgPool, "query">,
@@ -60,18 +90,11 @@ async function updateExisting(
     ttlSeconds: number | null;
   },
 ): Promise<Upsert> {
-  const { value, embeddingParam, ttlSeconds } = write;
+  const { value, embeddingParam } = write;
   const memoryId = row.id;
   const version = row.version + 1;
 
-  await db.query(
-    `UPDATE memory.memories
-       SET value = $1, version = $2, embedding = $3,
-           ttl_seconds = $4, expires_at = now() + make_interval(secs => $5),
-           created_at = now()
-       WHERE id = $6`,
-    [value, version, embeddingParam, ttlSeconds, ttlSeconds, memoryId],
-  );
+  await supersedeRow(db, memoryId, version, write);
   await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
 
   return { memoryId, version };
@@ -108,27 +131,32 @@ async function upsertMemoryWithVersion(
     embeddingParam: toEmbeddingParam(embedding),
     ttlSeconds: ttl || null,
   };
-  // A repo-scoped memory is looked up by repo, an agent's own by agent — the same key means different memories in each.
-  const lookup = resolveLookup(repo, agent);
+  const existing = await findLiveRow(db, { key, agent, repo });
+
+  return existing
+    ? updateExisting(db, existing, { ...write, value: args.value })
+    : insertFirst(db, args, write);
+}
+
+// The live row for this key, if there is one. A repo-scoped memory is looked up BY REPO and an agent's own by agent — the same key means different memories in each, so getting this wrong would have one overwrite the other.
+async function findLiveRow(
+  db: Pick<PgPool, "query">,
+  scope: { key: string; agent: string; repo?: string },
+): Promise<{ id: string; version: number } | null> {
+  const lookup = resolveLookup(scope.repo, scope.agent);
   const existing = await db.query(
     `SELECT id, version FROM memory.memories
      WHERE ${lookup.field} = $1 AND key = $2 AND is_deleted = FALSE
      ORDER BY version DESC LIMIT 1`,
-    [lookup.value, key],
+    [lookup.value, scope.key],
   );
 
-  if (existing.rows.length === 0) {
-    return insertFirst(db, args, write);
-  }
-
-  return updateExisting(
-    db,
-    {
-      id: existing.rows[0].id as string,
-      version: existing.rows[0].version as number,
-    },
-    { ...write, value: args.value },
-  );
+  return existing.rows.length === 0
+    ? null
+    : {
+        id: existing.rows[0].id as string,
+        version: existing.rows[0].version as number,
+      };
 }
 
 // A memories row is never written without its version record (#1154).
@@ -150,132 +178,34 @@ async function insertVersionRecord(
   );
 }
 
-export async function writeMemory({
-  key,
-  value,
-  agentId,
-  ttl,
-  embedding,
-  repo,
-}: MemoryWriteInput): Promise<WriteResult> {
-  const agent = resolveAgentId(agentId);
-  const db = getMemoryPool()!;
-
-  const { memoryId, version } = await runInTransaction(db, (tx) =>
-    upsertMemoryWithVersion(tx, { key, value, agent, ttl, embedding, repo }),
-  );
-
-  await auditLog(agent, "write", key);
-
+// The timestamp the row ended up with. Read back rather than taken from the caller's clock: the write sets `created_at` to the DATABASE's `now()`, and reporting a different instant would put the two out of step.
+async function readCreatedAt(memoryId: string): Promise<string> {
   const row = await getMemoryPool()!.query(
     `SELECT created_at FROM memory.memories WHERE id = $1`,
     [memoryId],
   );
 
+  return row.rows[0].created_at as string;
+}
+
+export async function writeMemory(
+  input: MemoryWriteInput,
+): Promise<WriteResult> {
+  const agent = resolveAgentId(input.agentId);
+  const db = getMemoryPool()!;
+  const { memoryId, version } = await runInTransaction(db, (tx) =>
+    upsertMemoryWithVersion(tx, { ...input, agent }),
+  );
+
+  await auditLog(agent, "write", input.key);
+
   return {
-    key,
+    key: input.key,
     version,
     agent_id: agent,
-    created_at: row.rows[0].created_at as string,
+    created_at: await readCreatedAt(memoryId),
   };
 }
-
-// ── Read ─────────────────────────────────────────────────────────────
-
-function isVersionNumberLike(version: string | number | undefined): boolean {
-  return (
-    typeof version === "number" ||
-    (typeof version === "string" && !isNaN(Number(version)))
-  );
-}
-
-async function readAllVersions(agent: string, key: string) {
-  const { rows } = await getMemoryPool()!.query(
-    `SELECT mv.version, mv.value, mv.created_at
-     FROM memory.memory_versions mv
-     JOIN memory.memories m ON m.id = mv.memory_id
-     WHERE m.agent_id = $1 AND m.key = $2
-     ORDER BY mv.version DESC`,
-    [agent, key],
-  );
-
-  return rows;
-}
-
-// `m.key` is selected so one-version read answers the same shape as a latest read — the endpoint declares one contract for `action: "read"`.
-async function readVersionAt(agent: string, key: string, version: number) {
-  const { rows } = await getMemoryPool()!.query(
-    `SELECT m.key, mv.version, mv.value, mv.created_at
-     FROM memory.memory_versions mv
-     JOIN memory.memories m ON m.id = mv.memory_id
-     WHERE m.agent_id = $1 AND m.key = $2 AND mv.version = $3`,
-    [agent, key, version],
-  );
-
-  return rows[0] || null;
-}
-
-async function readLatestVersion(agent: string, key: string) {
-  const { rows } = await getMemoryPool()!.query(
-    `SELECT key, value, version, created_at
-     FROM memory.memories
-     WHERE agent_id = $1 AND key = $2 AND is_deleted = FALSE
-       AND (expires_at IS NULL OR expires_at > now())
-     ORDER BY version DESC LIMIT 1`,
-    [agent, key],
-  );
-
-  return rows[0] || null;
-}
-
-export async function readMemory(
-  key: string,
-  agentId?: string,
-  version?: string | number,
-) {
-  const agent = resolveAgentId(agentId);
-
-  if (version === "all") {
-    const rows = await readAllVersions(agent, key);
-
-    await auditLog(agent, "read", key);
-
-    return rows;
-  }
-
-  if (isVersionNumberLike(version)) {
-    const row = await readVersionAt(agent, key, Number(version));
-
-    await auditLog(agent, "read", key);
-
-    return row;
-  }
-
-  const row = await readLatestVersion(agent, key);
-
-  await auditLog(agent, "read", key);
-
-  return row;
-}
-
-// ── Delete ───────────────────────────────────────────────────────────
-
-export async function deleteMemory(
-  key: string,
-  agentId?: string,
-): Promise<{ key: string; deleted: boolean }> {
-  const agent = resolveAgentId(agentId);
-
-  await getMemoryPool()!.query(
-    `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND key = $2`,
-    [agent, key],
-  );
-  await auditLog(agent, "delete", key);
-
-  return { key, deleted: true };
-}
-
-// ── List ─────────────────────────────────────────────────────────────
 
 function listScope(
   repo: string | undefined,
@@ -312,15 +242,8 @@ function countScopeParams(
   return [];
 }
 
-export async function listMemories(
-  agentId?: string,
-  limit: number = 50,
-  offset: number = 0,
-  repo?: string,
-): Promise<{ memories: Record<string, unknown>[]; total: number }> {
-  // Scope by repo (preferred) or agent_id
-  const { filter, params } = listScope(repo, agentId, limit, offset);
-
+// One page of live memories, newest first. `has_facts` is an EXISTS rather than a join — the caller only needs to know whether extraction found anything, and joining would multiply the row per fact.
+async function listPage(filter: string, params: unknown[]) {
   const { rows } = await getMemoryPool()!.query(
     `SELECT key, agent_id, repo, version, created_at, ttl_seconds,
             EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
@@ -332,7 +255,14 @@ export async function listMemories(
     params,
   );
 
-  const countParams = countScopeParams(repo, agentId);
+  return rows;
+}
+
+// How many there are in total, under the SAME filter as the page — a count taken under different terms would make the pager promise pages that are not there.
+async function countScoped(
+  filter: string,
+  countParams: unknown[],
+): Promise<number> {
   const countResult = await getMemoryPool()!.query(
     `SELECT count(*)::int as total FROM memory.memories
      WHERE ${filter} is_deleted = FALSE
@@ -340,12 +270,28 @@ export async function listMemories(
     countParams,
   );
 
-  await auditLog(agentId || "org", "list", null);
-
-  return { memories: rows, total: countResult.rows[0].total as number };
+  return countResult.rows[0].total as number;
 }
 
-// Shared pools + snapshots (PostgreSQL-backed) live in sibling files, re-exported for import-path back-compat.
+export async function listMemories(
+  agentId?: string,
+  limit: number = 50,
+  offset: number = 0,
+  repo?: string,
+): Promise<{ memories: Record<string, unknown>[]; total: number }> {
+  // Scope by repo (preferred) or agent_id
+  const { filter, params } = listScope(repo, agentId, limit, offset);
+
+  const rows = await listPage(filter, params);
+  const total = await countScoped(filter, countScopeParams(repo, agentId));
+
+  await auditLog(agentId || "org", "list", null);
+
+  return { memories: rows, total };
+}
+
+// Reads, shared pools and snapshots live in sibling files, re-exported for import-path back-compat.
+export { readMemory, deleteMemory } from "./memory-read.js";
 export { sharedWrite, sharedRead } from "./memory-pools.js";
 export { createSnapshot, restoreSnapshot } from "./memory-snapshots.js";
 

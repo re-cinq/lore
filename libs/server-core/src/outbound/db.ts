@@ -36,17 +36,20 @@ export async function isDbAvailable(): Promise<boolean> {
   }
 }
 
+// Not an error: file-backed mode is a supported way to run, so health says why there is no database rather than reporting a failure to reach one.
+const NO_DATABASE = {
+  connected: false,
+  chunk_count: null,
+  reason: "no database configured (file-backed mode)",
+};
+
 export async function getHealthStatus(): Promise<{
   connected: boolean;
   chunk_count: number | null;
   reason?: string;
 }> {
   if (!pool) {
-    return {
-      connected: false,
-      chunk_count: null,
-      reason: "no database configured (file-backed mode)",
-    };
+    return NO_DATABASE;
   }
 
   try {
@@ -72,6 +75,7 @@ export interface SearchResult {
 
 // ── Hybrid search (RRF) ──────────────────────────────────────────────
 
+// eslint-disable-next-line max-lines-per-function -- one SQL statement, returned whole: the two CTEs and the RRF join are read together as a query, and cutting them into string fragments would hide the join they exist for
 function buildHybridSearchSQL(schema: string): string {
   return `
 WITH vector_results AS (
@@ -98,6 +102,26 @@ ORDER BY rrf_score DESC
 LIMIT $3;`;
 }
 
+// Keyword-only, for when no embedding could be obtained. Degraded rather than empty: a repo whose embeddings are unavailable still answers a search, and the caller cannot tell the difference except in ranking.
+async function keywordOnlySearch(
+  query: string,
+  schema: string,
+  limit: number,
+): Promise<SearchResult[]> {
+  const { rows } = await getPool().query(
+    `
+      SELECT id, content, metadata,
+             ts_rank(search_tsv, plainto_tsquery($1)) AS rrf_score
+      FROM ${schema}.chunks
+      WHERE search_tsv @@ plainto_tsquery($1)
+      ORDER BY rrf_score DESC
+      LIMIT $2;`,
+    [query, limit],
+  );
+
+  return rows as SearchResult[];
+}
+
 export async function hybridSearch(
   query: string,
   schema: string,
@@ -114,17 +138,7 @@ export async function hybridSearch(
   const embedding = await getQueryEmbedding(query);
 
   if (!embedding) {
-    // Fallback: keyword-only search (no embedding available)
-    const sql = `
-      SELECT id, content, metadata,
-             ts_rank(search_tsv, plainto_tsquery($1)) AS rrf_score
-      FROM ${resolvedSchema}.chunks
-      WHERE search_tsv @@ plainto_tsquery($1)
-      ORDER BY rrf_score DESC
-      LIMIT $2;`;
-    const { rows } = await getPool().query(sql, [query, limit]);
-
-    return rows as SearchResult[];
+    return keywordOnlySearch(query, resolvedSchema, limit);
   }
 
   // Full hybrid search (vector + keyword)
