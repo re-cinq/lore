@@ -118,10 +118,8 @@ function matchRules(rows: ChunkSearchHit[], query: string): ChunkSearchHit[] {
     .filter((w: string) => w.length > 2);
 
   return rows.filter((r) => {
-    const ruleName = r.file_path
-      .replace(/.*\//, "")
-      .replace(/\.md$/, "")
-      .toLowerCase();
+    const fileName = r.file_path.replace(/.*\//, "");
+    const ruleName = fileName.replace(/\.md$/, "").toLowerCase();
 
     return queryWords.some(
       (w: string) => ruleName.includes(w) || w.includes(ruleName),

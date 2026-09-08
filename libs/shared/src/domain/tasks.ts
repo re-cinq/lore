@@ -41,11 +41,10 @@ function readMarkers(afterId: string): {
   const dependsOn: string[] = [];
 
   if (depsMatch) {
+    const deps = depsMatch[1].split(",");
+
     dependsOn.push(
-      ...depsMatch[1]
-        .split(",")
-        .map((dep) => dep.trim())
-        .filter((dep) => dep.length > 0),
+      ...deps.map((dep) => dep.trim()).filter((dep) => dep.length > 0),
     );
     rest = rest.replace(DEPENDS_RE, "").trim();
   }

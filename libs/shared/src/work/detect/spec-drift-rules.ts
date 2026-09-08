@@ -71,7 +71,8 @@ export interface GraphDriftDecision {
 // A statement drifts when a binding test fails (`violated`) or the projection flagged it (`drifted`); deterministic, no LLM. Link-rot is owned by the validate pass, not here.
 export function decideGraphDrift(doc: TraceDocument): GraphDriftDecision {
   const headingByUid = new Map(doc.sections.map((s) => [s.uid, s.heading]));
-  const statements: DriftedStatement[] = doc.statements
+  const rows = doc.statements;
+  const statements: DriftedStatement[] = rows
     .filter((s) => s.violated || s.drifted)
     .map((s) => ({
       text: s.text,

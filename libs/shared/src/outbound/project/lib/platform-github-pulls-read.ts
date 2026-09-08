@@ -10,14 +10,15 @@ import { split, toPullRef } from "./platform-github-support.js";
 
 export async function list(ok: Octokit, repo: string): Promise<PullRef[]> {
   const [owner, name] = split(repo);
-  const pulls = await ok.paginate(ok.rest.pulls.list, {
+  const { pulls } = ok.rest;
+  const rows = await ok.paginate(pulls.list, {
     owner,
     repo: name,
     state: "open",
     per_page: 100,
   });
 
-  return pulls.map((pr) => toPullRef(repo, pr));
+  return rows.map((pr) => toPullRef(repo, pr));
 }
 
 export async function get(
@@ -26,9 +27,10 @@ export async function get(
   number: number,
 ): Promise<PullRef | null> {
   const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
 
   try {
-    const { data: pull } = await ok.rest.pulls.get({
+    const { data: pull } = await pulls.get({
       owner,
       repo: name,
       pull_number: number,
@@ -46,7 +48,8 @@ export async function getDiff(
   number: number,
 ): Promise<string> {
   const [owner, name] = split(repo);
-  const { data: diff } = await ok.rest.pulls.get({
+  const { pulls } = ok.rest;
+  const { data: diff } = await pulls.get({
     owner,
     repo: name,
     pull_number: number,
@@ -62,16 +65,17 @@ export async function listCommits(
   number: number,
 ): Promise<PullCommit[]> {
   const [owner, name] = split(repo);
-  const commits = await ok.paginate(ok.rest.pulls.listCommits, {
+  const { pulls } = ok.rest;
+  const commits = await ok.paginate(pulls.listCommits, {
     owner,
     repo: name,
     pull_number: number,
   });
 
-  return commits.map((c) => ({
-    sha: c.sha,
-    message: c.commit.message,
-    date: c.commit.committer?.date ?? "",
+  return commits.map(({ sha, commit }) => ({
+    sha,
+    message: commit.message,
+    date: commit.committer?.date ?? "",
   }));
 }
 
@@ -81,7 +85,8 @@ export async function isMerged(
   number: number,
 ): Promise<boolean> {
   const [owner, name] = split(repo);
-  const { data: pull } = await ok.rest.pulls.get({
+  const { pulls } = ok.rest;
+  const { data: pull } = await pulls.get({
     owner,
     repo: name,
     pull_number: number,
@@ -96,7 +101,8 @@ export async function isClosed(
   number: number,
 ): Promise<boolean> {
   const [owner, name] = split(repo);
-  const { data: pull } = await ok.rest.pulls.get({
+  const { pulls } = ok.rest;
+  const { data: pull } = await pulls.get({
     owner,
     repo: name,
     pull_number: number,
@@ -111,7 +117,8 @@ export async function getStats(
   number: number,
 ): Promise<PullStats> {
   const [owner, name] = split(repo);
-  const { data: pull } = await ok.rest.pulls.get({
+  const { pulls } = ok.rest;
+  const { data: pull } = await pulls.get({
     owner,
     repo: name,
     pull_number: number,
@@ -134,7 +141,8 @@ export async function changedFileCount(
   head: string,
 ): Promise<number> {
   const [owner, name] = split(repo);
-  const { data: comparison } = await ok.rest.repos.compareCommitsWithBasehead({
+  const { repos } = ok.rest;
+  const { data: comparison } = await repos.compareCommitsWithBasehead({
     owner,
     repo: name,
     basehead: `${base}...${head}`,
@@ -149,7 +157,8 @@ export async function listFiles(
   number: number,
 ): Promise<string[]> {
   const [owner, name] = split(repo);
-  const files = await ok.paginate(ok.rest.pulls.listFiles, {
+  const { pulls } = ok.rest;
+  const files = await ok.paginate(pulls.listFiles, {
     owner,
     repo: name,
     pull_number: number,

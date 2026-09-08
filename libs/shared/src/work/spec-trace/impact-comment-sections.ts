@@ -6,8 +6,11 @@ import { summarizeStatement, windowRewrite } from "./impact-render.js";
 /** Rows shown before the rest is folded away — a wall of them reads as noise. */
 export const MAX_ROWS = 10;
 
-const testCellFor = (s: ImpactStatement) =>
-  s.tests[0] ? `${s.tests[0].file}:${s.tests[0].line}` : "—";
+const testCellFor = (s: ImpactStatement) => {
+  const first = s.tests.at(0);
+
+  return first ? `${first.file}:${first.line}` : "—";
+};
 
 /** Collapses findings that would render identically — #1077 showed the same test/file pair four times. */
 export function dedupeRows(statements: ImpactStatement[]): ImpactStatement[] {
@@ -86,15 +89,13 @@ function statementBlock(s: ImpactStatement): string[] {
 
   lines.push(...rewriteLines(before, after, s.section));
 
-  const tests = s.tests.length
-    ? s.tests
-        .slice(0, 4)
-        .map((t) => `\`${t.file}:${t.line}\``)
-        .join(", ") +
-      (s.tests.length > 4 ? `, +${s.tests.length - 4} more` : "")
+  const { tests } = s;
+  const shown = tests.slice(0, 4).map((t) => `\`${t.file}:${t.line}\``);
+  const testsCell = shown.length
+    ? shown.join(", ") + (tests.length > 4 ? `, +${tests.length - 4} more` : "")
     : "_nothing validates it_";
 
-  lines.push("", `validated by ${tests}`);
+  lines.push("", `validated by ${testsCell}`);
 
   if (s.changedFile !== s.specPath) {
     lines.push(`via changed file \`${s.changedFile}\``);

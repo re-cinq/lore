@@ -303,16 +303,15 @@ async function alreadyReported(
   project: Project,
   repo: string,
 ): Promise<boolean> {
-  const openIssues = await project.issues
-    .list({ state: "open" })
-    .catch((err) => {
-      console.error(
-        `[job] spec-coverage-validate: open-issue read failed for ${repo}:`,
-        err,
-      );
+  const { issues } = project;
+  const openIssues = await issues.list({ state: "open" }).catch((err) => {
+    console.error(
+      `[job] spec-coverage-validate: open-issue read failed for ${repo}:`,
+      err,
+    );
 
-      return [] as Awaited<ReturnType<typeof project.issues.list>>;
-    });
+    return [] as Awaited<ReturnType<typeof project.issues.list>>;
+  });
 
   return hasOpenLinkRotIssue(openIssues);
 }

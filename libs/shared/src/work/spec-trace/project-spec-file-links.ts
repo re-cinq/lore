@@ -18,6 +18,7 @@ import { repoRelativeLinkTarget } from "./link-target-path.js";
 import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 import type { ProjectionContext } from "./project-spec-file-context.js";
+import { firstOf } from "./uid-refs.js";
 
 /** Parses `[label](path#Lline)` parentheticals from a statement's text. */
 type LinkParser = (statement: string) => SpecLinkRef[];
@@ -158,7 +159,7 @@ async function readLinkTargets(
       }`,
       { $uid: ownerUid },
     );
-    const node = (res.data.node?.[0] ?? {}) as {
+    const node = (firstOf(res.data.node) ?? {}) as {
       validated?: { uid: string }[];
       implemented?: { uid: string }[];
     };
@@ -204,7 +205,7 @@ export async function pruneOrphans(
       }`,
       { $xid: `${repo}|${filePath}` },
     );
-    const children = (res.data.spec?.[0]?.children ?? []) as Array<
+    const children = (firstOf(res.data.spec)?.children ?? []) as Array<
       { uid: string } & Record<string, string>
     >;
     const orphanUids = children

@@ -78,7 +78,9 @@ async function resolveMemoryUid(
       { $x: memoryXid },
     );
 
-    return (res.data as { m?: { uid: string }[] }).m?.[0]?.uid;
+    const rows = (res.data as { m?: { uid: string }[] }).m;
+
+    return rows?.[0]?.uid;
   });
 }
 

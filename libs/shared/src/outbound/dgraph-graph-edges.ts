@@ -3,6 +3,7 @@ import type { DgraphClientPort } from "./memory-store.js";
 import { newUid } from "./dgraph-vector.js";
 import { withTxn } from "./dgraph-txn.js";
 import { flattenHops, type GraphHop } from "./dgraph-graph-hops.js";
+import { firstOf } from "../lib/row.js";
 
 /** A fresh Entity. The dedup key is stored alongside its three parts because identity here is the COMBINATION — the same name under a different type, or in a different repo, is a different thing. */
 function newEntity({
@@ -44,7 +45,7 @@ async function upsertEntity(
       `query e($dk: string) { found(func: eq(Entity.dedup_key, $dk), first: 1) { uid } }`,
       { $dk: dedupKey },
     );
-    const found = res.data.found?.[0];
+    const found = firstOf(res.data.found);
 
     if (found) {
       return found.uid as string;
@@ -78,7 +79,7 @@ async function findContradictedRels(
       }`,
       { $src: sourceUid, $rel: relationType },
     );
-    const rels = (res.data.contradictions?.[0]?.["Entity.out_rels"] ??
+    const rels = (firstOf(res.data.contradictions)?.["Entity.out_rels"] ??
       []) as Record<string, unknown>[];
 
     return rels

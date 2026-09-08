@@ -32,6 +32,7 @@ export {
   type ProjectionContext,
   sha256,
 } from "./project-spec-file-context.js";
+import { firstOf } from "./uid-refs.js";
 
 /** The spec's first H1 heading text (the title a sentence-link's `<spec>` segment matches), or null. */
 function extractTitle(content: string): string | null {
@@ -69,7 +70,7 @@ async function readSpecContentHash(
       { $xid: specXid },
     );
 
-    return res.data.found?.[0]?.["Spec.content_hash"] as string | undefined;
+    return firstOf(res.data.found)?.["Spec.content_hash"] as string | undefined;
   });
 }
 

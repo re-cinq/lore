@@ -3,6 +3,7 @@
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { highestTier, type EvidenceTier } from "./trace-link.js";
+import { firstOf } from "./uid-refs.js";
 
 export type StatementStatus = "verified-implemented" | "claimed" | "untested";
 
@@ -15,7 +16,7 @@ export async function deriveStatementStatus(
       `query q($sx: string){ stmt(func: eq(Statement.xid, $sx)){ Statement.trace_links { TraceLink.evidence } } }`,
       { $sx: statementXid },
     );
-    const links = (res.data.stmt?.[0]?.["Statement.trace_links"] ??
+    const links = (firstOf(res.data.stmt)?.["Statement.trace_links"] ??
       []) as Array<{
       "TraceLink.evidence"?: EvidenceTier;
     }>;

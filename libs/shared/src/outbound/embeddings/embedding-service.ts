@@ -96,7 +96,9 @@ async function fetchVertexEmbedding(
     predictions: Array<{ embeddings: { values: number[] } }>;
   };
 
-  return json.predictions[0].embeddings.values;
+  const [prediction] = json.predictions;
+
+  return prediction.embeddings.values;
 }
 
 export async function getQueryEmbedding(

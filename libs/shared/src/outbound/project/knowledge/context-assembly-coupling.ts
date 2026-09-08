@@ -21,8 +21,9 @@ const COUPLING_SIGNAL_SCORE: Record<string, number> = {
 export function formatCouplingItems(block: GraphContextBlock): SourceItem[] {
   return block.statements.map((s) => {
     const head = `[${s.signal}] ${s.specPath}${s.section ? ` › ${s.section}` : ""} — ${s.statementText}`;
-    const gov = s.adrs.length
-      ? `\n  governed by: ${s.adrs.map((a) => a.label).join(", ")}`
+    const adrLabels = s.adrs.map((a) => a.label);
+    const gov = adrLabels.length
+      ? `\n  governed by: ${adrLabels.join(", ")}`
       : "";
     const tests = s.testSelectors.length
       ? `\n  tested by: ${s.testSelectors.join(", ")}`

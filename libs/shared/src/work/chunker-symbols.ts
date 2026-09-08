@@ -66,13 +66,13 @@ function testCallTitle(call: Parser.SyntaxNode): string | undefined {
   const firstString = args?.namedChildren.find(
     (a) => a.type === "string" || a.type === "template_string",
   );
-  const title = firstString?.text
-    .slice(1, -1)
+  const literal = firstString?.text.slice(1, -1) ?? "";
+  const title = literal
     .replace(/\$\{[^}]*\}/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
-  return title !== undefined && title.length > 0 ? title : undefined;
+  return title.length > 0 ? title : undefined;
 }
 
 function isTestMacroRoot(root: string | undefined): root is string {

@@ -100,7 +100,8 @@ function linkRefFromMatch(match: RegExpMatchArray): SpecLinkRef {
     line = Number.isFinite(n) ? n : null;
   }
 
-  const label = match[1].replace(/\s+/g, " ").trim();
+  const rawLabel = match[1];
+  const label = rawLabel.replace(/\s+/g, " ").trim();
 
   return { label, path, line };
 }

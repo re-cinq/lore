@@ -88,6 +88,8 @@ export class OpenAiProvider implements LlmProvider {
       choices: Array<{ message: { content: string } }>;
     };
 
-    return json.choices[0].message.content;
+    const [choice] = json.choices;
+
+    return choice.message.content;
   }
 }

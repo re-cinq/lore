@@ -12,6 +12,7 @@ import {
 } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 import { stampGraphBaseline } from "./graph-baseline.js";
+import { firstOf } from "./uid-refs.js";
 
 /** Serializes a file's covered intervals (in covered order) to the `ranges` edge facet, e.g. "5-10,20-25". */
 function serializeRanges(ranges: CoveredChunk[]): string {
@@ -56,7 +57,7 @@ async function readCoversUids(
       `query q($uid: string) { cov(func: uid($uid)) { Coverage.covers { uid } } }`,
       { $uid: coverageUid },
     );
-    const covers = (res.data.cov?.[0]?.["Coverage.covers"] ?? []) as {
+    const covers = (firstOf(res.data.cov)?.["Coverage.covers"] ?? []) as {
       uid: string;
     }[];
 
@@ -77,7 +78,7 @@ async function linkTestChunkCoverage(
       { $file: record.testFile, $name: record.testName, $repo: repo },
     );
 
-    return res.data.tc?.[0]?.uid as string | undefined;
+    return firstOf(res.data.tc)?.uid as string | undefined;
   });
 
   if (!testChunkUid) {

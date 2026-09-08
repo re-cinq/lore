@@ -24,10 +24,15 @@ export function parseBody<T>(
   enforceTrue(
     parsed.success,
     apiError(400),
-    `not a ${what}: ${parsed.error?.issues
-      .map((i) => `${i.path.join(".") || "(body)"} ${i.message}`)
-      .join("; ")}`,
+    `not a ${what}: ${issueSummary(parsed.error)}`,
   );
 
   return parsed.data;
+}
+
+/** Every failed field of a rejected parse, in one line; `(body)` names a rejection that belongs to no field. */
+function issueSummary(error: z.ZodError | undefined): string {
+  return (error?.issues ?? [])
+    .map((i) => `${i.path.join(".") || "(body)"} ${i.message}`)
+    .join("; ");
 }

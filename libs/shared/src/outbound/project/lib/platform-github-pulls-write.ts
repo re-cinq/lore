@@ -7,6 +7,7 @@ import type {
   MergeMethod,
 } from "../pulls/pull-requests-port.js";
 import { split, toPullRef } from "./platform-github-support.js";
+import type { IssuesApi, PullsApi } from "./platform-github-api.js";
 
 /** PR mutation paths for PlatformGitHub: comments, reviews, labels, merge, open, update. */
 
@@ -17,8 +18,9 @@ export async function comment(
   body: string,
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { issues } = ok.rest;
 
-  await ok.rest.issues.createComment({
+  await issues.createComment({
     owner,
     repo: name,
     issue_number: number,
@@ -33,8 +35,9 @@ export async function review(
   { body, event }: { body: string; event: PRReviewEvent },
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
 
-  await ok.rest.pulls.createReview({
+  await pulls.createReview({
     owner,
     repo: name,
     pull_number: number,
@@ -50,8 +53,9 @@ export async function createReview(
   input: CreateReviewInput,
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
 
-  await ok.rest.pulls.createReview({
+  await pulls.createReview({
     owner,
     repo: name,
     pull_number: number,
@@ -83,8 +87,9 @@ export async function replyToReviewComment(
   { commentId, body }: { commentId: number; body: string },
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
 
-  await ok.rest.pulls.createReplyForReviewComment({
+  await pulls.createReplyForReviewComment({
     owner,
     repo: name,
     pull_number: number,
@@ -100,8 +105,9 @@ export async function addLabel(
   label: string,
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { issues } = ok.rest;
 
-  await ok.rest.issues.addLabels({
+  await issues.addLabels({
     owner,
     repo: name,
     issue_number: number,
@@ -116,8 +122,9 @@ export async function merge(
   method: MergeMethod = "squash",
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
 
-  await ok.rest.pulls.merge({
+  await pulls.merge({
     owner,
     repo: name,
     pull_number: number,
@@ -131,7 +138,8 @@ export async function open(
   branch: string,
   { title, body, base, labels = ["agent-generated"], draft = false }: PullDraft,
 ): Promise<PullRef> {
-  const created = await createPull(ok, repo, {
+  const { pulls, issues } = ok.rest;
+  const created = await createPull(pulls, repo, {
     title,
     body,
     head: branch,
@@ -139,14 +147,14 @@ export async function open(
     draft,
   });
 
-  await applyLabels(ok, repo, created.number, labels);
+  await applyLabels(issues, repo, created.number, labels);
 
   return toPullRef(repo, created);
 }
 
 /** The raw pulls.create call, so `open` reads as create-then-label. */
 async function createPull(
-  ok: Octokit,
+  pulls: PullsApi,
   repo: string,
   fields: {
     title: string;
@@ -157,7 +165,7 @@ async function createPull(
   },
 ) {
   const [owner, name] = split(repo);
-  const { data: created } = await ok.rest.pulls.create({
+  const { data: created } = await pulls.create({
     owner,
     repo: name,
     ...fields,
@@ -168,7 +176,7 @@ async function createPull(
 
 /** Labels a freshly opened PR; an empty list is a no-op rather than an empty call. */
 async function applyLabels(
-  ok: Octokit,
+  issues: IssuesApi,
   repo: string,
   number: number,
   labels: string[],
@@ -178,7 +186,7 @@ async function applyLabels(
   }
   const [owner, name] = split(repo);
 
-  await ok.rest.issues.addLabels({
+  await issues.addLabels({
     owner,
     repo: name,
     issue_number: number,
@@ -193,8 +201,9 @@ export async function update(
   fields: { title?: string; body?: string },
 ): Promise<void> {
   const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
 
-  await ok.rest.pulls.update({
+  await pulls.update({
     owner,
     repo: name,
     pull_number: number,

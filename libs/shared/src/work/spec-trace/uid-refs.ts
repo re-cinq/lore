@@ -2,9 +2,7 @@
 
 import type { UidRef } from "../../outbound/spec-trace/deps.js";
 
+export { firstOf } from "../../lib/row.js";
+
 export const uids = (refs: UidRef[] | undefined): string[] =>
   (refs ?? []).map((ref) => ref.uid);
-
-export function firstOf<T>(rows: T[] | undefined): T | undefined {
-  return (rows ?? [])[0];
-}

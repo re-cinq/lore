@@ -35,14 +35,15 @@ function firstObjection(
   if (decomposition.stories.length === 0) {
     return "the decomposition contains no user stories";
   }
-  const taskless = decomposition.stories.find((s) => s.tasks.length === 0);
+  const { stories } = decomposition;
+  const taskless = stories.find((s) => s.tasks.length === 0);
 
   if (taskless) {
     return `the story "${taskless.title}" breaks into no tasks — a story nobody can start is not an implementation plan`;
   }
   const known = new Set(repoLabels);
   const unknown = new Set(
-    decomposition.stories
+    stories
       .flatMap((story) => proposedLabels(story))
       .filter((label) => !known.has(label)),
   );

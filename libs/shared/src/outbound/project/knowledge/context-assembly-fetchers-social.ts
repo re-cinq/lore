@@ -50,7 +50,9 @@ async function linkedReposFor(pool: PgPool, repo: string): Promise<string[]> {
     settings: { cross_repo_repos?: string[] } | null;
   }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
 
-  return rows[0]?.settings?.cross_repo_repos || [];
+  const first = rows.at(0);
+
+  return first?.settings?.cross_repo_repos || [];
 }
 
 /** Linked repos may live in any team schema, so the search spans every provisioned chunk schema plus org_shared. */

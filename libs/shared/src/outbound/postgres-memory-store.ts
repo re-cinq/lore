@@ -71,7 +71,9 @@ async function insertNewMemory(
     ],
   );
 
-  return { memoryId: result.rows[0].id, version: 1 };
+  const { rows } = result;
+
+  return { memoryId: rows[0].id, version: 1 };
 }
 
 async function upsertMemoryWithVersion(
@@ -199,7 +201,7 @@ export class PostgresMemoryStore implements MemoryStore {
 
     await this.auditLog(agent, "write", input.key);
 
-    const row = await this.pool.query(
+    const { rows } = await this.pool.query(
       `SELECT created_at FROM memory.memories WHERE id = $1`,
       [memoryId],
     );
@@ -208,7 +210,7 @@ export class PostgresMemoryStore implements MemoryStore {
       key: input.key,
       version,
       agent_id: agent,
-      created_at: row.rows[0].created_at as string,
+      created_at: rows[0].created_at as string,
     };
   }
 

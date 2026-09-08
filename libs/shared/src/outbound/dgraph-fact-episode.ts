@@ -3,6 +3,7 @@ import type { DgraphClientPort } from "./memory-store.js";
 import { embeddingField, newUid, toVectorLiteral } from "./dgraph-vector.js";
 import { withTxn } from "./dgraph-txn.js";
 import { contradictionNodes } from "./dgraph-fact-contradictions.js";
+import { firstOf } from "../lib/row.js";
 
 /** The 40 nearest ACTIVE facts by ANN. Over-fetching is deliberate: the index gives an approximate neighborhood, and the exact cosine that decides contradiction is recomputed in TS over this candidate set. */
 async function nearbyActiveFacts(
@@ -138,7 +139,7 @@ export async function writeEpisode(
       }`,
       { $h: contentHash },
     );
-    const found = res.data.found?.[0];
+    const found = firstOf(res.data.found);
 
     if (found) {
       return { id: found["Episode.xid"] as string };

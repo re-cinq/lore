@@ -53,10 +53,11 @@ export interface RoundFeedbackInput {
 
 /** Turn for round CONTINUING previous conversation; only new feedback (omits untouched sections); pairs with composePlanningPrompt(). */
 export function composeRoundFeedback(input: RoundFeedbackInput): string {
+  const { answers } = input;
   const touched = sectionsOf(input.priorGap)
-    .map((section) => feedbackBlock(section, input.answers))
+    .map((section) => feedbackBlock(section, answers))
     .filter((block): block is string => block !== null);
-  const note = input.answers?.free_form?.trim();
+  const note = answers?.free_form?.trim();
 
   if (note) {
     touched.push(tag("OtherUserComments", note));
@@ -93,8 +94,10 @@ function answeredQuestions(
   feedback: SectionFeedback | undefined,
   answers: SectionAnswers | null,
 ): GapQuestion[] {
+  const questions = answers?.questions;
+
   return (section.questions ?? []).filter(
-    (q) => feedback || answers?.questions?.[q.id]?.trim(),
+    (q) => feedback || questions?.[q.id]?.trim(),
   );
 }
 
@@ -102,7 +105,8 @@ function questionTag(
   question: GapQuestion,
   answers: SectionAnswers | null,
 ): string {
-  const answer = answers?.questions?.[question.id]?.trim() || "(unanswered)";
+  const questions = answers?.questions;
+  const answer = questions?.[question.id]?.trim() || "(unanswered)";
 
   return `<Question id="${question.id}">\n<Asked>${question.question}</Asked>\n<Answer>${answer}</Answer>\n</Question>`;
 }
@@ -218,10 +222,12 @@ function generatedContent(section: GapSection): string {
     parts.push(section.content.trim());
   }
 
-  if (section.mockups?.length) {
-    parts.push(
-      `Diagrams: ${section.mockups.map((m, i) => m.title || `Mockup ${i + 1}`).join(", ")}`,
-    );
+  const { mockups } = section;
+
+  if (mockups?.length) {
+    const titles = mockups.map((m, i) => m.title || `Mockup ${i + 1}`);
+
+    parts.push(`Diagrams: ${titles.join(", ")}`);
   }
 
   return parts.join("\n\n") || "(no content)";

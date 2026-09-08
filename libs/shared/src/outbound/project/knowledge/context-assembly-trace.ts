@@ -54,6 +54,8 @@ function budgetTrace(
 }
 
 export function buildAssemblyTrace(input: DebugTraceInput): AssemblyTrace {
+  const { freshness } = input;
+
   return {
     query: input.query,
     template: input.templateName,
@@ -63,8 +65,8 @@ export function buildAssemblyTrace(input: DebugTraceInput): AssemblyTrace {
     sections: input.traceSections,
     budget: budgetTrace(input.minTokens, input.sections),
     freshness: {
-      state: input.freshness.state,
-      message: input.freshness.warning.trim(),
+      state: freshness.state,
+      message: freshness.warning.trim(),
     },
     timingsMs: {
       total: Date.now() - input.startedAt,

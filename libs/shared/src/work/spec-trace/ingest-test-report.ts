@@ -90,10 +90,11 @@ async function projectSuiteChain(
   if (!descriptor.suite?.length) {
     return undefined;
   }
+  const { suite } = descriptor;
   let parentUid: string | undefined;
 
-  for (let i = 0; i < descriptor.suite.length; i += 1) {
-    const suiteChain = descriptor.suite.slice(0, i + 1).join(">");
+  for (let i = 0; i < suite.length; i += 1) {
+    const suiteChain = suite.slice(0, i + 1).join(">");
 
     parentUid = await upsertByXid(
       dgraph,
@@ -192,7 +193,9 @@ async function ingestDescriptorChunk(
     state,
   );
 
-  state.repoTestChunkUids.add(testChunkUid).add(fileChunkUid);
+  const { repoTestChunkUids } = state;
+
+  repoTestChunkUids.add(testChunkUid).add(fileChunkUid);
 
   return { descriptor, testChunkUid, fileChunkUid };
 }

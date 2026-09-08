@@ -42,7 +42,8 @@ export async function defaultBranch(
   repo: string,
 ): Promise<string> {
   const [owner, name] = split(repo);
-  const { data: repository } = await ok.rest.repos.get({ owner, repo: name });
+  const { repos } = ok.rest;
+  const { data: repository } = await repos.get({ owner, repo: name });
 
   return repository.default_branch;
 }

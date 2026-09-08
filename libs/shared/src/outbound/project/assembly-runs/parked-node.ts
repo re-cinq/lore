@@ -25,7 +25,9 @@ function newestOpen(
 }
 
 function nodeIdsOfType(graph: RunGraph, type: string): Set<string> {
-  return new Set(graph.nodes.filter((n) => n.type === type).map((n) => n.id));
+  const { nodes } = graph;
+
+  return new Set(nodes.filter((n) => n.type === type).map((n) => n.id));
 }
 
 /** The row nodeId is currently parked on, or null. "Parked" = a row for that node with no outcome yet; the newest such row wins, since a revisit mints a new row and an older open one has already been passed by the walk. */
