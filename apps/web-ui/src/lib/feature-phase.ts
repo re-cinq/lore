@@ -84,7 +84,7 @@ function phaseKindFor(
   run: Run,
   nodeId: string,
 ): FeaturePhase["kind"] | undefined {
-  const nodeType = run.graph?.nodes.find((n) => n.id === nodeId)?.type;
+  const nodeType = (run.graph?.nodes ?? []).find((n) => n.id === nodeId)?.type;
 
   return humanStation(nodeType)?.phase ?? NODE_PHASE[nodeId];
 }

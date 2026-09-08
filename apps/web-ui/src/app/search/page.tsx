@@ -16,8 +16,8 @@ export default async function SearchPage({
   let results: SearchResult[] = [];
 
   // Populate repo filter dropdown
-  const repoList = reposOrThrow(await listAllRepos());
-  const repos: SearchRepoOption[] = repoList.repos
+  const { repos: onboarded } = reposOrThrow(await listAllRepos());
+  const repos: SearchRepoOption[] = onboarded
     .map((repo) => ({ full_name: repo.full_name }))
     .sort((a, b) => a.full_name.localeCompare(b.full_name));
 

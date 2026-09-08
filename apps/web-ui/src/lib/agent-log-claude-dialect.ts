@@ -197,12 +197,13 @@ function blockEntry(block: unknown, role: unknown): LogEntry | null {
 
 function messageEntries(value: Record<string, unknown>): LogEntry[] {
   const message = value.message;
+  const content = isRecord(message) ? message.content : null;
 
-  if (!isRecord(message) || !Array.isArray(message.content)) {
+  if (!Array.isArray(content)) {
     return [];
   }
 
-  return message.content
+  return content
     .map((block) => blockEntry(block, value.type))
     .filter((entry): entry is LogEntry => entry !== null);
 }

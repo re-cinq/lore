@@ -222,13 +222,15 @@ function AutoMergeFields({
 }: {
   resolved: ResolvedDarkFactorySettings;
 }) {
+  const { auto_merge: autoMerge } = resolved;
+
   return (
     <>
       <label>Auto-merge paths (one glob per line)</label>
       <textarea
         name="df_am_paths"
         rows={4}
-        defaultValue={resolved.auto_merge.paths.join("\n")}
+        defaultValue={autoMerge.paths.join("\n")}
       />
 
       <MinTrustField value={resolved.auto_merge.min_trust} />

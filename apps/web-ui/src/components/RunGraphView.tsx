@@ -92,7 +92,9 @@ function GraphNodes({
   mode: RunGraphViewProps["graph"]["mode"];
   onSelectNode: RunGraphViewProps["onSelectNode"];
 }) {
-  return laid.layout.nodes.map((node) => (
+  const { nodes } = laid.layout;
+
+  return nodes.map((node) => (
     <GraphNode
       key={node.id}
       node={node}

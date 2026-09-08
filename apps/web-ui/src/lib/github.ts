@@ -75,16 +75,18 @@ export function computeStatus(
 
 export type RepoAccess = "ok" | "not-found" | "unknown";
 
+type RestApi = Awaited<ReturnType<typeof octokit>>["rest"];
+
 /** Probe: can App see this repo? Definitive 404 or unknown. */
 export async function checkRepoAccess(repo: string): Promise<RepoAccess> {
   if (!isGitHubConfigured()) {
     return "unknown";
   }
-  const ok = await octokit();
+  const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
 
   try {
-    await ok.rest.repos.get({ owner, repo: name });
+    await repos.get({ owner, repo: name });
 
     return "ok";
   } catch (e) {
@@ -114,13 +116,13 @@ export async function checkRepoFiles(
 
     return result;
   }
-  const ok = await octokit();
+  const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
 
   await Promise.all(
     paths.map(async (path) => {
       try {
-        await ok.rest.repos.getContent({ owner, repo: name, path });
+        await repos.getContent({ owner, repo: name, path });
         result[path] = true;
       } catch (e) {
         result[path] = (e as { status?: number }).status === 404 ? false : null;
@@ -157,11 +159,11 @@ export async function getRepoFileContent(
   if (!isGitHubConfigured()) {
     return null;
   }
-  const ok = await octokit();
+  const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
 
   try {
-    const { data: content } = await ok.rest.repos.getContent({
+    const { data: content } = await repos.getContent({
       owner,
       repo: name,
       path,
@@ -186,9 +188,9 @@ export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {
   if (!isGitHubConfigured()) {
     return null;
   }
-  const ok = await octokit();
+  const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
-  const { data: repository } = await ok.rest.repos.get({ owner, repo: name });
+  const { data: repository } = await repos.get({ owner, repo: name });
 
   return {
     description: repository.description ?? null,
@@ -207,11 +209,11 @@ export async function getReadme(repo: string): Promise<RepoReadme | null> {
   if (!isGitHubConfigured()) {
     return null;
   }
-  const ok = await octokit();
+  const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
 
   try {
-    const { data: readme } = await ok.rest.repos.getReadme({
+    const { data: readme } = await repos.getReadme({
       owner,
       repo: name,
     });
@@ -224,53 +226,68 @@ export async function getReadme(repo: string): Promise<RepoReadme | null> {
   }
 }
 
-/** Checks and reviews for a PR. Both degrade to empty rather than failing the whole read: the PR itself is the point of this call, and a card that renders without its check list beats one that does not render at all. */
-async function prSignals(
-  ok: Awaited<ReturnType<typeof octokit>>,
-  {
-    owner,
-    repoName,
-    prNumber,
-    headSha,
-  }: { owner: string; repoName: string; prNumber: number; headSha: string },
-) {
-  const [checksResult, reviewsResult] = await Promise.all([
-    ok.rest.checks
-      .listForRef({ owner, repo: repoName, ref: headSha })
-      .catch(() => ({ data: { check_runs: [] } })),
-    ok.rest.pulls
-      .listReviews({ owner, repo: repoName, pull_number: prNumber })
-      .catch(() => ({ data: [] })),
+interface PrAt {
+  owner: string;
+  repoName: string;
+  prNumber: number;
+  headSha: string;
+}
+
+/** Degrades to an empty list rather than failing the read: a card that renders without its check list beats one that does not render at all. */
+async function fetchChecks(checks: RestApi["checks"], at: PrAt) {
+  const result = await checks
+    .listForRef({ owner: at.owner, repo: at.repoName, ref: at.headSha })
+    .catch(() => ({ data: { check_runs: [] } }));
+  const { check_runs: checkRuns } = result.data;
+
+  return checkRuns.map((c) => ({
+    name: c.name,
+    status: c.status,
+    conclusion: c.conclusion ?? null,
+  }));
+}
+
+/** Degrades to an empty list for the same reason `fetchChecks` does. */
+async function fetchReviews(pulls: RestApi["pulls"], at: PrAt) {
+  const result = await pulls
+    .listReviews({
+      owner: at.owner,
+      repo: at.repoName,
+      pull_number: at.prNumber,
+    })
+    .catch(() => ({ data: [] }));
+
+  return result.data.map((r) => ({
+    user: r.user?.login || "unknown",
+    state: r.state,
+    submitted_at: r.submitted_at || "",
+  }));
+}
+
+/** Checks and reviews for a PR, fetched together. */
+async function prSignals(api: Pick<RestApi, "checks" | "pulls">, at: PrAt) {
+  const [checks, reviews] = await Promise.all([
+    fetchChecks(api.checks, at),
+    fetchReviews(api.pulls, at),
   ]);
 
-  return {
-    checks: checksResult.data.check_runs.map((c) => ({
-      name: c.name,
-      status: c.status,
-      conclusion: c.conclusion ?? null,
-    })),
-    reviews: reviewsResult.data.map((r) => ({
-      user: r.user?.login || "unknown",
-      state: r.state,
-      submitted_at: r.submitted_at || "",
-    })),
-  };
+  return { checks, reviews };
 }
 
 export async function getPRDetails(
   repo: string,
   prNumber: number,
 ): Promise<PRDetails> {
-  const ok = await octokit();
+  const rest = (await octokit()).rest;
   const [owner, repoName] = split(repo);
 
-  const { data: pr } = await ok.rest.pulls.get({
+  const { data: pr } = await rest.pulls.get({
     owner,
     repo: repoName,
     pull_number: prNumber,
   });
 
-  const { checks, reviews } = await prSignals(ok, {
+  const { checks, reviews } = await prSignals(rest, {
     owner,
     repoName,
     prNumber,

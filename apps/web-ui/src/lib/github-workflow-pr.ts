@@ -5,19 +5,21 @@ import { isGitHubConfigured, octokit, split } from "./github-client";
 const isAlreadyExists = (e: unknown): boolean =>
   (e as { status?: number }).status === 422;
 
+type RestApi = Awaited<ReturnType<typeof octokit>>["rest"];
+
 /** Create the branch, or commit onto the one already there — a repeat install is a second commit, not a failure. */
 async function ensureBranch(
-  ok: Awaited<ReturnType<typeof octokit>>,
+  git: RestApi["git"],
   at: { owner: string; name: string; branch: string; base: string },
 ): Promise<void> {
-  const { data: baseRef } = await ok.rest.git.getRef({
+  const { data: baseRef } = await git.getRef({
     owner: at.owner,
     repo: at.name,
     ref: `heads/${at.base}`,
   });
 
   try {
-    await ok.rest.git.createRef({
+    await git.createRef({
       owner: at.owner,
       repo: at.name,
       ref: `refs/heads/${at.branch}`,
@@ -32,11 +34,11 @@ async function ensureBranch(
 
 /** `{ sha }` when the file is already on the branch, `{}` when it is not — the shape the contents API wants for update vs create. */
 async function existingBlobSha(
-  ok: Awaited<ReturnType<typeof octokit>>,
+  repos: RestApi["repos"],
   at: { owner: string; name: string; path: string; branch: string },
 ): Promise<{ sha?: string }> {
   try {
-    const { data: contents } = await ok.rest.repos.getContent({
+    const { data: contents } = await repos.getContent({
       owner: at.owner,
       repo: at.name,
       path: at.path,
@@ -68,11 +70,11 @@ interface PrRequest {
 
 /** Opening a PR for a branch that already has one is not an error; the existing PR is the answer. */
 async function openOrFindPr(
-  ok: Awaited<ReturnType<typeof octokit>>,
+  pulls: RestApi["pulls"],
   pr: PrRequest,
 ): Promise<PrRef | null> {
   try {
-    const { data: created } = await ok.rest.pulls.create({
+    const { data: created } = await pulls.create({
       owner: pr.owner,
       repo: pr.name,
       head: pr.branch,
@@ -87,16 +89,16 @@ async function openOrFindPr(
       throw e;
     }
 
-    return await findOpenPr(ok, pr);
+    return await findOpenPr(pulls, pr);
   }
 }
 
 /** The PR already open for this branch, if it is still open. Null rather than a throw: the caller asked for a PR to exist, and one that was opened and then closed is a state a human chose. */
 async function findOpenPr(
-  ok: Awaited<ReturnType<typeof octokit>>,
+  pulls: RestApi["pulls"],
   pr: PrRequest,
 ): Promise<PrRef | null> {
-  const { data: existing } = await ok.rest.pulls.list({
+  const { data: existing } = await pulls.list({
     owner: pr.owner,
     repo: pr.name,
     head: `${pr.owner}:${pr.branch}`,
@@ -123,13 +125,13 @@ async function openWorkflowPR(
   if (!isGitHubConfigured()) {
     return null;
   }
-  const ok = await octokit();
+  const { git, repos, pulls } = (await octokit()).rest;
   const [owner, name] = split(repo);
-  const { data: repoData } = await ok.rest.repos.get({ owner, repo: name });
+  const { data: repoData } = await repos.get({ owner, repo: name });
   const base = repoData.default_branch;
 
-  await ensureBranch(ok, { owner, name, branch, base });
-  await ok.rest.repos.createOrUpdateFileContents({
+  await ensureBranch(git, { owner, name, branch, base });
+  await repos.createOrUpdateFileContents({
     owner,
     repo: name,
     path,
@@ -137,10 +139,10 @@ async function openWorkflowPR(
     message: `lore: install ${path}`,
     content: Buffer.from(content).toString("base64"),
     // The blob sha is required to overwrite; its absence is what makes this a create.
-    ...(await existingBlobSha(ok, { owner, name, path, branch })),
+    ...(await existingBlobSha(repos, { owner, name, path, branch })),
   });
 
-  return await openOrFindPr(ok, { owner, name, branch, base, title, body });
+  return await openOrFindPr(pulls, { owner, name, branch, base, title, body });
 }
 
 /** Install (or repair) the context-ingest workflow. */

@@ -137,9 +137,8 @@ export function layerByLongestPath(
   def: AssemblyLineDefinition,
 ): Map<string, number> {
   const { layers, indegree, acyclicOut } = forwardGraph(def);
-  const queue = def.nodes
-    .map((node) => node.id)
-    .filter((id) => indegree[id] === 0);
+  const nodeIds = def.nodes.map((node) => node.id);
+  const queue = nodeIds.filter((id) => indegree[id] === 0);
 
   for (let head = 0; head < queue.length; head += 1) {
     const id = queue[head];

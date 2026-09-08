@@ -15,23 +15,40 @@ import { applyRingState, toggleExpand } from "./spec-graph-controller-rings";
 
 /** The SVG node-group lifecycle: the data join (drag/click/hover wiring), focus/search visual state, and the settle + edge-crossing measurement that follow a rebuild. */
 
+/** The neighbour set for `id`, created and stored on first ask. */
+function neighborsOf(adj: Map<string, Set<string>>, id: string): Set<string> {
+  const existing = adj.get(id);
+
+  if (existing) {
+    return existing;
+  }
+  const created = new Set<string>();
+
+  adj.set(id, created);
+
+  return created;
+}
+
 export function buildAdj(c: GraphController): void {
-  c.adj = new Map();
+  const adj = new Map<string, Set<string>>();
 
   for (const l of c.links) {
     const s = idOf(l.source as string | SimNode);
     const t = idOf(l.target as string | SimNode);
 
-    (c.adj.get(s) ?? c.adj.set(s, new Set()).get(s)!).add(t);
-    (c.adj.get(t) ?? c.adj.set(t, new Set()).get(t)!).add(s);
+    neighborsOf(adj, s).add(t);
+    neighborsOf(adj, t).add(s);
   }
+  c.adj = adj;
 }
 
 export function applyVisualState(c: GraphController): void {
-  c.nodeG
+  const { nodeG } = c;
+
+  nodeG
     .selectAll<SVGGElement, SimNode>("g")
     .attr("opacity", (d) => c.focus.nodeOpacity(d.id));
-  c.nodeG
+  nodeG
     .selectAll<SVGCircleElement, SimNode>("circle")
     .attr("stroke-width", (d) => (d.id === c.selectedIdRef.current ? 4 : 2));
   c.drawer.draw(drawState(c));
@@ -54,11 +71,14 @@ export function applyFilter(c: GraphController, query: string): void {
 
 export function centerOn(c: GraphController, d: SimNode): void {
   const k = 1.4;
-  const t = d3.zoomIdentity
+  const { zoomIdentity } = d3;
+  const t = zoomIdentity
     .translate(c.width / 2 - (d.x ?? 0) * k, c.height / 2 - (d.y ?? 0) * k)
     .scale(k);
+  const { svg, zoom } = c;
+  const glide = svg.transition().duration(500);
 
-  c.svg.transition().duration(500).call(c.zoom.transform, t);
+  glide.call(zoom.transform, t);
 }
 
 function highlightOrDraw(c: GraphController): void {
@@ -109,13 +129,15 @@ function wireDrag(
   selection: d3.Selection<SVGGElement, SimNode, SVGGElement, unknown>,
   c: GraphController,
 ): void {
+  const { sim } = c;
+
   selection.call(
     d3
       .drag<SVGGElement, SimNode>()
       // Elastic drag: link springs tug neighbors while seed forces pull back toward home.
       .on("start", (event, d) => {
         if (!event.active) {
-          c.sim.alphaTarget(0.1).restart();
+          sim.alphaTarget(0.1).restart();
         }
         d.fx = d.x;
         d.fy = d.y;
@@ -126,7 +148,7 @@ function wireDrag(
       })
       .on("end", (event) => {
         if (!event.active) {
-          c.sim.alphaTarget(0);
+          sim.alphaTarget(0);
         }
         // Leave fx/fy pinned at the drop point — a dragged node stays put.
         c.saveState();
@@ -207,11 +229,14 @@ export function update(
   bindFilter: (fn: (q: string) => void) => void,
   coverageTint: (t: number) => string,
 ): void {
-  c.sim.nodes(c.nodes);
+  const { sim } = c;
+
+  sim.nodes(c.nodes);
   c.linkForce.links(c.links);
 
-  c.nodeG
-    .selectAll<SVGGElement, SimNode>("g")
+  const groups = c.nodeG.selectAll<SVGGElement, SimNode>("g");
+
+  groups
     .data(
       c.nodes.filter((n) => !isLeafCanvas(n.type)),
       (d) => d.id,
@@ -224,7 +249,7 @@ export function update(
   bindFilter((q) => applyFilter(c, q));
 
   prewarmIfFresh(c, restoredFromStorage);
-  c.sim.alpha(0).restart();
+  sim.alpha(0).restart();
 
   highlightOrDraw(c);
   measureCrossings(c);

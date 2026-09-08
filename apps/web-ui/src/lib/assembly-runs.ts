@@ -119,7 +119,12 @@ async function readRuns(query: string): Promise<AssemblyRun[]> {
     `/api/assembly-lines${query}`,
   );
 
-  return result.status === "ok" ? result.data.runs.map(toAssemblyRun) : [];
+  if (result.status !== "ok") {
+    return [];
+  }
+  const { runs } = result.data;
+
+  return runs.map(toAssemblyRun);
 }
 
 /** The run list, filterable by status and repo (both SQL-side). Empty on pre-0025 DBs. */
@@ -179,7 +184,12 @@ export async function fetchAssemblyRunNodes(
     `/api/assembly-lines/${encodeURIComponent(id)}/nodes`,
   );
 
-  return result.status === "ok" ? result.data.nodes.map(toAssemblyRunNode) : [];
+  if (result.status !== "ok") {
+    return [];
+  }
+  const { nodes } = result.data;
+
+  return nodes.map(toAssemblyRunNode);
 }
 
 /** A line's usage so far, or null on no-usage-yet/any error (a pre-0037 DB included) — reads `pipeline.agent_run_turns`, not `llm_calls`, since turns arrive mid-stream while a cost row lands only when the run ends; summed SQL-side (migration 0037 grants `lore_ui` SELECT). */

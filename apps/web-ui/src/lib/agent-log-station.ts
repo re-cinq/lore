@@ -99,20 +99,21 @@ export function stationEntries(
 }
 
 /** Formatted here (not JSX) so it's testable without a DOM; `utilization` is a fraction, never a percent. */
-export function rateLimitSummary(
-  entry: Extract<LogEntry, { kind: "rate-limit" }>,
-): string {
-  const windows = entry.windows
-    .map((window) => {
-      const percent = `${window.window} ${Math.round(window.utilization * 100)}%`;
+type RateLimitEntry = Extract<LogEntry, { kind: "rate-limit" }>;
 
-      return window.resetsAt === null
-        ? percent
-        : `${percent}, resets ${new Date(
-            window.resetsAt * 1000,
-          ).toLocaleTimeString()}`;
-    })
-    .join(" · ");
+function windowSummary(window: RateLimitEntry["windows"][number]): string {
+  const percent = `${window.window} ${Math.round(window.utilization * 100)}%`;
+
+  return window.resetsAt === null
+    ? percent
+    : `${percent}, resets ${new Date(
+        window.resetsAt * 1000,
+      ).toLocaleTimeString()}`;
+}
+
+export function rateLimitSummary(entry: RateLimitEntry): string {
+  const parts = entry.windows.map(windowSummary);
+  const windows = parts.join(" · ");
 
   return entry.status
     ? `rate limit: ${windows} (${entry.status})`

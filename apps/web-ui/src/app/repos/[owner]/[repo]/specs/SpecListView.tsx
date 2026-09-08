@@ -20,8 +20,11 @@ function visibleSpecs(
   view: { filter: SpecStatusFilter; query: string; order: DocSortOrder },
 ) {
   const groups = groupSpecSummaries(specs);
-  const statusOf = (group: { key: string; files: { filePath: string }[] }) =>
-    statuses[`${group.key}/spec.md`] ?? statuses[group.files[0]?.filePath];
+  const statusOf = (group: { key: string; files: { filePath: string }[] }) => {
+    const { files } = group;
+
+    return statuses[`${group.key}/spec.md`] ?? statuses[files[0]?.filePath];
+  };
   const { counts, visible } = filterDocCards(groups, statusOf, view.filter, {
     query: view.query,
     textOf: (group) => `${group.title} ${group.description} ${group.key}`,
