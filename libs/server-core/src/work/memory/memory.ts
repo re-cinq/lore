@@ -1,7 +1,7 @@
 import type { PgPool } from "@re-cinq/lore-shared";
 // PostgreSQL-backed memory CRUD: write/read/delete/list against memory.memories, memory.memory_versions, and memory.audit_log, using the same pool-injection pattern as db.ts.
 
-import { resolveAgentId } from "@re-cinq/lore-shared";
+import { memoryListScope, resolveAgentId } from "@re-cinq/lore-shared";
 import {
   getMemoryPool,
   firstRow,
@@ -208,26 +208,6 @@ export async function writeMemory(
   };
 }
 
-function listScope(
-  repo: string | undefined,
-  agentId: string | undefined,
-  limit: number,
-  offset: number,
-): { filter: string; params: unknown[] } {
-  if (repo) {
-    return { filter: "repo = $1 AND", params: [repo, limit, offset] };
-  }
-
-  if (agentId) {
-    return {
-      filter: "agent_id = $1 AND",
-      params: [resolveAgentId(agentId), limit, offset],
-    };
-  }
-
-  return { filter: "", params: [limit, offset] };
-}
-
 function countScopeParams(
   repo: string | undefined,
   agentId: string | undefined,
@@ -281,7 +261,7 @@ export async function listMemories(
   repo?: string,
 ): Promise<{ memories: Record<string, unknown>[]; total: number }> {
   // Scope by repo (preferred) or agent_id
-  const { filter, params } = listScope(repo, agentId, limit, offset);
+  const { filter, params } = memoryListScope(repo, agentId, limit, offset);
 
   const rows = await listPage(filter, params);
   const total = await countScoped(filter, countScopeParams(repo, agentId));

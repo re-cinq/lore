@@ -11,6 +11,7 @@ import {
   updateTaskStatus as sharedUpdateTaskStatus,
   cancelPipelineTask,
   markTaskMerged as sharedMarkTaskMerged,
+  type CreateTaskInput,
   type PipelineTaskRow,
   type TaskListRow,
 } from "@re-cinq/lore-shared";
@@ -62,16 +63,7 @@ export const markTaskMerged = (taskId: string) =>
 // ── Task CRUD ────────────────────────────────────────────────────────
 
 // createTask single-sourced in shared; mcp adds trust-gate + default repo resolve.
-export interface CreateTaskInput {
-  description: string;
-  taskType?: string;
-  targetRepo?: string;
-  createdBy?: string;
-  contextBundle?: Record<string, unknown>;
-  priority?: string;
-  taskGroupId?: string;
-  contextRefs?: { fact_ids: string[]; memory_ids: string[] };
-}
+export type { CreateTaskInput } from "@re-cinq/lore-shared";
 
 export function createTask(
   input: CreateTaskInput,

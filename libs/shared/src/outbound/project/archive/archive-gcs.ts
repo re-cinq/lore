@@ -39,22 +39,15 @@ export class GcsArchive implements ArchivePort {
   }
 
   async read(key: string): Promise<string | null> {
-    try {
-      const file = this.storage.bucket(this.bucketName).file(key);
-      const [exists] = await file.exists();
-
-      if (!exists) {
-        return null;
-      }
-      const [content] = await file.download();
-
-      return content.toString("utf-8");
-    } catch {
-      return null;
-    }
+    return (await this.download(key))?.toString("utf-8") ?? null;
   }
 
   async readBytes(key: string): Promise<Uint8Array | null> {
+    return this.download(key);
+  }
+
+  /** An absent object and an unreachable bucket both read as null: the archive is a best-effort cache, and a caller that cannot tell the two apart would not act differently anyway. */
+  private async download(key: string): Promise<Buffer | null> {
     try {
       const file = this.storage.bucket(this.bucketName).file(key);
       const [exists] = await file.exists();

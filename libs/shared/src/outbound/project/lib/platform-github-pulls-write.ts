@@ -7,26 +7,13 @@ import type {
   MergeMethod,
 } from "../pulls/pull-requests-port.js";
 import { split, toPullRef } from "./platform-github-support.js";
+import { addIssueLabel, commentOnIssue } from "./platform-github-issues.js";
 import type { IssuesApi, PullsApi } from "./platform-github-api.js";
 
 /** PR mutation paths for PlatformGitHub: comments, reviews, labels, merge, open, update. */
 
-export async function comment(
-  ok: Octokit,
-  repo: string,
-  number: number,
-  body: string,
-): Promise<void> {
-  const [owner, name] = split(repo);
-  const { issues } = ok.rest;
-
-  await issues.createComment({
-    owner,
-    repo: name,
-    issue_number: number,
-    body,
-  });
-}
+/** GitHub numbers PRs in the same series as issues and comments on them through the same endpoint, so this is the issue path under the PR's name. */
+export const comment = commentOnIssue;
 
 export async function review(
   ok: Octokit,
@@ -98,22 +85,8 @@ export async function replyToReviewComment(
   });
 }
 
-export async function addLabel(
-  ok: Octokit,
-  repo: string,
-  number: number,
-  label: string,
-): Promise<void> {
-  const [owner, name] = split(repo);
-  const { issues } = ok.rest;
-
-  await issues.addLabels({
-    owner,
-    repo: name,
-    issue_number: number,
-    labels: [label],
-  });
-}
+/** Labels are an issue-series property too; same endpoint as addIssueLabel. */
+export const addLabel = addIssueLabel;
 
 export async function merge(
   ok: Octokit,

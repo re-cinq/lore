@@ -9,6 +9,7 @@ import { isTestFile } from "../../domain/test-paths.js";
 import { type SpecChunkWithEmbedding } from "../../outbound/project/chunks/chunks-port.js";
 import { type Project } from "../../outbound/project/lib/project.js";
 import { isAssertionSource } from "./spec-drift-rules.js";
+import { groupChunksByPath } from "../spec-summary.js";
 import { openBackfillPr } from "./backfill-pr.js";
 
 export {
@@ -51,22 +52,6 @@ function resolveSpecsToProcess(
   }
 
   return specRows.filter((s) => s.filePath === specPathFilter);
-}
-
-// Group spec chunks by file_path for reassembly.
-function groupSpecsByPath(
-  specs: SpecChunkWithEmbedding[],
-): Map<string, SpecChunkWithEmbedding[]> {
-  const byPath = new Map<string, SpecChunkWithEmbedding[]>();
-
-  for (const s of specs) {
-    const list = byPath.get(s.filePath) ?? [];
-
-    list.push(s);
-    byPath.set(s.filePath, list);
-  }
-
-  return byPath;
 }
 
 interface BackfillOneSpecArgs {
@@ -162,7 +147,7 @@ export async function specCoverageBackfillJob(
 
   // Test chunks loaded once per repo and reused for every spec.
   const codeChunks = await buildTestChunks(project);
-  const byPath = groupSpecsByPath(specs);
+  const byPath = groupChunksByPath(specs);
 
   const tally = await backfillEach(byPath, { project, repo, codeChunks });
   const out = `Backfill: ${tally.specs} specs in ${repo} — ${tally.suggestions} suggestions, ${tally.prs} PRs opened`;

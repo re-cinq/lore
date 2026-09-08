@@ -2,6 +2,7 @@
 
 import type { EventInsert } from "../../events.js";
 import type { EventQueueRepository } from "./event-queue-port.js";
+import { bearerJsonHeaders } from "../lib/http-auth.js";
 
 /** Timeout long enough for router load, short enough to release wedged producers. */
 const TIMEOUT_MS = 15_000;
@@ -16,14 +17,9 @@ export class HttpEventReporter implements Pick<EventQueueRepository, "insert"> {
   ) {}
 
   private headers(): Record<string, string> {
-    const h: Record<string, string> = { "content-type": "application/json" };
-    const token = typeof this.token === "function" ? this.token() : this.token;
-
-    if (token) {
-      h["authorization"] = `Bearer ${token}`;
-    }
-
-    return h;
+    return bearerJsonHeaders(
+      typeof this.token === "function" ? this.token() : this.token,
+    );
   }
 
   /** POST to router with shared deadline. */
@@ -34,6 +30,17 @@ export class HttpEventReporter implements Pick<EventQueueRepository, "insert"> {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
+  }
+
+  /** POST and parse; 204 is the ack/fail/dead answer, which has no body to .json() on. */
+  protected async call<T>(path: string, body?: unknown): Promise<T> {
+    const res = await this.post(path, body);
+
+    if (!res.ok) {
+      throw new Error(`${path} failed: ${res.status}`);
+    }
+
+    return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
   }
 
   async insert(input: EventInsert): Promise<void> {

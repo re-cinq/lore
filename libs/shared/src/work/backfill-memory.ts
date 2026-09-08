@@ -1,27 +1,10 @@
 // Backfill exporter (memory-dgraph-migration AC6): migrates Postgres memory.* into Dgraph, preserving each Postgres UUID as the node xid; both passes are idempotent (an existing xid is skipped).
-import type {
-  PgPool,
-  DgraphClientPort,
-  DgraphTxn,
-} from "../outbound/memory-store.js";
+import type { PgPool, DgraphClientPort } from "../outbound/memory-store.js";
+import { runInTxn } from "../outbound/spec-trace/dgraph-upsert.js";
 
 export interface BackfillReport {
   memories: number;
   facts: number;
-}
-
-// Opens a fresh Dgraph txn and always discards it afterward; mirrors DgraphMemoryStore's own private withTxn.
-async function withTxn<T>(
-  dgraph: DgraphClientPort,
-  fn: (txn: DgraphTxn) => Promise<T>,
-): Promise<T> {
-  const txn = dgraph.newTxn();
-
-  try {
-    return await fn(txn);
-  } finally {
-    await txn.discard().catch(() => {});
-  }
 }
 
 // Postgres's pgvector bracket literal `[v1,v2,...]` is byte-for-byte Dgraph's `float32vector` string shape, so it passes through verbatim — no parse, no re-encode (re-encoding via `toVectorLiteral` would double-wrap it).
@@ -34,7 +17,7 @@ async function fetchPresentXids(
   dgraph: DgraphClientPort,
   xidPredicate: string,
 ): Promise<Set<string>> {
-  return withTxn(dgraph, async (probe) => {
+  return runInTxn(dgraph, async (probe) => {
     const res = await probe.queryWithVars(
       `query existing { existing(func: has(${xidPredicate})) { ${xidPredicate} } }`,
       {},
@@ -61,7 +44,7 @@ async function migratePass<Row extends { id: string }>(
     }
     const setJson = await buildNode(row);
 
-    await withTxn(dgraph, (txn) => txn.mutate({ setJson, commitNow: true }));
+    await runInTxn(dgraph, (txn) => txn.mutate({ setJson, commitNow: true }));
     present.add(row.id);
   }
 
@@ -72,7 +55,7 @@ async function resolveMemoryUid(
   dgraph: DgraphClientPort,
   memoryXid: string,
 ): Promise<string | undefined> {
-  return withTxn(dgraph, async (probe) => {
+  return runInTxn(dgraph, async (probe) => {
     const res = await probe.queryWithVars(
       `query m($x: string) { m(func: eq(Memory.xid, $x)) { uid } }`,
       { $x: memoryXid },

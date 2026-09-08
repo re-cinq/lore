@@ -47,6 +47,22 @@ export interface TraceDocument {
   coverage: TraceCoverage;
 }
 
+/** The test that validates a statement or criterion, as Dgraph projects it — the same edge hangs off both, so both read it the same way. */
+interface ValidatedByRow {
+  uid: string;
+  "TestChunk.file_path"?: string;
+  "TestChunk.test_name"?: string;
+  "TestChunk.start_line"?: number;
+}
+
+/** The code that implements a statement or criterion; sibling of ValidatedByRow. */
+interface ImplementedByRow {
+  uid: string;
+  "CodeChunk.file_path"?: string;
+  "CodeChunk.symbol_name"?: string;
+  "CodeChunk.start_line"?: number;
+}
+
 interface SpecRow {
   uid: string;
   "Spec.file_path"?: string;
@@ -66,18 +82,8 @@ interface SpecRow {
     "Statement.drifted"?: boolean;
     "Statement.violated"?: boolean;
     sec?: { uid: string };
-    vb?: Array<{
-      uid: string;
-      "TestChunk.file_path"?: string;
-      "TestChunk.test_name"?: string;
-      "TestChunk.start_line"?: number;
-    }>;
-    ib?: Array<{
-      uid: string;
-      "CodeChunk.file_path"?: string;
-      "CodeChunk.symbol_name"?: string;
-      "CodeChunk.start_line"?: number;
-    }>;
+    vb?: ValidatedByRow[];
+    ib?: ImplementedByRow[];
     db?: Array<{
       uid: string;
       "ADR.file_path"?: string;
@@ -88,18 +94,8 @@ interface SpecRow {
     uid: string;
     "AcceptanceCriterion.ordinal"?: number;
     "AcceptanceCriterion.text"?: string;
-    vb?: Array<{
-      uid: string;
-      "TestChunk.file_path"?: string;
-      "TestChunk.test_name"?: string;
-      "TestChunk.start_line"?: number;
-    }>;
-    ib?: Array<{
-      uid: string;
-      "CodeChunk.file_path"?: string;
-      "CodeChunk.symbol_name"?: string;
-      "CodeChunk.start_line"?: number;
-    }>;
+    vb?: ValidatedByRow[];
+    ib?: ImplementedByRow[];
   }>;
 }
 

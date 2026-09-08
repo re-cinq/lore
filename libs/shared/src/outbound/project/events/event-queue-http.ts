@@ -14,17 +14,6 @@ export class HttpEventQueue
   extends HttpEventReporter
   implements EventQueueRepository
 {
-  private async call<T>(path: string, body?: unknown): Promise<T> {
-    const res = await this.post(path, body);
-
-    if (!res.ok) {
-      throw new Error(`${path} failed: ${res.status}`);
-    }
-
-    // 204 is the ack/fail/dead answer: no body to .json() on.
-    return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
-  }
-
   async claimBatch(
     limit: number,
     excludeEventNames: string[] = [],

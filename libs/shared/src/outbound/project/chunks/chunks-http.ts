@@ -8,6 +8,7 @@ import type {
   SpecChunkWithEmbedding,
   CodeChunkFull,
 } from "./chunks-port.js";
+import { bearerJsonHeaders } from "../lib/http-auth.js";
 
 /** ChunksPort over the Lore HTTP API — the station-pod adapter (a pod can't reach Postgres, ADR-031 D7). Read-only: the write surface throws — reindex runs Floor-side, never in a station. */
 
@@ -23,13 +24,7 @@ export class ChunksHttp implements ChunksPort {
   ) {}
 
   private headers(): Record<string, string> {
-    const h: Record<string, string> = { "content-type": "application/json" };
-
-    if (this.token) {
-      h["authorization"] = `Bearer ${this.token}`;
-    }
-
-    return h;
+    return bearerJsonHeaders(this.token);
   }
 
   private async get<T>(
