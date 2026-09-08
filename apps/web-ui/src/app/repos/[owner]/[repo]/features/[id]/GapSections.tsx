@@ -72,7 +72,7 @@ function NoSectionsFallback({ draft }: { draft: string }) {
   );
 }
 
-/** The section'"'"'s mockups, when the round produced any. */
+/** The section's mockups, when the round produced any. */
 function SectionMockups({
   section,
   stylesheet,

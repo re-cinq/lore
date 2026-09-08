@@ -242,8 +242,6 @@ export function FormActions({
   );
 }
 
-/** Agent create/edit form; org editing forks to project agent (upserts via saveAgent). */
-
 /** How long a run may take and what it is told to do. Both fall back to the INHERITED value when left blank — the placeholder says so, because an empty field here means "use the org default", not "no timeout" or "no prompt". */
 export function RunLimitsFields({
   timeoutMinutes,

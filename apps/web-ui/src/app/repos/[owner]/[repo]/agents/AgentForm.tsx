@@ -19,6 +19,7 @@ export type AgentFormAction = (
   fd: FormData,
 ) => Promise<AgentFormState>;
 
+/** Agent create/edit form; org editing forks to project agent (upserts via saveAgent). */
 interface AgentFormProps {
   repo: string;
   agent: AgentDefinition | null;
