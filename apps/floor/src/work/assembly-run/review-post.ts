@@ -42,21 +42,25 @@ export function reviewNodeResultOverride(
   }
 
   if (post === "no_findings" && parseReviewVerdict(output) !== "success") {
-    // Records WHY, not just that it failed — a bare failure renders identically to an evicted pod/dry account/token mismatch and cost two reviewers a false infra-outage hunt on 2026-08-24.
-    const verdict = parseReviewVerdict(output);
-
-    return {
-      outcome: "failed",
-      // `unknown`, not an invented class: FailureCategory is the closed taxonomy of infra failures driving retry/dispatch gating; this is a recipe/contract bug, and node-outcome already uses `unknown` for that.
-      failureClass: "unknown",
-      failureDetail:
-        verdict === "changes_requested"
-          ? "the review reached changes_requested but nothing was posted to the PR — its findings block did not parse, so the findings are lost"
-          : "the review posted no findings and reached no verdict — it never got far enough to judge the diff",
-    };
+    return unpostedReviewFailure(output);
   }
 
   return result;
+}
+
+// Records WHY, not just that it failed — a bare failure renders identically to an evicted pod/dry account/token mismatch and cost two reviewers a false infra-outage hunt on 2026-08-24.
+function unpostedReviewFailure(output: string | undefined): NodeResult {
+  const verdict = parseReviewVerdict(output);
+
+  return {
+    outcome: "failed",
+    // `unknown`, not an invented class: FailureCategory is the closed taxonomy of infra failures driving retry/dispatch gating; this is a recipe/contract bug, and node-outcome already uses `unknown` for that.
+    failureClass: "unknown",
+    failureDetail:
+      verdict === "changes_requested"
+        ? "the review reached changes_requested but nothing was posted to the PR — its findings block did not parse, so the findings are lost"
+        : "the review posted no findings and reached no verdict — it never got far enough to judge the diff",
+  };
 }
 
 async function auditReviewPostFailed(
@@ -124,21 +128,37 @@ export async function postReviewFromNode(
   }
 
   try {
-    const pulls = await resolvePoster(row, ports.poster);
-    const marker = reviewMarkerFor(row, node.id, ports.iteration);
-    const diff = await pulls.getDiff(prNumber).catch(() => "");
-    const posted = await maybePostReview(pulls, prNumber, output ?? "", {
-      positions: commentablePositions(diff),
-      marker,
-      model: ports.model,
-    });
-
-    return await classifyPostedReview({ row, prNumber, output }, posted, ports);
+    return await postAndClassify({ row, node, prNumber, output }, ports);
   } catch (err) {
     await auditReviewPostFailed(row, prNumber, (err as Error).message, ports);
 
     return "post_failed";
   }
+}
+
+interface ReviewPostContext {
+  row: AssemblyRunRecord;
+  node: RunGraphNode;
+  prNumber: number;
+  output: string | undefined;
+}
+
+/** Renders and posts the node's findings, then classifies what the post did. */
+async function postAndClassify(
+  context: ReviewPostContext,
+  ports: ReviewPorts,
+): Promise<ReviewPostOutcome> {
+  const { row, node, prNumber, output } = context;
+  const pulls = await resolvePoster(row, ports.poster);
+  const marker = reviewMarkerFor(row, node.id, ports.iteration);
+  const diff = await pulls.getDiff(prNumber).catch(() => "");
+  const posted = await maybePostReview(pulls, prNumber, output ?? "", {
+    positions: commentablePositions(diff),
+    marker,
+    model: ports.model,
+  });
+
+  return await classifyPostedReview({ row, prNumber, output }, posted, ports);
 }
 
 // The redelivery that #870 exists for: this run's marker is already on the PR, so the post was skipped — audited so a dedupe firing is visible next to the duplicate it prevented.
@@ -199,13 +219,22 @@ async function auditUnparsedFindings(
     {
       event_type: "review_findings_unparsed",
       repo: row.repo,
-      payload: {
-        pr_number: prNumber,
-        assembly_run_id: row.id,
-        verdict,
-        output_length: output?.length ?? 0,
-      },
+      payload: unparsedFindingsPayload(row, prNumber, verdict, output),
     },
     ports.audit,
   );
+}
+
+function unparsedFindingsPayload(
+  row: AssemblyRunRecord,
+  prNumber: number,
+  verdict: ReturnType<typeof parseReviewVerdict>,
+  output: string | undefined,
+): Record<string, unknown> {
+  return {
+    pr_number: prNumber,
+    assembly_run_id: row.id,
+    verdict,
+    output_length: output?.length ?? 0,
+  };
 }

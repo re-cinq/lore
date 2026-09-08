@@ -45,15 +45,26 @@ export function failureNotice(
   if (!prNumber) {
     return { message, prNumber: null, prComment: null };
   }
-  const rerunHint = isReviewDefinition(row.blueprintName)
-    ? ` ${REVIEW_RERUN_HINT}`
-    : "";
 
   return {
     message,
     prNumber,
-    prComment: `Lore ${row.blueprintName} run failed (${outcome}${why}) — ${runRef}.${rerunHint}`,
+    prComment: failurePrComment(row, outcome, why, runRef),
   };
+}
+
+/** The PR-side wording; a review line also carries how to re-run it. */
+function failurePrComment(
+  row: AssemblyRunRecord,
+  outcome: string,
+  why: string,
+  runRef: string,
+): string {
+  const rerunHint = isReviewDefinition(row.blueprintName)
+    ? ` ${REVIEW_RERUN_HINT}`
+    : "";
+
+  return `Lore ${row.blueprintName} run failed (${outcome}${why}) — ${runRef}.${rerunHint}`;
 }
 
 /** The send surfaces, injectable for tests; production resolves them per repo. */
@@ -105,13 +116,22 @@ export async function notifyLineFailure(
     notify("escalation", notice.message),
   );
 
-  if (notice.prNumber && notice.prComment) {
-    const { prNumber, prComment } = notice;
+  await attemptPrComment(row, notice, comment, ports.audit);
+}
 
-    await attempt(row, "comment", ports.audit, () =>
-      comment(prNumber, prComment),
-    );
+/** The PR half of the notice, skipped when the run has no PR to speak to. */
+async function attemptPrComment(
+  row: AssemblyRunRecord,
+  notice: FailureNotice,
+  comment: ResolvedFailurePorts["comment"],
+  audit: AuditPort | undefined,
+): Promise<void> {
+  const { prNumber, prComment } = notice;
+
+  if (!prNumber || !prComment) {
+    return;
   }
+  await attempt(row, "comment", audit, () => comment(prNumber, prComment));
 }
 
 async function attempt(
@@ -126,17 +146,25 @@ async function attempt(
     const message = (err as Error).message;
 
     console.error(`[notify-failure] ${channel} send failed:`, message);
-    const entry: AuditLogEntry = {
-      event_type: "failure_notify_failed",
-      repo: row.repo,
-      payload: {
-        assembly_run_id: row.id,
-        definition: row.blueprintName,
-        channel,
-        error: message,
-      },
-    };
-
-    await writeAuditLog(entry, audit).catch(() => undefined);
+    await writeAuditLog(notifyFailureEntry(row, channel, message), audit).catch(
+      () => undefined,
+    );
   }
+}
+
+function notifyFailureEntry(
+  row: AssemblyRunRecord,
+  channel: "notify" | "comment",
+  message: string,
+): AuditLogEntry {
+  return {
+    event_type: "failure_notify_failed",
+    repo: row.repo,
+    payload: {
+      assembly_run_id: row.id,
+      definition: row.blueprintName,
+      channel,
+      error: message,
+    },
+  };
 }

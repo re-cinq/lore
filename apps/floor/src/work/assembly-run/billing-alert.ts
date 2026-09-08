@@ -70,6 +70,14 @@ export async function maybeAlertBilling(
     return false;
   }
 
+  return sendAlert(message, ports);
+}
+
+/** Best-effort send: a notify throw is logged and reported as "not sent", never propagated. */
+async function sendAlert(
+  message: string,
+  ports: BillingAlertPorts,
+): Promise<boolean> {
   try {
     await ports.notify("escalation", message);
 

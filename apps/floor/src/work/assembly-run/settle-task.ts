@@ -116,12 +116,8 @@ async function resolveSettlement(
   context: SettlementContext,
   deps: SettleTaskDeps,
 ): Promise<TaskSettlement | null> {
-  const { task, previousStatus, outcome, reason } = context;
-  const settlement = decideTaskSettlement({
-    outcome,
-    reason,
-    taskStatus: previousStatus,
-  });
+  const { task, previousStatus: taskStatus, outcome, reason } = context;
+  const settlement = decideTaskSettlement({ outcome, reason, taskStatus });
 
   if (!settlement) {
     return null;
@@ -144,12 +140,9 @@ function settlementExtra(settlement: TaskSettlement): Record<string, unknown> {
     : {};
 }
 
-interface ApplySettlementContext {
-  task: PipelineTask;
-  previousStatus: string;
+interface ApplySettlementContext extends SettlementContext {
   settlement: TaskSettlement;
-  row: { id: string; taskId: string | null; repo: string };
-  outcome: string;
+  row: SettleRow;
 }
 
 // No spec-analysis objection arm here any more: that's an EDGE back to the author node (FR6.26), parking on a person instead of needing a faked task failure.
@@ -174,15 +167,18 @@ async function applySettlement(
   });
 }
 
-/** Settle the task behind a line that just reached a terminal state. Safe for every line (task-less, already-settled, losing racers all no-op); never throws — a settle failure must not poison finishLine. */
+/** The slice of an assembly-run row a settlement reads. */
+export interface SettleRow {
+  id: string;
+  taskId: string | null;
+  repo: string;
+  /** The line's args — carries a node's objection back to the settlement. */
+  args?: Record<string, unknown>;
+}
+
 /** Resolves what this outcome means for the task and applies it. `previousStatus` is captured BEFORE the write: the CAS mutates the very object being held, so reading it afterwards would report the new status as the transition's own origin. */
 async function settle(
-  row: {
-    id: string;
-    taskId: string | null;
-    repo: string;
-    args?: Record<string, unknown>;
-  },
+  row: SettleRow,
   outcome: string,
   reason: string | undefined,
   deps: SettleTaskDeps,
@@ -192,29 +188,18 @@ async function settle(
   if (!task) {
     return;
   }
-  const previousStatus = task.status;
-  const settlement = await resolveSettlement(
-    { task, previousStatus, outcome, reason },
-    deps,
-  );
+  const context = { task, previousStatus: task.status, outcome, reason };
+  const settlement = await resolveSettlement(context, deps);
 
   if (!settlement) {
     return;
   }
-  await applySettlement(
-    { task, previousStatus, settlement, row, outcome },
-    deps,
-  );
+  await applySettlement({ ...context, settlement, row }, deps);
 }
 
+/** Settle the task behind a line that just reached a terminal state. Safe for every line (task-less, already-settled, losing racers all no-op); never throws — a settle failure must not poison finishLine. */
 export async function settleTaskForLine(
-  row: {
-    id: string;
-    taskId: string | null;
-    repo: string;
-    /** The line's args — carries a node's objection back to the settlement. */
-    args?: Record<string, unknown>;
-  },
+  row: SettleRow,
   outcome: string,
   reason: string | undefined,
   deps: SettleTaskDeps,

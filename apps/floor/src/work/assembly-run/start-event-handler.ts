@@ -28,6 +28,14 @@ export interface StartEventHandlerDeps {
   reopenTask?: (row: { id: string; taskId: string | null }) => Promise<void>;
 }
 
+/** Identity + routing, all a start event carries; branch/args/description live in the row. */
+interface StartEvent {
+  assemblyLineId: string;
+  blueprintName: string;
+  taskId: string | null;
+  resumedFrom: unknown;
+}
+
 function isValidAssemblyLineId(id: unknown): id is string {
   return typeof id === "string" && id.length > 0;
 }
@@ -70,11 +78,9 @@ async function closeUnknownDefinitionRun(
 }
 
 /** The three fields a start event carries. A missing run id throws rather than routing: without it there is no row to fail, so a silently-dropped event would leave a queued run nobody ever walks. */
-function readStartEvent(params: Record<string, unknown>): {
-  assemblyLineId: string;
-  blueprintName: string;
-  taskId: string | null;
-} {
+function readStartEvent(
+  params: Record<string, unknown>,
+): Omit<StartEvent, "resumedFrom"> {
   const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
 
   enforceTrue(
@@ -92,12 +98,7 @@ function readStartEvent(params: Record<string, unknown>): {
 
 /** The three ways a start event routes: a known blueprint walks its graph, a task type without one runs as a single Agent CR, and neither leaves nothing to run — that last case closes the row rather than retrying, since no retry produces a definition that does not exist. */
 async function routeStart(
-  event: {
-    assemblyLineId: string;
-    blueprintName: string;
-    taskId: string | null;
-    resumedFrom: unknown;
-  },
+  event: StartEvent,
   deps: StartEventHandlerDeps,
 ): Promise<void> {
   const { assemblyLineId, blueprintName, taskId } = event;
@@ -132,13 +133,7 @@ export function createStartEventHandler(
 
 /** Record resolved blueprint hash and snapshot graph; walk state persists in node rows (FR6.38, specs/fork-rerun-from-node FR4). */
 async function startResolvedBlueprint(
-  params: {
-    assemblyLineId: string;
-    blueprintName: string;
-    taskId: string | null;
-    resumedFrom: unknown;
-    definition: AssemblyLine;
-  },
+  params: StartEvent & { definition: AssemblyLine },
   deps: StartEventHandlerDeps,
 ): Promise<void> {
   const { assemblyLineId, blueprintName, taskId, resumedFrom, definition } =
@@ -159,30 +154,9 @@ async function startResolvedBlueprint(
   await deps.advance(assemblyLineId);
 }
 
-/** Composed production handler; deps resolved lazily to avoid forcing DB pool or K8s client. */
+/** Composed production handler. */
 export const assemblyLineStart: EventHandler = async (params) => {
-  const [
-    { pipeline },
-    { loadBuiltinAssemblyLines },
-    { advanceLine, productionNodeEventDeps },
-  ] = await Promise.all([
-    import("../../outbound/queues.js"),
-    import("@re-cinq/lore-assembly-lines"),
-    import("./node-event-handler.js"),
-  ]);
-
-  const { notifyLineFailure } = await import("./notify-failure.js");
-  const { reopenTaskForFork } = await import("./reopen-task.js");
-  const { taskStore } = await import("../../outbound/queues.js");
-
-  const handler = createStartEventHandler({
-    assemblyRuns: pipeline().assemblyRuns,
-    definitions: loadBuiltinAssemblyLines,
-    advance: async (assemblyLineId) =>
-      advanceLine(assemblyLineId, await productionNodeEventDeps()),
-    notifyFailure: notifyLineFailure,
-    reopenTask: (row) => reopenTaskForFork(row, { tasks: taskStore() }),
-  });
+  const handler = await productionStartHandler();
 
   await handler(params);
 
@@ -191,6 +165,37 @@ export const assemblyLineStart: EventHandler = async (params) => {
     String(params.assemblyRunId ?? params.assemblyLineId ?? ""),
   );
 };
+
+/** Every seam the handler needs, resolved lazily so importing this module forces no DB pool or K8s client. */
+async function productionStartHandler(): Promise<EventHandler> {
+  const [queues, lines, nodeEvents, notify, reopen] = await Promise.all([
+    import("../../outbound/queues.js"),
+    import("@re-cinq/lore-assembly-lines"),
+    import("./node-event-handler.js"),
+    import("./notify-failure.js"),
+    import("./reopen-task.js"),
+  ]);
+
+  return createStartEventHandler({
+    assemblyRuns: queues.pipeline().assemblyRuns,
+    definitions: lines.loadBuiltinAssemblyLines,
+    advance: advanceSeam(nodeEvents),
+    notifyFailure: notify.notifyLineFailure,
+    reopenTask: (row) =>
+      reopen.reopenTaskForFork(row, { tasks: queues.taskStore() }),
+  });
+}
+
+/** Launches the walk for one run, building the node-event deps at call time rather than at handler-composition time. */
+function advanceSeam(
+  nodeEvents: typeof import("./node-event-handler.js"),
+): StartEventHandlerDeps["advance"] {
+  return async (assemblyLineId) =>
+    nodeEvents.advanceLine(
+      assemblyLineId,
+      await nodeEvents.productionNodeEventDeps(),
+    );
+}
 
 function hasPrNumber(row: AssemblyRunRecord | null): row is AssemblyRunRecord {
   return row !== null && Number(row.args.pr_number) > 0;
@@ -217,24 +222,28 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
   }
 
   try {
-    const [{ pipeline }, { projectFor }, { publishPrCheck }] =
-      await Promise.all([
-        import("../../outbound/queues.js"),
-        import("../../outbound/project-boot.js"),
-        import("./pr-check.js"),
-      ]);
-    const row = await pipeline().assemblyRuns.getById(assemblyLineId);
-
-    if (!hasPrNumber(row)) {
-      return;
-    }
-    const nodes = await nodesForStartCheck(row, assemblyLineId, (id) =>
-      pipeline().assemblyRuns.listStationRuns(id),
-    );
-    const project = await projectFor(row.repo);
-
-    await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);
+    await publishCheckForRun(assemblyLineId);
   } catch (err) {
     console.warn("[pr-check] start publish failed:", (err as Error).message);
   }
+}
+
+/** Reads the run and, once finished, its node rows, then stamps the PR check. */
+async function publishCheckForRun(assemblyLineId: string): Promise<void> {
+  const [{ pipeline }, { projectFor }, { publishPrCheck }] = await Promise.all([
+    import("../../outbound/queues.js"),
+    import("../../outbound/project-boot.js"),
+    import("./pr-check.js"),
+  ]);
+  const row = await pipeline().assemblyRuns.getById(assemblyLineId);
+
+  if (!hasPrNumber(row)) {
+    return;
+  }
+  const nodes = await nodesForStartCheck(row, assemblyLineId, (id) =>
+    pipeline().assemblyRuns.listStationRuns(id),
+  );
+  const project = await projectFor(row.repo);
+
+  await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);
 }

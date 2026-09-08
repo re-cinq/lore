@@ -99,6 +99,16 @@ async function reapOpenRun(
 
     return failed > 0 ? "failed-queued" : null;
   }
+
+  return reapGraphNodes(row, graph, ctx);
+}
+
+/** An open node gets a recovery verdict; none open means the walk simply stopped, so it is re-advanced. */
+async function reapGraphNodes(
+  row: AssemblyRunRecord,
+  graph: NonNullable<Awaited<ReturnType<typeof resolveRunGraph>>>,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
   const nodes = await ctx.deps.assemblyRuns.listStationRuns(row.id);
   const openNode = nodes.find((n) => n.outcome === null);
 
@@ -153,13 +163,21 @@ async function buildReapContext(
     queueWaitMs,
     offlineAgents,
     centralClusterAgentId: await deps.centralClusterAgentId(),
-    whyUnclaimed: (requiredTags: string[]): string =>
-      unclaimedDetail({
-        requiredTags,
-        waitMinutes: queueWaitMs / MINUTE_MS,
-        verdict: capacityFor(requiredTags, clusterAgents),
-      }),
+    whyUnclaimed: whyUnclaimedWith(queueWaitMs, clusterAgents),
   };
+}
+
+/** The explanation an unclaimed node gets: its required tags read against the fleet's capacity. */
+function whyUnclaimedWith(
+  queueWaitMs: number,
+  clusterAgents: ClusterAgent[],
+): (requiredTags: string[]) => string {
+  return (requiredTags: string[]): string =>
+    unclaimedDetail({
+      requiredTags,
+      waitMinutes: queueWaitMs / MINUTE_MS,
+      verdict: capacityFor(requiredTags, clusterAgents),
+    });
 }
 
 /** One sweep over every open line; per-line failures are logged and skipped so a single bad row never wedges the tick. */

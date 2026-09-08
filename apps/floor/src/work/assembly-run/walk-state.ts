@@ -1,6 +1,9 @@
 /** What the walk replays from: the current run row, its graph, and the visits recorded so far. */
 
-import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type {
+  AssemblyRunRecord,
+  StationRunRecord,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NodeVisit, StageOutcome } from "@re-cinq/lore-assembly-lines";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
@@ -39,6 +42,17 @@ export async function collectPriorNodeFailures(
   }>,
   deps: Pick<AdvanceDeps, "assemblyRuns">,
 ): Promise<PriorFailure[]> {
+  const chain = await forkChainFailures(assemblyRun, nodeId, deps);
+
+  return [...chain, ...priorFailuresOf(visits, nodeId)];
+}
+
+/** The node's failures inherited from the runs this one was forked from, oldest first. */
+async function forkChainFailures(
+  assemblyRun: AssemblyRunRecord,
+  nodeId: string,
+  deps: Pick<AdvanceDeps, "assemblyRuns">,
+): Promise<PriorFailure[]> {
   const chain: PriorFailure[] = [];
   let sourceId = assemblyRun.resumedFromRunId;
 
@@ -54,18 +68,21 @@ export async function collectPriorNodeFailures(
     sourceId = sourceRun.resumedFromRunId;
   }
 
-  return [...chain, ...priorFailuresOf(visits, nodeId)];
+  return chain;
 }
 
-/** What the walk replays from: the open run, the graph it walks, and the visits recorded so far. Null when there is nothing to walk — the run is gone or finished, or it is a single-CR record (FR6.8) whose lifecycle the agent-watcher owns. */
-export async function loadWalkState(
-  assemblyLineId: string,
-  deps: AdvanceDeps,
-): Promise<{
+/** What the walk replays from: the open run, the graph it walks, and the visits recorded so far. */
+export interface WalkState {
   assemblyRun: AssemblyRunRecord;
   runGraph: RunGraph;
   visits: NodeVisit[];
-} | null> {
+}
+
+/** Null when there is nothing to walk — the run is gone or finished, or it is a single-CR record (FR6.8) whose lifecycle the agent-watcher owns. */
+export async function loadWalkState(
+  assemblyLineId: string,
+  deps: AdvanceDeps,
+): Promise<WalkState | null> {
   const assemblyRun = await deps.assemblyRuns.getById(assemblyLineId);
 
   if (!assemblyRun || assemblyRun.status !== "running") {
@@ -78,16 +95,16 @@ export async function loadWalkState(
   }
   const nodes = await deps.assemblyRuns.listStationRuns(assemblyLineId);
 
-  return {
-    assemblyRun,
-    runGraph,
-    // Read off the rows so the replay survives a Floor restart mid-line.
-    visits: nodes.map((n) => ({
-      nodeId: n.nodeId,
-      iteration: n.iteration,
-      outcome: n.outcome as StageOutcome | null,
-      failureClass: n.failureClass,
-      failureDetail: n.failureDetail,
-    })),
-  };
+  return { assemblyRun, runGraph, visits: visitsFromRows(nodes) };
+}
+
+/** Read off the rows so the replay survives a Floor restart mid-line. */
+function visitsFromRows(rows: readonly StationRunRecord[]): NodeVisit[] {
+  return rows.map((row) => ({
+    nodeId: row.nodeId,
+    iteration: row.iteration,
+    outcome: row.outcome as StageOutcome | null,
+    failureClass: row.failureClass,
+    failureDetail: row.failureDetail,
+  }));
 }

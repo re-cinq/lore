@@ -27,20 +27,29 @@ async function reopen(
   if (!task) {
     return;
   }
-  const previousStatus = task.status;
-  const reopenTo = decideTaskReopen(previousStatus);
+  const reopenTo = decideTaskReopen(task.status);
 
   if (!reopenTo) {
     return;
   }
-  const won = await deps.tasks.setStatusIf(task.id, previousStatus, reopenTo, {
+  await flipToRunning(task, reopenTo, assemblyRunId, deps);
+}
+
+/** CAS-guarded flip plus its transition record; a lost race means another delivery already owns the task, so it writes nothing. */
+async function flipToRunning(
+  task: { id: string; status: string },
+  reopenTo: "running",
+  assemblyRunId: string,
+  deps: { tasks: SettleTaskDeps["tasks"] },
+): Promise<void> {
+  const won = await deps.tasks.setStatusIf(task.id, task.status, reopenTo, {
     failure_reason: null,
   });
 
   if (!won) {
     return;
   }
-  await deps.tasks.recordEvent(task.id, previousStatus, reopenTo, {
+  await deps.tasks.recordEvent(task.id, task.status, reopenTo, {
     assembly_run_id: assemblyRunId,
     reason: "fork-rerun",
   });

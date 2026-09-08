@@ -94,6 +94,13 @@ export function priorFailuresOf(
 /** How much of a preceding failure the next prompt carries — the backstop against a pathological detail crowding out the instructions it is appended to. */
 const MAX_FEEDBACK_CHARS = 2500;
 
+/** One failure detail, cut to {@link MAX_FEEDBACK_CHARS} with a truncation marker. */
+function truncatedDetail(detail: string): string {
+  return detail.length > MAX_FEEDBACK_CHARS
+    ? `${detail.substring(0, MAX_FEEDBACK_CHARS)}\n...(truncated)`
+    : detail;
+}
+
 /** Append what just failed to the prompt the next node runs on. Kept separate from the prompt TEMPLATE so every agent recipe shares it rather than needing its own copy. */
 export function withIncomingFailure(
   prompt: string,
@@ -102,10 +109,7 @@ export function withIncomingFailure(
   if (!failure) {
     return prompt;
   }
-  const detail =
-    failure.detail.length > MAX_FEEDBACK_CHARS
-      ? `${failure.detail.substring(0, MAX_FEEDBACK_CHARS)}\n...(truncated)`
-      : failure.detail;
+  const detail = truncatedDetail(failure.detail);
 
   return `${prompt}
 
@@ -132,17 +136,7 @@ export function withPriorFailures(
   if (failures.length === 0) {
     return prompt;
   }
-  const kept = failures.slice(-MAX_PRIOR_FAILURES);
-  const entries = kept
-    .map((failure) => {
-      const detail =
-        failure.detail.length > MAX_FEEDBACK_CHARS
-          ? `${failure.detail.substring(0, MAX_FEEDBACK_CHARS)}\n...(truncated)`
-          : failure.detail;
-
-      return `### Attempt ${failure.iteration}\n\n\`\`\`\n${detail}\n\`\`\``;
-    })
-    .join("\n\n");
+  const entries = priorFailureEntries(failures);
 
   return `${prompt}
 
@@ -154,6 +148,17 @@ already failed twice.
 
 ${entries}
 `;
+}
+
+/** The most recent attempts rendered as the prompt's per-attempt blocks, oldest first. */
+function priorFailureEntries(failures: readonly PriorFailure[]): string {
+  return failures
+    .slice(-MAX_PRIOR_FAILURES)
+    .map(
+      (failure) =>
+        `### Attempt ${failure.iteration}\n\n\`\`\`\n${truncatedDetail(failure.detail)}\n\`\`\``,
+    )
+    .join("\n\n");
 }
 
 /** The outcome of a node's most recent RECORDED visit, or null if it never ran. An open row (no outcome yet) is the CURRENT visit, not a prior one — the reaper asks this holding the open row, and reading it as prior would tell every relaunch its last attempt had not failed. */
@@ -244,13 +249,8 @@ export async function resolveNodeDispatch(
   input: Omit<NodeLaunchInput, "stationRunId">,
   deps: NodeLaunchDeps,
 ): Promise<NodeDispatch> {
-  const { node, task, iteration, priorOutcome } = input;
-  const conversation = await resolveConversationFor(
-    { node, task, iteration, priorOutcome },
-    deps,
-  );
-  const content = resolveRoundContent(task, conversation);
-
+  const conversation = await resolveConversationFor(input, deps);
+  const content = resolveRoundContent(input.task, conversation);
   const incomingFailure = input.incomingFailure ?? null;
   const priorFailures = dedupedPriorFailures(
     input.priorFailures,
@@ -261,7 +261,7 @@ export async function resolveNodeDispatch(
     conversation,
     content,
     prompt: resolvedPromptFor(
-      { node, content, incomingFailure, priorFailures },
+      { node: input.node, content, incomingFailure, priorFailures },
       deps,
     ),
   };

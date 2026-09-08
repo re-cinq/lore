@@ -121,16 +121,6 @@ export function stationRunInputFor(
   content: string,
   prompt: string | null,
 ): StationRunInput {
-  const params =
-    node.type === "agent"
-      ? null
-      : Object.fromEntries(
-          Object.entries(stationNodeParams(node, task)).map(([key, value]) => [
-            key,
-            truncateForStorage(value, INPUT_PARAM_MAX_BYTES),
-          ]),
-        );
-
   return {
     ...boundedStationRunInput({
       description: content,
@@ -138,8 +128,25 @@ export function stationRunInputFor(
       repo: task.targetRepo,
       ref: cloneRef(task),
     }),
-    params,
+    params: boundedNodeParams(node, task),
   };
+}
+
+/** An agent node records no params; every other node records its map with each value capped. */
+function boundedNodeParams(
+  node: RunGraphNode,
+  task: FloorAssemblyRunTask,
+): Record<string, string> | null {
+  if (node.type === "agent") {
+    return null;
+  }
+
+  return Object.fromEntries(
+    Object.entries(stationNodeParams(node, task)).map(([key, value]) => [
+      key,
+      truncateForStorage(value, INPUT_PARAM_MAX_BYTES),
+    ]),
+  );
 }
 
 /** Pure: the Agent dispatch spec for one agent-node — prompt resolved per node, model from the node else inherited. */
@@ -162,13 +169,21 @@ export function nodeAgentSpec(
     prompt,
     targetRepo: task.targetRepo,
     branch: cloneRef(task),
+    ...agentNodeOverrides(node),
+    name: nodeAgentName(task.assemblyLineId, node.id, iteration),
+    extraLabels: nodeLabels(node, task, iteration, stationRunId),
+  };
+}
+
+/** A node's Station can differ from the line's taskType default (e.g. code-review-reply runs on code-review-refine); an inherited one is left unset so the subsystem applies its default. */
+function agentNodeOverrides(
+  node: RunGraphNode,
+): Pick<Partial<LoreTaskSpec>, "model" | "stationRef"> {
+  return {
     ...(node.model ? { model: node.model } : {}),
-    // A node's Station can differ from the line's taskType default (e.g. code-review-reply runs on code-review-refine); an inherited one is left unset so the subsystem applies its default.
     ...(node.station && !node.station_inherited
       ? { stationRef: node.station }
       : {}),
-    name: nodeAgentName(task.assemblyLineId, node.id, iteration),
-    extraLabels: nodeLabels(node, task, iteration, stationRunId),
   };
 }
 

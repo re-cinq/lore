@@ -79,6 +79,20 @@ function lineRot(
   return commentReason(resolved.path, trimmed) ? "comment line" : null;
 }
 
+/** The anchor for a target that resolved to no readable file on the branch. */
+function missingFileAnchor(
+  specPath: string,
+  target: string,
+  line: number,
+): RottenAnchor {
+  return {
+    specPath,
+    target: firstTargetCandidate(specPath, target),
+    line,
+    reason: "missing file",
+  };
+}
+
 function anchorAt(
   specPath: string,
   target: string,
@@ -91,12 +105,7 @@ function anchorAt(
   const resolved = resolveTarget(specPath, target, readLines);
 
   if (!resolved) {
-    return {
-      specPath,
-      target: firstTargetCandidate(specPath, target),
-      line,
-      reason: "missing file",
-    };
+    return missingFileAnchor(specPath, target, line);
   }
   const reason = lineRot(resolved, line);
 
@@ -164,13 +173,9 @@ async function readChangedSpecs(
   return specs;
 }
 
-/** Pre-fetches every candidate target so `findRottenAnchors` stays SYNCHRONOUS — the check is pure, and the reads it needs happen here. A path that was never fetched, or fetched as missing, reads back null, which the caller treats as a dead target. */
-async function prefetchAnchorTargets(
-  input: RottenAnchorReportInput,
-  specs: SpecFile[],
-): Promise<(path: string) => string[] | null> {
-  const cache = new Map<string, string[] | null>();
-  const candidates = new Set(
+/** Every repo path an anchor in these specs could point at, deduped. */
+function anchorTargetCandidates(specs: SpecFile[]): Set<string> {
+  return new Set(
     specs.flatMap((spec) =>
       [...spec.content.matchAll(ANCHOR)]
         .map((match) => match[1])
@@ -178,8 +183,16 @@ async function prefetchAnchorTargets(
         .flatMap((target) => targetCandidates(spec.path, target)),
     ),
   );
+}
 
-  for (const candidate of candidates) {
+/** Pre-fetches every candidate target so `findRottenAnchors` stays SYNCHRONOUS — the check is pure, and the reads it needs happen here. A path that was never fetched, or fetched as missing, reads back null, which the caller treats as a dead target. */
+async function prefetchAnchorTargets(
+  input: RottenAnchorReportInput,
+  specs: SpecFile[],
+): Promise<(path: string) => string[] | null> {
+  const cache = new Map<string, string[] | null>();
+
+  for (const candidate of anchorTargetCandidates(specs)) {
     cache.set(
       candidate,
       linesOf(await input.repo.read(candidate, input.branch)),
@@ -207,6 +220,12 @@ export async function rottenAnchorReport(
   if (rotten.length === 0) {
     return null;
   }
+
+  return rottenAnchorComment(rotten);
+}
+
+/** The PR-comment markdown for a non-empty rot list. */
+function rottenAnchorComment(rotten: RottenAnchor[]): string {
   const bullets = rotten.map(
     (r) => `- \`${r.specPath}\` → \`${r.target}#L${r.line}\` — ${r.reason}`,
   );

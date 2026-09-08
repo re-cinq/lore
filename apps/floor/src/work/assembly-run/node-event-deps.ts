@@ -21,21 +21,15 @@ async function routeCommentTriage(
   node: RunGraphNode,
   result: NodeResult,
 ): Promise<void> {
-  // Keyed on the node's TYPE, not definition name/node id (the old comparison silently left comment-triage nodes unrouted on rename or reuse).
-  if (node.type !== "comment-triage") {
-    return;
-  }
   const action = result.extras?.action;
 
-  if (!action) {
+  // Keyed on the node's TYPE, not definition name/node id (the old comparison silently left comment-triage nodes unrouted on rename or reuse).
+  if (node.type !== "comment-triage" || !action) {
     return;
   }
 
   try {
-    await codeReviewOnCommentTriaged({
-      action,
-      context: contextFromRow(row),
-    });
+    await codeReviewOnCommentTriaged({ action, context: contextFromRow(row) });
   } catch (err) {
     console.warn(
       "[code-review] triage routing failed:",
@@ -68,33 +62,44 @@ function contextFromRow(row: AssemblyRunRecord): CommentContext {
   };
 }
 
+/** The slice of the repo project the anchor check reads and reports through. */
+type AnchorReportProject = Pick<RottenAnchorReportInput, "pulls" | "repo"> & {
+  issues: { comment(issueNumber: number, body: string): Promise<unknown> };
+};
+
 /** Deterministic paperwork check (#1747): anchors in this branch's changed markdown must land on citable lines. Best-effort — a rotten link is a comment for the reviewer, never a failed flip. */
 async function reportRottenAnchors(
   prNumber: number,
   branch: string | null | undefined,
-  project: Pick<RottenAnchorReportInput, "pulls" | "repo"> & {
-    issues: { comment(issueNumber: number, body: string): Promise<unknown> };
-  },
+  project: AnchorReportProject,
 ): Promise<void> {
   if (!branch) {
     return;
   }
 
   try {
-    const report = await rottenAnchorReport({
-      prNumber,
-      branch,
-      pulls: project.pulls,
-      repo: project.repo,
-    });
-
-    if (report) {
-      await project.issues.comment(prNumber, report);
-    }
+    await commentRottenAnchors(prNumber, branch, project);
   } catch (err) {
     console.warn(
       `[spec-anchor-check] PR #${prNumber}: ${(err as Error).message}`,
     );
+  }
+}
+
+async function commentRottenAnchors(
+  prNumber: number,
+  branch: string,
+  project: AnchorReportProject,
+): Promise<void> {
+  const report = await rottenAnchorReport({
+    prNumber,
+    branch,
+    pulls: project.pulls,
+    repo: project.repo,
+  });
+
+  if (report) {
+    await project.issues.comment(prNumber, report);
   }
 }
 

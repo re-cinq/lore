@@ -100,6 +100,42 @@ export function fileArtifactEnvelope(input: {
   });
 }
 
+/** Registers one cluster agent and answers its id. A null create means the name was taken; storing "" would silently make every later claim find no work. */
+async function registerClusterAgent(
+  agents: InMemoryClusterAgents,
+  name: string,
+  tags: string[],
+): Promise<string> {
+  const created = await agents.create({
+    name,
+    tags,
+    tokenHash: `hash-${name}`,
+    clusterInfo: null,
+  });
+
+  enforceTrue(
+    created,
+    Error,
+    `acceptance harness: cluster agent "${name}" could not be registered`,
+  );
+
+  return created.id;
+}
+
+/** The exact open visit row for one node, matched by identity — `claimNextStationRun` would instead claim the next queued row of ANY node. */
+function findOpenNodeRow(
+  runs: InMemoryAssemblyRuns,
+  visit: { assemblyRunId: string; nodeId: string; iteration: number },
+): InMemoryAssemblyRuns["nodes"][number] | undefined {
+  return runs.nodes.find(
+    (n) =>
+      n.assemblyRunId === visit.assemblyRunId &&
+      n.nodeId === visit.nodeId &&
+      n.iteration === visit.iteration &&
+      n.outcome === null,
+  );
+}
+
 // eslint-disable-next-line max-lines-per-function -- acceptance-test harness: every closure shares one in-memory fleet, run store and status map, and threading that state through arguments would make the doubles harder to read than the thing they double.
 export function createLineHarness(
   overrides: Partial<Pick<AdvanceDeps, "onRunClosed" | "stampPr">> = {},
@@ -161,20 +197,7 @@ export function createLineHarness(
       [CENTRAL_CLUSTER_AGENT_NAME, CENTRAL_TAGS],
       ["satellite", SATELLITE_TAGS],
     ] as const) {
-      const created = await agents.create({
-        name,
-        tags: [...tags],
-        tokenHash: `hash-${name}`,
-        clusterInfo: null,
-      });
-
-      // A null create means the name was taken; storing "" would silently make every later claim find no work.
-      enforceTrue(
-        created,
-        Error,
-        `acceptance harness: cluster agent "${name}" could not be registered`,
-      );
-      agentIds.set(name, created.id);
+      agentIds.set(name, await registerClusterAgent(agents, name, [...tags]));
     }
   }
 
@@ -269,27 +292,15 @@ export function createLineHarness(
     const phase = input.phase ?? "Succeeded";
     const agentName = nodeAgentName(assemblyRunId, nodeId, iteration);
     const output = resolveCompletionOutput(input);
+    const event = { assemblyRunId, nodeId, agentName, iteration, phase };
 
-    // Written straight onto the row rather than through `claimNextStationRun`, since that scan claims the next queued row of any node, not necessarily this one.
-    const claimed = runs.nodes.find(
-      (n) =>
-        n.assemblyRunId === assemblyRunId &&
-        n.nodeId === nodeId &&
-        n.iteration === iteration &&
-        n.outcome === null,
-    );
-
-    await claimQueuedNode(claimed, input.claimedBy);
+    await claimQueuedNode(findOpenNodeRow(runs, event), input.claimedBy);
 
     if (!input.statusUnreadable) {
       statusByAgent.set(agentName, { phase, output });
     }
     await nodeHandler({
-      assemblyRunId,
-      nodeId,
-      agentName,
-      iteration,
-      phase,
+      ...event,
       ...(input.reportStatus ? { status: { phase, output } } : {}),
     });
   }

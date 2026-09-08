@@ -77,21 +77,25 @@ export class AgentCrStationBackend implements StationBackend {
       return this.assemblyLine.launch(spec);
     }
 
-    const assemblyRunId = await this.runForTask(spec);
     // The name the row records and the name the spec carries are the same value on purpose — a spelling drift would not fail to compile, it would just never correlate, reading as a run nobody ever launched.
     const name = agentCrName(spec.taskId);
     // One call, not an insert plus an arm: ensureStationRun's unique key is what makes a re-dispatch converge, keeping the spec it was armed with rather than overwriting a pod already being built from the first.
-    const { created } = await this.assemblyRuns.ensureStationRun({
-      assemblyRunId,
+    const { created } = await this.assemblyRuns.ensureStationRun(
+      await this.singleCrStationRun(spec, name),
+    );
+
+    return { ref: name, launched: created };
+  }
+
+  /** The one station-run row a single-CR task is enqueued as. */
+  private async singleCrStationRun(spec: LoreTaskSpec, name: string) {
+    return {
+      assemblyRunId: await this.runForTask(spec),
       nodeId: SINGLE_CR_NODE_ID,
       iteration: 1,
       agentCrName: name,
-      status: "queued",
-      requiredTags: resolveRequiredTags(
-        SINGLE_CR_NODE_ID,
-        undefined,
-        await this.repoSettings(spec.targetRepo),
-      ),
+      status: "queued" as const,
+      requiredTags: await this.singleCrTags(spec.targetRepo),
       input: boundedStationRunInput({
         description: spec.description,
         prompt: spec.prompt,
@@ -99,9 +103,15 @@ export class AgentCrStationBackend implements StationBackend {
         ref: spec.branch,
       }),
       dispatchSpec: { ...spec, name },
-    });
+    };
+  }
 
-    return { ref: name, launched: created };
+  private async singleCrTags(repo: string): Promise<string[]> {
+    return resolveRequiredTags(
+      SINGLE_CR_NODE_ID,
+      undefined,
+      await this.repoSettings(repo),
+    );
   }
 
   // Probe the cluster's CRs by task-id label, which finds a single Agent and an assembly line's per-node Agents alike — so the reaper sees either path.
