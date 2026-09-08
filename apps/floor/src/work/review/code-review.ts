@@ -106,15 +106,29 @@ async function startReviewLine(
   return { id, joined: alreadyOpen?.id === id };
 }
 
+export interface StartReviewInput {
+  repo: string;
+  prNumber: number;
+  autoReview: boolean;
+  forced?: boolean;
+  actor?: string;
+}
+
+async function announceReview(
+  project: CodeReviewProject,
+  prNumber: number,
+  runId: string,
+  uiUrl?: string,
+): Promise<void> {
+  await project.pulls.comment(
+    prNumber,
+    `Lore is reviewing this PR — ${loreTaskRef(runId, uiUrl)}.\n\n${REVIEW_HELP}`,
+  );
+}
+
 export async function startReview(
   project: CodeReviewProject,
-  input: {
-    repo: string;
-    prNumber: number;
-    autoReview: boolean;
-    forced?: boolean;
-    actor?: string;
-  },
+  input: StartReviewInput,
   uiUrl?: string,
 ): Promise<string | null> {
   const pr = await project.pulls.get(input.prNumber);
@@ -125,16 +139,25 @@ export async function startReview(
   const started = await startReviewLine(project, input, pr);
 
   // A JOINed run was announced when it started; announcing again posts a duplicate comment.
-  if (started.joined) {
-    return started.id;
+  if (!started.joined) {
+    await announceReview(project, input.prNumber, started.id, uiUrl);
   }
 
-  await project.pulls.comment(
-    input.prNumber,
-    `Lore is reviewing this PR — ${loreTaskRef(started.id, uiUrl)}.\n\n${REVIEW_HELP}`,
-  );
-
   return started.id;
+}
+
+function recheckArgs(
+  repo: string,
+  prNumber: number,
+  pr: PullRef,
+): Record<string, unknown> {
+  return {
+    pr_number: prNumber,
+    mode: "recheck",
+    head_sha: pr.headSha,
+    actor: pr.author,
+    description: recheckDescription(repo, prNumber, pr.branch),
+  };
 }
 
 /** Fast re-check for pushes after initial review; BRANCH_SHARED_WORKSPACE prevents lease_held drops. */
@@ -154,13 +177,7 @@ export async function startRecheck(
 
   return project.assemblyRuns.start("code-review-recheck", {
     branch: pr.branch,
-    args: {
-      pr_number: input.prNumber,
-      mode: "recheck",
-      head_sha: pr.headSha,
-      actor: pr.author,
-      description: recheckDescription(input.repo, input.prNumber, pr.branch),
-    },
+    args: recheckArgs(input.repo, input.prNumber, pr),
   });
 }
 

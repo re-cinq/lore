@@ -25,7 +25,10 @@ import {
   routeTriagedComment,
   type CommentContext,
 } from "./code-review-decisions.js";
-import type { PullRef } from "@re-cinq/lore-shared";
+import type {
+  PullRef,
+  ReviewComment,
+} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
 export function createCodeReviewHandlers(deps: CodeReviewDeps): {
   onTrigger: EventHandler;
@@ -68,6 +71,39 @@ function onTrigger(deps: CodeReviewDeps): EventHandler {
   };
 }
 
+async function replyGateOpen(
+  project: CodeReviewProject,
+  p: CommentParams,
+  autoReview: boolean,
+): Promise<boolean> {
+  const pr = await project.pulls.get(p.pr_number);
+
+  return decideReviewOnReply({
+    autoReview,
+    pr,
+    commentAuthor: p.comment_author,
+  }).start;
+}
+
+async function startForcedReview(
+  project: CodeReviewProject,
+  p: CommentParams,
+  autoReview: boolean,
+  uiUrl: string | undefined,
+): Promise<void> {
+  await startReview(
+    project,
+    {
+      repo: p.repo,
+      prNumber: p.pr_number,
+      autoReview,
+      forced: true,
+      actor: p.comment_author,
+    },
+    uiUrl,
+  );
+}
+
 /** A human comment. Bot authors are skipped before any API call — that guard is the loop breaker. */
 function onComment(deps: CodeReviewDeps): EventHandler {
   return async (params) => {
@@ -78,29 +114,34 @@ function onComment(deps: CodeReviewDeps): EventHandler {
       return; // loop guard before any API call
     }
     const project = await deps.project(p.repo);
-    const pr = await project.pulls.get(p.pr_number);
 
-    if (
-      !decideReviewOnReply({ autoReview, pr, commentAuthor: p.comment_author })
-        .start
-    ) {
+    if (!(await replyGateOpen(project, p, autoReview))) {
       return;
     }
 
     // The Haiku `comment-triage` line is switched off (2026-09-03): only the explicit keyword drives a comment, so a plain reply publishes no `lore/comment-triage` check.
     if (isReviewRequest(p.comment_body)) {
-      await startReview(
-        project,
-        {
-          repo: p.repo,
-          prNumber: p.pr_number,
-          autoReview,
-          forced: true,
-          actor: p.comment_author,
-        },
-        deps.uiUrl(),
-      );
+      await startForcedReview(project, p, autoReview, deps.uiUrl());
     }
+  };
+}
+
+function addressContext(
+  p: ReviewSubmittedParams,
+  pr: PullRef,
+  author: string,
+  inline: ReviewComment[],
+): CommentContext {
+  return {
+    repo: p.repo,
+    pr_number: p.pr_number,
+    branch: pr.branch,
+    head_sha: pr.headSha,
+    comment_id: 0,
+    comment_body:
+      reviewSubmittedFeedback(p.review_body, inline) ||
+      "changes requested in a submitted review",
+    actor: author,
   };
 }
 
@@ -112,17 +153,10 @@ async function startAddressLine(
   author: string,
 ): Promise<void> {
   const inline = await inlineReviewComments(project, p.pr_number, p.review_id);
-  const route = routeTriagedComment("address", {
-    repo: p.repo,
-    pr_number: p.pr_number,
-    branch: pr.branch,
-    head_sha: pr.headSha,
-    comment_id: 0,
-    comment_body:
-      reviewSubmittedFeedback(p.review_body, inline) ||
-      "changes requested in a submitted review",
-    actor: author,
-  })!;
+  const route = routeTriagedComment(
+    "address",
+    addressContext(p, pr, author, inline),
+  )!;
 
   await project.assemblyRuns.start(route.definition, {
     branch: pr.branch,

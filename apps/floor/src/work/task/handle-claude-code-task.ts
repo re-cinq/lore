@@ -174,38 +174,56 @@ async function settleDispatch(
   input: ClaudeCodeTaskInput,
   project: Project,
 ): Promise<void> {
-  const { task, targetRepo, branchName } = input;
-
-  // A synchronous Station backend carries completion back for inline finalize; the async agent-cr (K8s) backend omits it — the agent-watcher resolves it later (ADR-028).
   if (result.completion) {
-    const { finalizeStationRun } = await import("./finalize-station-run.js");
-
-    await finalizeStationRun({
-      task,
-      targetRepo,
-      branch: branchName,
-      completion: result.completion,
-      project,
-    });
+    await finalizeInline(result.completion, input, project);
 
     return;
   }
 
-  // A joined dispatch started nothing — another run already held this subject — so the task is DONE; leaving it `running` would strand it until the stale sweep (pre-subject-guard duplicate-click symptom).
   if (result.joinedRun) {
-    // `completed` with NO failure_reason: the task page renders failure_reason in failure styling, which would misreport a succeeded task.
-    await project.tasks.setStatus(task.id, "completed");
-    console.log(
-      `[floor] task ${task.id} joined run ${result.joinedRun}; nothing dispatched`,
-    );
+    await settleJoinedRun(input.task.id, result.joinedRun, project);
 
     return;
   }
 
+  logDispatchOutcome(result, input.task.id);
+}
+
+/** A synchronous Station backend carries completion back for inline finalize; the async agent-cr (K8s) backend omits it — the agent-watcher resolves it later (ADR-028). */
+async function finalizeInline(
+  completion: NonNullable<AgentRunResult["completion"]>,
+  input: ClaudeCodeTaskInput,
+  project: Project,
+): Promise<void> {
+  const { finalizeStationRun } = await import("./finalize-station-run.js");
+
+  await finalizeStationRun({
+    task: input.task,
+    targetRepo: input.targetRepo,
+    branch: input.branchName,
+    completion,
+    project,
+  });
+}
+
+/** A joined dispatch started nothing — another run already held this subject — so the task is DONE; leaving it `running` would strand it until the stale sweep (pre-subject-guard duplicate-click symptom). */
+async function settleJoinedRun(
+  taskId: string,
+  joinedRun: string,
+  project: Project,
+): Promise<void> {
+  // `completed` with NO failure_reason: the task page renders failure_reason in failure styling, which would misreport a succeeded task.
+  await project.tasks.setStatus(taskId, "completed");
+  console.log(
+    `[floor] task ${taskId} joined run ${joinedRun}; nothing dispatched`,
+  );
+}
+
+/** Don't set pr-created — the agent-watcher will do that when the Agent completes; the dispatch only says whether a CR was started. */
+function logDispatchOutcome(result: AgentRunResult, taskId: string): void {
   console.log(
     result.started
-      ? `[floor] Dispatched Agent CR for task ${task.id}`
-      : `[floor] Agent CR for task ${task.id} already exists, skipping`,
+      ? `[floor] Dispatched Agent CR for task ${taskId}`
+      : `[floor] Agent CR for task ${taskId} already exists, skipping`,
   );
-  // Don't set pr-created — the agent-watcher will do that when the Agent completes.
 }

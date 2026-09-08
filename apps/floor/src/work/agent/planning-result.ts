@@ -88,6 +88,26 @@ function resolvePlanningOutcome(
   return parsePlanningPayload(fileEvent.content);
 }
 
+async function deliverForPlanningTask(
+  fileEvent: AgentFileEvent,
+  deps: PlanningResultDeps,
+  task: PipelineTask,
+): Promise<PlanningDelivery> {
+  const ids = await resolvePlanningRoundIds(fileEvent, deps, task);
+
+  if (!ids) {
+    return { outcome: "skipped", error: "planning round has no feature id" };
+  }
+  const { features } = await deps.featuresFor(task.target_repo);
+  const parsed = resolvePlanningOutcome(fileEvent);
+
+  if (parsed.outcome === "failed") {
+    return parsed;
+  }
+
+  return applyGapResult(features, ids.featureId, ids.iteration, parsed.payload);
+}
+
 /** Persist one planning artifact event; skips non-planning-result events and non-planning-round tasks (the sink carries every run's events, so most calls are a no-op by design). */
 export async function deliverPlanningResult(
   fileEvent: AgentFileEvent,
@@ -101,20 +121,31 @@ export async function deliverPlanningResult(
   if (!task) {
     return { outcome: "skipped", error: "not a planning round" };
   }
-  const ids = await resolvePlanningRoundIds(fileEvent, deps, task);
 
-  if (!ids) {
-    return { outcome: "skipped", error: "planning round has no feature id" };
+  return deliverForPlanningTask(fileEvent, deps, task);
+}
+
+async function deliverAndReport(
+  fileEvent: AgentFileEvent,
+  deps: PlanningResultDeps,
+): Promise<number> {
+  try {
+    const result = await deliverPlanningResult(fileEvent, deps);
+
+    if (result.outcome === "failed") {
+      console.warn(
+        `[planning-result] task ${fileEvent.taskId}: ${result.error}`,
+      );
+    }
+
+    return result.outcome === "ready" ? 1 : 0;
+  } catch (err) {
+    console.error(
+      `[planning-result] task ${fileEvent.taskId}: ${(err as Error).message}`,
+    );
+
+    return 0;
   }
-  const { featureId, iteration } = ids;
-  const { features } = await deps.featuresFor(task.target_repo);
-  const parsed = resolvePlanningOutcome(fileEvent);
-
-  if (parsed.outcome === "failed") {
-    return parsed;
-  }
-
-  return applyGapResult(features, featureId, iteration, parsed.payload);
 }
 
 /** Deliver every planning artifact in one sink batch; never throws, since a delivery failure must not 500 the telemetry ingest that also carries unrelated cost/run-viz rows. Returns how many rounds it settled. */
@@ -125,23 +156,7 @@ export async function deliverPlanningResults(
   let delivered = 0;
 
   for (const fileEvent of fileEvents) {
-    try {
-      const result = await deliverPlanningResult(fileEvent, deps);
-
-      if (result.outcome === "ready") {
-        delivered++;
-      }
-
-      if (result.outcome === "failed") {
-        console.warn(
-          `[planning-result] task ${fileEvent.taskId}: ${result.error}`,
-        );
-      }
-    } catch (err) {
-      console.error(
-        `[planning-result] task ${fileEvent.taskId}: ${(err as Error).message}`,
-      );
-    }
+    delivered += await deliverAndReport(fileEvent, deps);
   }
 
   return delivered;

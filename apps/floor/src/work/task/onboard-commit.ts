@@ -99,7 +99,6 @@ interface OnboardGenerationContext {
   model: TaskHandlerInput["model"];
 }
 
-/** Generate and commit one planned file. A generation failure is recorded, not thrown — the task fails only when nothing came through at all. */
 /** Asks for one file's content. The system prompt insists on RAW content — a model that helpfully wraps its answer in a code fence produces a file whose first line is ``` and whose parser then rejects it. */
 async function generateFileContent(
   ctx: OnboardGenerationContext,
@@ -128,6 +127,7 @@ async function commitGenerated(
   console.log(`[floor] Onboard: committed ${path} (${text.length} chars)`);
 }
 
+/** Generate and commit one planned file; a file the model declines to write is skipped rather than committed empty. */
 async function generateAndCommitOneFile(
   ctx: OnboardGenerationContext,
   file: { path: string; prompt: string },
@@ -149,11 +149,20 @@ async function generateAndCommitOneFile(
 
     await commitGenerated(ctx, file.path, text, ledger);
   } catch (err) {
-    console.error(
-      `[floor] Onboard: failed to generate ${file.path}: ${errorMessage(err)}`,
-    );
-    ledger.failures.push({ step: file.path, error: errorMessage(err) });
+    recordGenerationFailure(file.path, err, ledger);
   }
+}
+
+/** A generation failure is recorded, not thrown — the task fails only when nothing came through at all. */
+function recordGenerationFailure(
+  path: string,
+  err: unknown,
+  ledger: { failures: StepFailure[] },
+): void {
+  console.error(
+    `[floor] Onboard: failed to generate ${path}: ${errorMessage(err)}`,
+  );
+  ledger.failures.push({ step: path, error: errorMessage(err) });
 }
 
 /** Generate + commit every planned file, one LLM call each. */
@@ -186,7 +195,8 @@ function enforceCommittedSomething(
   );
 }
 
-export async function commitOnboardFiles(input: {
+/** Everything committing an onboarding needs: where to commit, what the repo already has, and what to generate. */
+export interface OnboardCommitInput {
   project: Awaited<ReturnType<typeof projectFor>>;
   branchName: string;
   existingFiles: Set<string>;
@@ -194,7 +204,11 @@ export async function commitOnboardFiles(input: {
   task: TaskHandlerInput["task"];
   model: TaskHandlerInput["model"];
   toGenerate: Awaited<ReturnType<typeof planOnboardFiles>>;
-}): Promise<{ committed: string[]; failures: StepFailure[] }> {
+}
+
+export async function commitOnboardFiles(
+  input: OnboardCommitInput,
+): Promise<{ committed: string[]; failures: StepFailure[] }> {
   const { project, branchName, existingFiles, contextStr, task, model } = input;
   const committed: string[] = [];
   const failures: StepFailure[] = [];

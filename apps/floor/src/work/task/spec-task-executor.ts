@@ -23,6 +23,17 @@ export async function specTaskExecutorJob(): Promise<string> {
 
     return "Skipped: API credits exhausted";
   }
+  const dispatched = await dispatchReadyTasks(readyTasks);
+
+  return dispatched > 0
+    ? `Dispatched ${dispatched}/${readyTasks.length} ready spec-tasks`
+    : "No ready spec-tasks";
+}
+
+/** Walks the ready tasks in order, carrying the per-group counter across the whole sweep so the cap holds within one tick as well as across ticks. */
+async function dispatchReadyTasks(
+  readyTasks: ReadySpecTask[],
+): Promise<number> {
   const runningByGroup = await runningCountsByGroup();
   const dispatch = agentDispatchDefaults();
   let dispatched = 0;
@@ -33,9 +44,7 @@ export async function specTaskExecutorJob(): Promise<string> {
     }
   }
 
-  return dispatched > 0
-    ? `Dispatched ${dispatched}/${readyTasks.length} ready spec-tasks`
-    : "No ready spec-tasks";
+  return dispatched;
 }
 
 /** Counts Agent CRs in Running phase too, catching tasks the DB has not caught up with, so the per-group cap cannot be starved by a busy sibling group the way the former global gate was. */
@@ -71,11 +80,22 @@ function runningCountForGroup(
   return taskGroupId ? runningByGroup.get(taskGroupId) || 0 : 0;
 }
 
-/** Claim one ready spec-task and dispatch its Agent CR; returns whether a CR actually started. A failure after the claim returns the task to `pending` so the next tick retries it. */
+type SpecTaskBrief = ReturnType<typeof specTaskBrief>;
+
+/** The CR's metadata labels. extraLabels is spread last by the agent runner, so task-type here overrides the recipe's "implementation". */
+function specTaskLabels(brief: SpecTaskBrief): Record<string, string> {
+  return {
+    "lore.re-cinq.com/task-type": "spec-task",
+    ...(brief.specSlug
+      ? { "lore.re-cinq.com/spec-slug": labelValue(brief.specSlug) }
+      : {}),
+  };
+}
+
 /** Runs as an `implementation` agent, but LABELLED `spec-task`: the recipe is the same, the provenance is not, and the label is what the run page and every later query read. */
 async function runSpecTaskAgent(
   task: ReadySpecTask,
-  brief: ReturnType<typeof specTaskBrief>,
+  brief: SpecTaskBrief,
   defaults: AgentDispatchDefaults,
 ): Promise<{ started: boolean }> {
   const project = await projectFor(task.target_repo);
@@ -88,16 +108,11 @@ async function runSpecTaskAgent(
     branch: brief.branchName,
     model: defaults.model,
     timeoutMinutes: defaults.timeoutMinutes,
-    // extraLabels (spread last) overrides taskType so the CR's metadata label reads "spec-task", not "implementation".
-    extraLabels: {
-      "lore.re-cinq.com/task-type": "spec-task",
-      ...(brief.specSlug
-        ? { "lore.re-cinq.com/spec-slug": labelValue(brief.specSlug) }
-        : {}),
-    },
+    extraLabels: specTaskLabels(brief),
   });
 }
 
+/** Claim one ready spec-task and dispatch its Agent CR; returns whether a CR actually started. A failure after the claim returns the task to `pending` so the next tick retries it. */
 async function dispatchSpecTask(
   task: ReadySpecTask,
   runningByGroup: Map<string, number>,
@@ -133,20 +148,7 @@ async function runClaimed(
   try {
     const result = await runSpecTaskAgent(task, brief, defaults);
 
-    // An existing CR means another dispatcher won; the claim stays with it, not with us.
-    if (!result.started) {
-      console.log(
-        `[spec-task-executor] Agent CR for ${task.id} already exists, skipping`,
-      );
-
-      return false;
-    }
-    bumpGroupCounter(runningByGroup, task.task_group_id);
-    console.log(
-      `[spec-task-executor] Dispatched ${brief.specTaskId} (${task.id}) → Agent CR`,
-    );
-
-    return true;
+    return recordDispatch(task, brief, runningByGroup, result.started);
   } catch (err) {
     await setStatus(task.id, "pending");
     console.error(
@@ -155,6 +157,29 @@ async function runClaimed(
 
     return false;
   }
+}
+
+/** Book a started CR against the per-group counter, or report the race that means someone else owns the claim. */
+function recordDispatch(
+  task: ReadySpecTask,
+  brief: SpecTaskBrief,
+  runningByGroup: Map<string, number>,
+  started: boolean,
+): boolean {
+  // An existing CR means another dispatcher won; the claim stays with it, not with us.
+  if (!started) {
+    console.log(
+      `[spec-task-executor] Agent CR for ${task.id} already exists, skipping`,
+    );
+
+    return false;
+  }
+  bumpGroupCounter(runningByGroup, task.task_group_id);
+  console.log(
+    `[spec-task-executor] Dispatched ${brief.specTaskId} (${task.id}) → Agent CR`,
+  );
+
+  return true;
 }
 
 /** What the agent is told to build, and where it builds it. */

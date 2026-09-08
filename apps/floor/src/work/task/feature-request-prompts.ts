@@ -2,6 +2,17 @@
 
 import { slugify } from "./task-helpers.js";
 
+/** The sections this org's specs carry, in the order a reader expects them. */
+const SPEC_SECTIONS = `- Problem Statement (what problem does this solve for users?)
+- Vision (what does the end state look like?)
+- User Scenarios & Acceptance Criteria (concrete flows with testable criteria)
+- Functional Requirements (numbered, testable)
+- Non-Functional Requirements (performance, security if relevant)
+- Out of Scope (what this does NOT include)
+- Key Entities (data model implications)
+- Success Criteria (measurable outcomes)
+- Assumptions`;
+
 /** The spec itself: the sections this org's specs carry, plus a real example from the repo so the generated file matches the house format rather than a generic template. */
 function specPrompt(
   featureSlug: string,
@@ -15,15 +26,7 @@ function specPrompt(
 The PM said: "${pmIntent}"
 
 Write a proper engineering spec with these sections:
-- Problem Statement (what problem does this solve for users?)
-- Vision (what does the end state look like?)
-- User Scenarios & Acceptance Criteria (concrete flows with testable criteria)
-- Functional Requirements (numbered, testable)
-- Non-Functional Requirements (performance, security if relevant)
-- Out of Scope (what this does NOT include)
-- Key Entities (data model implications)
-- Success Criteria (measurable outcomes)
-- Assumptions
+${SPEC_SECTIONS}
 
 Match the conventions and style of this repository. Be specific to the actual tech stack and architecture described in CLAUDE.md.${existingSpecExample}`,
   };

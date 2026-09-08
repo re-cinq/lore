@@ -43,9 +43,9 @@ export interface RecoverStaleDeps {
   hasOpenLine: (taskId: string) => Promise<boolean>;
 }
 
-/** Resets tasks stuck in running/queued 30+ min back to pending; the open-line check (not just age) prevents re-dispatching a task parked on a human for days on every boot. */
-export async function recoverStaleTasks(
-  deps: RecoverStaleDeps = {
+/** Built per call, never at module load: `pipeline()` needs an initialized pool, so binding it eagerly would break import order. */
+function liveRecoverStaleDeps(): RecoverStaleDeps {
+  return {
     queue: pipeline().taskQueue,
     setStatus,
     insertEvent,
@@ -53,25 +53,41 @@ export async function recoverStaleTasks(
       (await pipeline().assemblyRuns.listForTask(taskId)).some(
         (line) => line.status === "running" || line.status === "queued",
       ),
-  },
+  };
+}
+
+/** Resets one stale row back to pending; returns false when its assembly line is still open, so the row is left alone. */
+async function recoverOneStaleTask(
+  row: { id: string; task_type: string },
+  deps: RecoverStaleDeps,
+): Promise<boolean> {
+  // Not stale — its line is still walking (or parked on a person).
+  if (await deps.hasOpenLine(row.id)) {
+    return false;
+  }
+  await deps.setStatus(row.id, "pending");
+  await deps.insertEvent(row.id, "running", "pending", {
+    reason: "crash-recovery",
+  });
+  console.log(
+    `[floor] Recovered stale task ${row.id} (${row.task_type}) → pending`,
+  );
+
+  return true;
+}
+
+/** Resets tasks stuck in running/queued 30+ min back to pending; the open-line check (not just age) prevents re-dispatching a task parked on a human for days on every boot. */
+export async function recoverStaleTasks(
+  deps: RecoverStaleDeps = liveRecoverStaleDeps(),
 ): Promise<number> {
   const stale = await deps.queue.findRecoverable();
 
   let recovered = 0;
 
   for (const row of stale) {
-    // Not stale — its line is still walking (or parked on a person).
-    if (await deps.hasOpenLine(row.id)) {
-      continue;
+    if (await recoverOneStaleTask(row, deps)) {
+      recovered++;
     }
-    await deps.setStatus(row.id, "pending");
-    await deps.insertEvent(row.id, "running", "pending", {
-      reason: "crash-recovery",
-    });
-    console.log(
-      `[floor] Recovered stale task ${row.id} (${row.task_type}) → pending`,
-    );
-    recovered++;
   }
 
   return recovered;
@@ -172,13 +188,27 @@ async function dispatchByTaskType(
   return dispatchAgentCr(input);
 }
 
+/** The assembly line this dispatch should walk, or undefined for a plain single-Agent run. */
+function assemblyLineFor(input: DispatchInput): string | undefined {
+  return input.isFeaturePlanningType || input.darkFactoryEnabled
+    ? input.task.task_type
+    : undefined;
+}
+
+/** BYO execution container (ADR-025): default → per-repo → per-task-type; unset means the controller's default. */
+function executionImageFor(
+  input: DispatchInput,
+): ReturnType<typeof resolveExecutionImage> {
+  return resolveExecutionImage(
+    input.repoSettings as Parameters<typeof resolveExecutionImage>[0],
+    input.task.task_type,
+  );
+}
+
 /** Dark-mode repos and feature-planning/finalize run the Floor-side graph, one Agent CR per node (ADR-028). */
 async function dispatchAgentCr(input: DispatchInput): Promise<void> {
-  const { task, targetRepo, project, repoSettings } = input;
-  const assemblyLine =
-    input.isFeaturePlanningType || input.darkFactoryEnabled
-      ? task.task_type
-      : undefined;
+  const { task, targetRepo, project } = input;
+  const assemblyLine = assemblyLineFor(input);
   // The real default branch, never a hardcoded "main": that 422'd on master/develop repos.
   const baseBranch = await lookupDarkFactoryBaseBranch(
     project,
@@ -193,13 +223,29 @@ async function dispatchAgentCr(input: DispatchInput): Promise<void> {
     model: input.model,
     repoOverrides: input.repoOverrides,
     ...(assemblyLine ? { darkFactory: { assemblyLine, baseBranch } } : {}),
-    // BYO execution container (ADR-025): default → per-repo → per-task-type; unset means the controller's default.
-    image: resolveExecutionImage(
-      repoSettings as Parameters<typeof resolveExecutionImage>[0],
-      task.task_type,
-    ),
+    image: executionImageFor(input),
     agentDef: input.agentDef,
   });
+}
+
+/** Best-effort note on the Issue naming the agent that picked the task up, with the pipeline link when the UI URL is configured. */
+async function commentPickedUp(
+  project: Awaited<ReturnType<typeof projectFor>>,
+  issueNumber: number,
+  task: PipelineTask,
+  agentId: string,
+): Promise<void> {
+  const pipelineUrl = taskPageUrl(task.id, process.env.LORE_UI_URL);
+
+  const { issues } = project;
+
+  await issues
+    .comment(
+      issueNumber,
+      `Agent \`${agentId}\` picked up this task.` +
+        (pipelineUrl ? ` Follow it on the pipeline: ${pipelineUrl}` : ""),
+    )
+    .catch(() => {});
 }
 
 /** pending → queued → running, then tell the Issue who picked it up. The comment is best-effort: a task runs whether or not its Issue can be written to. */
@@ -217,17 +263,7 @@ async function claimTask(
   if (!issueNumber) {
     return;
   }
-  const pipelineUrl = taskPageUrl(task.id, process.env.LORE_UI_URL);
-
-  const { issues } = project;
-
-  await issues
-    .comment(
-      issueNumber,
-      `Agent \`${agentId}\` picked up this task.` +
-        (pipelineUrl ? ` Follow it on the pipeline: ${pipelineUrl}` : ""),
-    )
-    .catch(() => {});
+  await commentPickedUp(project, issueNumber, task, agentId);
 }
 
 async function handleProcessTaskFailure(
@@ -253,14 +289,17 @@ async function handleProcessTaskFailure(
   console.error(`[floor] Task ${task.id} failed: ${failureReason}`);
 }
 
-/** Plans the task and hands it to its handler. The GitHub check happens AFTER planning and before dispatch: planning is free, but a run that reaches the end with no way to open a PR has spent a pod for nothing. */
-async function dispatchTask(input: {
+/** The claimed task plus everything resolved around it before a handler is chosen. */
+interface TaskDispatch {
   task: PipelineTask;
   targetRepo: string;
   issueNumber: number | null;
   project: Project;
   isFeaturePlanningType: boolean;
-}): Promise<void> {
+}
+
+/** Plans the task and hands it to its handler. The GitHub check happens AFTER planning and before dispatch: planning is free, but a run that reaches the end with no way to open a PR has spent a pod for nothing. */
+async function dispatchTask(input: TaskDispatch): Promise<void> {
   const { task, targetRepo, project } = input;
   const plan = await resolveTaskPlan(task, targetRepo, project);
 
@@ -272,14 +311,14 @@ async function dispatchTask(input: {
   await dispatchByTaskType(routeTask(task.task_type), { ...input, ...plan });
 }
 
-async function processTask(task: PipelineTask): Promise<void> {
-  const agentId = `lore-agent-${task.id.substring(0, 8)}`;
-  const targetRepo = task.target_repo || "re-cinq/lore";
-  const project = await projectFor(targetRepo);
-
+/** Everything a claimed task needs before dispatch: its Issue, and whether it is a feature-lifecycle type. */
+async function prepareTask(
+  task: PipelineTask,
+  targetRepo: string,
+  project: Project,
+): Promise<TaskDispatch> {
   // Feature lifecycle runs through the Station (ADR-028), forced below regardless of dark-factory; also gates Issue creation (decompose files its own).
   const isFeaturePlanningType = isFeatureLifecycleType(task.task_type);
-
   const issueNumber = await ensureIssue(
     task,
     targetRepo,
@@ -287,23 +326,36 @@ async function processTask(task: PipelineTask): Promise<void> {
     isFeaturePlanningType,
   );
 
+  return { task, targetRepo, project, issueNumber, isFeaturePlanningType };
+}
+
+/** A dispatch failure is the task's failure, recorded against the task and its Issue rather than thrown at the poll loop. */
+async function dispatchOrFail(dispatch: TaskDispatch): Promise<void> {
+  try {
+    await dispatchTask(dispatch);
+  } catch (err) {
+    await handleProcessTaskFailure(
+      dispatch.task,
+      dispatch.project,
+      dispatch.issueNumber,
+      err,
+    );
+  }
+}
+
+async function processTask(task: PipelineTask): Promise<void> {
+  const agentId = `lore-agent-${task.id.substring(0, 8)}`;
+  const targetRepo = task.target_repo || "re-cinq/lore";
+  const project = await projectFor(targetRepo);
+  const dispatch = await prepareTask(task, targetRepo, project);
+  const { issueNumber } = dispatch;
+
   if (await awaitApprovalIfRequired(task, targetRepo, project, issueNumber)) {
     return; // Don't process yet — waiting on the approval label
   }
 
   await claimTask(task, agentId, project, issueNumber);
-
-  try {
-    await dispatchTask({
-      task,
-      targetRepo,
-      issueNumber,
-      project,
-      isFeaturePlanningType,
-    });
-  } catch (err) {
-    await handleProcessTaskFailure(task, project, issueNumber, err);
-  }
+  await dispatchOrFail(dispatch);
 }
 
 async function lookupDarkFactoryBaseBranch(

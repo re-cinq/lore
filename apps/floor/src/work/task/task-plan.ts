@@ -67,6 +67,16 @@ function resolveModel(
   );
 }
 
+/** Resolved project → org → yaml through the one project.agentDefs seam; an unreadable definition is a missing one, not a failed task. */
+async function resolveAgentDef(
+  project: Awaited<ReturnType<typeof projectFor>>,
+  taskType: string,
+): Promise<Awaited<ReturnType<Project["agentDefs"]["resolve"]>> | null> {
+  const { agentDefs } = project;
+
+  return agentDefs.resolve(taskType).catch(() => null);
+}
+
 /** How this task runs: which branch, which model, which agent definition, and whether the repo puts it through the Floor-side graph. */
 export async function resolveTaskPlan(
   task: PipelineTask,
@@ -74,9 +84,7 @@ export async function resolveTaskPlan(
   project: Awaited<ReturnType<typeof projectFor>>,
 ) {
   const repoSettings = await readRepoSettings(targetRepo);
-  // Resolved project → org → yaml through the one project.agentDefs seam.
-  const { agentDefs } = project;
-  const agentDef = await agentDefs.resolve(task.task_type).catch(() => null);
+  const agentDef = await resolveAgentDef(project, task.task_type);
   const repoOverrides = repoSettings.task_overrides?.[task.task_type];
   const contextBundle = (task.context_bundle || {}) as TaskContextBundle;
 

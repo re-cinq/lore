@@ -9,9 +9,10 @@ import {
   latestReadyGap,
   type FeatureWithIterations,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
-import { applyGapResult } from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
-import { gapResultFromTurns } from "@re-cinq/lore-shared/feature-planning/recover-gap-result.js";
-import { decideArtifactRecovery } from "./planning-artifact-recovery.js";
+import {
+  lostArtifactRound,
+  recoverLostRound,
+} from "./planning-artifact-replay.js";
 import {
   decideFeatureStatus,
   isPlanningPhase,
@@ -98,20 +99,29 @@ async function applyMissedTransition(
   );
 }
 
+/** Fails the orphaned round and restores the feature, then says so — the log line is what makes a silent recovery auditable. */
+async function applyOrphanRecovery(
+  project: Project,
+  feature: FeatureWithIterations,
+  row: Candidate,
+  iteration: number,
+): Promise<void> {
+  await recoverOrphan(project, feature, iteration);
+  console.log(
+    `[feature-planning-reaper] recovered orphaned round ${iteration} for ${row.repo}/${row.id}`,
+  );
+}
+
 async function applyPlanningRecoveryAction(
   project: Project,
   feature: FeatureWithIterations,
   ctx: RoundContext,
   { row, now }: { row: Candidate; now: number },
 ): Promise<Partial<ReaperTally>> {
-  const { latest } = ctx;
   const action = await decideRecovery(feature, ctx, now);
 
   if (action.kind === "orphan") {
-    await recoverOrphan(project, feature, action.iteration);
-    console.log(
-      `[feature-planning-reaper] recovered orphaned round ${action.iteration} for ${row.repo}/${row.id}`,
-    );
+    await applyOrphanRecovery(project, feature, row, action.iteration);
 
     return { orphaned: 1 };
   }
@@ -120,9 +130,26 @@ async function applyPlanningRecoveryAction(
     return {};
   }
 
-  await applyMissedTransition(project, feature, latest!.gap_result!, row);
+  await applyMissedTransition(project, feature, ctx.latest!.gap_result!, row);
 
   return { transitioned: 1 };
+}
+
+/** The tally delta for a round healed from the run transcript, or null when there was nothing to heal. */
+async function transcriptRecoveryTally(
+  project: Project,
+  feature: FeatureWithIterations,
+  ctx: RoundContext,
+  row: Candidate,
+): Promise<Partial<ReaperTally> | null> {
+  if (!(await tryRecoverFromTranscript(project, feature, ctx))) {
+    return null;
+  }
+  console.log(
+    `[feature-planning-reaper] recovered round ${ctx.latest!.iteration} for ${row.repo}/${row.id} from the run transcript`,
+  );
+
+  return { recovered: 1 };
 }
 
 async function processFeatureCandidate(
@@ -137,18 +164,10 @@ async function processFeatureCandidate(
   }
 
   const ctx = await loadRoundContext(feature);
-  const recoveredFromTranscript = await tryRecoverFromTranscript(
-    project,
-    feature,
-    ctx,
-  );
+  const healed = await transcriptRecoveryTally(project, feature, ctx, row);
 
-  if (recoveredFromTranscript) {
-    console.log(
-      `[feature-planning-reaper] recovered round ${ctx.latest!.iteration} for ${row.repo}/${row.id} from the run transcript`,
-    );
-
-    return { recovered: 1 };
+  if (healed) {
+    return healed;
   }
 
   return applyPlanningRecoveryAction(project, feature, ctx, { row, now });
@@ -160,9 +179,9 @@ function mergeTally(tally: ReaperTally, delta: Partial<ReaperTally>): void {
   tally.recovered += delta.recovered ?? 0;
 }
 
-export async function featurePlanningReaperJob(): Promise<string> {
-  // The failed arm is bounded to a day: only a recent failed round can still be an artifact-recovery candidate; lostArtifactRound rejects any older one the loop inspects.
-  const rows = await query<Candidate>(
+/** The failed arm is bounded to a day: only a recent failed round can still be an artifact-recovery candidate; lostArtifactRound rejects any older one the loop inspects. */
+async function loadStuckFeatures(): Promise<Candidate[]> {
+  return query<Candidate>(
     `SELECT DISTINCT f.id, f.repo
        FROM lore.features f
        JOIN lore.feature_iterations i ON i.feature_id = f.id
@@ -171,6 +190,25 @@ export async function featurePlanningReaperJob(): Promise<string> {
          OR (i.status = 'failed' AND i.gap_result IS NULL
              AND i.updated_at > now() - interval '1 day')`,
   );
+}
+
+/** One candidate's contribution to the tally; a failure on one feature must never stop the sweep. */
+async function tallyFeatureCandidate(
+  row: Candidate,
+  now: number,
+  tally: ReaperTally,
+): Promise<void> {
+  try {
+    mergeTally(tally, await processFeatureCandidate(row, now));
+  } catch (err) {
+    console.error(
+      `[feature-planning-reaper] ${row.repo}/${row.id}: ${(err as Error).message}`,
+    );
+  }
+}
+
+export async function featurePlanningReaperJob(): Promise<string> {
+  const rows = await loadStuckFeatures();
 
   if (rows.length === 0) {
     return "No stuck planning features";
@@ -180,40 +218,10 @@ export async function featurePlanningReaperJob(): Promise<string> {
   const tally: ReaperTally = { orphaned: 0, transitioned: 0, recovered: 0 };
 
   for (const row of rows) {
-    try {
-      const result = await processFeatureCandidate(row, now);
-
-      mergeTally(tally, result);
-    } catch (err) {
-      console.error(
-        `[feature-planning-reaper] ${row.repo}/${row.id}: ${(err as Error).message}`,
-      );
-    }
+    await tallyFeatureCandidate(row, now, tally);
   }
 
   return `Recovered ${tally.orphaned} orphaned round(s), fixed ${tally.transitioned} missed transition(s), replayed ${tally.recovered} lost artifact(s) across ${rows.length} feature(s)`;
-}
-
-/** Run decideArtifactRecovery for a lost round and, when it says recover, re-apply the artifact from the run transcript. */
-async function recoverLostRound(
-  project: Project,
-  featureId: string,
-  lostRound: NonNullable<ReturnType<typeof lostArtifactRound>>,
-  run: { graph: Parameters<typeof decideArtifactRecovery>[1]; open: boolean },
-): Promise<boolean> {
-  const stationRuns = await pipeline().assemblyRuns.listStationRuns(
-    lostRound.runId,
-  );
-  const decision = decideArtifactRecovery(stationRuns, run.graph, run.open);
-
-  if (decision.kind !== "recover") {
-    return false;
-  }
-
-  return recoverArtifact(project, featureId, lostRound.round, {
-    runId: lostRound.runId,
-    agentCrName: decision.agentCrName,
-  });
 }
 
 /** isActive probes the agent-cr backend this repo's round ran on — the legacy path for rounds that predate assembly-run execution. */
@@ -233,84 +241,24 @@ async function roundStillActive(
   return (await stationBackendNow()).isActive(latest.task_id);
 }
 
-/** The round + run pair eligible for artifact recovery (#1298): a recent round with no result whose task ran on an assembly run, while the feature is still mid-planning; null otherwise. */
-function lostArtifactRound(
-  latest: FeatureWithIterations["iterations"][number] | undefined,
-  latestRun: { id: string } | undefined,
-  featureStatus: string,
-): { round: { iteration: number }; runId: string } | null {
-  if (!latest || !latestRun || latest.gap_result) {
-    return null;
-  }
-
-  if (!["failed", "running"].includes(latest.status)) {
-    return null;
-  }
-
-  return isPlanningPhase(featureStatus)
-    ? { round: latest, runId: latestRun.id }
-    : null;
-}
-
-/** How many transcript turns one recovery scan will page through before giving up — a runaway bound, not a tuning knob. */
-const RECOVERY_TURN_PAGE = 200;
-const RECOVERY_TURN_PAGES_MAX = 25;
-
-/** Re-apply a lost round result from the run transcript (#1298): the terminal `Write` of `result.json` holds the full GapResult; returns false when none was produced. `agentCrName` scopes the scan to THIS round's pod (#1302) — unscoped (null) would replay a previous round's result on a multi-round run. */
-/** The run's transcript envelopes, paged and CAPPED: recovery reads a whole run, and an unbounded walk over a long one would hold every turn in memory to find one artifact. Filtered by CR name when there is one, because a run may hold turns from more than one attempt. */
-async function readRunEnvelopes(
-  runId: string,
-  agentCrName: string | null,
-): Promise<unknown[]> {
-  const envelopes: unknown[] = [];
-  let cursor = "0";
-
-  for (let page = 0; page < RECOVERY_TURN_PAGES_MAX; page++) {
-    const turns = await pipeline().agentRunTurns.listByLine(
-      runId,
-      cursor,
-      RECOVERY_TURN_PAGE,
-    );
-
-    if (turns.length === 0) {
-      break;
-    }
-    envelopes.push(
-      ...turns
-        .filter(
-          (turn) => agentCrName === null || turn.agentCrName === agentCrName,
-        )
-        .map((turn) => turn.envelope),
-    );
-    cursor = turns[turns.length - 1].id;
-  }
-
-  return envelopes;
-}
-
-async function recoverArtifact(
+/** Restores the feature to its last result-bearing round, or `draft` when the orphan was the only round it ever had. */
+async function restoreLastGoodRound(
   project: Project,
-  featureId: string,
-  latest: { iteration: number },
-  { runId, agentCrName }: { runId: string; agentCrName: string | null },
-): Promise<boolean> {
-  const payload = gapResultFromTurns(
-    await readRunEnvelopes(runId, agentCrName),
-    "result.json",
-  );
+  feature: FeatureWithIterations,
+): Promise<void> {
+  // The orphan is `running`, so latestReadyGap naturally skips it and returns the last result-bearing round to restore, else falls back to `draft`.
+  const lastGood = latestReadyGap(feature.iterations);
 
-  if (payload === null) {
-    return false;
+  if (!lastGood) {
+    await project.features.transitionStatus(feature.id, "draft");
+
+    return;
   }
-
-  const applied = await applyGapResult(
-    project.features,
-    featureId,
-    latest.iteration,
-    payload,
+  await project.features.transitionStatus(
+    feature.id,
+    decideFeatureStatus(lastGood),
+    { draft_spec_md: lastGood.draft_spec_markdown },
   );
-
-  return applied.outcome === "ready";
 }
 
 /** Mark the orphaned round failed, then restore the feature to its last result-bearing round (or `draft` if none). Skips a feature already past planning so a stale orphan can't drag it backwards. */
@@ -329,20 +277,5 @@ async function recoverOrphan(
   if (!isPlanningPhase(feature.status)) {
     return;
   }
-
-  // The orphan is `running`, so latestReadyGap naturally skips it and returns the last result-bearing round to restore, else falls back to `draft`.
-  const lastGood = latestReadyGap(feature.iterations);
-
-  if (lastGood) {
-    await project.features.transitionStatus(
-      feature.id,
-      decideFeatureStatus(lastGood),
-      {
-        draft_spec_md: lastGood.draft_spec_markdown,
-      },
-    );
-
-    return;
-  }
-  await project.features.transitionStatus(feature.id, "draft");
+  await restoreLastGoodRound(project, feature);
 }

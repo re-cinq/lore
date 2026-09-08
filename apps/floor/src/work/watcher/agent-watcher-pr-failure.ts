@@ -26,7 +26,34 @@ async function markNeedsHuman(
     .catch(() => {});
 }
 
-/** Files the escalation Issue. The reason is SPECIFIC rather than a generic panic, so the Issue title does not send a human hunting for a crash that never happened. */
+/** The assembly-run seam the escalation line needs: open-subject lookup, subject count, and the start itself. */
+function escalationRunPort() {
+  return {
+    findOpenBySubject: (repo: string, key: string) =>
+      pipeline().assemblyRuns.findOpenBySubject(repo, key),
+    countBySubject: (repo: string, key: string) =>
+      pipeline().assemblyRuns.countBySubject(repo, key),
+    start: (
+      input: Parameters<
+        ReturnType<typeof pipeline>["assemblyRuns"]["start"]
+      >[0],
+    ) => pipeline().assemblyRuns.start(input),
+  };
+}
+
+/** The reason is SPECIFIC rather than a generic panic, so the Issue title does not send a human hunting for a crash that never happened. */
+function escalationPayload(
+  reason: string,
+  msg: string,
+): Parameters<typeof startEscalationLine>[1] {
+  return {
+    reason:
+      reason === "no-code-changes" ? "no_code_changes" : "pr_already_exists",
+    diagnostic: `createPR failed: ${reason}. ${msg.substring(0, 500)}`,
+  };
+}
+
+/** Files the escalation Issue. */
 async function escalate(
   ctx: AgentContext,
   reason: string,
@@ -36,18 +63,8 @@ async function escalate(
 
   await startEscalationLine(
     { id: taskId, repo: targetRepo, branch },
-    {
-      reason:
-        reason === "no-code-changes" ? "no_code_changes" : "pr_already_exists",
-      diagnostic: `createPR failed: ${reason}. ${msg.substring(0, 500)}`,
-    },
-    {
-      findOpenBySubject: (repo: string, key: string) =>
-        pipeline().assemblyRuns.findOpenBySubject(repo, key),
-      countBySubject: (repo: string, key: string) =>
-        pipeline().assemblyRuns.countBySubject(repo, key),
-      start: (input) => pipeline().assemblyRuns.start(input),
-    },
+    escalationPayload(reason, msg),
+    escalationRunPort(),
   ).catch((err) =>
     console.error(
       `[agent-watcher] escalation for ${taskId} not started:`,

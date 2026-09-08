@@ -39,23 +39,23 @@ async function generateSpecFileContent(
   return text === "SKIP" || text.length < 20 ? null : text;
 }
 
-/** Translates a PM's plain-language intent into spec.md/data-model.md/tasks.md matching the target repo's conventions, then opens a PR for engineer review. */
+/** Everything one planning pass produces: the shared context string, the slug, and the artifact prompts. */
+interface SpecGenerationPlan {
+  contextStr: string;
+  featureSlug: string;
+  specFiles: ReturnType<typeof specFilePrompts>;
+}
+
 /** Reads the repo once: the context every artifact is generated against, and an existing spec to copy the house format from, so generated specs match what the repo already writes. */
 async function planSpecGeneration(
   targetRepo: string,
   pmIntent: string,
-): Promise<{
-  contextStr: string;
-  featureSlug: string;
-  specFiles: ReturnType<typeof specFilePrompts>;
-}> {
+): Promise<SpecGenerationPlan> {
   console.log(`[floor] Feature request: fetching context for ${targetRepo}...`);
   const context = await fetchRepoContext(targetRepo);
+  const formatExample = await specFormatExample(targetRepo);
   const featureSlug = slugify(pmIntent);
-  const specFiles = specFilePrompts(
-    pmIntent,
-    await specFormatExample(targetRepo),
-  );
+  const specFiles = specFilePrompts(pmIntent, formatExample);
 
   console.log(
     `[floor] Feature request: generating ${specFiles.length} artifacts for "${featureSlug}"...`,
@@ -66,6 +66,22 @@ async function planSpecGeneration(
     featureSlug,
     specFiles,
   };
+}
+
+/** Where a generated spec lands: the repo, the branch it was built on, and the slug that names it. */
+interface SpecPrTarget {
+  project: Awaited<ReturnType<typeof projectFor>>;
+  targetRepo: string;
+  branchName: string;
+  featureSlug: string;
+}
+
+/** What the PR is about: the originating task, its Issue, the PM's words, and the files that reached the branch. */
+interface SpecPrContent {
+  task: TaskHandlerInput["task"];
+  issueNumber: TaskHandlerInput["issueNumber"];
+  pmIntent: string;
+  committed: string[];
 }
 
 /** Labelled `needs-review`, never auto-merged: a spec generated from plain language is a proposal for engineers to refine, not a change to land. */
@@ -89,16 +105,15 @@ async function openSpecPr(input: {
   });
 }
 
-/** Everything that follows the PR existing: the Issue link, the task status and its event, and the episode. The episode is fire-and-forget — a memory write must never fail a task whose PR is already open. */
-async function recordSpecPr(input: {
+/** Everything that follows the PR existing, plus the PR itself. */
+type SpecPrRecord = SpecPrContent & {
   targetRepo: string;
   branchName: string;
-  task: TaskHandlerInput["task"];
-  issueNumber: TaskHandlerInput["issueNumber"];
-  pmIntent: string;
-  committed: string[];
   pr: { url: string; number: number };
-}): Promise<void> {
+};
+
+/** Everything that follows the PR existing: the Issue link, the task status and its event, and the episode. The episode is fire-and-forget — a memory write must never fail a task whose PR is already open. */
+async function recordSpecPr(input: SpecPrRecord): Promise<void> {
   const { targetRepo, branchName, task, issueNumber, pmIntent, committed, pr } =
     input;
 
@@ -123,18 +138,8 @@ async function recordSpecPr(input: {
 
 /** Opens the PR, then records it against the task. Kept together and in this order: a spec PR with no task row is invisible to every later step, while a row pointing at a PR that failed to open would strand the task. */
 async function publishSpecPr(
-  where: {
-    project: Awaited<ReturnType<typeof projectFor>>;
-    targetRepo: string;
-    branchName: string;
-    featureSlug: string;
-  },
-  what: {
-    task: TaskHandlerInput["task"];
-    issueNumber: number | null;
-    pmIntent: string;
-    committed: string[];
-  },
+  where: SpecPrTarget,
+  what: SpecPrContent,
 ): Promise<{ url: string }> {
   const pr = await openSpecPr({
     project: where.project,
@@ -153,31 +158,40 @@ async function publishSpecPr(
   return pr;
 }
 
-/** Plans the artifacts, creates the branch, and commits what the model wrote. An empty branch is a failure rather than an empty feature — the PR would ask a human to review nothing. */
-async function buildSpecBranch(
-  where: {
-    project: Awaited<ReturnType<typeof projectFor>>;
-    targetRepo: string;
-    branchName: string;
-    pmIntent: string;
-  },
+/** The branch a spec is generated onto, and the plain-language request it comes from. */
+interface SpecBranchTarget {
+  project: Awaited<ReturnType<typeof projectFor>>;
+  targetRepo: string;
+  branchName: string;
+  pmIntent: string;
+}
+
+/** Hands the planned artifacts to the committer, binding the plan's context to the branch they land on. */
+async function commitSpecPlan(
+  plan: SpecGenerationPlan,
+  where: SpecBranchTarget,
   run: { model: string | undefined; taskId: string },
-): Promise<{ featureSlug: string; committed: string[] }> {
-  const { project, targetRepo, branchName, pmIntent } = where;
-  const { contextStr, featureSlug, specFiles } = await planSpecGeneration(
-    targetRepo,
-    pmIntent,
-  );
-
-  await project.repo.createBranch(branchName);
-
-  const committed = await commitGeneratedSpecs(specFiles, {
-    project,
-    branchName,
-    contextStr,
+): Promise<string[]> {
+  return commitGeneratedSpecs(plan.specFiles, {
+    project: where.project,
+    branchName: where.branchName,
+    contextStr: plan.contextStr,
     model: run.model,
     taskId: run.taskId,
   });
+}
+
+/** Plans the artifacts, creates the branch, and commits what the model wrote. An empty branch is a failure rather than an empty feature — the PR would ask a human to review nothing. */
+async function buildSpecBranch(
+  where: SpecBranchTarget,
+  run: { model: string | undefined; taskId: string },
+): Promise<{ featureSlug: string; committed: string[] }> {
+  const { project, targetRepo, branchName, pmIntent } = where;
+  const plan = await planSpecGeneration(targetRepo, pmIntent);
+
+  await project.repo.createBranch(branchName);
+
+  const committed = await commitSpecPlan(plan, where, run);
 
   enforceTrue(
     committed.length !== 0,
@@ -185,23 +199,20 @@ async function buildSpecBranch(
     "Failed to generate any spec artifacts",
   );
 
-  return { featureSlug, committed };
+  return { featureSlug: plan.featureSlug, committed };
 }
 
-export async function handleFeatureRequest({
-  task,
-  targetRepo,
-  branchName,
-  model,
-  issueNumber,
-}: TaskHandlerInput): Promise<void> {
+/** Translates a PM's plain-language intent into spec.md/data-model.md/tasks.md matching the target repo's conventions, then opens a PR for engineer review. */
+export async function handleFeatureRequest(
+  input: TaskHandlerInput,
+): Promise<void> {
+  const { task, targetRepo, branchName, model, issueNumber } = input;
   const project = await projectFor(targetRepo);
   const pmIntent = task.description;
   const { featureSlug, committed } = await buildSpecBranch(
     { project, targetRepo, branchName, pmIntent },
     { model, taskId: task.id },
   );
-
   const pr = await publishSpecPr(
     { project, targetRepo, branchName, featureSlug },
     { task, issueNumber, pmIntent, committed },
@@ -255,6 +266,17 @@ async function commitOneSpec(
 
     return false;
   }
+  await commitSpecFile(file, ctx, text);
+
+  return true;
+}
+
+/** Writes one generated artifact onto the branch under a `lore: add <path>` message. */
+async function commitSpecFile(
+  file: { path: string },
+  ctx: SpecCommitContext,
+  text: string,
+): Promise<void> {
   const { repo } = ctx.project;
 
   await repo.commitFile(
@@ -266,8 +288,6 @@ async function commitOneSpec(
   console.log(
     `[floor] Feature request: committed ${file.path} (${text.length} chars)`,
   );
-
-  return true;
 }
 
 /** Generate each artifact and commit it; one failure does not cost the others — a spec.md is worth opening a PR for even when the data-model generation failed. */
