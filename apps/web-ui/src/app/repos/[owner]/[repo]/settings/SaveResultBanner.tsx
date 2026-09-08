@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import type { PrivilegedSaveResult } from "@/lib/mcp-settings";
 import styles from "./page.module.css";
 
@@ -68,24 +69,32 @@ function PrivilegedError({ message }: { message: string }) {
   );
 }
 
+const BANNER_BY_STATUS: {
+  [K in PrivilegedSaveResult["status"]]: (
+    privileged: Extract<PrivilegedSaveResult, { status: K }>,
+  ) => ReactElement;
+} = {
+  ok: () => <PrivilegedOk />,
+  two_key_required: (privileged) => (
+    <PrivilegedTwoKeyRequired fieldPaths={privileged.fieldPaths} />
+  ),
+  codeowners_failed: (privileged) => (
+    <PrivilegedCodeownersFailed
+      code={privileged.code}
+      detail={privileged.detail}
+    />
+  ),
+  unconfigured: () => <PrivilegedUnconfigured />,
+  error: (privileged) => <PrivilegedError message={privileged.message} />,
+};
+
 function renderPrivileged(privileged: PrivilegedSaveResult) {
-  switch (privileged.status) {
-    case "ok":
-      return <PrivilegedOk />;
-    case "two_key_required":
-      return <PrivilegedTwoKeyRequired fieldPaths={privileged.fieldPaths} />;
-    case "codeowners_failed":
-      return (
-        <PrivilegedCodeownersFailed
-          code={privileged.code}
-          detail={privileged.detail}
-        />
-      );
-    case "unconfigured":
-      return <PrivilegedUnconfigured />;
-    case "error":
-      return <PrivilegedError message={privileged.message} />;
-  }
+  // Keyed by status, so this entry takes this variant; the index loses that.
+  const banner = BANNER_BY_STATUS[privileged.status] as (
+    p: PrivilegedSaveResult,
+  ) => ReactElement;
+
+  return banner(privileged);
 }
 
 function PrivilegedFeedback({

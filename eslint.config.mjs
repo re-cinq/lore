@@ -218,7 +218,9 @@ export default tseslint.config(
       "re-lint/no-commented-out-code": "error",
       "re-lint/no-closing-brace-comments": "warn",
       "re-lint/no-negative-names": "warn",
-      "re-lint/prefer-polymorphism": "warn",
+      // Error since 2026-09-08: all five sites became lookup tables keyed by
+      // the tag, which a mapped type still checks for exhaustiveness.
+      "re-lint/prefer-polymorphism": "error",
       "re-lint/max-member-chain": "warn",
       "re-lint/callee-below-caller": "warn",
       "re-lint/declare-near-use": "warn",
