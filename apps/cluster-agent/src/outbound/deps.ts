@@ -97,34 +97,39 @@ const agentsFacade: AgentsApi = {
   remove: removeAgentCr,
 };
 
+// The pod reads, as the rest of the process asks for them.
+function podsFacade(pods: KubePodLogs): ClusterDeps["pods"] {
+  return {
+    agentInfo: (name) => pods.agentInfo(name),
+    podsForJob: (job) => pods.podsForJob(job),
+    podLog: (pod, tail) => pods.podLog(pod, tail),
+    listRunning: () => pods.listRunning(),
+  };
+}
+
+// The paired catalog writes. Deleting goes STATION FIRST — the AgentDefinition is what a dispatch looks up, so removing it last never leaves a recipe pointing at a station that is already gone.
+function catalogFacade(catalog: KubeCatalogApi): ClusterDeps["catalog"] {
+  return {
+    // create → 409 → get-for-resourceVersion → replace, with the live object's unrendered fields carried across.
+    applyPair: (pair) => applyCatalogPair(catalog, pair),
+    deletePair: async (name) => {
+      await catalog.deleteStation(name);
+      await catalog.deleteAgentDefinition(name);
+    },
+  };
+}
+
 export function clusterDeps(): ClusterDeps {
   if (singleton) {
     return singleton;
   }
-  const pods = new KubePodLogs();
-  const catalog = new KubeCatalogApi();
   const tokens = kubeTokenProvisioner();
 
   singleton = {
     agents: agentsFacade,
-    pods: {
-      agentInfo: (name) => pods.agentInfo(name),
-      podsForJob: (job) => pods.podsForJob(job),
-      podLog: (pod, tail) => pods.podLog(pod, tail),
-      listRunning: () => pods.listRunning(),
-    },
-    tokens: {
-      cleanup: (taskId) => tokens.cleanup(taskId),
-    },
-    catalog: {
-      // create → 409 → get-for-resourceVersion → replace, with the live object's unrendered fields carried across.
-      applyPair: (pair) => applyCatalogPair(catalog, pair),
-      // Station first — the AgentDefinition is what a dispatch looks up, so removing it last never leaves a recipe pointing at a missing station.
-      deletePair: async (name) => {
-        await catalog.deleteStation(name);
-        await catalog.deleteAgentDefinition(name);
-      },
-    },
+    pods: podsFacade(new KubePodLogs()),
+    tokens: { cleanup: (taskId) => tokens.cleanup(taskId) },
+    catalog: catalogFacade(new KubeCatalogApi()),
   };
 
   return singleton;

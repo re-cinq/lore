@@ -27,21 +27,27 @@ export function parseTags(raw: string | undefined): string[] {
     .filter((tag) => tag.length > 0);
 }
 
+// Which of the three are unset. Named ALL at once rather than failing on the first: a deployment missing two variables should learn both from one boot, not from two.
+function missingVars(env: NodeJS.ProcessEnv): string[] {
+  return [
+    env.LORE_API_URL ? "" : "LORE_API_URL",
+    env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN
+      ? ""
+      : "LORE_CLUSTER_AGENT_REGISTRATION_TOKEN",
+    env.LORE_CLUSTER_AGENT_NAME ? "" : "LORE_CLUSTER_AGENT_NAME",
+  ].filter((variable) => variable !== "");
+}
+
 // The registration triple, or a refusal to boot — since dispatch flipped push→pull (FR3), an unregistered cluster-agent claims nothing and its queue goes silently quiet.
 export function registrationConfig(env: NodeJS.ProcessEnv): RegistrationConfig {
   const apiUrl = env.LORE_API_URL;
   const registrationToken = env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN;
   const name = env.LORE_CLUSTER_AGENT_NAME;
-  const missing = [
-    apiUrl ? "" : "LORE_API_URL",
-    registrationToken ? "" : "LORE_CLUSTER_AGENT_REGISTRATION_TOKEN",
-    name ? "" : "LORE_CLUSTER_AGENT_NAME",
-  ].filter((variable) => variable !== "");
 
   enforceTrue(
     apiUrl && registrationToken && name,
     Error,
-    `cluster-agent cannot start: ${missing.join(", ")} unset. Every cluster-agent registers and claims its work; there is no mode that runs without these.`,
+    `cluster-agent cannot start: ${missingVars(env).join(", ")} unset. Every cluster-agent registers and claims its work; there is no mode that runs without these.`,
   );
 
   return {
@@ -112,6 +118,39 @@ function parseIdentityBody(
   return { id: body.id, token: body.token };
 }
 
+// Persists the new identity and republishes the run pods' credential. Both first registration and every rotation land here, so the pods' credential never outlives the token it was minted from.
+async function adoptIdentity(
+  identity: ClusterAgentIdentity,
+  deps: RegisterDeps,
+): Promise<void> {
+  await deps.store.save(identity);
+  await deps.publishTelemetryCredential?.(identity);
+}
+
+// The SHARED registration token, not this cluster's own — that is what registration is for, and the per-agent token only exists once it returns.
+function registrationHeaders(
+  config: RegistrationConfig,
+): Record<string, string> {
+  return {
+    authorization: `Bearer ${config.registrationToken}`,
+    "content-type": "application/json",
+  };
+}
+
+// The identity the API just issued, adopted before it is returned. Saving and republishing happen here rather than at the call site so no caller can hold an identity the store has not seen.
+async function acceptRegistration(
+  res: Response,
+  deps: RegisterDeps,
+): Promise<ClusterAgentIdentity> {
+  const identity = parseIdentityBody(
+    (await res.json()) as Partial<ClusterAgentIdentity>,
+  );
+
+  await adoptIdentity(identity, deps);
+
+  return identity;
+}
+
 /** One attempt, which may throw — `registerOnce` is the wrapper that promises it never does. Null means retry. */
 async function attemptRegistration(
   deps: RegisterDeps,
@@ -121,10 +160,7 @@ async function attemptRegistration(
   const current = await store.load();
   const res = await fetchFn(`${config.apiUrl}/api/cluster-agents/register`, {
     method: "POST",
-    headers: {
-      authorization: `Bearer ${config.registrationToken}`,
-      "content-type": "application/json",
-    },
+    headers: registrationHeaders(config),
     body: JSON.stringify(registerRequestBody(config, current)),
     signal: AbortSignal.timeout(REGISTER_TIMEOUT_MS),
   });
@@ -135,15 +171,7 @@ async function attemptRegistration(
     return null;
   }
 
-  const identity = parseIdentityBody(
-    (await res.json()) as Partial<ClusterAgentIdentity>,
-  );
-
-  await store.save(identity);
-  // Both first registration and every rotation land here, so the run pods' credential never outlives its token.
-  await deps.publishTelemetryCredential?.(identity);
-
-  return identity;
+  return acceptRegistration(res, deps);
 }
 
 /** Retry registration on the 30s→5m schedule until it succeeds. Never throws or gives up — an unreachable API on boot must not crash the process. */

@@ -56,6 +56,28 @@ function isFetchOutcome(value: Response | FetchOutcome): value is FetchOutcome {
   return "kind" in value;
 }
 
+// The batch, or a refusal when the body will not parse. A 200 carrying a proxy error page would otherwise throw straight through the loop.
+async function readBatchBody(res: Response): Promise<FetchOutcome> {
+  try {
+    return { kind: "batch", body: (await res.json()) as CatalogEventsResponse };
+  } catch (err) {
+    return refusedFetch(
+      `catalog-events response parse failed: ${errorMessage(err)}`,
+    );
+  }
+}
+
+// Why this batch did not arrive, if it did not. 401/403 is kept distinct from any other failure: it means the per-agent token was rotated elsewhere, and the loop re-registers rather than retrying a credential the API no longer accepts.
+function fetchRefusal(res: Response): FetchOutcome | null {
+  if (res.status === 401 || res.status === 403) {
+    return { kind: "refused", outcome: { kind: "unauthorized" } };
+  }
+
+  return res.ok
+    ? null
+    : refusedFetch(`catalog-events refused (HTTP ${res.status})`);
+}
+
 /** Ask for the next batch of catalog events. Every way this can fail — unreachable, unauthorized, refused, unparseable — comes back as an outcome the caller reports without advancing the ack. */
 export async function fetchCatalogBatch(
   deps: CatalogSyncTickDeps,
@@ -70,24 +92,25 @@ export async function fetchCatalogBatch(
     return res;
   }
 
-  if (res.status === 401 || res.status === 403) {
-    return { kind: "refused", outcome: { kind: "unauthorized" } };
+  const refusal = fetchRefusal(res);
+
+  if (refusal) {
+    return refusal;
   }
 
-  if (!res.ok) {
-    return refusedFetch(`catalog-events refused (HTTP ${res.status})`);
-  }
-
-  try {
-    return { kind: "batch", body: (await res.json()) as CatalogEventsResponse };
-  } catch (err) {
-    return refusedFetch(
-      `catalog-events response parse failed: ${errorMessage(err)}`,
-    );
-  }
+  return readBatchBody(res);
 }
 
-/** POST the batch's verdicts. Never throws: visibility must not cost delivery. */
+// One verdict in the API's own vocabulary — `projectId` becomes `project_id`, and the reason travels with it so a refusal is legible without opening this cluster's logs.
+function toWireReport(report: CatalogApplyReport) {
+  return {
+    name: report.name,
+    project_id: report.projectId,
+    state: report.state,
+    reason: report.reason,
+  };
+}
+
 /** The status POST itself. A refusal is WARNED, never thrown: a cluster whose verdicts do not land looks stale until the next batch, which is better than a sync loop that stops because reporting failed. */
 function postStatus(
   fetchFn: typeof fetch,
@@ -103,19 +126,20 @@ function postStatus(
         authorization: `Bearer ${auth.token}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        reports: reports.map((r) => ({
-          name: r.name,
-          project_id: r.projectId,
-          state: r.state,
-          reason: r.reason,
-        })),
-      }),
+      body: JSON.stringify({ reports: reports.map(toWireReport) }),
       signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
     },
   );
 }
 
+// The verdicts did not land. WARNED, never thrown: this cluster's entries look stale until the next batch, which is better than a sync loop that stops because reporting failed.
+function warnStatusUnreported(reason: string): void {
+  console.warn(
+    `[cluster-agent] catalog status report failed (${reason}) — this cluster's verdicts will look stale until the next batch`,
+  );
+}
+
+/** POST the batch's verdicts. Never throws: visibility must not cost delivery. */
 export async function reportStatus(
   deps: CatalogSyncTickDeps,
   reports: CatalogApplyReport[],
@@ -130,13 +154,9 @@ export async function reportStatus(
     const res = await postStatus(fetchFn, deps, { id, token }, reports);
 
     if (!res.ok) {
-      console.warn(
-        `[cluster-agent] catalog status report refused (HTTP ${res.status}) — this cluster's verdicts will look stale until the next batch`,
-      );
+      warnStatusUnreported(`HTTP ${res.status}`);
     }
   } catch (err) {
-    console.warn(
-      `[cluster-agent] catalog status report failed: ${errorMessage(err)}`,
-    );
+    warnStatusUnreported(errorMessage(err));
   }
 }

@@ -20,22 +20,20 @@ export class KubeAgentApi implements AgentApi {
   }
 
   async create(agent: AgentCr): Promise<{ name: string; created: boolean }> {
-    const api = this.customObjects();
-    const namespace = this.namespace();
     const name = agent.metadata?.name ?? "";
-    const body = { apiVersion: AGENT_API_VERSION, kind: "Agent", ...agent };
 
     try {
-      await api.createNamespacedCustomObject({
+      await this.customObjects().createNamespacedCustomObject({
         group: GROUP,
         version: VERSION,
-        namespace,
+        namespace: this.namespace(),
         plural: PLURAL,
-        body,
+        body: { apiVersion: AGENT_API_VERSION, kind: "Agent", ...agent },
       });
 
       return { name, created: true };
     } catch (err) {
+      // A 409 means this CR already exists — the claim was replayed, so the caller is told nothing was created rather than being handed an error it would have to classify.
       if (isConflict(err)) {
         return { name, created: false };
       }

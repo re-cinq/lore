@@ -65,6 +65,33 @@ export interface ReleaseDeps {
   fetchFn?: typeof fetch;
 }
 
+// The release, as the API expects it: which row to hand back, and why it could not be launched. The reason is stored, so a run released for a missing image reads differently from one released for a crash.
+function releaseRequest(token: string, deps: ReleaseDeps): RequestInit {
+  return {
+    method: "POST",
+    headers: bearerJson(token),
+    body: JSON.stringify({
+      node_row_id: deps.nodeRowId,
+      reason: deps.reason,
+    }),
+  };
+}
+
+// A release that did not land. Warned rather than thrown: the visit stays claimed, and the reaper is what recovers it now — the tick that called this is already in its failure path.
+function warnReleaseRefused(nodeRowId: string, reason: string): void {
+  console.warn(
+    `[cluster-agent] could not release station run row ${nodeRowId} (${reason}) — the reaper is what recovers it now`,
+  );
+}
+
+// This cluster's registered token, on a JSON request.
+function bearerJson(token: string): Record<string, string> {
+  return {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+}
+
 // Hand back a visit this cluster claimed and could not launch — left unsaid, it waits out the whole node budget on a satellite. Never throws (runs in the tick's failure path).
 export async function releaseClaim(deps: ReleaseDeps): Promise<void> {
   const fetchFn = deps.fetchFn ?? fetch;
@@ -74,28 +101,16 @@ export async function releaseClaim(deps: ReleaseDeps): Promise<void> {
     const res = await fetchFn(
       `${deps.apiUrl}/api/cluster-agents/${id}/release`,
       {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          node_row_id: deps.nodeRowId,
-          reason: deps.reason,
-        }),
+        ...releaseRequest(token, deps),
         signal: AbortSignal.timeout(CLAIM_TIMEOUT_MS),
       },
     );
 
     if (!res.ok) {
-      console.warn(
-        `[cluster-agent] releasing station run row ${deps.nodeRowId} refused (HTTP ${res.status}) — the reaper is what recovers it now`,
-      );
+      warnReleaseRefused(deps.nodeRowId, `HTTP ${res.status}`);
     }
   } catch (err) {
-    console.warn(
-      `[cluster-agent] could not release station run row ${deps.nodeRowId}: ${errorMessage(err)}`,
-    );
+    warnReleaseRefused(deps.nodeRowId, errorMessage(err));
   }
 }
 
@@ -123,9 +138,8 @@ function isClaimOutcome(value: Response | ClaimOutcome): value is ClaimOutcome {
   return "kind" in value;
 }
 
-async function readClaimBody(
-  res: Response,
-): Promise<ClaimResponse | ClaimOutcome> {
+// Why this claim yielded no work, if it did not. The three are distinct on purpose: 204 is a quiet queue, 401/403 means this cluster's registration is no longer accepted and the loop must stop rather than hammer, and any other failure is transient.
+function claimRefusal(res: Response): ClaimOutcome | null {
   if (res.status === 204) {
     return { kind: "empty" };
   }
@@ -136,6 +150,18 @@ async function readClaimBody(
 
   if (!res.ok) {
     return { kind: "error", message: `claim refused (HTTP ${res.status})` };
+  }
+
+  return null;
+}
+
+async function readClaimBody(
+  res: Response,
+): Promise<ClaimResponse | ClaimOutcome> {
+  const refusal = claimRefusal(res);
+
+  if (refusal) {
+    return refusal;
   }
 
   try {
@@ -178,6 +204,26 @@ function resolveCrName(claim: ClaimResponse): string | ClaimOutcome {
   return name;
 }
 
+// A claim this cluster took and could not launch. Handed back before reporting, because a visit left claimed waits out the whole node budget on a satellite the Floor cannot see into.
+async function handBack(
+  deps: ClaimTickDeps,
+  claim: ClaimResponse,
+  message: string,
+): Promise<ClaimOutcome> {
+  await releaseClaim({
+    apiUrl: deps.apiUrl,
+    identity: deps.identity,
+    nodeRowId: claim.node_row_id,
+    reason: message,
+    fetchFn: deps.fetchFn,
+  });
+
+  return {
+    kind: "error",
+    message: `launch failed for station run ${claim.station_run_id}, visit handed back: ${message}`,
+  };
+}
+
 async function launchClaim(
   deps: ClaimTickDeps,
   claim: ClaimResponse,
@@ -192,18 +238,7 @@ async function launchClaim(
       crName: ref,
     };
   } catch (err) {
-    await releaseClaim({
-      apiUrl: deps.apiUrl,
-      identity: deps.identity,
-      nodeRowId: claim.node_row_id,
-      reason: errorMessage(err),
-      fetchFn: deps.fetchFn,
-    });
-
-    return {
-      kind: "error",
-      message: `launch failed for station run ${claim.station_run_id}, visit handed back: ${errorMessage(err)}`,
-    };
+    return handBack(deps, claim, errorMessage(err));
   }
 }
 
@@ -244,26 +279,29 @@ export interface ClaimLoopDeps {
   onOutcome?: (outcome: ClaimOutcome) => void;
 }
 
+// What this outcome says in the log, or nothing when it is the unauthorized case the caller acts on. `already-running` reads as an explanation rather than a failure: the CR exists, and its terminal event or the reaper settles the visit.
+function outcomeLine(outcome: ClaimOutcome): string | null {
+  if (outcome.kind === "claimed") {
+    return `[cluster-agent] claimed station run ${outcome.stationRunId} → Agent CR ${outcome.crName}`;
+  }
+
+  if (outcome.kind === "already-running") {
+    return `[cluster-agent] station run ${outcome.stationRunId} claimed, but Agent CR ${outcome.crName} already exists — no new pod launched; the CR's terminal event or the reaper will settle the visit`;
+  }
+
+  return outcome.kind === "error" ? `[cluster-agent] ${outcome.message}` : null;
+}
+
 /** What each claim outcome means, and the one that needs action: an unauthorized claim means the per-agent token was rotated elsewhere, so this agent re-registers rather than looping on a credential it no longer holds. `already-running` is deliberately not an error — the CR exists, and its terminal event or the reaper settles the visit. */
 async function reportOutcome(
   outcome: ClaimOutcome,
   log: (message: string) => void,
   deps: ClaimLoopDeps,
 ): Promise<void> {
-  if (outcome.kind === "claimed") {
-    log(
-      `[cluster-agent] claimed station run ${outcome.stationRunId} → Agent CR ${outcome.crName}`,
-    );
-  }
+  const line = outcomeLine(outcome);
 
-  if (outcome.kind === "already-running") {
-    log(
-      `[cluster-agent] station run ${outcome.stationRunId} claimed, but Agent CR ${outcome.crName} already exists — no new pod launched; the CR's terminal event or the reaper will settle the visit`,
-    );
-  }
-
-  if (outcome.kind === "error") {
-    log(`[cluster-agent] ${outcome.message}`);
+  if (line) {
+    log(line);
   }
 
   if (outcome.kind === "unauthorized") {

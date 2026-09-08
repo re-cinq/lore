@@ -133,10 +133,8 @@ function makeShutdown(
   };
 }
 
-async function main(): Promise<void> {
-  const routerUrl = process.env.EVENT_ROUTER_URL;
-  const floorUrl = process.env.LORE_FLOOR_URL;
-
+// The two loops this process runs for its whole life.
+function startLoops() {
   // Claim-based dispatch (FR1/FR3, specs/running-stations-in-any-k8s-cluster) — not optional; dispatch is pull-only. Started before the watch so it can borrow its re-registration.
   const claimLoop = startClaimLoop(process.env, {
     onIdentity: (identity) => {
@@ -145,8 +143,14 @@ async function main(): Promise<void> {
   });
 
   // Terminal Agent CRs + per-task clones accumulate forever otherwise — 176 of them (40MiB) OOMKilled the controller every 9min on 2026-08-30. Runs HERE (not Floor-side) since the Floor cannot reach a satellite's cluster (#1651).
-  const pruneLoop = startPruneLoop(process.env);
+  return { claimLoop, pruneLoop: startPruneLoop(process.env) };
+}
 
+async function main(): Promise<void> {
+  const routerUrl = process.env.EVENT_ROUTER_URL;
+  const floorUrl = process.env.LORE_FLOOR_URL;
+
+  const { claimLoop, pruneLoop } = startLoops();
   const proxy = buildEventProxy(routerUrl, floorUrl, claimLoop);
   const agentEvents = buildAgentEvents(proxy, floorUrl);
   const stopServer = await startServer(PORT, agentEvents);

@@ -37,6 +37,16 @@ export function buildServer(opts: ServerOpts = {}): Hapi.Server {
   return server;
 }
 
+// What to say when the server will not start. EADDRINUSE gets its own line because it has a cause a person can act on — another instance is already running — while anything else is reported with the error itself.
+function bootFailure(port: number, err: unknown): unknown[] {
+  return (err as NodeJS.ErrnoException | null | undefined)?.code ===
+    "EADDRINUSE"
+    ? [
+        `[cluster-agent] port ${port} already in use — another instance is running. Exiting.`,
+      ]
+    : ["[cluster-agent] server error:", err];
+}
+
 export async function startServer(
   port: number,
   agentEvents?: AgentEventsDeps,
@@ -49,16 +59,7 @@ export async function startServer(
 
     return () => server.stop();
   } catch (err) {
-    const e = err as NodeJS.ErrnoException;
-
-    const failureLog =
-      e.code === "EADDRINUSE"
-        ? [
-            `[cluster-agent] port ${port} already in use — another instance is running. Exiting.`,
-          ]
-        : ["[cluster-agent] server error:", err];
-
-    console.error(...failureLog);
+    console.error(...bootFailure(port, err));
     process.exit(1);
   }
 }
