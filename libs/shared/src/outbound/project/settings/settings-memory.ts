@@ -80,7 +80,7 @@ export class InMemorySettings implements SettingsPort {
   readonly vars: Array<{ repo: string; name: string; value: string }> = [];
   readonly secrets: Array<{ repo: string; name: string; value: string }> = [];
 
-  constructor(public repos: SeedRepo[] = []) {}
+  constructor(public readonly repos: SeedRepo[] = []) {}
 
   private row(repo: string): SeedRepo | undefined {
     return this.repos.find((r) => r.full_name === repo);

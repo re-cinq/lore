@@ -55,7 +55,9 @@ describe("verifyRepoChunks", () => {
   it("re-stamps in-tree reindex-owned chunks so the stale count drops to zero", async () => {
     const chunks = seededChunks();
 
-    chunks.rows = chunks.rows.filter((row) => row.filePath === "specs/kept.md");
+    const kept = chunks.rows.filter((row) => row.filePath === "specs/kept.md");
+
+    chunks.rows.splice(0, chunks.rows.length, ...kept);
 
     const result = await verifyRepoChunks(chunks, SCHEMA, REPO, [
       "specs/kept.md",

@@ -62,7 +62,7 @@ export class InMemoryTaskStore implements TaskStorePort {
   private readonly queries: TaskQueryStore;
 
   constructor(
-    public tasks: SeedStoreTask[] = [],
+    public readonly tasks: SeedStoreTask[] = [],
     opts: { repoSettings?: SeedRepoSettings; now?: () => Date } = {},
   ) {
     this.repoSettings = opts.repoSettings ?? {};

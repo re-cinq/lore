@@ -60,7 +60,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
   private readonly specTasks: SpecTaskStore;
 
   constructor(
-    public tasks: SeedTask[] = [],
+    public readonly tasks: SeedTask[] = [],
     private readonly now: () => number = () => Date.now(),
   ) {
     this.specTasks = new SpecTaskStore(this.tasks);

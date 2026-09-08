@@ -41,7 +41,7 @@ function strandNode(node: SeedAssemblyLineNode, now: Date): void {
 
 /** In-memory station-run (node-level) rows for one InMemoryAssemblyRuns instance — the "which pod ran which node, claimed by which cluster" half of the double, split out from the assembly-run (line-level) half. */
 export class StationRunStore {
-  nodes: SeedAssemblyLineNode[] = [];
+  readonly nodes: SeedAssemblyLineNode[] = [];
   private readonly dispatchSpecs = new Map<string, unknown>();
 
   constructor(private readonly clock: () => Date) {}

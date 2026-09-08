@@ -413,14 +413,14 @@ describe("assemblyLineReaperJob", () => {
     const old = new Date(Date.now() - 30 * MIN);
     const clock = h.port.clock;
 
-    h.port.clock = () => old;
+    h.port.setClock(() => old);
     await h.port.ensureStationRun({
       assemblyRunId: id,
       nodeId: "review",
       iteration: 1,
       agentCrName: `${id.substring(0, 12)}-review`,
     });
-    h.port.clock = clock;
+    h.port.setClock(clock);
 
     await assemblyLineReaperJob(h.deps);
 
@@ -437,14 +437,14 @@ describe("assemblyLineReaperJob", () => {
     const old = new Date(Date.now() - 45 * MIN);
     const clock = h.port.clock;
 
-    h.port.clock = () => old;
+    h.port.setClock(() => old);
     const id = await h.port.start({
       blueprintName: "code-review",
       repo: "o/r",
       args: {},
     });
 
-    h.port.clock = clock;
+    h.port.setClock(clock);
     await assemblyLineReaperJob(h.deps);
 
     expect(await h.port.getById(id)).toMatchObject({
@@ -608,7 +608,7 @@ describe("the sweep's claim-lifecycle arms", () => {
     ageMinutes: number,
     requiredTags: string[] = [],
   ) => {
-    h.port.clock = () => new Date(Date.now() - ageMinutes * MIN);
+    h.port.setClock(() => new Date(Date.now() - ageMinutes * MIN));
     const { nodeRowId } = await h.port.ensureStationRun({
       assemblyRunId: id,
       nodeId: "review",
@@ -619,7 +619,7 @@ describe("the sweep's claim-lifecycle arms", () => {
     });
 
     await h.port.enqueueStationRunDispatch(nodeRowId, { name: "spec" });
-    h.port.clock = () => new Date();
+    h.port.setClock(() => new Date());
 
     return nodeRowId;
   };
@@ -762,12 +762,12 @@ describe("the sweep's claim-lifecycle arms", () => {
     const id = await runningRow(h);
 
     await queuedRow(h, id, 10);
-    h.port.clock = () => new Date(Date.now() - 5 * MIN);
+    h.port.setClock(() => new Date(Date.now() - 5 * MIN));
     await h.port.claimNextStationRun({
       clusterAgentId: "central-1",
       tags: [],
     });
-    h.port.clock = () => new Date();
+    h.port.setClock(() => new Date());
     const summary = await assemblyLineReaperJob(h.deps);
 
     expect(h.port.nodes).toHaveLength(1);
@@ -791,9 +791,9 @@ describe("the sweep's claim-lifecycle arms", () => {
     const id = await runningRow(h);
 
     await queuedRow(h, id, 60);
-    h.port.clock = () => new Date(Date.now() - 20 * MIN);
+    h.port.setClock(() => new Date(Date.now() - 20 * MIN));
     await h.port.claimNextStationRun({ clusterAgentId: "sat-1", tags: [] });
-    h.port.clock = () => new Date();
+    h.port.setClock(() => new Date());
     await assemblyLineReaperJob(h.deps);
 
     expect(h.port.nodes[0]).toMatchObject({
@@ -1092,14 +1092,14 @@ edges:
     await h.port.markRunning(id);
     const clock = h.port.clock;
 
-    h.port.clock = () => new Date(Date.now() - 30 * MIN);
+    h.port.setClock(() => new Date(Date.now() - 30 * MIN));
     await h.port.ensureStationRun({
       assemblyRunId: id,
       nodeId: "check",
       iteration: 1,
       agentCrName: `${id.substring(0, 12)}-check`,
     });
-    h.port.clock = clock;
+    h.port.setClock(clock);
 
     await assemblyLineReaperJob(deps);
 
