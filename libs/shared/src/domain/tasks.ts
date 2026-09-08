@@ -125,9 +125,9 @@ function groupTasksByPhase(tasks: ParsedTask[]): Map<number, ParsedTask[]> {
   return phases;
 }
 
-/** True when every task sits in the (unheaded) default phase, so there's no phase structure to infer from. */
-function hasNoPhaseStructure(phaseNumbers: number[]): boolean {
-  return phaseNumbers.length === 1 && phaseNumbers[0] === 0;
+/** True when the tasks span headed phases, so there is a structure to infer dependencies from. */
+function hasPhaseStructure(phaseNumbers: number[]): boolean {
+  return !(phaseNumbers.length === 1 && phaseNumbers[0] === 0);
 }
 
 /** Infer dependencies from phase structure; [DEPENDS ON:] markers take precedence. */
@@ -139,7 +139,7 @@ export function inferPhaseDependencies(tasks: ParsedTask[]): ParsedTask[] {
   const phases = groupTasksByPhase(tasks);
   const phaseNumbers = [...phases.keys()].sort((a, b) => a - b);
 
-  if (hasNoPhaseStructure(phaseNumbers)) {
+  if (!hasPhaseStructure(phaseNumbers)) {
     return tasks;
   }
 

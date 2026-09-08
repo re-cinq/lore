@@ -220,7 +220,7 @@ export function textResult(text: string): {
 }
 
 // Format MCP error for unconfigured API endpoint/token; distinct from unreachable.
-export function notConfiguredError(op: string): {
+export function unconfiguredError(op: string): {
   content: [{ type: "text"; text: string }];
 } {
   return {

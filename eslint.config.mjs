@@ -222,7 +222,11 @@ export default tseslint.config(
       // One of the 12 is in a .mjs script this block's files glob does not
       // reach; it is fixed for consistency, not because the rule saw it.
       "re-lint/no-closing-brace-comments": "error",
-      "re-lint/no-negative-names": "warn",
+      // Error since 2026-09-08: the predicates state the positive case and
+      // negate at the use site, the empty-state components are named Empty*,
+      // and the 404 views name what is missing. One inline disable stands, on
+      // the OpenAPI response key whose name is part of the published contract.
+      "re-lint/no-negative-names": "error",
       // Error since 2026-09-08: all five sites became lookup tables keyed by
       // the tag, which a mapped type still checks for exhaustiveness.
       "re-lint/prefer-polymorphism": "error",

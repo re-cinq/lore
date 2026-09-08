@@ -31,7 +31,7 @@ function PoolRowCells({ pool }: { pool: PoolRow }) {
 }
 
 /** Nothing to show, and nothing for the reader to do about it: pools are created by agents through the MCP tools, not from this page. */
-function NoPools() {
+function EmptyPools() {
   return (
     <tr>
       <td colSpan={5}>
@@ -66,7 +66,7 @@ export default function PoolsView({ pools }: PoolsViewProps) {
           {pools.map((pool) => (
             <PoolRowCells key={pool.id} pool={pool} />
           ))}
-          {pools.length === 0 && <NoPools />}
+          {pools.length === 0 && <EmptyPools />}
         </tbody>
       </table>
     </div>

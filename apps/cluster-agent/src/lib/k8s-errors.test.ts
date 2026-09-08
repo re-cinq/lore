@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   describeK8sError,
   isConflict,
-  isNotFound,
+  isMissing,
   statusOf,
 } from "./k8s-errors.js";
 
@@ -24,9 +24,9 @@ describe("statusOf", () => {
   });
 });
 
-describe("isNotFound / isConflict", () => {
+describe("isMissing / isConflict", () => {
   it("treats only 404 as absence", () => {
-    expect([isNotFound({ code: 404 }), isNotFound({ code: 403 })]).toEqual([
+    expect([isMissing({ code: 404 }), isMissing({ code: 403 })]).toEqual([
       true,
       false,
     ]);

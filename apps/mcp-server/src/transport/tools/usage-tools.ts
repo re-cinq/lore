@@ -4,7 +4,7 @@ import { z } from "zod";
 import { resolveAgentId } from "@re-cinq/lore-shared";
 import {
   proxyGetApi,
-  notConfiguredError,
+  unconfiguredError,
   deniedError,
   type ProxyResult,
   textResult,
@@ -22,7 +22,7 @@ function renderProxied(
   }
 
   if (proxied.reason === "not_configured") {
-    return notConfiguredError(op);
+    return unconfiguredError(op);
   }
 
   if (proxied.reason === "denied") {

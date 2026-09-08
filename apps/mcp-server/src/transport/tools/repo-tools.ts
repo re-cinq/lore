@@ -49,11 +49,11 @@ type ToolTextResult = ReturnType<typeof textResult>;
 // Maps a failed ProxyResult to the MCP text result callers surface — the same three reasons every proxying tool handles.
 function proxyFailure(
   toolName: string,
-  notConfiguredText: string,
+  unconfiguredText: string,
   proxied: Extract<ProxyResult, { ok: false }>,
 ): ToolTextResult {
   if (proxied.reason === "not_configured") {
-    return textResult(notConfiguredText);
+    return textResult(unconfiguredText);
   }
 
   if (proxied.reason === "denied") {

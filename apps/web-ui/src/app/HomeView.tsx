@@ -192,7 +192,7 @@ function FixImpactButton({
 }
 
 /** A first run, not a failure. Points at onboarding rather than reporting an empty list, because there is exactly one thing to do from here. */
-function NoRepos() {
+function EmptyRepos() {
   return (
     <div className="placeholder">
       <p>No repositories onboarded yet.</p>
@@ -228,7 +228,7 @@ export default function HomeView({
             ingest={ingestStatus.get(r.full_name)}
           />
         ))}
-        {repos.length === 0 && <NoRepos />}
+        {repos.length === 0 && <EmptyRepos />}
       </div>
     </div>
   );

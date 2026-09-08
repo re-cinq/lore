@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   touchKind,
   aggregateFileTouches,
-  hiddenTouchCount,
+  remainderTouchCount,
   stripWorkspacePrefix,
   truncateMiddle,
   type TouchCounts,
@@ -105,10 +105,10 @@ describe("aggregateFileTouches", () => {
   });
 });
 
-describe("hiddenTouchCount", () => {
+describe("remainderTouchCount", () => {
   it("counts the files hidden beyond topN", () => {
     expect(
-      hiddenTouchCount(
+      remainderTouchCount(
         { a: counts(1, 0), b: counts(1, 0), c: counts(1, 0) },
         2,
       ),
@@ -116,7 +116,7 @@ describe("hiddenTouchCount", () => {
   });
 
   it("returns zero hidden when topN covers every file", () => {
-    expect(hiddenTouchCount({ a: counts(1, 0) }, 30)).toBe(0);
+    expect(remainderTouchCount({ a: counts(1, 0) }, 30)).toBe(0);
   });
 });
 

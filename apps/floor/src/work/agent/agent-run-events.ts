@@ -238,18 +238,18 @@ function contentBlocks(ev: Record<string, unknown>): unknown[] {
   return Array.isArray(content) ? content : [];
 }
 
-function isNotNull<T>(row: T | null): row is T {
+function isPresent<T>(row: T | null): row is T {
   return row !== null;
 }
 
 function assistantRows(
   ev: Record<string, unknown>,
 ): Partial<AgentRunEventInsert>[] {
-  return contentBlocks(ev).map(assistantBlockRow).filter(isNotNull);
+  return contentBlocks(ev).map(assistantBlockRow).filter(isPresent);
 }
 
 function userRows(ev: Record<string, unknown>): Partial<AgentRunEventInsert>[] {
-  return contentBlocks(ev).map(toolResultRow).filter(isNotNull);
+  return contentBlocks(ev).map(toolResultRow).filter(isPresent);
 }
 
 // Station progress lines (agent-output.ts): no claude stream, so progress fills transcript; "message" event type.

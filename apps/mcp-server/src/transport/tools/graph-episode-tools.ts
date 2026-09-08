@@ -7,7 +7,7 @@ import {
   proxyGetApi,
   withReadCache,
   deniedError,
-  notConfiguredError,
+  unconfiguredError,
   textResult,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
@@ -155,7 +155,7 @@ function registerAgentStatsTool(server: McpServer) {
         }
 
         if (proxied.reason === "not_configured") {
-          return notConfiguredError("fetching agent stats");
+          return unconfiguredError("fetching agent stats");
         }
 
         if (proxied.reason === "denied") {

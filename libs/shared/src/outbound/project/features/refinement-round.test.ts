@@ -15,7 +15,7 @@ function deps(over: Partial<RefinementRoundDeps> = {}): RefinementRoundDeps {
   return {
     order,
     invalidBasis: (message: string) => new Error(message),
-    notParked: () => () => new Error("not parked"),
+    unparked: () => () => new Error("not parked"),
     parkedNode: async () => ({
       runId: "r-1",
       parked: { lineId: "r-1", nodeId: "author", iteration: 1 },
@@ -109,7 +109,7 @@ describe("startRefinementRound", () => {
         { answers: null },
         deps({
           parkedNode: async () => ({ runId: "r-9", parked: null }),
-          notParked: (runId) => {
+          unparked: (runId) => {
             named.push(runId);
 
             return () => conflict;

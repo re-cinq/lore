@@ -114,7 +114,7 @@ interface AnalysisViewProps {
 }
 
 /** No round has produced an analysis yet. Distinct from a FAILED round, which shows the failure instead — an author who sees this has nothing wrong to fix, only a round still to finish. */
-function NoAnalysisYet() {
+function EmptyAnalysis() {
   return (
     <div className="spec-card">
       <Alert variant="secondary">
@@ -188,7 +188,7 @@ export function AnalysisView(props: AnalysisViewProps) {
 
   // A failed round with no analysis still has something to say; a round that produced neither is simply not done.
   if (!gap) {
-    return failureBlock ?? <NoAnalysisYet />;
+    return failureBlock ?? <EmptyAnalysis />;
   }
 
   return <AnalysisBody {...props} gap={gap} failureBlock={failureBlock} />;

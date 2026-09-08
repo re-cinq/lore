@@ -6,7 +6,7 @@ import type {
   IdentityStore,
 } from "../domain/identity.js";
 import { errorMessage } from "@re-cinq/lore-shared";
-import { isNotFound } from "../lib/k8s-errors.js";
+import { isMissing } from "../lib/k8s-errors.js";
 import { coreApi } from "./kube-clients.js";
 
 /** The minimal Secret surface the store drives — injectable for tests. */
@@ -74,7 +74,7 @@ async function readSecret(
 
     return decoded;
   } catch (err) {
-    if (isNotFound(err)) {
+    if (isMissing(err)) {
       return null;
     }
     throw err;

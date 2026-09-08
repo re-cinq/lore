@@ -12,7 +12,7 @@ export interface JobRunViewProps {
   logs: string | null;
 }
 
-function NotFound({ id }: { id: string }) {
+function MissingJobRun({ id }: { id: string }) {
   return (
     <div>
       <h1>Job Run</h1>
@@ -90,7 +90,7 @@ function OutputSection({
 
 export default function JobRunView({ id, run, logs }: JobRunViewProps) {
   if (!run) {
-    return <NotFound id={id} />;
+    return <MissingJobRun id={id} />;
   }
 
   return (

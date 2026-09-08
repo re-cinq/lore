@@ -22,7 +22,7 @@ async function readSpec(fullName: string, filePath: string) {
 }
 
 /** Why this spec is blank, and how to fix it. Almost always means the graph has not been projected yet rather than that the file is missing, so the note names the steps rather than reporting a 404. */
-function NoGraphData({ filePath }: { filePath: string }) {
+function EmptyGraphData({ filePath }: { filePath: string }) {
   return (
     <p className="muted">
       No graph data for <code>{filePath}</code>. Build the graph from the{" "}
@@ -57,7 +57,7 @@ export default async function RepoSpecDetail({
           statements={statements}
         />
       ) : (
-        <NoGraphData filePath={filePath} />
+        <EmptyGraphData filePath={filePath} />
       )}
     </div>
   );

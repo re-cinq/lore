@@ -249,8 +249,10 @@ interface ConfigureLocalRunnerArgs {
   model?: string;
 }
 
-function hasNoConfigureArgs(args: ConfigureLocalRunnerArgs): boolean {
-  return !args.max_concurrent && !args.repos && !args.task_types && !args.model;
+function hasConfigureArgs(args: ConfigureLocalRunnerArgs): boolean {
+  return Boolean(
+    args.max_concurrent || args.repos || args.task_types || args.model,
+  );
 }
 
 function applyConfigureUpdate(
@@ -289,7 +291,7 @@ function registerConfigureLocalRunnerTool(server: McpServer) {
           await import("../../work/pipeline/runner.local.js");
         const config = readConfig();
 
-        if (hasNoConfigureArgs(args)) {
+        if (!hasConfigureArgs(args)) {
           return textResult(JSON.stringify(config, null, 2));
         }
         const updated = applyConfigureUpdate(config, args);

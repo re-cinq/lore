@@ -94,7 +94,7 @@ async function readJobPodLogs({
       podName: pod.name,
     };
   } catch (err) {
-    if (isNotFound(err)) {
+    if (isMissing(err)) {
       return archivedOrNoPod(jobName, phase, opts, archive);
     }
     throw err;
@@ -117,7 +117,7 @@ async function archivedOrNoPod(
   return { available: true, logs, phase, podName: null, archived: true };
 }
 
-function isNotFound(err: unknown): boolean {
+function isMissing(err: unknown): boolean {
   const e = err as { code?: number; response?: { statusCode?: number } };
 
   return e.code === 404 || e.response?.statusCode === 404;

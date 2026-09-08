@@ -65,7 +65,7 @@ function SpecGroupCard({
 }
 
 /** Not an error state: specs reach the graph through CI, so an empty list means nothing has been pushed since the workflow was installed. */
-function NoSpecsYet() {
+function EmptySpecs() {
   return (
     <p className="muted">
       No specs in the graph yet. Specs are projected automatically by CI on
@@ -155,7 +155,7 @@ export default function SpecListView({
 
   // No specs at all and none MATCHING are different answers: the first says the repo has none, the second that this filter is too narrow.
   if (specs.length === 0) {
-    return <NoSpecsYet />;
+    return <EmptySpecs />;
   }
   const { counts, visible, ordered, statusOf, groupCount } = visibleSpecs(
     specs,

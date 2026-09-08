@@ -59,7 +59,7 @@ export function aggregateFileTouches(
 }
 
 /** How many files the `topN` cut hides, for the "show all" remainder label. */
-export function hiddenTouchCount(
+export function remainderTouchCount(
   touches: Record<string, TouchCounts>,
   topN: number,
 ): number {
