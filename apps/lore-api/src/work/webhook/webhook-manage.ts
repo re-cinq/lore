@@ -1,7 +1,7 @@
 /** GitHub webhook management via Lore GitHub App; ensureRepoWebhook is idempotent (create/repoint/update + ping). */
 
 import { getOctokit } from "../../outbound/github-client.js";
-import type { RepoHook } from "./webhook-status.js";
+import { isLoreHook, type RepoHook } from "./webhook-status.js";
 
 function ownerRepo(repo: string): [string, string] {
   const [owner, name] = repo.split("/");
@@ -73,9 +73,7 @@ export async function ensureRepoWebhook(
     repo: name,
     per_page: 100,
   });
-  const existing = hooks.find((h) =>
-    (h.config.url ?? "").endsWith("/api/webhook/github"),
-  );
+  const existing = hooks.find(isLoreHook);
 
   const hookId = existing
     ? await updateHook(octokit, { owner, name }, existing.id, {
