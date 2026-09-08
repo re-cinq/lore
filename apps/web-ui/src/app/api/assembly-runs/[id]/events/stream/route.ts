@@ -1,10 +1,6 @@
 export const dynamic = "force-dynamic";
-import {
-  authorizeAssemblyRunAccess,
-  isAssemblyRunAuthError,
-} from "@/lib/assembly-run-auth";
+import { assemblyRunProxyRoute } from "@/lib/assembly-run-auth";
 import { NextResponse } from "next/server";
-import { serverError } from "@/lib/api-error";
 
 /** A Floor error, as JSON with its status preserved — never piped through as an event-stream. Streamed, an outage is indistinguishable from a run that has simply gone quiet. */
 function floorUnavailable(status: number) {
@@ -37,20 +33,9 @@ const SSE_HEADERS = {
 };
 
 // Session-authed SSE proxy to the Floor's /api/agent-events/stream/{id} (cookie→bearer token exchange). Keep upstream.body un-awaited (streamed, not buffered), req.signal forwarded, and no-transform/X-Accel-Buffering headers repeated per hop (spec FR4.8); Node runtime required, not edge.
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-
-  try {
-    const auth = await authorizeAssemblyRunAccess(id);
-
-    if (isAssemblyRunAuthError(auth)) {
-      return auth;
-    }
-
-    const { floorUrl, token } = auth;
+export const GET = assemblyRunProxyRoute(
+  "assembly-line-run-events-stream",
+  async ({ id, req, floorUrl, token }) => {
     const after = new URL(req.url).searchParams.get("after");
     const query = after === null ? "" : `?after=${encodeURIComponent(after)}`;
     const upstream = await fetch(
@@ -66,7 +51,5 @@ export async function GET(
       status: upstream.status,
       headers: SSE_HEADERS,
     });
-  } catch (err) {
-    return serverError("assembly-line-run-events-stream", err);
-  }
-}
+  },
+);

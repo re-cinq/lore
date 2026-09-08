@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { pageOffsetParam } from "@/lib/page-offset";
 import { previewBlock } from "@/lib/preview-block";
 import { contentTypeOf } from "@/lib/content-types";
 import { fetchRepoChunks } from "@/app/repos/[owner]/[repo]/context/context-data";
@@ -16,10 +17,7 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || undefined;
   const type = searchParams.get("type") || undefined;
-  const offset = Math.max(
-    0,
-    parseInt(searchParams.get("offset") ?? "0", 10) || 0,
-  );
+  const offset = pageOffsetParam(searchParams);
 
   try {
     const page = await fetchRepoChunks(fullName, type, q, offset);

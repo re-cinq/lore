@@ -1,8 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { resolveSessionAccessToken } from "@/lib/session-access-token";
-import { resolveFloorConfig } from "@/lib/floor-config";
+import { authorizeRepoFloorAccess } from "@/lib/floor-access";
 import { serverError } from "@/lib/api-error";
 
 /** The form's repo + PR number, or the 400 explaining what is missing. */
@@ -46,20 +45,10 @@ async function authorizeTrigger(
     return trigger;
   }
 
-  if (!(await userCanAccessRepo(accessToken, trigger.repo))) {
-    return NextResponse.json(
-      { error: "Access denied — you do not have access to this repo" },
-      { status: 403 },
-    );
-  }
+  const floorConfig = await authorizeRepoFloorAccess(accessToken, trigger.repo);
 
-  const floorConfig = resolveFloorConfig();
-
-  if (!floorConfig) {
-    return NextResponse.json(
-      { error: "LORE_FLOOR_URL/LORE_INGEST_TOKEN not configured" },
-      { status: 500 },
-    );
+  if (floorConfig instanceof NextResponse) {
+    return floorConfig;
   }
 
   return { ...trigger, ...floorConfig };

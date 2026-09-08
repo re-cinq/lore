@@ -19,3 +19,17 @@ export default function EventRow({ event }: { event: RepoEvent }) {
     </tr>
   );
 }
+
+/** The header for the columns {@link EventRow} fills; kept beside them so a new cell cannot land without its label. */
+export function EventsTableHead() {
+  return (
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Event</th>
+        <th>Source</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+  );
+}

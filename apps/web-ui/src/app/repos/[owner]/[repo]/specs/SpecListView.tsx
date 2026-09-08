@@ -1,10 +1,8 @@
 "use client";
 
 // Spec list from /trace API: cards grouped by folder, statuses from graph (source of truth).
-import { useState } from "react";
 import SpecCard from "./SpecCard";
-import DocListControls from "@/components/DocListControls";
-import SpecStatusChips from "@/components/SpecStatusChips";
+import DocListToolbar, { useDocListView } from "@/components/DocListToolbar";
 import {
   filterDocCards,
   sortDocCards,
@@ -111,50 +109,13 @@ interface SpecListViewProps {
   statuses?: Record<string, SpecStatusInfo>;
 }
 
-/** What the reader has narrowed the list to. Defaults to every spec, ordered by path — the ordering a reader can predict before the page loads. */
-function useSpecListView() {
-  const [filter, setFilter] = useState<SpecStatusFilter>("all");
-  const [query, setQuery] = useState("");
-  const [order, setOrder] = useState<DocSortOrder>("path");
-
-  return { filter, setFilter, query, setQuery, order, setOrder };
-}
-
-/** Search, sort and the status chips. Counts come from the FULL set rather than the visible one: selecting a status must not make the other statuses look empty. */
-function ListControls({
-  view,
-  counts,
-  groupCount,
-}: {
-  view: ReturnType<typeof useSpecListView>;
-  counts: ReturnType<typeof visibleSpecs>["counts"];
-  groupCount: number;
-}) {
-  return (
-    <>
-      <DocListControls
-        query={view.query}
-        onQueryChange={view.setQuery}
-        sort={view.order}
-        onSortChange={view.setOrder}
-      />
-      <SpecStatusChips
-        counts={counts}
-        total={groupCount}
-        active={view.filter}
-        onChange={view.setFilter}
-      />
-    </>
-  );
-}
-
 export default function SpecListView({
   owner,
   repo,
   specs,
   statuses = {},
 }: SpecListViewProps) {
-  const view = useSpecListView();
+  const view = useDocListView();
 
   // No specs at all and none MATCHING are different answers: the first says the repo has none, the second that this filter is too narrow.
   if (specs.length === 0) {
@@ -168,7 +129,7 @@ export default function SpecListView({
 
   return (
     <div>
-      <ListControls view={view} counts={counts} groupCount={groupCount} />
+      <DocListToolbar view={view} counts={counts} total={groupCount} />
       <SpecCards
         groups={ordered}
         statusOf={statusOf}

@@ -1,8 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
-import { resolveLoreApiConfig } from "@/lib/lore-api-config";
+import { authorizeSessionLoreApi } from "@/lib/lore-api-access";
 import { serverError } from "@/lib/api-error";
 
 function parsePreviewParams(url: URL): {
@@ -15,25 +13,6 @@ function parsePreviewParams(url: URL): {
   const debug = url.searchParams.get("debug") === "1" ? "&debug=1" : "";
 
   return { query, template, debug };
-}
-
-/** The session gate and the upstream credentials, or the refusal to send back. Deliberately no per-repo GitHub check: this preview shows the same org-wide context every repo tab already shows. */
-async function authorizeContextPreview() {
-  const session = await getServerSession(authOptions);
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const apiConfig = resolveLoreApiConfig();
-
-  if (!apiConfig) {
-    return NextResponse.json(
-      { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
-      { status: 500 },
-    );
-  }
-
-  return apiConfig;
 }
 
 /** The assembled context, passed through unread. The status is NOT remapped: this route proxies the same endpoint a task runner hydrates from, so what the reader sees is byte-for-byte what a dev session receives on turn 1. */
@@ -59,7 +38,8 @@ export async function GET(
   }
 
   try {
-    const gate = await authorizeContextPreview();
+    // Deliberately no per-repo GitHub check: this preview shows the same org-wide context every repo tab already shows.
+    const gate = await authorizeSessionLoreApi();
 
     if (gate instanceof NextResponse) {
       return gate;

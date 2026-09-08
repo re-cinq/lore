@@ -16,7 +16,8 @@ function cfg(): { apiUrl: string; token: string } | null {
   return apiUrl && token ? { apiUrl, token } : null;
 }
 
-export async function listAgents(repo: string): Promise<AgentDefinition[]> {
+/** A catalog read: an unreachable or unhappy endpoint reads as an empty catalog, never as a thrown render. */
+async function fetchAgentList(path: string): Promise<AgentDefinition[]> {
   const c = cfg();
 
   if (!c) {
@@ -24,7 +25,7 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   }
 
   try {
-    const res = await fetch(`${c.apiUrl}/api/repos/${repo}/agent-definitions`, {
+    const res = await fetch(`${c.apiUrl}${path}`, {
       signal: AbortSignal.timeout(15_000),
       headers: { authorization: `Bearer ${c.token}` },
       cache: "no-store",
@@ -41,30 +42,13 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   }
 }
 
+export async function listAgents(repo: string): Promise<AgentDefinition[]> {
+  return await fetchAgentList(`/api/repos/${repo}/agent-definitions`);
+}
+
 /** The org-default catalog — org rows overlaid on the yaml fallback, no per-repo layer. Feeds the global /agents page. */
 export async function listOrgAgents(): Promise<AgentDefinition[]> {
-  const c = cfg();
-
-  if (!c) {
-    return [];
-  }
-
-  try {
-    const res = await fetch(`${c.apiUrl}/api/agent-definitions`, {
-      signal: AbortSignal.timeout(15_000),
-      headers: { authorization: `Bearer ${c.token}` },
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      return [];
-    }
-    const body = (await res.json()) as { agents?: AgentDefinition[] };
-
-    return body.agents ?? [];
-  } catch {
-    return [];
-  }
+  return await fetchAgentList("/api/agent-definitions");
 }
 
 /** One cluster's verdict on one definition, from the sync loop's report. */

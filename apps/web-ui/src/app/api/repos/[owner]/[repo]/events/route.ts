@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { pageOffsetParam } from "@/lib/page-offset";
 import { fetchRepoEvents } from "@/app/repos/[owner]/[repo]/events/events-data";
 import { serverError } from "@/lib/api-error";
 
@@ -11,10 +12,7 @@ export async function GET(
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
   const { searchParams } = new URL(req.url);
-  const offset = Math.max(
-    0,
-    parseInt(searchParams.get("offset") ?? "0", 10) || 0,
-  );
+  const offset = pageOffsetParam(searchParams);
 
   try {
     return NextResponse.json(await fetchRepoEvents(fullName, offset));

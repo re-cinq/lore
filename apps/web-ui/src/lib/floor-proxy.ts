@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { proxyUpstreamStatus } from "@/lib/api-error";
+import { assemblyRunProxyRoute } from "@/lib/assembly-run-auth";
 
 /** The paging parameters, and only those. An allowlist rather than a pass-through: whatever else a caller appends must not reach the Floor as if this route had asked for it. */
 export function forwardedPagingQuery(incoming: URLSearchParams): string {
@@ -24,4 +25,21 @@ export async function proxyJson(upstream: Response) {
     status: proxyUpstreamStatus(upstream.status),
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/** A run-scoped paged JSON proxy: the Floor's answer at `/api/{upstream}/{id}`, passed through with only the paging parameters forwarded. */
+export function floorPagedJsonRoute(upstream: string, errorContext: string) {
+  return assemblyRunProxyRoute(
+    errorContext,
+    async ({ id, req, floorUrl, token }) => {
+      const query = forwardedPagingQuery(new URL(req.url).searchParams);
+
+      return proxyJson(
+        await fetch(
+          `${floorUrl}/api/${upstream}/${encodeURIComponent(id)}${query}`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: req.signal },
+        ),
+      );
+    },
+  );
 }

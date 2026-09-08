@@ -8,6 +8,7 @@ import {
 import { toStatementInfo } from "@/lib/trace-statement-info";
 import SpecDocument from "@/app/repos/[owner]/[repo]/specs/[...path]/SpecDocument";
 import styles from "./page.module.scss";
+import { decodeCatchAllPath } from "@/lib/catch-all-path";
 
 /** Every repo that holds this path, with its own text and statements. The same spec path can exist in several repos, and a repo whose source will not load is DROPPED rather than rendered empty — an empty frame reads as a spec with no content. */
 async function fetchSpecAcrossRepos(filePath: string) {
@@ -86,7 +87,7 @@ export default async function SpecDetailPage({
   params: Promise<{ path: string[] }>;
 }) {
   const { path } = await params;
-  const filePath = path.map(decodeURIComponent).join("/");
+  const filePath = decodeCatchAllPath(path);
 
   const docs = await fetchSpecAcrossRepos(filePath);
 
