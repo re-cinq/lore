@@ -75,7 +75,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   private readonly stationRuns: StationRunStore;
   private readonly queries: AssemblyRunQueryStore;
 
-  constructor(private clock: () => Date = () => new Date()) {
+  constructor(private currentClock: () => Date = () => new Date()) {
     this.stationRuns = new StationRunStore(() => this.clock());
     this.queries = new AssemblyRunQueryStore(
       this.rows,
@@ -85,9 +85,14 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     );
   }
 
+  /** The clock in force, so a test can put back the one it replaced. */
+  get clock(): () => Date {
+    return this.currentClock;
+  }
+
   /** Tests advance time by swapping the clock; the seeded rows stay put. */
   setClock(clock: () => Date): void {
-    this.clock = clock;
+    this.currentClock = clock;
   }
 
   /** Delegates to the station-run store — kept as a field for callers/tests that read `port.nodes` directly. */
