@@ -19,47 +19,51 @@ import HomeView, { type Repo } from "./HomeView";
 
 const HOME_REPO_LIMIT = 100;
 
+/** Both workflow checks, or empty maps. Skipped entirely when the GitHub App is unconfigured — that path made zero GitHub calls (#1027), and an empty map reads downstream as "nothing to fix" rather than as an error. */
+async function readWorkflowStatuses(repos: Repo[]) {
+  if (!isGitHubConfigured()) {
+    return {
+      ingestStatus: new Map<string, IngestWorkflowStatus>(),
+      impactStatus: new Map<string, IngestWorkflowStatus>(),
+    };
+  }
+  const names = repos.map((r) => r.full_name);
+  const [ingestStatus, impactStatus] = await Promise.all([
+    getIngestStatuses(names, (repo) =>
+      getRepoFileContent(repo, LORE_INGEST_WORKFLOW_PATH).then(
+        ingestWorkflowStatus,
+      ),
+    ),
+    getWorkflowStatuses("trace-impact", names, (repo) =>
+      getRepoFileContent(repo, TRACE_IMPACT_WORKFLOW_PATH).then(
+        traceImpactWorkflowStatus,
+      ),
+    ),
+  ]);
+
+  return { ingestStatus, impactStatus };
+}
+
+/** The repos whose workflow is missing or stale. A stale spec-impact workflow suppresses that repo's findings, so it is offered for fixing exactly like a missing one. */
+function needsFix(repos: Repo[], status: Map<string, IngestWorkflowStatus>) {
+  return repos
+    .filter((r) => {
+      const s = status.get(r.full_name);
+
+      return s === "missing" || s === "stale";
+    })
+    .map((r) => r.full_name);
+}
+
 export default async function HomePage() {
   // Query repos with activity summary, bounded to the most recently onboarded.
   const repoList = reposOrThrow(await listRepos());
   // ONE page only: most recently onboarded repos (unlike pickers).
   const repos: Repo[] = repoList.repos.slice(0, HOME_REPO_LIMIT);
 
-  // Per-repo ingest-workflow: TTL-cached, zero GitHub calls (#1027) when App unconfigured.
-  let ingestStatus = new Map<string, IngestWorkflowStatus>();
-
-  if (isGitHubConfigured()) {
-    ingestStatus = await getIngestStatuses(
-      repos.map((r) => r.full_name),
-      (repo) =>
-        getRepoFileContent(repo, LORE_INGEST_WORKFLOW_PATH).then(
-          ingestWorkflowStatus,
-        ),
-    );
-  }
-  // Spec-impact workflow: stale suppresses v1 findings, check off until repo updates.
-  let impactStatus = new Map<string, IngestWorkflowStatus>();
-
-  if (isGitHubConfigured()) {
-    impactStatus = await getWorkflowStatuses(
-      "trace-impact",
-      repos.map((r) => r.full_name),
-      (repo) =>
-        getRepoFileContent(repo, TRACE_IMPACT_WORKFLOW_PATH).then(
-          traceImpactWorkflowStatus,
-        ),
-    );
-  }
-  const needsFix = (status: Map<string, IngestWorkflowStatus>) =>
-    repos
-      .filter((r) => {
-        const s = status.get(r.full_name);
-
-        return s === "missing" || s === "stale";
-      })
-      .map((r) => r.full_name);
-  const misaligned = needsFix(ingestStatus);
-  const impactMisaligned = needsFix(impactStatus);
+  const { ingestStatus, impactStatus } = await readWorkflowStatuses(repos);
+  const misaligned = needsFix(repos, ingestStatus);
+  const impactMisaligned = needsFix(repos, impactStatus);
 
   return (
     <HomeView

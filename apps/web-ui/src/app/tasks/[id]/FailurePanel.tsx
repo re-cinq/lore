@@ -75,6 +75,27 @@ function FailureDetailRow({
   );
 }
 
+/** The per-step breakdown, when there is one. Many failures carry only a category and a message — the list renders nothing rather than an empty frame the reader would read as missing detail. */
+function FailureDetails({
+  details,
+  repo,
+}: {
+  details: NonNullable<FailureMetadata["details"]>;
+  repo: string;
+}) {
+  if (details.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={`memory-list ${styles.details}`}>
+      {details.map((d, i) => (
+        <FailureDetailRow key={i} detail={d} repo={repo} />
+      ))}
+    </div>
+  );
+}
+
 /** Renders structured failure metadata for diagnosis: category, hint, per-step breakdown. */
 export default function FailurePanel({
   metadata,
@@ -88,7 +109,6 @@ export default function FailurePanel({
   }
 
   const safe = metadata ?? {};
-  const details = safe.details ?? [];
 
   return (
     <div className={`spec-card ${styles.card}`}>
@@ -104,14 +124,7 @@ export default function FailurePanel({
       )}
 
       <FailureHint hint={safe.hint} repo={repo} />
-
-      {details.length > 0 && (
-        <div className={`memory-list ${styles.details}`}>
-          {details.map((d, i) => (
-            <FailureDetailRow key={i} detail={d} repo={repo} />
-          ))}
-        </div>
-      )}
+      <FailureDetails details={safe.details ?? []} repo={repo} />
     </div>
   );
 }

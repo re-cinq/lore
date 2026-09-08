@@ -44,20 +44,27 @@ function showUnavailable(
   return Boolean(error) && !details;
 }
 
+/** How many checks passed, failed, and are still running. A skipped check counts as passing: it is not a reason to hold the PR, and counting it separately would leave the reader adding up three numbers that never reach the total. */
+function tallyChecks(checks: PRDetails["checks"]) {
+  return {
+    passingChecks: checks.filter(
+      (c) => c.conclusion === "success" || c.conclusion === "skipped",
+    ).length,
+    failingChecks: checks.filter(
+      (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
+    ).length,
+    pendingChecks: checks.filter((c) => c.status !== "completed").length,
+  };
+}
+
 function ChecksRow({ details }: { details: PRDetails }) {
   if (details.checks.length === 0) {
     return null;
   }
 
-  const passingChecks = details.checks.filter(
-    (c) => c.conclusion === "success" || c.conclusion === "skipped",
-  ).length;
-  const failingChecks = details.checks.filter(
-    (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
-  ).length;
-  const pendingChecks = details.checks.filter(
-    (c) => c.status !== "completed",
-  ).length;
+  const { passingChecks, failingChecks, pendingChecks } = tallyChecks(
+    details.checks,
+  );
 
   return (
     <div className={styles.checksRow}>
@@ -109,6 +116,39 @@ function ReviewsRow({ details }: { details: PRDetails }) {
   );
 }
 
+/** The poll failed and nothing has loaded yet. Still offers the GitHub link — the PR exists and the reader can go look at it, which is more useful than an error alone. */
+function StatusUnavailable({ prUrl }: { prUrl: string }) {
+  return (
+    <div className={`spec-card ${styles.card}`}>
+      <strong>PR Status:</strong>{" "}
+      <span className="meta">Status unavailable — </span>
+      <a href={prUrl} target="_blank">
+        View on GitHub
+      </a>
+    </div>
+  );
+}
+
+/** The PR at a glance: its state, its number, its title. The pill takes its colour from the computed status rather than from GitHub's own, because a PR that is open but failing is not the same thing to a reader as one that is open and green. */
+function StatusRow({ details }: { details: PRDetails }) {
+  return (
+    <div className={styles.statusRow}>
+      <strong>PR Status:</strong>
+      <span
+        className={`status-pill ${styles.pill}`}
+        style={{
+          ["--pill-color" as string]: resolvedColor(details.computed_status),
+        }}
+      >
+        {details.computed_status}
+      </span>
+      <a href={details.html_url} target="_blank" className={styles.titleLink}>
+        #{details.number} {details.title}
+      </a>
+    </div>
+  );
+}
+
 /** Pure PR-status card; Panel owns poll, threads details/error down. */
 export default function PRStatusCard({
   details,
@@ -121,15 +161,7 @@ export default function PRStatusCard({
 }) {
   // A failed poll must not wipe already-loaded details off the screen.
   if (showUnavailable(error, details)) {
-    return (
-      <div className={`spec-card ${styles.card}`}>
-        <strong>PR Status:</strong>{" "}
-        <span className="meta">Status unavailable — </span>
-        <a href={prUrl} target="_blank">
-          View on GitHub
-        </a>
-      </div>
-    );
+    return <StatusUnavailable prUrl={prUrl} />;
   }
 
   if (!details) {
@@ -142,20 +174,7 @@ export default function PRStatusCard({
 
   return (
     <div className={`spec-card ${styles.card}`}>
-      <div className={styles.statusRow}>
-        <strong>PR Status:</strong>
-        <span
-          className={`status-pill ${styles.pill}`}
-          style={{
-            ["--pill-color" as string]: resolvedColor(details.computed_status),
-          }}
-        >
-          {details.computed_status}
-        </span>
-        <a href={details.html_url} target="_blank" className={styles.titleLink}>
-          #{details.number} {details.title}
-        </a>
-      </div>
+      <StatusRow details={details} />
 
       <ChecksRow details={details} />
       <ReviewsRow details={details} />

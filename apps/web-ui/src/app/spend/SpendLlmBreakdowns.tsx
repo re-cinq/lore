@@ -36,6 +36,31 @@ function ClusterRows({
   );
 }
 
+/** Unattributed spend first, then the clusters. The split is deliberate: spend with no cluster is not a cluster called "none", and grouping it in would make one cluster look far more expensive than it is. */
+function ClusterBody({
+  byCluster,
+}: {
+  byCluster: SpendWindow["llm"]["by_cluster"];
+}) {
+  return (
+    <tbody>
+      <ClusterRows
+        label="No cluster"
+        rows={byCluster.filter((r) => r.cluster === null)}
+      />
+      <ClusterRows
+        label="Clusters"
+        rows={byCluster.filter((r) => r.cluster !== null)}
+      />
+      <EmptyRow
+        when={byCluster.length === 0}
+        colSpan={3}
+        message="No cluster-attributed spend"
+      />
+    </tbody>
+  );
+}
+
 function ClusterBreakdown({
   byCluster,
 }: {
@@ -52,46 +77,16 @@ function ClusterBreakdown({
             <th>Cost</th>
           </tr>
         </thead>
-        <tbody>
-          <ClusterRows
-            label="No cluster"
-            rows={byCluster.filter((r) => r.cluster === null)}
-          />
-          <ClusterRows
-            label="Clusters"
-            rows={byCluster.filter((r) => r.cluster !== null)}
-          />
-          <EmptyRow
-            when={byCluster.length === 0}
-            colSpan={3}
-            message="No cluster-attributed spend"
-          />
-        </tbody>
+        <ClusterBody byCluster={byCluster} />
       </table>
     </>
   );
 }
 
-/** The cuts that answer "where did it go": by kind of work, by day, by repo, by task type, and by cluster. */
-function LlmBreakdownsBySlice({ llm }: { llm: SpendWindow["llm"] }) {
+/** The two cuts that depend on a call being traced back to work: the repo it was for, and the kind of task it served. Both carry their own empty text, because "no run-attributed spend" is a different statement from "no spend". */
+function AttributedBreakdowns({ llm }: { llm: SpendWindow["llm"] }) {
   return (
     <>
-      <CostTable
-        title="Cost by Kind"
-        columns={["Kind", "Calls", "Cost"]}
-        rows={llm.by_kind}
-        rowKey={(r) => r.kind}
-        cells={(r) => [r.kind, num(r.calls), usd(r.cost_usd)]}
-      />
-
-      <CostTable
-        title="Daily Cost"
-        columns={["Date", "Calls", "Cost"]}
-        rows={llm.daily}
-        rowKey={(r) => r.bucket_date}
-        cells={(r) => [day(r.bucket_date), num(r.calls), usd(r.cost_usd)]}
-      />
-
       <CostTable
         title="Cost by Repo"
         columns={["Repo", "Cost"]}
@@ -116,7 +111,31 @@ function LlmBreakdownsBySlice({ llm }: { llm: SpendWindow["llm"] }) {
           usd(r.cost_usd),
         ]}
       />
+    </>
+  );
+}
 
+/** The cuts that answer "where did it go": by kind of work, by day, by repo, by task type, and by cluster. */
+function LlmBreakdownsBySlice({ llm }: { llm: SpendWindow["llm"] }) {
+  return (
+    <>
+      <CostTable
+        title="Cost by Kind"
+        columns={["Kind", "Calls", "Cost"]}
+        rows={llm.by_kind}
+        rowKey={(r) => r.kind}
+        cells={(r) => [r.kind, num(r.calls), usd(r.cost_usd)]}
+      />
+
+      <CostTable
+        title="Daily Cost"
+        columns={["Date", "Calls", "Cost"]}
+        rows={llm.daily}
+        rowKey={(r) => r.bucket_date}
+        cells={(r) => [day(r.bucket_date), num(r.calls), usd(r.cost_usd)]}
+      />
+
+      <AttributedBreakdowns llm={llm} />
       <ClusterBreakdown byCluster={llm.by_cluster} />
     </>
   );
@@ -155,6 +174,28 @@ function VendorCosts({
 }
 
 /** Every cut of what Lore metered itself: by line, vendor, model, kind, day, repo, task type and cluster. */
+/** What Lore metered per model. This is the computed figure, not the invoice — the billed table alongside it is the vendor's own number, and the two are shown separately rather than reconciled here. */
+function ModelCosts({ byModel }: { byModel: SpendWindow["llm"]["by_model"] }) {
+  return (
+    <CostTable
+      title="Cost by Model"
+      columns={["Model", "Calls", "Cost", "Input Tokens", "Output Tokens"]}
+      rows={byModel}
+      rowKey={(r) => r.model || "(non-token)"}
+      monoColumns={[3, 4]}
+      cells={(r) => [
+        <span className="badge" key="model">
+          {r.model || "(non-token)"}
+        </span>,
+        num(r.calls),
+        usd(r.cost_usd),
+        num(r.input_tokens),
+        num(r.output_tokens),
+      ]}
+    />
+  );
+}
+
 export function LlmBreakdowns({ llm }: { llm: SpendWindow["llm"] }) {
   return (
     <>
@@ -174,22 +215,7 @@ export function LlmBreakdowns({ llm }: { llm: SpendWindow["llm"] }) {
 
       <VendorCosts byVendor={llm.by_vendor} />
 
-      <CostTable
-        title="Cost by Model"
-        columns={["Model", "Calls", "Cost", "Input Tokens", "Output Tokens"]}
-        rows={llm.by_model}
-        rowKey={(r) => r.model || "(non-token)"}
-        monoColumns={[3, 4]}
-        cells={(r) => [
-          <span className="badge" key="model">
-            {r.model || "(non-token)"}
-          </span>,
-          num(r.calls),
-          usd(r.cost_usd),
-          num(r.input_tokens),
-          num(r.output_tokens),
-        ]}
-      />
+      <ModelCosts byModel={llm.by_model} />
 
       <LlmBreakdownsBySlice llm={llm} />
     </>

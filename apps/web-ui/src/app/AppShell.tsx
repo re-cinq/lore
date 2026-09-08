@@ -46,13 +46,61 @@ function useSidebarDrawer() {
   return { sidebarOpen, setSidebarOpen, closeButtonRef, hamburgerRef };
 }
 
-export default function AppShell({
-  sidebar,
-  children,
+/** Dismisses the drawer. Holds the ref that focus returns to when the drawer opens, so a keyboard reader lands on the way out rather than at the top of the nav. */
+function CloseButton({
+  buttonRef,
+  onClose,
 }: {
+  buttonRef: React.RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
+}) {
+  return (
+    <button
+      ref={buttonRef}
+      className="sidebar-close-btn"
+      onClick={onClose}
+      aria-label="Close menu"
+    >
+      <Icon name="close" size={16} />
+    </button>
+  );
+}
+
+/** The narrow-screen bar: the only way to reach the nav once the sidebar is a drawer. `aria-expanded` tracks the drawer so the control reports its own state rather than just its label. */
+function MobileHeader({
+  buttonRef,
+  sidebarOpen,
+  onOpen,
+}: {
+  buttonRef: React.RefObject<HTMLButtonElement | null>;
+  sidebarOpen: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <header className="mobile-header">
+      <button
+        ref={buttonRef}
+        className="hamburger-btn"
+        onClick={onOpen}
+        aria-label="Open menu"
+        aria-expanded={sidebarOpen}
+      >
+        <span />
+        <span />
+        <span />
+      </button>
+      <span className="mobile-brand">LORE</span>
+    </header>
+  );
+}
+
+interface AppShellProps {
+  /** The nav itself — passed in rather than imported, so the shell stays a layout. */
   sidebar: React.ReactNode;
   children: React.ReactNode;
-}) {
+}
+
+export default function AppShell({ sidebar, children }: AppShellProps) {
   const { sidebarOpen, setSidebarOpen, closeButtonRef, hamburgerRef } =
     useSidebarDrawer();
 
@@ -66,31 +114,18 @@ export default function AppShell({
         />
       )}
       <aside className="sidebar">
-        <button
-          ref={closeButtonRef}
-          className="sidebar-close-btn"
-          onClick={() => setSidebarOpen(false)}
-          aria-label="Close menu"
-        >
-          <Icon name="close" size={16} />
-        </button>
+        <CloseButton
+          buttonRef={closeButtonRef}
+          onClose={() => setSidebarOpen(false)}
+        />
         {sidebar}
       </aside>
       <div className="main-wrapper">
-        <header className="mobile-header">
-          <button
-            ref={hamburgerRef}
-            className="hamburger-btn"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open menu"
-            aria-expanded={sidebarOpen}
-          >
-            <span />
-            <span />
-            <span />
-          </button>
-          <span className="mobile-brand">LORE</span>
-        </header>
+        <MobileHeader
+          buttonRef={hamburgerRef}
+          sidebarOpen={sidebarOpen}
+          onOpen={() => setSidebarOpen(true)}
+        />
         <main className="main-content">{children}</main>
       </div>
     </div>

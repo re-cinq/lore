@@ -11,6 +11,39 @@ export interface PoolsViewProps {
   pools: PoolRow[];
 }
 
+/** One pool. The creator's full agent id lives in the title attribute — the displayed form is shortened to keep the column readable, and the full id is what someone needs when tracking a pool back to its agent. */
+function PoolRowCells({ pool }: { pool: PoolRow }) {
+  return (
+    <tr>
+      <td>
+        <Link href={`/pools/${encodeURIComponent(pool.name)}`}>
+          <strong>{pool.name}</strong>
+        </Link>
+      </td>
+      <td>{pool.entry_count}</td>
+      <td>{pool.agent_count}</td>
+      <td title={pool.created_by}>{displayAgentId(pool.created_by)}</td>
+      <td>
+        <TimeAgo date={pool.created_at} />
+      </td>
+    </tr>
+  );
+}
+
+/** Nothing to show, and nothing for the reader to do about it: pools are created by agents through the MCP tools, not from this page. */
+function NoPools() {
+  return (
+    <tr>
+      <td colSpan={5}>
+        <EmptyState
+          title="No shared pools yet"
+          description="Pools are created programmatically by agents via the shared-memory MCP tools."
+        />
+      </td>
+    </tr>
+  );
+}
+
 export default function PoolsView({ pools }: PoolsViewProps) {
   return (
     <div>
@@ -30,31 +63,10 @@ export default function PoolsView({ pools }: PoolsViewProps) {
           </tr>
         </thead>
         <tbody>
-          {pools.map((p) => (
-            <tr key={p.id}>
-              <td>
-                <Link href={`/pools/${encodeURIComponent(p.name)}`}>
-                  <strong>{p.name}</strong>
-                </Link>
-              </td>
-              <td>{p.entry_count}</td>
-              <td>{p.agent_count}</td>
-              <td title={p.created_by}>{displayAgentId(p.created_by)}</td>
-              <td>
-                <TimeAgo date={p.created_at} />
-              </td>
-            </tr>
+          {pools.map((pool) => (
+            <PoolRowCells key={pool.id} pool={pool} />
           ))}
-          {pools.length === 0 && (
-            <tr>
-              <td colSpan={5}>
-                <EmptyState
-                  title="No shared pools yet"
-                  description="Pools are created programmatically by agents via the shared-memory MCP tools."
-                />
-              </td>
-            </tr>
-          )}
+          {pools.length === 0 && <NoPools />}
         </tbody>
       </table>
     </div>

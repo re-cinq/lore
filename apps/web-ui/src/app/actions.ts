@@ -13,6 +13,20 @@ import { clearIngestStatusCache } from "@/lib/ingest-status-cache";
 import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
 import { revalidatePath } from "next/cache";
 
+/** Splits the per-repo outcomes into what opened and what did not. Failures keep their repo AND their reason: a run that opened three PRs out of five is not a success, and the two that failed are only actionable with the reason attached. */
+function partitionResults(
+  results: ({ repo: string; url: string } | { repo: string; error: string })[],
+): FixWorkflowResult {
+  const prs = results
+    .map((r) => ("url" in r ? r.url : null))
+    .filter((url): url is string => url !== null);
+  const failed = results.filter(
+    (r): r is { repo: string; error: string } => "error" in r,
+  );
+
+  return { opened: prs.length, prs, failed };
+}
+
 // Fail-soft per repo, every failure reported with its reason — a silent App-permission gap once opened zero PRs org-wide.
 async function openFixPRs(
   repos: string[],
@@ -38,17 +52,11 @@ async function openFixPRs(
       }
     }),
   );
-  const prs = results
-    .map((r) => ("url" in r ? r.url : null))
-    .filter((url): url is string => url !== null);
-  const failed = results.filter(
-    (r): r is { repo: string; error: string } => "error" in r,
-  );
 
   clearIngestStatusCache();
   revalidatePath("/");
 
-  return { opened: prs.length, prs, failed };
+  return partitionResults(results);
 }
 
 /** Open a fix-PR installing the canonical ingest workflow on each repo. */

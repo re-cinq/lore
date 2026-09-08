@@ -19,6 +19,27 @@ export interface GapsViewProps {
   zeroResultSearches: ZeroResultSearchRow[];
 }
 
+/** Where the gap agent's own output goes. The PRs live on GitHub rather than in this page, so the section is a signpost — there is nothing here to act on. */
+function DraftPrsSection() {
+  return (
+    <section className={styles.section}>
+      <h2>Context Gap Draft PRs</h2>
+      <p className="meta">
+        The gap detection agent creates draft PRs when it identifies missing
+        context.
+      </p>
+      <a
+        href="https://github.com/re-cinq/lore/pulls?q=label:context-gap-draft"
+        target="_blank"
+        rel="noopener noreferrer"
+        className={styles.draftLink}
+      >
+        View context-gap-draft PRs on GitHub &rarr;
+      </a>
+    </section>
+  );
+}
+
 /** Gap detection view; pure render with audit_log and memories from container (read-only). */
 export default function GapsView({
   gapMemories,
@@ -34,21 +55,7 @@ export default function GapsView({
         </p>
       </div>
 
-      <section className={styles.section}>
-        <h2>Context Gap Draft PRs</h2>
-        <p className="meta">
-          The gap detection agent creates draft PRs when it identifies missing
-          context.
-        </p>
-        <a
-          href="https://github.com/re-cinq/lore/pulls?q=label:context-gap-draft"
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.draftLink}
-        >
-          View context-gap-draft PRs on GitHub &rarr;
-        </a>
-      </section>
+      <DraftPrsSection />
 
       <AgentFindings gapMemories={gapMemories} />
       <ZeroResultSearches zeroResultSearches={zeroResultSearches} />
@@ -79,6 +86,36 @@ function AgentFindings({ gapMemories }: Pick<GapsViewProps, "gapMemories">) {
   );
 }
 
+/** The searches that came back empty, newest first. Rows are keyed by index because a search has no id of its own — two identical queries a minute apart are two separate signals, not one. */
+function SearchesTable({
+  zeroResultSearches,
+}: Pick<GapsViewProps, "zeroResultSearches">) {
+  return (
+    <table className={styles.table}>
+      <thead>
+        <tr>
+          <th className={styles.th}>Query</th>
+          <th className={styles.th}>Details</th>
+          <th className={styles.th}>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {zeroResultSearches.map((entry, i) => (
+          <tr key={i}>
+            <td className={styles.td}>{entry.memory_key}</td>
+            <td className={styles.td}>
+              <code>{JSON.stringify(entry.metadata)}</code>
+            </td>
+            <td className={`meta ${styles.td}`}>
+              <TimeAgo date={entry.created_at} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 /** A search that returned nothing is the clearest signal of missing org context: someone asked, and there was no answer to give. */
 function ZeroResultSearches({
   zeroResultSearches,
@@ -93,28 +130,7 @@ function ZeroResultSearches({
       {zeroResultSearches.length === 0 ? (
         <Alert variant="secondary">No zero-result searches recorded.</Alert>
       ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th className={styles.th}>Query</th>
-              <th className={styles.th}>Details</th>
-              <th className={styles.th}>Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {zeroResultSearches.map((entry, i) => (
-              <tr key={i}>
-                <td className={styles.td}>{entry.memory_key}</td>
-                <td className={styles.td}>
-                  <code>{JSON.stringify(entry.metadata)}</code>
-                </td>
-                <td className={`meta ${styles.td}`}>
-                  <TimeAgo date={entry.created_at} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <SearchesTable zeroResultSearches={zeroResultSearches} />
       )}
     </section>
   );

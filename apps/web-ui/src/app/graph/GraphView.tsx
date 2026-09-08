@@ -98,6 +98,27 @@ function TypeFilters({
   );
 }
 
+/** One entity as a row, with the link that recentres the graph on it. The type filter is carried into that link so exploring an entity does not silently widen the view back to every type. */
+function entityCells(
+  entity: GraphViewProps["entities"][number],
+  type: GraphViewProps["type"],
+): ReactNode[] {
+  const exploreHref = `/graph?entity=${encodeURIComponent(entity.name)}${type ? `&type=${type}` : ""}`;
+
+  return [
+    <strong key="name">{entity.name}</strong>,
+    <span className="op-badge" key="type">
+      {entity.entity_type}
+    </span>,
+    entity.repo || "—",
+    entity.edge_count,
+    new Date(entity.updated_at).toLocaleDateString(),
+    <a key="explore" href={exploreHref}>
+      explore
+    </a>,
+  ];
+}
+
 function EntityTable({
   entities,
   entity,
@@ -115,26 +136,11 @@ function EntityTable({
           : undefined
       }
       empty="No entities yet. Write episodes to populate the graph."
-      cells={(e) => [
-        <strong key="name">{e.name}</strong>,
-        <span className="op-badge" key="type">
-          {e.entity_type}
-        </span>,
-        e.repo || "—",
-        e.edge_count,
-        new Date(e.updated_at).toLocaleDateString(),
-        <a
-          key="explore"
-          href={`/graph?entity=${encodeURIComponent(e.name)}${type ? `&type=${type}` : ""}`}
-        >
-          explore
-        </a>,
-      ]}
+      cells={(e) => entityCells(e, type)}
     />
   );
 }
 
-/** An invalidated edge is history, not noise — it stays available behind the toggle so a contradiction can be read after the fact. */
 /** One relationship row. An invalidated edge keeps its dates and is styled rather than hidden — that a relationship USED to hold is part of what the graph records. */
 function edgeCells(e: GraphViewProps["edges"][number]): ReactNode[] {
   return [
@@ -165,6 +171,7 @@ function edgeCells(e: GraphViewProps["edges"][number]): ReactNode[] {
   ];
 }
 
+/** An invalidated edge is history, not noise — it stays available behind the toggle so a contradiction can be read after the fact. */
 function EdgeTable({
   entity,
   edges,

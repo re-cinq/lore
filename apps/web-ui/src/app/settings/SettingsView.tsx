@@ -23,18 +23,11 @@ export interface SettingsViewProps {
   regenerateToken: (formData: FormData) => void | Promise<void>;
 }
 
-export default function SettingsView({
-  apiUrl,
-  ingestToken,
-  repoCount,
-  totalTasks,
-  tasksToday,
-  approvalConfig,
-  repoLines,
-  saveSettings,
-  saveApprovalConfig,
-  regenerateToken,
-}: SettingsViewProps) {
+export default function SettingsView(props: SettingsViewProps) {
+  const { apiUrl, ingestToken, repoCount, totalTasks, tasksToday } = props;
+  const { approvalConfig, repoLines } = props;
+  const { saveSettings, saveApprovalConfig, regenerateToken } = props;
+
   return (
     <div>
       <h1>Settings</h1>
@@ -116,6 +109,51 @@ function RegenerateTokenForm({
   );
 }
 
+/** The shared token, and the two places it has to be repeated. Naming both — the developer install and the repo's Actions secret — is the point: changing it here alone leaves every install and every workflow on the old one. */
+function IngestTokenField({
+  ingestToken,
+}: Pick<SettingsViewProps, "ingestToken">) {
+  return (
+    <>
+      <label className={styles.labelSpaced}>Ingest Token</label>
+      <input
+        name="ingest_token"
+        defaultValue={ingestToken || ""}
+        className={styles.tokenInput}
+      />
+      <p className={`meta ${styles.fieldNote}`}>
+        Shared token for authenticating ingest and task API calls. Set this in
+        developer installs via{" "}
+        <code>git config --global lore.ingest-token</code> and on repos as the{" "}
+        <code>LORE_INGEST_TOKEN</code> GitHub Actions secret.
+      </p>
+    </>
+  );
+}
+
+/** The URL and the token every install needs. Each note says where the value is USED, not what it is — a reader on this page already knows what an API URL is, and needs to know which workflows break if it is wrong. */
+function PlatformFields({
+  apiUrl,
+  ingestToken,
+}: Pick<SettingsViewProps, "apiUrl" | "ingestToken">) {
+  return (
+    <>
+      <label>Lore API URL</label>
+      <input
+        name="api_url"
+        defaultValue={apiUrl || ""}
+        placeholder="https://your-lore-api.example.com"
+      />
+      <p className={`meta ${styles.fieldNote}`}>
+        The external URL for the MCP server API. Used by GitHub Actions
+        workflows and local Claude Code for task delegation.
+      </p>
+
+      <IngestTokenField ingestToken={ingestToken} />
+    </>
+  );
+}
+
 function PlatformConfigForm({
   apiUrl,
   ingestToken,
@@ -129,29 +167,7 @@ function PlatformConfigForm({
     <>
       <h2>Platform Configuration</h2>
       <form action={saveSettings} className={`task-form ${styles.form}`}>
-        <label>Lore API URL</label>
-        <input
-          name="api_url"
-          defaultValue={apiUrl || ""}
-          placeholder="https://your-lore-api.example.com"
-        />
-        <p className={`meta ${styles.fieldNote}`}>
-          The external URL for the MCP server API. Used by GitHub Actions
-          workflows and local Claude Code for task delegation.
-        </p>
-
-        <label className={styles.labelSpaced}>Ingest Token</label>
-        <input
-          name="ingest_token"
-          defaultValue={ingestToken || ""}
-          className={styles.tokenInput}
-        />
-        <p className={`meta ${styles.fieldNote}`}>
-          Shared token for authenticating ingest and task API calls. Set this in
-          developer installs via{" "}
-          <code>git config --global lore.ingest-token</code> and on repos as the{" "}
-          <code>LORE_INGEST_TOKEN</code> GitHub Actions secret.
-        </p>
+        <PlatformFields apiUrl={apiUrl} ingestToken={ingestToken} />
 
         <div className={styles.actions}>
           <button type="submit">Save</button>
@@ -163,15 +179,8 @@ function PlatformConfigForm({
   );
 }
 
-/** The gate that makes a human add a label before an agent picks a task up, plus the two ways around it: per-task-type and per-repo. */
-/** The two ways around the gate, and they pull in OPPOSITE directions: auto-approved task types skip it even when approval is required globally, while the listed repos always require it even when approval is off. */
-function GateExemptions({
-  autoApprove,
-  repoLines,
-}: {
-  autoApprove: string[];
-  repoLines: SettingsViewProps["repoLines"];
-}) {
+/** Task types that skip the gate. The looser of the two exemptions: these run immediately even where approval is required globally. */
+function AutoApproveField({ autoApprove }: { autoApprove: string[] }) {
   return (
     <>
       <label className={styles.labelSpaced}>
@@ -186,7 +195,18 @@ function GateExemptions({
         These task types skip the approval gate and are processed immediately,
         even when approval is required globally.
       </p>
+    </>
+  );
+}
 
+/** Repos that always need approval. The tighter exemption, pulling the opposite way: these require it even when the global toggle is off. */
+function ApprovalReposField({
+  repoLines,
+}: {
+  repoLines: SettingsViewProps["repoLines"];
+}) {
+  return (
+    <>
       <label className={styles.labelSpaced}>
         Repos Requiring Approval (one per line, owner/repo)
       </label>
@@ -206,6 +226,56 @@ function GateExemptions({
   );
 }
 
+/** The two ways around the gate, and they pull in OPPOSITE directions: auto-approved task types skip it even when approval is required globally, while the listed repos always require it even when approval is off. */
+function GateExemptions({
+  autoApprove,
+  repoLines,
+}: {
+  autoApprove: string[];
+  repoLines: SettingsViewProps["repoLines"];
+}) {
+  return (
+    <>
+      <AutoApproveField autoApprove={autoApprove} />
+      <ApprovalReposField repoLines={repoLines} />
+    </>
+  );
+}
+
+/** The gate itself: whether it applies, and which label opens it. Both belong together — the toggle is meaningless without knowing what a human is expected to add. */
+function GateToggle({
+  approvalConfig,
+}: Pick<SettingsViewProps, "approvalConfig">) {
+  return (
+    <>
+      <label className={styles.checkboxLabel}>
+        <input
+          type="checkbox"
+          name="approval_required"
+          defaultChecked={approvalConfig.required}
+        />
+        Require approval for new tasks
+      </label>
+      <p className={`meta ${styles.fieldNote}`}>
+        When enabled, new pipeline tasks will wait for a human to add the
+        approval label on the GitHub Issue before the agent processes them.
+      </p>
+
+      <label className={styles.labelSpaced}>Approval Label</label>
+      <input
+        name="approval_label"
+        defaultValue={approvalConfig.label}
+        placeholder="approved"
+      />
+      <p className={`meta ${styles.fieldNote}`}>
+        The GitHub Issue label that approves a task. The agent checks for this
+        label every minute.
+      </p>
+    </>
+  );
+}
+
+/** The gate that makes a human add a label before an agent picks a task up, plus the two ways around it: per-task-type and per-repo. */
 function ApprovalGatesForm({
   approvalConfig,
   repoLines,
@@ -218,29 +288,7 @@ function ApprovalGatesForm({
     <>
       <h2 className={styles.sectionHeading}>Approval Gates</h2>
       <form action={saveApprovalConfig} className={`task-form ${styles.form}`}>
-        <label className={styles.checkboxLabel}>
-          <input
-            type="checkbox"
-            name="approval_required"
-            defaultChecked={approvalConfig.required}
-          />
-          Require approval for new tasks
-        </label>
-        <p className={`meta ${styles.fieldNote}`}>
-          When enabled, new pipeline tasks will wait for a human to add the
-          approval label on the GitHub Issue before the agent processes them.
-        </p>
-
-        <label className={styles.labelSpaced}>Approval Label</label>
-        <input
-          name="approval_label"
-          defaultValue={approvalConfig.label}
-          placeholder="approved"
-        />
-        <p className={`meta ${styles.fieldNote}`}>
-          The GitHub Issue label that approves a task. The agent checks for this
-          label every minute.
-        </p>
+        <GateToggle approvalConfig={approvalConfig} />
 
         <GateExemptions
           autoApprove={approvalConfig.auto_approve}

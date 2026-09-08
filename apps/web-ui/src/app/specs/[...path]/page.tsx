@@ -43,6 +43,43 @@ async function fetchSpecAcrossRepos(filePath: string) {
   return docs;
 }
 
+/** Why this spec is blank, and when it will not be. Nothing here is for the reader to do: the projection runs on the next push to `main`, so the note says to come back rather than offering an action. */
+function NoGraphData({ filePath }: { filePath: string }) {
+  return (
+    <div className="empty-state">
+      <p>
+        No graph data for &quot;{filePath}&quot;. Specs are projected
+        automatically by CI on push to <code>main</code>.
+      </p>
+    </div>
+  );
+}
+
+/** One repo's copy of the path. Usually there is exactly one — this page spans every repo holding the path, and the "view in repo" link is what takes the reader to that repo's canonical page. */
+function RepoSpecBlock({
+  doc,
+  filePath,
+}: {
+  doc: Awaited<ReturnType<typeof fetchSpecAcrossRepos>>[number];
+  filePath: string;
+}) {
+  return (
+    <div className={styles.repoBlock}>
+      <p className="meta">
+        repo: {doc.repo} ·{" "}
+        <Link href={`/repos/${doc.repo}/specs/${encodeURIComponent(filePath)}`}>
+          view in repo →
+        </Link>
+      </p>
+      <SpecDocument
+        repo={doc.repo}
+        content={doc.source}
+        statements={doc.statements}
+      />
+    </div>
+  );
+}
+
 export default async function SpecDetailPage({
   params,
 }: {
@@ -59,29 +96,10 @@ export default async function SpecDetailPage({
         <Link href="/specs">Specs</Link> / {filePath}
       </div>
       {docs.length === 0 ? (
-        <div className="empty-state">
-          <p>
-            No graph data for &quot;{filePath}&quot;. Specs are projected
-            automatically by CI on push to <code>main</code>.
-          </p>
-        </div>
+        <NoGraphData filePath={filePath} />
       ) : (
-        docs.map(({ repo, source, statements }) => (
-          <div key={repo} className={styles.repoBlock}>
-            <p className="meta">
-              repo: {repo} ·{" "}
-              <Link
-                href={`/repos/${repo}/specs/${encodeURIComponent(filePath)}`}
-              >
-                view in repo →
-              </Link>
-            </p>
-            <SpecDocument
-              repo={repo}
-              content={source}
-              statements={statements}
-            />
-          </div>
+        docs.map((doc) => (
+          <RepoSpecBlock key={doc.repo} doc={doc} filePath={filePath} />
         ))
       )}
     </div>

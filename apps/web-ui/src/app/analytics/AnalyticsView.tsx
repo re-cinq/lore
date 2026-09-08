@@ -111,6 +111,29 @@ function TaskSummaryCards({
   );
 }
 
+/** One tool's latency percentiles, with a verdict on p95. */
+function latencyCells(row: AnalyticsViewProps["latencyStats"][number]) {
+  return [
+    <span className="badge" key="tool">
+      {row.tool}
+    </span>,
+    Number(row.call_count).toLocaleString(),
+    `${Number(row.p50_ms).toFixed(0)}ms`,
+    `${Number(row.p95_ms).toFixed(0)}ms`,
+    `${Number(row.p99_ms).toFixed(0)}ms`,
+    <LatencyVerdict p95Ms={Number(row.p95_ms)} key="status" />,
+  ];
+}
+
+/** Whether this tool is inside the retrieval budget. 200ms is the line: past it, context assembly is what the developer is waiting on rather than something they would not notice. */
+function LatencyVerdict({ p95Ms }: { p95Ms: number }) {
+  if (p95Ms > 200) {
+    return <span className="op-badge op-delete">&gt;200ms</span>;
+  }
+
+  return <span className="op-badge op-write">OK</span>;
+}
+
 function RetrievalLatency({
   latencyStats,
 }: Pick<AnalyticsViewProps, "latencyStats">) {
@@ -122,25 +145,7 @@ function RetrievalLatency({
       rowKey={(r) => r.tool}
       monoColumns={[2, 3, 4]}
       empty="No latency data yet. Use search_memory, query_graph, or assemble_context to generate data."
-      cells={(r) => [
-        <span className="badge" key="tool">
-          {r.tool}
-        </span>,
-        Number(r.call_count).toLocaleString(),
-        `${Number(r.p50_ms).toFixed(0)}ms`,
-        `${Number(r.p95_ms).toFixed(0)}ms`,
-        `${Number(r.p99_ms).toFixed(0)}ms`,
-        // 200ms is the retrieval budget: past it, context assembly is what the developer is waiting on.
-        Number(r.p95_ms) > 200 ? (
-          <span className="op-badge op-delete" key="status">
-            &gt;200ms
-          </span>
-        ) : (
-          <span className="op-badge op-write" key="status">
-            OK
-          </span>
-        ),
-      ]}
+      cells={latencyCells}
     />
   );
 }
@@ -198,6 +203,39 @@ function DailyUsage({ dailyUsage }: Pick<AnalyticsViewProps, "dailyUsage">) {
   );
 }
 
+/** One job run as a row. The error REPLACES the summary rather than sitting beside it: a run that failed has no result worth reading, and the reason is what the reader came for. */
+function jobRunCells(run: AnalyticsViewProps["jobRuns"][number]) {
+  return [
+    <span className="badge" key="job">
+      {run.job_name}
+    </span>,
+    <span className="meta" key="started">
+      {new Date(run.started_at).toLocaleString()}
+    </span>,
+    formatDuration(run.started_at, run.completed_at),
+    <span className={`op-badge op-${run.status}`} key="status">
+      {run.status}
+    </span>,
+    run.error ? (
+      <span className={styles.error} key="result">
+        {run.error}
+      </span>
+    ) : (
+      (run.result_summary ?? "—")
+    ),
+    <LogsLink run={run} key="logs" />,
+  ];
+}
+
+/** The run's logs, when it kept any. A run with no log path has nothing to open, so the cell says so rather than linking to an empty page. */
+function LogsLink({ run }: { run: AnalyticsViewProps["jobRuns"][number] }) {
+  if (!run.log_path) {
+    return <span className="meta">—</span>;
+  }
+
+  return <a href={`/job-runs/${run.id}`}>view</a>;
+}
+
 function RecentJobRuns({ jobRuns }: Pick<AnalyticsViewProps, "jobRuns">) {
   return (
     <DataTable
@@ -207,34 +245,7 @@ function RecentJobRuns({ jobRuns }: Pick<AnalyticsViewProps, "jobRuns">) {
       rowKey={(r) => r.id}
       monoColumns={[2]}
       empty="No job runs"
-      cells={(r) => [
-        <span className="badge" key="job">
-          {r.job_name}
-        </span>,
-        <span className="meta" key="started">
-          {new Date(r.started_at).toLocaleString()}
-        </span>,
-        formatDuration(r.started_at, r.completed_at),
-        <span className={`op-badge op-${r.status}`} key="status">
-          {r.status}
-        </span>,
-        r.error ? (
-          <span className={styles.error} key="result">
-            {r.error}
-          </span>
-        ) : (
-          (r.result_summary ?? "—")
-        ),
-        r.log_path ? (
-          <a href={`/job-runs/${r.id}`} key="logs">
-            view
-          </a>
-        ) : (
-          <span className="meta" key="logs">
-            —
-          </span>
-        ),
-      ]}
+      cells={jobRunCells}
     />
   );
 }

@@ -4,6 +4,11 @@ import { getTask } from "@/lib/api/tasks";
 import { getPRDetails, isGitHubConfigured } from "@/lib/github";
 import { serverError, upstreamError } from "@/lib/api-error";
 
+/** The deployment cannot ask GitHub at all. A 503 rather than the 404 above: the task may well have a PR — we are the ones who cannot look. */
+function githubUnconfigured() {
+  return NextResponse.json({ error: "GitHub not configured" }, { status: 503 });
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -25,10 +30,7 @@ export async function GET(
     }
 
     if (!isGitHubConfigured()) {
-      return NextResponse.json(
-        { error: "GitHub not configured" },
-        { status: 503 },
-      );
+      return githubUnconfigured();
     }
 
     const details = await getPRDetails(

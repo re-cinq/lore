@@ -22,6 +22,22 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+/** Brand, nav, the signed-in user, and the deployed build. The version sits last on purpose: it is what someone reads when they are working out whether what they see is what was merged. */
+function Sidebar() {
+  return (
+    <>
+      <Link href="/" className="sidebar-brand">
+        <img src="/logo.svg" alt="Lore" width={80} height={80} />
+      </Link>
+      <SidebarNav />
+      <UserMenu />
+      <div className="meta sidebar-version" title="Deployed build (git SHA)">
+        {process.env.LORE_UI_VERSION ?? "dev"}
+      </div>
+    </>
+  );
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -38,25 +54,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <ThemeProvider>
           <SessionWrapper>
-            <AppShell
-              sidebar={
-                <>
-                  <Link href="/" className="sidebar-brand">
-                    <img src="/logo.svg" alt="Lore" width={80} height={80} />
-                  </Link>
-                  <SidebarNav />
-                  <UserMenu />
-                  <div
-                    className="meta sidebar-version"
-                    title="Deployed build (git SHA)"
-                  >
-                    {process.env.LORE_UI_VERSION ?? "dev"}
-                  </div>
-                </>
-              }
-            >
-              {children}
-            </AppShell>
+            <AppShell sidebar={<Sidebar />}>{children}</AppShell>
           </SessionWrapper>
         </ThemeProvider>
       </body>

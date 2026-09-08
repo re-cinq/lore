@@ -55,6 +55,37 @@ function CopyCommandButton({ command }: { command: string }) {
   );
 }
 
+/** What to run this against, and what else the cluster needs. Says the command embeds a registration token because a reader is about to paste it somewhere — that is the moment to say it is a credential. */
+function InstallNote({ repoUrl }: { repoUrl: string }) {
+  return (
+    <p className="meta">
+      Point <code>kubectl</code> at the target cluster, check out{" "}
+      <a href={repoUrl}>the repo</a>, and run this from its root. The command
+      embeds the registration token — treat it as a credential. Also needed in
+      the env: <code>GHCR_USERNAME</code>/<code>GHCR_TOKEN</code> and{" "}
+      <code>CLAUDE_CODE_OAUTH_TOKEN</code> or <code>ANTHROPIC_API_KEY</code>.
+    </p>
+  );
+}
+
+/** One field of the install command. Controlled, because the command below re-renders from these values as they are typed. */
+function NamedInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label>
+      {label}
+      <input value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
 /** Cluster connect panel: renders copy-paste install command with token embedded (#1572). */
 export default function ConnectClusterPanel({
   install,
@@ -71,29 +102,10 @@ export default function ConnectClusterPanel({
   return (
     <details className="connect-cluster">
       <summary>Connect a cluster</summary>
-      <p className="meta">
-        Point <code>kubectl</code> at the target cluster, check out{" "}
-        <a href={install.repo_url}>the repo</a>, and run this from its root. The
-        command embeds the registration token — treat it as a credential. Also
-        needed in the env: <code>GHCR_USERNAME</code>/<code>GHCR_TOKEN</code>{" "}
-        and <code>CLAUDE_CODE_OAUTH_TOKEN</code> or{" "}
-        <code>ANTHROPIC_API_KEY</code>.
-      </p>
+      <InstallNote repoUrl={install.repo_url} />
       <div className="connect-cluster-form">
-        <label>
-          Name
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <label>
-          Tags
-          <input
-            value={tags}
-            onChange={(event) => setTags(event.target.value)}
-          />
-        </label>
+        <NamedInput label="Name" value={name} onChange={setName} />
+        <NamedInput label="Tags" value={tags} onChange={setTags} />
       </div>
       <pre>
         <code>{command}</code>

@@ -26,7 +26,26 @@ export interface AuditViewProps {
   hasNext: boolean;
 }
 
-/** Audit log view: pure render; rebuilds pagination URLs from props. */
+/** One audit entry as a row. The agent's full id is in the title attribute — the displayed form is shortened, and the full id is what someone needs when tracing an operation back. */
+function auditCells(entry: AuditViewProps["entries"][number]) {
+  return [
+    <TimeAgo date={entry.created_at} key="time" />,
+    <span title={entry.agent_id} key="agent">
+      {displayAgentId(entry.agent_id)}
+    </span>,
+    <span className={`op-badge op-${entry.operation}`} key="op">
+      {formatEnumLabel(entry.operation)}
+    </span>,
+    entry.memory_key || "—",
+    entry.pool_name || "—",
+    entry.metadata ? (
+      <MetadataDetails metadata={entry.metadata} key="meta" />
+    ) : (
+      "—"
+    ),
+  ];
+}
+
 /** The empty state distinguishes "nothing matches these filters" from "nothing recorded yet", so a filter that hides everything does not read as an empty audit trail. */
 function AuditTable({
   entries,
@@ -45,33 +64,51 @@ function AuditTable({
       rows={entries}
       rowKey={(e) => e.id}
       empty={<AuditEmptyState filtered={!!(agent || op || total > 0)} />}
-      cells={(e) => [
-        <TimeAgo date={e.created_at} key="time" />,
-        <span title={e.agent_id} key="agent">
-          {displayAgentId(e.agent_id)}
-        </span>,
-        <span className={`op-badge op-${e.operation}`} key="op">
-          {formatEnumLabel(e.operation)}
-        </span>,
-        e.memory_key || "—",
-        e.pool_name || "—",
-        e.metadata ? <MetadataDetails metadata={e.metadata} key="meta" /> : "—",
-      ]}
+      cells={auditCells}
     />
   );
 }
 
-export default function AuditView({
-  entries,
-  totalCount,
-  operations,
-  agent,
-  op,
-  offset,
-  pageSize,
-  hasPrev,
-  hasNext,
-}: AuditViewProps) {
+/** Both arrows stay LINKS and are styled disabled rather than removed, so the control keeps its position between the first page and the rest. */
+interface AuditPagerProps {
+  pageUrl: (offset: number) => string;
+  offset: number;
+  pageSize: number;
+  totalCount: number;
+  hasPrev: boolean;
+  hasNext: boolean;
+}
+
+function AuditPager(props: AuditPagerProps) {
+  const { pageUrl, offset, pageSize, totalCount, hasPrev, hasNext } = props;
+
+  return (
+    <div className="pagination">
+      <Link
+        href={pageUrl(offset - pageSize)}
+        className={hasPrev ? "" : "disabled"}
+      >
+        &larr; Previous
+      </Link>
+      <span className="page-info">
+        {offset + 1}&ndash;{Math.min(offset + pageSize, totalCount)} of{" "}
+        {totalCount}
+      </span>
+      <Link
+        href={pageUrl(offset + pageSize)}
+        className={hasNext ? "" : "disabled"}
+      >
+        Next &rarr;
+      </Link>
+    </div>
+  );
+}
+
+/** Audit log view: pure render; rebuilds pagination URLs from props. */
+export default function AuditView(props: AuditViewProps) {
+  const { entries, totalCount, operations, agent, op } = props;
+  const { offset, pageSize, hasPrev, hasNext } = props;
+
   const pageUrl = (newOffset: number) =>
     auditUrl({ agent, op, offset: newOffset });
 
@@ -85,24 +122,14 @@ export default function AuditView({
       <AuditFilters agent={agent} op={op} operations={operations} />
       <p className={`meta ${styles.count}`}>{totalCount} total entries</p>
       <AuditTable entries={entries} agent={agent} op={op} total={totalCount} />
-      <div className="pagination">
-        <Link
-          href={pageUrl(offset - pageSize)}
-          className={hasPrev ? "" : "disabled"}
-        >
-          &larr; Previous
-        </Link>
-        <span className="page-info">
-          {offset + 1}&ndash;{Math.min(offset + pageSize, totalCount)} of{" "}
-          {totalCount}
-        </span>
-        <Link
-          href={pageUrl(offset + pageSize)}
-          className={hasNext ? "" : "disabled"}
-        >
-          Next &rarr;
-        </Link>
-      </div>
+      <AuditPager
+        pageUrl={pageUrl}
+        offset={offset}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+      />
     </div>
   );
 }

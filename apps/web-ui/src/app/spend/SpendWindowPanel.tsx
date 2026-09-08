@@ -48,6 +48,22 @@ export default function SpendWindowPanel({
   );
 }
 
+/** One interval's spend, or the reason there is none. Returns the outcome rather than setting state so the caller can drop a late response: the guard belongs where the interval is known to have changed. */
+async function fetchSpendWindow(interval: { from: string; to: string }) {
+  try {
+    const res = await fetch(`/api/spend-window?${spendWindowQuery(interval)}`, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    const body = (await res.json()) as SpendWindow & { error?: string };
+
+    return res.ok
+      ? { spend: body, error: null }
+      : { spend: null, error: spendWindowError(body, res.status) };
+  } catch (err) {
+    return { spend: null, error: describeFetchError(err) };
+  }
+}
+
 /** One fetch per interval, with a cancelled guard so a slow response for a previous interval cannot land over a newer one. */
 function useSpendWindow(interval: { from: string; to: string }) {
   const [spend, setSpend] = useState<SpendWindow | null>(null);
@@ -56,33 +72,13 @@ function useSpendWindow(interval: { from: string; to: string }) {
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
-      try {
-        const res = await fetch(
-          `/api/spend-window?${spendWindowQuery(interval)}`,
-          { signal: AbortSignal.timeout(30_000) },
-        );
-        const body = (await res.json()) as SpendWindow & { error?: string };
-
-        if (cancelled) {
-          return;
-        }
-
-        if (!res.ok) {
-          setError(spendWindowError(body, res.status));
-
-          return;
-        }
-        setSpend(body);
-        setError(null);
-      } catch (err) {
-        if (!cancelled) {
-          setError(describeFetchError(err));
-        }
+    void fetchSpendWindow(interval).then((outcome) => {
+      if (cancelled) {
+        return;
       }
-    }
-
-    void load();
+      setSpend(outcome.spend);
+      setError(outcome.error);
+    });
 
     return () => {
       cancelled = true;
@@ -92,20 +88,43 @@ function useSpendWindow(interval: { from: string; to: string }) {
   return { spend, error };
 }
 
-function IntervalPicker({
+interface Interval {
+  from: string;
+  to: string;
+}
+
+type IntervalChange = (update: (current: Interval) => Interval) => void;
+
+/** One end of the range. Edits the named field and leaves the other alone, so moving `from` past `to` is the reader's business rather than something this control silently corrects. */
+function DateField({
+  label,
+  field,
   interval,
   onChange,
 }: {
-  interval: { from: string; to: string };
-  onChange: (
-    update: (current: { from: string; to: string }) => {
-      from: string;
-      to: string;
-    },
-  ) => void;
+  label: string;
+  field: keyof Interval;
+  interval: Interval;
+  onChange: IntervalChange;
 }) {
   return (
-    <div className={styles.presetRow}>
+    <label className="meta">
+      {label}{" "}
+      <input
+        type="date"
+        value={interval[field]}
+        onChange={(e) =>
+          onChange((current) => ({ ...current, [field]: e.target.value }))
+        }
+      />
+    </label>
+  );
+}
+
+/** The common ranges, as one click each. A preset REPLACES the interval rather than editing an end of it, so picking one never leaves a stale `from` paired with a fresh `to`. */
+function PresetButtons({ onChange }: { onChange: IntervalChange }) {
+  return (
+    <>
       {PRESETS.map((preset) => (
         <button
           key={preset.key}
@@ -116,26 +135,32 @@ function IntervalPicker({
           {preset.label}
         </button>
       ))}
-      <label className="meta">
-        from{" "}
-        <input
-          type="date"
-          value={interval.from}
-          onChange={(e) =>
-            onChange((current) => ({ ...current, from: e.target.value }))
-          }
-        />
-      </label>
-      <label className="meta">
-        to{" "}
-        <input
-          type="date"
-          value={interval.to}
-          onChange={(e) =>
-            onChange((current) => ({ ...current, to: e.target.value }))
-          }
-        />
-      </label>
+    </>
+  );
+}
+
+function IntervalPicker({
+  interval,
+  onChange,
+}: {
+  interval: Interval;
+  onChange: IntervalChange;
+}) {
+  return (
+    <div className={styles.presetRow}>
+      <PresetButtons onChange={onChange} />
+      <DateField
+        label="from"
+        field="from"
+        interval={interval}
+        onChange={onChange}
+      />
+      <DateField
+        label="to"
+        field="to"
+        interval={interval}
+        onChange={onChange}
+      />
     </div>
   );
 }

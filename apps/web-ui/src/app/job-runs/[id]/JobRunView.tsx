@@ -24,6 +24,29 @@ function NotFound({ id }: { id: string }) {
   );
 }
 
+/** What the run produced, insofar as it produced anything. Each line is absent rather than blank when the run has no such value — a running job has no summary yet, and a successful one has no error. */
+function RunOutcome({ run }: { run: JobRunRow }) {
+  return (
+    <>
+      {run.result_summary && (
+        <div>
+          <span className="meta">Summary:</span> {run.result_summary}
+        </div>
+      )}
+      {run.error && (
+        <div className={styles.error}>
+          <span className="meta">Error:</span> {run.error}
+        </div>
+      )}
+      {run.log_path && (
+        <div>
+          <span className="meta">Log path:</span> <code>{run.log_path}</code>
+        </div>
+      )}
+    </>
+  );
+}
+
 function RunFacts({ run }: { run: JobRunRow }) {
   return (
     <div className={`spec-card ${styles.card}`}>
@@ -40,21 +63,7 @@ function RunFacts({ run }: { run: JobRunRow }) {
           {new Date(run.completed_at).toLocaleString()}
         </div>
       )}
-      {run.result_summary && (
-        <div>
-          <span className="meta">Summary:</span> {run.result_summary}
-        </div>
-      )}
-      {run.error && (
-        <div className={styles.error}>
-          <span className="meta">Error:</span> {run.error}
-        </div>
-      )}
-      {run.log_path && (
-        <div>
-          <span className="meta">Log path:</span> <code>{run.log_path}</code>
-        </div>
-      )}
+      <RunOutcome run={run} />
     </div>
   );
 }
