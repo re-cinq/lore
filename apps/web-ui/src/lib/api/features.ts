@@ -22,20 +22,18 @@ export function createFeature(
   });
 }
 
+type RefineResult = {
+  iteration: number;
+  task_id?: string | null;
+} & RunIdCarrier;
+
 /** Start a round; `fromIteration` REWINDS — the new round continues that round's draft/conversation instead of the latest, recording it as parent. */
 export function refineFeature(
   repo: string,
   id: string,
   userAnswers: unknown,
   fromIteration?: number,
-): Promise<
-  ApiResult<
-    {
-      iteration: number;
-      task_id?: string | null;
-    } & RunIdCarrier
-  >
-> {
+): Promise<ApiResult<RefineResult>> {
   return apiFetch("lore-api", `${base(repo)}/${id}/iterations`, {
     method: "POST",
     body: {

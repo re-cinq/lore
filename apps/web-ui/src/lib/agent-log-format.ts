@@ -41,23 +41,25 @@ export function toolResultText(content: unknown): string {
 
   if (Array.isArray(content)) {
     return content
-      .map((block) => {
-        if (!isRecord(block)) {
-          return "";
-        }
-
-        if (typeof block.text === "string") {
-          return block.text;
-        }
-
-        if (typeof block.tool_name === "string") {
-          return `[${block.tool_name}]`;
-        }
-
-        return "";
-      })
+      .map(resultBlockText)
       .filter((part) => part.length > 0)
       .join("\n");
+  }
+
+  return "";
+}
+
+function resultBlockText(block: unknown): string {
+  if (!isRecord(block)) {
+    return "";
+  }
+
+  if (typeof block.text === "string") {
+    return block.text;
+  }
+
+  if (typeof block.tool_name === "string") {
+    return `[${block.tool_name}]`;
   }
 
   return "";

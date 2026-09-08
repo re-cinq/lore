@@ -4,18 +4,15 @@ import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
 import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
 
-/** What the button says, in the order the states actually occur: working, then the outcome, then the invitation. The outcome keeps the failure count beside the success count, so a partial run does not read as a clean one. */
-function buttonText({
-  pending,
-  done,
-  label,
-  count,
-}: {
+interface ButtonTextProps {
   pending: boolean;
   done: FixWorkflowResult | null;
   label: string;
   count: number;
-}) {
+}
+
+/** What the button says, in the order the states actually occur: working, then the outcome, then the invitation. The outcome keeps the failure count beside the success count, so a partial run does not read as a clean one. */
+function buttonText({ pending, done, label, count }: ButtonTextProps) {
   if (pending) {
     return "opening PRs…";
   }
@@ -53,15 +50,25 @@ function failureTitle(done: FixWorkflowResult | null): string | null {
   return failed.map((f) => `${f.repo}: ${f.error}`).join("\n");
 }
 
-/** Reports how many PRs opened and, critically, why any repo failed — "opened 0 PRs" with no reason is how a missing App permission stayed invisible. */
-export function FixWorkflowButton({
-  repos,
-  action,
-  label,
-  title,
-}: FixWorkflowButtonProps) {
+/** The run itself: one transition covering every repo, whose result is kept so the button can report it. */
+function useFixWorkflow(
+  repos: string[],
+  action: FixWorkflowButtonProps["action"],
+) {
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState<FixWorkflowResult | null>(null);
+  const openPrs = () =>
+    startTransition(async () => {
+      setDone(await action(repos));
+    });
+
+  return { pending, done, openPrs };
+}
+
+/** Reports how many PRs opened and, critically, why any repo failed — "opened 0 PRs" with no reason is how a missing App permission stayed invisible. */
+export function FixWorkflowButton(props: FixWorkflowButtonProps) {
+  const { repos, action, label, title } = props;
+  const { pending, done, openPrs } = useFixWorkflow(repos, action);
 
   // Nothing to fix is not a disabled button: an always-present control invites a click that can do nothing.
   if (repos.length === 0) {
@@ -72,11 +79,7 @@ export function FixWorkflowButton({
     <button
       type="button"
       disabled={pending}
-      onClick={() =>
-        startTransition(async () => {
-          setDone(await action(repos));
-        })
-      }
+      onClick={openPrs}
       title={failureTitle(done) ?? title}
     >
       {buttonText({ pending, done, label, count: repos.length })}

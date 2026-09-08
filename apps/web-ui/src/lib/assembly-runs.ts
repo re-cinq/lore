@@ -71,14 +71,6 @@ function durationSeconds(
 }
 
 export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
-  // PR link precedence: the backing task's PR, else a code-review run's args.pr_number reconstructed against the repo.
-  const prNumber = row.task_pr_number ?? row.args_pr_number;
-  const prUrl =
-    row.pr_url ??
-    (row.args_pr_number !== null
-      ? `https://github.com/${row.repo}/pull/${row.args_pr_number}`
-      : null);
-
   return {
     id: row.id,
     blueprintName: row.blueprint_name,
@@ -92,11 +84,23 @@ export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
     createdAt: row.created_at,
     startedAt: row.started_at,
     durationSeconds: durationSeconds(row.started_at, row.finished_at),
-    prUrl,
-    prNumber: prNumber ?? null,
     createdBy: row.created_by,
     costUsd: row.cost_usd,
+    ...pullRequestRef(row),
   };
+}
+
+/** PR link precedence: the backing task's PR, else a code-review run's args.pr_number reconstructed against the repo. */
+function pullRequestRef(
+  row: AssemblyRunRow,
+): Pick<AssemblyRun, "prUrl" | "prNumber"> {
+  const prUrl =
+    row.pr_url ??
+    (row.args_pr_number !== null
+      ? `https://github.com/${row.repo}/pull/${row.args_pr_number}`
+      : null);
+
+  return { prUrl, prNumber: row.task_pr_number ?? row.args_pr_number ?? null };
 }
 
 export function toAssemblyRunNode(row: AssemblyRunNodeRow): AssemblyRunNode {
@@ -127,15 +131,21 @@ async function readRuns(query: string): Promise<AssemblyRun[]> {
   return runs.map(toAssemblyRun);
 }
 
+export interface AssemblyRunFilter {
+  status?: string;
+  repo?: string;
+  clusterAgentId?: string;
+  limit?: number;
+}
+
 /** The run list, filterable by status and repo (both SQL-side). Empty on pre-0025 DBs. */
 export async function fetchAssemblyRuns(
-  opts: {
-    status?: string;
-    repo?: string;
-    clusterAgentId?: string;
-    limit?: number;
-  } = {},
+  opts: AssemblyRunFilter = {},
 ): Promise<AssemblyRun[]> {
+  return readRuns(`?${assemblyRunFilterParams(opts)}`);
+}
+
+function assemblyRunFilterParams(opts: AssemblyRunFilter): URLSearchParams {
   const params = new URLSearchParams();
 
   if (opts.status) {
@@ -151,7 +161,7 @@ export async function fetchAssemblyRuns(
   }
   params.set("limit", String(opts.limit ?? 50));
 
-  return readRuns(`?${params}`);
+  return params;
 }
 
 /** One run by id, or null (also null on pre-0025 DBs so the resolver falls through). */

@@ -23,12 +23,9 @@ interface DocListToolbarProps {
 }
 
 /** Search, sort and the status chips. Counts come from the FULL set rather than the visible one: selecting a status must not make the other statuses look empty. */
-export default function DocListToolbar({
-  view,
-  counts,
-  total,
-  kind,
-}: DocListToolbarProps) {
+export default function DocListToolbar(props: DocListToolbarProps) {
+  const { view, counts, total, kind } = props;
+
   return (
     <>
       <DocListControls

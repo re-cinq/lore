@@ -42,27 +42,37 @@ function FittedText({
   );
 }
 
-export default function NodeRunBadge({
-  title,
-  badge,
-  leftEdge,
-  centerY,
-}: NodeRunBadgeProps) {
+function NodeTitleLabel({ title, leftEdge, centerY }: NodeRunBadgeProps) {
+  return (
+    <FittedText
+      className={styles.nodeId}
+      textX={leftEdge + 40}
+      textY={centerY - 2}
+      text={title}
+    />
+  );
+}
+
+// The verdict spelled out under the name, tinted with the same tone as the glyph.
+function NodeVerdictLabel({ badge, leftEdge, centerY }: NodeRunBadgeProps) {
+  return (
+    <FittedText
+      className={classes(styles.statusLabel, textFillClass(badge.tone))}
+      textX={leftEdge + 40}
+      textY={centerY + 13}
+      text={badge.label}
+    />
+  );
+}
+
+export default function NodeRunBadge(props: NodeRunBadgeProps) {
+  const { badge, leftEdge, centerY } = props;
+
   return (
     <>
       <StatusIcon tone={badge.tone} cx={leftEdge + 24} cy={centerY} />
-      <FittedText
-        className={styles.nodeId}
-        textX={leftEdge + 40}
-        textY={centerY - 2}
-        text={title}
-      />
-      <FittedText
-        className={classes(styles.statusLabel, textFillClass(badge.tone))}
-        textX={leftEdge + 40}
-        textY={centerY + 13}
-        text={badge.label}
-      />
+      <NodeTitleLabel {...props} />
+      <NodeVerdictLabel {...props} />
     </>
   );
 }

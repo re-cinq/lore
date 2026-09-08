@@ -1,5 +1,6 @@
 import { type Check, type CheckStatus, passSummary } from "@/lib/enrollment";
-import HelpPopover from "./HelpPopover";
+import EnrollmentHelp from "./EnrollmentHelp";
+import LocalSetupSteps from "./LocalSetupSteps";
 import CopyButton from "./CopyButton";
 import SecretReveal from "./SecretReveal";
 import ReonboardButton from "./ReonboardButton";
@@ -100,94 +101,70 @@ function CheckDetail({ check }: { check: Check }) {
   );
 }
 
-function CheckRow({
+/** Whichever fix actions this check offers; each renders nothing when it does not apply. */
+function CheckActions({
   check,
   reonboardAction,
   setupWebhookAction,
 }: CheckRowProps) {
+  return (
+    <>
+      <ReonboardAction check={check} reonboardAction={reonboardAction} />
+      <SetupWebhookAction
+        check={check}
+        setupWebhookAction={setupWebhookAction}
+      />
+    </>
+  );
+}
+
+function CheckSecret({ check }: { check: Check }) {
+  if (!check.secret) {
+    return null;
+  }
+
+  return <SecretReveal value={check.secret.value} label={check.secret.label} />;
+}
+
+function CheckRow(props: CheckRowProps) {
+  const { check } = props;
+
   return (
     <div className="enroll-row">
       <CheckStatusIcon status={check.status} />
       <span className={styles.label}>{check.label}</span>
       <span className="enroll-dots" />
       <CheckDetail check={check} />
-      <ReonboardAction check={check} reonboardAction={reonboardAction} />
-      <SetupWebhookAction
-        check={check}
-        setupWebhookAction={setupWebhookAction}
-      />
+      <CheckActions {...props} />
       <CheckCopy check={check} />
-      {check.secret && (
-        <SecretReveal value={check.secret.value} label={check.secret.label} />
-      )}
+      <CheckSecret check={check} />
     </div>
   );
 }
 
-function CommandRow({ command }: { command: string }) {
-  return (
-    <div className={styles.commandRow}>
-      <pre className={styles.command}>{command}</pre>
-      <CopyButton text={command} />
-    </div>
-  );
-}
-
-function Step({
-  label,
-  note,
-  command,
-  alt,
-}: {
-  label: string;
-  note?: string;
-  command: string;
-  alt?: { label: string; command: string };
-}) {
-  return (
-    <li className={styles.step}>
-      <div className={styles.stepLabel}>{label}</div>
-      {note && <div className={`meta ${styles.stepNote}`}>{note}</div>}
-      <CommandRow command={command} />
-      {alt && (
-        <>
-          <div className={`meta ${styles.altLabel}`}>{alt.label}</div>
-          <CommandRow command={alt.command} />
-        </>
-      )}
-    </li>
-  );
-}
-
-const INSTALL_CMD =
-  "git clone git@github.com:re-cinq/lore.git && cd lore && scripts/install.sh";
-const CURL_CMD =
-  "curl -fsSL https://raw.githubusercontent.com/re-cinq/lore/main/scripts/install.sh | bash";
-
-export default function EnrollmentSection({
-  checks,
-  reonboardAction,
-  setupWebhookAction,
-}: EnrollmentSectionProps) {
+/** The section title, with how many of the checks are green. */
+function EnrollmentHeader({ checks }: { checks: Check[] }) {
   const { passed, total } = passSummary(checks);
 
   return (
+    <div className={styles.header}>
+      <h3 className={styles.heading}>Enrollment</h3>
+      <EnrollmentHelp />
+      <span className={`meta ${styles.summary}`}>
+        {passed}/{total} checks passing
+      </span>
+    </div>
+  );
+}
+
+export default function EnrollmentSection(props: EnrollmentSectionProps) {
+  return (
     <div className={`spec-card ${styles.section}`}>
-      <div className={styles.header}>
-        <h3 className={styles.heading}>Enrollment</h3>
-        <EnrollmentHelp />
-        <span className={`meta ${styles.summary}`}>
-          {passed}/{total} checks passing
-        </span>
-      </div>
+      <EnrollmentHeader checks={props.checks} />
 
       <div className={`meta ${styles.groupLabel}`}>Repo integration</div>
       <div className={styles.checks}>
-        <CheckRows
-          checks={checks}
-          reonboardAction={reonboardAction}
-          setupWebhookAction={setupWebhookAction}
-        />
+        <CheckRows {...props} />
       </div>
 
       <LocalSetupSteps />
@@ -215,73 +192,4 @@ function CheckRows({
       setupWebhookAction={setupWebhookAction}
     />
   ));
-}
-
-function EnrollmentHelp() {
-  return (
-    <HelpPopover label="What enrollment checks mean">
-      <p>
-        These checks show whether this repo is wired into Lore and whether
-        you&apos;ve set it up locally.
-      </p>
-      <ul>
-        <li>
-          <strong>Repo integration</strong> is verified from Lore&apos;s
-          database and (where the GitHub App has access) the repo&apos;s files.
-          A missing file (e.g. the <code>lore-ingest.yml</code> ingest workflow)
-          can be fixed in place — the <em>create a PR with this file</em> action
-          queues an onboarding task that opens a PR adding only what&apos;s
-          missing.
-        </li>
-        <li>
-          <strong>Used locally via MCP</strong> turns green once a Claude Code
-          session for this repo is recorded.
-        </li>
-        <li>
-          The <strong>local setup</strong> steps run on your machine and
-          can&apos;t be auto-verified.
-        </li>
-      </ul>
-    </HelpPopover>
-  );
-}
-
-/** The three commands a developer runs once per machine. Ordered because they depend on each other — the install registers the MCP server the second step then loads. */
-function SetupSteps() {
-  return (
-    <ol className={styles.steps}>
-      <Step
-        label="Install Lore (once per machine) — configures the MCP server, skills, hooks, statusline, and agent ID."
-        note="Needs git, Node.js ≥18, and the Claude Code CLI. Clones into ~/.re-cinq/lore, builds the MCP server, and registers it in your Claude config. Idempotent — safe to re-run."
-        command={INSTALL_CMD}
-        alt={{
-          label: "…or without cloning (private repo needs SSH/token access):",
-          command: CURL_CMD,
-        }}
-      />
-      <Step
-        label="Open this repo and start Claude Code — org context loads automatically."
-        command="claude"
-      />
-      <Step
-        label="Verify context loads."
-        command={'claude "how do we handle auth in this repo?"'}
-      />
-    </ol>
-  );
-}
-
-/** The half nobody can verify for you: these run on your machine, and step 2 is what eventually flips the MCP check green. */
-function LocalSetupSteps() {
-  return (
-    <>
-      <div className={`meta ${styles.groupLabel}`}>Your local setup</div>
-      <SetupSteps />
-      <p className={`meta ${styles.footnote}`}>
-        These run on your machine and aren&apos;t auto-verified — completing
-        step 2 flips <strong>Used locally via MCP</strong> green once a session
-        summary is recorded.
-      </p>
-    </>
-  );
 }

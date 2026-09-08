@@ -29,29 +29,44 @@ export interface FeatureRunPayload {
   definitionUnchanged?: boolean;
 }
 
+/** The run columns the payload carries through verbatim. */
+function runFields(run: AssemblyRun) {
+  const { id, status, startedAt, repo, reason } = run;
+
+  return { id, status, startedAt, repo, reason };
+}
+
 /** Shape run + nodes into poll payload; pure. */
 export function toFeatureRunPayload(
   run: AssemblyRun,
   nodes: AssemblyRunNode[],
   tokens: RunTokens | null = null,
 ): FeatureRunPayload {
+  const { blueprintName, graph } = run;
   const { definition, synthetic } = definitionForRun(
-    run.blueprintName,
+    blueprintName,
     nodes,
-    run.graph,
+    graph,
   );
 
-  return {
-    id: run.id,
-    status: run.status,
-    startedAt: run.startedAt,
-    repo: run.repo,
-    reason: run.reason,
-    definition,
-    synthetic,
-    nodes,
-    tokens,
-  };
+  return { ...runFields(run), definition, synthetic, nodes, tokens };
+}
+
+/** Run, its nodes and its tokens, shaped for the panel. */
+async function loadRunPayload(
+  assemblyLineId: string,
+): Promise<FeatureRunPayload | null> {
+  const run = await fetchAssemblyRun(assemblyLineId);
+
+  if (!run) {
+    return null;
+  }
+
+  return toFeatureRunPayload(
+    run,
+    await fetchAssemblyRunNodes(run.id),
+    await fetchRunTokens(run.id),
+  );
 }
 
 /** Fetch run to visualize by line id (resolved by lore-api). */
@@ -65,20 +80,14 @@ export async function fetchFeatureRunById(
   }
 
   try {
-    const run = await fetchAssemblyRun(assemblyLineId);
+    const payload = await loadRunPayload(assemblyLineId);
 
-    if (!run) {
+    if (!payload) {
       return null;
     }
 
-    const payload = toFeatureRunPayload(
-      run,
-      await fetchAssemblyRunNodes(run.id),
-      await fetchRunTokens(run.id),
-    );
-
     // Omit graph caller already has (not for synthetic graphs).
-    return haveGraphForRun === run.id && graphIsCacheable(payload)
+    return haveGraphForRun === payload.id && graphIsCacheable(payload)
       ? { ...payload, definition: null, definitionUnchanged: true }
       : payload;
   } catch {

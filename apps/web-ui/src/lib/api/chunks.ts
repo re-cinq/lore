@@ -6,14 +6,22 @@ import type { components } from "./schema";
 // Context browser's chunk reads; the UNION ALL across per-team schemas + org_shared moved to lore-api, which is what let web-ui stop holding a pool. ChunkRow aliases the OpenAPI schema (ADR-035) — content is a 300-char preview, rank computed per query.
 export type ChunkRow = components["schemas"]["ChunkList"]["chunks"][number];
 
-/** Ranked chunks (org-wide or one repo's own); returns one row past `limit` so the caller can detect a further page without a COUNT. */
-export function getChunks(opts: {
+type ChunkQuery = {
   repo?: string;
   type?: string;
   q?: string;
   limit?: number;
   offset?: number;
-}): Promise<ApiResult<{ chunks: ChunkRow[] }>> {
+};
+
+/** Ranked chunks (org-wide or one repo's own); returns one row past `limit` so the caller can detect a further page without a COUNT. */
+export function getChunks(
+  opts: ChunkQuery,
+): Promise<ApiResult<{ chunks: ChunkRow[] }>> {
+  return apiFetch("lore-api", `/api/chunks?${chunkQueryParams(opts)}`);
+}
+
+function chunkQueryParams(opts: ChunkQuery): URLSearchParams {
   const params = new URLSearchParams();
 
   if (opts.repo) {
@@ -30,7 +38,7 @@ export function getChunks(opts: {
   params.set("limit", String(opts.limit ?? 50));
   params.set("offset", String(opts.offset ?? 0));
 
-  return apiFetch("lore-api", `/api/chunks?${params}`);
+  return params;
 }
 
 /** Content types actually present — deliberately unfiltered by the active type so a chip never vanishes when selected. */

@@ -14,16 +14,41 @@ export interface AssemblyRunSummary {
   nodes: readonly AssemblyRunNode[];
 }
 
+type RunData = ReturnType<typeof walkRunData> | null;
+
+interface FeatureAssemblyLineProps {
+  definition: AssemblyLineDefinition | null;
+  run?: AssemblyRunSummary | null;
+  title?: string;
+}
+
+/** The graph itself, drawn from the walk when there is one and from the declaration otherwise. */
+function LineGraph({
+  definition,
+  runData,
+}: {
+  definition: AssemblyLineDefinition;
+  runData: RunData;
+}) {
+  return (
+    <RunGraphView
+      graph={deriveVisibleGraph(
+        definition,
+        runData,
+        runData ? "run" : "definition",
+      )}
+      definition={definition}
+      heading={null}
+    />
+  );
+}
+
 // With a run, draws the CURRENT STATE (status per step, walked hops bold); without one, falls back to the declared graph as a preview, not a claim.
 export function FeatureAssemblyLine({
   definition,
   run = null,
   title = "How planning works",
-}: {
-  definition: AssemblyLineDefinition | null;
-  run?: AssemblyRunSummary | null;
-  title?: string;
-}) {
+}: FeatureAssemblyLineProps) {
   if (!definition) {
     return null;
   }
@@ -35,15 +60,7 @@ export function FeatureAssemblyLine({
   return (
     <CollapsibleCard title={title} hint={definition.description} defaultOpen>
       <p className="meta">Assembly line: {definition.name}</p>
-      <RunGraphView
-        graph={deriveVisibleGraph(
-          definition,
-          runData,
-          runData ? "run" : "definition",
-        )}
-        definition={definition}
-        heading={null}
-      />
+      <LineGraph definition={definition} runData={runData} />
     </CollapsibleCard>
   );
 }

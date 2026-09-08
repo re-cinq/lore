@@ -139,16 +139,25 @@ export function featureSeedPositions(
     const frac = (running + weights[i] / 2) / total;
 
     running += weights[i];
-    const radius = maxRadius * Math.sqrt(frac);
-    const angle = i * GOLDEN_ANGLE;
-
-    out.set(f.id, {
-      x: center.x + radius * Math.cos(angle),
-      y: center.y + radius * Math.sin(angle),
-    });
+    out.set(f.id, spiralPoint(frac, i, { center, maxRadius }));
   });
 
   return out;
+}
+
+/** Sunflower spiral point: √fraction radius, so equal weight covers equal area. */
+function spiralPoint(
+  frac: number,
+  index: number,
+  { center, maxRadius }: { center: Point; maxRadius: number },
+): Point {
+  const radius = maxRadius * Math.sqrt(frac);
+  const angle = index * GOLDEN_ANGLE;
+
+  return {
+    x: center.x + radius * Math.cos(angle),
+    y: center.y + radius * Math.sin(angle),
+  };
 }
 
 /** Headless pre-warm tick budget: ~3 per node, floored at 120 and capped at 400. */
@@ -228,20 +237,34 @@ function pushPastBarrier(
     if (!smallIds.has(node.id)) {
       continue;
     }
-    const dx = node.x - center.x;
-    const dy = node.y - center.y;
-    const dist = Math.hypot(dx, dy) || 1;
+    const pushed = pushToBarrier(node, center, barrier);
 
-    if (dist >= barrier) {
-      continue;
+    if (pushed) {
+      moved.set(node.id, pushed);
     }
-    moved.set(node.id, {
-      x: center.x + (barrier * dx) / dist,
-      y: center.y + (barrier * dy) / dist,
-    });
   }
 
   return moved;
+}
+
+/** Radial push of one node out to `barrier`, or null when it already clears it. */
+function pushToBarrier(
+  node: PlacedNode,
+  center: Point,
+  barrier: number,
+): Point | null {
+  const dx = node.x - center.x;
+  const dy = node.y - center.y;
+  const dist = Math.hypot(dx, dy) || 1;
+
+  if (dist >= barrier) {
+    return null;
+  }
+
+  return {
+    x: center.x + (barrier * dx) / dist,
+    y: center.y + (barrier * dy) / dist,
+  };
 }
 
 export function separateSmallComponents(

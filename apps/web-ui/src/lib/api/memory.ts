@@ -3,18 +3,26 @@ import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
 
 // Memory browse reads, typed once — were direct SELECTs before lore-api grew these endpoints (ADR-032); shaped per screen.
-export function getGraphBrowse(opts: {
+type GraphBrowseOpts = {
   entity?: string;
   type?: string;
   showInvalid?: boolean;
-}): Promise<
-  ApiResult<{
-    stats: Record<string, number>;
-    entity_types: { entity_type: string; cnt: number }[];
-    entities: Record<string, unknown>[];
-    edges: Record<string, unknown>[];
-  }>
-> {
+};
+
+type GraphBrowseData = {
+  stats: Record<string, number>;
+  entity_types: { entity_type: string; cnt: number }[];
+  entities: Record<string, unknown>[];
+  edges: Record<string, unknown>[];
+};
+
+export function getGraphBrowse(
+  opts: GraphBrowseOpts,
+): Promise<ApiResult<GraphBrowseData>> {
+  return apiFetch("lore-api", `/api/graph-browse?${graphBrowseParams(opts)}`);
+}
+
+function graphBrowseParams(opts: GraphBrowseOpts): URLSearchParams {
   const params = new URLSearchParams();
 
   if (opts.entity) {
@@ -29,7 +37,7 @@ export function getGraphBrowse(opts: {
     params.set("show_invalid", "true");
   }
 
-  return apiFetch("lore-api", `/api/graph-browse?${params}`);
+  return params;
 }
 
 export function listPools(): Promise<

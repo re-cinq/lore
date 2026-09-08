@@ -49,31 +49,45 @@ function EmptyRow({ span, children }: { span: number; children: ReactNode }) {
   );
 }
 
-export default function DataTable<T>(props: DataTableProps<T>) {
+/** The column header row, its own component so the header never picks up the row-level concerns below. */
+function HeaderRow({ columns }: { columns: string[] }) {
+  return (
+    <thead>
+      <tr>
+        {columns.map((column) => (
+          <th key={column}>{column}</th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+/** Every row, or the empty state — one place decides which, so a table can never render both or neither. */
+function BodyRows<T>(props: DataTableProps<T>) {
   const { columns, rows, rowKey, cells } = props;
   const { monoColumns = [], rowClass, empty = "No data" } = props;
 
   return (
+    <tbody>
+      {rows.map((row, index) => (
+        <tr key={rowKey(row, index)} className={rowClass?.(row)}>
+          <Cells cells={cells(row)} columns={columns} mono={monoColumns} />
+        </tr>
+      ))}
+      {rows.length === 0 ? (
+        <EmptyRow span={columns.length}>{empty}</EmptyRow>
+      ) : null}
+    </tbody>
+  );
+}
+
+export default function DataTable<T>(props: DataTableProps<T>) {
+  return (
     <>
       {props.title ? <h2>{props.title}</h2> : null}
       <table>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column}>{column}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={rowKey(row, index)} className={rowClass?.(row)}>
-              <Cells cells={cells(row)} columns={columns} mono={monoColumns} />
-            </tr>
-          ))}
-          {rows.length === 0 ? (
-            <EmptyRow span={columns.length}>{empty}</EmptyRow>
-          ) : null}
-        </tbody>
+        <HeaderRow columns={props.columns} />
+        <BodyRows {...props} />
       </table>
     </>
   );

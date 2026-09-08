@@ -4,6 +4,7 @@ import type {
   AssemblyLineDefinition,
   DefinitionEdge,
 } from "./assembly-line-definition";
+import { contentBoxOf, pathFor } from "./dag-layout-paths";
 
 export type EdgeKind = "forward" | "back" | "self";
 
@@ -47,7 +48,7 @@ export interface LayoutOptions {
   arcDrop?: number;
 }
 
-type ResolvedOptions = Required<LayoutOptions>;
+export type ResolvedOptions = Required<LayoutOptions>;
 
 const DEFAULTS: ResolvedOptions = {
   layerGap: 240, // a 132px node box plus 108px of connector air per column; shrinking it crowds the edge paths
@@ -61,42 +62,56 @@ const DEFAULTS: ResolvedOptions = {
 
 /** Cyclic edges found by DFS; back-edges and self-loops excluded. */
 function cyclicEdges(def: AssemblyLineDefinition): Set<DefinitionEdge> {
-  const cyclic = new Set<DefinitionEdge>();
-  const onStack = new Set<string>();
-  const done = new Set<string>();
   const outgoing = new Map<string, DefinitionEdge[]>();
 
   for (const edge of def.edges) {
     outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge]);
   }
-
-  const visit = (id: string): void => {
-    onStack.add(id);
-
-    for (const edge of outgoing.get(id) ?? []) {
-      if (edge.to === edge.from || onStack.has(edge.to)) {
-        cyclic.add(edge);
-        continue;
-      }
-
-      if (!done.has(edge.to)) {
-        visit(edge.to);
-      }
-    }
-
-    onStack.delete(id);
-    done.add(id);
+  const walk: CycleWalk = {
+    outgoing,
+    cyclic: new Set<DefinitionEdge>(),
+    onStack: new Set<string>(),
+    done: new Set<string>(),
   };
 
-  visit(def.entry);
+  visitForCycles(def.entry, walk);
 
   for (const node of def.nodes) {
-    if (!done.has(node.id)) {
-      visit(node.id);
+    if (!walk.done.has(node.id)) {
+      visitForCycles(node.id, walk);
     }
   }
 
-  return cyclic;
+  return walk.cyclic;
+}
+
+/** The bookkeeping one depth-first cycle hunt threads through its recursion. */
+interface CycleWalk {
+  outgoing: Map<string, DefinitionEdge[]>;
+  cyclic: Set<DefinitionEdge>;
+  onStack: Set<string>;
+  done: Set<string>;
+}
+
+/** Descend from one node, recording every edge that closes back onto the stack. */
+function visitForCycles(id: string, walk: CycleWalk): void {
+  const { onStack, done, cyclic, outgoing } = walk;
+
+  onStack.add(id);
+
+  for (const edge of outgoing.get(id) ?? []) {
+    if (edge.to === edge.from || onStack.has(edge.to)) {
+      cyclic.add(edge);
+      continue;
+    }
+
+    if (!done.has(edge.to)) {
+      visitForCycles(edge.to, walk);
+    }
+  }
+
+  onStack.delete(id);
+  done.add(id);
 }
 
 /** Whether this edge advances the layout. A back-edge would make every node in its cycle claim an ever-deeper layer; an edge naming an undeclared node would have the layout invent one. */
@@ -214,139 +229,51 @@ export function layoutAssemblyLine(
   const opts = { ...DEFAULTS, ...options };
   const layers = layerByLongestPath(def);
   const nodes = placeNodes(def, layers, opts);
-  const byId = new Map(nodes.map((node) => [node.id, node]));
-  // Back-edges arc BELOW everything, so the floor has to clear the lowest node plus the arc's own drop.
-  const floor =
-    Math.max(...nodes.map((node) => node.y)) +
-    opts.nodeHeight / 2 +
-    opts.arcDrop;
-  const edges: LayoutEdge[] = classifyEdges(def, layers).map((edge) => ({
-    ...edge,
-    d: pathFor(edge, byId, opts, floor),
-  }));
+  const floor = arcFloor(nodes, opts);
+  const edges = layoutEdges({ def, layers, nodes, opts, floor });
 
   return {
     nodes,
     edges,
-    width:
-      opts.originX +
-      Math.max(...nodes.map((n) => n.layer)) * opts.layerGap +
-      opts.nodeWidth,
+    width: layoutWidth(nodes, opts),
     height: floor + opts.arcDrop,
     contentBox: contentBoxOf(nodes, edges, opts),
   };
 }
 
-/** Coordinate pairs in path d; bounding them bounds the arc. */
-function pointsOf(d: string): { x: number; y: number }[] {
-  const nums = (d.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
-  const points: { x: number; y: number }[] = [];
-
-  for (let i = 0; i + 1 < nums.length; i += 2) {
-    points.push({ x: nums[i], y: nums[i + 1] });
-  }
-
-  return points;
+/** Back-edges arc BELOW everything, so the floor clears the lowest node plus the arc's own drop. */
+function arcFloor(nodes: LayoutNode[], opts: ResolvedOptions): number {
+  return (
+    Math.max(...nodes.map((node) => node.y)) +
+    opts.nodeHeight / 2 +
+    opts.arcDrop
+  );
 }
 
-function contentBoxOf(
-  nodes: LayoutNode[],
-  edges: LayoutEdge[],
-  opts: ResolvedOptions,
-): Box {
-  const halfW = opts.nodeWidth / 2;
-  const halfH = opts.nodeHeight / 2;
-  const xs: number[] = [];
-  const ys: number[] = [];
-
-  for (const node of nodes) {
-    xs.push(node.x - halfW, node.x + halfW);
-    ys.push(node.y - halfH, node.y + halfH);
-  }
-
-  for (const edge of edges) {
-    pointsOf(edge.d).forEach((point) => {
-      xs.push(point.x);
-      ys.push(point.y);
-    });
-  }
-
-  return {
-    minX: Math.min(...xs),
-    minY: Math.min(...ys),
-    maxX: Math.max(...xs),
-    maxY: Math.max(...ys),
-  };
+/** Right edge of the deepest column, node box included. */
+function layoutWidth(nodes: LayoutNode[], opts: ResolvedOptions): number {
+  return (
+    opts.originX +
+    Math.max(...nodes.map((node) => node.layer)) * opts.layerGap +
+    opts.nodeWidth
+  );
 }
 
-/** A node's edge back to itself, looping over the TOP — the only direction with guaranteed clearance, since rows below it may be occupied. */
-function selfLoop(
-  from: LayoutNode,
-  { halfW, halfH, arcDrop }: { halfW: number; halfH: number; arcDrop: number },
-): string {
-  const top = from.y - halfH;
-
-  return [
-    `M ${from.x} ${top}`,
-    `C ${from.x - halfW} ${top - arcDrop}`,
-    `${from.x + halfW} ${top - arcDrop}`,
-    `${from.x + halfW} ${from.y}`,
-  ].join(" ");
+interface EdgeLayoutInput {
+  def: AssemblyLineDefinition;
+  layers: Map<string, number>;
+  nodes: LayoutNode[];
+  opts: ResolvedOptions;
+  floor: number;
 }
 
-/** A retry edge, dropped to the shared floor so it passes UNDER every node instead of cutting back through the layers it is returning across. */
-function backArc(
-  from: LayoutNode,
-  to: LayoutNode,
-  halfH: number,
-  floor: number,
-): string {
-  return [
-    `M ${from.x} ${from.y + halfH}`,
-    `C ${from.x} ${floor}`,
-    `${to.x} ${floor}`,
-    `${to.x} ${to.y + halfH}`,
-  ].join(" ");
-}
+/** Every classified edge with its drawn path resolved against the placed nodes. */
+function layoutEdges(input: EdgeLayoutInput): LayoutEdge[] {
+  const { def, layers, nodes, opts, floor } = input;
+  const byId = new Map(nodes.map((node) => [node.id, node]));
 
-/** The ordinary left-to-right edge. The bend is a third of the layer gap, which keeps the curve inside the connector air between columns. */
-function forwardCurve(
-  from: LayoutNode,
-  to: LayoutNode,
-  halfW: number,
-  bend: number,
-): string {
-  return [
-    `M ${from.x + halfW} ${from.y}`,
-    `C ${from.x + halfW + bend} ${from.y}`,
-    `${to.x - halfW - bend} ${to.y}`,
-    `${to.x - halfW} ${to.y}`,
-  ].join(" ");
-}
-
-function pathFor(
-  edge: ClassifiedEdge,
-  byId: Map<string, LayoutNode>,
-  opts: ResolvedOptions,
-  floor: number,
-): string {
-  const from = byId.get(edge.from);
-  const to = byId.get(edge.to);
-
-  if (!from || !to) {
-    return "";
-  }
-
-  const halfW = opts.nodeWidth / 2;
-  const halfH = opts.nodeHeight / 2;
-
-  if (edge.kind === "self") {
-    return selfLoop(from, { halfW, halfH, arcDrop: opts.arcDrop });
-  }
-
-  if (edge.kind === "back") {
-    return backArc(from, to, halfH, floor);
-  }
-
-  return forwardCurve(from, to, halfW, opts.layerGap / 3);
+  return classifyEdges(def, layers).map((edge) => ({
+    ...edge,
+    d: pathFor(edge, byId, opts, floor),
+  }));
 }

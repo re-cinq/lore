@@ -36,6 +36,20 @@ export function walkRunData(
   finished: boolean,
 ): RunData {
   const latest = latestRowByNode(rows);
+
+  return {
+    executed: new Set(latest.keys()),
+    ...nodeOutcomes(latest),
+    taken: takenEdgeKeys(definition, rows),
+    result: runResult(anyRowFailed(latest), finished),
+  };
+}
+
+/** Per-node verdict and status, latest visit winning. */
+function nodeOutcomes(latest: ReadonlyMap<string, AssemblyRunNode>): {
+  verdicts: Record<string, string | null>;
+  statuses: Record<string, NodeRunStatus>;
+} {
   const verdicts: Record<string, string | null> = {};
   const statuses: Record<string, NodeRunStatus> = {};
 
@@ -44,16 +58,11 @@ export function walkRunData(
     statuses[nodeId] = rowStatus(row.outcome);
   }
 
-  return {
-    executed: new Set(latest.keys()),
-    verdicts,
-    statuses,
-    taken: takenEdgeKeys(definition, rows),
-    result: runResult(
-      [...latest.values()].some(
-        (row) => row.outcome !== null && isFailure(row.outcome),
-      ),
-      finished,
-    ),
-  };
+  return { verdicts, statuses };
+}
+
+function anyRowFailed(latest: ReadonlyMap<string, AssemblyRunNode>): boolean {
+  return [...latest.values()].some(
+    (row) => row.outcome !== null && isFailure(row.outcome),
+  );
 }

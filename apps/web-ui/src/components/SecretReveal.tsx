@@ -5,14 +5,13 @@ import CopyButton from "./CopyButton";
 import styles from "./EnrollmentSection.module.css";
 import buttonStyles from "./CopyButton.module.css";
 
-/** Masked by default, so a sensitive value never sits on screen in plaintext until the operator reveals it. */
-export default function SecretReveal({
-  value,
-  label,
-}: {
+interface SecretRevealProps {
   value: string;
   label?: string;
-}) {
+}
+
+/** Masked by default, so a sensitive value never sits on screen in plaintext until the operator reveals it. */
+export default function SecretReveal({ value, label }: SecretRevealProps) {
   const [shown, setShown] = useState(false);
 
   return (

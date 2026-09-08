@@ -67,18 +67,22 @@ function daysAgo(now: number, iso: string): string {
   return d <= 0 ? "today" : `${d}d ago`;
 }
 
+function neverIngestedCheck(): Check {
+  return {
+    id: "ingested",
+    label: "Context ingested",
+    status: "fail",
+    detail: "never ingested",
+  };
+}
+
 function ingestedCheck(
   lastIngestedAt: string | null,
   now: number,
   chunkCount: number,
 ): Check {
   if (!lastIngestedAt) {
-    return {
-      id: "ingested",
-      label: "Context ingested",
-      status: "fail",
-      detail: "never ingested",
-    };
+    return neverIngestedCheck();
   }
   const stale = now - new Date(lastIngestedAt).getTime() > STALE_MS;
   const when = daysAgo(now, lastIngestedAt);
@@ -103,31 +107,37 @@ function githubFileStatus(exists: boolean | null): CheckStatus {
   return "unknown";
 }
 
-function githubFileCheck(path: string, exists: boolean | null): Check {
-  const status = githubFileStatus(exists);
-  const purpose = GH_FILE_PURPOSE[path];
-  const check: Check = {
-    id: `gh:${path}`,
-    label: `${path} on GitHub`,
-    status,
-  };
-
-  if (status === "unknown") {
+/** Unknown and missing carry their own wording; a file that is there carries only its purpose. */
+function applyGithubFileDetail(
+  check: Check,
+  purpose: string | undefined,
+): void {
+  if (check.status === "unknown") {
     check.detail = "GitHub App has no repo access";
 
-    return check;
+    return;
   }
 
-  if (status === "fail") {
+  if (check.status === "fail") {
     check.detail = purpose ? `missing · ${purpose}` : "missing";
     check.action = { kind: "reonboard", text: "create a PR with this file" };
 
-    return check;
+    return;
   }
 
   if (purpose) {
     check.detail = purpose;
   }
+}
+
+function githubFileCheck(path: string, exists: boolean | null): Check {
+  const check: Check = {
+    id: `gh:${path}`,
+    label: `${path} on GitHub`,
+    status: githubFileStatus(exists),
+  };
+
+  applyGithubFileDetail(check, GH_FILE_PURPOSE[path]);
 
   return check;
 }
@@ -281,37 +291,33 @@ function localMcpCheck(
   };
 }
 
-export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
-  const input = { ...rawInput, now: rawInput.now ?? Date.now() };
-  const checks: Check[] = [onboardedCheck(input.onboarded, input.onboardedAt)];
+type ResolvedInput = EnrollmentInput & { now: number };
 
-  if (input.onboardingPrUrl) {
-    checks.push(
-      onboardingPrCheck(input.onboardingPrUrl, input.onboardingPrMerged),
-    );
-  }
-
-  checks.push(ingestedCheck(input.lastIngestedAt, input.now, input.chunkCount));
-  checks.push(conventionsCheck(input.hasConventions));
-  checks.push(teamCheck(input.team));
-
-  for (const [path, exists] of Object.entries(input.githubFiles)) {
-    checks.push(githubFileCheck(path, exists));
-  }
-
-  if (input.webhook) {
-    checks.push(webhookCheckRow(input.webhook));
-  }
-
-  checks.push(
-    localMcpCheck(
-      input.now,
-      input.localMcp.developerCount,
-      input.localMcp.lastActivity,
-    ),
+/** One row per probed GitHub file, then the webhook row when it was fetched. */
+function repoSurfaceChecks(input: ResolvedInput): Check[] {
+  const { githubFiles, webhook } = input;
+  const files = Object.entries(githubFiles).map(([path, exists]) =>
+    githubFileCheck(path, exists),
   );
 
-  return checks;
+  return webhook ? [...files, webhookCheckRow(webhook)] : files;
+}
+
+export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
+  const input = { ...rawInput, now: rawInput.now ?? Date.now() };
+  const { onboardingPrUrl, onboardingPrMerged, localMcp, now } = input;
+
+  return [
+    onboardedCheck(input.onboarded, input.onboardedAt),
+    ...(onboardingPrUrl
+      ? [onboardingPrCheck(onboardingPrUrl, onboardingPrMerged)]
+      : []),
+    ingestedCheck(input.lastIngestedAt, now, input.chunkCount),
+    conventionsCheck(input.hasConventions),
+    teamCheck(input.team),
+    ...repoSurfaceChecks(input),
+    localMcpCheck(now, localMcp.developerCount, localMcp.lastActivity),
+  ];
 }
 
 export function passSummary(checks: Check[]): {

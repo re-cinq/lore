@@ -8,32 +8,45 @@ export interface NodePlainLabelProps {
   isTerminal: boolean;
 }
 
-export default function NodePlainLabel({
-  title,
-  centerX,
-  centerY,
-  isTerminal,
-}: NodePlainLabelProps) {
+interface CenteredTextProps {
+  className: string;
+  centerX: number;
+  textY: number;
+  label: string;
+}
+
+function CenteredText({ className, centerX, textY, label }: CenteredTextProps) {
+  return (
+    <text className={className} x={centerX} y={textY} textAnchor="middle">
+      {label}
+    </text>
+  );
+}
+
+// The second line a terminal node carries, under its name.
+function TerminalCaption({ centerX, centerY }: NodePlainLabelProps) {
+  return (
+    <CenteredText
+      className={styles.nodeStatus}
+      centerX={centerX}
+      textY={centerY + 12}
+      label="Terminal"
+    />
+  );
+}
+
+export default function NodePlainLabel(props: NodePlainLabelProps) {
+  const { title, centerX, centerY, isTerminal } = props;
+
   return (
     <>
-      <text
+      <CenteredText
         className={styles.nodeId}
-        x={centerX}
-        y={isTerminal ? centerY - 4 : centerY + 4}
-        textAnchor="middle"
-      >
-        {title}
-      </text>
-      {isTerminal ? (
-        <text
-          className={styles.nodeStatus}
-          x={centerX}
-          y={centerY + 12}
-          textAnchor="middle"
-        >
-          Terminal
-        </text>
-      ) : null}
+        centerX={centerX}
+        textY={isTerminal ? centerY - 4 : centerY + 4}
+        label={title}
+      />
+      {isTerminal ? <TerminalCaption {...props} /> : null}
     </>
   );
 }

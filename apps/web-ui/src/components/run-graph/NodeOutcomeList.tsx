@@ -14,16 +14,14 @@ export interface NodeOutcomeListProps {
   top: number;
 }
 
-/** One declared outcome: its tone as an icon AND as the text fill, so the distinction survives for a reader who cannot separate the colours. `data-outcome` carries the raw name for tests, which should not have to read a humanized label. */
-function OutcomeRow({
-  outcome,
-  leftEdge,
-  rowY,
-}: {
+interface OutcomeRowProps {
   outcome: string;
   leftEdge: number;
   rowY: number;
-}) {
+}
+
+/** One declared outcome: its tone as an icon AND as the text fill, so the distinction survives for a reader who cannot separate the colours. `data-outcome` carries the raw name for tests, which should not have to read a humanized label. */
+function OutcomeRow({ outcome, leftEdge, rowY }: OutcomeRowProps) {
   const tone = outcomeTone(outcome);
 
   return (
@@ -41,34 +39,43 @@ function OutcomeRow({
   );
 }
 
-/** The node's name and the "Possible outcomes:" caption above the list. The caption is explicit because these are what COULD happen, not what did — an unlabelled list of verdicts on a node that has not run reads as results. */
-function ListHeading({
-  title,
-  leftEdge,
-  top,
-}: {
+interface HeadingLineProps {
+  className: string;
+  leftEdge: number;
+  textY: number;
+  label: string;
+}
+
+function HeadingLine({ className, leftEdge, textY, label }: HeadingLineProps) {
+  return (
+    <text className={className} x={leftEdge + 16} y={textY} textAnchor="start">
+      {label}
+    </text>
+  );
+}
+
+interface ListHeadingProps {
   title: string;
   leftEdge: number;
   top: number;
-}) {
+}
+
+/** The node's name and the "Possible outcomes:" caption above the list. The caption is explicit because these are what COULD happen, not what did — an unlabelled list of verdicts on a node that has not run reads as results. */
+function ListHeading({ title, leftEdge, top }: ListHeadingProps) {
   return (
     <>
-      <text
+      <HeadingLine
         className={styles.nodeId}
-        x={leftEdge + 16}
-        y={top + 22}
-        textAnchor="start"
-      >
-        {title}
-      </text>
-      <text
+        leftEdge={leftEdge}
+        textY={top + 22}
+        label={title}
+      />
+      <HeadingLine
         className={styles.possibleLabel}
-        x={leftEdge + 16}
-        y={top + 38}
-        textAnchor="start"
-      >
-        Possible outcomes:
-      </text>
+        leftEdge={leftEdge}
+        textY={top + 38}
+        label="Possible outcomes:"
+      />
     </>
   );
 }

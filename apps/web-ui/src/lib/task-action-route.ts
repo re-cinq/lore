@@ -23,15 +23,27 @@ export function taskActionRoute(
     const { id } = await params;
 
     try {
-      const result = await command(id);
-
-      if (result.status !== "ok") {
-        return upstreamError(actionLabel, result);
-      }
-
-      return NextResponse.redirect(new URL(`/tasks/${id}`, requestOrigin(req)));
+      return await runTaskCommand(id, req, { command, actionLabel });
     } catch (err) {
       return serverError(errorContext, err);
     }
   };
+}
+
+/** lore-api's refusal is forwarded as-is; success bounces back to the task page the command acted on. */
+async function runTaskCommand(
+  id: string,
+  req: Request,
+  action: {
+    command: (id: string) => Promise<ApiResult<unknown>>;
+    actionLabel: string;
+  },
+): Promise<Response> {
+  const result = await action.command(id);
+
+  if (result.status !== "ok") {
+    return upstreamError(action.actionLabel, result);
+  }
+
+  return NextResponse.redirect(new URL(`/tasks/${id}`, requestOrigin(req)));
 }

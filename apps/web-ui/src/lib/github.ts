@@ -102,38 +102,57 @@ export interface RepoMeta {
   html_url: string;
 }
 
+interface FileAt {
+  owner: string;
+  name: string;
+  path: string;
+}
+
+function allUnknown(paths: string[]): Record<string, boolean | null> {
+  const result: Record<string, boolean | null> = {};
+
+  for (const p of paths) {
+    result[p] = null;
+  }
+
+  return result;
+}
+
+/** true, false on a definitive 404, null when GitHub answered anything else. */
+async function fileExists(
+  repos: RestApi["repos"],
+  at: FileAt,
+): Promise<boolean | null> {
+  try {
+    await repos.getContent({ owner: at.owner, repo: at.name, path: at.path });
+
+    return true;
+  } catch (e) {
+    return (e as { status?: number }).status === 404 ? false : null;
+  }
+}
+
 /** Check if paths exist on repo's default branch; fail-soft. */
 export async function checkRepoFiles(
   repo: string,
   paths: string[],
 ): Promise<Record<string, boolean | null>> {
-  const result: Record<string, boolean | null> = {};
-
   if (!isGitHubConfigured()) {
-    for (const p of paths) {
-      result[p] = null;
-    }
-
-    return result;
+    return allUnknown(paths);
   }
   const { repos } = (await octokit()).rest;
   const [owner, name] = split(repo);
+  const result: Record<string, boolean | null> = {};
 
   await Promise.all(
     paths.map(async (path) => {
-      try {
-        await repos.getContent({ owner, repo: name, path });
-        result[path] = true;
-      } catch (e) {
-        result[path] = (e as { status?: number }).status === 404 ? false : null;
-      }
+      result[path] = await fileExists(repos, { owner, name, path });
     }),
   );
 
   return result;
 }
 
-/** Fetch decoded UTF-8 file content from repo's default branch; null on 404 or unconfigured. */
 function isFileWithStringContent(
   content: unknown,
 ): content is { content: string } {
@@ -152,6 +171,25 @@ function nullOnNotFound(e: unknown): null {
   throw e;
 }
 
+/** Decoded UTF-8 body, or null when the path is a directory or a non-string blob. */
+async function decodedContent(
+  repos: RestApi["repos"],
+  at: FileAt,
+): Promise<string | null> {
+  const { data: content } = await repos.getContent({
+    owner: at.owner,
+    repo: at.name,
+    path: at.path,
+  });
+
+  if (!isFileWithStringContent(content)) {
+    return null;
+  }
+
+  return Buffer.from(content.content, "base64").toString("utf-8");
+}
+
+/** Fetch decoded UTF-8 file content from repo's default branch; null on 404 or unconfigured. */
 export async function getRepoFileContent(
   repo: string,
   path: string,
@@ -163,17 +201,7 @@ export async function getRepoFileContent(
   const [owner, name] = split(repo);
 
   try {
-    const { data: content } = await repos.getContent({
-      owner,
-      repo: name,
-      path,
-    });
-
-    if (!isFileWithStringContent(content)) {
-      return null;
-    }
-
-    return Buffer.from(content.content, "base64").toString("utf-8");
+    return await decodedContent(repos, { owner, name, path });
   } catch (e) {
     return nullOnNotFound(e);
   }
@@ -274,25 +302,24 @@ async function prSignals(api: Pick<RestApi, "checks" | "pulls">, at: PrAt) {
   return { checks, reviews };
 }
 
-export async function getPRDetails(
-  repo: string,
-  prNumber: number,
-): Promise<PRDetails> {
-  const rest = (await octokit()).rest;
-  const [owner, repoName] = split(repo);
-
-  const { data: pr } = await rest.pulls.get({
-    owner,
-    repo: repoName,
-    pull_number: prNumber,
+async function fetchPr(
+  pulls: RestApi["pulls"],
+  at: { owner: string; repoName: string; prNumber: number },
+) {
+  const { data: pr } = await pulls.get({
+    owner: at.owner,
+    repo: at.repoName,
+    pull_number: at.prNumber,
   });
 
-  const { checks, reviews } = await prSignals(rest, {
-    owner,
-    repoName,
-    prNumber,
-    headSha: pr.head.sha,
-  });
+  return pr;
+}
+
+type PrPayload = Awaited<ReturnType<typeof fetchPr>>;
+type PrSignals = Awaited<ReturnType<typeof prSignals>>;
+
+function toPrDetails(pr: PrPayload, signals: PrSignals): PRDetails {
+  const { checks, reviews } = signals;
 
   return {
     number: pr.number,
@@ -306,4 +333,21 @@ export async function getPRDetails(
     reviews,
     computed_status: computeStatus(pr, checks, reviews),
   };
+}
+
+export async function getPRDetails(
+  repo: string,
+  prNumber: number,
+): Promise<PRDetails> {
+  const rest = (await octokit()).rest;
+  const [owner, repoName] = split(repo);
+  const pr = await fetchPr(rest.pulls, { owner, repoName, prNumber });
+  const signals = await prSignals(rest, {
+    owner,
+    repoName,
+    prNumber,
+    headSha: pr.head.sha,
+  });
+
+  return toPrDetails(pr, signals);
 }

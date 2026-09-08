@@ -12,21 +12,31 @@ export function resolveExclusion(
   let resolved = point;
 
   for (const disc of discs) {
-    const keepOut = disc.r + margin;
-    const dx = resolved.x - disc.x;
-    const dy = resolved.y - disc.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance < keepOut) {
-      const [dirX, dirY] = distance === 0 ? [1, 0] : [dx, dy];
-      const span = distance === 0 ? 1 : distance;
-
-      resolved = {
-        x: disc.x + (keepOut * dirX) / span,
-        y: disc.y + (keepOut * dirY) / span,
-      };
-    }
+    resolved = pushOutsideDisc(resolved, disc, margin);
   }
 
   return resolved;
+}
+
+/** Push one point out to a single disc's keep-out radius, or leave it alone. */
+function pushOutsideDisc(
+  point: { x: number; y: number },
+  disc: Disc,
+  margin: number,
+): { x: number; y: number } {
+  const keepOut = disc.r + margin;
+  const dx = point.x - disc.x;
+  const dy = point.y - disc.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  if (distance >= keepOut) {
+    return point;
+  }
+  const [dirX, dirY] = distance === 0 ? [1, 0] : [dx, dy];
+  const span = distance === 0 ? 1 : distance;
+
+  return {
+    x: disc.x + (keepOut * dirX) / span,
+    y: disc.y + (keepOut * dirY) / span,
+  };
 }

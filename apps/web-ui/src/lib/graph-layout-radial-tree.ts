@@ -65,33 +65,49 @@ function positionsFromAngles(
 
 /** Depth-first walk of the graph as a tree. The `visited` set is what makes a graph safe to treat as one: a node already placed is not descended into again, so a cycle terminates and a diamond is drawn under whichever parent reached it first. Post-order is recorded because a parent's angle is the mean of its children's, which cannot be known until they are placed. */
 function walkTree(root: string, childrenOf: Map<string, string[]>) {
-  const depth = new Map<string, number>();
-  const postOrder: string[] = [];
-  const leaves: string[] = [];
-  const visited = new Set<string>();
-  const visit = (id: string, d: number) => {
-    if (visited.has(id)) {
-      return;
-    }
-    visited.add(id);
-    depth.set(id, d);
-    const children = (childrenOf.get(id) ?? []).filter(
-      (child) => !visited.has(child),
-    );
-
-    if (children.length === 0) {
-      leaves.push(id);
-    }
-
-    for (const child of children) {
-      visit(child, d + 1);
-    }
-    postOrder.push(id);
+  const walk: TreeWalk = {
+    childrenOf,
+    depth: new Map<string, number>(),
+    postOrder: [],
+    leaves: [],
+    visited: new Set<string>(),
   };
 
-  visit(root, 0);
+  visitTreeNode(root, 0, walk);
 
-  return { depth, postOrder, leaves };
+  return { depth: walk.depth, postOrder: walk.postOrder, leaves: walk.leaves };
+}
+
+/** The mutable bookkeeping one depth-first walk threads through its recursion. */
+interface TreeWalk {
+  childrenOf: Map<string, string[]>;
+  depth: Map<string, number>;
+  postOrder: string[];
+  leaves: string[];
+  visited: Set<string>;
+}
+
+/** Place one node at depth `d`, then its unvisited children, recording it post-order. */
+function visitTreeNode(id: string, d: number, walk: TreeWalk): void {
+  const { visited, childrenOf } = walk;
+
+  if (visited.has(id)) {
+    return;
+  }
+  visited.add(id);
+  walk.depth.set(id, d);
+  const children = (childrenOf.get(id) ?? []).filter(
+    (child) => !visited.has(child),
+  );
+
+  if (children.length === 0) {
+    walk.leaves.push(id);
+  }
+
+  for (const child of children) {
+    visitTreeNode(child, d + 1, walk);
+  }
+  walk.postOrder.push(id);
 }
 
 /** Radial-tree seed positions; depth→radius, leaves spread evenly. */

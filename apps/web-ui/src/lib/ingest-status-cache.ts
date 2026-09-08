@@ -11,6 +11,32 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
+interface StatusLookup {
+  key: string;
+  repo: string;
+  fetchStatus: (repo: string) => Promise<IngestWorkflowStatus>;
+  now: () => number;
+}
+
+/** Live cache entry, or a freshly cached fetch that degrades to "aligned" on failure. */
+function cachedStatus({
+  key,
+  repo,
+  fetchStatus,
+  now,
+}: StatusLookup): Promise<IngestWorkflowStatus> {
+  const cached = cache.get(key);
+
+  if (cached && cached.expiresAt > now()) {
+    return cached.value;
+  }
+  const value = fetchStatus(repo).catch((): IngestWorkflowStatus => "aligned");
+
+  cache.set(key, { value, expiresAt: now() + INGEST_STATUS_TTL_MS });
+
+  return value;
+}
+
 /** Status for one workflow across many repos; kind namespaces cache key. */
 export async function getWorkflowStatuses(
   kind: string,
@@ -18,21 +44,10 @@ export async function getWorkflowStatuses(
   fetchStatus: (repo: string) => Promise<IngestWorkflowStatus>,
   now: () => number = Date.now,
 ): Promise<Map<string, IngestWorkflowStatus>> {
-  const entries = repos.map((repo) => {
-    const key = `${kind}::${repo}`;
-    const cached = cache.get(key);
-
-    if (cached && cached.expiresAt > now()) {
-      return { repo, value: cached.value };
-    }
-    const value = fetchStatus(repo).catch(
-      (): IngestWorkflowStatus => "aligned",
-    );
-
-    cache.set(key, { value, expiresAt: now() + INGEST_STATUS_TTL_MS });
-
-    return { repo, value };
-  });
+  const entries = repos.map((repo) => ({
+    repo,
+    value: cachedStatus({ key: `${kind}::${repo}`, repo, fetchStatus, now }),
+  }));
 
   const statuses = await Promise.all(entries.map((e) => e.value));
 

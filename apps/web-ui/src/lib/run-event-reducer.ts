@@ -203,25 +203,41 @@ export function reduceRunEvent(
     return { ...state, lastEventId: event.id };
   }
 
-  const nodeId = event.nodeId;
-  const node = state.nodeStates[nodeId] ?? IDLE;
+  return applyNodeEvent(state, event, event.nodeId);
+}
 
+/** The node-scoped fold, plus the run-wide file-touch and timeline accumulators. */
+function applyNodeEvent(
+  state: RunLiveState,
+  event: RunStreamEvent,
+  nodeId: string,
+): RunLiveState {
   return {
     lastEventId: event.id,
-    nodeStates: {
-      ...state.nodeStates,
-      [nodeId]: {
-        status: nextStatus(event, node.status),
-        iteration: event.iteration ?? node.iteration,
-        ...appendCapped(node, event),
-      },
-    },
+    nodeStates: withNodeState(state, event, nodeId),
     fileTouches: withFileTouches(
       state.fileTouches,
       event.filePaths,
       event.toolName,
     ),
     timeline: appendTimeline(state.timeline, event, nodeId),
+  };
+}
+
+function withNodeState(
+  state: RunLiveState,
+  event: RunStreamEvent,
+  nodeId: string,
+): Record<string, NodeRunState> {
+  const node = state.nodeStates[nodeId] ?? IDLE;
+
+  return {
+    ...state.nodeStates,
+    [nodeId]: {
+      status: nextStatus(event, node.status),
+      iteration: event.iteration ?? node.iteration,
+      ...appendCapped(node, event),
+    },
   };
 }
 
