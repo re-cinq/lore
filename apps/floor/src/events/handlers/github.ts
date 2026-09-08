@@ -129,9 +129,10 @@ export const issuesLabeled: EventHandler = async (params) => {
   const { dispatchLabel, dispatchDefaultType } =
     resolveIssueDispatch(repoSettings);
 
+  // not the dispatch label → no-op
   if (label !== dispatchLabel) {
     return;
-  } // not the dispatch label → no-op
+  }
 
   // The same table onboarding seeds the repo from — GIVEN and UNDERSTOOD labels must be one declaration, or a seeded label silently dispatches as the default type.
   const taskType = dispatchTypeFromLabels(issue.labels) ?? dispatchDefaultType;
@@ -224,9 +225,10 @@ export const specPrMerge: EventHandler = async (params) => {
     return;
   }
 
+  // already synced
   if (await pipeline().taskQueue.hasSpecTasksForSlug(repo, specSlug)) {
     return;
-  } // already synced
+  }
 
   const taskGroupId = await syncMergedTasks(repo, specSlug, merge_commit_sha);
 

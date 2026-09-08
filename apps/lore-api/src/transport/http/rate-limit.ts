@@ -26,9 +26,10 @@ export function bucketFor(path: string): RateBucket {
 
 export function registerRateLimit(server: Server): void {
   server.ext("onPreAuth", (request, h) => {
+    // liveness/readiness probes
     if (request.path === "/healthz") {
       return h.continue;
-    } // liveness/readiness probes
+    }
 
     if (rateLimit(bucketFor(request.path))) {
       return h.continue;

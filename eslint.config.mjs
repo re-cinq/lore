@@ -217,7 +217,11 @@ export default tseslint.config(
       // Error since 2026-09-08: the queue was one comment — a SQL fragment
       // quoted in an in-memory double — and it is reworded as prose.
       "re-lint/no-commented-out-code": "error",
-      "re-lint/no-closing-brace-comments": "warn",
+      // Error since 2026-09-08: all 12 sites were a guard's trailing comment,
+      // which now sits above the guard it explains rather than after its brace.
+      // One of the 12 is in a .mjs script this block's files glob does not
+      // reach; it is fixed for consistency, not because the rule saw it.
+      "re-lint/no-closing-brace-comments": "error",
       "re-lint/no-negative-names": "warn",
       // Error since 2026-09-08: all five sites became lookup tables keyed by
       // the tag, which a mapped type still checks for exhaustiveness.

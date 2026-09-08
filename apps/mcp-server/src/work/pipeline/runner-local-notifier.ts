@@ -134,9 +134,10 @@ export function startNotifier(
   taskTypes: string[],
   dbPool?: PgPool,
 ): void {
+  // Already running
   if (notifierInterval) {
     return;
-  } // Already running
+  }
 
   let pollCount = 0;
 

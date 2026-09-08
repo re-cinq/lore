@@ -168,9 +168,10 @@ const FILE_EXTENSIONS: Record<string, string[] | undefined> = {
 function filterFilesByStep(stepName: string, files: string[]): string[] {
   const exts = FILE_EXTENSIONS[stepName];
 
+  // For build/test steps, don't filter
   if (!exts) {
     return files;
-  } // For build/test steps, don't filter
+  }
 
   return files.filter((f) => exts.some((ext) => f.endsWith(ext)));
 }

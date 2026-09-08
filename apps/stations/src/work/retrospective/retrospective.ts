@@ -6,9 +6,10 @@ import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 async function postEpisode(input: StationInput): Promise<void> {
   const baseUrl = process.env.LORE_API_URL;
 
+  // no API wired → nothing to write (local/dev)
   if (!baseUrl) {
     return;
-  } // no API wired → nothing to write (local/dev)
+  }
   const token = process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
   const headers: Record<string, string> = {
     "content-type": "application/json",

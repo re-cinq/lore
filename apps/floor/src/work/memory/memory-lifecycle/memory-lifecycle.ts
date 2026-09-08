@@ -81,9 +81,10 @@ export async function consolidationJob(): Promise<string> {
   let consolidated = 0;
 
   for (const [repo, facts] of byRepo) {
+    // need at least 3 facts to consolidate
     if (facts.length < 3) {
       continue;
-    } // need at least 3 facts to consolidate
+    }
 
     consolidated += await consolidateRepoFacts(repo, facts);
   }
