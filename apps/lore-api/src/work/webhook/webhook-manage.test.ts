@@ -88,6 +88,7 @@ describe("ensureRepoWebhook", () => {
 
   it("returns the hook even when the ping rejects", async () => {
     const repos = octokitWith([]);
+
     repos.pingWebhook.mockRejectedValue(new Error("ping failed"));
 
     expect(await ensureRepoWebhook("o/r", URL, SECRET, EVENTS)).toEqual({
