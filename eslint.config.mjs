@@ -430,7 +430,6 @@ export default tseslint.config(
       "apps/stations/**/*.{ts,tsx}",
       "apps/cluster-agent/**/*.{ts,tsx}",
       "apps/event-router/**/*.{ts,tsx}",
-      "apps/vscode-extension/**/*.{ts,tsx}",
       "libs/shared/**/*.{ts,tsx}",
       "libs/server-core/**/*.{ts,tsx}",
     ],
