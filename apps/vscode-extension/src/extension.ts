@@ -100,6 +100,28 @@ async function readSpecSources(root: string): Promise<SpecSource[]> {
   return sources.filter((s): s is SpecSource => s !== null);
 }
 
+// The coverage half of the index, or an empty one. Every reason it can be missing — no credentials, no detectable repo, an unreachable API — leaves the LOCAL index intact: highlighting what the workspace itself knows is still useful offline, so a failure here is logged rather than surfaced.
+async function readCoverageIndex(root: string): Promise<SpecCodeIndex> {
+  const creds = resolveCredentials();
+  const repo = detectRepo(root);
+
+  if (!creds || !repo) {
+    return new Map();
+  }
+
+  try {
+    return buildCoverageIndex(
+      await new LoreClient(creds.apiUrl, creds.token).graph(repo),
+    );
+  } catch (err) {
+    console.error(
+      `[lore] coverage graph fetch failed: ${err instanceof Error ? err.message : err}`,
+    );
+
+    return new Map();
+  }
+}
+
 async function rebuildIndex(): Promise<void> {
   const root = workspaceRoot();
 
@@ -109,23 +131,7 @@ async function rebuildIndex(): Promise<void> {
 
   const local = buildLocalIndex(await readSpecSources(root));
 
-  let coverage: SpecCodeIndex = new Map();
-  const creds = resolveCredentials();
-  const repo = detectRepo(root);
-
-  if (creds && repo) {
-    try {
-      coverage = buildCoverageIndex(
-        await new LoreClient(creds.apiUrl, creds.token).graph(repo),
-      );
-    } catch (err) {
-      console.error(
-        `[lore] coverage graph fetch failed: ${err instanceof Error ? err.message : err}`,
-      );
-    }
-  }
-
-  state.index = mergeIndexes(local, coverage);
+  state.index = mergeIndexes(local, await readCoverageIndex(root));
   applyToVisibleEditors();
 }
 
@@ -225,12 +231,9 @@ async function openLocal(args: OpenLocalArgs): Promise<void> {
   editor.revealRange(target, vscode.TextEditorRevealType.InCenter);
 }
 
-/** Everything the extension owns for the window's lifetime. Pushed onto `context.subscriptions` so VS Code disposes them on deactivate — a listener left registered would keep firing against a dead index. */
-function registerSubscriptions(context: vscode.ExtensionContext): void {
-  context.subscriptions.push(
-    decImplemented,
-    decCovered,
-    lensesChanged,
+// What the reader can invoke. `toggleHighlights` reads the CURRENT state to decide the next one, so turning either kind on turns both on — one control, one meaning.
+function commandSubscriptions(): vscode.Disposable[] {
+  return [
     vscode.commands.registerCommand("lore.openLocal", openLocal),
     vscode.commands.registerCommand("lore.refresh", () => void rebuildIndex()),
     vscode.commands.registerCommand("lore.toggleHighlights", () => {
@@ -239,6 +242,12 @@ function registerSubscriptions(context: vscode.ExtensionContext): void {
       state.show = { implemented: !on, covered: !on };
       applyToVisibleEditors();
     }),
+  ];
+}
+
+// What the editor tells us. Saving a `spec.md` rebuilds the index because the file that just changed is the one the highlights are derived from; any other save is none of our business.
+function editorSubscriptions(): vscode.Disposable[] {
+  return [
     vscode.languages.registerCodeLensProvider(
       { scheme: "file", language: "markdown" },
       lensProvider,
@@ -253,6 +262,17 @@ function registerSubscriptions(context: vscode.ExtensionContext): void {
         void rebuildIndex();
       }
     }),
+  ];
+}
+
+/** Everything the extension owns for the window's lifetime. Pushed onto `context.subscriptions` so VS Code disposes them on deactivate — a listener left registered would keep firing against a dead index. */
+function registerSubscriptions(context: vscode.ExtensionContext): void {
+  context.subscriptions.push(
+    decImplemented,
+    decCovered,
+    lensesChanged,
+    ...commandSubscriptions(),
+    ...editorSubscriptions(),
   );
 }
 
