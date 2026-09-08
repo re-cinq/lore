@@ -26,21 +26,11 @@ export async function setTaskStatus(
   status: string,
   extra: Record<string, unknown> = {},
 ): Promise<void> {
-  const setClauses = ["status = $1", "updated_at = now()"];
-  const params: unknown[] = [status];
-  let idx = 2;
+  const { setClauses, params } = buildStatusAssignment(status, extra);
 
-  for (const [key, value] of Object.entries(extra)) {
-    if (!ALLOWED_TASK_COLUMNS.has(key)) {
-      continue;
-    }
-    setClauses.push(`${key} = $${idx}`);
-    params.push(value);
-    idx++;
-  }
   params.push(taskId);
   await pool.query(
-    `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idx}`,
+    `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${params.length}`,
     params,
   );
 }
@@ -52,28 +42,34 @@ export async function setTaskStatusIf(
   { expected: expectedStatus, status }: { expected: string; status: string },
   extra: Record<string, unknown> = {},
 ): Promise<boolean> {
-  const setClauses = ["status = $1", "updated_at = now()"];
-  const params: unknown[] = [status];
-  let idx = 2;
+  const { setClauses, params } = buildStatusAssignment(status, extra);
+  const idIdx = params.length + 1;
+  const expectedIdx = idIdx + 1;
 
-  for (const [key, value] of Object.entries(extra)) {
-    if (!ALLOWED_TASK_COLUMNS.has(key)) {
-      continue;
-    }
-    setClauses.push(`${key} = $${idx}`);
-    params.push(value);
-    idx++;
-  }
-  const idIdx = idx;
-
-  params.push(taskId);
-  const expectedIdx = idx + 1;
-
-  params.push(expectedStatus);
+  params.push(taskId, expectedStatus);
   const { rows } = await pool.query(
     `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idIdx} AND status = $${expectedIdx} RETURNING id`,
     params,
   );
 
   return rows.length > 0;
+}
+
+/** The shared SET list: status + updated_at plus one placeholder per allowlisted extra column, with the bind params in matching order. */
+function buildStatusAssignment(
+  status: string,
+  extra: Record<string, unknown>,
+): { setClauses: string[]; params: unknown[] } {
+  const setClauses = ["status = $1", "updated_at = now()"];
+  const params: unknown[] = [status];
+
+  for (const [key, value] of Object.entries(extra)) {
+    if (!ALLOWED_TASK_COLUMNS.has(key)) {
+      continue;
+    }
+    setClauses.push(`${key} = $${params.length + 1}`);
+    params.push(value);
+  }
+
+  return { setClauses, params };
 }

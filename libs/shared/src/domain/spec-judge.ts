@@ -1,7 +1,22 @@
 // Pure judge helpers shared by the spec-test linker and the spec-coverage prepare/persist endpoints, so both sides use the same candidate-selection and segmentation contract.
 import { createHash } from "node:crypto";
 import { isTestFile, normalizeTestName } from "./test-paths.js";
+import {
+  cosineSimilarity,
+  hasDirectoryAffinity,
+  matchedAssertion,
+  parseEmbedding,
+  specFeatureSlug,
+} from "./spec-judge-signals.js";
 import type { Chunk } from "./models/chunk.js";
+
+export {
+  cosineSimilarity,
+  hasDirectoryAffinity,
+  matchedAssertion,
+  parseEmbedding,
+  specFeatureSlug,
+};
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -82,95 +97,6 @@ const KIND_RANK: Record<MatchKind, number> = {
 
 // ── Pure helpers ─────────────────────────────────────────────────────
 
-/** `specs/local-task-runner/spec.md` → `local-task-runner`; falls back to the spec's parent directory. */
-export function specFeatureSlug(specPath: string): string | null {
-  const parts = specPath.split("/").filter(Boolean);
-  const specsIdx = parts.indexOf("specs");
-
-  if (specsIdx >= 0 && parts.length > specsIdx + 2) {
-    return parts[specsIdx + 1];
-  }
-
-  if (parts.length >= 2) {
-    return parts[parts.length - 2];
-  }
-
-  return null;
-}
-
-function significantTokens(value: string): string[] {
-  return value
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((token) => token.length >= 4);
-}
-
-/** A test shares a feature directory with the spec when it overlaps at least half the spec slug's significant tokens. */
-export function hasDirectoryAffinity(
-  specPath: string,
-  testPath: string,
-): boolean {
-  const slug = specFeatureSlug(specPath);
-
-  if (!slug) {
-    return false;
-  }
-  const slugTokens = new Set(significantTokens(slug));
-
-  if (slugTokens.size === 0) {
-    return false;
-  }
-  const testTokens = new Set(significantTokens(testPath));
-  let overlap = 0;
-
-  for (const token of slugTokens) {
-    if (testTokens.has(token)) {
-      overlap++;
-    }
-  }
-
-  return overlap >= Math.max(1, Math.ceil(slugTokens.size / 2));
-}
-
-export function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length === 0 || a.length !== b.length) {
-    return 0;
-  }
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-
-  if (normA === 0 || normB === 0) {
-    return 0;
-  }
-
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-/** First assertion symbol the test chunk literally references, or null. */
-export function matchedAssertion(
-  content: string,
-  assertions: Assertion[],
-): string | null {
-  const lower = content.toLowerCase();
-
-  for (const assertion of assertions) {
-    const name = assertion.name.toLowerCase();
-
-    if (name.length >= 3 && lower.includes(name)) {
-      return assertion.name;
-    }
-  }
-
-  return null;
-}
-
 /** Normalized `describe › it` name from a chunk's AST metadata, or null when it names no test symbol. */
 export function deriveTestName(
   metadata: Record<string, unknown> | null,
@@ -189,27 +115,23 @@ export function deriveTestName(
   return normalizeTestName(describe, it);
 }
 
-/** pgvector returns embeddings as `"[0.1,0.2,...]"`; parse defensively. */
-export function parseEmbedding(raw: unknown): number[] | null {
-  if (Array.isArray(raw)) {
-    return raw as number[];
-  }
-
-  if (typeof raw !== "string" || raw.length === 0) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 function candidateKey(link: { test_file: string; test_name: string }): string {
   return `${link.test_file} ${link.test_name}`;
+}
+
+/** True when both sides carry an embedding and their cosine similarity clears `threshold`. */
+function embeddingMatches(
+  spec: SpecInput,
+  chunk: TestChunk,
+  threshold: number,
+): boolean {
+  const { embedding } = spec;
+
+  return Boolean(
+    embedding &&
+    chunk.embedding &&
+    cosineSimilarity(embedding, chunk.embedding) >= threshold,
+  );
 }
 
 /** The strongest pre-filter signal linking a test chunk to the spec, or null. */
@@ -227,15 +149,27 @@ function matchKindFor(
     return "directory";
   }
 
-  if (
-    spec.embedding &&
-    chunk.embedding &&
-    cosineSimilarity(spec.embedding, chunk.embedding) >= threshold
-  ) {
+  if (embeddingMatches(spec, chunk, threshold)) {
     return "embedding";
   }
 
   return null;
+}
+
+/** The candidate row for a matched chunk; the symbol is kept only for an assertion match. */
+function candidateFrom(
+  chunk: TestChunk,
+  kind: MatchKind,
+  symbol: string | null,
+): JudgeCandidate {
+  return {
+    test_file: chunk.file_path,
+    test_name: chunk.test_name,
+    test_line: chunk.test_line,
+    symbol: kind === "assertion" ? symbol : null,
+    match_kind: kind,
+    content: chunk.content,
+  };
 }
 
 /** The candidate for one test chunk, or null when it isn't a test or matches none of the three signals. */
@@ -256,14 +190,7 @@ function buildCandidate(
     return null;
   }
 
-  return {
-    test_file: chunk.file_path,
-    test_name: chunk.test_name,
-    test_line: chunk.test_line,
-    symbol: kind === "assertion" ? symbol : null,
-    match_kind: kind,
-    content: chunk.content,
-  };
+  return candidateFrom(chunk, kind, symbol);
 }
 
 /** Keeps `candidate` in `byKey` only if it beats (or there is no) existing entry for the same test. */
@@ -282,15 +209,13 @@ function upsertStrongestCandidate(
   }
 }
 
-// Pre-filters test chunks by three signals (assertion/directory/embedding), dedupes by (test_file, test_name) keeping the strongest, caps at maxCandidates, and flags `truncated` so the caller can log drops instead of silently under-reporting coverage.
-export function selectCandidates(
-  spec: SpecInput,
-  assertions: Assertion[],
+/** One strongest candidate per (test_file, test_name), keyed for dedupe. */
+function strongestByTest(
   codeChunks: TestChunk[],
-  options: { maxCandidates?: number; embeddingThreshold?: number } = {},
-): CandidateSelection {
-  const maxCandidates = options.maxCandidates ?? MAX_CANDIDATES_PER_SPEC;
-  const threshold = options.embeddingThreshold ?? EMBEDDING_THRESHOLD;
+  assertions: Assertion[],
+  spec: SpecInput,
+  threshold: number,
+): Map<string, JudgeCandidate> {
   const byKey = new Map<string, JudgeCandidate>();
 
   for (const chunk of codeChunks) {
@@ -301,6 +226,19 @@ export function selectCandidates(
     }
   }
 
+  return byKey;
+}
+
+// Pre-filters test chunks by three signals (assertion/directory/embedding), dedupes by (test_file, test_name) keeping the strongest, caps at maxCandidates, and flags `truncated` so the caller can log drops instead of silently under-reporting coverage.
+export function selectCandidates(
+  spec: SpecInput,
+  assertions: Assertion[],
+  codeChunks: TestChunk[],
+  options: { maxCandidates?: number; embeddingThreshold?: number } = {},
+): CandidateSelection {
+  const maxCandidates = options.maxCandidates ?? MAX_CANDIDATES_PER_SPEC;
+  const threshold = options.embeddingThreshold ?? EMBEDDING_THRESHOLD;
+  const byKey = strongestByTest(codeChunks, assertions, spec, threshold);
   const ranked = [...byKey.values()].sort(
     (a, b) => KIND_RANK[b.match_kind] - KIND_RANK[a.match_kind],
   );

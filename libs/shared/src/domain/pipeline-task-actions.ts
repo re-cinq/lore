@@ -11,6 +11,8 @@ import {
   type RetriedTask,
 } from "./pipeline-task-core.js";
 
+type LoadedTask = NonNullable<Awaited<ReturnType<typeof getTask>>>;
+
 export async function retryTask(
   pool: PgPool,
   taskId: string,
@@ -23,19 +25,28 @@ export async function retryTask(
     Error,
     `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
   );
-  const result: CreatedTask = await createTask(pool, {
-    description: task.description,
-    taskType: task.task_type,
-    targetRepo: task.target_repo,
-    createdBy: `retry:${task.created_by}`,
-    contextBundle: { ...(task.context_bundle || {}), retry_of: taskId },
-  });
+  const result = await createRetryTask(pool, task, taskId);
 
   await updateTaskStatus(pool, taskId, "retried", {
     retried_as: result.task_id,
   });
 
   return { task_id: result.task_id, status: result.status, retry_of: taskId };
+}
+
+/** The replacement task: same description, type and repo, attributed to `retry:<original creator>` and carrying `retry_of` in its context bundle. */
+async function createRetryTask(
+  pool: PgPool,
+  task: LoadedTask,
+  taskId: string,
+): Promise<CreatedTask> {
+  return createTask(pool, {
+    description: task.description,
+    taskType: task.task_type,
+    targetRepo: task.target_repo,
+    createdBy: `retry:${task.created_by}`,
+    contextBundle: { ...(task.context_bundle || {}), retry_of: taskId },
+  });
 }
 
 export async function cancelTask(
@@ -69,6 +80,17 @@ export async function escalateTask(
     Error,
     `Can only escalate pending tasks, current status: ${task.status}`,
   );
+  await applyEscalation(pool, task, taskId);
+
+  return { task_id: taskId, priority: "immediate" };
+}
+
+/** Raises the priority column and logs a status-preserving `run-now` event recording the priority it replaced. */
+async function applyEscalation(
+  pool: PgPool,
+  task: LoadedTask,
+  taskId: string,
+): Promise<void> {
   await pool.query(
     `UPDATE pipeline.tasks SET priority = 'immediate', updated_at = now() WHERE id = $1`,
     [taskId],
@@ -82,37 +104,6 @@ export async function escalateTask(
       previous_priority: task.priority,
     },
   );
-
-  return { task_id: taskId, priority: "immediate" };
-}
-
-/** The follow-up task, at `immediate` priority and pointed at the SAME branch and PR — a revision continues the existing work rather than opening a second PR beside it. Everything but a feature-request revises as an `implementation`: the feedback is on code, whatever produced it. */
-async function insertRevisionTask(
-  pool: PgPool,
-  task: NonNullable<Awaited<ReturnType<typeof getTask>>>,
-  taskId: string,
-  feedback: string,
-): Promise<string> {
-  const { rows } = await pool.query<{ id: string }>(
-    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
-     VALUES ($1, $2, $3, $4, $5, 'immediate') RETURNING id`,
-    [
-      `Revise based on feedback: ${feedback.substring(0, 200)}`,
-      task.task_type === "feature-request"
-        ? "feature-request"
-        : "implementation",
-      task.target_repo,
-      "ui-feedback",
-      JSON.stringify({
-        parent_task_id: taskId,
-        branch: task.target_branch,
-        pr_number: task.pr_number,
-        feedback,
-      }),
-    ],
-  );
-
-  return rows[0].id;
 }
 
 /** Queues a revision of a task from human feedback: a follow-up task on the SAME branch/PR at immediate priority, with the parent moved to `revision-requested`. */
@@ -128,6 +119,59 @@ export async function reviseTask(
 
   const revisionTaskId = await insertRevisionTask(pool, task, taskId, feedback);
 
+  await recordRevisionRequested(pool, task, {
+    taskId,
+    feedback,
+    revisionTaskId,
+  });
+
+  return { task_id: taskId, revision_task_id: revisionTaskId };
+}
+
+/** The follow-up task, at `immediate` priority and pointed at the SAME branch and PR — a revision continues the existing work rather than opening a second PR beside it. */
+async function insertRevisionTask(
+  pool: PgPool,
+  task: LoadedTask,
+  taskId: string,
+  feedback: string,
+): Promise<string> {
+  const { rows } = await pool.query<{ id: string }>(
+    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
+     VALUES ($1, $2, $3, $4, $5, 'immediate') RETURNING id`,
+    revisionTaskParams(task, taskId, feedback),
+  );
+
+  return rows[0].id;
+}
+
+/** Everything but a feature-request revises as an `implementation`: the feedback is on code, whatever produced it. */
+function revisionTaskParams(
+  task: LoadedTask,
+  taskId: string,
+  feedback: string,
+): unknown[] {
+  return [
+    `Revise based on feedback: ${feedback.substring(0, 200)}`,
+    task.task_type === "feature-request" ? "feature-request" : "implementation",
+    task.target_repo,
+    "ui-feedback",
+    JSON.stringify({
+      parent_task_id: taskId,
+      branch: task.target_branch,
+      pr_number: task.pr_number,
+      feedback,
+    }),
+  ];
+}
+
+/** Logs the feedback event against the parent task and moves it to `revision-requested`. */
+async function recordRevisionRequested(
+  pool: PgPool,
+  task: LoadedTask,
+  revision: { taskId: string; feedback: string; revisionTaskId: string },
+): Promise<void> {
+  const { taskId, feedback, revisionTaskId } = revision;
+
   await recordEvent(
     pool,
     taskId,
@@ -141,8 +185,6 @@ export async function reviseTask(
     `UPDATE pipeline.tasks SET status = 'revision-requested', updated_at = now() WHERE id = $1`,
     [taskId],
   );
-
-  return { task_id: taskId, revision_task_id: revisionTaskId };
 }
 
 export async function markTaskMerged(

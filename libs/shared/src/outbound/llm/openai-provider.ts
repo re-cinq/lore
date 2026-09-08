@@ -68,28 +68,40 @@ export class OpenAiProvider implements LlmProvider {
 
     enforceTrue(apiKey, Error, "OPENAI_API_KEY not set");
     const doFetch = this.opts.fetchFn ?? fetch;
-    const res = await doFetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const res = await doFetch(
+      "https://api.openai.com/v1/chat/completions",
+      chatInit(apiKey, {
         model: this.opts.model,
         messages: chatMessages(systemPrompt, prompt),
         temperature: 0,
       }),
-    });
+    );
 
     if (!res.ok) {
       throw new Error(`OpenAI API error: ${res.status} ${res.statusText}`);
     }
-    const json = (await res.json()) as {
-      choices: Array<{ message: { content: string } }>;
-    };
 
-    const [choice] = json.choices;
-
-    return choice.message.content;
+    return await firstChoiceContent(res);
   }
+}
+
+function chatInit(apiKey: string, body: Record<string, unknown>): RequestInit {
+  return {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  };
+}
+
+async function firstChoiceContent(res: Response): Promise<string> {
+  const json = (await res.json()) as {
+    choices: Array<{ message: { content: string } }>;
+  };
+
+  const [choice] = json.choices;
+
+  return choice.message.content;
 }

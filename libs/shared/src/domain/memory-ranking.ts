@@ -29,30 +29,42 @@ export function rrfMerge(lists: RankedItem[][]): MemorySearchResult[] {
   const fused = new Map<string, MemorySearchResult>();
 
   for (const list of lists) {
-    list.forEach((ranked, index) => {
-      const rank = index + 1;
-      const contribution = 1 / (RRF_K + rank);
-      const dedupeKey = fusionKey(ranked);
-      const existing = fused.get(dedupeKey);
-
-      if (existing) {
-        existing.score += contribution;
-
-        return;
-      }
-      fused.set(dedupeKey, {
-        key: ranked.key,
-        value: ranked.value,
-        agent_id: ranked.agent_id,
-        source: ranked.source,
-        id: ranked.id,
-        confidence: ranked.confidence,
-        score: contribution,
-      });
-    });
+    list.forEach((ranked, index) =>
+      accumulateRank(fused, ranked, 1 / (RRF_K + index + 1)),
+    );
   }
 
   return [...fused.values()].sort((a, b) => b.score - a.score);
+}
+
+/** Folds one list's reciprocal-rank contribution into the fused map, creating the entry on first sight. */
+function accumulateRank(
+  fused: Map<string, MemorySearchResult>,
+  ranked: RankedItem,
+  contribution: number,
+): void {
+  const dedupeKey = fusionKey(ranked);
+  const existing = fused.get(dedupeKey);
+
+  if (existing) {
+    existing.score += contribution;
+
+    return;
+  }
+  fused.set(dedupeKey, fusedEntry(ranked, contribution));
+}
+
+/** A ranked item widened to a search result by attaching its running fusion score. */
+function fusedEntry(ranked: RankedItem, score: number): MemorySearchResult {
+  return {
+    key: ranked.key,
+    value: ranked.value,
+    agent_id: ranked.agent_id,
+    source: ranked.source,
+    id: ranked.id,
+    confidence: ranked.confidence,
+    score,
+  };
 }
 
 // ── Transfer scoring for cross-repo facts ───────────────────────────
@@ -108,15 +120,10 @@ export function diversify(
   const sourceCounts = new Map<string, number>();
   const out: MemorySearchResult[] = [];
 
-  for (const r of sorted) {
-    const sourceKey = `${r.agent_id}::${r.source}`;
-    const count = sourceCounts.get(sourceKey) ?? 0;
-
-    if (count >= maxPerSource) {
-      continue;
+  for (const result of sorted) {
+    if (takeUnderCap(sourceCounts, result, maxPerSource)) {
+      out.push(result);
     }
-    sourceCounts.set(sourceKey, count + 1);
-    out.push(r);
 
     if (out.length >= limit) {
       break;
@@ -124,6 +131,23 @@ export function diversify(
   }
 
   return out;
+}
+
+/** Counts one result against its agent_id::source bucket and reports whether it still fits under the cap. */
+function takeUnderCap(
+  sourceCounts: Map<string, number>,
+  result: MemorySearchResult,
+  maxPerSource: number,
+): boolean {
+  const sourceKey = `${result.agent_id}::${result.source}`;
+  const count = sourceCounts.get(sourceKey) ?? 0;
+
+  if (count >= maxPerSource) {
+    return false;
+  }
+  sourceCounts.set(sourceKey, count + 1);
+
+  return true;
 }
 
 function decayStrength(
@@ -202,13 +226,23 @@ export function scoreImportance(
   now: number,
 ): number {
   const strength = decayStrength(memory, now);
-  const score =
-    Math.round(strength * 10) +
+  const score = Math.round(strength * 10) + importanceAdjustments(memory);
+
+  return Math.max(0, Math.min(10, score));
+}
+
+/** The additive corrections layered on top of the decayed strength: value length, key prefix, key topic, retrieval count and confidence tier. */
+function importanceAdjustments(memory: {
+  key: string;
+  value: string;
+  retrieval_count?: number | null;
+  confidence?: string | null;
+}): number {
+  return (
     valueLengthAdjustment(memory.value) +
     keyPrefixAdjustment(memory.key) +
     keyTopicAdjustment(memory.key) +
     retrievalAdjustment(memory.retrieval_count || 0) +
-    confidenceAdjustment(memory.confidence);
-
-  return Math.max(0, Math.min(10, score));
+    confidenceAdjustment(memory.confidence)
+  );
 }

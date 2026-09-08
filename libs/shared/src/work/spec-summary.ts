@@ -81,20 +81,21 @@ type SpecChunk = Pick<Chunk, "content"> & {
   chunk_index?: number | null;
 };
 
+/** Chunk-index order, legacy chunks without an index sorted last and broken by ingest time. */
+function byChunkIndexThenIngest(a: SpecChunk, b: SpecChunk): number {
+  const aIndex = a.chunk_index ?? Number.POSITIVE_INFINITY;
+  const bIndex = b.chunk_index ?? Number.POSITIVE_INFINITY;
+
+  if (aIndex !== bIndex) {
+    return aIndex < bIndex ? -1 : 1;
+  }
+
+  return new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime();
+}
+
 /** Joins a spec's chunks in `metadata.chunk_index` order (falling back to ingest order for legacy chunks, sorted last), de-duplicating identical content since re-ingests insert new rows rather than upserting. */
 export function reassembleSpec(chunks: SpecChunk[]): string {
-  const ordered = [...chunks].sort((a, b) => {
-    const aIndex = a.chunk_index ?? Number.POSITIVE_INFINITY;
-    const bIndex = b.chunk_index ?? Number.POSITIVE_INFINITY;
-
-    if (aIndex !== bIndex) {
-      return aIndex < bIndex ? -1 : 1;
-    }
-
-    return (
-      new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime()
-    );
-  });
+  const ordered = [...chunks].sort(byChunkIndexThenIngest);
   const seen = new Set<string>();
   const parts: string[] = [];
 

@@ -34,6 +34,31 @@ export const MAX_ESCALATION_ATTEMPTS = 3;
 export const escalationSubject = (taskId: string): string =>
   `escalate:${taskId}`;
 
+/** True when a line is already open for this task, or it has already been reported its full allowance of times. */
+async function alreadyEscalated(
+  task: EscalationTask,
+  subjectKey: string,
+  deps: StartEscalationDeps,
+): Promise<boolean> {
+  if (await deps.findOpenBySubject(task.repo, subjectKey)) {
+    return true;
+  }
+  const attempts = await deps.countBySubject(task.repo, subjectKey);
+
+  return attempts >= MAX_ESCALATION_ATTEMPTS;
+}
+
+function escalationArgs(
+  task: EscalationTask,
+  cause: EscalationCause,
+): Record<string, unknown> {
+  return {
+    branch_name: task.branch,
+    reason: cause.reason,
+    diagnostic: cause.diagnostic,
+  };
+}
+
 export async function startEscalationLine(
   task: EscalationTask,
   cause: EscalationCause,
@@ -41,14 +66,7 @@ export async function startEscalationLine(
 ): Promise<string | null> {
   const subjectKey = escalationSubject(task.id);
 
-  if (await deps.findOpenBySubject(task.repo, subjectKey)) {
-    return null;
-  }
-
-  if (
-    (await deps.countBySubject(task.repo, subjectKey)) >=
-    MAX_ESCALATION_ATTEMPTS
-  ) {
+  if (await alreadyEscalated(task, subjectKey, deps)) {
     return null;
   }
 
@@ -59,10 +77,6 @@ export async function startEscalationLine(
     // No working tree involved; branch doubles as the Issue link + overlap-guard key.
     branch: subjectKey,
     subjectKey,
-    args: {
-      branch_name: task.branch,
-      reason: cause.reason,
-      diagnostic: cause.diagnostic,
-    },
+    args: escalationArgs(task, cause),
   });
 }

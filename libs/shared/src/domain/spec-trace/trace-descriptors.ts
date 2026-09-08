@@ -16,29 +16,40 @@ function repoRelative(absolutePath: string, pkg: string): string {
   return at === -1 ? absolutePath : absolutePath.slice(at + 1);
 }
 
+/** One descriptor for a `vitest list` entry, or null when it lives outside `${pkg}/src/` (e.g. stale `dist/`). */
+function descriptorForEntry(
+  entry: VitestListEntry,
+  pkg: string,
+): TestDescriptor | null {
+  const file = repoRelative(entry.file, pkg);
+
+  if (!file.startsWith(`${pkg}/src/`)) {
+    return null;
+  }
+  const segments = entry.name.split(" > ");
+  const suite = segments.slice(0, -1);
+
+  return {
+    id: `${file}::${entry.name}`,
+    name: entry.name,
+    file,
+    ...(suite.length > 0 ? { suite } : {}),
+  };
+}
+
 /** Maps `vitest list` entries to per-`it` descriptors: ` > `-joined name splits into `suite` + leaf `it`, `id` is `${file}::${name}`; entries outside `${pkg}/src/` (e.g. stale `dist/`) are dropped. */
 export function descriptorsFromVitestList(
   entries: VitestListEntry[],
   options: { pkg: string },
 ): TestDescriptor[] {
-  const { pkg } = options;
   const descriptors: TestDescriptor[] = [];
 
   for (const entry of entries) {
-    const file = repoRelative(entry.file, pkg);
+    const descriptor = descriptorForEntry(entry, options.pkg);
 
-    if (!file.startsWith(`${pkg}/src/`)) {
-      continue;
+    if (descriptor) {
+      descriptors.push(descriptor);
     }
-    const segments = entry.name.split(" > ");
-    const suite = segments.slice(0, -1);
-
-    descriptors.push({
-      id: `${file}::${entry.name}`,
-      name: entry.name,
-      file,
-      ...(suite.length > 0 ? { suite } : {}),
-    });
   }
 
   return descriptors;

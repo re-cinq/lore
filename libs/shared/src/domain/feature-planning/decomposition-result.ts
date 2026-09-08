@@ -70,10 +70,7 @@ function taskPhase(t: Record<string, unknown>): number {
   return typeof t.phase === "number" ? t.phase : 0;
 }
 
-function normalizeTaskFromObject(
-  t: Record<string, unknown>,
-  id: string,
-): DecompTask {
+function requiredTaskDescription(t: Record<string, unknown>): string {
   const description = taskDescription(t);
 
   enforceTrue(
@@ -81,13 +78,15 @@ function normalizeTaskFromObject(
     Error,
     "decomposition: task description is required",
   );
-  const task: DecompTask = {
-    id: taskId(t, id),
-    description,
-    depends_on: asStringList(t.depends_on ?? t.dependsOn),
-    parallelizable: t.parallelizable === true,
-    phase: taskPhase(t),
-  };
+
+  return description;
+}
+
+/** The fields a task may omit entirely — set only when present, because an explicit `undefined` reads back as a declared-but-empty field. */
+function applyTaskOptionals(
+  task: DecompTask,
+  t: Record<string, unknown>,
+): void {
   const filePath = taskFilePath(t);
 
   if (filePath) {
@@ -98,6 +97,21 @@ function normalizeTaskFromObject(
   if (labels.length) {
     task.labels = labels;
   }
+}
+
+function normalizeTaskFromObject(
+  t: Record<string, unknown>,
+  id: string,
+): DecompTask {
+  const task: DecompTask = {
+    id: taskId(t, id),
+    description: requiredTaskDescription(t),
+    depends_on: asStringList(t.depends_on ?? t.dependsOn),
+    parallelizable: t.parallelizable === true,
+    phase: taskPhase(t),
+  };
+
+  applyTaskOptionals(task, t);
 
   return task;
 }
@@ -132,16 +146,22 @@ function applyStoryLabels(story: UserStory, s: Record<string, unknown>): void {
   }
 }
 
-function normalizeStory(raw: unknown): UserStory {
+function requiredStoryTitle(raw: unknown): string {
   enforceTrue(
     !(!raw || typeof raw !== "object" || Array.isArray(raw)),
     Error,
     "decomposition: each story must be an object",
   );
-  const s = raw as Record<string, unknown>;
-  const title = storyTitle(s);
+  const title = storyTitle(raw as Record<string, unknown>);
 
   enforceTrue(title, Error, "decomposition: each story needs a title");
+
+  return title;
+}
+
+function normalizeStory(raw: unknown): UserStory {
+  const title = requiredStoryTitle(raw);
+  const s = raw as Record<string, unknown>;
   const tasksRaw = Array.isArray(s.tasks) ? s.tasks : [];
 
   const story: UserStory = {

@@ -92,34 +92,59 @@ export function onboardTaskDescription(repo: string): string {
   );
 }
 
+function inFlightTaskBlock(
+  repo: string,
+  state: OnboardState,
+): OnboardDecision | null {
+  if (!state.inFlightTaskId) {
+    return null;
+  }
+
+  return {
+    allowed: false,
+    block: "in-flight",
+    taskId: state.inFlightTaskId,
+    message:
+      `An onboard task for ${repo} is already in flight — wait for it to ` +
+      `finish instead of queueing a second one.`,
+  };
+}
+
+function openPrBlock(
+  repo: string,
+  state: OnboardState,
+): OnboardDecision | null {
+  if (!state.openOnboardingPrUrl) {
+    return null;
+  }
+
+  return {
+    allowed: false,
+    block: "pr-open",
+    taskId: null,
+    message:
+      `${repo} already has an onboarding PR waiting to be merged: ` +
+      state.openOnboardingPrUrl,
+  };
+}
+
 /** The two blocks that hold even for a deliberate re-onboard: work already running, and work already waiting for a human. Both mean an agent is (or was) writing this scaffolding, and a second one would fight it. */
 function inFlightBlock(
   repo: string,
   state: OnboardState,
 ): OnboardDecision | null {
-  if (state.inFlightTaskId) {
-    return {
-      allowed: false,
-      block: "in-flight",
-      taskId: state.inFlightTaskId,
-      message:
-        `An onboard task for ${repo} is already in flight — wait for it to ` +
-        `finish instead of queueing a second one.`,
-    };
-  }
+  return inFlightTaskBlock(repo, state) ?? openPrBlock(repo, state);
+}
 
-  if (state.openOnboardingPrUrl) {
-    return {
-      allowed: false,
-      block: "pr-open",
-      taskId: null,
-      message:
-        `${repo} already has an onboarding PR waiting to be merged: ` +
-        state.openOnboardingPrUrl,
-    };
-  }
-
-  return null;
+function alreadyOnboardedBlock(repo: string): OnboardDecision {
+  return {
+    allowed: false,
+    block: "already-onboarded",
+    taskId: null,
+    message:
+      `${repo} is already onboarded. Use "Re-run onboarding" on the repo ` +
+      `page to regenerate missing scaffolding.`,
+  };
 }
 
 // `reonboard` (the repo-page button) may target an already-onboarded repo but still respects the in-flight/open-PR blocks — either bypass would put a second agent on scaffolding one is already writing.
@@ -138,12 +163,5 @@ export function decideOnboard(
     return { allowed: true };
   }
 
-  return {
-    allowed: false,
-    block: "already-onboarded",
-    taskId: null,
-    message:
-      `${repo} is already onboarded. Use "Re-run onboarding" on the repo ` +
-      `page to regenerate missing scaffolding.`,
-  };
+  return alreadyOnboardedBlock(repo);
 }

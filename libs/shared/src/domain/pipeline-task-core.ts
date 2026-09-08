@@ -67,25 +67,18 @@ function buildInsertTaskSql(hasGroup: boolean): string {
        RETURNING id, status, priority, created_at`;
 }
 
-interface InsertTaskParams {
-  description: string;
-  taskType: string;
-  repo: string | undefined;
-  createdBy: string;
-  contextJson: string | null;
-  priority: string;
-  taskGroupId?: string;
-}
-
-function buildInsertTaskParams(p: InsertTaskParams): unknown[] {
+function buildInsertTaskParams(
+  input: CreateTaskInput,
+  resolved: ResolvedTaskFields,
+): unknown[] {
   return [
-    p.description,
-    p.taskType,
-    p.repo,
-    p.createdBy,
-    p.contextJson,
-    p.priority,
-    ...(p.taskGroupId ? [p.taskGroupId] : []),
+    input.description,
+    resolved.taskType,
+    input.targetRepo,
+    resolved.createdBy,
+    input.contextBundle ? JSON.stringify(input.contextBundle) : null,
+    resolved.priority,
+    ...(input.taskGroupId ? [input.taskGroupId] : []),
   ];
 }
 
@@ -133,17 +126,7 @@ async function insertTaskRow(
 ): Promise<InsertedTaskRow> {
   const result = await pool.query<InsertedTaskRow>(
     buildInsertTaskSql(Boolean(input.taskGroupId)),
-    buildInsertTaskParams({
-      description: input.description,
-      taskType: resolved.taskType,
-      repo: input.targetRepo,
-      createdBy: resolved.createdBy,
-      contextJson: input.contextBundle
-        ? JSON.stringify(input.contextBundle)
-        : null,
-      priority: resolved.priority,
-      taskGroupId: input.taskGroupId,
-    }),
+    buildInsertTaskParams(input, resolved),
   );
 
   return result.rows[0];
@@ -172,23 +155,39 @@ export async function createTask(
 ): Promise<CreatedTask> {
   const taskType = input.taskType ?? "general";
   const createdBy = input.createdBy ?? "ui";
-  const resolvedPriority = resolvePriority(input.priority);
+  const priority = resolvePriority(input.priority);
+  const resolved = { taskType, createdBy, priority };
 
   await enforceCreatable(pool, input, taskType);
-  const task = await insertTaskRow(pool, input, {
-    taskType,
-    createdBy,
-    priority: resolvedPriority,
-  });
+  const task = await insertTaskRow(pool, input, resolved);
 
-  await saveContextRefs(pool, task.id, input.contextRefs);
+  await recordTaskCreated(pool, task.id, { input, resolved });
+
+  return createdTaskResponse(task, taskType);
+}
+
+/** Post-insert bookkeeping: the optional context_refs write, then the null → pending transition event. */
+async function recordTaskCreated(
+  pool: PgPool,
+  taskId: string,
+  created: { input: CreateTaskInput; resolved: ResolvedTaskFields },
+): Promise<void> {
+  const { input, resolved } = created;
+
+  await saveContextRefs(pool, taskId, input.contextRefs);
   await recordEvent(
     pool,
-    task.id,
+    taskId,
     { from: null, to: "pending" },
-    { created_by: createdBy, priority: resolvedPriority },
+    { created_by: resolved.createdBy, priority: resolved.priority },
   );
+}
 
+/** The createTask response body: the columns the database decided, with the row's id renamed to task_id. */
+function createdTaskResponse(
+  task: InsertedTaskRow,
+  taskType: string,
+): CreatedTask {
   return {
     task_id: task.id,
     task_type: taskType,

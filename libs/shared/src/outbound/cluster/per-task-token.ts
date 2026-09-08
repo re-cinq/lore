@@ -74,6 +74,22 @@ function taskResources(
   };
 }
 
+// Subsystem rejects promptless AgentDef at admission (ai-agent-subsystem#155); fail here with task id known.
+function enforceRecipePrompt(
+  catalog: AgentDefinition,
+  spec: LoreTaskSpec,
+): string {
+  const prompt = catalog.spec?.prompt;
+
+  enforceTrue(
+    prompt,
+    Error,
+    `catalog recipe ${catalog.metadata?.name} has no prompt; task ${spec.taskId}`,
+  );
+
+  return prompt;
+}
+
 /** Clone catalog AgentDef per-task: rename, label with task id, add repo with token-secret (for subsystem init); recipe preserved. */
 export function injectRepoToken(
   catalog: AgentDefinition,
@@ -81,12 +97,7 @@ export function injectRepoToken(
   tokenKey: string,
   name: string,
 ): AgentDefinition {
-  // Subsystem rejects promptless AgentDef at admission (ai-agent-subsystem#155); fail here with task id known.
-  enforceTrue(
-    catalog.spec?.prompt,
-    Error,
-    `catalog recipe ${catalog.metadata?.name} has no prompt; task ${spec.taskId}`,
-  );
+  const prompt = enforceRecipePrompt(catalog, spec);
 
   return {
     ...catalog,
@@ -96,6 +107,7 @@ export function injectRepoToken(
     },
     spec: {
       ...catalog.spec,
+      prompt,
       resources: taskResources(catalog, spec, tokenKey),
     },
   };

@@ -210,28 +210,32 @@ function sectionsOf(spec: SpecRow): TraceSection[] {
     .sort((left, right) => left.ordinal - right.ordinal);
 }
 
+function traceStatementOf(
+  st: NonNullable<SpecRow["stmts"]>[number],
+): TraceStatement {
+  const links = linksOf(st);
+
+  return {
+    uid: st.uid,
+    ordinal: st["Statement.ordinal"] ?? 0,
+    text: (st["Statement.text"] ?? "").trim(),
+    kind: st["Statement.kind"],
+    testability: st["Statement.testability"],
+    sectionUid: st.sec?.uid,
+    state: stateOf(
+      st["Statement.testability"],
+      links.some((l) => l.kind === "test"),
+    ),
+    drifted: st["Statement.drifted"],
+    violated: st["Statement.violated"],
+    links,
+  };
+}
+
 function statementsFromStatements(
   stmts: NonNullable<SpecRow["stmts"]>,
 ): TraceStatement[] {
-  return stmts.map((st) => {
-    const links = linksOf(st);
-
-    return {
-      uid: st.uid,
-      ordinal: st["Statement.ordinal"] ?? 0,
-      text: (st["Statement.text"] ?? "").trim(),
-      kind: st["Statement.kind"],
-      testability: st["Statement.testability"],
-      sectionUid: st.sec?.uid,
-      state: stateOf(
-        st["Statement.testability"],
-        links.some((l) => l.kind === "test"),
-      ),
-      drifted: st["Statement.drifted"],
-      violated: st["Statement.violated"],
-      links,
-    };
-  });
+  return stmts.map(traceStatementOf);
 }
 
 function statementsFromAcceptanceCriteria(

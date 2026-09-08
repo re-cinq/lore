@@ -33,18 +33,28 @@ export function fakePgPool(responses: FakePgPoolResponse[] = []): {
       params?: unknown[],
     ): Promise<{ rows: T[]; rowCount: number }> {
       calls.push({ text, params });
-      const response = responses[calls.length - 1];
 
-      enforceTrue(
-        response,
-        Error,
-        `fakePgPool: unexpected call ${calls.length} — only ${responses.length} response(s) scripted.\nSQL: ${text}`,
-      );
-      const rows = (response.rows ?? []) as T[];
-
-      return { rows, rowCount: response.rowCount ?? rows.length };
+      return scriptedResult<T>(responses, calls.length, text);
     },
   };
 
   return { pool, calls };
+}
+
+/** The nth scripted response as a query result; a call past the end of the script throws with the offending SQL. */
+function scriptedResult<T>(
+  responses: FakePgPoolResponse[],
+  callNumber: number,
+  text: string,
+): { rows: T[]; rowCount: number } {
+  const response = responses[callNumber - 1];
+
+  enforceTrue(
+    response,
+    Error,
+    `fakePgPool: unexpected call ${callNumber} — only ${responses.length} response(s) scripted.\nSQL: ${text}`,
+  );
+  const rows = (response.rows ?? []) as T[];
+
+  return { rows, rowCount: response.rowCount ?? rows.length };
 }

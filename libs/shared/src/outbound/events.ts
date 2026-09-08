@@ -21,13 +21,8 @@ export function eventRepo(params?: Record<string, unknown>): string | null {
   return typeof repo === "string" ? repo : null;
 }
 
-export async function insertEvent(
-  pool: PgPool,
-  ev: EventInsert,
-): Promise<void> {
-  // One statement, not two: the fan-out reads the event CTE, so a deduplicated insert returns no row and delivers to nobody (see fan-out.ts).
-  await pool.query(
-    `WITH ev AS (
+// One statement, not two: the fan-out reads the event CTE, so a deduplicated insert returns no row and delivers to nobody (see fan-out.ts).
+const INSERT_EVENT_SQL = `WITH ev AS (
        INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
        VALUES ($1, $2, $3::jsonb, $4, $5)
        ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
@@ -35,13 +30,17 @@ export async function insertEvent(
      ), fan AS (
        ${fanOutClause("ev")}
      )
-     SELECT 1`,
-    [
-      ev.eventName,
-      ev.source,
-      JSON.stringify(ev.params ?? {}),
-      eventRepo(ev.params),
-      ev.dedupeKey ?? null,
-    ],
-  );
+     SELECT 1`;
+
+export async function insertEvent(
+  pool: PgPool,
+  ev: EventInsert,
+): Promise<void> {
+  await pool.query(INSERT_EVENT_SQL, [
+    ev.eventName,
+    ev.source,
+    JSON.stringify(ev.params ?? {}),
+    eventRepo(ev.params),
+    ev.dedupeKey ?? null,
+  ]);
 }

@@ -89,8 +89,8 @@ interface BackfillDeps {
   dgraph: DgraphClientPort;
 }
 
-async function migrateMemories(deps: BackfillDeps): Promise<number> {
-  const { rows: memories } = await deps.pgPool.query<{
+async function fetchMemoryRows(pgPool: PgPool) {
+  const { rows } = await pgPool.query<{
     id: string;
     agent_id: string;
     key: string;
@@ -100,6 +100,12 @@ async function migrateMemories(deps: BackfillDeps): Promise<number> {
   }>(
     "SELECT id, agent_id, key, value, version, embedding FROM memory.memories",
   );
+
+  return rows;
+}
+
+async function migrateMemories(deps: BackfillDeps): Promise<number> {
+  const memories = await fetchMemoryRows(deps.pgPool);
 
   return await migratePass(
     deps.dgraph,

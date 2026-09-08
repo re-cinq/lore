@@ -31,32 +31,51 @@ function readMarkers(afterId: string): {
   dependsOn: string[];
   filePath: string | undefined;
 } {
-  let rest = afterId;
-  const parallelizable = PARALLEL_RE.test(rest);
+  const parallelizable = PARALLEL_RE.test(afterId);
+  const withoutParallel = parallelizable
+    ? afterId.replace(PARALLEL_RE, "")
+    : afterId;
+  const deps = readDependsOn(withoutParallel);
+  const file = readFilePath(deps.rest);
 
-  if (parallelizable) {
-    rest = rest.replace(PARALLEL_RE, "");
+  return {
+    rest: file.rest,
+    parallelizable,
+    dependsOn: deps.dependsOn,
+    filePath: file.filePath,
+  };
+}
+
+/** The `[DEPENDS ON: …]` marker read off and stripped; a line carrying none keeps its text untouched and depends on nothing. */
+function readDependsOn(text: string): { rest: string; dependsOn: string[] } {
+  const depsMatch = text.match(DEPENDS_RE);
+
+  if (!depsMatch) {
+    return { rest: text, dependsOn: [] };
   }
-  const depsMatch = rest.match(DEPENDS_RE);
-  const dependsOn: string[] = [];
+  const deps = depsMatch[1].split(",");
+  const dependsOn = deps
+    .map((dep) => dep.trim())
+    .filter((dep) => dep.length > 0);
 
-  if (depsMatch) {
-    const deps = depsMatch[1].split(",");
+  return { rest: text.replace(DEPENDS_RE, "").trim(), dependsOn };
+}
 
-    dependsOn.push(
-      ...deps.map((dep) => dep.trim()).filter((dep) => dep.length > 0),
-    );
-    rest = rest.replace(DEPENDS_RE, "").trim();
+/** The trailing `| path` marker read off and stripped; a line carrying none keeps its text untouched and names no file. */
+function readFilePath(text: string): {
+  rest: string;
+  filePath: string | undefined;
+} {
+  const fileMatch = text.match(FILE_PATH_RE);
+
+  if (!fileMatch) {
+    return { rest: text, filePath: undefined };
   }
-  const fileMatch = rest.match(FILE_PATH_RE);
-  let filePath: string | undefined;
 
-  if (fileMatch) {
-    filePath = fileMatch[1];
-    rest = rest.replace(FILE_PATH_RE, "").trim();
-  }
-
-  return { rest, parallelizable, dependsOn, filePath };
+  return {
+    rest: text.replace(FILE_PATH_RE, "").trim(),
+    filePath: fileMatch[1],
+  };
 }
 
 function parseTaskLine(trimmed: string, phase: number): ParsedTask | null {
@@ -283,30 +302,31 @@ async function upsertSpecTask(
   const title = `${task.specTaskId}: ${task.description}`;
   const metadata = taskMetadata(task, specSlug);
   const status = task.completed ? "completed" : "pending";
+  const row = { title, status, metadata };
   const existingId = await findSpecTask(pool, repo, specSlug, task.specTaskId);
 
   if (existingId) {
-    await pool.query(
-      `UPDATE pipeline.tasks
-         SET description = $1, context_bundle = $2, status = $3, updated_at = now()
-         WHERE id = $4`,
-      [title, JSON.stringify(metadata), status, existingId],
-    );
+    await updateSpecTask(pool, existingId, row);
 
     return false;
   }
-
-  await insertSpecTask(
-    pool,
-    { repo, taskGroupId },
-    {
-      title,
-      status,
-      metadata,
-    },
-  );
+  await insertSpecTask(pool, { repo, taskGroupId }, row);
 
   return true;
+}
+
+/** A re-sync refreshes the row in place: a spec-task's identity is its (repo, spec, spec-task id), so an edited tasks.md must not fork a second row. */
+async function updateSpecTask(
+  pool: PgPool,
+  taskId: string,
+  row: { title: string; status: string; metadata: object },
+): Promise<void> {
+  await pool.query(
+    `UPDATE pipeline.tasks
+         SET description = $1, context_bundle = $2, status = $3, updated_at = now()
+         WHERE id = $4`,
+    [row.title, JSON.stringify(row.metadata), row.status, taskId],
+  );
 }
 
 export async function syncTasksToDb(

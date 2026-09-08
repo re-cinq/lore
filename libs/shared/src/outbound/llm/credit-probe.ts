@@ -15,19 +15,10 @@ async function probeBillingError(
   fetchImpl: typeof fetch,
 ): Promise<boolean> {
   try {
-    const resp = await fetchImpl("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: CREDIT_PROBE_MODEL,
-        max_tokens: 1,
-        messages: [{ role: "user", content: "hi" }],
-      }),
-    });
+    const resp = await fetchImpl(
+      "https://api.anthropic.com/v1/messages",
+      creditProbeInit(apiKey),
+    );
 
     if (!isBillingErrorStatus(resp.status)) {
       return false;
@@ -38,6 +29,22 @@ async function probeBillingError(
   } catch {
     return false; // network error — proceed and let individual tasks handle it
   }
+}
+
+function creditProbeInit(apiKey: string): RequestInit {
+  return {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: CREDIT_PROBE_MODEL,
+      max_tokens: 1,
+      messages: [{ role: "user", content: "hi" }],
+    }),
+  };
 }
 
 /** True only on a billing/credit error from a minimal Anthropic request; `false` when unset, on network errors, or non-billing status (let the real calls surface the actual problem). */

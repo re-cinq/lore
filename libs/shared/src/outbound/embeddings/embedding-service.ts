@@ -76,14 +76,7 @@ async function fetchVertexEmbedding(
 ): Promise<number[] | null> {
   const res = await fetch(buildVertexUrl(project, VERTEX_REGION), {
     signal: AbortSignal.timeout(30_000),
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      instances: [{ content: query.substring(0, 8000) }],
-    }),
+    ...embeddingRequestInit(token, query),
   });
 
   if (!res.ok) {
@@ -92,6 +85,23 @@ async function fetchVertexEmbedding(
     return null;
   }
 
+  return await readEmbeddingValues(res);
+}
+
+function embeddingRequestInit(token: string, query: string): RequestInit {
+  return {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      instances: [{ content: query.substring(0, 8000) }],
+    }),
+  };
+}
+
+async function readEmbeddingValues(res: Response): Promise<number[]> {
   const json = (await res.json()) as {
     predictions: Array<{ embeddings: { values: number[] } }>;
   };
@@ -111,13 +121,9 @@ export async function getQueryEmbedding(
       return null;
     }
 
-    const project = await resolveVertexProject();
+    const project = await resolveProjectOrWarn();
 
     if (!project) {
-      console.error(
-        "[embeddings] No GCP project resolved for Vertex AI (set GCP_PROJECT or run on GKE)",
-      );
-
       return null;
     }
 
@@ -127,4 +133,16 @@ export async function getQueryEmbedding(
 
     return null;
   }
+}
+
+async function resolveProjectOrWarn(): Promise<string> {
+  const project = await resolveVertexProject();
+
+  if (!project) {
+    console.error(
+      "[embeddings] No GCP project resolved for Vertex AI (set GCP_PROJECT or run on GKE)",
+    );
+  }
+
+  return project;
 }

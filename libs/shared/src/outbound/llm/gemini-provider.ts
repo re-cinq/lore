@@ -2,7 +2,10 @@
 
 import { enforceTrue } from "../../lib/enforce.js";
 import type { LlmCallRecord, UsagePort } from "../project/usage/usage-port.js";
-import type { ModelPricing } from "./model-pricing.js";
+import { computeGeminiCost } from "./gemini-pricing.js";
+
+// Pricing lives in gemini-pricing.ts, re-exported for import-path back-compat.
+export { computeGeminiCost, GEMINI_MODEL_PRICING } from "./gemini-pricing.js";
 import type {
   LlmCompleteRequest,
   LlmCompletion,
@@ -12,48 +15,6 @@ import type {
 } from "./llm-provider.js";
 
 const ZERO_CACHE = { cacheCreationTokens: 0, cacheReadTokens: 0 };
-
-// $/token for prompts under the 200k-token tier boundary, read off https://ai.google.dev/gemini-api/docs/pricing on 2026-09-01 — reverify before relying on this table (3.7 Flash is a launch price through 2026-12-31, then doubles).
-export const GEMINI_MODEL_PRICING: Record<string, ModelPricing> = {
-  "gemini-2.5-pro": {
-    inputPerToken: 1.25 / 1_000_000,
-    outputPerToken: 10.0 / 1_000_000,
-  },
-  "gemini-2.5-flash": {
-    inputPerToken: 0.3 / 1_000_000,
-    outputPerToken: 2.5 / 1_000_000,
-  },
-  "gemini-2.5-flash-lite": {
-    inputPerToken: 0.1 / 1_000_000,
-    outputPerToken: 0.4 / 1_000_000,
-  },
-  "gemini-3.1-pro-preview": {
-    inputPerToken: 2.0 / 1_000_000,
-    outputPerToken: 12.0 / 1_000_000,
-  },
-  "gemini-3.7-flash": {
-    inputPerToken: 0.75 / 1_000_000,
-    outputPerToken: 3.75 / 1_000_000,
-  },
-  "gemini-3.1-flash-lite": {
-    inputPerToken: 0.25 / 1_000_000,
-    outputPerToken: 1.5 / 1_000_000,
-  },
-};
-
-const FALLBACK_PRICING = GEMINI_MODEL_PRICING["gemini-2.5-flash"];
-
-export function computeGeminiCost(
-  model: string,
-  inputTokens: number,
-  outputTokens: number,
-): number {
-  const pricing = GEMINI_MODEL_PRICING[model] ?? FALLBACK_PRICING;
-
-  return (
-    inputTokens * pricing.inputPerToken + outputTokens * pricing.outputPerToken
-  );
-}
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
 
@@ -121,6 +82,25 @@ function usageLogEntry(
   };
 }
 
+function failedCallRecord(
+  req: { taskId?: string; jobName?: string },
+  model: string,
+  durationMs: number,
+  message: string,
+): LlmCallRecord {
+  return {
+    taskId: req.taskId || null,
+    jobName: req.jobName || null,
+    model,
+    inputTokens: 0,
+    outputTokens: 0,
+    costUsd: 0,
+    durationMs,
+    status: "failed",
+    error: message,
+  };
+}
+
 function warnIfUncorrelated(
   result: { correlated: boolean } | null,
   taskId?: string,
@@ -143,12 +123,19 @@ function logCallFailure(kind: string, err: unknown): void {
   console.error(`[llm] ${kind} failed:`, err);
 }
 
+/** One generateContent call's inputs, grouped so the request body and its caller agree on exactly what a call carries. */
+interface GenerateRequest {
+  prompt: string;
+  systemPrompt?: string;
+  responseSchema?: Record<string, unknown>;
+}
+
 /** The generateContent request body. A system instruction and a response schema are both omitted entirely when absent rather than sent empty — Gemini treats a present-but-blank `systemInstruction` as an instruction. */
-function generateBody(
-  systemPrompt: string | undefined,
-  prompt: string,
-  responseSchema?: Record<string, unknown>,
-): Record<string, unknown> {
+function generateBody({
+  systemPrompt,
+  prompt,
+  responseSchema,
+}: GenerateRequest): Record<string, unknown> {
   return {
     ...(systemPrompt
       ? { systemInstruction: { parts: [{ text: systemPrompt }] } }
@@ -162,6 +149,20 @@ function generateBody(
           },
         }
       : {}),
+  };
+}
+
+function generateInit(
+  apiKey: string,
+  body: Record<string, unknown>,
+): RequestInit {
+  return {
+    method: "POST",
+    headers: {
+      "x-goog-api-key": apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
   };
 }
 
@@ -194,29 +195,19 @@ export class GeminiProvider implements LlmProvider {
     durationMs: number,
     message: string,
   ): Promise<void> {
-    if (!this.opts.usage) {
+    const { usage } = this.opts;
+
+    if (!usage) {
       return;
     }
-    await this.opts.usage
-      .logLlmCall({
-        taskId: req.taskId || null,
-        jobName: req.jobName || null,
-        model,
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: 0,
-        durationMs,
-        status: "failed",
-        error: message,
-      })
-      .catch(() => null);
+    const record = failedCallRecord(req, model, durationMs, message);
+
+    await usage.logLlmCall(record).catch(() => null);
   }
 
   private async generate(
     model: string,
-    systemPrompt: string | undefined,
-    prompt: string,
-    responseSchema?: Record<string, unknown>,
+    req: GenerateRequest,
   ): Promise<GeminiResponse> {
     const apiKey = this.opts.apiKey ?? process.env.GEMINI_API_KEY;
 
@@ -224,16 +215,7 @@ export class GeminiProvider implements LlmProvider {
     const doFetch = this.opts.fetchFn ?? fetch;
     const res = await doFetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "x-goog-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(
-          generateBody(systemPrompt, prompt, responseSchema),
-        ),
-      },
+      generateInit(apiKey, generateBody(req)),
     );
 
     if (!res.ok) {
@@ -279,7 +261,7 @@ export class GeminiProvider implements LlmProvider {
     const start = Date.now();
 
     try {
-      const response = await this.generate(model, req.systemPrompt, req.prompt);
+      const response = await this.generate(model, req);
       const metrics = this.summarizeCall(model, response, start);
 
       await this.logCall(req, metrics);
@@ -292,26 +274,34 @@ export class GeminiProvider implements LlmProvider {
     }
   }
 
+  private async toolCallMetrics(
+    req: LlmToolRequest,
+    model: string,
+    start: number,
+  ): Promise<GeminiCallMetrics & { text: string }> {
+    const response = await this.generate(model, {
+      ...req,
+      responseSchema: req.toolSchema,
+    });
+    const metrics = this.summarizeCall(model, response, start);
+
+    enforceTrue(
+      metrics.text,
+      Error,
+      "Gemini returned no content in candidates",
+    );
+    await this.logCall(req, metrics);
+    logCallLine("tool call", metrics);
+
+    return metrics;
+  }
+
   async completeWithTool<T>(req: LlmToolRequest): Promise<LlmToolResult<T>> {
     const model = req.model || this.model;
     const start = Date.now();
 
     try {
-      const response = await this.generate(
-        model,
-        req.systemPrompt,
-        req.prompt,
-        req.toolSchema,
-      );
-      const metrics = this.summarizeCall(model, response, start);
-
-      enforceTrue(
-        metrics.text,
-        Error,
-        "Gemini returned no content in candidates",
-      );
-      await this.logCall(req, metrics);
-      logCallLine("tool call", metrics);
+      const metrics = await this.toolCallMetrics(req, model, start);
 
       return {
         ...metrics,

@@ -61,6 +61,19 @@ export {
   type GapUserFlow,
 } from "./gap-result-legacy.js";
 
+function parseProposedFeature(
+  raw: unknown,
+  index: number,
+): GapSplitSuggestion["proposed_features"][number] {
+  const path = `split_suggestion.proposed_features[${index}]`;
+  const po = asObject(raw, path);
+
+  return {
+    title: asString(po.title, `${path}.title`),
+    scope: asString(po.scope, `${path}.scope`),
+  };
+}
+
 function parseSplit(raw: unknown): GapSplitSuggestion {
   const o = asObject(raw, "split_suggestion");
 
@@ -69,20 +82,7 @@ function parseSplit(raw: unknown): GapSplitSuggestion {
     proposed_features: asArray(
       o.proposed_features,
       "split_suggestion.proposed_features",
-    ).map((p, i) => {
-      const po = asObject(p, `split_suggestion.proposed_features[${i}]`);
-
-      return {
-        title: asString(
-          po.title,
-          `split_suggestion.proposed_features[${i}].title`,
-        ),
-        scope: asString(
-          po.scope,
-          `split_suggestion.proposed_features[${i}].scope`,
-        ),
-      };
-    }),
+    ).map(parseProposedFeature),
   };
 }
 

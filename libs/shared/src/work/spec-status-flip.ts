@@ -54,10 +54,12 @@ function buildFlipBranchName(specPath: string): string {
 
 function buildFlipPrBody(
   specPath: string,
-  newLabel: string,
-  coverage: string,
+  decision: FlipCommit,
   evidence?: string,
 ): string {
+  const { newLabel } = decision;
+  const coverage = `${decision.linked} of ${decision.testable}`;
+
   return [
     `# Mark \`${specPath}\` ${newLabel}`,
     "",
@@ -81,6 +83,8 @@ type FlipDecision =
       testable: number;
     };
 
+type FlipCommit = Extract<FlipDecision, { outcome: "flip" }>;
+
 /** The spec's content with its status row set to `target`, or null when the row has gone missing between the two reads. `allowTerminal` is safe here: terminal statuses returned before this call, and a Shipped→In Progress demotion is exactly this function's job. */
 function rewriteTo(
   content: string,
@@ -94,19 +98,13 @@ function rewriteTo(
   return newContent === null ? null : { newLabel, newContent };
 }
 
-// Reconciles specPath's status header with its coverage: skips when no-status-row/terminal/no-coverage/already-current, otherwise the rewritten content to commit.
-function decideStatusFlip(content: string): FlipDecision {
-  const current = parseDocStatus(content, "spec").status;
-
-  if (current === null) {
-    return { outcome: "skip", reason: "no-status-row" };
-  }
-
-  // A rejected/retired spec is terminal (same docs the linter skips) — never reopen one off a coverage reading.
-  if (statusTier(current) === "skip") {
-    return { outcome: "skip", reason: "terminal", status: current };
-  }
-  const { testable, linked } = statementCoverage(content);
+// The decision once the spec is known to carry a non-terminal status row: compares the coverage-entitled bucket against the claimed one and rewrites when they differ.
+function decideFromCoverage(
+  content: string,
+  current: StatusBucket,
+  coverage: { testable: number; linked: number },
+): FlipDecision {
+  const { testable, linked } = coverage;
   const target = expectedStatus(coverageTier(testable, linked));
 
   if (target === null) {
@@ -126,41 +124,75 @@ function decideStatusFlip(content: string): FlipDecision {
   return { outcome: "flip", status: target, ...rewritten, linked, testable };
 }
 
+// Reconciles specPath's status header with its coverage: skips when no-status-row/terminal/no-coverage/already-current, otherwise the rewritten content to commit.
+function decideStatusFlip(content: string): FlipDecision {
+  const current = parseDocStatus(content, "spec").status;
+
+  if (current === null) {
+    return { outcome: "skip", reason: "no-status-row" };
+  }
+
+  // A rejected/retired spec is terminal (same docs the linter skips) — never reopen one off a coverage reading.
+  if (statusTier(current) === "skip") {
+    return { outcome: "skip", reason: "terminal", status: current };
+  }
+
+  return decideFromCoverage(content, current, statementCoverage(content));
+}
+
 interface FlipPrMeta {
   evidence?: string;
   jobLabel: string;
+}
+
+// Creates the flip branch and commits the rewritten spec onto it, returning the branch name.
+async function commitStatusFlip(
+  project: Project,
+  specPath: string,
+  decision: FlipCommit,
+): Promise<string> {
+  const branch = buildFlipBranchName(specPath);
+  const { repo } = project;
+
+  await repo.createBranch(branch);
+  await repo.commitFile(
+    branch,
+    specPath,
+    decision.newContent,
+    `lore: mark ${specPath} ${decision.newLabel}`,
+  );
+
+  return branch;
 }
 
 // Opens the flip PR for a `decideStatusFlip` "flip" decision; throws on GitHub API errors so the caller can withhold dependent state changes.
 async function openFlipPr(
   project: Project,
   specPath: string,
-  decision: Extract<FlipDecision, { outcome: "flip" }>,
+  decision: FlipCommit,
   meta: FlipPrMeta,
 ): Promise<StatusFlipResult> {
-  const branch = buildFlipBranchName(specPath);
-  const title = `Mark ${specPath} ${decision.newLabel}`;
-  const body = buildFlipPrBody(
-    specPath,
-    decision.newLabel,
-    `${decision.linked} of ${decision.testable}`,
-    meta.evidence,
-  );
-
-  await project.repo.createBranch(branch);
-  await project.repo.commitFile(
-    branch,
-    specPath,
-    decision.newContent,
-    `lore: mark ${specPath} ${decision.newLabel}`,
-  );
-  const pr = await project.pulls.open(branch, {
-    title,
-    body,
+  const branch = await commitStatusFlip(project, specPath, decision);
+  const { pulls } = project;
+  const pr = await pulls.open(branch, {
+    title: `Mark ${specPath} ${decision.newLabel}`,
+    body: buildFlipPrBody(specPath, decision, meta.evidence),
     labels: ["lore-managed", meta.jobLabel],
   });
 
   return { prUrl: pr.url, skipped: false, status: decision.status };
+}
+
+// The no-PR result carrying a "skip" decision's reason and the status the spec keeps claiming.
+function skippedFlip(
+  decision: Extract<FlipDecision, { outcome: "skip" }>,
+): StatusFlipResult {
+  return {
+    prUrl: null,
+    skipped: true,
+    reason: decision.reason,
+    status: decision.status,
+  };
 }
 
 // Reconciles specPath's status header with its coverage via a PR; skips (no PR) when absent/no-status-row/terminal/no-coverage/already-current.
@@ -170,7 +202,8 @@ export async function openSpecStatusFlipPr(
   opts: StatusFlipOptions = {},
 ): Promise<StatusFlipResult> {
   const jobLabel = opts.jobLabel ?? "spec-status-upkeep";
-  const content = await project.repo.read(specPath);
+  const { repo } = project;
+  const content = await repo.read(specPath);
 
   if (content === null) {
     return { prUrl: null, skipped: true, reason: "missing" };
@@ -179,12 +212,7 @@ export async function openSpecStatusFlipPr(
   const decision = decideStatusFlip(content);
 
   if (decision.outcome === "skip") {
-    return {
-      prUrl: null,
-      skipped: true,
-      reason: decision.reason,
-      status: decision.status,
-    };
+    return skippedFlip(decision);
   }
 
   return openFlipPr(project, specPath, decision, {

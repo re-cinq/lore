@@ -51,19 +51,11 @@ async function ensureParser(): Promise<Parser> {
   return parser!;
 }
 
-async function loadGrammar(ext: string): Promise<Parser.Language | null> {
-  const cached = grammarCache.get(ext);
-
-  if (cached) {
-    return cached;
-  }
-
-  const wasmFile = EXT_TO_GRAMMAR[ext];
-
-  if (!wasmFile) {
-    return null;
-  }
-
+/** Reads one grammar wasm off disk and caches it under `ext`; null (logged) when it cannot be loaded. */
+async function loadGrammarWasm(
+  ext: string,
+  wasmFile: string,
+): Promise<Parser.Language | null> {
   try {
     // tree-sitter-wasms ships .wasm files at its package root
     const wasmsDir = join(
@@ -71,8 +63,7 @@ async function loadGrammar(ext: string): Promise<Parser.Language | null> {
       "..",
       "out",
     );
-    const wasmPath = join(wasmsDir, wasmFile);
-    const wasmBuf = await readFile(wasmPath);
+    const wasmBuf = await readFile(join(wasmsDir, wasmFile));
     const lang = await Parser.Language.load(wasmBuf);
 
     grammarCache.set(ext, lang);
@@ -83,6 +74,17 @@ async function loadGrammar(ext: string): Promise<Parser.Language | null> {
 
     return null;
   }
+}
+
+async function loadGrammar(ext: string): Promise<Parser.Language | null> {
+  const cached = grammarCache.get(ext);
+
+  if (cached) {
+    return cached;
+  }
+  const wasmFile = EXT_TO_GRAMMAR[ext];
+
+  return wasmFile ? loadGrammarWasm(ext, wasmFile) : null;
 }
 
 // ── Markdown heading-based chunking ─────────────────────────────────
@@ -147,35 +149,45 @@ function chunkMarkdown(content: string): Chunk[] {
 
 // ── Sliding-window fallback ─────────────────────────────────────────
 
+const WINDOW_LINES = 400;
+const WINDOW_OVERLAP_LINES = 50;
+
+/** One `[start, end)` line window as a chunk. */
+function windowChunk(
+  lines: string[],
+  span: { start: number; end: number },
+  chunkIndex: number,
+): Chunk {
+  const { start, end } = span;
+
+  return {
+    content: lines.slice(start, end).join("\n"),
+    metadata: {
+      chunk_index: chunkIndex,
+      start_line: start + 1,
+      end_line: end,
+    },
+  };
+}
+
 function chunkSlidingWindow(content: string): Chunk[] {
   const lines = content.split("\n");
-  const WINDOW = 400;
-  const OVERLAP = 50;
-  const chunks: Chunk[] = [];
 
-  if (lines.length <= WINDOW) {
+  if (lines.length <= WINDOW_LINES) {
     return wholeFileChunk(content, { start_line: 1, end_line: lines.length });
   }
-
+  const chunks: Chunk[] = [];
   let start = 0;
-  let chunkIndex = 0;
 
   while (start < lines.length) {
-    const end = Math.min(start + WINDOW, lines.length);
+    const end = Math.min(start + WINDOW_LINES, lines.length);
 
-    chunks.push({
-      content: lines.slice(start, end).join("\n"),
-      metadata: {
-        chunk_index: chunkIndex++,
-        start_line: start + 1,
-        end_line: end,
-      },
-    });
+    chunks.push(windowChunk(lines, { start, end }, chunks.length));
 
     if (end >= lines.length) {
       break;
     }
-    start += WINDOW - OVERLAP;
+    start += WINDOW_LINES - WINDOW_OVERLAP_LINES;
   }
 
   return chunks;
@@ -235,17 +247,11 @@ async function chunkByAst(content: string, ext: string): Promise<Chunk[]> {
     : wholeFileChunk(content, { start_line: 1, end_line: lineCount(content) });
 }
 
-async function chunkFileRaw(
+/** AST chunking for a code file, sliding-window for an unsupported language or a parse failure. */
+async function chunkCodeFile(
   content: string,
   filePath: string,
-  contentType: string,
 ): Promise<Chunk[]> {
-  // Doc / spec / ADR files: split on ## headings
-  if (contentType !== "code") {
-    return chunkMarkdown(content);
-  }
-
-  // Code files: try AST-based chunking
   const ext = extname(filePath).toLowerCase();
 
   if (!EXT_TO_GRAMMAR[ext]) {
@@ -263,4 +269,15 @@ async function chunkFileRaw(
 
     return chunkSlidingWindow(content);
   }
+}
+
+// Doc / spec / ADR files split on ## headings; code files go down the AST path.
+async function chunkFileRaw(
+  content: string,
+  filePath: string,
+  contentType: string,
+): Promise<Chunk[]> {
+  return contentType === "code"
+    ? chunkCodeFile(content, filePath)
+    : chunkMarkdown(content);
 }

@@ -41,14 +41,8 @@ const TOOL_SCHEMA = {
   required: ["action", "reason"],
 } as const;
 
-/** Classify PR comment into follow-up action; model failures propagate (not swallowed). */
-export async function classifyComment(
-  ctx: CommentContext,
-): Promise<TriageDecision> {
-  const { parsed, ...usage } = await Llm.instance.completeWithTool<{
-    action?: string;
-    reason?: string;
-  }>({
+function triageRequest(ctx: CommentContext) {
+  return {
     prompt: buildPrompt(ctx),
     systemPrompt: SYSTEM_PROMPT,
     model: TRIAGE_MODEL,
@@ -56,7 +50,17 @@ export async function classifyComment(
     toolName: "triage_comment",
     toolDescription: "Classify the PR comment into a single Lore action.",
     toolSchema: TOOL_SCHEMA,
-  });
+  };
+}
+
+/** Classify PR comment into follow-up action; model failures propagate (not swallowed). */
+export async function classifyComment(
+  ctx: CommentContext,
+): Promise<TriageDecision> {
+  const { parsed, ...usage } = await Llm.instance.completeWithTool<{
+    action?: string;
+    reason?: string;
+  }>(triageRequest(ctx));
 
   return {
     action: isAction(parsed.action) ? parsed.action : "ignore",

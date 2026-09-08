@@ -121,20 +121,11 @@ function renderFeedbackSection(
     : `<Section title="${title}" direction="${direction}"/>`;
 }
 
-/** One section's feedback, or null when the author said nothing about it. */
-function feedbackBlock(
-  section: GapSection,
+function feedbackParts(
+  comment: string | undefined,
+  answered: GapQuestion[],
   answers: SectionAnswers | null,
-): string | null {
-  const feedback = sectionFeedback(section, answers);
-  const comment = sectionComment(feedback);
-  const answered = answeredQuestions(section, feedback, answers);
-
-  if (!feedback && !answered.length) {
-    return null;
-  }
-  const title = section.title.replace(/"/g, "'");
-  const direction = sectionDirection(feedback);
+): string[] {
   const parts: string[] = [];
 
   if (comment) {
@@ -145,7 +136,24 @@ function feedbackBlock(
     parts.push(questionTag(question, answers));
   }
 
-  return renderFeedbackSection(title, direction, parts);
+  return parts;
+}
+
+/** One section's feedback, or null when the author said nothing about it. */
+function feedbackBlock(
+  section: GapSection,
+  answers: SectionAnswers | null,
+): string | null {
+  const feedback = sectionFeedback(section, answers);
+  const answered = answeredQuestions(section, feedback, answers);
+
+  if (!feedback && !answered.length) {
+    return null;
+  }
+  const title = section.title.replace(/"/g, "'");
+  const parts = feedbackParts(sectionComment(feedback), answered, answers);
+
+  return renderFeedbackSection(title, sectionDirection(feedback), parts);
 }
 
 function freeFormBlock(answers: SectionAnswers | null): string | null {
