@@ -40,6 +40,45 @@ function CrossLinkField({
   );
 }
 
+/** The five frontmatter fields this header renders. Everything else in the frontmatter is left alone — an ADR may carry keys this view has no opinion about. */
+function metaFields(meta: Record<string, string | string[]>) {
+  return {
+    statusInfo: resolveStatusInfo(scalar(meta.status)),
+    date: scalar(meta.date),
+    domains: domainsOf(meta),
+    relates: scalar(meta.relates),
+    amends: scalar(meta.amends),
+  };
+}
+
+/** The documents this ADR points at. `relates` names a spec and `amends` another ADR, so the two go to different routes. */
+function CrossLinks({
+  owner,
+  repo,
+  relates,
+  amends,
+}: {
+  owner: string;
+  repo: string;
+  relates: string | undefined;
+  amends: string | undefined;
+}) {
+  return (
+    <>
+      <CrossLinkField
+        label="relates"
+        value={relates}
+        href={`/repos/${owner}/${repo}/specs/${encodeURIComponent(relates ?? "")}`}
+      />
+      <CrossLinkField
+        label="amends"
+        value={amends}
+        href={`/repos/${owner}/${repo}/adrs/${encodeURIComponent(amends ?? "")}`}
+      />
+    </>
+  );
+}
+
 export default function AdrMetaView({
   owner,
   repo,
@@ -49,11 +88,7 @@ export default function AdrMetaView({
   repo: string;
   meta: Record<string, string | string[]>;
 }) {
-  const statusInfo = resolveStatusInfo(scalar(meta.status));
-  const date = scalar(meta.date);
-  const domains = domainsOf(meta);
-  const relates = scalar(meta.relates);
-  const amends = scalar(meta.amends);
+  const { statusInfo, date, domains, relates, amends } = metaFields(meta);
 
   if (isEmptyMeta([statusInfo, date, relates, amends, ...domains])) {
     return null;
@@ -68,16 +103,7 @@ export default function AdrMetaView({
           {domain}
         </span>
       ))}
-      <CrossLinkField
-        label="relates"
-        value={relates}
-        href={`/repos/${owner}/${repo}/specs/${encodeURIComponent(relates ?? "")}`}
-      />
-      <CrossLinkField
-        label="amends"
-        value={amends}
-        href={`/repos/${owner}/${repo}/adrs/${encodeURIComponent(amends ?? "")}`}
-      />
+      <CrossLinks owner={owner} repo={repo} relates={relates} amends={amends} />
     </div>
   );
 }

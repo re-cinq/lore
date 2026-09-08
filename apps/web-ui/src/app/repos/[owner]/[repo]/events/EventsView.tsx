@@ -12,6 +12,33 @@ export interface EventsViewProps {
   hasMore: boolean;
 }
 
+/** The first page as rows, with the pager as the last of them. `InfiniteEvents` renders inside this `tbody` rather than after the table so its appended rows and its sentinel are part of the same row sequence. */
+function EventsTable({ owner, repo, events, hasMore }: EventsViewProps) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Event</th>
+          <th>Source</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {events.map((e) => (
+          <EventRow key={e.id} event={e} />
+        ))}
+        <InfiniteEvents
+          owner={owner}
+          repo={repo}
+          initialOffset={EVENTS_PAGE_SIZE}
+          hasMore={hasMore}
+        />
+      </tbody>
+    </table>
+  );
+}
+
 /** Presentational view for repo's event stream; container runs query, InfiniteEvents appends rest on scroll. */
 export default function EventsView({
   owner,
@@ -28,27 +55,12 @@ export default function EventsView({
       {events.length === 0 ? (
         <Alert variant="secondary">No events yet.</Alert>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Event</th>
-              <th>Source</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.map((e) => (
-              <EventRow key={e.id} event={e} />
-            ))}
-            <InfiniteEvents
-              owner={owner}
-              repo={repo}
-              initialOffset={EVENTS_PAGE_SIZE}
-              hasMore={hasMore}
-            />
-          </tbody>
-        </table>
+        <EventsTable
+          owner={owner}
+          repo={repo}
+          events={events}
+          hasMore={hasMore}
+        />
       )}
     </div>
   );

@@ -95,7 +95,6 @@ function selectFieldDefaults(settings: RepoSettingsShape) {
   };
 }
 
-/** Routing and trust: who owns the repo, what it is allowed to run, and how much of it happens without asking. */
 /** Not more text boxes: trust level decides which task types this repo accepts at all, and auto-review decides whether a PR is reviewed without anyone asking. */
 function RunPolicyFields({
   trustLevel,
@@ -123,6 +122,52 @@ function RunPolicyFields({
   );
 }
 
+/** The free-text settings, in the order they are shown. `name` is the form field the server action reads, so it is also the key each value is looked up under. */
+const GENERAL_FIELDS = [
+  { label: "Team", name: "team", placeholder: "e.g. platform, payments" },
+  {
+    label: "Allowed Task Types (comma-separated)",
+    name: "task_types",
+    placeholder: "general, runbook, implementation",
+  },
+  {
+    label: "Default Dispatch Task Type",
+    name: "dispatch_default_type",
+    placeholder: "general",
+  },
+  {
+    label: "Slack Channel ID",
+    name: "slack_channel_id",
+    placeholder: "C0123456789",
+  },
+  {
+    label: "Dispatch Label",
+    name: "dispatch_label",
+    placeholder: "lore (default)",
+  },
+];
+
+/** A labelled free-text setting. Uncontrolled on purpose: the form posts to a server action, so the browser holds the edits and a re-render cannot discard what the reader typed. */
+function TextField({
+  label,
+  name,
+  value,
+  placeholder,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  placeholder: string;
+}) {
+  return (
+    <>
+      <label>{label}</label>
+      <input name={name} defaultValue={value} placeholder={placeholder} />
+    </>
+  );
+}
+
+/** Routing and trust: who owns the repo, what it is allowed to run, and how much of it happens without asking. */
 function GeneralFields({
   team,
   settings,
@@ -130,45 +175,21 @@ function GeneralFields({
   const { taskTypes, dispatchDefaultType, slackChannelId, dispatchLabel } =
     textFieldDefaults(settings);
   const { trustLevel, autoReview } = selectFieldDefaults(settings);
+  const values: Record<string, string> = {
+    team,
+    task_types: taskTypes,
+    dispatch_default_type: dispatchDefaultType,
+    slack_channel_id: slackChannelId,
+    dispatch_label: dispatchLabel,
+  };
 
   return (
     <>
       <h3 className={styles.section}>General</h3>
 
-      <label>Team</label>
-      <input
-        name="team"
-        defaultValue={team}
-        placeholder="e.g. platform, payments"
-      />
-
-      <label>Allowed Task Types (comma-separated)</label>
-      <input
-        name="task_types"
-        defaultValue={taskTypes}
-        placeholder="general, runbook, implementation"
-      />
-
-      <label>Default Dispatch Task Type</label>
-      <input
-        name="dispatch_default_type"
-        defaultValue={dispatchDefaultType}
-        placeholder="general"
-      />
-
-      <label>Slack Channel ID</label>
-      <input
-        name="slack_channel_id"
-        defaultValue={slackChannelId}
-        placeholder="C0123456789"
-      />
-
-      <label>Dispatch Label</label>
-      <input
-        name="dispatch_label"
-        defaultValue={dispatchLabel}
-        placeholder="lore (default)"
-      />
+      {GENERAL_FIELDS.map((field) => (
+        <TextField key={field.name} {...field} value={values[field.name]} />
+      ))}
 
       <RunPolicyFields trustLevel={trustLevel} autoReview={autoReview} />
     </>

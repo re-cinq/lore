@@ -55,46 +55,69 @@ function AdrCards({
   );
 }
 
-export default function AdrListView({
-  owner,
-  repo,
-  adrs,
-  statuses = {},
-}: {
-  owner: string;
-  repo: string;
-  adrs: AdrSummary[];
-  statuses?: Record<string, SpecStatusInfo>;
-}) {
+/** Search, status and sort, held together because every one of them re-filters the same list. */
+function useAdrListView() {
   const [filter, setFilter] = useState<SpecStatusFilter>("all");
   const [query, setQuery] = useState("");
   const [order, setOrder] = useState<DocSortOrder>("path");
+
+  return { filter, setFilter, query, setQuery, order, setOrder };
+}
+
+/** Search, sort and the status chips. Counts come from the FULL set rather than the visible one: selecting a status must not make the other statuses look empty. */
+function ListControls({
+  view,
+  counts,
+  total,
+}: {
+  view: ReturnType<typeof useAdrListView>;
+  counts: ReturnType<typeof filterDocCards>["counts"];
+  total: number;
+}) {
+  return (
+    <>
+      <DocListControls
+        query={view.query}
+        onQueryChange={view.setQuery}
+        sort={view.order}
+        onSortChange={view.setOrder}
+      />
+      <SpecStatusChips
+        counts={counts}
+        total={total}
+        active={view.filter}
+        onChange={view.setFilter}
+        kind="adr"
+      />
+    </>
+  );
+}
+
+interface AdrListViewProps {
+  owner: string;
+  repo: string;
+  adrs: AdrSummary[];
+  /** Status per ADR path. Absent for a repo whose ADRs have not been projected yet. */
+  statuses?: Record<string, SpecStatusInfo>;
+}
+
+export default function AdrListView(props: AdrListViewProps) {
+  const { owner, repo, adrs, statuses = {} } = props;
+  const view = useAdrListView();
 
   if (adrs.length === 0) {
     return <NoAdrsYet />;
   }
   const statusOf = (adr: AdrSummary) => statuses[adr.filePath];
-  const { counts, visible } = filterDocCards(adrs, statusOf, filter, {
-    query,
+  const { counts, visible } = filterDocCards(adrs, statusOf, view.filter, {
+    query: view.query,
     textOf: (adr) => `${adr.title} ${adr.description} ${adr.filePath}`,
   });
-  const ordered = sortDocCards(visible, order, statusOf);
+  const ordered = sortDocCards(visible, view.order, statusOf);
 
   return (
     <div>
-      <DocListControls
-        query={query}
-        onQueryChange={setQuery}
-        sort={order}
-        onSortChange={setOrder}
-      />
-      <SpecStatusChips
-        counts={counts}
-        total={adrs.length}
-        active={filter}
-        onChange={setFilter}
-        kind="adr"
-      />
+      <ListControls view={view} counts={counts} total={adrs.length} />
       <AdrCards adrs={ordered} statusOf={statusOf} owner={owner} repo={repo} />
       {ordered.length === 0 && (
         <p className="muted">No ADRs match this filter.</p>

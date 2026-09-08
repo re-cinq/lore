@@ -8,6 +8,28 @@ export interface RepoTaskCreateViewProps {
   createTaskAction: (formData: FormData) => void | Promise<void>;
 }
 
+/** The task types offerable from this form. A narrower set than the pipeline supports: `onboard` and `review` are started by the platform rather than typed in here. */
+const TASK_TYPE_OPTIONS = [
+  { value: "feature-request", label: "Feature Request" },
+  { value: "general", label: "General" },
+  { value: "runbook", label: "Runbook" },
+  { value: "implementation", label: "Implementation" },
+  { value: "gap-fill", label: "Gap Fill" },
+];
+
+/** Skip the queue. Off by default because the default path — waiting for local pickup — runs on a developer subscription rather than org API credit. */
+function ImmediateCheckbox() {
+  return (
+    <label className={styles.checkboxLabel}>
+      <input type="checkbox" name="priority" value="immediate" />
+      <span>Execute immediately</span>
+      <span className={`meta ${styles.hint}`}>
+        — runs on GKE now instead of waiting for local pickup
+      </span>
+    </label>
+  );
+}
+
 /** Per-repo "New Task" form: pure render, container resolves repo identity and handles create action. */
 export default function RepoTaskCreateView({
   fullName,
@@ -20,15 +42,7 @@ export default function RepoTaskCreateView({
         <input type="hidden" name="target_repo" value={fullName} />
 
         <label>Task Type</label>
-        <TaskTypeSelect
-          options={[
-            { value: "feature-request", label: "Feature Request" },
-            { value: "general", label: "General" },
-            { value: "runbook", label: "Runbook" },
-            { value: "implementation", label: "Implementation" },
-            { value: "gap-fill", label: "Gap Fill" },
-          ]}
-        />
+        <TaskTypeSelect options={TASK_TYPE_OPTIONS} />
 
         <label>Description</label>
         <textarea
@@ -38,13 +52,7 @@ export default function RepoTaskCreateView({
           placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions."
         />
 
-        <label className={styles.checkboxLabel}>
-          <input type="checkbox" name="priority" value="immediate" />
-          <span>Execute immediately</span>
-          <span className={`meta ${styles.hint}`}>
-            — runs on GKE now instead of waiting for local pickup
-          </span>
-        </label>
+        <ImmediateCheckbox />
 
         <SubmitButton pendingLabel="Creating…">Create Task</SubmitButton>
       </form>

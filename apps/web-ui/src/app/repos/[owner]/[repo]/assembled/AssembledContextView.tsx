@@ -31,41 +31,16 @@ export interface AssembledContextViewProps {
 }
 
 /** Assembled context view: form + assembly trace + final prompt tree. */
-export default function AssembledContextView({
-  owner,
-  repo,
-  query,
-  template,
-  templates,
-  result,
-  loading,
-  error,
-  onQueryChange,
-  onTemplateChange,
-  onSubmit,
-}: AssembledContextViewProps) {
+export default function AssembledContextView(props: AssembledContextViewProps) {
+  const { owner, repo, result, loading, error } = props;
   const [raw, setRaw] = useState(false);
-  const canSubmit = query.trim().length > 0 && !loading;
 
   return (
     <div>
-      <div className={styles.titleRow}>
-        <h2 className={styles.title}>Assembled Context</h2>
-        <PromptDebugHelp />
-      </div>
-      <p className={`meta ${styles.lede}`}>
-        The turn-1 context block, assembled live for your query and template,
-        with a trace of every assembly decision.
-      </p>
+      <AssembledHeader />
       <QueryForm
-        query={query}
-        template={template}
-        templates={templates}
-        loading={loading}
-        canSubmit={canSubmit}
-        onQueryChange={onQueryChange}
-        onTemplateChange={onTemplateChange}
-        onSubmit={onSubmit}
+        {...props}
+        canSubmit={props.query.trim().length > 0 && !loading}
       />
       {loading && <Alert>Assembling context…</Alert>}
       {error && <p className={styles.error}>Context unavailable: {error}</p>}
@@ -79,6 +54,22 @@ export default function AssembledContextView({
         />
       )}
     </div>
+  );
+}
+
+/** What this page shows and when it was assembled. States "turn-1" explicitly: this is the block a session starts with, not what it accumulates. */
+function AssembledHeader() {
+  return (
+    <>
+      <div className={styles.titleRow}>
+        <h2 className={styles.title}>Assembled Context</h2>
+        <PromptDebugHelp />
+      </div>
+      <p className={`meta ${styles.lede}`}>
+        The turn-1 context block, assembled live for your query and template,
+        with a trace of every assembly decision.
+      </p>
+    </>
   );
 }
 
@@ -108,6 +99,11 @@ function PromptDebugHelp() {
   );
 }
 
+type FormControlsProps = Pick<
+  AssembledContextViewProps,
+  "template" | "templates" | "loading" | "onTemplateChange"
+> & { canSubmit: boolean };
+
 /** The template picker and the submit, which travel together: the template decides WHICH assembly runs, so choosing one and running it is a single decision. */
 function FormControls({
   template,
@@ -115,10 +111,7 @@ function FormControls({
   loading,
   canSubmit,
   onTemplateChange,
-}: Pick<
-  AssembledContextViewProps,
-  "template" | "templates" | "loading" | "onTemplateChange"
-> & { canSubmit: boolean }) {
+}: FormControlsProps) {
   return (
     <div className={styles.controls}>
       <label htmlFor="template" className="meta">
@@ -143,50 +136,30 @@ function FormControls({
   );
 }
 
-function QueryForm({
-  query,
-  template,
-  templates,
-  loading,
-  canSubmit,
-  onQueryChange,
-  onTemplateChange,
-  onSubmit,
-}: Pick<
-  AssembledContextViewProps,
-  | "query"
-  | "template"
-  | "templates"
-  | "loading"
-  | "onQueryChange"
-  | "onTemplateChange"
-  | "onSubmit"
-> & { canSubmit: boolean }) {
+type QueryFormProps = FormControlsProps &
+  Pick<AssembledContextViewProps, "query" | "onQueryChange" | "onSubmit">;
+
+function QueryForm({ canSubmit, ...props }: QueryFormProps) {
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
 
+        // The button is already disabled; this guards the Enter-key path, which submits regardless.
         if (canSubmit) {
-          onSubmit();
+          props.onSubmit();
         }
       }}
       className={styles.form}
     >
       <textarea
-        value={query}
-        onChange={(e) => onQueryChange(e.target.value)}
+        value={props.query}
+        onChange={(e) => props.onQueryChange(e.target.value)}
         placeholder="Describe the task, like a dev session would…"
         rows={2}
         className={styles.textarea}
       />
-      <FormControls
-        template={template}
-        templates={templates}
-        loading={loading}
-        canSubmit={canSubmit}
-        onTemplateChange={onTemplateChange}
-      />
+      <FormControls {...props} canSubmit={canSubmit} />
     </form>
   );
 }
@@ -217,16 +190,18 @@ function assemblyEmptyState(
 }
 
 /** The assembled block plus the trace of how it got that way; without a trace only the plain text is available, and without either there is nothing to show. */
+type AssemblyResultProps = Pick<
+  AssembledContextViewProps,
+  "owner" | "repo" | "result"
+> & { raw: boolean; onToggleRaw: () => void };
+
 function AssemblyResult({
   owner,
   repo,
   result,
   raw,
   onToggleRaw,
-}: Pick<AssembledContextViewProps, "owner" | "repo" | "result"> & {
-  raw: boolean;
-  onToggleRaw: () => void;
-}) {
+}: AssemblyResultProps) {
   if (!result) {
     return null;
   }
@@ -252,37 +227,37 @@ function AssemblyResult({
   );
 }
 
-/** What the assembly was given and what it spent: template, budget, cross-repo reach, freshness, and how long it took. */
-function TraceSummary({
-  trace,
-}: {
-  trace: NonNullable<NonNullable<AssembledContextViewProps["result"]>["trace"]>;
-}) {
+type AssemblyTrace = NonNullable<
+  NonNullable<AssembledContextViewProps["result"]>["trace"]
+>;
+
+/** The assembly's inputs at a glance. Cross-repo and staleness show only when they APPLY — a badge saying "fresh" on every assembly teaches the reader to stop looking at the row. */
+function TraceBadges({ trace }: { trace: AssemblyTrace }) {
   return (
-    <>
-      {/* Inputs + budget summary */}
-      <div className={styles.summary}>
-        <div className={styles.summaryRow}>
-          <span className="badge badge-gray">template: {trace.template}</span>
-          <span className="badge badge-gray">
-            budget: {trace.effectiveBudget}
-          </span>
-          {trace.crossRepo && (
-            <span className="badge badge-blue">cross-repo</span>
-          )}
-          {trace.freshness.state !== "fresh" && (
-            <span className="badge badge-yellow">{trace.freshness.state}</span>
-          )}
-          <span className={`meta ${styles.spacer}`}>
-            {trace.timingsMs.total} ms
-          </span>
-        </div>
-        <p className={`meta ${styles.summaryMeta}`}>
-          {trace.budget.used} / {trace.budget.total} tokens used ·{" "}
-          {trace.budget.leftover} left
-        </p>
-        <Bar used={trace.budget.used} total={trace.budget.total} />
-      </div>
-    </>
+    <div className={styles.summaryRow}>
+      <span className="badge badge-gray">template: {trace.template}</span>
+      <span className="badge badge-gray">budget: {trace.effectiveBudget}</span>
+      {trace.crossRepo && <span className="badge badge-blue">cross-repo</span>}
+      {trace.freshness.state !== "fresh" && (
+        <span className="badge badge-yellow">{trace.freshness.state}</span>
+      )}
+      <span className={`meta ${styles.spacer}`}>
+        {trace.timingsMs.total} ms
+      </span>
+    </div>
+  );
+}
+
+/** What the assembly was given and what it spent: template, budget, cross-repo reach, freshness, and how long it took. */
+function TraceSummary({ trace }: { trace: AssemblyTrace }) {
+  return (
+    <div className={styles.summary}>
+      <TraceBadges trace={trace} />
+      <p className={`meta ${styles.summaryMeta}`}>
+        {trace.budget.used} / {trace.budget.total} tokens used ·{" "}
+        {trace.budget.leftover} left
+      </p>
+      <Bar used={trace.budget.used} total={trace.budget.total} />
+    </div>
   );
 }

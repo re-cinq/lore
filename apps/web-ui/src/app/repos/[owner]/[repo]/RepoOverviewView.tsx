@@ -46,21 +46,10 @@ export interface RepoOverviewViewProps {
 }
 
 /** Repo overview: pure render with reonboardAction callback (no data access). */
-export default function RepoOverviewView({
-  owner,
-  repo,
-  readme,
-  enrollmentChecks,
-  darkFactoryEnabled,
-  trustLevel,
-  darkTasksWeek,
-  autoMergedWeek,
-  escalationsWeek,
-  recentTasks,
-  latestEvents,
-  reonboardAction,
-  setupWebhookAction,
-}: RepoOverviewViewProps) {
+export default function RepoOverviewView(props: RepoOverviewViewProps) {
+  const { owner, repo, readme, enrollmentChecks } = props;
+  const { reonboardAction, setupWebhookAction } = props;
+
   return (
     <div>
       {readme && (
@@ -75,22 +64,40 @@ export default function RepoOverviewView({
         reonboardAction={reonboardAction}
         setupWebhookAction={setupWebhookAction}
       />
-      <DarkFactoryCard
+      <DarkFactoryCard {...props} />
+      <RecentTasks owner={owner} repo={repo} recentTasks={props.recentTasks} />
+      <LatestEvents
         owner={owner}
         repo={repo}
-        darkFactoryEnabled={darkFactoryEnabled}
-        trustLevel={trustLevel}
-        darkTasksWeek={darkTasksWeek}
-        autoMergedWeek={autoMergedWeek}
-        escalationsWeek={escalationsWeek}
+        latestEvents={props.latestEvents}
       />
-      <RecentTasks owner={owner} repo={repo} recentTasks={recentTasks} />
-      <LatestEvents owner={owner} repo={repo} latestEvents={latestEvents} />
     </div>
   );
 }
 
-/** The repo's dark-factory posture at a glance: whether it is on, how far it is trusted, and what the last seven days produced. */
+type DarkFactoryStatsProps = Pick<
+  RepoOverviewViewProps,
+  | "darkFactoryEnabled"
+  | "trustLevel"
+  | "darkTasksWeek"
+  | "autoMergedWeek"
+  | "escalationsWeek"
+>;
+
+/** A tone only when the figure is non-zero, so a quiet week reads as quiet rather than as good or bad news. */
+function tonedWhenNonZero(count: number, tone: string): string | undefined {
+  return count > 0 ? tone : undefined;
+}
+
+/** Whether the repo runs dark. "Off (legacy)" rather than a bare "Off": every repo predates the mode, so off is the inherited state, not a choice someone made. */
+function ModeValue({ enabled }: { enabled: boolean }) {
+  return enabled ? (
+    <span className={styles.success}>Enabled</span>
+  ) : (
+    <span className="meta">Off (legacy)</span>
+  );
+}
+
 /** The week's dark-factory figures. Auto-merges are toned as success and escalations as danger only when NON-ZERO, so a quiet week reads as quiet rather than as good or bad news. */
 function DarkFactoryStats({
   darkFactoryEnabled,
@@ -98,42 +105,27 @@ function DarkFactoryStats({
   darkTasksWeek,
   autoMergedWeek,
   escalationsWeek,
-}: Pick<
-  RepoOverviewViewProps,
-  | "darkFactoryEnabled"
-  | "trustLevel"
-  | "darkTasksWeek"
-  | "autoMergedWeek"
-  | "escalationsWeek"
->) {
+}: DarkFactoryStatsProps) {
   return (
     <div className={styles.stats}>
-      <Stat
-        label="Mode"
-        value={
-          darkFactoryEnabled ? (
-            <span className={styles.success}>Enabled</span>
-          ) : (
-            <span className="meta">Off (legacy)</span>
-          )
-        }
-      />
+      <Stat label="Mode" value={<ModeValue enabled={darkFactoryEnabled} />} />
       <Stat label="Trust" value={trustLevel} />
       <Stat label="Tasks (7d)" value={darkTasksWeek} />
       <Stat
         label="Auto-merged (7d)"
         value={autoMergedWeek}
-        tone={autoMergedWeek > 0 ? styles.success : undefined}
+        tone={tonedWhenNonZero(autoMergedWeek, styles.success)}
       />
       <Stat
         label="Escalations (7d)"
         value={escalationsWeek}
-        tone={escalationsWeek > 0 ? styles.danger : undefined}
+        tone={tonedWhenNonZero(escalationsWeek, styles.danger)}
       />
     </div>
   );
 }
 
+/** The repo's dark-factory posture at a glance: whether it is on, how far it is trusted, and what the last seven days produced. */
 function DarkFactoryCard({
   owner,
   repo,
@@ -142,16 +134,7 @@ function DarkFactoryCard({
   darkTasksWeek,
   autoMergedWeek,
   escalationsWeek,
-}: Pick<
-  RepoOverviewViewProps,
-  | "owner"
-  | "repo"
-  | "darkFactoryEnabled"
-  | "trustLevel"
-  | "darkTasksWeek"
-  | "autoMergedWeek"
-  | "escalationsWeek"
->) {
+}: DarkFactoryStatsProps & Pick<RepoOverviewViewProps, "owner" | "repo">) {
   return (
     <div className={`spec-card ${styles.dfCard}`}>
       <div className={styles.dfHead}>
@@ -190,6 +173,28 @@ function Stat({
   );
 }
 
+/** One task row. The description is truncated because this table is a glance at what the repo has been doing — the task page is where a description is read in full. */
+function taskCells(task: RepoOverviewViewProps["recentTasks"][number]) {
+  return [
+    <Link href={`/tasks/${task.id}`} key="task">
+      {task.description.substring(0, 60)}...
+    </Link>,
+    <span className={`op-badge op-${task.status}`} key="status">
+      {formatEnumLabel(task.status)}
+    </span>,
+    task.pr_url ? (
+      <a href={task.pr_url} target="_blank" key="pr">
+        PR
+      </a>
+    ) : (
+      "—"
+    ),
+    <span className="meta" key="created">
+      <TimeAgo date={task.created_at} />
+    </span>,
+  ];
+}
+
 function RecentTasks({
   owner,
   repo,
@@ -214,25 +219,37 @@ function RecentTasks({
       columns={["Task", "Status", "PR", "Created"]}
       rows={recentTasks}
       rowKey={(t) => String(t.id)}
-      cells={(t) => [
-        <Link href={`/tasks/${t.id}`} key="task">
-          {t.description.substring(0, 60)}...
-        </Link>,
-        <span className={`op-badge op-${t.status}`} key="status">
-          {formatEnumLabel(t.status)}
-        </span>,
-        t.pr_url ? (
-          <a href={t.pr_url} target="_blank" key="pr">
-            PR
-          </a>
-        ) : (
-          "—"
-        ),
-        <span className="meta" key="created">
-          <TimeAgo date={t.created_at} />
-        </span>,
-      ]}
+      cells={taskCells}
     />
+  );
+}
+
+/** The most recent events, or a note that there are none. */
+function EventsTable({
+  events,
+}: {
+  events: RepoOverviewViewProps["latestEvents"];
+}) {
+  if (events.length === 0) {
+    return <Alert variant="secondary">No events yet.</Alert>;
+  }
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Event</th>
+          <th>Source</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {events.map((event) => (
+          <EventRow key={event.id} event={event} />
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -249,25 +266,7 @@ function LatestEvents({
           Show all →
         </Link>
       </div>
-      {latestEvents.length > 0 ? (
-        <table>
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Event</th>
-              <th>Source</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {latestEvents.map((e) => (
-              <EventRow key={e.id} event={e} />
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <Alert variant="secondary">No events yet.</Alert>
-      )}
+      <EventsTable events={latestEvents} />
     </>
   );
 }

@@ -5,6 +5,17 @@ import { parseFrontmatter } from "@/lib/frontmatter";
 import SpecDocument from "../../specs/[...path]/SpecDocument";
 import AdrMetaView from "./AdrMetaView";
 
+/** Why this ADR is blank, and when it will not be. Nothing here is for the reader to do: the projection runs on the next push to `main`, so the note says to come back rather than offering an action. */
+function NoGraphData({ filePath }: { filePath: string }) {
+  return (
+    <p className="muted">
+      No graph data for <code>{filePath}</code>. ADRs are projected
+      automatically by CI on push to <code>main</code>; refresh after the next
+      ingest.
+    </p>
+  );
+}
+
 export default async function RepoAdrDetail({
   params,
 }: {
@@ -30,11 +41,7 @@ export default async function RepoAdrDetail({
           <SpecDocument repo={fullName} content={body} statements={[]} />
         </>
       ) : (
-        <p className="muted">
-          No graph data for <code>{filePath}</code>. ADRs are projected
-          automatically by CI on push to <code>main</code>; refresh after the
-          next ingest.
-        </p>
+        <NoGraphData filePath={filePath} />
       )}
     </div>
   );

@@ -7,6 +7,31 @@ import SpecStatusPill from "@/components/SpecStatusPill";
 import SpecDocument from "./SpecDocument";
 import styles from "./page.module.scss";
 
+/** The spec as the GRAPH holds it, not as the repo does: the source renders the markdown, and the document supplies the per-statement coverage overlay laid over it. */
+async function readSpec(fullName: string, filePath: string) {
+  const [source, doc] = await Promise.all([
+    fetchTraceSource(fullName, filePath),
+    fetchTraceDocument(fullName, filePath),
+  ]);
+
+  return {
+    source,
+    statements: doc ? toStatementInfo(doc.statements) : [],
+    status: source ? parseSpecStatus(source) : null,
+  };
+}
+
+/** Why this spec is blank, and how to fix it. Almost always means the graph has not been projected yet rather than that the file is missing, so the note names the steps rather than reporting a 404. */
+function NoGraphData({ filePath }: { filePath: string }) {
+  return (
+    <p className="muted">
+      No graph data for <code>{filePath}</code>. Build the graph from the{" "}
+      <strong>Graph</strong> tab and run the <code>ingest-*</code> tasks, then
+      refresh.
+    </p>
+  );
+}
+
 export default async function RepoSpecDetail({
   params,
 }: {
@@ -17,13 +42,7 @@ export default async function RepoSpecDetail({
   const filePath = path.map(decodeURIComponent).join("/");
   const specsLink = `/repos/${owner}/${repo}/specs`;
 
-  // Graph is source of truth: source renders markdown, doc provides statement overlay.
-  const [source, doc] = await Promise.all([
-    fetchTraceSource(fullName, filePath),
-    fetchTraceDocument(fullName, filePath),
-  ]);
-  const statements = doc ? toStatementInfo(doc.statements) : [];
-  const status = source ? parseSpecStatus(source) : null;
+  const { source, statements, status } = await readSpec(fullName, filePath);
 
   return (
     <div>
@@ -38,11 +57,7 @@ export default async function RepoSpecDetail({
           statements={statements}
         />
       ) : (
-        <p className="muted">
-          No graph data for <code>{filePath}</code>. Build the graph from the{" "}
-          <strong>Graph</strong> tab and run the <code>ingest-*</code> tasks,
-          then refresh.
-        </p>
+        <NoGraphData filePath={filePath} />
       )}
     </div>
   );

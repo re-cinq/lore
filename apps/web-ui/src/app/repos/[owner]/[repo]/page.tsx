@@ -113,19 +113,9 @@ async function withWebhookSecret(
   return { ...webhook, secret: secret ?? undefined };
 }
 
-/** The eight panel reads, all fail-soft and all in one batch: page latency is the slowest call, not their sum (#1030). */
-async function fetchOverviewPanels(fullName: string) {
-  // Mutually independent fetches in one batch; page latency = slowest call (#1030); per-call .catch keeps fail-soft.
-  const [
-    readme,
-    repoInfo,
-    recentTasks,
-    latestEvents,
-    localMcpRow,
-    githubFiles,
-    webhook,
-    activityCounts,
-  ] = await Promise.all([
+/** What the repo itself says: its README, its record, its recent work. Every read is fail-soft — a panel that cannot load renders empty rather than taking the page down with it. */
+async function fetchRepoPanels(fullName: string) {
+  const [readme, repoInfo, recentTasks, latestEvents] = await Promise.all([
     getReadme(fullName).catch(() => null),
     getRepo(fullName).then((result) =>
       result.status === "ok" ? result.data : null,
@@ -133,35 +123,47 @@ async function fetchOverviewPanels(fullName: string) {
     getRepoTasks(fullName, 5).then((r) =>
       r.status === "ok" ? r.data.tasks : [],
     ),
-    // Latest event-bus activity (fail-soft); full infinite-scrolling list at /repos/:o/:r/events.
+    // Latest event-bus activity; the full infinite-scrolling list is at /repos/:o/:r/events.
     getRepoEvents(fullName, 10).then((r) =>
       r.status === "ok" ? (r.data.events as unknown as RepoEvent[]) : [],
     ),
-    getRepoSessions(fullName).then((r) => (r.status === "ok" ? r.data : null)),
-    checkRepoFiles(fullName, [
-      "AGENTS.md",
-      ".github/workflows/lore-ingest.yml",
-    ]).catch(() => ({
-      "AGENTS.md": null,
-      ".github/workflows/lore-ingest.yml": null,
-    })),
-    getWebhookStatus(fullName).catch(() => null),
-    // Dark Factory dashboard counts (T052) — best-effort, each figure falls back to null.
-    getRepoActivityCounts(fullName).then((r) =>
-      r.status === "ok"
-        ? r.data
-        : { tasks: null, auto_merged: null, escalations: null },
-    ),
   ]);
 
-  return {
-    readme,
-    repoInfo,
-    recentTasks,
-    latestEvents,
-    localMcpRow,
-    githubFiles,
-    webhook,
-    activityCounts,
-  };
+  return { readme, repoInfo, recentTasks, latestEvents };
+}
+
+/** How well the repo is wired into Lore: its session, its onboarding files, its webhook, its dark-factory counters. Fail-soft in the same way, and each figure falls back to null rather than to zero — "not known" is not "none". */
+async function fetchIntegrationPanels(fullName: string) {
+  const [localMcpRow, githubFiles, webhook, activityCounts] = await Promise.all(
+    [
+      getRepoSessions(fullName).then((r) =>
+        r.status === "ok" ? r.data : null,
+      ),
+      checkRepoFiles(fullName, [
+        "AGENTS.md",
+        ".github/workflows/lore-ingest.yml",
+      ]).catch(() => ({
+        "AGENTS.md": null,
+        ".github/workflows/lore-ingest.yml": null,
+      })),
+      getWebhookStatus(fullName).catch(() => null),
+      getRepoActivityCounts(fullName).then((r) =>
+        r.status === "ok"
+          ? r.data
+          : { tasks: null, auto_merged: null, escalations: null },
+      ),
+    ],
+  );
+
+  return { localMcpRow, githubFiles, webhook, activityCounts };
+}
+
+/** The eight panel reads, all fail-soft and all in one batch: page latency is the slowest call, not their sum (#1030). Both halves are started before either is awaited, so splitting them costs no round trip. */
+async function fetchOverviewPanels(fullName: string) {
+  const [repoPanels, integrationPanels] = await Promise.all([
+    fetchRepoPanels(fullName),
+    fetchIntegrationPanels(fullName),
+  ]);
+
+  return { ...repoPanels, ...integrationPanels };
 }

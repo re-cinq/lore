@@ -22,6 +22,29 @@ const DF_EVENT_TYPES = [
   "spec_trace_ingest",
 ];
 
+/** The console's whole model. Both reads are BEST-EFFORT: a legacy cluster with no `audit_log` returns an empty list rather than failing, and the activation state above it is worth showing even when the history below is missing. */
+async function consoleModel(
+  fullName: string,
+  settings: Record<string, unknown>,
+) {
+  const [taskResult, auditResult] = await Promise.all([
+    getRepoTasks(fullName, 15),
+    getAuditLog(fullName, DF_EVENT_TYPES),
+  ]);
+
+  return deriveDarkFactoryConsole({
+    resolved: resolveDarkFactorySettings(darkFactorySettingsOf(settings)),
+    trustLevel: resolveTrustLevel(settings),
+    tasks: normalizeConsoleTasks(
+      unwrapOr(taskResult, { tasks: [] }).tasks as unknown as RawTaskRow[],
+    ),
+    decisions: normalizeConsoleDecisions(
+      unwrapOr(auditResult, { entries: [] })
+        .entries as unknown as RawAuditRow[],
+    ),
+  });
+}
+
 export default async function DarkFactoryPage({
   params,
 }: {
@@ -37,28 +60,7 @@ export default async function DarkFactoryPage({
     return <div>Repo not found</div>;
   }
 
-  const settings = repoData.settings ?? {};
-  const resolved = resolveDarkFactorySettings(darkFactorySettingsOf(settings));
-  const trustLevel = resolveTrustLevel(settings);
-
-  // Reads are best-effort; legacy clusters without audit_log return empty list, not failure
-  const [taskResult, auditResult] = await Promise.all([
-    getRepoTasks(fullName, 15),
-    getAuditLog(fullName, DF_EVENT_TYPES),
-  ]);
-  const tasks = normalizeConsoleTasks(
-    unwrapOr(taskResult, { tasks: [] }).tasks as unknown as RawTaskRow[],
-  );
-  const decisions = normalizeConsoleDecisions(
-    unwrapOr(auditResult, { entries: [] }).entries as unknown as RawAuditRow[],
-  );
-
-  const model = deriveDarkFactoryConsole({
-    resolved,
-    trustLevel,
-    tasks,
-    decisions,
-  });
+  const model = await consoleModel(fullName, repoData.settings ?? {});
 
   return <DarkFactoryConsoleView owner={owner} repo={repo} model={model} />;
 }

@@ -38,6 +38,47 @@ export default function DarkFactoryConsoleView({
   );
 }
 
+/** Says up front that this is not a switch anyone can flip. The ceremony is stated here rather than only enforced at the API, so a reader learns the cost before clicking through. */
+function TwoKeyNote({ owner, repo }: { owner: string; repo: string }) {
+  return (
+    <p className="meta">
+      Enabling/disabling and editing this policy needs the two-key approval
+      ceremony —{" "}
+      <Link href={`/repos/${owner}/${repo}/dark-factory/settings`}>
+        Dark Factory settings
+      </Link>
+      .
+    </p>
+  );
+}
+
+/** Both gates, always. Either one alone explains an "off", so showing only the failing one would leave a reader guessing whether the other is fine. */
+function Gates({
+  repoEnabled,
+  trustLevel,
+}: {
+  repoEnabled: boolean;
+  trustLevel: DarkFactoryConsoleModel["trustLevel"];
+}) {
+  return (
+    <div className={styles.gates}>
+      <span>
+        Repo gate:{" "}
+        {repoEnabled ? (
+          <>
+            <Icon name="check" size={13} inline /> enabled
+          </>
+        ) : (
+          <>
+            <Icon name="error" size={13} inline /> disabled
+          </>
+        )}
+      </span>
+      <span>Trust: {trustLevel}</span>
+    </div>
+  );
+}
+
 /** Two gates decide whether the factory runs dark on this repo: the repo's own switch and its trust level. Both are shown, because either one alone explains an "off". */
 function ActivationCard({
   owner,
@@ -58,31 +99,34 @@ function ActivationCard({
         </span>
         <span className="meta">{activation.reason}</span>
       </div>
-      <div className={styles.gates}>
-        <span>
-          Repo gate:{" "}
-          {activation.repoEnabled ? (
-            <>
-              <Icon name="check" size={13} inline /> enabled
-            </>
-          ) : (
-            <>
-              <Icon name="error" size={13} inline /> disabled
-            </>
-          )}
-        </span>
-        <span>Trust: {trustLevel}</span>
-      </div>
-      <p className="meta">
-        Enabling/disabling and editing this policy needs the two-key approval
-        ceremony —{" "}
-        <Link href={`/repos/${owner}/${repo}/dark-factory/settings`}>
-          Dark Factory settings
-        </Link>
-        .
-      </p>
+      <Gates repoEnabled={activation.repoEnabled} trustLevel={trustLevel} />
+      <TwoKeyNote owner={owner} repo={repo} />
     </div>
   );
+}
+
+/** The policy as label/value pairs. An empty notify list reads as "escalation (implicit)" rather than blank: the platform always escalates, so nothing configured is not the same as nothing happening. */
+function policyRows(config: DarkFactoryConsoleModel["config"]) {
+  return [
+    { label: "Allowlist paths", value: config.auto_merge.paths.join(", ") },
+    { label: "Min trust", value: config.auto_merge.min_trust },
+    {
+      label: "Require green CI",
+      value: String(config.auto_merge.require_green_ci),
+    },
+    {
+      label: "Require bot approval",
+      value: String(config.auto_merge.require_bot_approval),
+    },
+    { label: "Create issue", value: config.create_issue },
+    { label: "Review", value: config.review },
+    {
+      label: "Notify",
+      value: config.notify.length
+        ? config.notify.join(", ")
+        : "escalation (implicit)",
+    },
+  ];
 }
 
 function AutoMergePolicy({
@@ -95,41 +139,37 @@ function AutoMergePolicy({
       <h3>Auto-merge policy</h3>
       <div className="spec-card">
         <dl className={styles.config}>
-          <div>
-            <dt className="meta">Allowlist paths</dt>
-            <dd>{config.auto_merge.paths.join(", ")}</dd>
-          </div>
-          <div>
-            <dt className="meta">Min trust</dt>
-            <dd>{config.auto_merge.min_trust}</dd>
-          </div>
-          <div>
-            <dt className="meta">Require green CI</dt>
-            <dd>{String(config.auto_merge.require_green_ci)}</dd>
-          </div>
-          <div>
-            <dt className="meta">Require bot approval</dt>
-            <dd>{String(config.auto_merge.require_bot_approval)}</dd>
-          </div>
-          <div>
-            <dt className="meta">Create issue</dt>
-            <dd>{config.create_issue}</dd>
-          </div>
-          <div>
-            <dt className="meta">Review</dt>
-            <dd>{config.review}</dd>
-          </div>
-          <div>
-            <dt className="meta">Notify</dt>
-            <dd>
-              {config.notify.length
-                ? config.notify.join(", ")
-                : "escalation (implicit)"}
-            </dd>
-          </div>
+          {policyRows(config).map(({ label, value }) => (
+            <div key={label}>
+              <dt className="meta">{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
         </dl>
       </div>
     </>
+  );
+}
+
+/** One task the factory ran. A dash rather than a blank when there is no PR: dark mode's whole point is that the PR is the artifact, so its absence is worth showing. */
+function WorkItemRow({
+  workItem,
+}: {
+  workItem: DarkFactoryConsoleModel["workItems"][number];
+}) {
+  return (
+    <tr>
+      <td>{workItem.type}</td>
+      <td>{workItem.status}</td>
+      <td>
+        {workItem.prUrl ? (
+          <a href={workItem.prUrl}>PR</a>
+        ) : (
+          <span className="meta">—</span>
+        )}
+      </td>
+      <td className="meta">{workItem.createdAt}</td>
+    </tr>
   );
 }
 
@@ -153,18 +193,7 @@ function WorkItems({
           </thead>
           <tbody>
             {workItems.map((workItem) => (
-              <tr key={workItem.id}>
-                <td>{workItem.type}</td>
-                <td>{workItem.status}</td>
-                <td>
-                  {workItem.prUrl ? (
-                    <a href={workItem.prUrl}>PR</a>
-                  ) : (
-                    <span className="meta">—</span>
-                  )}
-                </td>
-                <td className="meta">{workItem.createdAt}</td>
-              </tr>
+              <WorkItemRow key={workItem.id} workItem={workItem} />
             ))}
           </tbody>
         </table>

@@ -19,6 +19,24 @@ export interface DarkFactoryViewProps {
   saveAction: (prev: SaveState, formData: FormData) => Promise<SaveState>;
 }
 
+/** Names the page and its cost in the same breath: the "security-gated" tag and the approval-PR requirement are the two things a reader needs before touching anything below. */
+function SettingsHeader() {
+  return (
+    <>
+      <div className={styles.titleRow}>
+        <h2 className={styles.title}>
+          Dark Factory <span className={styles.gated}>security-gated</span>
+        </h2>
+        <DarkFactoryHelp />
+      </div>
+      <p className={`meta ${styles.lede}`}>
+        Per-repo autonomy. Reference an approved{" "}
+        <code>dark-factory-approval</code> PR when changing a gated field.
+      </p>
+    </>
+  );
+}
+
 export default function DarkFactoryView({
   fullName,
   resolved,
@@ -30,16 +48,7 @@ export default function DarkFactoryView({
 
   return (
     <div>
-      <div className={styles.titleRow}>
-        <h2 className={styles.title}>
-          Dark Factory <span className={styles.gated}>security-gated</span>
-        </h2>
-        <DarkFactoryHelp />
-      </div>
-      <p className={`meta ${styles.lede}`}>
-        Per-repo autonomy. Reference an approved{" "}
-        <code>dark-factory-approval</code> PR when changing a gated field.
-      </p>
+      <SettingsHeader />
 
       <SaveResultBanner state={state} />
 
@@ -80,35 +89,126 @@ function DarkFactoryHelp() {
   );
 }
 
+/** Issues are off by default in dark mode — the PR is the artifact — so "never" leads. */
+const CREATE_ISSUE_OPTIONS: [string, string][] = [
+  ["never", "Never"],
+  ["on_gate", "On gate / escalation only"],
+  ["always", "Always"],
+];
+
+const REVIEW_OPTIONS: [string, string][] = [
+  ["trust_based", "Trust-based"],
+  ["always", "Always"],
+  ["never", "Never"],
+];
+
+/** "No" first: enabling dark mode is the deliberate act, so the safe answer is the one already selected. */
+const YES_NO_OPTIONS: [string, string][] = [
+  ["no", "No"],
+  ["yes", "Yes"],
+];
+
+/** A labelled select over a fixed set of values, given as `[value, label]` pairs so the stored value and the words a reader sees stay together at the call site. */
+function ChoiceField({
+  label,
+  name,
+  value,
+  options,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  options: [string, string][];
+}) {
+  return (
+    <>
+      <label>{label}</label>
+      <select name={name} defaultValue={value}>
+        {options.map(([optionValue, optionLabel]) => (
+          <option key={optionValue} value={optionValue}>
+            {optionLabel}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
+
+/** Which channels hear about this repo. Multi-select because escalation and routine notification can go to different places, and an empty selection still escalates — the platform's floor, not a silence setting. */
+function NotifyField({ selected }: { selected: readonly string[] }) {
+  return (
+    <>
+      <label>Notify channels</label>
+      <select name="df_notify" multiple size={3} defaultValue={selected}>
+        {NOTIFY_CHANNELS.map((channel) => (
+          <option key={channel} value={channel}>
+            {channel}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
+
 /** What the factory does at all: whether it runs dark, whether it files Issues, whether it reviews, and who hears about it. */
 function ModeFields({ resolved }: { resolved: ResolvedDarkFactorySettings }) {
   return (
     <>
-      <label>Dark mode enabled</label>
-      <select name="df_enabled" defaultValue={resolved.enabled ? "yes" : "no"}>
-        <option value="no">No</option>
+      <ChoiceField
+        label="Dark mode enabled"
+        name="df_enabled"
+        value={resolved.enabled ? "yes" : "no"}
+        options={YES_NO_OPTIONS}
+      />
+
+      <ChoiceField
+        label="Create GitHub Issue"
+        name="df_create_issue"
+        value={resolved.create_issue}
+        options={CREATE_ISSUE_OPTIONS}
+      />
+      <ChoiceField
+        label="Review mode"
+        name="df_review"
+        value={resolved.review}
+        options={REVIEW_OPTIONS}
+      />
+
+      <NotifyField selected={resolved.notify} />
+    </>
+  );
+}
+
+/** A safety requirement that can be turned off. "No" is labelled as a DOWNGRADE in the option itself, because that word is what the approval ceremony gates — a reader should meet it before choosing, not after the save is refused. */
+function RequirementField({
+  label,
+  name,
+  required,
+}: {
+  label: string;
+  name: string;
+  required: boolean;
+}) {
+  return (
+    <>
+      <label>{label}</label>
+      <select name={name} defaultValue={required ? "yes" : "no"}>
         <option value="yes">Yes</option>
+        <option value="no">No (downgrade — gated)</option>
       </select>
+    </>
+  );
+}
 
-      <label>Create GitHub Issue</label>
-      <select name="df_create_issue" defaultValue={resolved.create_issue}>
-        <option value="never">Never</option>
-        <option value="on_gate">On gate / escalation only</option>
-        <option value="always">Always</option>
-      </select>
-
-      <label>Review mode</label>
-      <select name="df_review" defaultValue={resolved.review}>
-        <option value="trust_based">Trust-based</option>
-        <option value="always">Always</option>
-        <option value="never">Never</option>
-      </select>
-
-      <label>Notify channels</label>
-      <select name="df_notify" multiple size={3} defaultValue={resolved.notify}>
-        {NOTIFY_CHANNELS.map((c) => (
-          <option key={c} value={c}>
-            {c}
+/** The trust rung a repo must reach before a PR may merge itself. Trust is earned by merges, so this is a floor on experience rather than a permission someone grants. */
+function MinTrustField({ value }: { value: string }) {
+  return (
+    <>
+      <label>Auto-merge min trust</label>
+      <select name="df_am_min_trust" defaultValue={value}>
+        {TRUST_LEVELS.map((level) => (
+          <option key={level} value={level}>
+            {level}
           </option>
         ))}
       </select>
@@ -131,35 +231,18 @@ function AutoMergeFields({
         defaultValue={resolved.auto_merge.paths.join("\n")}
       />
 
-      <label>Auto-merge min trust</label>
-      <select
-        name="df_am_min_trust"
-        defaultValue={resolved.auto_merge.min_trust}
-      >
-        {TRUST_LEVELS.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </select>
+      <MinTrustField value={resolved.auto_merge.min_trust} />
 
-      <label>Require green CI to auto-merge</label>
-      <select
+      <RequirementField
+        label="Require green CI to auto-merge"
         name="df_am_green_ci"
-        defaultValue={resolved.auto_merge.require_green_ci ? "yes" : "no"}
-      >
-        <option value="yes">Yes</option>
-        <option value="no">No (downgrade — gated)</option>
-      </select>
-
-      <label>Require bot approval to auto-merge</label>
-      <select
+        required={resolved.auto_merge.require_green_ci}
+      />
+      <RequirementField
+        label="Require bot approval to auto-merge"
         name="df_am_bot_approval"
-        defaultValue={resolved.auto_merge.require_bot_approval ? "yes" : "no"}
-      >
-        <option value="yes">Yes</option>
-        <option value="no">No (downgrade — gated)</option>
-      </select>
+        required={resolved.auto_merge.require_bot_approval}
+      />
     </>
   );
 }

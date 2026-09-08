@@ -266,14 +266,15 @@ function walkElement(state: HighlightState, node: Element) {
   }
 }
 
-export function buildHighlighter(
+/** The statements to match, longest matcher first. Order matters: a short statement that is a prefix of a longer one would otherwise claim the longer one's text, and the `used` set makes each claim exclusive. */
+function matcherState(
   statements: {
     ordinal: number;
     text: string;
     state: StatementState;
     drifted?: boolean;
   }[],
-) {
+): HighlightState {
   const enriched = statements.map((s) => ({
     ordinal: s.ordinal,
     text: s.text,
@@ -282,41 +283,58 @@ export function buildHighlighter(
     state: s.state,
     drifted: s.drifted,
   }));
-  const state: HighlightState = {
+
+  return {
     ordered: [...enriched].sort((a, b) => b.matcher.length - a.matcher.length),
     used: new Set<number>(),
   };
+}
+
+/** Walks the tree's top level, replacing text nodes whose content a statement claims. Elements recurse through `walkElement`; only the root's own text children are rebuilt here. */
+function walkRoot(state: HighlightState, tree: Root) {
+  const rootChildren: RootContent[] = [];
+  let rootChanged = false;
+
+  tree.children.forEach((child) => {
+    if (child.type === "element") {
+      walkElement(state, child);
+    }
+
+    if (child.type !== "text") {
+      rootChildren.push(child);
+
+      return;
+    }
+    const replaced = processTextNode(state, child);
+
+    if (replaced) {
+      rootChildren.push(...(replaced as RootContent[]));
+      rootChanged = true;
+
+      return;
+    }
+    rootChildren.push(child);
+  });
+
+  return { rootChildren, rootChanged };
+}
+
+export function buildHighlighter(
+  statements: {
+    ordinal: number;
+    text: string;
+    state: StatementState;
+    drifted?: boolean;
+  }[],
+) {
+  const state = matcherState(statements);
 
   return function plugin() {
     return function transformer(tree: Root) {
-      // react-markdown re-runs on every render with fresh tree; clear matcher state to avoid re-claimed statements.
+      // react-markdown re-runs on every render with a fresh tree; clearing avoids statements staying claimed from the previous pass.
       state.used.clear();
-      const rootChildren: RootContent[] = [];
-      let rootChanged = false;
+      const { rootChildren, rootChanged } = walkRoot(state, tree);
 
-      tree.children.forEach((child) => {
-        if (child.type === "element") {
-          walkElement(state, child);
-        }
-
-        if (child.type !== "text") {
-          rootChildren.push(child);
-
-          return;
-        }
-        const replaced = processTextNode(state, child);
-
-        if (replaced) {
-          rootChildren.push(...(replaced as RootContent[]));
-          rootChanged = true;
-
-          return;
-        }
-        rootChildren.push(child);
-      });
-
-      // Same closure-narrowing blind spot as walkElement's `changed`: rootChanged is set inside the forEach callback above.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (rootChanged) {
         tree.children = rootChildren;
       }
