@@ -242,13 +242,10 @@ function findNode(input: NodeDetailInput) {
 }
 
 export function describeNode(input: NodeDetailInput): NodeDetail {
-  const node = findNode(input);
-  const nodeType = node?.type;
+  const nodeType = findNode(input)?.type;
   const visual = resolveVisual(input.row, input.state, nodeType);
   const terminal = isTerminal(input.definition, input.nodeId);
   const row = rowFacts(input.row);
-  const state = stateFacts(input.state);
-  const running = visual.tone === "running";
 
   return {
     tone: visual.tone,
@@ -260,9 +257,27 @@ export function describeNode(input: NodeDetailInput): NodeDetail {
     }),
     failures: resolveFailures(visual.tone, input.state),
     files: uniqueFiles(input.state),
+    nodeType: nodeType ?? null,
+    ...nodeFacts(input, row, visual.tone === "running"),
+  };
+}
+
+type NodeFacts = Omit<
+  NodeDetail,
+  "tone" | "statusLabel" | "why" | "failures" | "files" | "nodeType"
+>;
+
+/** The counters and display labels read off the walk row and the reducer state. */
+function nodeFacts(
+  input: NodeDetailInput,
+  row: RowFacts,
+  running: boolean,
+): NodeFacts {
+  const state = stateFacts(input.state);
+
+  return {
     eventCount: state.eventCount,
     droppedCount: state.droppedCount,
-    nodeType: nodeType ?? null,
     outcomeLabel: resolveOutcomeLabel(running, row.outcome),
     durationLabel: resolveDurationLabel(running, row.durationSeconds),
     iteration: resolveIteration(row, state),

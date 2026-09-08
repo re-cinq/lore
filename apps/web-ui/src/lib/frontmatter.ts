@@ -37,11 +37,27 @@ interface MetaLine {
   rawValue: string;
 }
 
+/** Applies the `- item` lines following a valueless key; returns the index to resume from. */
+function applyBlockList(
+  meta: Record<string, string | string[]>,
+  { lines, index, key }: MetaLine,
+): number {
+  const blockItems = collectBlockListItems(lines, index + 1);
+
+  if (blockItems.length === 0) {
+    return index;
+  }
+  meta[key] = blockItems;
+
+  return index + blockItems.length;
+}
+
 /** Applies one `key: value` line to `meta`; returns the line index to resume from (past any consumed block list). */
 function applyMetaLine(
   meta: Record<string, string | string[]>,
-  { lines, index, key, rawValue }: MetaLine,
+  metaLine: MetaLine,
 ): number {
+  const { index, key, rawValue } = metaLine;
   const value = rawValue.trim();
   const flowList = parseFlowList(value);
 
@@ -56,14 +72,8 @@ function applyMetaLine(
 
     return index;
   }
-  const blockItems = collectBlockListItems(lines, index + 1);
 
-  if (blockItems.length === 0) {
-    return index;
-  }
-  meta[key] = blockItems;
-
-  return index + blockItems.length;
+  return applyBlockList(meta, metaLine);
 }
 
 export function parseFrontmatter(source: string): Frontmatter {

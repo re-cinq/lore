@@ -77,15 +77,23 @@ export function definitionForRun(
   }
 
   return {
-    definition: {
-      name: blueprintName,
-      description: "Inferred from the recorded walk; edges are not declared.",
-      version: 1,
-      entry: nodes[0].id,
-      exit: nodes[nodes.length - 1].id,
-      nodes,
-      edges: chainEdges(nodes),
-    },
+    definition: syntheticDefinition(blueprintName, nodes),
     synthetic: true,
+  };
+}
+
+/** Chain of the visited nodes, standing in for a run that stored no clone. */
+function syntheticDefinition(
+  name: string,
+  nodes: DefinitionNode[],
+): AssemblyLineDefinition {
+  return {
+    name,
+    description: "Inferred from the recorded walk; edges are not declared.",
+    version: 1,
+    entry: nodes[0].id,
+    exit: nodes[nodes.length - 1].id,
+    nodes,
+    edges: chainEdges(nodes),
   };
 }

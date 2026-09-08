@@ -71,21 +71,24 @@ export function parseRunStreamRow(value: unknown): RunStreamEvent | null {
     return null;
   }
 
+  return { id, taskId, eventType, createdAt, ...optionalEventFields(body) };
+}
+
+/** Every field a row may omit; each one narrows to null/empty rather than rejecting the row. */
+function optionalEventFields(
+  body: Record<string, unknown>,
+): Omit<RunStreamEvent, "id" | "taskId" | "eventType" | "createdAt"> {
   return {
-    id,
-    taskId,
     agentCrName: str(body.agentCrName),
     assemblyLineId: str(body.assemblyLineId),
     stationRunId: str(body.stationRunId),
     nodeId: str(body.nodeId),
     iteration: num(body.iteration),
-    eventType,
     toolName: str(body.toolName),
     toolUseId: str(body.toolUseId),
     isError: body.isError === true,
     filePaths: stringList(body.filePaths),
     summary: str(body.summary),
     payload: record(body.payload),
-    createdAt,
   };
 }

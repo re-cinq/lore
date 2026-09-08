@@ -53,23 +53,28 @@ export function bundleControlIds(
 ): string[] {
   const chainSource = ancestorChain(parent, sourceId);
   const chainTarget = ancestorChain(parent, targetId);
+
+  return pathThroughLca(chainSource, chainTarget) ?? [sourceId, targetId];
+}
+
+/** Join the chains at the source's lowest ancestor that also lies on the target's. */
+function pathThroughLca(
+  chainSource: string[],
+  chainTarget: string[],
+): string[] | null {
   const targetDepth = new Map(chainTarget.map((id, index) => [id, index]));
 
-  for (
-    let sourceIndex = 0;
-    sourceIndex < chainSource.length;
-    sourceIndex += 1
-  ) {
-    const lcaTargetIndex = targetDepth.get(chainSource[sourceIndex]);
+  for (let index = 0; index < chainSource.length; index += 1) {
+    const lcaTargetIndex = targetDepth.get(chainSource[index]);
 
     if (lcaTargetIndex === undefined) {
       continue;
     }
-    const upToLca = chainSource.slice(0, sourceIndex + 1);
+    const upToLca = chainSource.slice(0, index + 1);
     const downFromLca = chainTarget.slice(0, lcaTargetIndex).reverse();
 
     return [...upToLca, ...downFromLca];
   }
 
-  return [sourceId, targetId];
+  return null;
 }

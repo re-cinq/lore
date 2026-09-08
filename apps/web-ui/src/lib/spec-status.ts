@@ -49,6 +49,24 @@ const BUCKETS: Array<{ status: SpecStatus; re: RegExp }> = [
 
 const MAX_LABEL = 24;
 
+/** Bucket + label from the `| Status |` row's value cell, trailing qualifier stripped. */
+function statusInfoFromCell(statusCell: string): SpecStatusInfo | null {
+  const value = statusCell.replace(/\*/g, "").trim();
+  const bucket = BUCKETS.find((b) => b.re.test(value.toLowerCase()));
+
+  if (!bucket) {
+    return null;
+  }
+  const [beforeDash] = value.split(/\s+[—–-]\s+/);
+  const [beforeParen] = beforeDash.split(" (");
+  const label = beforeParen.trim();
+
+  return {
+    status: bucket.status,
+    label: label.slice(0, MAX_LABEL) || value.slice(0, MAX_LABEL),
+  };
+}
+
 export function parseSpecStatus(markdown: string): SpecStatusInfo | null {
   for (const line of markdown.split("\n")) {
     const cells = line.split("|").map((c) => c.trim());
@@ -56,21 +74,8 @@ export function parseSpecStatus(markdown: string): SpecStatusInfo | null {
     if (cells.length < 3 || cells[1].toLowerCase() !== "status") {
       continue;
     }
-    const statusCell = cells[2];
-    const value = statusCell.replace(/\*/g, "").trim();
-    const bucket = BUCKETS.find((b) => b.re.test(value.toLowerCase()));
 
-    if (!bucket) {
-      return null;
-    }
-    const [beforeDash] = value.split(/\s+[—–-]\s+/);
-    const [beforeParen] = beforeDash.split(" (");
-    const label = beforeParen.trim();
-
-    return {
-      status: bucket.status,
-      label: label.slice(0, MAX_LABEL) || value.slice(0, MAX_LABEL),
-    };
+    return statusInfoFromCell(cells[2]);
   }
 
   return null;

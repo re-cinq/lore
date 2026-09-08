@@ -58,6 +58,25 @@ export function replayRunData(
 ): RunData {
   const completed = completedRowsAt(rows, nodeStates);
   const entries = Object.entries(nodeStates);
+
+  return {
+    executed: new Set(
+      entries
+        .filter(([, s]) => s.status !== "idle" || s.transcript.length > 0)
+        .map(([id]) => id),
+    ),
+    verdicts: replayVerdicts(completed, nodeStates),
+    statuses: Object.fromEntries(entries.map(([id, s]) => [id, s.status])),
+    taken: takenEdgeKeys(definition, completed),
+    result: null,
+  };
+}
+
+/** Outcomes of the completed rows whose node has reached a terminal replayed status. */
+function replayVerdicts(
+  completed: readonly AssemblyRunNode[],
+  nodeStates: Readonly<Record<string, NodeRunState>>,
+): Record<string, string | null> {
   const verdicts: Record<string, string | null> = {};
 
   for (const [nodeId, row] of latestRowByNode(completed)) {
@@ -71,15 +90,5 @@ export function replayRunData(
     }
   }
 
-  return {
-    executed: new Set(
-      entries
-        .filter(([, s]) => s.status !== "idle" || s.transcript.length > 0)
-        .map(([id]) => id),
-    ),
-    verdicts,
-    statuses: Object.fromEntries(entries.map(([id, s]) => [id, s.status])),
-    taken: takenEdgeKeys(definition, completed),
-    result: null,
-  };
+  return verdicts;
 }

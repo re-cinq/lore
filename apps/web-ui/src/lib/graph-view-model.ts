@@ -118,7 +118,20 @@ function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
     );
     edges.push(...connectorsFor(node.id, outgoing));
   }
-  const nodes = definition.nodes.map((node) => ({
+
+  return {
+    mode: "definition",
+    nodes: idleNodes(definition, outcomesByNode),
+    edges,
+  };
+}
+
+/** Every node in its pre-run state: no verdict, no result, idle. */
+function idleNodes(
+  definition: AssemblyLineDefinition,
+  outcomesByNode: Map<string, string[]>,
+): VisibleNode[] {
+  return definition.nodes.map((node) => ({
     id: node.id,
     type: node.type,
     outcomes: outcomesByNode.get(node.id) ?? [],
@@ -126,8 +139,6 @@ function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
     status: "idle" as const,
     result: null,
   }));
-
-  return { mode: "definition", nodes, edges };
 }
 
 /** Which nodes and hops the run actually went through. Collected BEFORE the connectors are built, because several conditions can share one hop — a node counts as reached if any outcome led into or out of it. */
@@ -162,15 +173,22 @@ function runConnectors(
 
     seen.add(pair);
 
-    return [
-      {
-        from: edge.from,
-        to: edge.to,
-        tone: "neutral" as const,
-        taken: takenPairs.has(pair),
-      },
-    ];
+    return [runConnector(edge, pair, takenPairs)];
   });
+}
+
+/** One drawn arrow for a hop, flagged with whether the run traversed it. */
+function runConnector(
+  edge: { from: string; to: string },
+  pair: string,
+  takenPairs: Set<string>,
+): VisibleEdge {
+  return {
+    from: edge.from,
+    to: edge.to,
+    tone: "neutral",
+    taken: takenPairs.has(pair),
+  };
 }
 
 /** Run mode: whole line with each step's current state; path so far stands out. */

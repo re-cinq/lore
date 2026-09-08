@@ -73,6 +73,12 @@ export interface AgentUsage {
   applied: Record<string, AgentApplyStatus[]>;
 }
 
+/** The usage endpoint's wire shape, before it is keyed by name. */
+interface AgentUsageBody {
+  usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
+  applied?: AgentApplyStatus[];
+}
+
 export async function fetchAgentUsage(): Promise<AgentUsage | null> {
   const c = cfg();
 
@@ -90,21 +96,14 @@ export async function fetchAgentUsage(): Promise<AgentUsage | null> {
     if (!res.ok) {
       return null;
     }
-    const body = (await res.json()) as {
-      usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
-      applied?: AgentApplyStatus[];
-    };
 
-    return buildAgentUsage(body);
+    return buildAgentUsage((await res.json()) as AgentUsageBody);
   } catch {
     return null;
   }
 }
 
-function buildAgentUsage(body: {
-  usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
-  applied?: AgentApplyStatus[];
-}): AgentUsage {
+function buildAgentUsage(body: AgentUsageBody): AgentUsage {
   return {
     refs: Object.fromEntries(
       (body.usage ?? []).map((entry) => [entry.name, entry.used_by]),
@@ -137,6 +136,39 @@ function writeHeaders(
   };
 }
 
+/** The repo-scoped collection, or one definition inside it when named. */
+function agentUrl(apiUrl: string, repo: string, name?: string): string {
+  const base = `${apiUrl}/api/repos/${repo}/agent-definitions`;
+
+  return name ? `${base}/${encodeURIComponent(name)}` : base;
+}
+
+interface WriteRequest {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+/** One definition write; a transport failure becomes a result rather than a throw. */
+async function writeDefinition(req: WriteRequest): Promise<AgentSaveResult> {
+  let res: Response;
+
+  try {
+    res = await fetch(req.url, {
+      signal: AbortSignal.timeout(15_000),
+      method: req.method,
+      headers: req.headers,
+      body: req.body,
+      cache: "no-store",
+    });
+  } catch (err) {
+    return { status: "error", message: (err as Error).message };
+  }
+
+  return mapWriteResponse(res);
+}
+
 export async function saveAgent(
   repo: string,
   def: Partial<AgentDefinition> & { name: string },
@@ -149,25 +181,12 @@ export async function saveAgent(
     return { status: "unconfigured" };
   }
 
-  const url = isUpdate
-    ? `${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(def.name)}`
-    : `${c.apiUrl}/api/repos/${repo}/agent-definitions`;
-
-  let res: Response;
-
-  try {
-    res = await fetch(url, {
-      signal: AbortSignal.timeout(15_000),
-      method: isUpdate ? "PUT" : "POST",
-      headers: writeHeaders(c.token, approvalPr),
-      body: JSON.stringify(def),
-      cache: "no-store",
-    });
-  } catch (err) {
-    return { status: "error", message: (err as Error).message };
-  }
-
-  return mapWriteResponse(res);
+  return writeDefinition({
+    url: agentUrl(c.apiUrl, repo, isUpdate ? def.name : undefined),
+    method: isUpdate ? "PUT" : "POST",
+    headers: writeHeaders(c.token, approvalPr),
+    body: JSON.stringify(def),
+  });
 }
 
 /** Global /agents editor's write — API refuses a non-empty image here (repo-scoped two-key ceremony), surfacing as a plain error. */
@@ -179,27 +198,13 @@ export async function saveOrgAgent(
   if (!c) {
     return { status: "unconfigured" };
   }
-  let res: Response;
 
-  try {
-    res = await fetch(
-      `${c.apiUrl}/api/agent-definitions/${encodeURIComponent(def.name)}`,
-      {
-        signal: AbortSignal.timeout(15_000),
-        method: "PUT",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${c.token}`,
-        },
-        body: JSON.stringify(def),
-        cache: "no-store",
-      },
-    );
-  } catch (err) {
-    return { status: "error", message: (err as Error).message };
-  }
-
-  return mapWriteResponse(res);
+  return writeDefinition({
+    url: `${c.apiUrl}/api/agent-definitions/${encodeURIComponent(def.name)}`,
+    method: "PUT",
+    headers: writeHeaders(c.token),
+    body: JSON.stringify(def),
+  });
 }
 
 async function mapWriteResponse(res: Response): Promise<AgentSaveResult> {
@@ -256,6 +261,32 @@ async function readErrorBody(res: Response): Promise<AgentSaveResult> {
   };
 }
 
+/** A delete answers with no body, so the name is all the caller gets back. */
+function deletedResult(name: string): AgentSaveResult {
+  return { status: "ok", agent: { name } as AgentDefinition };
+}
+
+async function deleteDefinition(
+  url: string,
+  token: string,
+  name: string,
+): Promise<AgentSaveResult> {
+  let res: Response;
+
+  try {
+    res = await fetch(url, {
+      signal: AbortSignal.timeout(15_000),
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+  } catch (err) {
+    return { status: "error", message: (err as Error).message };
+  }
+
+  return res.ok ? deletedResult(name) : await readErrorBody(res);
+}
+
 export async function deleteAgent(
   repo: string,
   name: string,
@@ -265,25 +296,6 @@ export async function deleteAgent(
   if (!c) {
     return { status: "unconfigured" };
   }
-  let res: Response;
 
-  try {
-    res = await fetch(
-      `${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(name)}`,
-      {
-        signal: AbortSignal.timeout(15_000),
-        method: "DELETE",
-        headers: { authorization: `Bearer ${c.token}` },
-        cache: "no-store",
-      },
-    );
-  } catch (err) {
-    return { status: "error", message: (err as Error).message };
-  }
-
-  if (res.ok) {
-    return { status: "ok", agent: { name } as AgentDefinition };
-  }
-
-  return await readErrorBody(res);
+  return deleteDefinition(agentUrl(c.apiUrl, repo, name), c.token, name);
 }

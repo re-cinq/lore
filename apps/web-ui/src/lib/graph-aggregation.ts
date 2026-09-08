@@ -52,13 +52,7 @@ export function aggregateLeaves(
   collapsibleTypes: Set<SpecGraphNodeType>,
 ): AggregationResult {
   const degree = nodeDegrees(links);
-  // Degree-1 node's single opposite endpoint is its parent.
-  const parentOf = new Map<string, string>();
-
-  for (const { source, target } of links) {
-    parentOf.set(source, target);
-    parentOf.set(target, source);
-  }
+  const parentOf = parentByNode(links);
 
   const hidden = new Set<string>();
   const groups = new Map<string, LeafBadge>();
@@ -75,6 +69,18 @@ export function aggregateLeaves(
   }
 
   return { hidden, badges: [...groups.values()] };
+}
+
+/** A degree-1 node's single opposite endpoint is its parent. */
+function parentByNode(links: DegreeLink[]): Map<string, string> {
+  const parentOf = new Map<string, string>();
+
+  for (const { source, target } of links) {
+    parentOf.set(source, target);
+    parentOf.set(target, source);
+  }
+
+  return parentOf;
 }
 
 /** LOD gate: collapse leaves while zoomed further out than `threshold`. */

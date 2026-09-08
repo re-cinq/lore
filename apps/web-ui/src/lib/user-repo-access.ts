@@ -19,6 +19,26 @@ function denialReason(status: number): string {
   return "unexpected status";
 }
 
+/** Never the token, only the repo and the status. */
+function warnDenied(repo: string, status: number): void {
+  console.warn(
+    `[repo-access] denied ${repo}: GitHub answered ${status} (${denialReason(status)})`,
+  );
+}
+
+function warnUnreachable(repo: string, err: unknown): void {
+  console.warn(
+    `[repo-access] denied ${repo}: could not reach GitHub — ${err instanceof Error ? err.message : String(err)}`,
+  );
+}
+
+function authHeaders(accessToken: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/vnd.github+json",
+  };
+}
+
 export async function userCanAccessRepo(
   accessToken: string,
   repo: string,
@@ -27,24 +47,16 @@ export async function userCanAccessRepo(
   try {
     const res = await fetchImpl(`https://api.github.com/repos/${repo}`, {
       signal: AbortSignal.timeout(30_000),
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/vnd.github+json",
-      },
+      headers: authHeaders(accessToken),
     });
 
     if (!res.ok) {
-      // Never the token, only the repo and the status.
-      console.warn(
-        `[repo-access] denied ${repo}: GitHub answered ${res.status} (${denialReason(res.status)})`,
-      );
+      warnDenied(repo, res.status);
     }
 
     return res.ok;
   } catch (err) {
-    console.warn(
-      `[repo-access] denied ${repo}: could not reach GitHub — ${err instanceof Error ? err.message : String(err)}`,
-    );
+    warnUnreachable(repo, err);
 
     return false;
   }

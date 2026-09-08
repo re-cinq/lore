@@ -3,26 +3,23 @@
 import { useFormStatus } from "react-dom";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-// `disabled` is read out of props (not spread) since the spread once landed after `disabled={pending}` and silently un-disabled the button; `pending` overrides `useFormStatus`, which reports pending only for a submit made through the form.
-export function SubmitButton({
-  children,
-  pendingLabel,
-  pending,
-  disabled,
-  ...props
-}: {
+type SubmitButtonProps = {
   children: ReactNode;
   pendingLabel?: string;
   /** Overrides the form status for a caller that owns the boolean itself. */
   pending?: boolean;
-} & ButtonHTMLAttributes<HTMLButtonElement>) {
+} & ButtonHTMLAttributes<HTMLButtonElement>;
+
+// `disabled` is read out of props (not spread) since the spread once landed after `disabled={pending}` and silently un-disabled the button; `pending` overrides `useFormStatus`, which reports pending only for a submit made through the form.
+export function SubmitButton(props: SubmitButtonProps) {
+  const { children, pendingLabel, pending, disabled, ...rest } = props;
   const status = useFormStatus();
   const busy = pending ?? status.pending;
 
   return (
     <button
       type="submit"
-      {...props}
+      {...rest}
       disabled={busy || disabled}
       aria-busy={busy}
     >

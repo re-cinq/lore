@@ -80,6 +80,22 @@ function parseTimeoutMinutes(fd: FormData): number | null {
   return timeoutRaw ? Number(timeoutRaw) : null;
 }
 
+/** The definition payload the API is sent, name already resolved by the caller. */
+function parseDefinition(fd: FormData, name: string): ParsedAgentForm["def"] {
+  return {
+    name,
+    model: parseModel(fd),
+    timeout_minutes: parseTimeoutMinutes(fd),
+    prompt: orNull(formString(fd, "prompt")),
+    image: orNull(formString(fd, "image")),
+    execution_mode: orDefault(formString(fd, "execution_mode"), "claude-code"),
+    review_required: fd.get("review_required") === "1",
+    // Null inherits the org default's config (skills/disallowed_tools/etc) — the form has no field for it.
+    config: null,
+    pod_resources: parsePodResources(fd),
+  };
+}
+
 export function parseAgentForm(fd: FormData): ParsedAgentForm {
   const isNew = fd.get("is_new") === "1";
   const name = isNew ? formString(fd, "name_input") : formString(fd, "name");
@@ -87,21 +103,7 @@ export function parseAgentForm(fd: FormData): ParsedAgentForm {
   return {
     name,
     isNew,
-    def: {
-      name,
-      model: parseModel(fd),
-      timeout_minutes: parseTimeoutMinutes(fd),
-      prompt: orNull(formString(fd, "prompt")),
-      image: orNull(formString(fd, "image")),
-      execution_mode: orDefault(
-        formString(fd, "execution_mode"),
-        "claude-code",
-      ),
-      review_required: fd.get("review_required") === "1",
-      // Null inherits the org default's config (skills/disallowed_tools/etc) — the form has no field for it.
-      config: null,
-      pod_resources: parsePodResources(fd),
-    },
+    def: parseDefinition(fd, name),
     approvalPr: formString(fd, "approval_pr") || undefined,
   };
 }

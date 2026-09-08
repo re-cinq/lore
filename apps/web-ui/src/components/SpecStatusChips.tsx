@@ -38,15 +38,21 @@ interface StatusChipProps {
   onChange: (filter: SpecStatusFilter) => void;
 }
 
+/** The status's colour, repeated from the pill so the chip and the doc it filters to read as the same thing. */
+function ChipDot({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden
+      className={styles.dot}
+      style={{ ["--dot-color" as string]: color }}
+    />
+  );
+}
+
 /** One filter chip. `aria-pressed` rather than a selected class, so the current filter is announced and not only coloured. */
-function StatusChip({
-  filter,
-  label,
-  count,
-  color,
-  active,
-  onChange,
-}: StatusChipProps) {
+function StatusChip(props: StatusChipProps) {
+  const { filter, label, count, color, active, onChange } = props;
+
   return (
     <button
       type="button"
@@ -54,13 +60,7 @@ function StatusChip({
       aria-pressed={active === filter}
       onClick={() => onChange(filter)}
     >
-      {color && (
-        <span
-          aria-hidden
-          className={styles.dot}
-          style={{ ["--dot-color" as string]: color }}
-        />
-      )}
+      {color && <ChipDot color={color} />}
       {label} ({count})
     </button>
   );
@@ -114,13 +114,8 @@ function ChipRow({
   ));
 }
 
-export default function SpecStatusChips({
-  counts,
-  total,
-  active,
-  onChange,
-  kind = "spec",
-}: SpecStatusChipsProps) {
+export default function SpecStatusChips(props: SpecStatusChipsProps) {
+  const { counts, total, active, onChange, kind = "spec" } = props;
   const present = SPEC_STATUS_ORDER.filter((s) => (counts[s] ?? 0) > 0);
 
   if (present.length === 0) {

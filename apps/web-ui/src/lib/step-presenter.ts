@@ -72,20 +72,36 @@ export function stepViews(
     ? layerByLongestPath(definition)
     : new Map<string, number>();
 
-  return nodes.map((node) => {
-    const { tone, label } = toneOf(node.outcome);
+  return nodes.map((node) => toStepView(definition, layers, node, runReason));
+}
 
-    return {
-      nodeId: node.nodeId,
-      iteration: node.iteration,
-      tone,
-      label,
-      outcome: node.outcome,
-      agentCrName: node.agentCrName,
-      commitSha: node.commitSha,
-      durationSeconds: node.durationSeconds,
-      transition: transitionOf(definition, layers, node),
-      reason: tone === "err" ? runReason : null,
-    };
-  });
+function toStepView(
+  definition: AssemblyLineDefinition | null,
+  layers: Map<string, number>,
+  node: AssemblyRunNode,
+  runReason: string | null,
+): StepView {
+  const { tone, label } = toneOf(node.outcome);
+
+  return {
+    ...rowFacts(node),
+    tone,
+    label,
+    transition: transitionOf(definition, layers, node),
+    reason: tone === "err" ? runReason : null,
+  };
+}
+
+/** The half of a step copied straight off its walk row. */
+function rowFacts(
+  node: AssemblyRunNode,
+): Omit<StepView, "tone" | "label" | "transition" | "reason"> {
+  return {
+    nodeId: node.nodeId,
+    iteration: node.iteration,
+    outcome: node.outcome,
+    agentCrName: node.agentCrName,
+    commitSha: node.commitSha,
+    durationSeconds: node.durationSeconds,
+  };
 }

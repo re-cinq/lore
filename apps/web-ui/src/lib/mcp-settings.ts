@@ -94,6 +94,32 @@ function classifyResponse(
   return errorResult(body, res.status);
 }
 
+interface GatedRequest {
+  url: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+/** The gated PUT; a transport failure becomes a result rather than a throw. */
+async function sendGatedPut(req: GatedRequest): Promise<PrivilegedSaveResult> {
+  let res: Response;
+
+  try {
+    res = await fetch(req.url, {
+      signal: AbortSignal.timeout(15_000),
+      method: "PUT",
+      headers: req.headers,
+      body: req.body,
+      cache: "no-store",
+    });
+  } catch (err) {
+    return { status: "error", message: (err as Error).message };
+  }
+  const body = await res.json().catch(() => ({}));
+
+  return classifyResponse(res, body);
+}
+
 export async function putPrivilegedSettings(
   repo: string,
   patch: PrivilegedPatch,
@@ -106,22 +132,9 @@ export async function putPrivilegedSettings(
     return { status: "unconfigured" };
   }
 
-  const headers = buildHeaders(token, approvalPr);
-  let res: Response;
-
-  try {
-    res = await fetch(`${apiUrl}/api/repos/${repo}/settings/dark-factory`, {
-      signal: AbortSignal.timeout(15_000),
-      method: "PUT",
-      headers,
-      body: JSON.stringify(privilegedRequestBody(patch)),
-      cache: "no-store",
-    });
-  } catch (err) {
-    return { status: "error", message: (err as Error).message };
-  }
-
-  const body = await res.json().catch(() => ({}));
-
-  return classifyResponse(res, body);
+  return sendGatedPut({
+    url: `${apiUrl}/api/repos/${repo}/settings/dark-factory`,
+    headers: buildHeaders(token, approvalPr),
+    body: JSON.stringify(privilegedRequestBody(patch)),
+  });
 }

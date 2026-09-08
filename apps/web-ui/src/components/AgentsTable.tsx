@@ -68,22 +68,26 @@ function agentColumns(hasWhy: boolean): string[] {
   ];
 }
 
+interface TaskAgentsToggleProps {
+  taskAgentCount: number;
+  showTaskAgents: boolean;
+  onToggle: () => void;
+}
+
+function toggleLabel(taskAgentCount: number, showTaskAgents: boolean): string {
+  return showTaskAgents
+    ? "Hide task agents"
+    : `Show task agents (audit) — ${taskAgentCount} hidden`;
+}
+
 function TaskAgentsToggle({
   taskAgentCount,
   showTaskAgents,
   onToggle,
-}: {
-  taskAgentCount: number;
-  showTaskAgents: boolean;
-  onToggle: () => void;
-}) {
+}: TaskAgentsToggleProps) {
   if (taskAgentCount === 0) {
     return null;
   }
-
-  const label = showTaskAgents
-    ? "Hide task agents"
-    : `Show task agents (audit) — ${taskAgentCount} hidden`;
 
   return (
     <button
@@ -92,16 +96,27 @@ function TaskAgentsToggle({
       aria-pressed={showTaskAgents}
       onClick={onToggle}
     >
-      {label}
+      {toggleLabel(taskAgentCount, showTaskAgents)}
     </button>
   );
 }
 
-/** One agent's row. The "why" cell is present only when some agent HAS a reason — a column of dashes says less than no column. */
-function agentCells(
-  a: AgentsTableProps["agents"][number],
-  hasWhy: boolean,
-): ReactNode[] {
+/** The "why" cell, present only when some agent HAS a reason — a column of dashes says less than no column. */
+function whyCells(a: AgentRow, hasWhy: boolean): ReactNode[] {
+  if (!hasWhy) {
+    return [];
+  }
+
+  return [
+    <span key="why">
+      {a.reason_type && <span className="badge">{a.reason_type}</span>}{" "}
+      <span className="meta">{truncate(a.reason, 50)}</span>
+    </span>,
+  ];
+}
+
+// One agent's row, in column order.
+function agentCells(a: AgentRow, hasWhy: boolean): ReactNode[] {
   return [
     <AgentLink agentId={a.agent_id} key="agent" />,
     <span className="badge" key="kind">
@@ -110,14 +125,7 @@ function agentCells(
     <span className="meta" key="by">
       {displayCreatedBy(a.created_by)}
     </span>,
-    ...(hasWhy
-      ? [
-          <span key="why">
-            {a.reason_type && <span className="badge">{a.reason_type}</span>}{" "}
-            <span className="meta">{truncate(a.reason, 50)}</span>
-          </span>,
-        ]
-      : []),
+    ...whyCells(a, hasWhy),
     a.task_count,
     formatCost(a.cost_usd),
     a.memory_count,
@@ -127,14 +135,13 @@ function agentCells(
   ];
 }
 
-/** The table proper. Keyed on `agent_id`, falling back to the row index for calls nothing attributed — an unattributed row is still a row, and dropping it would make the totals disagree with the list. */
-function AgentRows({
-  agents,
-  hasWhy,
-}: {
+interface AgentRowsProps {
   agents: AgentsTableProps["agents"];
   hasWhy: boolean;
-}) {
+}
+
+/** The table proper. Keyed on `agent_id`, falling back to the row index for calls nothing attributed — an unattributed row is still a row, and dropping it would make the totals disagree with the list. */
+function AgentRows({ agents, hasWhy }: AgentRowsProps) {
   return (
     <DataTable
       columns={agentColumns(hasWhy)}
@@ -152,12 +159,8 @@ function AgentRows({
 }
 
 /** Shared sessions/agents table for `/agents` and the per-repo Agents tab; pure presentation, the container tags each row's `kind` via `classifyAgent`. */
-export default function AgentsTable({
-  agents,
-  intro,
-  title = "Agents",
-  embedded = false,
-}: AgentsTableProps) {
+export default function AgentsTable(props: AgentsTableProps) {
+  const { agents, intro, title = "Agents", embedded = false } = props;
   const [showTaskAgents, setShowTaskAgents] = useState(false);
   const taskAgentCount = agents.filter((a) => a.kind === "task").length;
   const visible = visibleAgents(agents, showTaskAgents);
@@ -203,24 +206,30 @@ function AgentsTableHeading({
   );
 }
 
-/** The distinction between the two kinds of agent, and the caveat on cost. Both are things a reader asks once and then knows, which is what a popover is for — a permanent paragraph would be re-read on every visit. */
+// The distinction between the two kinds of agent.
+function AgentKindsPoints() {
+  return (
+    <ul>
+      <li>
+        <strong>Local MCP</strong> agents are developers&apos; own agents — your
+        stable <code>~/.lore/agent-id</code>. They write <strong>memory</strong>{" "}
+        and <strong>facts</strong> over the MCP server but never claim pipeline
+        tasks.
+      </li>
+      <li>
+        <strong>Task</strong> agents are ephemeral — one per pipeline task run.
+        They exist for auditing, so they&apos;re hidden until you ask for them.
+      </li>
+    </ul>
+  );
+}
+
+/** What the two kinds are, and the caveat on cost. Both are things a reader asks once and then knows, which is what a popover is for — a permanent paragraph would be re-read on every visit. */
 function AgentKindsHelp() {
   return (
     <HelpPopover label="What agents are">
       <p>Two kinds of session show up here:</p>
-      <ul>
-        <li>
-          <strong>Local MCP</strong> agents are developers&apos; own agents —
-          your stable <code>~/.lore/agent-id</code>. They write{" "}
-          <strong>memory</strong> and <strong>facts</strong> over the MCP server
-          but never claim pipeline tasks.
-        </li>
-        <li>
-          <strong>Task</strong> agents are ephemeral — one per pipeline task
-          run. They exist for auditing, so they&apos;re hidden until you ask for
-          them.
-        </li>
-      </ul>
+      <AgentKindsPoints />
       <p>
         <strong>Cost</strong> sums tracked <code>llm_calls</code>; headless
         agent token spend is not metered, so it is a lower bound.

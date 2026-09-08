@@ -1,5 +1,5 @@
 import { getFeatureStatus } from "@/lib/api/features";
-import { runIdOf } from "./api/run-id";
+import { runIdOf, type RunIdCarrier } from "./api/run-id";
 import { getTask } from "@/lib/api/tasks";
 import { formatStationConversation } from "@/lib/station-conversation";
 import { fetchFeatureRunById, type FeatureRunPayload } from "@/lib/feature-run";
@@ -71,6 +71,33 @@ function liveOutputFor(
   return liveStationLog(taskId);
 }
 
+type FeatureStatusData = {
+  feature: FeatureRow;
+  latest_iteration: FeatureIterationRow | null;
+  last_ready_iteration: FeatureIterationRow | null;
+} & RunIdCarrier;
+
+async function pollPayloadFrom(
+  statusData: FeatureStatusData,
+  haveGraphForRun?: string | null,
+): Promise<FeaturePollPayload> {
+  const {
+    feature,
+    latest_iteration: latestIteration,
+    last_ready_iteration,
+  } = statusData;
+  const task = await resolveTask(latestIteration?.task_id);
+
+  return {
+    feature,
+    latestIteration,
+    task,
+    liveOutput: liveOutputFor(latestIteration?.task_id, task?.status),
+    lastReady: last_ready_iteration,
+    run: await fetchFeatureRunById(runIdOf(statusData), haveGraphForRun),
+  };
+}
+
 /** Poll payload, or null when feature not found. */
 export async function loadFeaturePoll(
   fullName: string,
@@ -83,19 +110,6 @@ export async function loadFeaturePoll(
   if (status.status !== "ok") {
     return null;
   }
-  const {
-    feature,
-    latest_iteration: latestIteration,
-    last_ready_iteration,
-  } = status.data;
-  const task = await resolveTask(latestIteration?.task_id);
 
-  return {
-    feature,
-    latestIteration,
-    task,
-    liveOutput: liveOutputFor(latestIteration?.task_id, task?.status),
-    lastReady: last_ready_iteration,
-    run: await fetchFeatureRunById(runIdOf(status.data), haveGraphForRun),
-  };
+  return pollPayloadFrom(status.data, haveGraphForRun);
 }

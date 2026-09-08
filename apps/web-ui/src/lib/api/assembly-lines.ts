@@ -15,7 +15,10 @@ export async function getAssemblyLineDefinition(
     return null;
   }
 
-  return fetchDefinition(floorUrl, token, name, revalidateSeconds);
+  const body = await fetchDefinition(floorUrl, token, name, revalidateSeconds);
+
+  // The cast is a claim, not a check — confirm the fields the layout actually dereferences before trusting it.
+  return isDrawable(body) ? body : null;
 }
 
 async function fetchDefinition(
@@ -34,13 +37,7 @@ async function fetchDefinition(
       },
     );
 
-    if (!res.ok) {
-      return null;
-    }
-    const body = (await res.json()) as AssemblyLineDefinition;
-
-    // The cast is a claim, not a check — confirm the fields the layout actually dereferences before trusting it.
-    return isDrawable(body) ? body : null;
+    return res.ok ? ((await res.json()) as AssemblyLineDefinition) : null;
   } catch {
     return null;
   }

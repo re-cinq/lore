@@ -81,19 +81,24 @@ function useThemeDom(family: ThemeFamily, scheme: ColorSchemePref): void {
   }, [scheme, family]);
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Seed from inline script to avoid flash/hydration mismatch.
-  const [family, setFamilyState] = useState<ThemeFamily>(() =>
-    typeof window !== "undefined"
-      ? (window.__loreFamily ??
+/** Seeded from the inline script to avoid flash/hydration mismatch. */
+function seedFamily(): ThemeFamily {
+  return typeof window !== "undefined"
+    ? (window.__loreFamily ??
         parseFamily(document.documentElement.getAttribute("data-theme-family")))
-      : DEFAULT_FAMILY,
-  );
-  const [scheme, setSchemeState] = useState<ColorSchemePref>(() =>
-    typeof window !== "undefined"
-      ? parseSchemePref(window.localStorage.getItem(SCHEME_KEY))
-      : DEFAULT_SCHEME,
-  );
+    : DEFAULT_FAMILY;
+}
+
+/** Seeded from localStorage, the same key the inline script reads. */
+function seedScheme(): ColorSchemePref {
+  return typeof window !== "undefined"
+    ? parseSchemePref(window.localStorage.getItem(SCHEME_KEY))
+    : DEFAULT_SCHEME;
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [family, setFamilyState] = useState<ThemeFamily>(seedFamily);
+  const [scheme, setSchemeState] = useState<ColorSchemePref>(seedScheme);
 
   const setFamily = usePersisted(setFamilyState, FAMILY_KEY);
   const setScheme = usePersisted(setSchemeState, SCHEME_KEY);

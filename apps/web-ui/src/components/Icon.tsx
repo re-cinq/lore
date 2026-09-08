@@ -21,13 +21,8 @@ interface IconProps {
   "aria-label"?: string;
 }
 
-export default function Icon({
-  name,
-  size = 16,
-  className,
-  inline = false,
-  ...rest
-}: IconProps) {
+export default function Icon(props: IconProps) {
+  const { name, size = 16, className, inline = false, ...rest } = props;
   const { family } = useTheme();
   const aria = rest["aria-label"];
 

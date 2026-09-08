@@ -18,16 +18,7 @@ function insideInterval(
   b: Point,
   disc: Disc,
 ): [number, number] | null {
-  const dirX = b.x - a.x;
-  const dirY = b.y - a.y;
-  const offsetX = a.x - disc.x;
-  const offsetY = a.y - disc.y;
-
-  const quadA = dirX * dirX + dirY * dirY;
-  const quadB = 2 * (offsetX * dirX + offsetY * dirY);
-  const quadC = offsetX * offsetX + offsetY * offsetY - disc.r * disc.r;
-
-  const discriminant = quadB * quadB - 4 * quadA * quadC;
+  const { quadA, quadB, discriminant } = discQuadratic(a, b, disc);
 
   if (discriminant <= 0) {
     return null;
@@ -42,6 +33,24 @@ function insideInterval(
   }
 
   return [enter, exit];
+}
+
+/** Quadratic in the segment parameter whose roots are the disc-boundary crossings. */
+function discQuadratic(
+  a: Point,
+  b: Point,
+  disc: Disc,
+): { quadA: number; quadB: number; discriminant: number } {
+  const dirX = b.x - a.x;
+  const dirY = b.y - a.y;
+  const offsetX = a.x - disc.x;
+  const offsetY = a.y - disc.y;
+
+  const quadA = dirX * dirX + dirY * dirY;
+  const quadB = 2 * (offsetX * dirX + offsetY * dirY);
+  const quadC = offsetX * offsetX + offsetY * offsetY - disc.r * disc.r;
+
+  return { quadA, quadB, discriminant: quadB * quadB - 4 * quadA * quadC };
 }
 
 function mergeIntervals(

@@ -27,17 +27,19 @@ function NavLabelLive({ label }: { label: string }) {
   return <NavLabel label={label} pending={pending} />;
 }
 
+interface NavLinkProps {
+  href: string;
+  label: string;
+  active: boolean;
+  className?: string;
+}
+
 export default function NavLink({
   href,
   label,
   active,
   className,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-  className?: string;
-}) {
+}: NavLinkProps) {
   const classes = [className, active ? "active" : ""].filter(Boolean).join(" ");
 
   return (

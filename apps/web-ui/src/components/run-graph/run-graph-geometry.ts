@@ -69,7 +69,23 @@ function resolveEntry(
   return definition?.entry ?? nodes.at(0)?.id ?? "";
 }
 
-// A layout-shaped definition from the visible graph; connectors carry no condition (structure only).
+function layoutNodes(graph: VisibleGraph): AssemblyLineDefinition["nodes"] {
+  return graph.nodes.map((node) => ({
+    id: node.id,
+    type: node.type,
+  })) as AssemblyLineDefinition["nodes"];
+}
+
+// Connectors carry no condition — layout needs structure, not routing.
+function layoutEdges(graph: VisibleGraph): AssemblyLineDefinition["edges"] {
+  return graph.edges.map((edge) => ({
+    from: edge.from,
+    to: edge.to,
+    on: "always" as const,
+  }));
+}
+
+// A layout-shaped definition from the visible graph.
 export function toLayoutDefinition(
   graph: VisibleGraph,
   definition: AssemblyLineDefinition | null,
@@ -80,15 +96,8 @@ export function toLayoutDefinition(
     version: 1,
     entry: resolveEntry(definition, graph),
     exit: definition?.exit ?? "",
-    nodes: graph.nodes.map((node) => ({
-      id: node.id,
-      type: node.type,
-    })) as AssemblyLineDefinition["nodes"],
-    edges: graph.edges.map((edge) => ({
-      from: edge.from,
-      to: edge.to,
-      on: "always" as const,
-    })),
+    nodes: layoutNodes(graph),
+    edges: layoutEdges(graph),
   };
 }
 

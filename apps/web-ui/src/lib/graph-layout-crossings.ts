@@ -40,14 +40,7 @@ export function countCrossings(
   edges: CrossingEdge[],
   pos: Map<string, Point>,
 ): number {
-  const segs = edges
-    .map((e) => ({
-      s: e.source,
-      t: e.target,
-      a: pos.get(e.source),
-      b: pos.get(e.target),
-    }))
-    .filter((seg): seg is CrossingSegment => !!seg.a && !!seg.b);
+  const segs = resolveSegments(edges, pos);
   let crossings = 0;
 
   segs.forEach((first, i) => {
@@ -59,4 +52,19 @@ export function countCrossings(
   });
 
   return crossings;
+}
+
+/** Drop edges whose endpoints have no resolved position. */
+function resolveSegments(
+  edges: CrossingEdge[],
+  pos: Map<string, Point>,
+): CrossingSegment[] {
+  return edges
+    .map((e) => ({
+      s: e.source,
+      t: e.target,
+      a: pos.get(e.source),
+      b: pos.get(e.target),
+    }))
+    .filter((seg): seg is CrossingSegment => !!seg.a && !!seg.b);
 }

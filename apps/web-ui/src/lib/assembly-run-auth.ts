@@ -61,20 +61,24 @@ export function assemblyRunProxyRoute(
     const { id } = await params;
 
     try {
-      const auth = await authorizeAssemblyRunAccess(id);
-
-      if (isAssemblyRunAuthError(auth)) {
-        return auth;
-      }
-
-      return await proxy({
-        id,
-        req,
-        floorUrl: auth.floorUrl,
-        token: auth.token,
-      });
+      return await proxyAuthorizedRun(id, req, proxy);
     } catch (err) {
       return serverError(errorContext, err);
     }
   };
+}
+
+/** Runs the ladder and hands the proxy what it needs, or returns the ladder's own refusal untouched. */
+async function proxyAuthorizedRun(
+  id: string,
+  req: Request,
+  proxy: (ctx: RunProxyContext) => Promise<Response>,
+): Promise<Response> {
+  const auth = await authorizeAssemblyRunAccess(id);
+
+  if (isAssemblyRunAuthError(auth)) {
+    return auth;
+  }
+
+  return proxy({ id, req, floorUrl: auth.floorUrl, token: auth.token });
 }

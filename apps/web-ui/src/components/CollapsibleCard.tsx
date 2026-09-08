@@ -16,13 +16,9 @@ interface CardSummaryProps {
   actions?: ReactNode;
 }
 
-function CardSummary({
-  title,
-  status,
-  labels,
-  hint,
-  actions,
-}: CardSummaryProps) {
+function CardSummary(props: CardSummaryProps) {
+  const { title, status, labels, hint, actions } = props;
+
   return (
     <summary className={styles.summary}>
       <strong>{title}</strong>
@@ -41,17 +37,17 @@ function CardSummary({
 }
 
 interface CardBodyProps {
-  hasContent: boolean;
   emptyState?: string;
   children?: ReactNode;
 }
 
-function CardBody({ hasContent, emptyState, children }: CardBodyProps) {
-  if (hasContent) {
-    return <>{children}</>;
-  }
-
-  return emptyState ? <>{emptyState}</> : null;
+/** The folded-away half: the card's content, or the shared note when it has none. */
+function CardBody({ emptyState, children }: CardBodyProps) {
+  return (
+    <div className={styles.body}>
+      {hasVisibleContent(children) ? children : emptyState}
+    </div>
+  );
 }
 
 interface CollapsibleCardProps {
@@ -90,14 +86,7 @@ export default function CollapsibleCard(props: CollapsibleCardProps) {
           hint={props.hint}
           actions={props.actions}
         />
-        <div className={styles.body}>
-          <CardBody
-            hasContent={hasVisibleContent(children)}
-            emptyState={props.emptyState}
-          >
-            {children}
-          </CardBody>
-        </div>
+        <CardBody emptyState={props.emptyState}>{children}</CardBody>
       </details>
     </div>
   );

@@ -14,6 +14,8 @@ import type {
   SpecStatusInfo,
 } from "@/lib/spec-status";
 
+type StatusOf = (repo: string, filePath: string) => SpecStatusInfo | undefined;
+
 const hrefFor = (kind: DocKind, repo: string, filePath: string): string =>
   `/repos/${repo}/${kind === "adr" ? "adrs" : "specs"}/${encodeURIComponent(filePath)}`;
 
@@ -36,17 +38,14 @@ function groupByRepo(
   return byRepo;
 }
 
-function RepoDocList({
-  repo,
-  paths,
-  kind,
-  statusOf,
-}: {
+interface RepoDocListProps {
   repo: string;
   paths: string[];
   kind: DocKind;
-  statusOf: (repo: string, filePath: string) => SpecStatusInfo | undefined;
-}) {
+  statusOf: StatusOf;
+}
+
+function RepoDocList({ repo, paths, kind, statusOf }: RepoDocListProps) {
   return (
     <section className={styles.repoGroup}>
       <h2 className={styles.repoName}>{repo}</h2>
@@ -77,7 +76,7 @@ interface GlobalDocsViewProps {
 /** The docs this filter and query admit, grouped by repo. Counts come from the FULL set, not the visible one — the status chips have to keep reporting how many of each there are, or selecting one would make the others look empty. */
 function visibleDocs(
   docs: GlobalDocsViewProps["docs"],
-  statusOf: (repo: string, filePath: string) => SpecStatusInfo | undefined,
+  statusOf: StatusOf,
   { filter, query }: { filter: SpecStatusFilter; query: string },
 ) {
   const { counts, visible } = filterDocCards(
@@ -90,18 +89,20 @@ function visibleDocs(
   return { counts, byRepo: groupByRepo(visible) };
 }
 
+interface RepoDocListsProps {
+  byRepo: Map<string, string[]>;
+  kind: DocKind;
+  statusOf: StatusOf;
+  noMatchHint: string;
+}
+
 /** One list per repo holding a matching doc, or the no-match hint. Grouped by repo rather than flat because a path alone (`specs/spec.md`) does not say which repo it belongs to, and several repos use the same names. */
 function RepoDocLists({
   byRepo,
   kind,
   statusOf,
   noMatchHint,
-}: {
-  byRepo: Map<string, string[]>;
-  kind: DocKind;
-  statusOf: (repo: string, filePath: string) => SpecStatusInfo | undefined;
-  noMatchHint: string;
-}) {
+}: RepoDocListsProps) {
   if (byRepo.size === 0) {
     return <p className={styles.hint}>{noMatchHint}</p>;
   }
@@ -117,34 +118,47 @@ function RepoDocLists({
   ));
 }
 
+interface DocSectionsProps {
+  view: GlobalDocsViewProps;
+  filter: SpecStatusFilter;
+  query: string;
+  onChange: (filter: SpecStatusFilter) => void;
+}
+
+/** The chips and the lists, both driven by the same filtered pass over the docs. */
+function DocSections({ view, filter, query, onChange }: DocSectionsProps) {
+  const { docs, statuses = {}, kind = "spec" } = view;
+  const statusOf: StatusOf = (repo, filePath) =>
+    statuses[`${repo}::${filePath}`];
+  const { counts, byRepo } = visibleDocs(docs, statusOf, { filter, query });
+  const chips = { counts, total: docs.length, active: filter, onChange, kind };
+  const lists = { byRepo, kind, statusOf, noMatchHint: view.noMatchHint };
+
+  return (
+    <>
+      <SpecStatusChips {...chips} />
+      <RepoDocLists {...lists} />
+    </>
+  );
+}
+
 export default function GlobalDocsView(props: GlobalDocsViewProps) {
-  const { docs, statuses = {}, kind = "spec" } = props;
   const [filter, setFilter] = useState<SpecStatusFilter>("all");
   const [query, setQuery] = useState("");
 
   // Nothing at all and nothing MATCHING are different answers: the first means the org has no specs yet, the second that this filter is too narrow.
-  if (docs.length === 0) {
+  if (props.docs.length === 0) {
     return <p className={styles.hint}>{props.emptyHint}</p>;
   }
-  const statusOf = (repo: string, filePath: string) =>
-    statuses[`${repo}::${filePath}`];
-  const { counts, byRepo } = visibleDocs(docs, statusOf, { filter, query });
 
   return (
     <div>
       <DocListControls query={query} onQueryChange={setQuery} />
-      <SpecStatusChips
-        counts={counts}
-        total={docs.length}
-        active={filter}
+      <DocSections
+        view={props}
+        filter={filter}
+        query={query}
         onChange={setFilter}
-        kind={kind}
-      />
-      <RepoDocLists
-        byRepo={byRepo}
-        kind={kind}
-        statusOf={statusOf}
-        noMatchHint={props.noMatchHint}
       />
     </div>
   );

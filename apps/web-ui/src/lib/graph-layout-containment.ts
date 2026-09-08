@@ -65,28 +65,33 @@ function atRest(
 export function containedVelocity(
   point: Point,
   velocity: { vx: number; vy: number },
-  { center, radius }: { center: Point; radius: number },
+  bound: { center: Point; radius: number },
   options?: ContainmentOptions,
 ): { vx: number; vy: number } {
-  const { returnPull, maxReturn, dampScale, epsilon } =
-    resolveContainment(options);
-  let vx = velocity.vx;
-  let vy = velocity.vy;
+  const knobs = resolveContainment(options);
+
+  return atRest(containBound(point, velocity, bound, knobs), knobs.epsilon);
+}
+
+/** Velocity with any outward component past the radius cancelled and damped. */
+function containBound(
+  point: Point,
+  velocity: { vx: number; vy: number },
+  { center, radius }: { center: Point; radius: number },
+  knobs: Required<ContainmentOptions>,
+): { vx: number; vy: number } {
   const dx = point.x - center.x;
   const dy = point.y - center.y;
   const dist = Math.hypot(dx, dy);
 
-  if (dist > radius && dist > 0) {
-    const contained = containOverflowVelocity(
-      { vx, vy },
-      { ux: dx / dist, uy: dy / dist },
-      dist - radius,
-      { returnPull, maxReturn, dampScale },
-    );
-
-    vx = contained.vx;
-    vy = contained.vy;
+  if (dist <= radius || dist === 0) {
+    return velocity;
   }
 
-  return atRest({ vx, vy }, epsilon);
+  return containOverflowVelocity(
+    velocity,
+    { ux: dx / dist, uy: dy / dist },
+    dist - radius,
+    knobs,
+  );
 }

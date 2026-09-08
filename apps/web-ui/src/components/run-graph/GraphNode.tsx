@@ -72,31 +72,41 @@ interface NodeInteraction {
   onKeyDown: ((event: KeyboardEvent<SVGGElement>) => void) | undefined;
 }
 
+const INERT_INTERACTION: NodeInteraction = {
+  role: "group",
+  tabIndex: undefined,
+  onClick: undefined,
+  onKeyDown: undefined,
+};
+
+// Enter and Space activate a node exactly as they activate a button; nothing else does.
+function selectOnActivationKey(
+  nodeId: string,
+  onSelect: (nodeId: string) => void,
+) {
+  return (event: KeyboardEvent<SVGGElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    onSelect(nodeId);
+  };
+}
+
 function nodeInteraction(
   nodeId: string,
   onSelect: ((nodeId: string) => void) | undefined,
 ): NodeInteraction {
   if (!onSelect) {
-    return {
-      role: "group",
-      tabIndex: undefined,
-      onClick: undefined,
-      onKeyDown: undefined,
-    };
+    return INERT_INTERACTION;
   }
 
   return {
     role: "button",
     tabIndex: 0,
     onClick: () => onSelect(nodeId),
-    onKeyDown: (event) => {
-      if (event.key !== "Enter" && event.key !== " ") {
-        return;
-      }
-
-      event.preventDefault();
-      onSelect(nodeId);
-    },
+    onKeyDown: selectOnActivationKey(nodeId, onSelect),
   };
 }
 
@@ -131,12 +141,17 @@ function NodeBody(props: NodeBodyProps) {
     );
   }
 
+  return <PlainNodeBody {...props} />;
+}
+
+// Nothing to report: the node's name, and "Terminal" when the walk ends there.
+function PlainNodeBody({ title, node, isTerminal }: NodeBodyProps) {
   return (
     <NodePlainLabel
       title={title}
       centerX={node.x}
       centerY={node.y}
-      isTerminal={props.isTerminal}
+      isTerminal={isTerminal}
     />
   );
 }
@@ -168,14 +183,27 @@ function boxOf(node: GraphNodeProps["node"], height: number) {
   return { top: node.y - height / 2, leftEdge: node.x - NODE_WIDTH / 2 };
 }
 
-export default function GraphNode({
-  node,
-  model,
-  mode,
-  height,
-  isTerminal,
-  onSelect,
-}: GraphNodeProps) {
+interface NodeBoxProps {
+  leftEdge: number;
+  top: number;
+  height: number;
+}
+
+function NodeBox({ leftEdge, top, height }: NodeBoxProps) {
+  return (
+    <rect
+      className={styles.box}
+      x={leftEdge}
+      y={top}
+      width={NODE_WIDTH}
+      height={height}
+      rx={10}
+    />
+  );
+}
+
+export default function GraphNode(props: GraphNodeProps) {
+  const { node, model, mode, height, isTerminal, onSelect } = props;
   const badge = computeBadge(mode, model);
   const outcomes = model?.outcomes ?? [];
   const { top, leftEdge } = boxOf(node, height);
@@ -184,14 +212,7 @@ export default function GraphNode({
 
   return (
     <g {...groupProps(body, interaction)}>
-      <rect
-        className={styles.box}
-        x={leftEdge}
-        y={top}
-        width={NODE_WIDTH}
-        height={height}
-        rx={10}
-      />
+      <NodeBox leftEdge={leftEdge} top={top} height={height} />
       <NodeBody {...body} title={titleCase(node.id)} />
     </g>
   );

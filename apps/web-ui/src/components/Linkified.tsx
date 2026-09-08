@@ -1,24 +1,24 @@
 import { parseReferences, type RefContext } from "@/lib/references";
 
+type LinkifiedProps = { text: string } & RefContext;
+
 /** Internal pipeline links (starting with "/") open in place; GitHub links open in a new tab. */
-export default function Linkified({
-  text,
-  repo,
-  branch,
-}: { text: string } & RefContext) {
+function RefLink({ href, text }: { href: string; text: string }) {
+  return (
+    <a href={href} target={href.startsWith("/") ? undefined : "_blank"}>
+      {text}
+    </a>
+  );
+}
+
+export default function Linkified({ text, repo, branch }: LinkifiedProps) {
   const segments = parseReferences(text, { repo, branch });
 
   return (
     <>
       {segments.map((s, i) =>
         s.href ? (
-          <a
-            key={i}
-            href={s.href}
-            target={s.href.startsWith("/") ? undefined : "_blank"}
-          >
-            {s.text}
-          </a>
+          <RefLink key={i} href={s.href} text={s.text} />
         ) : (
           <span key={i}>{s.text}</span>
         ),
