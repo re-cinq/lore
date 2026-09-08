@@ -29,28 +29,20 @@ function rankOf(row: SearchSqlRow): number {
   return Number(row.vec_rank ?? row.kw_rank);
 }
 
-function toMemoryRows(rows: SearchSqlRow[]): RankedRow[] {
-  return rows.map((r) => ({
+function toRankedRow(r: SearchSqlRow): RankedRow {
+  return {
     id: r.id,
     key: r.key,
     value: r.value,
     agent_id: r.agent_id,
-    source: r.source as "memory",
+    source: r.source as RankedRow["source"],
     rank: rankOf(r),
-  }));
+  };
 }
 
 /** Facts additionally carry their confidence tier, which the caller uses to annotate results and to penalize stale entries. */
-function toFactRows(rows: SearchSqlRow[]): RankedRow[] {
-  return rows.map((r) => ({
-    id: r.id,
-    key: r.key,
-    value: r.value,
-    agent_id: r.agent_id,
-    source: r.source as "fact",
-    confidence: r.confidence,
-    rank: rankOf(r),
-  }));
+function toFactRow(r: SearchSqlRow): RankedRow {
+  return { ...toRankedRow(r), confidence: r.confidence };
 }
 
 const VECTOR_MEMORIES_SQL = `
@@ -115,7 +107,7 @@ export async function vectorSearchMemories(
     poolId,
   ]);
 
-  return toMemoryRows(rows);
+  return rows.map(toRankedRow);
 }
 
 export async function vectorSearchFacts(
@@ -130,7 +122,7 @@ export async function vectorSearchFacts(
     includeInvalidated,
   ]);
 
-  return toFactRows(rows);
+  return rows.map(toFactRow);
 }
 
 export async function keywordSearchMemories(
@@ -145,7 +137,7 @@ export async function keywordSearchMemories(
     poolId,
   ]);
 
-  return toMemoryRows(rows);
+  return rows.map(toRankedRow);
 }
 
 export async function keywordSearchFacts(
@@ -160,5 +152,5 @@ export async function keywordSearchFacts(
     includeInvalidated,
   ]);
 
-  return toFactRows(rows);
+  return rows.map(toFactRow);
 }

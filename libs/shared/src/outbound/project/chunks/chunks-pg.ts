@@ -17,6 +17,25 @@ import type {
 
 export { enforceChunkSchema as enforceSchema } from "./chunk-schema.js";
 
+/** The one spec-chunk read both `specChunksWithIngest` and its backfill variant issue; `extraColumns` adds the embedding the backfill needs. */
+function specChunkSql(schema: string, extraColumns: string): string {
+  return `SELECT repo, file_path, content, ingested_at${extraColumns},
+              (metadata->>'chunk_index')::int AS chunk_index
+       FROM ${schema}.chunks
+       WHERE content_type = 'spec' AND repo = $1
+       ORDER BY file_path, (metadata->>'chunk_index')::int NULLS LAST, ingested_at, id`;
+}
+
+function toSpecChunk(r: Record<string, unknown>): SpecChunkWithIngest {
+  return {
+    repo: r.repo as string,
+    filePath: r.file_path as string,
+    content: r.content as string,
+    ingestedAt: r.ingested_at as string | Date,
+    chunkIndex: (r.chunk_index as number | null) ?? null,
+  };
+}
+
 /** Postgres-backed {@link ChunksPort}: every `${schema}` query validates the schema name first. */
 export class PgChunks implements ChunksPort {
   constructor(private readonly pool: PgPool) {}
@@ -165,22 +184,9 @@ export class PgChunks implements ChunksPort {
 
   async specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]> {
     const schema = await this.resolveSchemaForRepo(repo);
-    const { rows } = await this.pool.query(
-      `SELECT repo, file_path, content, ingested_at,
-              (metadata->>'chunk_index')::int AS chunk_index
-       FROM ${schema}.chunks
-       WHERE content_type = 'spec' AND repo = $1
-       ORDER BY file_path, (metadata->>'chunk_index')::int NULLS LAST, ingested_at, id`,
-      [repo],
-    );
+    const { rows } = await this.pool.query(specChunkSql(schema, ""), [repo]);
 
-    return rows.map((r) => ({
-      repo: r.repo as string,
-      filePath: r.file_path as string,
-      content: r.content as string,
-      ingestedAt: r.ingested_at as string | Date,
-      chunkIndex: (r.chunk_index as number | null) ?? null,
-    }));
+    return rows.map(toSpecChunk);
   }
 
   async testChunkRanges(repo: string): Promise<TestChunkRange[]> {
@@ -206,22 +212,11 @@ export class PgChunks implements ChunksPort {
   async specChunksForBackfill(repo: string): Promise<SpecChunkWithEmbedding[]> {
     const schema = await this.resolveSchemaForRepo(repo);
     const { rows } = await this.pool.query(
-      `SELECT repo, file_path, content, ingested_at, embedding,
-              (metadata->>'chunk_index')::int AS chunk_index
-       FROM ${schema}.chunks
-       WHERE content_type = 'spec' AND repo = $1
-       ORDER BY file_path, (metadata->>'chunk_index')::int NULLS LAST, ingested_at, id`,
+      specChunkSql(schema, ", embedding"),
       [repo],
     );
 
-    return rows.map((r) => ({
-      repo: r.repo as string,
-      filePath: r.file_path as string,
-      content: r.content as string,
-      ingestedAt: r.ingested_at as string | Date,
-      chunkIndex: (r.chunk_index as number | null) ?? null,
-      embedding: r.embedding,
-    }));
+    return rows.map((r) => ({ ...toSpecChunk(r), embedding: r.embedding }));
   }
 
   async codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {

@@ -35,8 +35,10 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
     listAgentsRoute(opts),
     deleteAgentRoute(opts),
     podInfoRoute(opts),
-    jobPodsRoute(opts),
-    listPodsRoute(opts),
+    podsRoute(opts, "/api/cluster/jobs/{jobName}/pods", (pods, params) =>
+      pods.podsForJob(params.jobName),
+    ),
+    podsRoute(opts, "/api/cluster/pods", (pods) => pods.listRunning()),
     podLogRoute(opts),
     deletePerTaskTokenRoute(opts),
     restartRoute(opts),
@@ -128,32 +130,24 @@ function podInfoRoute(opts: ClusterRoutesDeps): ServerRoute {
   };
 }
 
-function jobPodsRoute(opts: ClusterRoutesDeps): ServerRoute {
+// Both pod listings answer the same `{ pods }` shape; only the pod set they name differs.
+function podsRoute(
+  opts: ClusterRoutesDeps,
+  path: string,
+  list: (
+    pods: ClusterDeps["pods"],
+    params: Record<string, string>,
+  ) => Promise<unknown>,
+): ServerRoute {
   return {
     method: "GET",
-    path: "/api/cluster/jobs/{jobName}/pods",
+    path,
     options: { auth: false },
     handler: async (request, h) => {
       guard(opts, request.headers);
       const { pods } = opts.deps();
 
-      return h
-        .response({ pods: await pods.podsForJob(request.params.jobName) })
-        .code(200);
-    },
-  };
-}
-
-function listPodsRoute(opts: ClusterRoutesDeps): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/cluster/pods",
-    options: { auth: false },
-    handler: async (request, h) => {
-      guard(opts, request.headers);
-      const { pods } = opts.deps();
-
-      return h.response({ pods: await pods.listRunning() }).code(200);
+      return h.response({ pods: await list(pods, request.params) }).code(200);
     },
   };
 }

@@ -14,6 +14,8 @@ export interface DataTableProps<T> {
   rowClass?: (row: T) => string | undefined;
   /** Column indexes rendered monospace — identifiers and figures, not prose. */
   monoColumns?: number[];
+  /** Class for those columns; a caller whose figures need a different size passes its own. */
+  monoClass?: string;
   /** What to show when there are no rows — a sentence, or a whole empty state. */
   empty?: ReactNode;
 }
@@ -23,15 +25,17 @@ function Cells({
   cells,
   columns,
   mono,
+  monoClass,
 }: {
   cells: ReactNode[];
   columns: string[];
   mono: number[];
+  monoClass: string;
 }) {
   return cells.map((cell, index) => (
     <td
       key={columns[index]}
-      className={mono.includes(index) ? styles.mono : undefined}
+      className={mono.includes(index) ? monoClass : undefined}
     >
       {cell}
     </td>
@@ -66,12 +70,18 @@ function HeaderRow({ columns }: { columns: string[] }) {
 function BodyRows<T>(props: DataTableProps<T>) {
   const { columns, rows, rowKey, cells } = props;
   const { monoColumns = [], rowClass, empty = "No data" } = props;
+  const monoClass = props.monoClass ?? styles.mono;
 
   return (
     <tbody>
       {rows.map((row, index) => (
         <tr key={rowKey(row, index)} className={rowClass?.(row)}>
-          <Cells cells={cells(row)} columns={columns} mono={monoColumns} />
+          <Cells
+            cells={cells(row)}
+            columns={columns}
+            mono={monoColumns}
+            monoClass={monoClass}
+          />
         </tr>
       ))}
       {rows.length === 0 ? (

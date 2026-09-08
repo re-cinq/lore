@@ -76,6 +76,23 @@ function adjustHalfLife<
   }
 }
 
+/** Per-agent counts of the rows `counted` accepts, kept only where the count exceeds `cap`. Shared by the memory-cap and invalidated-fact-cap reads. */
+function agentCountsOverCap<T extends { agent_id: string }>(
+  rows: T[],
+  counted: (row: T) => boolean,
+  cap: number,
+): AgentCount[] {
+  const counts = new Map<string, number>();
+
+  for (const row of rows.filter(counted)) {
+    counts.set(row.agent_id, (counts.get(row.agent_id) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .filter(([, cnt]) => cnt > cap)
+    .map(([agent_id, cnt]) => ({ agent_id, cnt }));
+}
+
 /** In-memory MemoryLifecyclePort — models memories/facts/episodes/audit rows in arrays so every method is behaviorally assertable; seed via the constructor, inspect the public arrays directly in tests. */
 export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
   readonly memories: MemoryLifecycleRow[];
@@ -99,18 +116,7 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
   // memory.memories ──────────────────────────────────────────────────
 
   async countMemoriesByAgentOverCap(cap: number): Promise<AgentCount[]> {
-    const counts = new Map<string, number>();
-
-    for (const m of this.memories) {
-      if (m.is_deleted) {
-        continue;
-      }
-      counts.set(m.agent_id, (counts.get(m.agent_id) ?? 0) + 1);
-    }
-
-    return [...counts.entries()]
-      .filter(([, cnt]) => cnt > cap)
-      .map(([agent_id, cnt]) => ({ agent_id, cnt }));
+    return agentCountsOverCap(this.memories, (m) => !m.is_deleted, cap);
   }
 
   async findDecayCandidates(
@@ -208,18 +214,11 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     cap: number,
     minAgeDays: number,
   ): Promise<AgentCount[]> {
-    const counts = new Map<string, number>();
-
-    for (const f of this.facts) {
-      if (!olderThanDays(f.valid_to, minAgeDays)) {
-        continue;
-      }
-      counts.set(f.agent_id, (counts.get(f.agent_id) ?? 0) + 1);
-    }
-
-    return [...counts.entries()]
-      .filter(([, cnt]) => cnt > cap)
-      .map(([agent_id, cnt]) => ({ agent_id, cnt }));
+    return agentCountsOverCap(
+      this.facts,
+      (f) => olderThanDays(f.valid_to, minAgeDays),
+      cap,
+    );
   }
 
   async deleteOldestInvalidatedFacts(
