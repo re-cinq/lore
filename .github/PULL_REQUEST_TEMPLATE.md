@@ -1,31 +1,51 @@
 ## Why
 
-<!-- What problem does this solve? What outcome does it enable? Be specific about the motivation — link to the spec, issue, or incident if one exists. -->
+<!-- What problem does this solve? Link the spec, ADR, issue, or incident. -->
+
+Closes #
 
 ## What Changed
 
-<!-- Bullet-point summary of the actual changes. Include file-level callouts for non-obvious moves (e.g. extracted to shared/, renamed from X to Y). -->
+<!-- The shape of the change, not a file-by-file diff. Call out anything a
+     reviewer would not expect from the title. -->
+
+-
 
 ## Alternatives Considered
 
-<!-- What else did you evaluate? Why did you reject it? If nothing was considered, say so explicitly. -->
+<!-- What else could have solved this, and why this approach won. Write "None"
+     only when the change is genuinely mechanical. -->
+
+-
 
 ## ADRs & Architecture
 
-<!-- Does this touch a decision already captured in adrs/? Reference it. Does this introduce a new architectural trade-off that warrants a new ADR? Note it here. If neither applies, write "N/A". -->
+<!-- Which architectural decisions this change follows, amends, or contradicts.
+     Link ADRs as adrs/ADR-0NN-title.md. A change that contradicts an ADR needs
+     a new ADR, not a note here. -->
+
+- Follows:
+- Amends / supersedes:
+- New ADR needed: no
 
 ## Testing
 
-<!-- How was this verified? Unit tests, integration tests, local stack run, eval run? List what was exercised and what was not. If you could not test something, say why. -->
+<!-- How you know this works. Commands run, cases covered, what a reviewer
+     should exercise manually. -->
 
----
+```
+```
 
-**Checklist**
+## Checklist
 
-- [ ] Lint passes (`npm run lint` or equivalent in the changed workspace)
-- [ ] Types check (`tsc --noEmit` in the changed workspace)
-- [ ] Tests pass for changed packages
-- [ ] No secrets, tokens, API keys, or credentials in the diff
-- [ ] Migrations are idempotent (if `ui-helm/migrations/` was touched)
-- [ ] Commit trailers present if this is a Lore-managed branch (`Lore-Stage:` / `Lore-Task:`)
-- [ ] ADR created or updated if an architectural decision was made
+- [ ] `npm run lint` passes (`eslint .`)
+- [ ] Types pass (`tsc --noEmit` in each touched package)
+- [ ] Tests added or updated for the behaviour changed, and the suite passes
+- [ ] No secrets, tokens, or credentials in code, config, fixtures, or logs
+- [ ] `npm run format:check` passes
+- [ ] Docs updated where behaviour changed (`CLAUDE.md`, README, runbooks)
+- [ ] Spec `| Status |` row updated if this implements or completes a spec
+- [ ] Schema changes ship as an ordered `NNNN_*.sql` migration and are idempotent
+
+<!-- Lore-managed branches: keep commits append-only — no amend, fixup, rebase,
+     or force-push once trailers are on the branch. -->
