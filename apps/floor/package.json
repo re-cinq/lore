@@ -30,7 +30,7 @@
     "@re-cinq/lore-assembly-lines": "*",
     "@re-cinq/lore-shared": "*",
     "cron-parser": "^5.10.0",
-    "google-auth-library": "^9.15.1",
+    "google-auth-library": "^10.9.1",
     "octokit": "^5.0.5",
     "pg": "^8.23.0",
     "yaml": "^2.7.0",
