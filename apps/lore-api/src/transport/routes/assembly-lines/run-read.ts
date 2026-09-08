@@ -9,10 +9,7 @@ import {
   loadBuiltinAssemblyLines,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
-import {
-  resolveRoute,
-  type RunGraphNode,
-} from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import { describeStationRun } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type {
   AssemblyRunsPort,
   StationRunRecord,
@@ -28,57 +25,6 @@ const RunReadSchema = z.object({
   definitionKnown: z.boolean(),
   nodes: z.array(z.record(z.string(), z.unknown())),
 });
-
-interface NodeGraphFields {
-  type: string | null;
-  promptRef: string | null;
-  route: string | null;
-  station: string | null;
-  stationInherited: boolean;
-}
-
-/** What is knowable about a visit whose node is no longer in the graph — everything but the route, which still resolves from the run's own args. */
-const UNKNOWN_NODE = {
-  type: null,
-  promptRef: null,
-  station: null,
-  stationInherited: false,
-};
-
-// The page a HUMAN station's worker acts on, resolved against THIS run's args (FR6.40); null when a placeholder (e.g. pr_url) isn't there yet — a half-built href is worse than no link.
-function nodeGraphFields(
-  node: RunGraphNode | undefined,
-  args: Record<string, unknown>,
-): NodeGraphFields {
-  if (!node) {
-    return { ...UNKNOWN_NODE, route: resolveRoute(undefined, args) };
-  }
-
-  return {
-    type: node.type,
-    promptRef: node.prompt_ref ?? null,
-    route: resolveRoute(node.route, args),
-    station: node.station,
-    stationInherited: node.station_inherited,
-  };
-}
-
-export function describeNode(
-  row: StationRunRecord,
-  node: RunGraphNode | undefined,
-  args: Record<string, unknown> = {},
-) {
-  return {
-    nodeId: row.nodeId,
-    iteration: row.iteration,
-    outcome: row.outcome,
-    agentCrName: row.agentCrName,
-    commitSha: row.commitSha,
-    startedAt: row.startedAt,
-    finishedAt: row.finishedAt,
-    ...nodeGraphFields(node, args),
-  };
-}
 
 /** One run, enriched: its nodes, its task and the definition it walks — the canonical read the run page is built from. */
 /** The injected port, or one built on the pool. The guard pairs the two possibilities because a disjunction cannot narrow `pool` on its own — the cast is proven by having required one of them. */
@@ -104,7 +50,7 @@ function describeNodes(
   args: Record<string, unknown>,
 ) {
   return rows.map((row) =>
-    describeNode(
+    describeStationRun(
       row,
       graph?.nodes.find((n) => n.id === row.nodeId),
       args,

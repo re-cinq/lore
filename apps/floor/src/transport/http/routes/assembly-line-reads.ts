@@ -9,86 +9,21 @@ import {
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
 import {
-  resolveRoute,
+  describeStationRun,
   type RunGraphNode,
+  type StationRunFacts,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import { pipeline } from "../../../outbound/queues.js";
 
-interface NodeRow {
-  nodeId: string;
-  iteration: number;
-  outcome: string | null;
-  agentCrName: string | null;
-  commitSha: string | null;
-  startedAt: Date;
-  finishedAt: Date | null;
-}
-
-interface NodeFacts {
-  type: string | null;
-  promptRef: string | null;
-  route: string | null;
-  station: string | null;
-  stationInherited: boolean;
-}
-
-/** What a pre-clone run's node can still say about itself once its blueprint is gone: nothing but the route its args resolve. */
-function unknownNodeFacts(args: Record<string, unknown>): NodeFacts {
-  return {
-    type: null,
-    promptRef: null,
-    // Resolved against THIS run's args (FR6.40); null when a placeholder is missing rather than serving a half-built href.
-    route: resolveRoute(undefined, args),
-    station: null,
-    stationInherited: false,
-  };
-}
-
-/** The graph facts for a node row: null/defaulted for pre-clone runs whose blueprint is gone, otherwise read straight off the run's own graph. */
-function nodeFacts(
-  node: RunGraphNode | undefined,
-  args: Record<string, unknown>,
-): NodeFacts {
-  if (!node) {
-    return unknownNodeFacts(args);
-  }
-
-  return {
-    type: node.type,
-    promptRef: node.prompt_ref ?? null,
-    route: resolveRoute(node.route, args),
-    station: node.station ?? null,
-    stationInherited: node.station_inherited,
-  };
-}
-
-/** A node row joined to the run's OWN graph (FR6.38 — station/route resolved once at clone time, else re-deriving from current YAML rewrites history). Graph facts are null for pre-clone runs whose blueprint is gone. */
-function describeNode(
-  row: NodeRow,
-  node: RunGraphNode | undefined,
-  args: Record<string, unknown> = {},
-) {
-  return {
-    nodeId: row.nodeId,
-    iteration: row.iteration,
-    outcome: row.outcome,
-    agentCrName: row.agentCrName,
-    commitSha: row.commitSha,
-    startedAt: row.startedAt,
-    finishedAt: row.finishedAt,
-    ...nodeFacts(node, args),
-  };
-}
-
-/** Each node row paired with its own graph node, matched by id; an unmatched row still describes itself (see nodeFacts). */
+/** Each node row paired with its own graph node, matched by id; an unmatched row still describes itself. */
 function describeNodes(
-  rows: readonly NodeRow[],
+  rows: readonly StationRunFacts[],
   nodes: readonly RunGraphNode[] | undefined,
   args: Record<string, unknown>,
 ) {
   return rows.map((row) =>
-    describeNode(
+    describeStationRun(
       row,
       nodes?.find((node) => node.id === row.nodeId),
       args,
