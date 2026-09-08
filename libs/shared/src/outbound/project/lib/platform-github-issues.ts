@@ -141,9 +141,10 @@ export async function createLabels(
         description: label.description,
       });
     } catch (err) {
+      // 422 = already exists
       if ((err as { status?: number }).status !== 422) {
         throw err;
-      } // 422 = already exists
+      }
     }
   }
 }

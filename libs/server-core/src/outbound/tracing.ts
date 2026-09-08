@@ -30,9 +30,10 @@ function searchTrace(params: TraceParams): object {
 }
 
 export async function tracedSearch(params: TraceParams): Promise<void> {
+  // tracing disabled
   if (!LANGFUSE_PK || !LANGFUSE_SK) {
     return;
-  } // tracing disabled
+  }
 
   try {
     await fetch(`${LANGFUSE_HOST}/api/public/ingestion`, {

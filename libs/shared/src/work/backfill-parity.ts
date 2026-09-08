@@ -14,9 +14,10 @@ export function jaccard(a: string[], b: string[]): number {
   const setB = new Set(b);
   const union = new Set([...setA, ...setB]);
 
+  // both empty → 1: two empty result sets are vacuously identical (opposite of meanTopkJaccard's fail-safe 0)
   if (union.size === 0) {
     return 1;
-  } // both empty → 1: two empty result sets are vacuously identical (opposite of meanTopkJaccard's fail-safe 0)
+  }
   let intersection = 0;
 
   for (const key of setA) {
@@ -29,9 +30,10 @@ export function jaccard(a: string[], b: string[]): number {
 }
 
 export function meanTopkJaccard(scores: number[]): number {
+  // empty sample → 0 so the retrieval gate fails loudly, never vacuously passes (opposite of jaccard's vacuous-identity 1)
   if (scores.length === 0) {
     return 0;
-  } // empty sample → 0 so the retrieval gate fails loudly, never vacuously passes (opposite of jaccard's vacuous-identity 1)
+  }
 
   return scores.reduce((sum, s) => sum + s, 0) / scores.length;
 }
