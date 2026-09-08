@@ -55,7 +55,7 @@ export interface LocalTask {
 }
 
 // Lore's own /api/task pending-list wire shape; also the on-disk pending-tasks.json read by scripts/lore-statusline.sh.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface PendingTask {
   id: string;
   description: string;

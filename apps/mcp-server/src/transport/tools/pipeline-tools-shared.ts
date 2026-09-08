@@ -8,7 +8,7 @@ import {
 } from "./deps.js";
 
 // Lore's own /api/tasks wire response (mirrors pipeline.tasks columns).
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export type RemoteTaskLite = {
   id: string;
   target_repo?: string;

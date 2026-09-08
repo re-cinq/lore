@@ -22,7 +22,7 @@ export interface CreateTaskInput {
 }
 
 // The createTask API response body — task_id renames the row's id; not a column restatement.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface CreatedTask {
   task_id: string;
   task_type: string;
@@ -32,7 +32,7 @@ export interface CreatedTask {
 }
 
 // The retryTask API response body — same renamed-field shape as CreatedTask.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface RetriedTask {
   task_id: string;
   status: string;

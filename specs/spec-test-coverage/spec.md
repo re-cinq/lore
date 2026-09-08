@@ -149,10 +149,10 @@ reviewable as a git PR.
 The cron *proposes* links; a deterministic ESLint rule *requires* them,
 closing the loop so a testable statement cannot ship un-linked without a
 visible signal. This is the statement-side complement of the test-side
-`lore/require-spec-link` rule (which fails a test that no statement
+`re-lint/require-spec-link` rule (which fails a test that no statement
 references) — same inline-link contract, read from the other direction.
 
-`lore/require-statement-links` (`tools/eslint-plugin-lore/`) walks each
+`re-lint/require-statement-links` (`@re-cinq/eslint-plugin-re-lint`) walks each
 `spec.md` / ADR under `specs/**/spec.md` + `adrs/**/*.md` (the first
 `@eslint/markdown` language block in the repo), reusing the same
 `segmentStatements` + `classifyByHeuristic` + `parseTestLinksInStatement`
@@ -184,7 +184,7 @@ are backfilled. Statement start lines for the report location come from the
 | Cron — backfill | **Weekly schedule + manual trigger**. Runs the v2 judge pipeline but emits its output as **PR edits to `spec.md`**, not DB rows | Expensive; weekly is right cadence |
 | Backfill output target | **PR against the spec's own repo** adding the suggested markdown links inline | Author reviews in their normal git flow; no UI for "accept/reject suggestions" needed |
 | Validation output target | **PR comment** on the most recent open PR touching the spec, or an issue if none exists | Surfaces link rot at the right moment |
-| Enforcement | **ESLint `lore/require-statement-links`** — testable statement with no link → `warn`; a `rejected` or `retired` doc is skipped. Raise to `error` per repo once backfilled. | Deterministic, always-on CI signal that never wedges the pipeline; the statement-side mirror of the test-side `lore/require-spec-link` |
+| Enforcement | **ESLint `re-lint/require-statement-links`** — testable statement with no link → `warn`; a `rejected` or `retired` doc is skipped. Raise to `error` per repo once backfilled. | Deterministic, always-on CI signal that never wedges the pipeline; the statement-side mirror of the test-side `re-lint/require-spec-link` |
 | Coverage scope | Per-repo specs pages only (v2 limitation carries over) | The global `/specs` viewer doesn't get statement-level coloring |
 | Pass/fail status | **Not shown** (v2 limitation carries over) | Out of scope; this feature maps tests to statements, not run results |
 | v2 cleanup | A separate **Phase 4** drops the v2 tables, MCP tools, persist API, BYO-compute skill, and `local-coverage-linker` apparatus | Avoids "ghost state" once v3 ships |

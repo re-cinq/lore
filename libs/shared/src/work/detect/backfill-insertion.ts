@@ -29,7 +29,7 @@ export function pickStatementsForBackfill(
 }
 
 // A pure computed value (judge verdict + unlinked text), not a table row; snake_case matches the spec-link markdown it renders.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface Suggestion {
   statement_ordinal: number;
   /** Exact statement text expected verbatim in the content; skipped if not found. */

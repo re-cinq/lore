@@ -16,7 +16,7 @@ import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-
 import { updateBanner } from "../../work/update/mcp-update.js";
 
 // MCP tool input args (lore_assemble_context's own snake_case schema), not a DB row.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 interface AssembleContextExtraArgs {
   max_tokens?: number;
   cross_repo?: boolean;

@@ -5,13 +5,19 @@ import reactHooks from "eslint-plugin-react-hooks";
 import stylistic from "@stylistic/eslint-plugin";
 import markdown from "@eslint/markdown";
 import importX from "eslint-plugin-import-x";
-import lore from "./tools/eslint-plugin-lore/index.mjs";
+import reLint from "@re-cinq/eslint-plugin-re-lint";
 
 /**
  * Repo-wide ESLint (flat config). One common linter across every package plus the
- * repo-local `lore` plugin (custom house rules). Type-aware via projectService so
+ * published `@re-cinq/eslint-plugin-re-lint` house rules (key `re-lint`). Type-aware via projectService so
  * typed rules run against each package's own tsconfig (there is no shared base).
  */
+const ENFORCE_MODULE = {
+  specifier: "@re-cinq/lore-shared/lib/enforce.js",
+  sourceDir: "libs/shared/src",
+};
+const FIRST_PARTY = { firstPartyScopes: ["@re-cinq"] };
+
 export default tseslint.config(
   {
     ignores: [
@@ -29,7 +35,6 @@ export default tseslint.config(
       "**/.lore-pgdata/**",
       "**/.lore-dgraphdata/**",
       "apps/lore-code-trace/**",
-      "tools/eslint-plugin-lore/**",
       // Deliberately-wrong fixtures; scripts/check-eslint-canaries.sh lints them
       // with --no-ignore and FAILS if the rules stop reporting them.
       "tools/eslint-canaries/**",
@@ -51,7 +56,7 @@ export default tseslint.config(
       },
       globals: { ...globals.node },
     },
-    plugins: { lore, "import-x": importX },
+    plugins: { "re-lint": reLint, "import-x": importX },
     settings: {
       "import-x/resolver": {
         typescript: { alwaysTryTypes: true },
@@ -75,15 +80,12 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: "^_",
         },
       ],
-      "lore/prefer-enforce-true": "error",
-      "lore/no-catch-as-control-flow": "error",
-      "lore/no-infra-sdk-in-floor": "error",
-      "lore/no-forwarding-class": "error",
-      "lore/require-colocated-tests": "error",
-      "lore/no-prop-mutation": "error",
-      "lore/max-boolean-operators": ["error", { max: 2 }],
-      "lore/no-io-in-view": "error",
-      "lore/require-spec-link": "error",
+      "re-lint/prefer-enforce-true": ["error", { enforceModule: ENFORCE_MODULE }],
+      "re-lint/no-catch-as-control-flow": "error",
+      "re-lint/no-forwarding-class": "error",
+      "re-lint/require-colocated-tests": "error",
+      "re-lint/max-boolean-operators": ["error", { max: 2 }],
+      "re-lint/require-spec-link": "error",
       // Repo-WIDE on purpose. A table restated in a port, an adapter or a route
       // is the same defect as one restated in a view, and scoping this to
       // web-ui would guard the tier least likely to reach a database. Error
@@ -92,28 +94,29 @@ export default tseslint.config(
       // a THIRD PARTY's — GitHub's, an MCP tool's arg names, an on-disk config
       // — it keeps an inline disable naming whose shape it is, because the
       // rule cannot tell those from a transcribed column. See #1418 and #1421.
-      "lore/no-row-types-outside-models": "error",
+      "re-lint/no-row-types-outside-models": [
+        "error",
+        { modelsDir: "libs/shared/src/models", exemptNames: ["PipelineTask"] },
+      ],
       // error since 2026-09-04. The 22-suite queue split exactly as the first
       // draft of this note guessed: 16 suites whose subject is an artifact
       // rather than a module (boundaries, migrations, CSS tokens) now pass
       // honestly, because reading the file IS loading the subject; the other 6
       // were real copies and now import the thing they test. One had drifted —
       // a Slack HMAC helper whose parameter order was reversed.
-      "lore/test-imports-its-subject": "error",
+      "re-lint/test-imports-its-subject": ["error", FIRST_PARTY],
       // error from day one: the rollout sweep fixed all 195 pre-existing sites
       // (guard clauses, two-ifs splits, wrapped-tail flips) in the same branch
       // that introduced the rule, so there is no triage queue to stay yellow for.
-      "lore/prefer-early-return": "error",
-      "lore/default-export-matches-filename": "error",
-      "lore/no-inline-styles": "error",
-      "lore/require-fetch-timeout": "error",
+      "re-lint/prefer-early-return": "error",
+      "re-lint/require-fetch-timeout": "error",
       // error from day one, mirroring the `prefer-early-return` rollout: the
       // introduction sweep fixed every pre-existing site (204 nested ifs, 109
       // nested loops, 41 nested ternaries) in the same branch, so there is no
       // triage queue to stay yellow for. `max-nested-callbacks` was already at
       // zero when it arrived.
-      "lore/no-nested-if": "error",
-      "lore/no-nested-loop": "error",
+      "re-lint/no-nested-if": "error",
+      "re-lint/no-nested-loop": "error",
       "no-nested-ternary": "error",
       "max-nested-callbacks": ["error", { max: 3 }],
       // The craftsmanship triage queues. Each is a warn because every site is
@@ -129,8 +132,8 @@ export default tseslint.config(
       // is ratcheted to 100 the same day. `max-lines` below was added after the
       // others closed and reached zero on 2026-09-04; no queue is open now.
       "max-params": ["error", { max: 4 }],
-      "lore/max-comment-lines": ["error", { max: 1 }],
-      "lore/no-vague-names": "error",
+      "re-lint/max-comment-lines": ["error", { max: 1 }],
+      "re-lint/no-vague-names": "error",
       // 30 by default, with the packages still draining held at 50 in the
       // override below — a RATCHET per package rather than one for the whole
       // repo, because 50 → 30 is 619 functions and a single global step can only
@@ -192,7 +195,7 @@ export default tseslint.config(
       // `index-*.ts` joined the exemption — a barrel that outgrows `max-lines`
       // continues under a second filename and is still the public surface. One
       // carries an inline disable: a folder surface reached by `await import()`.
-      "lore/no-reexport-only-module": "error",
+      "re-lint/no-reexport-only-module": "error",
       // The layering lives in layers.yaml at the repo root, where it can be
       // read as a statement of the architecture rather than inferred from
       // imports. Only packages named there are checked, so it arrives one
@@ -201,7 +204,87 @@ export default tseslint.config(
       // therefore a real piece of work, not a config line: state the layering
       // the package is MEANT to have, then move the code that disagrees.
       // Two sites carry an inline disable naming why they stand.
-      "lore/no-cross-layer-import": "error",
+      "re-lint/no-cross-layer-import": ["error", FIRST_PARTY],
+      // The Clean Code rules that arrived with the re-lint package on
+      // 2026-09-08. Each is a warn until its queue drains, then an error in
+      // the PR that empties it, like every queue above. Sizes at introduction
+      // are recorded in the cutover PR.
+      "re-lint/no-flag-params": "warn",
+      "re-lint/no-commented-out-code": "warn",
+      "re-lint/no-closing-brace-comments": "warn",
+      "re-lint/no-negative-names": "warn",
+      "re-lint/prefer-polymorphism": "warn",
+      "re-lint/max-member-chain": "warn",
+      "re-lint/callee-below-caller": "warn",
+      "re-lint/declare-near-use": "warn",
+      "re-lint/no-hybrid-class": "warn",
+    },
+  },
+
+  // Rules that used to gate themselves on the web-ui path now take the scope
+  // from here. `prefer-enforce-true` stays off in web-ui, where a thrown
+  // precondition has no hapi bouncer to land in.
+  {
+    files: ["apps/web-ui/src/**/*.{ts,tsx}"],
+    rules: {
+      "re-lint/prefer-enforce-true": "off",
+      "re-lint/no-prop-mutation": "error",
+      "re-lint/no-inline-styles": "error",
+      "re-lint/default-export-matches-filename": "error",
+      "re-lint/no-io-in-view": [
+        "error",
+        { dataModules: ["@/lib/db", "@/lib/github"] },
+      ],
+    },
+  },
+
+  // The Floor reaches infrastructure through the shared port adapters bound
+  // in kernel/, never the vendor SDK directly.
+  {
+    files: ["apps/floor/src/**/*.ts"],
+    rules: {
+      "re-lint/no-forbidden-imports": [
+        "error",
+        {
+          forbidden: [
+            {
+              specifier: "@google-cloud/storage",
+              message:
+                "The Floor reaches infrastructure through @re-cinq/lore-shared port adapters bound in kernel/, not @google-cloud/storage directly.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // An in-memory double restates the table it stands in for; that is its job.
+  {
+    files: ["**/*-memory.ts"],
+    rules: { "re-lint/no-row-types-outside-models": "off" },
+  },
+
+  // Duplicated blocks, found by jscpd over the same roots `npm run dup` scans.
+  // Every clone is reported on both sides with its full range. Warn until the
+  // queue drains.
+  {
+    files: ["{apps,libs}/*/src/**/*.{ts,tsx}"],
+    rules: {
+      "re-lint/no-duplicate-code": [
+        "warn",
+        {
+          roots: ["apps", "libs"],
+          formats: ["typescript", "tsx"],
+          minTokens: 50,
+          ignore: [
+            "**/dist/**",
+            "**/.next/**",
+            "**/node_modules/**",
+            "**/schema.d.ts",
+            "**/fixtures/**",
+          ],
+        },
+      ],
     },
   },
 
@@ -211,7 +294,18 @@ export default tseslint.config(
   // hold it without dragging @hapi/boom into the lean MCP adapter, ADR-032).
   {
     files: ["apps/lore-api/src/**/*.ts", "apps/floor/src/**/*.ts"],
-    rules: { "lore/prefer-api-error": "error" },
+    rules: {
+      "re-lint/prefer-api-error": [
+        "error",
+        {
+          enforceModule: ENFORCE_MODULE,
+          errorModules: [
+            { root: "apps/lore-api/src", path: "server/api-error.js" },
+            { root: "apps/floor/src", path: "delivery/http/api-error.js" },
+          ],
+        },
+      ],
+    },
   },
 
   // SVG transforms and measured iframe heights are computed per render — there is
@@ -225,7 +319,7 @@ export default tseslint.config(
       // reporting.
       "apps/web-ui/src/app/repos/**/features/*/MockupSection.tsx",
     ],
-    rules: { "lore/no-inline-styles": "off" },
+    rules: { "re-lint/no-inline-styles": "off" },
   },
 
   // Reserved Next filenames outside the features vertical still declare their
@@ -239,7 +333,7 @@ export default tseslint.config(
     ],
     ignores: ["apps/web-ui/src/app/repos/**/features/**"],
     rules: {
-      "lore/default-export-matches-filename": ["error", { reserved: "off" }],
+      "re-lint/default-export-matches-filename": ["error", { reserved: "off" }],
     },
   },
 
@@ -289,7 +383,7 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-hooks/set-state-in-effect": "error",
-      "lore/no-sql-in-web-ui": "error",
+      "re-lint/no-sql-in-web-ui": "error",
     },
   },
 
@@ -363,7 +457,9 @@ export default tseslint.config(
       "@typescript-eslint/no-unnecessary-condition": "off",
       // Zero comments in tests: the test NAME carries the meaning. Queue hit
       // zero on 2026-09-04, so this is an error.
-      "lore/max-comment-lines": ["error", { max: 0 }],
+      "re-lint/max-comment-lines": ["error", { max: 0 }],
+      "re-lint/max-expects": "warn",
+      "re-lint/no-nondeterministic-tests": "warn",
       // A describe callback is one function holding every test, so per-function
       // line/callback budgets are meaningless here. Per-it bodies stay covered
       // by complexity and the nesting rules.
@@ -389,11 +485,11 @@ export default tseslint.config(
   {
     files: ["specs/**/spec.md", "adrs/**/*.md"],
     language: "markdown/gfm",
-    plugins: { markdown, lore },
+    plugins: { markdown, "re-lint": reLint },
     rules: {
-      "lore/require-statement-links": "warn",
-      "lore/require-intro-paragraph": "error",
-      "lore/require-status-matches-coverage": "error",
+      "re-lint/require-statement-links": "warn",
+      "re-lint/require-intro-paragraph": "error",
+      "re-lint/require-status-matches-coverage": "error",
     },
   },
   // Every markdown link to a repo file, wherever docs live. `require-spec-link`
@@ -412,9 +508,8 @@ export default tseslint.config(
       "libs/*/README.md",
       "CLAUDE.md",
     ],
-    ignores: ["tools/eslint-plugin-lore/rules/fixtures/**"],
     language: "markdown/gfm",
-    plugins: { markdown, lore },
-    rules: { "lore/no-dead-md-links": "error" },
+    plugins: { markdown, "re-lint": reLint },
+    rules: { "re-lint/no-dead-md-links": "error" },
   },
 );

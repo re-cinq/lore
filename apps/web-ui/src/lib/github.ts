@@ -93,7 +93,7 @@ export async function checkRepoAccess(repo: string): Promise<RepoAccess> {
 }
 
 // GitHub's own repo-response shape (description/default_branch/html_url), not a Lore table row.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface RepoMeta {
   description: string | null;
   default_branch: string;

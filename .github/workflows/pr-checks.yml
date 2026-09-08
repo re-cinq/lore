@@ -49,10 +49,9 @@ jobs:
       - name: Install deps
         run: npm ci --ignore-scripts && npm ci --prefix apps/web-ui --ignore-scripts
 
-      # eslint-plugin-lore's require-spec-link rule imports the compiled
-      # @re-cinq/lore-shared at config load, so shared must be built before any
-      # eslint run (the lint matrix job builds too; format was the last eslint
-      # entrypoint that didn't).
+      # Type-aware lint reads @re-cinq/lore-shared's compiled d.ts, so shared
+      # must be built before any eslint run (the lint matrix job builds too;
+      # format was the last eslint entrypoint that didn't).
       - name: Build shared
         run: npm run build -w @re-cinq/lore-shared
 
@@ -170,26 +169,13 @@ jobs:
           # classifier ran nowhere, so a broken guard stayed green. Only
           # check-bootstrap-columns ran, and only from migrations.yml.
           # Files are passed explicitly via find: node 22 resolves a bare directory
-          # as a module entry point and dies with MODULE_NOT_FOUND, the same trap
-          # the eslint-rules entry below documents.
+          # as a module entry point and dies with MODULE_NOT_FOUND. The scripts
+          # include check-eslint-rules-registered (every re-lint rule is switched
+          # on somewhere in eslint.config.mjs) and check-spec-parser-parity (the
+          # spec parsers vendored into @re-cinq/eslint-plugin-re-lint still agree
+          # with libs/shared on this repo's own corpus).
           - name: scripts
             test: find scripts -name '*.test.mjs' -print0 | xargs -0 node --test
-          # The lint rules' OWN tests. Every rule in tools/eslint-plugin-lore has a
-          # RuleTester suite, and until now nothing ran them — so a rule could start
-          # over-reporting, stop reporting, or crash on an edge-case AST and nothing
-          # would notice. Several are at `error` repo-wide, where a crashing rule
-          # red-lights every PR with a stack trace instead of a finding. Plain
-          # `node --test` on .mjs sources: no build, no install, no workspace deps.
-          # The script passes the test files EXPLICITLY rather than the rules/
-          # directory: node 22 (this runner) resolves a bare directory as a module
-          # entry point and dies with MODULE_NOT_FOUND, while node 20 (local) scans
-          # it — so the directory form passes locally and fails here.
-          # Needs shared BUILT: three rules read spec status/coverage through
-          # rules/lib/lore-shared.mjs, which imports @re-cinq/lore-shared/dist. Same
-          # dependency the lint-web-ui entry documents.
-          - name: eslint-rules
-            build: npm run build -w @re-cinq/lore-shared
-            test: npm test --prefix tools/eslint-plugin-lore
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui

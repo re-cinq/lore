@@ -11,7 +11,7 @@ import {
 import { cleanupStaleTasks } from "./runner-local-stale.js";
 
 // Same /api/task wire shape as PendingTask, pre-normalization.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 interface PendingTaskRow {
   id: string;
   description?: string | null;
