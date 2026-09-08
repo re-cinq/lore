@@ -147,24 +147,33 @@ function impactOf(
   };
 }
 
+export interface SpecFileImpact {
+  statements: Array<ImpactStatement & { xid: string }>;
+  added: number;
+  changedWithoutTests: number;
+}
+
+/** Recover rewrites to show before/after instead of non-existent text. */
+function rewritesFor(
+  validated: GraphStatementRef[],
+  addedTexts: string[],
+): Map<string, string | null> {
+  return pairRewrites(
+    validated.map((stmt) => stmt.text),
+    addedTexts,
+  );
+}
+
 export async function specFileImpact(
   dgraph: DgraphClientPort,
   repo: string,
   specPath: string,
   content: string,
-): Promise<{
-  statements: Array<ImpactStatement & { xid: string }>;
-  added: number;
-  changedWithoutTests: number;
-}> {
+): Promise<SpecFileImpact> {
   const known = await readSpecStatements(dgraph, repo, specPath);
   const delta = diffStatements(content, known);
   const validated = delta.changed.filter((stmt) => stmt.tests.length);
-  // Recover rewrites to show before/after instead of non-existent text.
-  const rewrites = pairRewrites(
-    validated.map((stmt) => stmt.text),
-    delta.addedTexts,
-  );
+  const rewrites = rewritesFor(validated, delta.addedTexts);
 
   return {
     added: delta.addedTexts.length,

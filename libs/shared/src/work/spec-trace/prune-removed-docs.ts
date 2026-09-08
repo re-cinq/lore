@@ -24,6 +24,22 @@ export type PruneSelection =
       inScopeDocCount: number;
     };
 
+/** The refusal per the proportional bad-tree-read fuse (>2 candidates AND >50% of in-scope docs), or null when the candidate set is trustworthy. */
+function badTreeReadRefusal(
+  candidates: string[],
+  inScopeDocs: string[],
+): PruneSelection | null {
+  if (candidates.length <= 2 || candidates.length * 2 <= inScopeDocs.length) {
+    return null;
+  }
+
+  return {
+    outcome: "refused-suspicious-tree",
+    candidateCount: candidates.length,
+    inScopeDocCount: inScopeDocs.length,
+  };
+}
+
 /** Graph doc paths in scope but absent from the tree selection, or a refusal per the proportional bad-tree-read fuse (>2 candidates AND >50% of in-scope docs); empty selection always passes with zero candidates; `force` bypasses the fuse but not the empty guard. */
 export function selectPruneCandidates(
   graphDocPaths: string[],
@@ -37,18 +53,9 @@ export function selectPruneCandidates(
   const selected = new Set(selectedFiles);
   const inScopeDocs = graphDocPaths.filter(isInScope);
   const candidates = inScopeDocs.filter((path) => !selected.has(path));
-  const suspicious =
-    candidates.length > 2 && candidates.length * 2 > inScopeDocs.length;
+  const refusal = force ? null : badTreeReadRefusal(candidates, inScopeDocs);
 
-  if (suspicious && !force) {
-    return {
-      outcome: "refused-suspicious-tree",
-      candidateCount: candidates.length,
-      inScopeDocCount: inScopeDocs.length,
-    };
-  }
-
-  return { outcome: "ok", candidates };
+  return refusal ?? { outcome: "ok", candidates };
 }
 
 /** The `file_path` of every document of `docType` for a repo; `docType` is a trusted internal constant, safe to interpolate into query predicates. */
@@ -115,7 +122,27 @@ type QueriedSpec = { feature?: UidRef[] | UidRef } & {
   acs?: LinkedChild[];
 };
 
-/** Assembles the doomed subtree from a raw query result's `spec`/`root` payloads. Dedupe: TestChunks are file-scoped, so many statements/ACs point at the same chunk uid — without the Set a 40-statement spec fires ~40 redundant gcOrphanChunks txns. */
+/** Every node the spec owns outright: its statements and ACs, its sections, and the TraceLinks those children point at. */
+function subtreeChildUids(
+  children: LinkedChild[],
+  sections: UidRef[] | undefined,
+): string[] {
+  return [
+    ...children.map((child) => child.uid),
+    ...uids(sections),
+    ...children.flatMap((child) => uids(child.links)),
+  ];
+}
+
+/** Dedupe: TestChunks are file-scoped, so many statements/ACs point at the same chunk uid — without the Set a 40-statement spec fires ~40 redundant gcOrphanChunks txns. */
+function uniqueLinkTargets(
+  children: LinkedChild[],
+  edge: "validated" | "implemented",
+): string[] {
+  return [...new Set(children.flatMap((child) => uids(child[edge])))];
+}
+
+/** Assembles the doomed subtree from a raw query result's `spec`/`root` payloads. */
 function buildDoomedSpecSubtree(
   spec: QueriedSpec,
   rootUid: string | undefined,
@@ -124,24 +151,15 @@ function buildDoomedSpecSubtree(
     ...(spec.statements ?? []),
     ...(spec.acs ?? []),
   ] as LinkedChild[];
-  const childUids = [
-    ...children.map((child) => child.uid),
-    ...uids(spec.sections),
-    ...children.flatMap((child) => uids(child.links)),
-  ];
   const feature = Array.isArray(spec.feature) ? spec.feature[0] : spec.feature;
 
   return {
     specUid: spec.uid,
     rootUid,
-    childUids,
+    childUids: subtreeChildUids(children, spec.sections),
     featureUid: feature?.uid,
-    validatedUids: [
-      ...new Set(children.flatMap((child) => uids(child.validated))),
-    ],
-    implementedUids: [
-      ...new Set(children.flatMap((child) => uids(child.implemented))),
-    ],
+    validatedUids: uniqueLinkTargets(children, "validated"),
+    implementedUids: uniqueLinkTargets(children, "implemented"),
   };
 }
 
@@ -193,6 +211,29 @@ async function gcSpecLeavings(
 /** What {@link querySpecSubtree} returns when the spec exists. */
 type SpecSubtree = NonNullable<Awaited<ReturnType<typeof querySpecSubtree>>>;
 
+/** Re-queries inside the mutating txn so the delete acts on fresh uids, not the earlier read's snapshot (Dgraph only detects write-write conflicts). */
+async function deleteSpecSubtreeTxn(
+  txn: DgraphTxn,
+  repo: string,
+  filePath: string,
+): Promise<void> {
+  const target = await querySpecSubtree(txn, repo, filePath);
+
+  if (!target) {
+    return;
+  }
+  const deletes = [
+    `<${target.specUid}> * * .`,
+    ...target.childUids.map((uid) => `<${uid}> * * .`),
+  ];
+
+  if (target.rootUid) {
+    // `<uid> * * .` only drops OUTGOING edges — the Repo keeps a dangling forward ref unless its edge is deleted explicitly.
+    deletes.push(`<${target.rootUid}> <Repo.specs> <${target.specUid}> .`);
+  }
+  await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
+}
+
 /** Deletes a Spec's whole subtree plus GC of link-target chunks and the owning Feature (only when ownerless); missing Spec is a no-op; anchor-deleted-last for crash resume. */
 export async function deleteSpecSubtree(
   dgraph: DgraphClientPort,
@@ -212,24 +253,25 @@ export async function deleteSpecSubtree(
   // An empty valid set makes the file-scoped Block sweep delete every Block.
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, new Set());
 
-  // Re-query inside the mutating txn so the delete acts on fresh uids, not the earlier read's snapshot (Dgraph only detects write-write conflicts).
-  await withTxn(dgraph, async (txn) => {
-    const target = await querySpecSubtree(txn, repo, filePath);
+  await withTxn(dgraph, (txn) => deleteSpecSubtreeTxn(txn, repo, filePath));
+}
 
-    if (!target) {
-      return;
-    }
-    const deletes = [
-      `<${target.specUid}> * * .`,
-      ...target.childUids.map((uid) => `<${uid}> * * .`),
-    ];
+/** The Specs still pointing at this Feature, ignoring the one being deleted. */
+async function remainingFeatureOwners(
+  txn: DgraphTxn,
+  featureUid: string,
+  excludedSpecUid: string,
+): Promise<UidRef[]> {
+  const res = await txn.queryWithVars(
+    `query q($uid: string) {
+        node(func: uid($uid)) { owners: ~Spec.feature { uid } }
+      }`,
+    { $uid: featureUid },
+  );
+  const nodes = (res.data.node ?? []) as Array<{ owners?: UidRef[] }>;
+  const owners = nodes[0]?.owners ?? [];
 
-    if (target.rootUid) {
-      // `<uid> * * .` only drops OUTGOING edges — the Repo keeps a dangling forward ref unless its edge is deleted explicitly.
-      deletes.push(`<${target.rootUid}> <Repo.specs> <${target.specUid}> .`);
-    }
-    await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
-  });
+  return owners.filter((owner) => owner.uid !== excludedSpecUid);
 }
 
 /** Deletes a Feature node once no Spec other than `excludedSpecUid` points at it — lets GC run while the doomed Spec (the resume anchor) still exists, and re-checking makes a resumed run converge. */
@@ -239,14 +281,11 @@ async function gcFeatureIfOrphan(
   excludedSpecUid: string,
 ): Promise<void> {
   await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query q($uid: string) {
-        node(func: uid($uid)) { owners: ~Spec.feature { uid } }
-      }`,
-      { $uid: featureUid },
+    const remaining = await remainingFeatureOwners(
+      txn,
+      featureUid,
+      excludedSpecUid,
     );
-    const owners = (firstOf(res.data.node)?.owners ?? []) as UidRef[];
-    const remaining = owners.filter((owner) => owner.uid !== excludedSpecUid);
 
     if (remaining.length === 0) {
       await txn.mutate({

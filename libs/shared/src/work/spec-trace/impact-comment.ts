@@ -85,17 +85,24 @@ function commentFindings(report: ImpactReport): ImpactStatement[] {
   );
 }
 
+/** Provenance sub-line plus the sticky marker, shared by every rendered variant. */
+function commentFooterLines(report: ImpactReport): string[] {
+  return [
+    "",
+    `<sub>Deterministic · ${describeBaseline(report)} · no tests run by this check</sub>`,
+    "",
+    IMPACT_COMMENT_MARKER,
+    "",
+  ];
+}
+
 /** Same footer as a populated result — otherwise a run that skipped every file for want of a baseline looks identical to a clean "found nothing" run. */
 function emptyImpactComment(report: ImpactReport): string {
   return [
     COMMENT_HEADER,
     "",
     describeExamined(report),
-    "",
-    `<sub>Deterministic · ${describeBaseline(report)} · no tests run by this check</sub>`,
-    "",
-    IMPACT_COMMENT_MARKER,
-    "",
+    ...commentFooterLines(report),
   ].join("\n");
 }
 
@@ -173,7 +180,8 @@ function populatedImpactComment(
   weak: ImpactStatement[],
 ): string {
   const notes = report.examined ? docNotes(report.examined) : [];
-  const lines = [
+
+  return [
     `${COMMENT_HEADER} — advisory`,
     "",
     commentIntro(findings),
@@ -181,14 +189,8 @@ function populatedImpactComment(
     ...weakSignalLines(weak),
     ...(notes.length ? ["", notes.join(" ")] : []),
     ...orphanWarningLines(report.orphaned),
-    "",
-    `<sub>Deterministic · ${describeBaseline(report)} · no tests run by this check</sub>`,
-    "",
-    IMPACT_COMMENT_MARKER,
-    "",
-  ];
-
-  return lines.join("\n");
+    ...commentFooterLines(report),
+  ].join("\n");
 }
 
 export function buildImpactComment(report: ImpactReport): string {

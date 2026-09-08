@@ -34,31 +34,41 @@ async function readVerification(
   });
 }
 
+/** The set of File paths the validating tests actually execute, one hop through each test's Coverage. */
+function coveredFilePaths(
+  validatingTests: NonNullable<StatementVerification["validated_by"]>,
+): Set<string> {
+  return new Set(
+    validatingTests
+      .flatMap((test) => test["TestChunk.coverage"]?.["Coverage.covers"] ?? [])
+      .flatMap((file) => (file["File.path"] ? [file["File.path"]] : [])),
+  );
+}
+
+/** True when any implementing CodeChunk sits in a file the validating tests executed — the overlap that upgrades a link to execution-verified. */
+function implementsCoveredFile(
+  statement: StatementVerification,
+  coveredFiles: Set<string>,
+): boolean {
+  return (statement.implemented ?? []).some(
+    (chunk) =>
+      chunk["CodeChunk.file_path"] !== undefined &&
+      coveredFiles.has(chunk["CodeChunk.file_path"]),
+  );
+}
+
 export async function verifyCoverageLink(
   dgraph: DgraphClientPort,
   statementXid: string,
 ): Promise<"execution-verified" | "link-unproven" | "untested"> {
   const statement = await readVerification(dgraph, statementXid);
-
   const validatingTests = statement.validated_by ?? [];
 
   if (validatingTests.length === 0) {
     return "untested";
   }
 
-  const coveredFiles = new Set(
-    validatingTests
-      .flatMap((test) => test["TestChunk.coverage"]?.["Coverage.covers"] ?? [])
-      .flatMap((file) => (file["File.path"] ? [file["File.path"]] : [])),
-  );
-
-  const implementsCovered = (statement.implemented ?? []).some(
-    (chunk) =>
-      chunk["CodeChunk.file_path"] !== undefined &&
-      coveredFiles.has(chunk["CodeChunk.file_path"]),
-  );
-
-  if (implementsCovered) {
+  if (implementsCoveredFile(statement, coveredFilePaths(validatingTests))) {
     return "execution-verified";
   }
 

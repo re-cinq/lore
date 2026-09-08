@@ -35,44 +35,66 @@ function edgesFromOwners(
 }
 
 /** `TestChunk.coverage` is the only live chunk→Coverage edge; `Coverage.test` is unwritten dead schema. */
+function collectCoverageUids(chunks: DoomedChunkRow[]): {
+  coverageUids: string[];
+  coveredUids: string[];
+} {
+  const coverageUids = new Set<string>();
+  const coveredUids = new Set<string>();
+
+  for (const chunk of chunks) {
+    const covOut = chunk.covOut;
+
+    if (covOut) {
+      coverageUids.add(covOut.uid);
+      (covOut.covered ?? []).forEach((coveredRef) =>
+        coveredUids.add(coveredRef.uid),
+      );
+    }
+  }
+
+  return { coverageUids: [...coverageUids], coveredUids: [...coveredUids] };
+}
+
 function collectChunkEdges(chunks: DoomedChunkRow[]): {
   coverageUids: string[];
   coveredUids: string[];
   statementEdges: Array<[string, string]>;
   criterionEdges: Array<[string, string]>;
 } {
-  const coverageUids = new Set<string>();
-  const coveredUids = new Set<string>();
-  const statementEdges: Array<[string, string]> = [];
-  const criterionEdges: Array<[string, string]> = [];
-
-  for (const chunk of chunks) {
-    if (chunk.covOut) {
-      coverageUids.add(chunk.covOut.uid);
-      (chunk.covOut.covered ?? []).forEach((coveredRef) =>
-        coveredUids.add(coveredRef.uid),
-      );
-    }
-    statementEdges.push(...edgesFromOwners(chunk.stmts, chunk.uid));
-    criterionEdges.push(...edgesFromOwners(chunk.acs, chunk.uid));
-  }
-
   return {
-    coverageUids: [...coverageUids],
-    coveredUids: [...coveredUids],
-    statementEdges,
-    criterionEdges,
+    ...collectCoverageUids(chunks),
+    statementEdges: chunks.flatMap((chunk) =>
+      edgesFromOwners(chunk.stmts, chunk.uid),
+    ),
+    criterionEdges: chunks.flatMap((chunk) =>
+      edgesFromOwners(chunk.acs, chunk.uid),
+    ),
   };
 }
 
+/** The Repo anchor uid, or null when the repo has no graph node to detach the subtree from. */
+function rootUidOf(root: UidRef[] | undefined): string | null {
+  return root?.[0]?.uid ?? null;
+}
+
+/** The doomed subtree of one test file, or null when the file has no graph presence. */
 function parseFileSubtreeResponse(res: {
   data: Record<string, Record<string, unknown>[] | undefined>;
-}): { chunks: DoomedChunkRow[]; suites: UidRef[]; rootUid: string | null } {
+}): DoomedFile | null {
   const chunks = (res.data.chunks ?? []) as unknown as DoomedChunkRow[];
   const suites = (res.data.suites ?? []) as unknown as UidRef[];
-  const root = res.data.root as unknown as UidRef[] | undefined;
 
-  return { chunks, suites, rootUid: root?.[0]?.uid ?? null };
+  if (chunks.length === 0 && suites.length === 0) {
+    return null;
+  }
+
+  return {
+    chunkUids: chunks.map((chunk) => chunk.uid),
+    suiteUids: suites.map((suite) => suite.uid),
+    ...collectChunkEdges(chunks),
+    rootUid: rootUidOf(res.data.root as unknown as UidRef[] | undefined),
+  };
 }
 
 /** Everything rooted at one test file. The reverse edges (`~Statement.validated_by`) are what make the delete complete — a chunk knows its coverage, but only the reverse direction finds the statements claiming it. */
@@ -99,25 +121,30 @@ async function queryFileSubtree(
       $repo: repo,
       $file: filePath,
     });
-    const { chunks, suites, rootUid } = parseFileSubtreeResponse(res);
 
-    if (chunks.length === 0 && suites.length === 0) {
-      return null;
-    }
-
-    return {
-      chunkUids: chunks.map((c) => c.uid),
-      suiteUids: suites.map((s) => s.uid),
-      ...collectChunkEdges(chunks),
-      rootUid,
-    };
+    return parseFileSubtreeResponse(res);
   });
 }
 
 /** Deletes the graph subtree of each named test file; a file with no graph presence is a no-op, so a re-driven or overlapping prune converges. */
 type FileSubtree = NonNullable<Awaited<ReturnType<typeof queryFileSubtree>>>;
 
-/** Everything a pruned test file takes with it: its chunks, suites and coverage rows, AND every edge pointing at them — a Statement left claiming `validated_by` a deleted chunk would still read as coverage. The Repo back-edges go too, or the repo keeps a list of uids that resolve to nothing. */
+/** The Repo back-edges go too, or the repo keeps a list of uids that resolve to nothing. */
+function repoEdgeDeletes(target: FileSubtree, rootUid: string): string[] {
+  return [
+    ...target.chunkUids.map(
+      (uid) => `<${rootUid}> <Repo.test_chunks> <${uid}> .`,
+    ),
+    ...target.suiteUids.map(
+      (uid) => `<${rootUid}> <Repo.test_suites> <${uid}> .`,
+    ),
+    ...target.coverageUids.map(
+      (uid) => `<${rootUid}> <Repo.coverage> <${uid}> .`,
+    ),
+  ];
+}
+
+/** Everything a pruned test file takes with it: its chunks, suites and coverage rows, AND every edge pointing at them — a Statement left claiming `validated_by` a deleted chunk would still read as coverage. */
 function deleteNquadsFor(target: FileSubtree): string[] {
   const deletes = [
     ...target.chunkUids.map((uid) => `<${uid}> * * .`),
@@ -133,17 +160,7 @@ function deleteNquadsFor(target: FileSubtree): string[] {
   ];
 
   if (target.rootUid) {
-    deletes.push(
-      ...target.chunkUids.map(
-        (uid) => `<${target.rootUid}> <Repo.test_chunks> <${uid}> .`,
-      ),
-      ...target.suiteUids.map(
-        (uid) => `<${target.rootUid}> <Repo.test_suites> <${uid}> .`,
-      ),
-      ...target.coverageUids.map(
-        (uid) => `<${target.rootUid}> <Repo.coverage> <${uid}> .`,
-      ),
-    );
+    deletes.push(...repoEdgeDeletes(target, target.rootUid));
   }
 
   return deletes;
@@ -170,14 +187,22 @@ async function pruneOneTestFile(
     return 0;
   }
 
+  await deleteSubtree(dgraph, target);
+
+  return target.chunkUids.length;
+}
+
+/** The atomic delete mutation for one already-GC'd file subtree. */
+async function deleteSubtree(
+  dgraph: DgraphClientPort,
+  target: FileSubtree,
+): Promise<void> {
   await withTxn(dgraph, (txn) =>
     txn.mutate({
       deleteNquads: deleteNquadsFor(target).join("\n"),
       commitNow: true,
     }),
   );
-
-  return target.chunkUids.length;
 }
 
 /** Drops the CodeChunks and Files this test file was the last cover of. The doomed chunks and coverage rows are excluded as owners — they are about to go, so counting them would keep a genuinely orphaned node alive. */

@@ -44,6 +44,24 @@ async function findRepoNodeUids(
     .map((node) => node.uid);
 }
 
+/** Deletes every uid the repo holds across the named node types, in one mutation. */
+async function sweepRepoNodes(
+  txn: ReturnType<dgraph.DgraphClient["newTxn"]>,
+  nodeTypes: RepoNodeType[],
+  vars: Record<string, string>,
+): Promise<void> {
+  const uids = await findRepoNodeUids(txn, nodeTypes, vars);
+
+  if (!uids.length) {
+    return;
+  }
+
+  await txn.mutate({
+    deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
+    commitNow: true,
+  });
+}
+
 /** Builds the per-suite `deleteRepoNodes` cleanup closure, parameterised by which node types to sweep. */
 export function makeDeleteRepoNodes(
   dgraphClient: dgraph.DgraphClient,
@@ -53,18 +71,10 @@ export function makeDeleteRepoNodes(
     repo: string,
     extraVars: Record<string, string> = {},
   ): Promise<void> {
-    const vars = { repo, ...extraVars };
     const txn = dgraphClient.newTxn();
 
     try {
-      const uids = await findRepoNodeUids(txn, nodeTypes, vars);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
+      await sweepRepoNodes(txn, nodeTypes, { repo, ...extraVars });
     } catch {
       // Cleanup must never mask the test's actual assertion failure.
     } finally {

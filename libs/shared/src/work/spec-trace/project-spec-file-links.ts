@@ -18,7 +18,6 @@ import { repoRelativeLinkTarget } from "./link-target-path.js";
 import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 import type { ProjectionContext } from "./project-spec-file-context.js";
-import { firstOf } from "./uid-refs.js";
 
 /** Parses `[label](path#Lline)` parentheticals from a statement's text. */
 type LinkParser = (statement: string) => SpecLinkRef[];
@@ -44,39 +43,61 @@ interface LinkedChunkKind {
   extraFields?: ExtraChunkFields;
 }
 
+/** The parsed links of `text` whose targets resolve to a repo-relative path for xid/coverage joins; anchors and repo-escaping paths are dropped. */
+function resolvedLinks(
+  filePath: string,
+  text: string,
+  parse: LinkParser,
+): SpecLinkRef[] {
+  return parse(text)
+    .map((parsed) => ({
+      ...parsed,
+      path: repoRelativeLinkTarget(filePath, parsed.path),
+    }))
+    .filter((link): link is SpecLinkRef => link.path !== null);
+}
+
+/** One linked chunk's own predicates: the shared repo/file_path pair, its facet's extras, and the start line when the link names one. */
+function chunkFields(
+  repo: string,
+  link: SpecLinkRef,
+  nodeType: SpecTraceNodeType,
+  extraFields: ExtraChunkFields,
+): Record<string, unknown> {
+  const fields: Record<string, unknown> = {
+    [`${nodeType}.repo`]: repo,
+    [`${nodeType}.file_path`]: link.path,
+    ...extraFields(link),
+  };
+
+  if (link.line != null) {
+    fields[`${nodeType}.start_line`] = link.line;
+  }
+
+  return fields;
+}
+
 /** Parses inline links in `text`, upserts one chunk node of `nodeType` per link, and returns their uids; shared by the file-scoped `validated_by` (TestChunk) and line-scoped `implemented_by` (CodeChunk) facets. */
 async function projectLinkedChunks(
   context: ProjectionContext,
   text: string,
   { parse, nodeType, buildXid, extraFields = () => ({}) }: LinkedChunkKind,
-): Promise<Array<{ uid: string }>> {
+): Promise<string[]> {
   const { dgraph, repo, filePath } = context;
-  const edgeRefs: Array<{ uid: string }> = [];
+  const uids: string[] = [];
 
-  for (const parsed of parse(text)) {
-    // Resolve to a repo-relative path for xid/coverage joins; skips anchors and repo-escaping paths.
-    const path = repoRelativeLinkTarget(filePath, parsed.path);
-
-    if (path === null) {
-      continue;
-    }
-    const link = { ...parsed, path };
-    const chunkXid = buildXid(repo, link);
-    const chunkFields: Record<string, unknown> = {
-      [`${nodeType}.repo`]: repo,
-      [`${nodeType}.file_path`]: link.path,
-      ...extraFields(link),
-    };
-
-    if (link.line != null) {
-      chunkFields[`${nodeType}.start_line`] = link.line;
-    }
-    edgeRefs.push({
-      uid: await upsertByXid(dgraph, nodeType, chunkXid, chunkFields),
-    });
+  for (const link of resolvedLinks(filePath, text, parse)) {
+    uids.push(
+      await upsertByXid(
+        dgraph,
+        nodeType,
+        buildXid(repo, link),
+        chunkFields(repo, link, nodeType, extraFields),
+      ),
+    );
   }
 
-  return edgeRefs;
+  return uids;
 }
 
 /** The `validated_by`/`implemented_by` predicate names for one owner node type (Statement or AcceptanceCriterion). */
@@ -90,7 +111,7 @@ async function projectTestLinks(
   context: ProjectionContext,
   text: string,
 ): Promise<string[]> {
-  const refs = await projectLinkedChunks(context, text, {
+  return projectLinkedChunks(context, text, {
     parse: parseTestLinksInStatement,
     nodeType: "TestChunk",
     buildXid: fileScopedXid,
@@ -99,8 +120,6 @@ async function projectTestLinks(
       "TestChunk.link_label": link.label,
     }),
   });
-
-  return refs.map((ref) => ref.uid);
 }
 
 /** The code chunks this text links to, keyed by LINE range — a code link names a span, and a span that moves is a different span. */
@@ -108,13 +127,69 @@ async function projectCodeLinks(
   context: ProjectionContext,
   text: string,
 ): Promise<string[]> {
-  const refs = await projectLinkedChunks(context, text, {
+  return projectLinkedChunks(context, text, {
     parse: parseCodeLinksInStatement,
     nodeType: "CodeChunk",
     buildXid: lineScopedXid,
   });
+}
 
-  return refs.map((ref) => ref.uid);
+/** The uids an owner node currently points at on each link predicate. */
+interface LinkTargets {
+  validated: string[];
+  implemented: string[];
+}
+
+/** The query reading one owner node's link targets on both predicates. */
+function linkTargetsQuery({
+  validatedBy,
+  implementedBy,
+}: LinkPredicates): string {
+  return `query q($uid: string) {
+        node(func: uid($uid)) {
+          validated: ${validatedBy} { uid }
+          implemented: ${implementedBy} { uid }
+        }
+      }`;
+}
+
+/** Reads an owner's current TestChunk/CodeChunk link target uids on the given predicates. */
+async function readLinkTargets(
+  dgraph: DgraphClientPort,
+  ownerUid: string,
+  predicates: LinkPredicates,
+): Promise<LinkTargets> {
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(linkTargetsQuery(predicates), {
+      $uid: ownerUid,
+    });
+    const { node: nodes } = res.data;
+    const node = (nodes?.[0] ?? {}) as {
+      validated?: { uid: string }[];
+      implemented?: { uid: string }[];
+    };
+
+    return {
+      validated: (node.validated ?? []).map((ref) => ref.uid),
+      implemented: (node.implemented ?? []).map((ref) => ref.uid),
+    };
+  });
+}
+
+/** A dropped chunk is deleted only if nothing else owns it (another link, or a Coverage row). */
+async function gcDroppedChunks(
+  dgraph: DgraphClientPort,
+  previous: LinkTargets,
+  current: LinkTargets,
+): Promise<void> {
+  await gcOrphanChunks(dgraph, "TestChunk", {
+    previous: previous.validated,
+    current: current.validated,
+  });
+  await gcOrphanChunks(dgraph, "CodeChunk", {
+    previous: previous.implemented,
+    current: current.implemented,
+  });
 }
 
 /** Projects a text's inline links onto an owner node's TestChunk/CodeChunk edges, REPLACING them (not set-union) so re-projection can't leave stale refs; dropped chunks are orphan-GC'd. */
@@ -125,50 +200,13 @@ export async function projectLinkEdges(
   predicates: LinkPredicates,
 ): Promise<void> {
   const { dgraph } = context;
-  const previousLinks = await readLinkTargets(dgraph, ownerUid, predicates);
-  const newValidated = await projectTestLinks(context, text);
-  const newImplemented = await projectCodeLinks(context, text);
+  const previous = await readLinkTargets(dgraph, ownerUid, predicates);
+  const validated = await projectTestLinks(context, text);
+  const implemented = await projectCodeLinks(context, text);
 
-  await replaceEdge(dgraph, ownerUid, predicates.validatedBy, newValidated);
-  await replaceEdge(dgraph, ownerUid, predicates.implementedBy, newImplemented);
-
-  // A dropped chunk is deleted only if nothing else owns it (another link, or a Coverage row).
-  await gcOrphanChunks(dgraph, "TestChunk", {
-    previous: previousLinks.validated,
-    current: newValidated,
-  });
-  await gcOrphanChunks(dgraph, "CodeChunk", {
-    previous: previousLinks.implemented,
-    current: newImplemented,
-  });
-}
-
-/** Reads an owner's current TestChunk/CodeChunk link target uids on the given predicates. */
-async function readLinkTargets(
-  dgraph: DgraphClientPort,
-  ownerUid: string,
-  predicates: LinkPredicates,
-): Promise<{ validated: string[]; implemented: string[] }> {
-  return withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query q($uid: string) {
-        node(func: uid($uid)) {
-          validated: ${predicates.validatedBy} { uid }
-          implemented: ${predicates.implementedBy} { uid }
-        }
-      }`,
-      { $uid: ownerUid },
-    );
-    const node = (firstOf(res.data.node) ?? {}) as {
-      validated?: { uid: string }[];
-      implemented?: { uid: string }[];
-    };
-
-    return {
-      validated: (node.validated ?? []).map((ref) => ref.uid),
-      implemented: (node.implemented ?? []).map((ref) => ref.uid),
-    };
-  });
+  await replaceEdge(dgraph, ownerUid, predicates.validatedBy, validated);
+  await replaceEdge(dgraph, ownerUid, predicates.implementedBy, implemented);
+  await gcDroppedChunks(dgraph, previous, { validated, implemented });
 }
 
 /** Builds the delete-nquads for a batch of orphan uids, including the Spec's forward edge to each when `forwardEdge` is given (that edge set-unions on upsert, so it must be deleted too or the orphan lingers as a dangling ref). */
@@ -188,6 +226,46 @@ function orphanDeleteNquads(
   return deletes.join("\n");
 }
 
+/** The query reading a Spec's `nodeType` children on the reverse `.spec` edge, each with its uid and xid. */
+function specChildrenQuery(nodeType: SpecTraceNodeType): string {
+  return `query q($xid: string) {
+        spec(func: eq(Spec.xid, $xid)) { children: ~${nodeType}.spec { uid ${nodeType}.xid } }
+      }`;
+}
+
+/** Reads this Spec's `nodeType` children through the reverse `.spec` edge, as uid + xid pairs. */
+async function readSpecChildren(
+  dgraph: DgraphClientPort,
+  specXid: string,
+  nodeType: SpecTraceNodeType,
+): Promise<Array<{ uid: string; xid: string }>> {
+  const xidPredicate = `${nodeType}.xid`;
+
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(specChildrenQuery(nodeType), {
+      $xid: specXid,
+    });
+    const spec = (res.data.spec ?? []) as Array<{
+      children?: Array<{ uid: string } & Record<string, string>>;
+    }>;
+
+    return (spec[0]?.children ?? []).map((child) => ({
+      uid: child.uid,
+      xid: child[xidPredicate],
+    }));
+  });
+}
+
+/** Commits one delete-nquads mutation in its own txn. */
+async function deleteNquads(
+  dgraph: DgraphClientPort,
+  nquads: string,
+): Promise<void> {
+  await withTxn(dgraph, async (txn) => {
+    await txn.mutate({ deleteNquads: nquads, commitNow: true });
+  });
+}
+
 /** Deletes every `nodeType` child linked to this Spec whose xid isn't in `validXids` — upsert-by-xid never removes nodes, so this reverse-edge sweep is what keeps re-projection idempotent. */
 export async function pruneOrphans(
   context: ProjectionContext,
@@ -196,28 +274,17 @@ export async function pruneOrphans(
   forwardEdge?: string,
 ): Promise<void> {
   const { dgraph, repo, filePath, specUid } = context;
-  const xidPredicate = `${nodeType}.xid`;
+  const specXid = `${repo}|${filePath}`;
+  const children = await readSpecChildren(dgraph, specXid, nodeType);
+  const orphanUids = children
+    .filter((child) => !validXids.has(child.xid))
+    .map((child) => child.uid);
 
-  await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query q($xid: string) {
-        spec(func: eq(Spec.xid, $xid)) { children: ~${nodeType}.spec { uid ${xidPredicate} } }
-      }`,
-      { $xid: `${repo}|${filePath}` },
-    );
-    const children = (firstOf(res.data.spec)?.children ?? []) as Array<
-      { uid: string } & Record<string, string>
-    >;
-    const orphanUids = children
-      .filter((child) => !validXids.has(child[xidPredicate]))
-      .map((child) => child.uid);
-
-    if (orphanUids.length === 0) {
-      return;
-    }
-    await txn.mutate({
-      deleteNquads: orphanDeleteNquads(orphanUids, specUid, forwardEdge),
-      commitNow: true,
-    });
-  });
+  if (orphanUids.length === 0) {
+    return;
+  }
+  await deleteNquads(
+    dgraph,
+    orphanDeleteNquads(orphanUids, specUid, forwardEdge),
+  );
 }

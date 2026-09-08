@@ -85,35 +85,46 @@ interface ProjectFilesContext {
   def: IngestKindDef;
 }
 
+/** An error's stack when it carries one, so a swallowed per-file failure is still debuggable from pod/runner logs. */
+function errorReason(err: unknown): string {
+  return err instanceof Error ? (err.stack ?? err.message) : String(err);
+}
+
+/** Reads and projects one file; true when the graph actually changed, false when the projection found it unchanged. */
+async function projectFileContent(
+  ctx: ProjectFilesContext,
+  filePath: string,
+): Promise<boolean> {
+  const { params, ports, dgraph, def } = ctx;
+  const content = await ports.readFile(filePath, params.ref);
+  const outcome = await def.project(
+    { repo: params.repo, filePath, content },
+    dgraph,
+    { embed: ports.embed, force: params.force },
+  );
+
+  return outcome.projected;
+}
+
 /** Projects one file, folding the outcome into `result` in place. */
 async function projectOneFile(
   ctx: ProjectFilesContext,
   filePath: string,
   result: ProjectFilesResult,
 ): Promise<void> {
-  const { params, ports, dgraph, def } = ctx;
+  const { params } = ctx;
 
   try {
-    const content = await ports.readFile(filePath, params.ref);
-    const projected = await def.project(
-      { repo: params.repo, filePath, content },
-      dgraph,
-      { embed: ports.embed, force: params.force },
-    );
-
-    if (projected.projected) {
+    if (await projectFileContent(ctx, filePath)) {
       result.projected += 1;
 
       return;
     }
     result.skipped += 1;
   } catch (err) {
-    // Per-file isolation must NOT mean a silent failure — log the reason so a failed projection is debuggable from pod/runner logs.
-    const reason =
-      err instanceof Error ? (err.stack ?? err.message) : String(err);
-
+    // Per-file isolation must NOT mean a silent failure — log the reason the projection failed.
     console.error(
-      `[ingest-graph] ${params.kind} ${params.repo} :: ${filePath} failed to project: ${reason}`,
+      `[ingest-graph] ${params.kind} ${params.repo} :: ${filePath} failed to project: ${errorReason(err)}`,
     );
     result.failedFiles.push(filePath);
   }
@@ -163,33 +174,39 @@ async function selectFiles(
   };
 }
 
-/** The known-kind path: select files, project them, prune disappeared docs, summarize. */
-export async function runKindIngest({
-  params,
-  ports,
-  dgraph,
-  def,
-  registry,
-}: RunKindIngestContext): Promise<IngestGraphSummary> {
-  const { files, patterns } = await selectFiles(params, ports, registry);
-  const { projected, skipped, failedFiles } = await projectFiles(
-    { params, ports, dgraph, def },
-    files,
-  );
-  // `allAttemptedFailed` is the prune's safety catch: if EVERY projection failed, the tree read is suspect, and pruning against it would delete docs that are still there.
-  const pruned = await pruneDisappearedDocs(params, ports, registry, {
+/** `allAttemptedFailed` is the prune's safety catch: if EVERY projection failed, the tree read is suspect, and pruning against it would delete docs that are still there. */
+async function pruneAfterProjection(
+  ctx: RunKindIngestContext,
+  selected: { files: string[]; patterns?: string[] },
+  result: ProjectFilesResult,
+): Promise<number | undefined> {
+  const { params, ports, registry, def } = ctx;
+  const { projected, skipped, failedFiles } = result;
+
+  return pruneDisappearedDocs(params, ports, registry, {
     def,
-    files,
-    patterns,
+    files: selected.files,
+    patterns: selected.patterns,
     allAttemptedFailed:
       projected === 0 && skipped === 0 && failedFiles.length > 0,
   });
+}
+
+/** The known-kind path: select files, project them, prune disappeared docs, summarize. */
+export async function runKindIngest(
+  ctx: RunKindIngestContext,
+): Promise<IngestGraphSummary> {
+  const { params, ports, dgraph, def, registry } = ctx;
+  const selected = await selectFiles(params, ports, registry);
+  const result = await projectFiles(
+    { params, ports, dgraph, def },
+    selected.files,
+  );
+  const pruned = await pruneAfterProjection(ctx, selected, result);
 
   return summarizeIngest(params.kind, {
-    attempted: files.length,
-    projected,
-    skipped,
-    failedFiles,
+    attempted: selected.files.length,
+    ...result,
     pruned,
   });
 }
@@ -214,11 +231,8 @@ async function deletePruneCandidates(
       await def.prune!.deleteSubtree(dgraph, repo, filePath);
       pruned += 1;
     } catch (err) {
-      const reason =
-        err instanceof Error ? (err.stack ?? err.message) : String(err);
-
       console.error(
-        `[ingest-graph] ${kind} ${repo} :: failed to prune ${filePath}: ${reason}`,
+        `[ingest-graph] ${kind} ${repo} :: failed to prune ${filePath}: ${errorReason(err)}`,
       );
     }
   }
@@ -243,7 +257,6 @@ function prunePreflightSkipped(
   );
 }
 
-/** Deletes subtrees of graph docs whose files left the tree; skips on no prune seam/empty/suspicious selection/all-failed run/doc-list read error. INVARIANT: must run at the repo's default-branch HEAD (graph is branch-agnostic) — `lore-ingest.yml` enforces `branches: [main]`. */
 /** The docs the graph currently holds, or undefined when the listing itself failed. That distinction matters: a failed read means the prune NEVER RAN, and reporting "pruned 0" instead would look like a clean pass over a graph nobody checked. */
 async function listGraphDocs(
   def: IngestKindDef,
@@ -253,11 +266,8 @@ async function listGraphDocs(
   try {
     return await def.prune!.listDocPaths(dgraph, params.repo);
   } catch (err) {
-    const reason =
-      err instanceof Error ? (err.stack ?? err.message) : String(err);
-
     console.error(
-      `[ingest-graph] ${params.kind} ${params.repo} :: prune listing failed: ${reason}`,
+      `[ingest-graph] ${params.kind} ${params.repo} :: prune listing failed: ${errorReason(err)}`,
     );
 
     return undefined;
@@ -304,18 +314,14 @@ function refusedSuspiciousTree(
   return true;
 }
 
-async function pruneDisappearedDocs(
+/** The doc paths this run may delete, or undefined when the prune could not safely decide — a failed doc listing or a tree read too suspicious to act on. */
+async function selectPruneTargets(
   params: IngestGraphParams,
-  ports: IngestGraphPorts,
+  dgraph: NonNullable<IngestGraphPorts["dgraph"]>,
   registry: Record<string, IngestKindDef>,
   run: PruneRun,
-): Promise<number | undefined> {
-  if (prunePreflightSkipped(run.def, ports.dgraph, run)) {
-    return undefined;
-  }
+): Promise<string[] | undefined> {
   const { def, files, patterns } = run;
-  const dgraph = ports.dgraph!;
-
   const graphDocPaths = await listGraphDocs(def, dgraph, params);
 
   if (graphDocPaths === undefined) {
@@ -327,12 +333,30 @@ async function pruneDisappearedDocs(
     files,
   );
 
-  if (refusedSuspiciousTree(selection, params)) {
+  return refusedSuspiciousTree(selection, params)
+    ? undefined
+    : selection.candidates;
+}
+
+/** Deletes subtrees of graph docs whose files left the tree; skips on no prune seam/empty/suspicious selection/all-failed run/doc-list read error. INVARIANT: must run at the repo's default-branch HEAD (graph is branch-agnostic) — `lore-ingest.yml` enforces `branches: [main]`. */
+async function pruneDisappearedDocs(
+  params: IngestGraphParams,
+  ports: IngestGraphPorts,
+  registry: Record<string, IngestKindDef>,
+  run: PruneRun,
+): Promise<number | undefined> {
+  if (prunePreflightSkipped(run.def, ports.dgraph, run)) {
+    return undefined;
+  }
+  const dgraph = ports.dgraph!;
+  const candidates = await selectPruneTargets(params, dgraph, registry, run);
+
+  if (candidates === undefined) {
     return undefined;
   }
 
   return deletePruneCandidates(
-    { def, dgraph, repo: params.repo, kind: params.kind },
-    selection.candidates,
+    { def: run.def, dgraph, repo: params.repo, kind: params.kind },
+    candidates,
   );
 }

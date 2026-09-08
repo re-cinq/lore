@@ -68,33 +68,30 @@ const FILE_CHUNKS_QUERY = `query q($repo: string, $fp: string) {
   }
 }`;
 
+const statementNode = (statement: GraphStatement): AffectedNode => ({
+  uid: statement.uid,
+  xid: statement["Statement.xid"],
+  text: statement["Statement.text"],
+  nodeType: "Statement",
+  embedding: statement["Statement.embedding"],
+});
+
+const criterionNode = (criterion: GraphAcceptanceCriterion): AffectedNode => ({
+  uid: criterion.uid,
+  xid: criterion["AcceptanceCriterion.xid"],
+  text: criterion["AcceptanceCriterion.text"],
+  nodeType: "AcceptanceCriterion",
+  embedding: criterion["AcceptanceCriterion.embedding"],
+});
+
+/** Every statement and acceptance criterion a chunk implements, deduped by uid. */
 function collectAffectedNodes(chunk: GraphCodeChunk): AffectedNode[] {
-  const byUid = new Map<string, AffectedNode>();
-  const addNode = (node: AffectedNode) => byUid.set(node.uid, node);
-  const addStatement = (statement: GraphStatement) =>
-    addNode({
-      uid: statement.uid,
-      xid: statement["Statement.xid"],
-      text: statement["Statement.text"],
-      nodeType: "Statement",
-      embedding: statement["Statement.embedding"],
-    });
+  const nodes = [
+    ...(chunk.stmts ?? []).map(statementNode),
+    ...(chunk.acStmts ?? []).map(criterionNode),
+  ];
 
-  for (const statement of chunk.stmts ?? []) {
-    addStatement(statement);
-  }
-
-  for (const criterion of chunk.acStmts ?? []) {
-    addNode({
-      uid: criterion.uid,
-      xid: criterion["AcceptanceCriterion.xid"],
-      text: criterion["AcceptanceCriterion.text"],
-      nodeType: "AcceptanceCriterion",
-      embedding: criterion["AcceptanceCriterion.embedding"],
-    });
-  }
-
-  return [...byUid.values()];
+  return [...new Map(nodes.map((node) => [node.uid, node])).values()];
 }
 
 /** Statement xid is `${repo}|${specPath}|${ordinal}`; AcceptanceCriterion xid is `${repo}|${specPath}|ac|${ordinal}` (the `ac` marker is dropped). */
@@ -186,27 +183,31 @@ async function applyDriftSeverity(
   await applySeverity(dgraph, node.uid, node.nodeType, severity);
 }
 
+interface DriftCause {
+  reason: string;
+  severitySource?: number[];
+}
+
+const driftRecordFor = (
+  node: AffectedNode,
+  reason: string,
+): DriftedStatement => ({
+  ...nodeRefFromXid(node.xid),
+  statementText: node.text,
+  reason,
+});
+
 /** Flips every Statement/AcceptanceCriterion affected by a chunk to drifted with the given reason. */
 async function driftChunkStatements(
   dgraph: DgraphClientPort,
   chunk: GraphCodeChunk,
-  {
-    reason: driftReason,
-    severitySource,
-  }: { reason: string; severitySource?: number[] },
+  { reason: driftReason, severitySource }: DriftCause,
   drifted: DriftedStatement[],
 ): Promise<void> {
   for (const node of collectAffectedNodes(chunk)) {
     await applyDrift(dgraph, node.uid, driftReason, node.nodeType);
     await applyDriftSeverity(dgraph, node, severitySource);
-    const { specPath, ordinal } = nodeRefFromXid(node.xid);
-
-    drifted.push({
-      specPath,
-      ordinal,
-      statementText: node.text,
-      reason: driftReason,
-    });
+    drifted.push(driftRecordFor(node, driftReason));
   }
 }
 
@@ -238,6 +239,32 @@ function moved(chunk: GraphCodeChunk, replacement: NewCodeChunk) {
   };
 }
 
+/** Reconciles one graph chunk against the re-ingested chunk that replaced it; returns whether it was first-sight baselined. */
+async function processReplacedChunk(
+  dgraph: DgraphClientPort,
+  chunk: GraphCodeChunk,
+  replacement: NewCodeChunk,
+  drifted: DriftedStatement[],
+): Promise<boolean> {
+  const storedHash = chunk["CodeChunk.content_hash"];
+
+  if (storedHash === replacement.contentHash) {
+    return false;
+  }
+
+  await updateChunkHash(dgraph, chunk.uid, replacement.contentHash);
+
+  // No stored hash means this chunk is being hashed for the FIRST time. Recording it as drift would flag every chunk in the repo the first time the checker sees it.
+  if (storedHash === undefined) {
+    return true;
+  }
+  const cause = moved(chunk, replacement);
+
+  await driftChunkStatements(dgraph, chunk, cause, drifted);
+
+  return false;
+}
+
 /** Reconciles one graph chunk against its (possibly absent) re-ingested replacement; returns whether it was first-sight baselined. */
 async function processChunkDrift(
   dgraph: DgraphClientPort,
@@ -251,36 +278,17 @@ async function processChunkDrift(
 
     return false;
   }
-  const storedHash = chunk["CodeChunk.content_hash"];
 
-  if (storedHash === replacement.contentHash) {
-    return false;
-  }
-
-  await updateChunkHash(dgraph, chunk.uid, replacement.contentHash);
-
-  // No stored hash means this chunk is being hashed for the FIRST time. Recording it as drift would flag every chunk in the repo the first time the checker sees it.
-  if (storedHash === undefined) {
-    return true;
-  }
-
-  await driftChunkStatements(
-    dgraph,
-    chunk,
-    moved(chunk, replacement),
-    ctx.drifted,
-  );
-
-  return false;
+  return processReplacedChunk(dgraph, chunk, replacement, ctx.drifted);
 }
 
-export async function driftCheckFile(
+/** Every CodeChunk the graph holds for this file, with the nodes tracing to it. */
+async function readGraphChunks(
+  dgraph: DgraphClientPort,
   repo: string,
   filePath: string,
-  newChunks: NewCodeChunk[],
-  dgraph: DgraphClientPort,
-): Promise<DriftCheckResult> {
-  const graphChunks = await withTxn(dgraph, async (txn) => {
+): Promise<GraphCodeChunk[]> {
+  return await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(FILE_CHUNKS_QUERY, {
       $repo: repo,
       $fp: filePath,
@@ -288,17 +296,28 @@ export async function driftCheckFile(
 
     return (res.data.chunks ?? []) as unknown as GraphCodeChunk[];
   });
+}
 
+const driftContextFor = (newChunks: NewCodeChunk[]): DriftCheckContext => ({
+  linkRotReason: linkRotReasonFor(newChunks),
+  drifted: [],
+});
+
+const replacementFor = (chunk: GraphCodeChunk, newChunks: NewCodeChunk[]) =>
+  newChunks.find((candidate) => rangesOverlap(chunk, candidate));
+
+export async function driftCheckFile(
+  repo: string,
+  filePath: string,
+  newChunks: NewCodeChunk[],
+  dgraph: DgraphClientPort,
+): Promise<DriftCheckResult> {
+  const graphChunks = await readGraphChunks(dgraph, repo, filePath);
+  const ctx = driftContextFor(newChunks);
   let baselined = 0;
-  const ctx: DriftCheckContext = {
-    linkRotReason: linkRotReasonFor(newChunks),
-    drifted: [],
-  };
 
   for (const chunk of graphChunks) {
-    const replacement = newChunks.find((candidate) =>
-      rangesOverlap(chunk, candidate),
-    );
+    const replacement = replacementFor(chunk, newChunks);
 
     if (await processChunkDrift(dgraph, chunk, replacement, ctx)) {
       baselined += 1;

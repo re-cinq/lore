@@ -35,32 +35,46 @@ export async function gapDetectJob(opts: GapDetectOptions): Promise<string> {
   return summary;
 }
 
-/** The three kinds of context a repo can simply be missing. Checked against the INGESTED chunks rather than the repo's files: a CLAUDE.md that exists but was never ingested is invisible to every agent, which is the gap this reports. */
+/** The three kinds of context a repo can simply be missing, as data: each names the chunk whose absence is the gap and the sentence that reports it. */
+const MISSING_CONTENT_CHECKS: Array<{
+  type: GapReport["type"];
+  chunkType: string;
+  path?: string;
+  detail: (repo: string) => string;
+}> = [
+  {
+    type: "missing-claude-md",
+    chunkType: "doc",
+    path: "CLAUDE.md",
+    detail: (repo) => `${repo} has no CLAUDE.md in context`,
+  },
+  {
+    type: "missing-adrs",
+    chunkType: "adr",
+    detail: (repo) => `${repo} has no architecture decision records`,
+  },
+  {
+    type: "missing-specs",
+    chunkType: "spec",
+    detail: (repo) => `${repo} has no spec files in context`,
+  },
+];
+
+/** Checked against the INGESTED chunks rather than the repo's files: a CLAUDE.md that exists but was never ingested is invisible to every agent, which is the gap this reports. */
 async function missingContent(
   repo: string,
   project: Project,
 ): Promise<GapReport[]> {
-  const checks: Array<[GapReport["type"], boolean, string]> = [
-    [
-      "missing-claude-md",
-      await project.chunks.hasChunk("doc", "CLAUDE.md"),
-      `${repo} has no CLAUDE.md in context`,
-    ],
-    [
-      "missing-adrs",
-      await project.chunks.hasChunk("adr"),
-      `${repo} has no architecture decision records`,
-    ],
-    [
-      "missing-specs",
-      await project.chunks.hasChunk("spec"),
-      `${repo} has no spec files in context`,
-    ],
-  ];
+  const gaps: GapReport[] = [];
 
-  return checks
-    .filter(([, present]) => !present)
-    .map(([type, , detail]) => ({ repo, type, detail }));
+  for (const check of MISSING_CONTENT_CHECKS) {
+    if (await project.chunks.hasChunk(check.chunkType, check.path)) {
+      continue;
+    }
+    gaps.push({ repo, type: check.type, detail: check.detail(repo) });
+  }
+
+  return gaps;
 }
 
 async function detectGaps(
@@ -78,31 +92,49 @@ async function detectGaps(
   return gaps;
 }
 
-/** Files a gap-fill task per gap via project.tasks.create (trust-level gate + created_by provenance apply); findOpenLike dedups against an in-flight or failed matching task. */
+/** One gap-fill task via project.tasks.create (trust-level gate + created_by provenance apply); findOpenLike dedups against an in-flight or failed matching task. Answers how many tasks were created — 1, or 0 when one already tracks this gap. */
+async function gapAlreadyFiled(
+  gap: GapReport,
+  project: Project,
+  dedupStatuses: string[],
+): Promise<boolean> {
+  const existing = await project.tasks.findOpenLike({
+    repo: gap.repo,
+    taskType: "gap-fill",
+    descriptionPrefix: `Gap: ${gap.type}`,
+    statuses: dedupStatuses,
+  });
+
+  return existing.length > 0;
+}
+
+async function fileGap(
+  gap: GapReport,
+  project: Project,
+  dedupStatuses: string[],
+): Promise<number> {
+  if (await gapAlreadyFiled(gap, project, dedupStatuses)) {
+    return 0;
+  }
+
+  await project.tasks.create({
+    description: `Gap: ${gap.type} — ${gap.detail}`,
+    taskType: "gap-fill",
+    targetRepo: gap.repo,
+    createdBy: "gap-detect",
+  });
+
+  return 1;
+}
+
+/** Files every detected gap; one failing gap must not cost the run the rest of them, so the catch is per gap. */
 async function fileGaps(gaps: GapReport[], project: Project): Promise<number> {
   let created = 0;
   const dedupStatuses = [...OPEN_TASK_STATES, "failed"];
 
   for (const gap of gaps) {
     try {
-      const existing = await project.tasks.findOpenLike({
-        repo: gap.repo,
-        taskType: "gap-fill",
-        descriptionPrefix: `Gap: ${gap.type}`,
-        statuses: dedupStatuses,
-      });
-
-      if (existing.length > 0) {
-        continue;
-      }
-
-      await project.tasks.create({
-        description: `Gap: ${gap.type} — ${gap.detail}`,
-        taskType: "gap-fill",
-        targetRepo: gap.repo,
-        createdBy: "gap-detect",
-      });
-      created++;
+      created += await fileGap(gap, project, dedupStatuses);
     } catch (err) {
       console.error(
         `[job] gap-detect: error creating task for ${gap.repo}:`,

@@ -38,6 +38,20 @@ interface SpecDriftContext {
 
 type FileDrift = (copy: DriftTaskCopy) => Promise<void>;
 
+// A filed drift is both a drift and a consumed budget slot; a deferred one is neither.
+function tallyFileOutcome(outcome: FileOutcome, state: DriftRunState): void {
+  if (outcome === "filed") {
+    state.totalDrift++;
+    state.filed++;
+
+    return;
+  }
+
+  if (outcome === "deferred") {
+    state.deferred++;
+  }
+}
+
 // Cap is enforced inside createDriftTask after dedup, so a deduped spec never burns the per-run budget.
 function makeFileDrift(
   ctx: SpecDriftContext,
@@ -55,16 +69,7 @@ function makeFileDrift(
       },
     );
 
-    if (outcome === "filed") {
-      state.totalDrift++;
-      state.filed++;
-
-      return;
-    }
-
-    if (outcome === "deferred") {
-      state.deferred++;
-    }
+    tallyFileOutcome(outcome, state);
   };
 }
 
@@ -79,6 +84,24 @@ async function tryGraphDrift(
     : null;
 
   return applyGraphDrift(graph, ctx.repo, spec.filePath, fileDrift);
+}
+
+// Scores the extracted assertions against the repo's symbols and files the drift the score implies.
+async function applyHeuristicDrift(
+  ctx: SpecDriftContext,
+  spec: SpecChunkRow,
+  assertions: Awaited<ReturnType<typeof extractAssertions>>,
+  fileDrift: FileDrift,
+): Promise<void> {
+  const decision = decideHeuristicDrift(assertions, ctx.knownSymbols);
+
+  console.log(
+    `[job] spec-drift: ${ctx.repo}:${spec.filePath} — ${decision.scored} scorable, ${decision.missing.length} missing (${(decision.divergence * 100).toFixed(0)}%)`,
+  );
+
+  if (decision.drifted) {
+    await fileDrift(heuristicTaskCopy(spec.filePath, decision));
+  }
 }
 
 // Heuristic fallback: de-noised symbol membership — top-level kinds only, with an absolute miss floor.
@@ -98,15 +121,42 @@ async function tryHeuristicDrift(
 
     return;
   }
-  const decision = decideHeuristicDrift(assertions, ctx.knownSymbols);
 
+  await applyHeuristicDrift(ctx, spec, assertions, fileDrift);
+}
+
+// Skip prose artifacts (research/plan/tasks/quickstart) — they always read as 100% drifted.
+function skipProseDoc(
+  ctx: SpecDriftContext,
+  spec: SpecChunkRow,
+  state: DriftRunState,
+): boolean {
+  if (isAssertionSource(spec.filePath)) {
+    return false;
+  }
+  state.filteredDocs++;
   console.log(
-    `[job] spec-drift: ${ctx.repo}:${spec.filePath} — ${decision.scored} scorable, ${decision.missing.length} missing (${(decision.divergence * 100).toFixed(0)}%)`,
+    `[job] spec-drift: skipping ${ctx.repo}:${spec.filePath} — prose doc, not an assertion source`,
   );
 
-  if (decision.drifted) {
-    await fileDrift(heuristicTaskCopy(spec.filePath, decision));
+  return true;
+}
+
+// Graph first, heuristic second; the graph short-circuits because it is authoritative when projected.
+async function detectDriftForSpec(
+  ctx: SpecDriftContext,
+  spec: SpecChunkRow,
+  state: DriftRunState,
+): Promise<void> {
+  state.totalChecked++;
+
+  const fileDrift = makeFileDrift(ctx, spec, state);
+
+  if (await tryGraphDrift(ctx, spec, fileDrift)) {
+    return; // graph is authoritative for this spec
   }
+
+  await tryHeuristicDrift(ctx, spec, fileDrift);
 }
 
 async function processSpecDrift(
@@ -114,26 +164,12 @@ async function processSpecDrift(
   spec: SpecChunkRow,
   state: DriftRunState,
 ): Promise<void> {
-  // Skip prose artifacts (research/plan/tasks/quickstart) — they always read as 100% drifted.
-  if (!isAssertionSource(spec.filePath)) {
-    state.filteredDocs++;
-    console.log(
-      `[job] spec-drift: skipping ${ctx.repo}:${spec.filePath} — prose doc, not an assertion source`,
-    );
-
+  if (skipProseDoc(ctx, spec, state)) {
     return;
   }
 
   try {
-    state.totalChecked++;
-
-    const fileDrift = makeFileDrift(ctx, spec, state);
-
-    if (await tryGraphDrift(ctx, spec, fileDrift)) {
-      return; // graph is authoritative for this spec
-    }
-
-    await tryHeuristicDrift(ctx, spec, fileDrift);
+    await detectDriftForSpec(ctx, spec, state);
   } catch (err) {
     console.error(
       `[job] spec-drift: error processing ${ctx.repo}:${spec.filePath}:`,
@@ -159,6 +195,26 @@ async function driftContext(
   };
 }
 
+function newDriftState(): DriftRunState {
+  return {
+    totalChecked: 0,
+    totalDrift: 0,
+    filteredDocs: 0,
+    filed: 0,
+    deferred: 0,
+  };
+}
+
+// The deferral count is only mentioned when there is one — a "deferred 0" reads as a cap somebody hit.
+function driftSummary(state: DriftRunState, repo: string): string {
+  const deferredNote =
+    state.deferred > 0
+      ? `; deferred ${state.deferred} over the ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap`
+      : "";
+
+  return `Checked ${state.totalChecked} specs in ${repo} (${state.totalDrift} drifted${deferredNote}); skipped ${state.filteredDocs} prose docs`;
+}
+
 export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
   const repo = opts.repoFilter;
   const project = opts.project;
@@ -170,24 +226,14 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
     return "No specs found";
   }
 
-  const state: DriftRunState = {
-    totalChecked: 0,
-    totalDrift: 0,
-    filteredDocs: 0,
-    filed: 0,
-    deferred: 0,
-  };
+  const state = newDriftState();
   const ctx = await driftContext(project, repo);
 
   for (const spec of specs) {
     await processSpecDrift(ctx, spec, state);
   }
 
-  const deferredNote =
-    state.deferred > 0
-      ? `; deferred ${state.deferred} over the ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap`
-      : "";
-  const summary = `Checked ${state.totalChecked} specs in ${repo} (${state.totalDrift} drifted${deferredNote}); skipped ${state.filteredDocs} prose docs`;
+  const summary = driftSummary(state, repo);
 
   console.log(`[job] spec-drift: ${summary}`);
 

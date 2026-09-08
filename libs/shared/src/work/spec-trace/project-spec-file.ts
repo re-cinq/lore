@@ -115,33 +115,34 @@ async function upsertSpecNode(
   });
 }
 
-/** Everything that hangs off a spec: its sections, statements, acceptance criteria and code blocks — each followed by a prune, so a statement deleted from the markdown does not linger in the graph as a validated claim. */
-/** Sections and statements, then the orphans neither of them claimed. The prune is by XID and runs AFTER the projection, so a statement that moved ordinal is re-anchored rather than deleted and recreated — recreating it would drop the test links pointing at it. */
-/** Removes statements and sections this projection did not produce. Both prunes run AFTER the upserts and match by XID, so a statement that only moved ordinal is re-anchored rather than deleted — deleting it would take the test links pointing at it with it. */
+/** Removes statements this projection did not produce. The prune matches by XID and runs AFTER the upserts, so a statement that only moved ordinal is re-anchored rather than deleted — deleting it would take the test links pointing at it with it. */
 async function pruneStatementOrphans(
   context: ProjectionContext,
-  kept: { statementOrdinals: number[]; sectionCount: number },
+  statementOrdinals: number[],
 ): Promise<void> {
   const { repo, filePath } = context;
+  const validXids = statementOrdinals.map(
+    (ordinal) => `${repo}|${filePath}|${ordinal}`,
+  );
 
-  await pruneOrphans(
-    context,
-    "Statement",
-    new Set(kept.statementOrdinals.map((o) => `${repo}|${filePath}|${o}`)),
-  );
-  await pruneOrphans(
-    context,
-    "Section",
-    new Set(
-      Array.from(
-        { length: kept.sectionCount },
-        (_, ordinal) => `${repo}|${filePath}|${ordinal}`,
-      ),
-    ),
-    "Spec.sections",
-  );
+  await pruneOrphans(context, "Statement", new Set(validXids));
 }
 
+/** Removes the sections above `sectionCount` — the ones left behind when a re-projection produced fewer headings than the run before it. */
+async function pruneSectionOrphans(
+  context: ProjectionContext,
+  sectionCount: number,
+): Promise<void> {
+  const { repo, filePath } = context;
+  const validXids = Array.from(
+    { length: sectionCount },
+    (_, ordinal) => `${repo}|${filePath}|${ordinal}`,
+  );
+
+  await pruneOrphans(context, "Section", new Set(validXids), "Spec.sections");
+}
+
+/** Sections and statements, then the orphans neither of them claimed. */
 async function projectStatementLayer(
   context: ProjectionContext,
   statementSegments: ReturnType<typeof segmentStatements>,
@@ -155,27 +156,20 @@ async function projectStatementLayer(
     introOrdinals,
     sectionUidByHeading,
   );
-  await pruneStatementOrphans(context, {
-    statementOrdinals: statementSegments.map((segment) => segment.ordinal),
-    sectionCount: sectionUidByHeading.size,
-  });
+  await pruneStatementOrphans(
+    context,
+    statementSegments.map((segment) => segment.ordinal),
+  );
+  await pruneSectionOrphans(context, sectionUidByHeading.size);
 }
 
-async function projectSpecChildren(
+/** The acceptance criteria, followed by the prune of the ones this run did not produce. */
+async function projectAcceptanceCriteriaLayer(
   context: ProjectionContext,
-  content: string,
+  acSegments: ReturnType<typeof segmentStatements>,
 ): Promise<void> {
   const { repo, filePath } = context;
-  const segments = segmentStatements(content);
-  const introOrdinals = buildIntroOrdinals(segments);
-  const acSegments = segments.filter((segment) =>
-    isAcceptanceCriteriaHeading(segment.enclosingHeading),
-  );
-  const statementSegments = segments.filter(
-    (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
-  );
 
-  await projectStatementLayer(context, statementSegments, introOrdinals);
   await projectAcceptanceCriteria(context, acSegments);
 
   const validAcXids = new Set(
@@ -188,7 +182,24 @@ async function projectSpecChildren(
     validAcXids,
     "Spec.acceptance_criteria",
   );
+}
 
+/** Everything that hangs off a spec: its sections, statements, acceptance criteria and code blocks — each followed by a prune, so a statement deleted from the markdown does not linger in the graph as a validated claim. */
+async function projectSpecChildren(
+  context: ProjectionContext,
+  content: string,
+): Promise<void> {
+  const segments = segmentStatements(content);
+  const introOrdinals = buildIntroOrdinals(segments);
+  const acSegments = segments.filter((segment) =>
+    isAcceptanceCriteriaHeading(segment.enclosingHeading),
+  );
+  const statementSegments = segments.filter(
+    (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
+  );
+
+  await projectStatementLayer(context, statementSegments, introOrdinals);
+  await projectAcceptanceCriteriaLayer(context, acSegments);
   await projectBlocks(context, content);
 }
 

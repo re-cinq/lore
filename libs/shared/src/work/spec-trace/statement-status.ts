@@ -3,21 +3,22 @@
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
 import { highestTier, type EvidenceTier } from "./trace-link.js";
-import { firstOf } from "./uid-refs.js";
 
 export type StatementStatus = "verified-implemented" | "claimed" | "untested";
 
-export async function deriveStatementStatus(
+async function fetchEvidenceTiers(
   dgraph: DgraphClientPort,
   statementXid: string,
-): Promise<StatementStatus> {
-  const tiers = await withTxn(dgraph, async (txn) => {
+): Promise<EvidenceTier[]> {
+  return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($sx: string){ stmt(func: eq(Statement.xid, $sx)){ Statement.trace_links { TraceLink.evidence } } }`,
       { $sx: statementXid },
     );
-    const links = (firstOf(res.data.stmt)?.["Statement.trace_links"] ??
-      []) as Array<{
+    const { stmt } = res.data as {
+      stmt?: Array<Record<string, unknown>>;
+    };
+    const links = (stmt?.[0]?.["Statement.trace_links"] ?? []) as Array<{
       "TraceLink.evidence"?: EvidenceTier;
     }>;
 
@@ -25,13 +26,9 @@ export async function deriveStatementStatus(
       .map((link) => link["TraceLink.evidence"])
       .filter((tier): tier is EvidenceTier => tier !== undefined);
   });
+}
 
-  const top = highestTier(tiers);
-
-  if (top === undefined) {
-    return "untested";
-  }
-
+function classifyTier(top: EvidenceTier | undefined): StatementStatus {
   if (top === "execution-verified" || top === "generated-provenance") {
     return "verified-implemented";
   }
@@ -41,4 +38,13 @@ export async function deriveStatementStatus(
   }
 
   return "untested";
+}
+
+export async function deriveStatementStatus(
+  dgraph: DgraphClientPort,
+  statementXid: string,
+): Promise<StatementStatus> {
+  const tiers = await fetchEvidenceTiers(dgraph, statementXid);
+
+  return classifyTier(highestTier(tiers));
 }

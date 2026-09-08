@@ -40,12 +40,8 @@ function rationaleLines(judgments: Judgment[], applied: number): string {
     .join("\n");
 }
 
-function buildPrBody(
-  specPath: string,
-  applied: number,
-  judgments: Judgment[],
-  diffPreview: string,
-): string {
+/** Title, count, and what merging means — everything above the per-suggestion rationales. */
+function prBodyHeader(specPath: string, applied: number): string[] {
   return [
     `# Suggested test links for \`${specPath}\``,
     "",
@@ -53,10 +49,12 @@ function buildPrBody(
     "",
     WHAT_MERGING_MEANS,
     "",
-    "## Rationales",
-    "",
-    rationaleLines(judgments, applied),
-    "",
+  ];
+}
+
+/** The diff preview and the provenance footer; the diff is capped because a PR body has a size limit. */
+function prBodyDiff(diffPreview: string): string[] {
+  return [
     "## Diff",
     "",
     "```diff",
@@ -64,6 +62,22 @@ function buildPrBody(
     "```",
     "",
     "_Posted by Lore's `spec-coverage-backfill` cron. Re-runs weekly Mon 11:00 UTC; this PR is idempotent against later runs as long as the statement text isn't edited._",
+  ];
+}
+
+function buildPrBody(
+  specPath: string,
+  applied: number,
+  judgments: Judgment[],
+  diffPreview: string,
+): string {
+  return [
+    ...prBodyHeader(specPath, applied),
+    "## Rationales",
+    "",
+    rationaleLines(judgments, applied),
+    "",
+    ...prBodyDiff(diffPreview),
   ].join("\n");
 }
 
@@ -93,30 +107,32 @@ async function pushSpecEdit(
   );
 }
 
+/** Opens the PR for an already-pushed branch and answers its URL. */
+async function openSuggestionPr(
+  project: OpenBackfillPrArgs["project"],
+  branch: string,
+  specPath: string,
+  { applied, confirmed, diffPreview }: OpenBackfillPrArgs,
+): Promise<string> {
+  const pr = await project.pulls.open(branch, {
+    title: `Suggested test links for ${specPath}`,
+    body: buildPrBody(specPath, applied, confirmed, diffPreview),
+    labels: ["lore-managed", "spec-coverage-backfill"],
+  });
+
+  return pr.url;
+}
+
 export async function openBackfillPr(
   args: OpenBackfillPrArgs,
 ): Promise<string | null> {
-  const {
-    project,
-    repo,
-    specPath,
-    newContent,
-    applied,
-    confirmed,
-    diffPreview,
-  } = args;
+  const { project, repo, specPath, newContent } = args;
   const branch = buildBranchName(specPath);
 
   try {
     await pushSpecEdit(project, branch, specPath, newContent);
 
-    const pr = await project.pulls.open(branch, {
-      title: `Suggested test links for ${specPath}`,
-      body: buildPrBody(specPath, applied, confirmed, diffPreview),
-      labels: ["lore-managed", "spec-coverage-backfill"],
-    });
-
-    return pr.url;
+    return await openSuggestionPr(project, branch, specPath, args);
   } catch (err) {
     console.error(
       `[job] spec-coverage-backfill: failed to open PR for ${repo}:${specPath}:`,

@@ -6,11 +6,11 @@ import { summarizeStatement, windowRewrite } from "./impact-render.js";
 /** Rows shown before the rest is folded away — a wall of them reads as noise. */
 export const MAX_ROWS = 10;
 
-const testCellFor = (s: ImpactStatement) => {
-  const first = s.tests.at(0);
+function testCellFor(s: ImpactStatement): string {
+  const { tests } = s;
 
-  return first ? `${first.file}:${first.line}` : "—";
-};
+  return tests.length === 0 ? "—" : `${tests[0].file}:${tests[0].line}`;
+}
 
 /** Collapses findings that would render identically — #1077 showed the same test/file pair four times. */
 export function dedupeRows(statements: ImpactStatement[]): ImpactStatement[] {
@@ -45,6 +45,22 @@ function statementLabel(s: ImpactStatement): string {
   return summary.length > 60 ? `${summary.slice(0, 59)}…` : summary;
 }
 
+/** Windowed on the divergence: truncating both sides at the same length would render two identical-looking lines. */
+function windowedDiffLines(before: string, after: string): string[] {
+  const win = windowRewrite(before, after);
+
+  return ["", "```diff", `- ${win.before}`, `+ ${win.after}`, "```"];
+}
+
+/** Texts are identical once ([validated by …]) parentheticals are stripped — only the coverage annotation moved. */
+function linksOnlyLines(before: string, section: string | undefined): string[] {
+  return [
+    "",
+    "only its test links changed — the statement text itself is unchanged",
+    ...(section ? ["", `> ${before}`] : []),
+  ];
+}
+
 /** The rewrite section: a windowed diff for a real text change, a links-only note when only parentheticals moved, else a plain quote. */
 function rewriteLines(
   before: string,
@@ -52,56 +68,45 @@ function rewriteLines(
   section: string | undefined,
 ): string[] {
   if (after && after !== before) {
-    // Windowed on the divergence: truncating both sides at the same length would render two identical-looking lines.
-    const win = windowRewrite(before, after);
-
-    return ["", "```diff", `- ${win.before}`, `+ ${win.after}`, "```"];
+    return windowedDiffLines(before, after);
   }
 
   if (after) {
-    // Texts are identical once ([validated by …]) parentheticals are stripped — only the coverage annotation moved.
-    return [
-      "",
-      "only its test links changed — the statement text itself is unchanged",
-      ...(section ? ["", `> ${before}`] : []),
-    ];
+    return linksOnlyLines(before, section);
   }
 
-  if (section) {
-    // Without a section the label already carried this text; repeating it would print the same sentence twice.
-    return ["", `> ${before}`];
-  }
+  // Without a section the label already carried this text; repeating it would print the same sentence twice.
+  return section ? ["", `> ${before}`] : [];
+}
 
-  return [];
+/** The validating tests as one cell: the first four, then a count of the rest. */
+function testsCell(tests: ImpactStatement["tests"]): string {
+  if (tests.length === 0) {
+    return "_nothing validates it_";
+  }
+  const shown = tests.slice(0, 4).map((t) => `\`${t.file}:${t.line}\``);
+  const rest = tests.length > 4 ? `, +${tests.length - 4} more` : "";
+
+  return shown.join(", ") + rest;
 }
 
 /** A statement rendered as a block, not a table row — tables forced paragraph-length prose into unreadable columns. */
 function statementBlock(s: ImpactStatement): string[] {
   const before = summarizeStatement(s.statementText);
   const after = s.rewrittenAs ? summarizeStatement(s.rewrittenAs) : null;
-  const lines = [`**${statementLabel(s)}**`];
 
-  lines.push(
+  return [
+    `**${statementLabel(s)}**`,
     s.testsTouched
       ? "✓ this PR also changes the tests that validate it"
       : "⚠ the tests that validate it are **not** touched by this PR",
-  );
-
-  lines.push(...rewriteLines(before, after, s.section));
-
-  const { tests } = s;
-  const shown = tests.slice(0, 4).map((t) => `\`${t.file}:${t.line}\``);
-  const testsCell = shown.length
-    ? shown.join(", ") + (tests.length > 4 ? `, +${tests.length - 4} more` : "")
-    : "_nothing validates it_";
-
-  lines.push("", `validated by ${testsCell}`);
-
-  if (s.changedFile !== s.specPath) {
-    lines.push(`via changed file \`${s.changedFile}\``);
-  }
-
-  return lines;
+    ...rewriteLines(before, after, s.section),
+    "",
+    `validated by ${testsCell(s.tests)}`,
+    ...(s.changedFile !== s.specPath
+      ? [`via changed file \`${s.changedFile}\``]
+      : []),
+  ];
 }
 
 function groupBySpec(

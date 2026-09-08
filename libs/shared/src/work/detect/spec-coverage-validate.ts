@@ -76,6 +76,16 @@ export function resolveTestLink(
   return { ok: false, reason: "line-out-of-range" };
 }
 
+/** The newest ingest stamp across the chunks that carry one; null when none of them do. */
+function newestChunkIngest(ranged: ChunkLineRange[]): number | null {
+  const stamps = ranged
+    .map((c) => c.ingested_at)
+    .filter((t): t is string | Date => t != null)
+    .map((t) => new Date(t).getTime());
+
+  return stamps.length === 0 ? null : Math.max(...stamps);
+}
+
 /** A line past the file's last ranged line, on chunks ingested before the linking spec, is index lag not rot — the daily rerun re-judges once chunks catch up. */
 function isIndexLagShaped(
   line: number,
@@ -90,16 +100,9 @@ function isIndexLagShaped(
   if (line <= maxEnd) {
     return false;
   }
-  const stamps = ranged
-    .map((c) => c.ingested_at)
-    .filter((t): t is string | Date => t != null)
-    .map((t) => new Date(t).getTime());
+  const newest = newestChunkIngest(ranged);
 
-  if (stamps.length === 0) {
-    return false;
-  }
-
-  return Math.max(...stamps) < new Date(specIngestedAt).getTime();
+  return newest !== null && newest < new Date(specIngestedAt).getTime();
 }
 
 /** Links that ARE valid but sit in the wrong place: a coverage link must trail its statement, because a link mid-sentence attaches to no statement the parser can identify. Reported as rot so the author moves it rather than wondering why coverage does not count. */
@@ -112,11 +115,32 @@ function misplacedLinks(specPath: string, statementText: string): BrokenLink[] {
   }));
 }
 
+/** One link resolved against the chunk index; null when it resolves, a BrokenLink when it does not. */
+function brokenLinkFor(
+  spec: { path: string; ingestedAt?: string | Date | null },
+  statementText: string,
+  link: TestLinkRef,
+  chunks: ChunkLineRange[],
+): BrokenLink | null {
+  // Chunk file_paths are repo-root-relative; a `../` href is spec-directory-relative (GitHub-render semantics) and must be canonicalized before matching.
+  const resolved: TestLinkRef = {
+    ...link,
+    path: resolveLinkPath(link.path, spec.path),
+  };
+  const r = resolveTestLink(resolved, chunks, spec.ingestedAt);
+
+  return r.ok
+    ? null
+    : {
+        spec_path: spec.path,
+        statement_text: statementText,
+        link: resolved,
+        reason: r.reason,
+      };
+}
+
 function brokenLinksForStatement(
-  {
-    path: specPath,
-    ingestedAt: specIngestedAt,
-  }: { path: string; ingestedAt?: string | Date | null },
+  spec: { path: string; ingestedAt?: string | Date | null },
   statementText: string,
   testLinks: TestLinkRef[],
   chunks: ChunkLineRange[],
@@ -124,24 +148,14 @@ function brokenLinksForStatement(
   const out: BrokenLink[] = [];
 
   for (const link of testLinks) {
-    // Chunk file_paths are repo-root-relative; a `../` href is spec-directory-relative (GitHub-render semantics) and must be canonicalized before matching.
-    const resolved: TestLinkRef = {
-      ...link,
-      path: resolveLinkPath(link.path, specPath),
-    };
-    const r = resolveTestLink(resolved, chunks, specIngestedAt);
+    const broken = brokenLinkFor(spec, statementText, link, chunks);
 
-    if (!r.ok) {
-      out.push({
-        spec_path: specPath,
-        statement_text: statementText,
-        link: resolved,
-        reason: r.reason,
-      });
+    if (broken) {
+      out.push(broken);
     }
   }
 
-  out.push(...misplacedLinks(specPath, statementText));
+  out.push(...misplacedLinks(spec.path, statementText));
 
   return out;
 }
@@ -235,7 +249,29 @@ async function readTestRanges(
   );
 }
 
-/** Walks every spec, reassembling it from its chunks before checking links. Reassembly is necessary because a spec is stored in pieces and a link's LINE NUMBER only means anything against the whole document — checking chunk by chunk would resolve every line against the wrong offset. */
+/** Reassembly is necessary because a spec is stored in pieces and a link's LINE NUMBER only means anything against the whole document — checking chunk by chunk would resolve every line against the wrong offset. */
+function brokenLinksForSpec(
+  specPath: string,
+  chunks: SpecChunkWithIngest[],
+  testChunks: ChunkLineRange[],
+): BrokenLink[] {
+  const content = reassembleSpec(
+    chunks.map((c) => ({
+      content: c.content,
+      ingested_at: c.ingestedAt,
+      chunk_index: c.chunkIndex,
+    })),
+  );
+
+  return collectBrokenLinks(
+    specPath,
+    content,
+    testChunks,
+    latestIngest(chunks),
+  );
+}
+
+/** Walks every spec in the repo, reassembled, and collects the links that do not resolve. */
 async function scanSpecs(
   project: ValidateOptions["project"],
   specs: Awaited<
@@ -248,20 +284,7 @@ async function scanSpecs(
 
   for (const [specPath, chunks] of specsByPath(specs)) {
     totalSpecs++;
-    broken.push(
-      ...collectBrokenLinks(
-        specPath,
-        reassembleSpec(
-          chunks.map((c) => ({
-            content: c.content,
-            ingested_at: c.ingestedAt,
-            chunk_index: c.chunkIndex,
-          })),
-        ),
-        testChunks,
-        latestIngest(chunks),
-      ),
-    );
+    broken.push(...brokenLinksForSpec(specPath, chunks, testChunks));
   }
 
   return { broken, totalSpecs };
@@ -316,6 +339,35 @@ async function alreadyReported(
   return hasOpenLinkRotIssue(openIssues);
 }
 
+/** Opens the deduped link-rot issue; answers 1, the count the caller reports as reports opened. */
+async function openLinkRotIssue(
+  project: Project,
+  repo: string,
+  broken: BrokenLink[],
+): Promise<number> {
+  const issue = await project.issues.create(
+    "Broken test links in spec.md",
+    formatBrokenLinksReport(broken),
+    [LINK_ROT_LABEL, "lore-managed"],
+  );
+
+  console.log(
+    `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links → issue ${issue.url}`,
+  );
+
+  return 1;
+}
+
+/** A failure to file is logged, not thrown: the run still reports what it found. Answers 0, the reports-opened count. */
+function logReportFailure(repo: string, err: unknown): number {
+  console.error(
+    `[job] spec-coverage-validate: failed to file report for ${repo}:`,
+    err,
+  );
+
+  return 0;
+}
+
 async function fileLinkRotReport(
   project: Project,
   repo: string,
@@ -330,23 +382,8 @@ async function fileLinkRotReport(
       return 0;
     }
 
-    const issue = await project.issues.create(
-      "Broken test links in spec.md",
-      formatBrokenLinksReport(broken),
-      [LINK_ROT_LABEL, "lore-managed"],
-    );
-
-    console.log(
-      `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links → issue ${issue.url}`,
-    );
-
-    return 1;
+    return await openLinkRotIssue(project, repo, broken);
   } catch (err) {
-    console.error(
-      `[job] spec-coverage-validate: failed to file report for ${repo}:`,
-      err,
-    );
-
-    return 0;
+    return logReportFailure(repo, err);
   }
 }

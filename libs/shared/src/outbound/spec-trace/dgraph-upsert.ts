@@ -2,7 +2,6 @@
 
 import type { DgraphClientPort, DgraphTxn } from "./deps.js";
 import { withBackoff } from "../../lib/backoff.js";
-import { firstOf } from "../../lib/row.js";
 
 /** Node types in the spec-traceability graph, all upserted by xid through {@link upsertByXid}. */
 export type SpecTraceNodeType =
@@ -36,6 +35,20 @@ export const TXN_ABORT_DELAYS_MS: readonly number[] = [
   200, 500, 1000, 2000, 4000,
 ];
 
+/** One attempt: a fresh txn, discarded whatever happens. */
+async function runInTxn<T>(
+  dgraph: DgraphClientPort,
+  fn: (txn: DgraphTxn) => Promise<T>,
+): Promise<T> {
+  const txn = dgraph.newTxn();
+
+  try {
+    return await fn(txn);
+  } finally {
+    await txn.discard().catch(() => {});
+  }
+}
+
 /** Runs `fn` in a fresh, always-discarded txn; an aborted attempt retries on a NEW txn per TXN_ABORT_DELAYS_MS — safe since every spec-trace write is an idempotent xid upsert. Other errors rethrow immediately. */
 export async function withTxn<T>(
   dgraph: DgraphClientPort,
@@ -44,30 +57,20 @@ export async function withTxn<T>(
 ): Promise<T> {
   const random = opts?.random ?? Math.random;
 
-  return withBackoff(
-    async () => {
-      const txn = dgraph.newTxn();
-
-      try {
-        return await fn(txn);
-      } finally {
-        await txn.discard().catch(() => {});
-      }
-    },
-    {
-      delaysMs: TXN_ABORT_DELAYS_MS.map((ms) => Math.round(random() * ms)),
-      retryOn: isTxnAborted,
-      sleep: opts?.sleep,
-    },
-  );
+  return withBackoff(() => runInTxn(dgraph, fn), {
+    delaysMs: TXN_ABORT_DELAYS_MS.map((ms) => Math.round(random() * ms)),
+    retryOn: isTxnAborted,
+    sleep: opts?.sleep,
+  });
 }
 
 /** Extracts the assigned uid of a blank node from a commitNow mutation result. */
 export function newUid(mutateResult: unknown, label: string): string {
-  const result = mutateResult as { data?: { uids?: Record<string, string> } };
-  const assigned = result.data?.uids;
+  const { data: assigned } = mutateResult as {
+    data?: { uids?: Record<string, string> };
+  };
 
-  return assigned?.[label] as string;
+  return assigned?.uids?.[label] as string;
 }
 
 /** Dgraph corrupts empty-string scalars sent via JSON `set` (stored as literal `"[]"`); they round-trip correctly only via N-Quads, so split them out for a dedicated N-Quads write. */
@@ -122,12 +125,11 @@ export async function deletePredicate(
   });
 }
 
-/** Replaces all of a node's `[uid]` edges on `predicate` with `targetUids` — delete-then-set, so the predicate holds exactly the new set rather than Dgraph's plain-`setJson` union. */
-export async function replaceEdge(
+/** Drops every target currently held on `predicate` — the delete half of the delete-then-set replace. */
+async function clearEdge(
   dgraph: DgraphClientPort,
   uid: string,
   predicate: string,
-  targetUids: string[],
 ): Promise<void> {
   await withTxn(dgraph, (txn) =>
     txn.mutate({
@@ -135,6 +137,16 @@ export async function replaceEdge(
       commitNow: true,
     }),
   );
+}
+
+/** Replaces all of a node's `[uid]` edges on `predicate` with `targetUids` — delete-then-set, so the predicate holds exactly the new set rather than Dgraph's plain-`setJson` union. */
+export async function replaceEdge(
+  dgraph: DgraphClientPort,
+  uid: string,
+  predicate: string,
+  targetUids: string[],
+): Promise<void> {
+  await clearEdge(dgraph, uid, predicate);
 
   if (!targetUids.length) {
     return;
@@ -179,12 +191,7 @@ export async function replaceEdgeWithFacets(
   predicate: string,
   targets: FacetedTarget[],
 ): Promise<void> {
-  await withTxn(dgraph, (txn) =>
-    txn.mutate({
-      deleteNquads: `<${uid}> <${predicate}> * .`,
-      commitNow: true,
-    }),
-  );
+  await clearEdge(dgraph, uid, predicate);
 
   if (!targets.length) {
     return;
@@ -231,6 +238,21 @@ async function createNode(
   return newUid(created, label);
 }
 
+/** The uid already stored under this `<Type>.xid`, or undefined when the node is new. */
+async function findUidByXid(
+  txn: DgraphTxn,
+  nodeType: SpecTraceNodeType,
+  xid: string,
+): Promise<string | undefined> {
+  const res = await txn.queryWithVars(
+    `query find($xid: string) { found(func: eq(${nodeType}.xid, $xid), first: 1) { uid } }`,
+    { $xid: xid },
+  );
+  const { found } = res.data as { found?: Array<{ uid?: string }> };
+
+  return found?.[0]?.uid;
+}
+
 /** Upserts a node identified by its `<Type>.xid` predicate: reuses the existing uid if present, else creates a fresh blank node; `fields` applied in both branches. */
 export async function upsertByXid(
   dgraph: DgraphClientPort,
@@ -241,11 +263,7 @@ export async function upsertByXid(
   return withTxn(dgraph, async (txn) => {
     const { jsonFields, emptyStringPredicates } =
       splitEmptyStringFields(fields);
-    const res = await txn.queryWithVars(
-      `query find($xid: string) { found(func: eq(${nodeType}.xid, $xid), first: 1) { uid } }`,
-      { $xid: xid },
-    );
-    const existing = firstOf(res.data.found)?.uid as string | undefined;
+    const existing = await findUidByXid(txn, nodeType, xid);
     const uid = existing
       ? await updateNode(txn, existing, jsonFields)
       : await createNode(txn, nodeType, xid, jsonFields);

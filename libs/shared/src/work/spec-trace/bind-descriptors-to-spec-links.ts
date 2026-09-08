@@ -49,19 +49,10 @@ function anchorsFor(
     return [];
   }
   const file = normalizePath(descriptor.file);
+  const inRange = (entry: LinkIndexEntry): boolean =>
+    entry.path === file && entry.line >= startLine && entry.line <= endLine;
 
-  return [
-    ...new Set(
-      index
-        .filter(
-          (entry) =>
-            entry.path === file &&
-            entry.line >= startLine &&
-            entry.line <= endLine,
-        )
-        .map((entry) => entry.anchor),
-    ),
-  ];
+  return [...new Set(index.filter(inRange).map((entry) => entry.anchor))];
 }
 
 export function bindDescriptorsToSpecLinks(

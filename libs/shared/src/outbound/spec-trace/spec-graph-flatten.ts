@@ -61,6 +61,23 @@ export function adrLabel(path: string): string {
   return m ? `${m[1]} (${m[2]})` : base;
 }
 
+/** The display node for one validating TestChunk; falls back to the uid when the row carries no file path. */
+function testChunkNode(
+  chunk: NonNullable<OwnerLinks["vb"]>[number],
+): SpecGraphNode {
+  const path = chunk["TestChunk.file_path"] ?? chunk.uid;
+
+  return {
+    id: chunk.uid,
+    type: "TestChunk",
+    label: basename(path),
+    path,
+    line: chunk["TestChunk.start_line"],
+    endLine: chunk["TestChunk.end_line"],
+    detail: chunk["TestChunk.test_name"],
+  };
+}
+
 function emitValidatedByLinks(
   ownerUid: string,
   vb: OwnerLinks["vb"],
@@ -68,17 +85,7 @@ function emitValidatedByLinks(
   links: SpecGraphLink[],
 ): void {
   for (const t of vb ?? []) {
-    const p = t["TestChunk.file_path"] ?? t.uid;
-
-    nodes.set(t.uid, {
-      id: t.uid,
-      type: "TestChunk",
-      label: basename(p),
-      path: p,
-      line: t["TestChunk.start_line"],
-      endLine: t["TestChunk.end_line"],
-      detail: t["TestChunk.test_name"],
-    });
+    nodes.set(t.uid, testChunkNode(t));
     links.push({ source: ownerUid, target: t.uid, kind: "validated_by" });
     emitCoveredFileNodes(t, nodes, links);
   }
@@ -210,6 +217,28 @@ function emitSpecChildNodes(
   }
 }
 
+/** One node per feature folder (deduped by uid); every md file hangs under it via `in_feature`. */
+function emitFeatureNode(
+  spec: NonNullable<GraphResult["q"]>[number],
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
+  const { feature } = spec;
+
+  if (!feature) {
+    return;
+  }
+  const featurePath = feature["Feature.path"] ?? feature.uid;
+
+  nodes.set(feature.uid, {
+    id: feature.uid,
+    type: "Feature",
+    label: basename(featurePath),
+    path: featurePath,
+  });
+  links.push({ source: feature.uid, target: spec.uid, kind: "in_feature" });
+}
+
 /** Pure: Dgraph query result → de-duplicated nodes + links. */
 export function flattenSpecGraph(graph: GraphResult): SpecGraph {
   const nodes = new Map<string, SpecGraphNode>();
@@ -224,24 +253,7 @@ export function flattenSpecGraph(graph: GraphResult): SpecGraph {
       label: specLabel(specPath),
       path: specPath,
     });
-
-    // One node per feature folder (deduped by uid); every md file hangs under it via `in_feature`.
-    if (spec.feature) {
-      const fp = spec.feature["Feature.path"] ?? spec.feature.uid;
-
-      nodes.set(spec.feature.uid, {
-        id: spec.feature.uid,
-        type: "Feature",
-        label: basename(fp),
-        path: fp,
-      });
-      links.push({
-        source: spec.feature.uid,
-        target: spec.uid,
-        kind: "in_feature",
-      });
-    }
-
+    emitFeatureNode(spec, nodes, links);
     emitSpecChildNodes(spec, specPath, nodes, links);
   }
 

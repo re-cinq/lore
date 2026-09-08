@@ -30,29 +30,35 @@ function firstChunkEmbedding(
   return first ? first.embedding : undefined;
 }
 
+/** One candidate's verdict, carried back alongside the identity of the test it was asked about. */
+async function judgeOne(
+  spec: { file_path: string; content: string },
+  unlinked: Array<{ ordinal: number; text: string }>,
+  candidate: JudgeCandidate,
+): Promise<Judgment> {
+  const verdict = await judgeLink(spec, unlinked, candidate);
+
+  return {
+    test_file: candidate.test_file,
+    test_name: candidate.test_name,
+    test_line: candidate.test_line,
+    symbol: candidate.symbol,
+    match_kind: candidate.match_kind as MatchKind,
+    ...verdict,
+  };
+}
+
 async function judgeCandidates(
   specPath: string,
   content: string,
   unlinked: Array<{ ordinal: number; text: string }>,
   candidates: JudgeCandidate[],
 ): Promise<Judgment[]> {
+  const spec = { file_path: specPath, content };
   const judgments: Judgment[] = [];
 
   for (const candidate of candidates) {
-    const verdict = await judgeLink(
-      { file_path: specPath, content },
-      unlinked,
-      candidate,
-    );
-
-    judgments.push({
-      test_file: candidate.test_file,
-      test_name: candidate.test_name,
-      test_line: candidate.test_line,
-      symbol: candidate.symbol,
-      match_kind: candidate.match_kind as MatchKind,
-      ...verdict,
-    });
+    judgments.push(await judgeOne(spec, unlinked, candidate));
   }
 
   return judgments;
@@ -125,6 +131,21 @@ function reassembleChunks(chunks: SpecChunkWithEmbedding[]): string {
   );
 }
 
+/** The spec in the shape the candidate selector reads: whole content plus the embedding search matches on. */
+function specJudgeInput(
+  repo: string,
+  specPath: string,
+  content: string,
+  chunks: SpecChunkWithEmbedding[],
+) {
+  return {
+    repo,
+    file_path: specPath,
+    content,
+    embedding: parseEmbedding(firstChunkEmbedding(chunks)),
+  };
+}
+
 export async function findBackfillCandidates(
   repo: string,
   specPath: string,
@@ -137,16 +158,8 @@ export async function findBackfillCandidates(
   if (unlinked.length === 0) {
     return null;
   }
-
-  const candidates = await candidateTests(
-    {
-      repo,
-      file_path: specPath,
-      content,
-      embedding: parseEmbedding(firstChunkEmbedding(chunks)),
-    },
-    codeChunks,
-  );
+  const spec = specJudgeInput(repo, specPath, content, chunks);
+  const candidates = await candidateTests(spec, codeChunks);
 
   if (candidates.length === 0) {
     return null;
@@ -155,20 +168,31 @@ export async function findBackfillCandidates(
   return { content, unlinked, candidates };
 }
 
+export interface ComposedBackfill {
+  newContent: string;
+  diffPreview: string;
+  applied: number;
+  confirmed: ReturnType<typeof argmaxByTest>;
+}
+
+/** Every candidate judged, then narrowed to at most one statement per test — a test that appears to validate three statements validates the one it matched best. */
+async function judgeConfirmed(
+  specPath: string,
+  content: string,
+  found: BackfillCandidates,
+) {
+  return argmaxByTest(
+    await judgeCandidates(specPath, content, found.unlinked, found.candidates),
+  );
+}
+
 /** The expensive half: ask a model which candidate validates which statement, keep one test per statement, and rewrite the markdown. Returns null at every point the answer is "nothing to propose", so a spec that yields no insertion never reaches the PR path. */
 export async function judgeAndCompose(
   specPath: string,
   content: string,
   found: BackfillCandidates,
-): Promise<{
-  newContent: string;
-  diffPreview: string;
-  applied: number;
-  confirmed: ReturnType<typeof argmaxByTest>;
-} | null> {
-  const confirmed = argmaxByTest(
-    await judgeCandidates(specPath, content, found.unlinked, found.candidates),
-  );
+): Promise<ComposedBackfill | null> {
+  const confirmed = await judgeConfirmed(specPath, content, found);
 
   if (confirmed.length === 0) {
     return null;

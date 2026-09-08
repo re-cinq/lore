@@ -132,6 +132,31 @@ export function chunkGlobsForKind(
   return [...globs].sort();
 }
 
+/** Tree paths matching the repo's explicit `.lore/ingest.yml` patterns, further narrowed by the substring `glob`. */
+function filesMatchingPatterns(
+  tree: string[],
+  patterns: string[],
+  glob?: string,
+): string[] {
+  return tree.filter(
+    (path) => matchesAnyGlob(path, patterns) && (!glob || path.includes(glob)),
+  );
+}
+
+/** Markdown tree paths under the kind's built-in prefixes, further narrowed by the substring `glob`. */
+function filesUnderKindPrefixes(
+  tree: string[],
+  def: IngestKindDef,
+  glob?: string,
+): string[] {
+  return tree.filter(
+    (path) =>
+      path.endsWith(".md") &&
+      def.prefixes.some((prefix) => path.startsWith(prefix)) &&
+      (!glob || path.includes(glob)),
+  );
+}
+
 /** How an ingest narrows the tree: `glob` is a substring filter, `patterns` (from `.lore/ingest.yml`) REPLACE the kind's built-in prefix/`.md` defaults. */
 export interface IngestScope {
   glob?: string;
@@ -146,10 +171,7 @@ export function selectIngestFiles(
   registry: Record<string, IngestKindDef> = INGEST_KINDS,
 ): string[] {
   if (patterns && patterns.length > 0) {
-    return tree.filter(
-      (path) =>
-        matchesAnyGlob(path, patterns) && (!glob || path.includes(glob)),
-    );
+    return filesMatchingPatterns(tree, patterns, glob);
   }
   const def = registry[kind];
 
@@ -158,12 +180,7 @@ export function selectIngestFiles(
     return [];
   }
 
-  return tree.filter(
-    (path) =>
-      path.endsWith(".md") &&
-      def.prefixes.some((prefix) => path.startsWith(prefix)) &&
-      (!glob || path.includes(glob)),
-  );
+  return filesUnderKindPrefixes(tree, def, glob);
 }
 
 /** Builds the run summary. `failed` only fails the task when EVERY attempted file failed; a partial failure stays `completed`. */

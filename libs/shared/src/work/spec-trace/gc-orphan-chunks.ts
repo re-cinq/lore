@@ -2,7 +2,6 @@
 
 import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
 import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
-import { firstOf } from "./uid-refs.js";
 
 /** A garbage-collectable chunk-like node and its ownership edges. */
 type GcNodeType = "TestChunk" | "CodeChunk" | "File";
@@ -34,13 +33,35 @@ export interface OrphanSweep {
   excludeOwners?: Set<string>;
 }
 
-/** Whether anything still points at this node, ignoring the owners the caller is dropping. FAIL SAFE: an owner edge whose uid cannot be read counts as an owner — only an identified uid may be discounted, so an unreadable answer keeps the node rather than deleting something still in use. A `[uid]` edge arrives as an array and a single-cardinality one as a bare object; both mean owned. */
-async function hasOtherOwner(
+/** FAIL SAFE: an owner edge whose uid cannot be read counts as an owner — only an identified uid may be discounted, so an unreadable answer keeps the node rather than deleting something still in use. */
+function isCountedOwner(
+  value: unknown,
+  excludeOwnerUids: Set<string>,
+): boolean {
+  if (value == null) {
+    return false;
+  }
+
+  if (typeof value !== "object" || !("uid" in value)) {
+    return true;
+  }
+
+  return !excludeOwnerUids.has(String(value.uid));
+}
+
+/** A `[uid]` edge arrives as an array and a single-cardinality one as a bare object; both mean owned. */
+function isOwnedEdge(value: unknown, excludeOwnerUids: Set<string>): boolean {
+  return Array.isArray(value)
+    ? value.some((entry) => isCountedOwner(entry, excludeOwnerUids))
+    : isCountedOwner(value, excludeOwnerUids);
+}
+
+/** Reads every owner edge of one node in a single query, aliased `owner0…ownerN` in `ownerEdges` order. */
+async function readOwnerEdges(
   dgraph: DgraphClientPort,
   uid: string,
   ownerEdges: readonly string[],
-  excludeOwnerUids: Set<string>,
-): Promise<boolean> {
+): Promise<Record<string, unknown>> {
   return withTxn(dgraph, async (txn) => {
     const blocks = ownerEdges
       .map((edge, index) => `owner${index}: ${edge} { uid }`)
@@ -49,23 +70,47 @@ async function hasOtherOwner(
       `query q($uid: string) { node(func: uid($uid)) { ${blocks} } }`,
       { $uid: uid },
     );
-    const node = (firstOf(res.data.node) ?? {}) as Record<string, unknown>;
-    const isCountedOwner = (value: unknown): boolean => {
-      if (value == null) {
-        return false;
-      }
+    const nodes = (res.data.node ?? []) as Record<string, unknown>[];
 
-      if (typeof value !== "object" || !("uid" in value)) {
-        return true;
-      }
-
-      return !excludeOwnerUids.has(String(value.uid));
-    };
-    const isOwned = (value: unknown): boolean =>
-      Array.isArray(value) ? value.some(isCountedOwner) : isCountedOwner(value);
-
-    return ownerEdges.some((_, index) => isOwned(node[`owner${index}`]));
+    return nodes[0] ?? {};
   });
+}
+
+/** Whether anything still points at this node, ignoring the owners the caller is dropping. */
+async function hasOtherOwner(
+  dgraph: DgraphClientPort,
+  uid: string,
+  ownerEdges: readonly string[],
+  excludeOwnerUids: Set<string>,
+): Promise<boolean> {
+  const node = await readOwnerEdges(dgraph, uid, ownerEdges);
+
+  return ownerEdges.some((_, index) =>
+    isOwnedEdge(node[`owner${index}`], excludeOwnerUids),
+  );
+}
+
+/** Deletes one dropped chunk unless something other than the excluded owners still points at it. */
+async function gcOneChunk(
+  dgraph: DgraphClientPort,
+  uid: string,
+  ownerEdges: readonly string[],
+  excludeOwnerUids: Set<string>,
+): Promise<void> {
+  const stillOwned = await hasOtherOwner(
+    dgraph,
+    uid,
+    ownerEdges,
+    excludeOwnerUids,
+  );
+
+  if (stillOwned) {
+    return;
+  }
+
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({ deleteNquads: `<${uid}> * * .`, commitNow: true }),
+  );
 }
 
 export async function gcOrphanChunks(
@@ -79,17 +124,6 @@ export async function gcOrphanChunks(
   const ownerEdges = CHUNK_OWNER_EDGES[nodeType];
 
   for (const uid of dropped) {
-    const stillOwned = await hasOtherOwner(
-      dgraph,
-      uid,
-      ownerEdges,
-      excludeOwnerUids,
-    );
-
-    if (!stillOwned) {
-      await withTxn(dgraph, (txn) =>
-        txn.mutate({ deleteNquads: `<${uid}> * * .`, commitNow: true }),
-      );
-    }
+    await gcOneChunk(dgraph, uid, ownerEdges, excludeOwnerUids);
   }
 }

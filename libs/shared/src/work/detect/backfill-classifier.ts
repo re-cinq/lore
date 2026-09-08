@@ -111,34 +111,47 @@ async function askClassifier(
   return llm.parsed.classifications || [];
 }
 
+/** The model's answers keyed by ordinal; an answer the parser cannot key is dropped rather than guessed at. */
+function classificationMap(
+  answers: LLMClassification[],
+): Map<number, ResolvedClassification> {
+  const result = new Map<number, ResolvedClassification>();
+
+  for (const c of answers) {
+    const entry = classificationFromLLM(c);
+
+    if (entry) {
+      result.set(entry[0], entry[1]);
+    }
+  }
+
+  return result;
+}
+
+function warnClassifierFailed(specPath: string, err: unknown): void {
+  console.warn(
+    `[job] spec-coverage-backfill: LLM classifier failed for ${specPath}; defaulting to testable —`,
+    err,
+  );
+}
+
 async function classifyLLM(
   specPath: string,
   unclassified: Statement[],
 ): Promise<Map<number, ResolvedClassification>> {
-  const result = new Map<number, ResolvedClassification>();
-
   if (unclassified.length === 0) {
-    return result;
+    return new Map();
   }
 
   const batch = unclassified.slice(0, CLASSIFIER_BATCH_LIMIT);
 
   try {
-    for (const c of await askClassifier(specPath, batch)) {
-      const entry = classificationFromLLM(c);
-
-      if (entry) {
-        result.set(entry[0], entry[1]);
-      }
-    }
+    return classificationMap(await askClassifier(specPath, batch));
   } catch (err) {
-    console.warn(
-      `[job] spec-coverage-backfill: LLM classifier failed for ${specPath}; defaulting to testable —`,
-      err,
-    );
-  }
+    warnClassifierFailed(specPath, err);
 
-  return result;
+    return new Map();
+  }
 }
 
 /** A statement the model did not classify defaults to TESTABLE, and so does one it failed to answer for at all — the same bias the prompt asks for. `matchedBySection` is false because the heuristic did not decide this one; only a section match sets it. */
@@ -154,28 +167,38 @@ function resolveClassification(
     : { testability: "testable", category: null, matchedBySection: false };
 }
 
-export async function classifyAllStatements(
-  specPath: string,
-  statements: Statement[],
-): Promise<Map<number, Classification>> {
+/** The free pass: statements a SECTION match already settles, and the remainder the model has to look at. */
+function splitByHeuristic(statements: Statement[]): {
+  classified: Map<number, Classification>;
+  unclassified: Statement[];
+} {
   const introOrdinals = buildIntroOrdinals(statements);
-  const out = new Map<number, Classification>();
+  const classified = new Map<number, Classification>();
   const unclassified: Statement[] = [];
 
   for (const s of statements) {
     const c = classifyByHeuristic(s, introOrdinals);
 
     if (c.matchedBySection) {
-      out.set(s.ordinal, c);
+      classified.set(s.ordinal, c);
       continue;
     }
     unclassified.push(s);
   }
+
+  return { classified, unclassified };
+}
+
+export async function classifyAllStatements(
+  specPath: string,
+  statements: Statement[],
+): Promise<Map<number, Classification>> {
+  const { classified, unclassified } = splitByHeuristic(statements);
   const llm = await classifyLLM(specPath, unclassified);
 
   for (const s of unclassified) {
-    out.set(s.ordinal, resolveClassification(llm.get(s.ordinal)));
+    classified.set(s.ordinal, resolveClassification(llm.get(s.ordinal)));
   }
 
-  return out;
+  return classified;
 }
