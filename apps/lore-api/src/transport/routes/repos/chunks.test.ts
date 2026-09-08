@@ -8,7 +8,6 @@ const fakeChunks = {
   specChunksForBackfill: vi.fn(async () => ["spec-3"]),
   codeChunksForBackfill: vi.fn(async () => ["chunk-1"]),
   hasChunk: vi.fn(async () => true),
-  staleChunkCount: vi.fn(async () => 3),
 };
 
 vi.mock("../../../outbound/project-boot.js", () => ({
@@ -94,20 +93,6 @@ describe("GET /api/repos/{owner}/{repo}/chunks/{kind}", () => {
     const res = await get("has");
 
     expect(res.statusCode).toBe(400);
-  });
-
-  it("returns the stale count with a default 90-day window for kind=stale", async () => {
-    const res = await get("stale");
-
-    expect(res.result).toEqual({ count: 3 });
-    expect(fakeChunks.staleChunkCount).toHaveBeenCalledWith(90);
-  });
-
-  it("returns the stale count for an explicit days window", async () => {
-    const res = await get("stale", "?days=30");
-
-    expect(res.result).toEqual({ count: 3 });
-    expect(fakeChunks.staleChunkCount).toHaveBeenCalledWith(30);
   });
 
   it("returns 500 when the chunk read throws", async () => {

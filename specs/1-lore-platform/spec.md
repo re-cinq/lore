@@ -402,8 +402,10 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
 
 - FR-7.1: Fast path: on-push to main triggers incremental ingestion
   via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/work/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:79`](apps/floor/src/transport/http/routes/ci-ingest.test.ts#L79))
-- FR-7.2: Full path: nightly job triggers complete re-index via
-  pipeline task. ([validated by `reindex-backfill.test.ts:27`](apps/floor/src/work/context-jobs/reindex/reindex-backfill.test.ts#L27), [`reindex-seed.test.ts:5`](apps/floor/src/work/context-jobs/reindex/reindex-seed.test.ts#L5))
+- FR-7.2: Retired 2026-09-08 (ADR-019 amendment). There is no nightly
+  full re-index and the job runner no longer dispatches one: merge-time CI
+  ingest (FR-7.1) is the only ingestion path, so a file no merge has
+  touched since onboarding stays unindexed until one does. ([validated by exposes exactly the 3 batch jobs left after detection (ADR-019), the single-op jobs (#1348-1351) and the nightly reindex (2026-09-08) moved off K8s CronJobs](apps/floor/src/transport/job-runner.test.ts#L28))
 - FR-7.3: Content types: code (AST-split), pull requests (diff +
   description + comments), ADRs, docs (section-chunked), specs,
   runbooks. ([validated by `chunker.test.ts:6`](libs/shared/src/work/chunker.test.ts#L6), [`chunker.test.ts:172`](libs/shared/src/work/chunker.test.ts#L172), [`content-classify.test.ts:11`](libs/shared/src/domain/content-classify.test.ts#L11))
@@ -411,10 +413,7 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
   `redactSecrets()`; matched secrets are stripped before content is
   embedded and made searchable. ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:30`](libs/shared/src/lib/redact.test.ts#L30))
 - FR-7.5: Beyond chunking and embedding, the Lore Agent drafts missing
-  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L132))
-- FR-7.6: Nightly re-index MUST hard-delete chunks whose source
-  file, PR, or ADR no longer exists or has been superseded. No
-  stale content is retained. ([validated by `verify.test.ts:71`](apps/floor/src/work/context-jobs/reindex/verify.test.ts#L71), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L407))
+  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 
 ### FR-8: Observability (Phase 1)
 
@@ -444,32 +443,25 @@ The system MUST validate context quality via CI.
 
 ### FR-10: Gap Detection (Phase 2)
 
-The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L114))
+The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L106))
 
 - See ADR-010: a weekly job analyzes low-confidence retrievals from the
   previous week (the autoresearch gap loop).
 - Decision: candidate gaps are clustered by embedding similarity.
 - FR-10.3: For a repo missing a documentation kind (CLAUDE.md, ADRs, or
   specs), the `gap-detect` job drafts the missing content as a `gap-fill`
-  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L132))
+  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 - Decision: the agent opens PRs to the context repo with the drafted content,
   assigned to the relevant team.
 - Decision: human review is required before any auto-drafted content is merged.
 - FR-10.6: The per-repo `gap-detect` job skips repos that are not
-  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L114))
+  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/work/detect/gap-detect.test.ts#L106))
 - FR-10.7: It checks the repo's resolved-schema chunks for a CLAUDE.md
   doc chunk, ADR chunks, and spec chunks — filing a `gap-fill` task per
   missing kind, and none when all are present.
-  ([validated by `gap-detect.test.ts:114`](libs/shared/src/work/detect/gap-detect.test.ts#L123), [`gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L132))
-- FR-10.8: It files a stale-content `gap-fill` task only when more than
-  10 reindex-owned chunks have gone unverified for over 90 days;
-  api-ingested chunks never count toward the stale floor (semantics per
-  the ADR-019 2026-07 verification-sweep amendment: a non-zero count
-  means reindex has stopped covering the repo, not that files are
-  unchanged).
-  ([validated by `gap-detect.test.ts:135`](libs/shared/src/work/detect/gap-detect.test.ts#L144), [`gap-detect.test.ts:152`](libs/shared/src/work/detect/gap-detect.test.ts#L161), [`gap-detect.test.ts:163`](libs/shared/src/work/detect/gap-detect.test.ts#L172))
+  ([validated by `gap-detect.test.ts:114`](libs/shared/src/work/detect/gap-detect.test.ts#L115), [`gap-detect.test.ts:123`](libs/shared/src/work/detect/gap-detect.test.ts#L124))
 - FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
-  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/work/detect/gap-detect.test.ts#L184))
+  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/work/detect/gap-detect.test.ts#L136))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
@@ -560,14 +552,14 @@ The system MUST detect when specifications diverge from implementation. ([valida
   current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/work/detect/fan-out.test.ts#L42))
 - Decision: divergence above 20% of a spec's assertions triggers a `gap-fill`
   pipeline task for the owning team.
-- FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L923), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L956))
+- FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L657), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L690))
 - FR-14.4: Spec-drift reads a repo's spec chunks and code symbols from
   the repo's resolved schema (team schema when provisioned, `org_shared`
   otherwise) — the same schema the reindex job wrote them to. The
   `codeSymbols` read excludes `symbol_type = 'call'` chunks, so a test
   file's `describe` title can never satisfy the drift heuristic's
   known-symbol check for a deleted declaration.
-  ([validated by `chunks.test.ts:153`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L166), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L184), [`chunks.test.ts:187`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L203), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L225), [`chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L923), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L956))
+  ([validated by `chunks.test.ts:153`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L166), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L184), [`chunks.test.ts:187`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L203), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L225), [`chunks.test.ts:914`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L657), [`chunks.test.ts:947`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L690))
 
 ### FR-15: Progressive Trust (Phase 1)
 
@@ -1116,23 +1108,17 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   interpolated (injection-rejecting) schema, sets the caller-formatted
   embedding vector, resolves the repo's team schema (falling back to
   `org_shared`) for the spec-chunk and code-symbol reads, for
-  chunk-existence checks, and for the stale count —
-  which covers only reindex-owned rows (`ingested_by = 'reindex-job'`)
-  so the nightly verification pass can clear it — and for the coverage
+  chunk-existence checks, and for the coverage
   spec-chunk reads (with and without embeddings) ordered by `file_path` then
   `metadata.chunk_index` nulls-last then `ingested_at` so multi-chunk
-  specs reassemble in document order — lists, re-stamps (whole files
-  at a time to a single `NOW()`, gated to files whose oldest chunk is
-  past a caller-supplied age floor so steady-state nights rewrite
-  nothing), and prunes reindex-owned chunks by file path for
-  that pass, and returns distinct teams with per-team `org_shared`
+  specs reassemble in document order — and returns distinct teams with per-team `org_shared`
   counts (defaulting a missing count to zero). Rows predating team
   tracking carry a null team and are left out of that list.
-  ([validated by `chunks.test.ts:42`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L55), [`chunks.test.ts:47`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L63), [`chunks.test.ts:53`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L69), [`chunks.test.ts:63`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L79), [`chunks.test.ts:78`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L94), [`chunks.test.ts:95`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L111), [`chunks.test.ts:103`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L119), [`chunks.test.ts:114`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L130), [`chunks.test.ts:128`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L144), [`chunks.test.ts:136`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L152), [`chunks.test.ts:142`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L158), [`chunks.test.ts:150`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L166), [`chunks.test.ts:168`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L184), [`chunks.test.ts:187`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L203), [`chunks.test.ts:209`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L225), [`chunks.test.ts:232`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L248), [`chunks.test.ts:246`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L262), [`chunks.test.ts:254`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L270), [`chunks.test.ts:268`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L284), [`chunks.test.ts:275`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L291), [`chunks.test.ts:292`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L308), [`chunks.test.ts:315`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L331), [`chunks.test.ts:359`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L375), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L407), [`chunks.test.ts:408`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L424), [`chunks.test.ts:423`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L439), [`chunks.test.ts:434`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L450), [`chunks.test.ts:449`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L465), [`chunks.test.ts:458`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L474), [`chunks.test.ts:465`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L481), [`chunks.test.ts:517`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L526), [`chunks.test.ts:525`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L534), [`chunks.test.ts:554`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L563), [`chunks.test.ts:568`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L577), [`chunks.test.ts:604`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L613), [`chunks.test.ts:623`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L632), [`chunks.test.ts:494`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L503))
+  ([validated by returns true when information_schema lists the schema](libs/shared/src/outbound/project/chunks/chunks.test.ts#L48), [`chunks.test.ts:56`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L56), [`chunks.test.ts:62`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L62), [`chunks.test.ts:72`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L72), [`chunks.test.ts:87`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L87), [`chunks.test.ts:104`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L104), [`chunks.test.ts:112`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L112), [`chunks.test.ts:123`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L123), [`chunks.test.ts:137`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L137), [`chunks.test.ts:145`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L145), [`chunks.test.ts:151`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L151), [`chunks.test.ts:159`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L159), [`chunks.test.ts:177`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L177), [`chunks.test.ts:196`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L196), [`chunks.test.ts:218`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L218), [`chunks.test.ts:241`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L241), [`chunks.test.ts:255`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L255), [`chunks.test.ts:263`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L263), [`chunks.test.ts:307`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L307), [`chunks.test.ts:339`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L339), [`chunks.test.ts:349`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L349), [`chunks.test.ts:360`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L360), [`chunks.test.ts:375`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L375), [`chunks.test.ts:384`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L384), [`chunks.test.ts:391`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L391), [`chunks.test.ts:413`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L413), [`chunks.test.ts:436`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L436), [`chunks.test.ts:444`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L444), [`chunks.test.ts:473`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L473), [`chunks.test.ts:487`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L487), [`chunks.test.ts:650`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L650), [`chunks.test.ts:683`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L683))
 - FR-20.7: The HTTP `Chunks` adapter reads spec chunks (and backfill
   chunks with embeddings) from the repo-scoped API with a bearer token,
-  maps `hasChunk`/`staleChunkCount` to their query endpoints, and throws
-  on a non-ok response and on the Floor-only write surface. ([validated by `chunks-http.test.ts:28`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L28), [`chunks-http.test.ts:43`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L43), [`chunks-http.test.ts:60`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L60), [`chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L94))
+  maps `hasChunk` to its query endpoint, and throws
+  on a non-ok response and on the Floor-only write surface. ([validated by `chunks-http.test.ts:28`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L28), [`chunks-http.test.ts:43`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L43), [`chunks-http.test.ts:60`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L57), [`chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L91))
 - FR-20.8: The `Features` store persists feature planning bound to its
   repo: it lists by repo ordered by `updated_at` (with an optional status
   filter), attaches a `task_id` to an iteration, updates an iteration's
@@ -1234,21 +1220,21 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   the schema enumeration lists every provisioned `chunks` schema,
   dropping regex-unsafe names and always including `org_shared` exactly
   once. ([validated by `chunk-schema.test.ts:29`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L27), [`chunk-schema.test.ts:35`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L35), [`chunk-schema.test.ts:41`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L41), [`chunk-schema.test.ts:48`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L48), [`chunk-schema.test.ts:57`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L57), [`chunk-schema.test.ts:66`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L66), [`chunk-schema.test.ts:78`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L78), [`chunk-schema.test.ts:87`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L87), [`chunk-schema.test.ts:95`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L95), [`chunk-schema.test.ts:110`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L110), [`chunk-schema.test.ts:123`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L123), [`chunk-schema.test.ts:150`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L150), [`chunk-schema.test.ts:163`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L163))
-- FR-20.21: Legacy chunk relocation is self-healing: the nightly reindex,
-  before counting a team-resolved repo's chunks, MOVEs any rows the repo
-  still holds in `org_shared.chunks` into its resolved schema — per-file
+- FR-20.21: Legacy chunk relocation runs when a repo's team changes
+  (`internal.repo.team_changed`, handled on the Floor): it MOVEs any rows
+  the repo still holds in `org_shared.chunks` into its resolved schema — per-file
   dedupe keeps a file already fresh in the target and drops its stale
   org_shared duplicates, files absent from the target relocate wholesale
   preserving id, embedding, and `ingested_at`, rewriting `team`, stamping
-  `metadata.migrated_from` ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L708), [`chunks.test.ts:716`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L725), [`chunks.test.ts:749`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L758))
+  `metadata.migrated_from` ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L548), [`chunks.test.ts:716`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L565), [`chunks.test.ts:749`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L598))
   - Provenance-less rows with a classifyFile content type are adopted via
-    `ingested_by = 'reindex-job'`; other content types relocate unowned ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L708), [`chunks.test.ts:739`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L748))
+    `ingested_by = 'reindex-job'`; other content types relocate unowned ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L548), [`chunks.test.ts:739`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L588))
   - The Pg adapter issues copy and delete as one statement (shared
     snapshot, insert before delete, repo and team as bind parameters),
     a clean repo is a zero no-op, and `org_shared` is rejected as a
     relocation target in every adapter — self-relocation would dedupe
-    rows against themselves and delete them ([validated by `chunks.test.ts:762`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L771), [`chunks.test.ts:773`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L782), [`chunks.test.ts:785`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L794))
-  - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L94))
+    rows against themselves and delete them ([validated by `chunks.test.ts:762`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L611), [`chunks.test.ts:773`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L622), [`chunks.test.ts:785`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L634))
+  - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/outbound/project/chunks/chunks-http.test.ts#L91))
   - `PUT /api/repos/:o/:r/settings` on lore-api emits one
     `internal.repo.team_changed` event only when the write actually changes
     the team value (settings-only patches and same-value writes emit

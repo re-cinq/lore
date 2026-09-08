@@ -422,7 +422,7 @@ Deliverables:
 - ai-agent-subsystem: agent-cr controller
   (`ghcr.io/re-cinq/ai-agent-controller`) in the `ai-agents` namespace runs
   Agent CRs. The LoreTask CRD + `claude-runner` image were removed (ADR-031).
-- CronJobs: nightly reindex (2 AM), weekly gap detection (Mon 9 AM),
+- CronJobs: weekly gap detection (Mon 9 AM),
   weekly spec drift (Mon 10 AM), daily importance decay (5 AM),
   daily consolidation (5:30 AM).
 - OpenTelemetry instrumentation built into lore-api → Cloud Monitoring.

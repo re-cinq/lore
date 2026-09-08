@@ -3,7 +3,7 @@ import {
   enforceChunkSchema as enforceSchema,
   resolveChunkSchemaForRepo,
 } from "./chunk-schema.js";
-import * as reindex from "./chunks-pg-reindex.js";
+import { relocateLegacyChunks } from "./chunks-pg-relocate.js";
 import type {
   ChunksPort,
   ChunkInsert,
@@ -159,19 +159,6 @@ export class PgChunks implements ChunksPort {
     return rows.length > 0;
   }
 
-  async staleChunkCount(repo: string, olderThanDays: number): Promise<number> {
-    const schema = await this.resolveSchemaForRepo(repo);
-    const { rows } = await this.pool.query(
-      `SELECT COUNT(*) AS count FROM ${schema}.chunks
-       WHERE repo = $1
-         AND ingested_at < NOW() - ($2 || ' days')::interval
-         AND metadata->>'ingested_by' = 'reindex-job'`,
-      [repo, String(olderThanDays)],
-    );
-
-    return parseInt((rows[0]?.count as string) || "0", 10);
-  }
-
   private resolveSchemaForRepo(repo: string): Promise<string> {
     return resolveChunkSchemaForRepo(this.pool, repo);
   }
@@ -254,52 +241,10 @@ export class PgChunks implements ChunksPort {
     }));
   }
 
-  reindexOwnedFilePaths(schema: string, repo: string): Promise<string[]> {
-    return reindex.reindexOwnedFilePaths(this.pool, schema, repo);
-  }
-
-  chunkedFilePaths(schema: string, repo: string): Promise<string[]> {
-    return reindex.chunkedFilePaths(this.pool, schema, repo);
-  }
-
-  staleChunkerFiles(
-    schema: string,
-    repo: string,
-    version: number,
-    limit: number,
-  ): Promise<string[]> {
-    return reindex.staleChunkerFiles(this.pool, schema, {
-      repo,
-      version,
-      limit,
-    });
-  }
-
-  touchChunksForFiles(
-    schema: string,
-    repo: string,
-    filePaths: string[],
-    minAgeDays: number,
-  ): Promise<number> {
-    return reindex.touchChunksForFiles(this.pool, schema, {
-      repo,
-      filePaths,
-      minAgeDays,
-    });
-  }
-
-  pruneChunksForFiles(
-    schema: string,
-    repo: string,
-    filePaths: string[],
-  ): Promise<number> {
-    return reindex.pruneChunksForFiles(this.pool, schema, repo, filePaths);
-  }
-
   relocateLegacyChunks(
     schema: string,
     repo: string,
   ): Promise<{ moved: number; dropped: number }> {
-    return reindex.relocateLegacyChunks(this.pool, schema, repo);
+    return relocateLegacyChunks(this.pool, schema, repo);
   }
 }

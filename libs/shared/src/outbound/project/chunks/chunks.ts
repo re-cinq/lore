@@ -27,10 +27,6 @@ export class ChunkStore {
     return this.chunks.hasChunk(this.repo, contentType, fileSuffix);
   }
 
-  staleChunkCount(olderThanDays: number): Promise<number> {
-    return this.chunks.staleChunkCount(this.repo, olderThanDays);
-  }
-
   specChunksWithIngest(): Promise<SpecChunkWithIngest[]> {
     return this.chunks.specChunksWithIngest(this.repo);
   }

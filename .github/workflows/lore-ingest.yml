@@ -154,7 +154,7 @@ jobs:
         run: |
           # Canary: doc projection moved to the Floor event-bus ingress. Until the
           # operator provisions LORE_WEBHOOK_URL (+ exposes the Floor ingress), this
-          # repo hasn't cut over yet — warn and skip (the nightly reindex backstops),
+          # repo hasn't cut over yet — warn and skip (nothing backstops it: ingestion is merge-time only),
           # don't red-fail main. A SET-but-broken URL red-fails via curl below.
           if [ -z "${LORE_WEBHOOK_URL}" ]; then
             echo "::warning::LORE_WEBHOOK_URL not set — ${{ matrix.kind }} projection skipped (pending Floor ci-ingest cutover)"

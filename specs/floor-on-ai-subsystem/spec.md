@@ -393,10 +393,10 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
 
 35. *(added 2026-09-04)* `GET /api/repos/{owner}/{repo}/chunks/{kind}` is the pod-side chunk read
     named by D7: one route dispatching by `{kind}` (`spec`, `code-symbols`, `spec-ingest`,
-    `test-ranges`, `spec-backfill`, `code-backfill`, `has`, and `stale` as the default) to the
+    `test-ranges`, `spec-backfill`, `code-backfill`, `has`) to the
     matching `project.chunks` method, so a station pod never opens Postgres for a detect node's
     reads. An unknown kind is a 404; `kind=has` requires `content_type` and answers 400 without it.
-    ([validated by returns 404 for an unknown kind](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L44), [`chunks.test.ts:50`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L50), [`chunks.test.ts:56`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L56), [`chunks.test.ts:62`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L62), [`chunks.test.ts:68`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L68), [`chunks.test.ts:74`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L74), [`chunks.test.ts:80`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L80), [`chunks.test.ts:86`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L86), [`chunks.test.ts:93`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L93), [`chunks.test.ts:99`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L99), [`chunks.test.ts:106`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L106), [`chunks.test.ts:113`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L113))
+    ([validated by returns 404 for an unknown kind](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L43), [`chunks.test.ts:50`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L49), [`chunks.test.ts:56`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L55), [`chunks.test.ts:62`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L61), [`chunks.test.ts:68`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L67), [`chunks.test.ts:74`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L73), [`chunks.test.ts:80`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L79), [`chunks.test.ts:86`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L85), [`chunks.test.ts:93`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L92), [`chunks.test.ts:113`](apps/lore-api/src/transport/routes/repos/chunks.test.ts#L98))
 
 ## Out of scope
 

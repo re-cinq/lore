@@ -93,7 +93,7 @@ async function notifyTeamChanged(pool: Pool, repo: string): Promise<void> {
     });
   } catch (err) {
     console.error(
-      `[settings] team_changed event insert failed for ${repo} (nightly reindex will relocate):`,
+      `[settings] team_changed event insert failed for ${repo} (legacy rows stay in org_shared until the next team change):`,
       err,
     );
   }

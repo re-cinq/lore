@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "gen:catalog": "node dist/transport/gen-catalog.js",
     "job": "node dist/transport/job-runner.js",
-    "jobs:all": "for j in context_reindex eval_runner context_core_builder consolidation; do echo \"[jobs:all] === $j ===\"; node dist/transport/job-runner.js $j || exit 1; done"
+    "jobs:all": "for j in eval_runner context_core_builder consolidation; do echo \"[jobs:all] === $j ===\"; node dist/transport/job-runner.js $j || exit 1; done"
   },
   "dependencies": {
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": "^0.22.0",

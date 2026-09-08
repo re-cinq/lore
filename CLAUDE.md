@@ -113,7 +113,7 @@ status pill — a stale header misreports the org's backlog.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
 - `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/` — ordered, idempotent `NNNN_*.sql` applied to `lore-db` on every deploy by a `pre-install,pre-upgrade` Helm hook Job (`lore-platform/charts/ui-helm/templates/migrate-{job,configmap}.yaml`), tracked in `lore.schema_migrations`, connecting as `lore` (the DB owner — no superuser needed) via the chart's `dbPasswordSecret`. Runs on both deploy paths (CI `helm upgrade` of the umbrella and terraform `helm_release.lore_platform`). The hook now fires on every umbrella upgrade regardless of which service changed; it is idempotent (skip-if-applied) so re-running on a floor/mcp deploy is a no-op. Baseline schema still comes from `setup-*-schema.sh`; incremental changes go here.
-- `scripts/agent-prompts/` — Lore Agent prompt templates for scheduled jobs (gap detection, spec drift, autoresearch, nightly reindex, etc.); ingested as context, not loaded as runtime code
+- `scripts/agent-prompts/` — Lore Agent prompt templates for scheduled jobs (gap detection, spec drift, autoresearch, etc.); ingested as context, not loaded as runtime code
 - `.claude/skills/` — platform skills (lore-help, lore-feature, lore-pr, lore-init, lore-agents, lore-suggest-links, lore-test-commands), installed to `~/.claude/skills` by `install.sh`. **Every skill documents itself**: each `SKILL.md` ends with a `## Help` block fenced by `<!-- lore-help:begin -->` / `<!-- lore-help:end -->` (required `**Summary.**` + `**Usage:**`), which `/lore-help` extracts verbatim to build its index, per-skill detail, and task router — there is no second copy to keep in sync. `scripts/check-skill-help.sh` (the `skill-help` PR check) fails a skill that ships without one. `install.sh` refreshes a changed skill rather than skipping it, and `lore-doctor` fails when an installed skill differs from the checkout — a stale copy would make `/lore-help` describe behaviour that is not installed. See `specs/lore-help/spec.md`
 - `infra/terraform/modules/gke-mcp/lore-platform/` — the single umbrella Helm chart for all five service workloads (floor/lore-api/ui/lore-db/ai-agents subcharts under `charts/`); each subchart stamps its own namespace so one release spans them. `infra/terraform/modules/gke-mcp/` also holds the standalone bootstrap root (cluster + node pools)
 - `specs/` — speckit artifacts (spec, plan, tasks, research, contracts)
@@ -653,7 +653,7 @@ safety cron (`7 7-17 * * 1-5` UTC, gated by `isBusinessHours()` reading
 `LORE_BUSINESS_HOURS_{TZ,START,END}` / `LORE_BUSINESS_DAYS`; default
 Europe/Berlin 9-18 Mon-Fri) becomes a `cron.review_reactor.tick` emitter
 that catches dropped webhook deliveries. **Carve-out (ADR-019, amended
-2026-07):** heavy batch jobs (reindex/eval/core-builder/memory/cost-sync) stay
+2026-07):** heavy batch jobs (eval/core-builder/memory/cost-sync; the nightly reindex was retired 2026-09-08 — ingestion is merge-time CI only) stay
 as K8s CronJobs running their work directly. The detection family
 (`gap_detection`, `spec_drift`, `spec_coverage_validate`,
 `spec_coverage_backfill`) left the carve-out: each is an assembly-line

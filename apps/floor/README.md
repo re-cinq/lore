@@ -104,7 +104,7 @@ For a full local stack (Postgres + every service with live reload), run
 ### Running a job by hand
 
 ```bash
-npm run job -w @re-cinq/lore-floor -- <jobName>   # e.g. context_reindex, eval_runner
+npm run job -w @re-cinq/lore-floor -- <jobName>   # e.g. eval_runner, consolidation
 npm run jobs:all -w @re-cinq/lore-floor           # run every batch job in sequence
 ```
 

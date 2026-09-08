@@ -58,14 +58,12 @@ flowchart LR
 
     subgraph k8scron["K8s CronJobs (ADR-019)"]
         direction TB
-        C1["context-reindex · 0 2 * * *<br/>full repo crawl + embeddings"]
         C5["memory-ttl / importance-decay / consolidation"]
         C6["eval-runner · daily · autoresearch · weekly"]
         C7["context-core-builder · daily · anthropic-cost-sync · daily"]
     end
 
     PUSH["git push to main<br/>(whitelisted paths incl. specs/**)"] -->|"GitHub Action → POST /api/ingest"| ING["ingestFiles(): classify →<br/>upsert chunks → embed"]
-    C1 --> ING
     ING --> DB[("{team}.chunks<br/>+ pgvector embeddings")]
 ```
 

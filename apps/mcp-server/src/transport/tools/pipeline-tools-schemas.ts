@@ -126,9 +126,7 @@ export const GET_TASK_LOGS_INPUT = {
 export const GET_JOB_LOGS_INPUT = {
   job_name: z
     .string()
-    .describe(
-      "Scheduled job name, e.g. 'context_reindex' or 'spec_test_linker'.",
-    ),
+    .describe("Scheduled job name, e.g. 'eval_runner' or 'spec_test_linker'."),
   run_id: z.string().describe("Run UUID from pipeline.job_runs."),
 };
 

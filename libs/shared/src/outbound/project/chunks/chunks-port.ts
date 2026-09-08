@@ -100,9 +100,6 @@ export interface ChunksPort {
     fileSuffix?: string,
   ): Promise<boolean>;
 
-  /** Count of the repo's reindex-owned chunks whose `ingested_at` exceeds `olderThanDays`; non-zero means reindex hasn't verified the repo recently. */
-  staleChunkCount(repo: string, olderThanDays: number): Promise<number>;
-
   /** Spec chunks (with ingest stamp) for a repo, from its resolved schema, ordered by file path then chunk index. */
   specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]>;
 
@@ -115,36 +112,7 @@ export interface ChunksPort {
   /** Code chunks (content + metadata + embedding) for a repo, from its resolved schema (backfill). */
   codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]>;
 
-  // ── Floor-only reindex verification surface (re-stamp/prune reindex-owned rows only); the station HTTP adapter throws on all three. ──
-
-  /** Distinct `file_path`s of the repo's reindex-owned chunks in `${schema}.chunks`. */
-  reindexOwnedFilePaths(schema: string, repo: string): Promise<string[]>;
-
-  /** Distinct `file_path`s of ALL the repo's chunks regardless of `ingested_by` (issue #999) — the reindex backfill sweep uses this to avoid re-owning files other writers cover. */
-  chunkedFilePaths(schema: string, repo: string): Promise<string[]>;
-
-  /** Distinct `file_path`s of code chunks whose `chunker_version` is stale, capped at `limit`; the reindex heal sweep re-ingests these to propagate a chunker upgrade. */
-  staleChunkerFiles(
-    schema: string,
-    repo: string,
-    version: number,
-    limit: number,
-  ): Promise<string[]>;
-
-  /** Re-stamp `ingested_at` to `NOW()` on reindex-owned chunks for `filePaths` whose oldest chunk exceeds `minAgeDays`, whole files at a time; returns rows updated. */
-  touchChunksForFiles(
-    schema: string,
-    repo: string,
-    filePaths: string[],
-    minAgeDays: number,
-  ): Promise<number>;
-
-  /** Delete the repo's reindex-owned chunks for `filePaths` (orphans of files deleted from the repo); returns rows deleted. */
-  pruneChunksForFiles(
-    schema: string,
-    repo: string,
-    filePaths: string[],
-  ): Promise<number>;
+  // ── Floor-only write; the station HTTP adapter throws. ──
 
   /** MOVE the repo's legacy `org_shared.chunks` rows into `${schema}.chunks` (migration 0035, issue #979), per-file dedupe, idempotent; throws when `schema` is `org_shared`. */
   relocateLegacyChunks(

@@ -126,6 +126,13 @@ export async function resolveGithubFetchContext(
   return { octokit, owner, repoName };
 }
 
+/** The content posted inline with the file entry, when the caller sent one. */
+function inlineContentOf(fileEntry: IngestFile): string | null {
+  return typeof fileEntry !== "string" && fileEntry.content
+    ? fileEntry.content
+    : null;
+}
+
 /** Resolves a file's content: inline content wins, otherwise fetches from GitHub. */
 export async function resolveFileContent(
   fileEntry: IngestFile,
@@ -133,19 +140,15 @@ export async function resolveFileContent(
   filePath: string,
   commit: string,
 ): Promise<{ content: string | null; missing404: boolean }> {
-  const inlineContent =
-    typeof fileEntry !== "string" && fileEntry.content
-      ? fileEntry.content
-      : null;
+  const inlineContent = inlineContentOf(fileEntry);
 
   if (inlineContent) {
     return { content: inlineContent, missing404: false };
   }
 
   const { octokit, owner, repoName } = githubCtx!;
-  const { repos } = octokit.rest;
 
-  return fetchFileWithHeadFallback(repos, {
+  return fetchFileWithHeadFallback(octokit.rest.repos, {
     owner,
     repoName,
     filePath,

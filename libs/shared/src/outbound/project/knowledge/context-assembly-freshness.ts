@@ -24,7 +24,7 @@ export interface FreshnessInfo {
 
 const FIRST_RUN_WARNING = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`lore_onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`lore_ingest_files\` to manually add specific files\n> 3. Call \`lore_search_memory\` to check if others have left learnings\n\n`;
 
-const NEVER_INGESTED_WARNING = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`;
+const NEVER_INGESTED_WARNING = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or merge to main (CI ingest).\n\n`;
 
 function freshnessForRepo(
   row: { last_ingested_at: string | Date | null } | undefined,
