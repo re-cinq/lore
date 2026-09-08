@@ -158,10 +158,10 @@
     "@re-cinq/agent-contracts": "^0.10.11",
     "@types/node": "^22.20.1",
     "@types/pg": "^8.23.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "octokit": "^5.0.5",
     "pg": "^8.23.0",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   }
 }
