@@ -1,5 +1,5 @@
 // Mirrors AgentRunTurnRow with type-drift guard (createdAt: string from JSON; eventType unnarrowed; #1419).
-import { num, record, str } from "@/lib/json-field";
+import { num, record, str } from "./json-field";
 
 export interface AgentRunTurn {
   id: string;

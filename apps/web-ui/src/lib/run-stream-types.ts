@@ -1,4 +1,4 @@
-import { num, record, str } from "@/lib/json-field";
+import { num, record, str } from "./json-field";
 
 // Mirrors AgentRunEventRow (isolated build + drift detection); createdAt divergence is structural (revisit per #1419).
 export type AgentRunEventType =
