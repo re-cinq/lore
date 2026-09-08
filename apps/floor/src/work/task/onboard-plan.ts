@@ -33,15 +33,30 @@ async function readSettingsTestCommands(targetRepo: string): Promise<unknown> {
   }
 }
 
+/** Whether the repo declares a test interface: a manifest file in the tree, or the settings block that overrides it. */
+async function testInterfaceCheck(
+  targetRepo: string,
+  existingFiles: Set<string>,
+): Promise<ReturnType<typeof decideTestInterfaceCheck>> {
+  return decideTestInterfaceCheck({
+    manifestFileDeclared: existingFiles.has(".lore/test-commands.yml"),
+    settingsTestCommands: await readSettingsTestCommands(targetRepo),
+  });
+}
+
+/** Each scaffolded path carries its own generation prompt; the workflow is a different artifact from the manifest. */
+function scaffoldPrompt(scaffoldPath: string): string {
+  return scaffoldPath === ".github/workflows/lore-tests.yml"
+    ? LORE_TESTS_INSTRUCTION
+    : TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT;
+}
+
 /** Test-interface check (AC12): scaffold manifest + lore-tests.yml for repos without one. */
 async function testInterfaceScaffold(
   targetRepo: string,
   existingFiles: Set<string>,
 ): Promise<{ path: string; prompt: string }[]> {
-  const check = decideTestInterfaceCheck({
-    manifestFileDeclared: existingFiles.has(".lore/test-commands.yml"),
-    settingsTestCommands: await readSettingsTestCommands(targetRepo),
-  });
+  const check = await testInterfaceCheck(targetRepo, existingFiles);
 
   if (check.status === "configured") {
     console.log(
@@ -57,10 +72,7 @@ async function testInterfaceScaffold(
 
   return missing.map((scaffoldPath) => ({
     path: scaffoldPath,
-    prompt:
-      scaffoldPath === ".github/workflows/lore-tests.yml"
-        ? LORE_TESTS_INSTRUCTION
-        : TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
+    prompt: scaffoldPrompt(scaffoldPath),
   }));
 }
 
@@ -80,11 +92,10 @@ function starterAdrs(): { path: string; prompt: string }[] {
   });
 }
 
-/** The files this onboarding will generate: the standard set the repo lacks, the test-interface scaffold when it declares no manifest, and a starter ADR set when it has no adrs/ or docs/ yet. */
-export async function planOnboardFiles(
-  targetRepo: string,
-  { existingFiles, hasAdrs }: OnboardSurvey,
-): Promise<{ path: string; prompt: string }[]> {
+/** The standard onboarding set the repo does not already carry, matched by full path or by bare filename. */
+function missingStandardFiles(
+  existingFiles: Set<string>,
+): { path: string; prompt: string }[] {
   const toGenerate: { path: string; prompt: string }[] = [];
 
   for (const f of ONBOARD_FILES) {
@@ -97,6 +108,17 @@ export async function planOnboardFiles(
     }
     toGenerate.push({ path: f.path, prompt: f.prompt });
   }
+
+  return toGenerate;
+}
+
+/** The files this onboarding will generate: the standard set the repo lacks, the test-interface scaffold when it declares no manifest, and a starter ADR set when it has no adrs/ or docs/ yet. */
+export async function planOnboardFiles(
+  targetRepo: string,
+  { existingFiles, hasAdrs }: OnboardSurvey,
+): Promise<{ path: string; prompt: string }[]> {
+  const toGenerate = missingStandardFiles(existingFiles);
+
   toGenerate.push(...(await testInterfaceScaffold(targetRepo, existingFiles)));
 
   if (hasAdrs) {

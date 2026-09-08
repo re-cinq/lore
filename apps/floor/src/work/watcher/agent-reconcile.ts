@@ -126,7 +126,22 @@ function terminalCompletedAt(status: {
   return status.completedAt ? new Date(status.completedAt) : null;
 }
 
-/** Delete a terminal CR an hour after it finished — through the cluster agent, whose Role grants delete (the Floor's `agent-launcher` never did, only create/get/list/watch). */
+/** Deleted through the cluster agent, whose Role grants delete (the Floor's `agent-launcher` never did, only create/get/list/watch). */
+async function removeAgentCr(
+  name: string,
+  cluster: HttpAgentApi,
+): Promise<void> {
+  await cluster
+    .remove(name)
+    .catch((err) =>
+      console.warn(
+        `[agent-reconcile] prune of ${name} failed:`,
+        (err as Error).message,
+      ),
+    );
+}
+
+/** Delete a terminal CR an hour after it finished. */
 async function pruneIfOld(
   agent: AgentCr,
   cluster: HttpAgentApi,
@@ -138,15 +153,7 @@ async function pruneIfOld(
   }
   const name = agent.metadata?.name;
 
-  if (!name) {
-    return;
+  if (name) {
+    await removeAgentCr(name, cluster);
   }
-  await cluster
-    .remove(name)
-    .catch((err) =>
-      console.warn(
-        `[agent-reconcile] prune of ${name} failed:`,
-        (err as Error).message,
-      ),
-    );
 }

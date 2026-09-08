@@ -15,6 +15,8 @@ export interface StaleTaskCheckDeps {
   escalate(task: StaleTaskRow, ageHours: number): Promise<void>;
 }
 
+type StaleSweepOutcome = "parked" | "escalated" | "error";
+
 export async function staleTaskCheckJob(
   deps: StaleTaskCheckDeps = productionDeps(),
 ): Promise<string> {
@@ -23,30 +25,40 @@ export async function staleTaskCheckJob(
   if (rows.length === 0) {
     return `No stale tasks (threshold ${STALE_THRESHOLD_HOURS}h)`;
   }
-
-  let escalated = 0;
-  let parked = 0;
+  const outcomes: StaleSweepOutcome[] = [];
 
   for (const task of rows) {
-    try {
-      // The line is the authority on whether work is still in flight.
-      if (await deps.hasOpenLine(task.id)) {
-        parked++;
-        continue;
-      }
-      const ageHoursRounded = Math.round(Number(task.age_hours) * 10) / 10;
-
-      await deps.escalate(task, ageHoursRounded);
-      escalated++;
-      console.log(
-        `[stale-task-check] escalated ${task.id} (${task.task_type} on ${task.target_repo}, age ${ageHoursRounded}h)`,
-      );
-    } catch (err) {
-      console.error(`[stale-task-check] error escalating ${task.id}:`, err);
-    }
+    outcomes.push(await sweepStaleTask(task, deps));
   }
+  const escalated = outcomes.filter((o) => o === "escalated").length;
+  const parked = outcomes.filter((o) => o === "parked").length;
 
   return `Escalated ${escalated}/${rows.length} stale tasks, ${parked} still walking (threshold ${STALE_THRESHOLD_HOURS}h)`;
+}
+
+/** One task's verdict: still walking, escalated, or a failure this sweep swallows so the remaining rows are still checked. */
+async function sweepStaleTask(
+  task: StaleTaskRow,
+  deps: StaleTaskCheckDeps,
+): Promise<StaleSweepOutcome> {
+  try {
+    // The line is the authority on whether work is still in flight.
+    if (await deps.hasOpenLine(task.id)) {
+      return "parked";
+    }
+    const ageHoursRounded = Math.round(Number(task.age_hours) * 10) / 10;
+
+    await deps.escalate(task, ageHoursRounded);
+    console.log(
+      `[stale-task-check] escalated ${task.id} (${task.task_type} on ${task.target_repo}, age ${ageHoursRounded}h)`,
+    );
+
+    return "escalated";
+  } catch (err) {
+    console.error(`[stale-task-check] error escalating ${task.id}:`, err);
+
+    return "error";
+  }
 }
 
 /** The real escalation: flip the row, record it, and tell the Issue. */
@@ -67,6 +79,15 @@ async function escalateStaleTask(
   task: StaleTaskRow,
   ageHoursRounded: number,
 ): Promise<void> {
+  await flagStaleTask(task, ageHoursRounded);
+  await commentStaleIssue(task, ageHoursRounded);
+}
+
+/** Flip the row to needs-human-help and record the transition; the event write is best-effort. */
+async function flagStaleTask(
+  task: StaleTaskRow,
+  ageHoursRounded: number,
+): Promise<void> {
   await taskStore().setStatusIf(task.id, "running", "needs-human-help", {
     failure_reason: `Stuck in 'running' for ${ageHoursRounded}h — safety-net timeout at ${STALE_THRESHOLD_HOURS}h`,
   });
@@ -78,7 +99,13 @@ async function escalateStaleTask(
       detected_by: "stale-task-check",
     })
     .catch(() => {});
+}
 
+/** Tell the task's Issue, when it has one. Both writes are best-effort — the row is already flipped. */
+async function commentStaleIssue(
+  task: StaleTaskRow,
+  ageHoursRounded: number,
+): Promise<void> {
   if (!task.issue_number) {
     return;
   }

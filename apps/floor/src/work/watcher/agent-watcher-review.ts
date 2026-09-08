@@ -9,6 +9,21 @@ import {
 import { type ReviewResult } from "../../domain/agent-watcher-logic.js";
 import { type AgentContext, getIssueNumber } from "./agent-watcher-notify.js";
 
+/** Best-effort Issue comment: the thread is a courtesy, and a comment failure must not derail the task's own settlement. */
+async function commentOnIssue(
+  targetRepo: string,
+  issueNumber: number | null | undefined,
+  body: string,
+): Promise<void> {
+  if (!issueNumber) {
+    return;
+  }
+
+  await projectFor(targetRepo)
+    .then((p) => p.issues.comment(issueNumber, body))
+    .catch(() => {});
+}
+
 async function completeApprovedReview(
   taskId: string,
   parentTaskId: string,
@@ -20,20 +35,35 @@ async function completeApprovedReview(
   });
   const { issue_number, target_repo } = await getIssueNumber(parentTaskId);
 
-  if (issue_number) {
-    await projectFor(target_repo)
-      .then((p) =>
-        p.issues.comment(
-          issue_number,
-          "Agent review: **approved**. PR is ready for human merge.",
-        ),
-      )
-      .catch(() => {});
-  }
+  await commentOnIssue(
+    target_repo,
+    issue_number,
+    "Agent review: **approved**. PR is ready for human merge.",
+  );
   await taskStore().setStatus(taskId, "completed");
   console.log(
     `[agent-watcher] Review approved for parent task ${parentTaskId}`,
   );
+}
+
+/** Tells the Issue thread the loop has given up and labels it for a human. */
+async function markIssueNeedsHumanReview(
+  parent: PipelineTask,
+  iteration: number,
+): Promise<void> {
+  await commentOnIssue(
+    parent.target_repo,
+    parent.issue_number,
+    `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`,
+  );
+
+  if (!parent.issue_number) {
+    return;
+  }
+
+  await projectFor(parent.target_repo)
+    .then((p) => p.issues.addLabel(parent.issue_number!, "needs-human-review"))
+    .catch(() => {});
 }
 
 async function escalateReviewToHuman(
@@ -47,21 +77,7 @@ async function escalateReviewToHuman(
     iterations: iteration,
   });
 
-  if (parent.issue_number) {
-    await projectFor(parent.target_repo)
-      .then((p) =>
-        p.issues.comment(
-          parent.issue_number!,
-          `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`,
-        ),
-      )
-      .catch(() => {});
-    await projectFor(parent.target_repo)
-      .then((p) =>
-        p.issues.addLabel(parent.issue_number!, "needs-human-review"),
-      )
-      .catch(() => {});
-  }
+  await markIssueNeedsHumanReview(parent, iteration);
   await taskStore().setStatus(taskId, "completed");
   console.log(
     `[agent-watcher] Review escalated to human for ${parentTaskId} (iteration ${iteration})`,
@@ -101,32 +117,39 @@ async function fetchReviewComments(parent: PipelineTask) {
     .catch(() => []);
 }
 
+/** The fix task row. It comes FIRST: the Agent run is keyed to it, and a run with no row behind it produces work nobody can find. */
+async function insertFixTask(
+  parent: PipelineTask,
+  work: { fixDescription: string; feedback: string },
+): Promise<string> {
+  return (await pipeline().taskQueue.insertTask({
+    description: work.fixDescription,
+    taskType: "implementation",
+    targetRepo: parent.target_repo,
+    createdBy: "review-loop",
+    contextBundle: {
+      branch: parent.target_branch,
+      review_feedback: work.feedback,
+      parent_task_id: parent.id,
+    },
+  })) as string;
+}
+
 /** The fix runs on the PARENT's branch, not a new one: the PR already exists, and the loop is meant to push onto it rather than open a second. */
 async function startFixTask(
   parent: PipelineTask,
   branch: string,
   work: { fixDescription: string; feedback: string },
 ): Promise<string> {
-  const { fixDescription, feedback } = work;
-  const fixTaskId = (await pipeline().taskQueue.insertTask({
-    description: fixDescription,
-    taskType: "implementation",
-    targetRepo: parent.target_repo,
-    createdBy: "review-loop",
-    contextBundle: {
-      branch: parent.target_branch,
-      review_feedback: feedback,
-      parent_task_id: parent.id,
-    },
-  })) as string;
+  const fixTaskId = await insertFixTask(parent, work);
 
   await (
     await projectFor(parent.target_repo)
   ).agents.run(fixTaskId, {
     mode: "cluster",
     taskType: "implementation",
-    description: fixDescription,
-    prompt: `Address the following review feedback on PR #${parent.pr_number ?? "?"}. The PR already exists — push fixes to the same branch.\n\nFeedback:\n${feedback}`,
+    description: work.fixDescription,
+    prompt: `Address the following review feedback on PR #${parent.pr_number ?? "?"}. The PR already exists — push fixes to the same branch.\n\nFeedback:\n${work.feedback}`,
     branch: parent.target_branch || branch,
     model: "claude-sonnet-4-6",
     timeoutMinutes: 30,
@@ -135,23 +158,24 @@ async function startFixTask(
   return fixTaskId;
 }
 
-/** Tells the Issue thread that a fix is already in flight, so a human reading it does not start the same work. Swallowed on failure: the fix task exists either way, and this is a courtesy. */
+/** Tells the Issue thread that a fix is already in flight, so a human reading it does not start the same work. */
 async function noteFixOnIssue(
   parent: PipelineTask,
   iteration: number,
 ): Promise<void> {
-  if (!parent.issue_number) {
-    return;
-  }
+  await commentOnIssue(
+    parent.target_repo,
+    parent.issue_number,
+    `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`,
+  );
+}
 
-  await projectFor(parent.target_repo)
-    .then((p) =>
-      p.issues.comment(
-        parent.issue_number!,
-        `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`,
-      ),
-    )
-    .catch(() => {});
+/** The review's own comments, or a fallback pointing the fix agent at the PR when there are none to quote. */
+async function reviewFeedbackFor(parent: PipelineTask): Promise<string> {
+  return (
+    formatReviewFeedback(await fetchReviewComments(parent)) ||
+    "The agent review requested changes. Read the review comments on the PR and address them."
+  );
 }
 
 async function requestReviewFix(
@@ -160,17 +184,12 @@ async function requestReviewFix(
   parent: PipelineTask,
   iteration: number,
 ): Promise<void> {
-  const comments = await fetchReviewComments(parent);
-  const feedback =
-    formatReviewFeedback(comments) ||
-    "The agent review requested changes. Read the review comments on the PR and address them.";
-  const fixDescription = buildReviewFixDescription({
-    prNumber: parent.pr_number ?? null,
-    iteration,
-  });
   const fixTaskId = await startFixTask(parent, branch, {
-    fixDescription,
-    feedback,
+    fixDescription: buildReviewFixDescription({
+      prNumber: parent.pr_number ?? null,
+      iteration,
+    }),
+    feedback: await reviewFeedbackFor(parent),
   });
 
   await noteFixOnIssue(parent, iteration);
@@ -180,24 +199,11 @@ async function requestReviewFix(
   );
 }
 
-/** A review Agent's verdict drives the iteration-capped fix loop on the parent task. */
-export async function handleReviewVerdict(
+/** Changes-requested: bump the parent's iteration counter, then either escalate or open the auto-fix task. */
+async function driveChangesRequested(
   ctx: AgentContext,
-  reviewResult: ReviewResult,
+  parentTaskId: string,
 ): Promise<void> {
-  const { taskId, branch } = ctx;
-  const parentTaskId = await resolveReviewParentTaskId(taskId);
-
-  if (!parentTaskId) {
-    return;
-  }
-
-  if (reviewResult === "approved") {
-    await completeApprovedReview(taskId, parentTaskId);
-
-    return;
-  }
-
   const parent = await taskStore().getById(parentTaskId);
 
   if (!parent) {
@@ -210,9 +216,28 @@ export async function handleReviewVerdict(
   });
 
   if (iteration >= 2) {
-    await escalateReviewToHuman(taskId, parentTaskId, parent, iteration);
+    await escalateReviewToHuman(ctx.taskId, parentTaskId, parent, iteration);
 
     return;
   }
-  await requestReviewFix(taskId, branch, parent, iteration);
+  await requestReviewFix(ctx.taskId, ctx.branch, parent, iteration);
+}
+
+/** A review Agent's verdict drives the iteration-capped fix loop on the parent task. */
+export async function handleReviewVerdict(
+  ctx: AgentContext,
+  reviewResult: ReviewResult,
+): Promise<void> {
+  const parentTaskId = await resolveReviewParentTaskId(ctx.taskId);
+
+  if (!parentTaskId) {
+    return;
+  }
+
+  if (reviewResult === "approved") {
+    await completeApprovedReview(ctx.taskId, parentTaskId);
+
+    return;
+  }
+  await driveChangesRequested(ctx, parentTaskId);
 }

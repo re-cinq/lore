@@ -20,8 +20,19 @@ import { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
 
 export { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
 
+type StationFailure = Parameters<
+  ReturnType<typeof pipeline>["assemblyRuns"]["finishStationRunOnce"]
+>[3];
+
+/** `failureClass` is `unknown` rather than invented — it is a closed taxonomy that drives retry and dispatch gating, and a made-up value would route real decisions. */
+function stationFailureFor(failureReason?: string): StationFailure {
+  return failureReason
+    ? { failureClass: "unknown", failureDetail: failureReason }
+    : undefined;
+}
+
 /** Closes a single-CR task's open run rows from the task's post-handler status; `phase` disambiguates a Failed-but-still-`running` task so it closes `failed`, not `completed`. */
-/** Closes a run and every station row still open under it. The station rows matter: left open they show as executing forever and the reaper keeps taking an interest in a run that is over. `failureClass` is `unknown` rather than invented — it is a closed taxonomy that drives retry and dispatch gating, and a made-up value would route real decisions. */
+/** Closes a run and every station row still open under it. The station rows matter: left open they show as executing forever and the reaper keeps taking an interest in a run that is over. */
 async function closeRunRows(
   runId: string,
   outcome: Parameters<ReturnType<typeof pipeline>["assemblyRuns"]["finish"]>[1],
@@ -37,9 +48,7 @@ async function closeRunRows(
           node.id,
           stationOutcomeForRunOutcome(outcome),
           undefined,
-          failureReason
-            ? { failureClass: "unknown", failureDetail: failureReason }
-            : undefined,
+          stationFailureFor(failureReason),
         ),
       ),
   );

@@ -84,9 +84,11 @@ async function handleNoChangeCompletion(
   });
 }
 
-/** The container pushed a branch — open the PR for it. */
-async function openStationPr(opts: FinalizeStationRunOpts): Promise<void> {
-  const { task, targetRepo, branch, completion, project } = opts;
+/** Generated PR title and body, with the standard `Lore-Task:` footer already appended. */
+async function stationPrContent(
+  opts: FinalizeStationRunOpts,
+): Promise<{ title: string; body: string }> {
+  const { task, targetRepo, completion } = opts;
   const copy = await generateArtifactCopy({
     kind: "pr",
     taskType: task.task_type,
@@ -99,9 +101,16 @@ async function openStationPr(opts: FinalizeStationRunOpts): Promise<void> {
     issueNumber: task.issue_number ?? undefined,
     taskId: task.id,
   });
+
+  return { title: copy.title, body: `${copy.body}${footer}` };
+}
+
+/** The container pushed a branch — open the PR for it. */
+async function openStationPr(opts: FinalizeStationRunOpts): Promise<void> {
+  const { task, branch, project } = opts;
+  const content = await stationPrContent(opts);
   const pr = await project.pulls.open(branch, {
-    title: copy.title,
-    body: `${copy.body}${footer}`,
+    ...content,
     base: await project.repo.defaultBranch(),
     labels: ["needs-review"],
   });
@@ -127,16 +136,22 @@ async function markPlanningResultReady(
   });
 }
 
+/** Exit 0 with nothing posted is a failure whose only evidence is the container's own tail. */
+function planningNoResultReason(output: string): string {
+  const tail = stationLogTail(output);
+
+  return (
+    `Planning run finished (exit 0) but posted no result — the agent did not produce a result.json the container could POST.` +
+    (tail ? `\n\n${tail}` : "")
+  );
+}
+
 async function markPlanningResultMissing(
   opts: FinalizeStationRunOpts,
   featureId: string | undefined,
   iteration: number | undefined,
 ): Promise<void> {
   const { task, completion, project } = opts;
-  const tail = stationLogTail(completion.output);
-  const reason =
-    `Planning run finished (exit 0) but posted no result — the agent did not produce a result.json the container could POST.` +
-    (tail ? `\n\n${tail}` : "");
 
   if (featureId && iteration != null) {
     const { features } = project;
@@ -146,7 +161,9 @@ async function markPlanningResultMissing(
       .catch(() => {});
     await revertFeatureAfterFailure(project, featureId);
   }
-  await setStatus(task.id, "failed", { failure_reason: reason });
+  await setStatus(task.id, "failed", {
+    failure_reason: planningNoResultReason(completion.output),
+  });
   await insertEvent(task.id, "running", "failed", {
     reason: "planning posted no result",
   });
@@ -214,29 +231,37 @@ export async function finalizeStationRun(
   await finalizePlanningResult(opts);
 }
 
-async function markFailedPlanningIteration(
+/** The feature iteration this task is a planning round of, or null when it is not one. */
+function planningIterationRef(
   task: PipelineTask,
-  project: Project,
-): Promise<void> {
+): { featureId: string; iteration: number } | null {
   if (
     task.task_type !== "feature-planning" ||
     !task.context_bundle?.feature_id ||
     task.context_bundle.iteration == null
   ) {
+    return null;
+  }
+
+  return {
+    featureId: task.context_bundle.feature_id as string,
+    iteration: task.context_bundle.iteration as number,
+  };
+}
+
+async function markFailedPlanningIteration(
+  task: PipelineTask,
+  project: Project,
+): Promise<void> {
+  const ref = planningIterationRef(task);
+
+  if (!ref) {
     return;
   }
   const { features } = project;
 
   await features
-    .setIterationResult(
-      task.context_bundle.feature_id as string,
-      task.context_bundle.iteration as number,
-      null,
-      "failed",
-    )
+    .setIterationResult(ref.featureId, ref.iteration, null, "failed")
     .catch(() => {});
-  await revertFeatureAfterFailure(
-    project,
-    task.context_bundle.feature_id as string,
-  );
+  await revertFeatureAfterFailure(project, ref.featureId);
 }

@@ -137,35 +137,54 @@ export interface ReviewDelivery {
   model?: string;
 }
 
-export async function postReview(
+async function postInlineReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
   { positions, marker, model }: ReviewDelivery,
-): Promise<ReviewPostDelivery> {
+): Promise<void> {
   const { inline, overflow } = partitionByHunks(output.findings, positions);
 
+  await pulls.createReview(prNumber, {
+    event: reviewEvent(output),
+    body: withMarker(composeBody(output, overflow, model), marker),
+    comments: inline.map(toReviewComment),
+  });
+}
+
+async function postFallback(
+  pulls: ReviewPoster,
+  prNumber: number,
+  output: ReviewOutput,
+  { marker, model, error }: ReviewDelivery & { error: string },
+): Promise<ReviewPostDelivery> {
+  console.warn(
+    `[code-review] inline review rejected (${error}); posting as a top-level comment`,
+  );
+  await pulls.comment(
+    prNumber,
+    withMarker(fallbackComment(output, model), marker),
+  );
+
+  return { mode: "fallback", error };
+}
+
+export async function postReview(
+  pulls: ReviewPoster,
+  prNumber: number,
+  output: ReviewOutput,
+  delivery: ReviewDelivery,
+): Promise<ReviewPostDelivery> {
   try {
-    await pulls.createReview(prNumber, {
-      event: reviewEvent(output),
-      body: withMarker(composeBody(output, overflow, model), marker),
-      comments: inline.map(toReviewComment),
-    });
+    await postInlineReview(pulls, prNumber, output, delivery);
 
     return { mode: "inline" };
   } catch (err) {
     // Never drop the review: an atomic-post 422 falls back to one top-level comment.
-    const error = (err as Error).message;
-
-    console.warn(
-      `[code-review] inline review rejected (${error}); posting as a top-level comment`,
-    );
-    await pulls.comment(
-      prNumber,
-      withMarker(fallbackComment(output, model), marker),
-    );
-
-    return { mode: "fallback", error };
+    return postFallback(pulls, prNumber, output, {
+      ...delivery,
+      error: (err as Error).message,
+    });
   }
 }
 
@@ -198,6 +217,22 @@ export async function maybePostReview(
   return postReview(pulls, prNumber, output, delivery);
 }
 
+async function markerOnPr(
+  pulls: ReviewPoster,
+  prNumber: number,
+  marker: string,
+): Promise<boolean> {
+  const [reviews, comments] = await Promise.all([
+    pulls.listReviews!(prNumber),
+    pulls.listIssueComments!(prNumber),
+  ]);
+
+  return (
+    reviews.some((review) => review.body.includes(marker)) ||
+    comments.some((comment) => comment.body.includes(marker))
+  );
+}
+
 /** Whether this run's review already reached the PR, via either delivery shape; best-effort — a missing read surface or a throwing probe reports "not posted" so the guard never drops a review. */
 export async function reviewAlreadyPosted(
   pulls: ReviewPoster,
@@ -209,15 +244,7 @@ export async function reviewAlreadyPosted(
   }
 
   try {
-    const [reviews, comments] = await Promise.all([
-      pulls.listReviews(prNumber),
-      pulls.listIssueComments(prNumber),
-    ]);
-
-    return (
-      reviews.some((review) => review.body.includes(marker)) ||
-      comments.some((comment) => comment.body.includes(marker))
-    );
+    return await markerOnPr(pulls, prNumber, marker);
   } catch (err) {
     console.warn(
       `[code-review] dedupe probe failed (${(err as Error).message}); posting anyway`,

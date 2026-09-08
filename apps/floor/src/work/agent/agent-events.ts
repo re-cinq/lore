@@ -120,6 +120,28 @@ function sourceAgentCrName(
   return typeof source?.agent === "string" ? source.agent : null;
 }
 
+interface CostRowParts {
+  taskId: string;
+  source: ReturnType<typeof unwrapAttribution>["source"];
+  ev: Record<string, unknown>;
+  tokens: ResultTokens;
+}
+
+function costRowFrom({ taskId, source, ev, tokens }: CostRowParts): LlmCallRow {
+  const model = resultModel(ev);
+
+  return {
+    taskId,
+    agentCrName: sourceAgentCrName(source),
+    carried: parseCarriedRunIdentity(source),
+    model,
+    inputTokens: tokens.inputTokens,
+    outputTokens: tokens.outputTokens,
+    costUsd: resultCostUsd(ev, model, tokens),
+    durationMs: resultDurationMs(ev),
+  };
+}
+
 function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
   const { source, event: ev } = unwrapAttribution(envelope);
   const taskId = sourceTaskId(source);
@@ -138,18 +160,7 @@ function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
     return null;
   }
 
-  const model = resultModel(ev);
-
-  return {
-    taskId,
-    agentCrName: sourceAgentCrName(source),
-    carried: parseCarriedRunIdentity(source),
-    model,
-    inputTokens: tokens.inputTokens,
-    outputTokens: tokens.outputTokens,
-    costUsd: resultCostUsd(ev, model, tokens),
-    durationMs: resultDurationMs(ev),
-  };
+  return costRowFrom({ taskId, source, ev, tokens });
 }
 
 /** A file declared under `output.watch`, raised by the subsystem on agent exit (`{"kind":"file"}`); `content`/`reason` are mutually exclusive — an undelivered declared artifact still reports, carrying why. */
@@ -275,13 +286,13 @@ function parseEnvelopeLine(line: string): unknown {
   }
 }
 
-/** Parse the NDJSON sink body ONCE into cost rows + (optionally) run-visualization rows + (optionally) full-fidelity turns; single-pass parsing bounds peak memory (the regression that OOM-looped the single Floor replica). Blank/unparseable lines are skipped; a task-less line still collects as a turn. Nothing throws. */
-export function parseAgentSink(
-  ndjson: string,
-  projectRunEvents = true,
-  collectTurns = true,
-): AgentSink {
-  const sink: AgentSink = {
+interface SinkProjections {
+  projectRunEvents: boolean;
+  collectTurns: boolean;
+}
+
+function emptySink(): AgentSink {
+  return {
     costRows: [],
     runEvents: [],
     fileEvents: [],
@@ -289,20 +300,38 @@ export function parseAgentSink(
     turnsDropped: 0,
     turnsCapped: 0,
   };
+}
+
+function ingestLine(
+  sink: AgentSink,
+  line: string,
+  projections: SinkProjections,
+): void {
+  const envelope = parseEnvelopeLine(line);
+
+  if (envelope === undefined) {
+    return;
+  }
+
+  ingestCostAndFileRows(sink, envelope);
+  ingestTurn(sink, envelope, line, projections.collectTurns);
+  ingestRunEvents(sink, envelope, projections.projectRunEvents);
+}
+
+/** Parse the NDJSON sink body ONCE into cost rows + (optionally) run-visualization rows + (optionally) full-fidelity turns; single-pass parsing bounds peak memory (the regression that OOM-looped the single Floor replica). Blank/unparseable lines are skipped; a task-less line still collects as a turn. Nothing throws. */
+export function parseAgentSink(
+  ndjson: string,
+  projectRunEvents = true,
+  collectTurns = true,
+): AgentSink {
+  const sink = emptySink();
 
   for (const line of lines(ndjson)) {
     if (!line.trim()) {
       continue;
     }
-    const envelope = parseEnvelopeLine(line);
 
-    if (envelope === undefined) {
-      continue;
-    }
-
-    ingestCostAndFileRows(sink, envelope);
-    ingestTurn(sink, envelope, line, collectTurns);
-    ingestRunEvents(sink, envelope, projectRunEvents);
+    ingestLine(sink, line, { projectRunEvents, collectTurns });
   }
 
   return sink;

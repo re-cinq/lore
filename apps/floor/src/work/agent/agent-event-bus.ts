@@ -22,6 +22,13 @@ interface Subscriber {
   draining: boolean;
 }
 
+function newSubscriber(
+  handler: AgentEventHandler,
+  onOverflow: AgentEventOverflowHandler,
+): Subscriber {
+  return { handler, onOverflow, buffer: [], buffered: 0, draining: false };
+}
+
 function groupByRun(
   rows: readonly AgentRunEventRow[],
 ): Map<string, AgentRunEventRow[]> {
@@ -59,13 +66,7 @@ export class AgentEventBus {
       Error,
       `agent event bus: ${assemblyRunId} already has ${MAX_SUBSCRIBERS_PER_RUN} subscribers`,
     );
-    const subscriber: Subscriber = {
-      handler,
-      onOverflow,
-      buffer: [],
-      buffered: 0,
-      draining: false,
-    };
+    const subscriber = newSubscriber(handler, onOverflow);
 
     subscribers.add(subscriber);
     this.runs.set(assemblyRunId, subscribers);
@@ -118,7 +119,10 @@ export class AgentEventBus {
 
       return;
     }
+    this.drainUnlessDraining(subscriber);
+  }
 
+  private drainUnlessDraining(subscriber: Subscriber): void {
     if (subscriber.draining) {
       return;
     }
