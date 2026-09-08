@@ -19,7 +19,7 @@
     "dompurify": "^3.4.15",
     "highlight.js": "^11.12.0",
     "mermaid": "^11.17.2",
-    "next": "^15.5.25",
+    "next": "^16.3.4",
     "next-auth": "^4.24.15",
     "octokit": "^5.0.5",
     "react": "^19.2.8",
@@ -42,7 +42,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "jsdom": "^29.1.1",
     "sass": "^1.104.0",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
 }

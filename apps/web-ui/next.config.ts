@@ -4,8 +4,8 @@ import path from "node:path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // Sass can't see the "@/" TS alias; src/ on the load path lets `@use "styles/tokens"` skip the ../ hops.
-  sassOptions: { includePaths: [path.join(process.cwd(), "src")] },
+  // Sass can't see the "@/" TS alias; src/ on the load path lets `@use "styles/tokens"` skip the ../ hops. Turbopack reads the modern API's loadPaths, not the legacy includePaths.
+  sassOptions: { loadPaths: [path.join(process.cwd(), "src")] },
   serverExternalPackages: [
     "@google-cloud/storage",
     "octokit",
