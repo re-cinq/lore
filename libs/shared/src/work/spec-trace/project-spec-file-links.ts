@@ -163,7 +163,8 @@ async function readLinkTargets(
     const res = await txn.queryWithVars(linkTargetsQuery(predicates), {
       $uid: ownerUid,
     });
-    const node = (res.data.node?.[0] ?? {}) as {
+    const { node: nodes } = res.data;
+    const node = (nodes?.[0] ?? {}) as {
       validated?: { uid: string }[];
       implemented?: { uid: string }[];
     };

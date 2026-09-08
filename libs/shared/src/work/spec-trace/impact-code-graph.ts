@@ -112,7 +112,10 @@ function coverageOverlaps(
   cov: GraphCoverage,
   ranges: [number, number][],
 ): boolean {
-  const covered = parseRanges(cov.file?.[0]?.["file|ranges"] ?? "");
+  const coveredFiles = cov.file ?? [];
+  const covered = parseRanges(
+    coveredFiles.length === 0 ? "" : (coveredFiles[0]["file|ranges"] ?? ""),
+  );
 
   return covered.some(([cs, ce]) =>
     ranges.some(([s, e]) => intervalsOverlap(cs, ce, s, e)),

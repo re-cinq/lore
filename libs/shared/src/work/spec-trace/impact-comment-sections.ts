@@ -6,8 +6,11 @@ import { summarizeStatement, windowRewrite } from "./impact-render.js";
 /** Rows shown before the rest is folded away — a wall of them reads as noise. */
 export const MAX_ROWS = 10;
 
-const testCellFor = (s: ImpactStatement) =>
-  s.tests[0] ? `${s.tests[0].file}:${s.tests[0].line}` : "—";
+function testCellFor(s: ImpactStatement): string {
+  const { tests } = s;
+
+  return tests.length === 0 ? "—" : `${tests[0].file}:${tests[0].line}`;
+}
 
 /** Collapses findings that would render identically — #1077 showed the same test/file pair four times. */
 export function dedupeRows(statements: ImpactStatement[]): ImpactStatement[] {

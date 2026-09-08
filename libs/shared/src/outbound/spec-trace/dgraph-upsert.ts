@@ -66,8 +66,11 @@ export async function withTxn<T>(
 
 /** Extracts the assigned uid of a blank node from a commitNow mutation result. */
 export function newUid(mutateResult: unknown, label: string): string {
-  return (mutateResult as { data?: { uids?: Record<string, string> } }).data
-    ?.uids?.[label] as string;
+  const { data: assigned } = mutateResult as {
+    data?: { uids?: Record<string, string> };
+  };
+
+  return assigned?.uids?.[label] as string;
 }
 
 /** Dgraph corrupts empty-string scalars sent via JSON `set` (stored as literal `"[]"`); they round-trip correctly only via N-Quads, so split them out for a dedicated N-Quads write. */
