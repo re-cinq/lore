@@ -1,6 +1,6 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 
-/** Ensures repo's GitHub webhook points to Floor ingress with HMAC secret (best-effort, never throws). */
+/** Ensures the repo's GitHub webhook points at the event-router front door (ADR-044) with the HMAC secret (best-effort, never throws). */
 
 import { ensureRepoWebhook } from "./webhook-manage.js";
 import { REQUIRED_EVENTS } from "./webhook-status.js";
@@ -11,11 +11,11 @@ export type WebhookSkipReason =
   | "app_no_webhook_permission"
   | "ensure_failed";
 
-export type EnsureFloorWebhookResult =
+export type EnsureLoreWebhookResult =
   | { ok: true; hookId: number; created: boolean }
   | { ok: false; reason: WebhookSkipReason; detail?: string };
 
-function classifyEnsureFailure(err: unknown): EnsureFloorWebhookResult {
+function classifyEnsureFailure(err: unknown): EnsureLoreWebhookResult {
   if ((err as { status?: number }).status === 403) {
     return { ok: false, reason: "app_no_webhook_permission" };
   }
@@ -27,9 +27,9 @@ function classifyEnsureFailure(err: unknown): EnsureFloorWebhookResult {
   };
 }
 
-export async function ensureFloorWebhook(
+export async function ensureLoreWebhook(
   repo: string,
-): Promise<EnsureFloorWebhookResult> {
+): Promise<EnsureLoreWebhookResult> {
   const url = process.env.LORE_WEBHOOK_URL || "";
   const secret = process.env.LORE_WEBHOOK_SECRET || "";
 

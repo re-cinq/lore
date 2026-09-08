@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Pool } from "pg";
 
 vi.mock("../webhook/webhook-ensure.js", () => ({
-  ensureFloorWebhook: vi.fn(),
+  ensureLoreWebhook: vi.fn(),
 }));
 vi.mock("@re-cinq/lore-shared", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@re-cinq/lore-shared")>()),
@@ -12,7 +12,7 @@ vi.mock("../../outbound/github-client.js", () => ({
   getOctokit: vi.fn(),
 }));
 
-import { ensureFloorWebhook } from "../webhook/webhook-ensure.js";
+import { ensureLoreWebhook } from "../webhook/webhook-ensure.js";
 import { createPipelineTask } from "@re-cinq/lore-shared";
 import { getOctokit } from "../../outbound/github-client.js";
 import { onboardRepo, fetchRepoContext } from "./repo-onboard.js";
@@ -64,7 +64,7 @@ beforeEach(() => {
 
 describe("onboardRepo", () => {
   it("ensures the Floor webhook for the onboarded repo and returns its outcome", async () => {
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: true,
       hookId: 7,
       created: true,
@@ -72,7 +72,7 @@ describe("onboardRepo", () => {
     const { pool } = poolWith({ repoId: "repo-1" });
     const result = await onboardRepo(pool, "o/r");
 
-    expect(ensureFloorWebhook).toHaveBeenCalledWith("o/r");
+    expect(ensureLoreWebhook).toHaveBeenCalledWith("o/r");
     expect(result).toMatchObject({
       repo_id: "repo-1",
       task_id: "task-1",
@@ -81,7 +81,7 @@ describe("onboardRepo", () => {
   });
 
   it("still completes onboarding when the webhook ensure is skipped", async () => {
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: false,
       reason: "app_no_webhook_permission",
     });
@@ -96,7 +96,7 @@ describe("onboardRepo", () => {
   });
 
   it("takes the per-repo advisory lock before reading the guard state", async () => {
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: true,
       hookId: 1,
       created: true,
@@ -117,7 +117,7 @@ describe("onboardRepo", () => {
   });
 
   it("commits the task and the repos row on the one locked connection", async () => {
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: true,
       hookId: 1,
       created: true,
@@ -132,7 +132,7 @@ describe("onboardRepo", () => {
   });
 
   it("sends a described task instead of the bare repo name", async () => {
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: true,
       hookId: 1,
       created: true,
@@ -159,7 +159,7 @@ describe("onboardRepo", () => {
 
     expect(sqlIssued(query)).toContain("ROLLBACK");
     expect(sqlIssued(query)).not.toContain("COMMIT");
-    expect(ensureFloorWebhook).not.toHaveBeenCalled();
+    expect(ensureLoreWebhook).not.toHaveBeenCalled();
   });
 
   it("blocks an already-onboarded repo without creating a task", async () => {
@@ -170,7 +170,7 @@ describe("onboardRepo", () => {
 
     expect(result).toMatchObject({ blocked: "already-onboarded" });
     expect(createPipelineTask).not.toHaveBeenCalled();
-    expect(ensureFloorWebhook).not.toHaveBeenCalled();
+    expect(ensureLoreWebhook).not.toHaveBeenCalled();
   });
 
   it("blocks a repo with an onboard task in flight and names that task", async () => {
@@ -217,7 +217,7 @@ describe("onboardRepo", () => {
   });
 
   it("creates a task for an onboarded repo when reonboard is requested", async () => {
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: true,
       hookId: 1,
       created: true,

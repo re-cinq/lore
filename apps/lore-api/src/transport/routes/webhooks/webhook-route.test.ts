@@ -11,13 +11,13 @@ vi.mock("../../../work/webhook/webhook-manage.js", () => ({
   listRepoWebhooks: vi.fn(),
 }));
 vi.mock("../../../work/webhook/webhook-ensure.js", () => ({
-  ensureFloorWebhook: vi.fn(),
+  ensureLoreWebhook: vi.fn(),
 }));
 
 import { listRepoWebhooks } from "../../../work/webhook/webhook-manage.js";
-import { ensureFloorWebhook } from "../../../work/webhook/webhook-ensure.js";
+import { ensureLoreWebhook } from "../../../work/webhook/webhook-ensure.js";
 
-const URL = "https://lore-webhook.gcp.re-cinq.com/api/webhook/github";
+const URL = "https://lore-events.gcp.re-cinq.com/api/events";
 const originalEnv = { ...process.env };
 
 const goodHook = {
@@ -99,7 +99,7 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
 
   it("maps a secret_not_configured skip to 503", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: false,
       reason: "secret_not_configured",
     });
@@ -110,7 +110,7 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
 
   it("maps an app_no_webhook_permission skip to 403", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: false,
       reason: "app_no_webhook_permission",
     });
@@ -121,7 +121,7 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
 
   it("ensures the hook then returns the fresh status", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: true,
       hookId: 7,
       created: false,
@@ -129,13 +129,13 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
     vi.mocked(listRepoWebhooks).mockResolvedValue([goodHook] as any);
     const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
 
-    expect(ensureFloorWebhook).toHaveBeenCalledWith("o/r");
+    expect(ensureLoreWebhook).toHaveBeenCalledWith("o/r");
     expect(res.result).toMatchObject({ state: "configured" });
   });
 
   it("maps a webhook_host_not_configured skip to 503", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: false,
       reason: "webhook_host_not_configured",
     });
@@ -147,7 +147,7 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
 
   it("maps an unmapped skip reason to 500 with its detail", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: false,
       reason: "ensure_failed",
       detail: "octokit exploded",
@@ -160,7 +160,7 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
 
   it("maps an unmapped skip reason with no detail to a generic 500 message", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: false,
       reason: "ensure_failed",
     });
@@ -172,7 +172,7 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
 
   it("returns 500 when the post-ensure webhook listing throws", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: true,
       hookId: 7,
       created: false,
@@ -186,7 +186,7 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
 
   it("falls back to String(err) when the post-ensure listing throws an empty-message Error", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
       ok: true,
       hookId: 7,
       created: false,
