@@ -146,43 +146,68 @@ async function rankedHits(
   );
 }
 
+/** The search scope, or null when a named pool was requested that does not exist. */
+async function resolveScope(
+  pool: PgPool,
+  agent: string | null,
+  { poolName, includeInvalidated }: ResolvedSearchOptions,
+): Promise<SearchScope | null> {
+  const poolId = await resolvePoolId(pool, poolName);
+
+  return poolNotFound(poolName, poolId)
+    ? null
+    : { agent, poolId, includeInvalidated };
+}
+
+/** The ranked legs, optionally widened by 1-hop graph neighbors. */
+async function scopedResults(
+  pool: PgPool,
+  query: string,
+  scope: SearchScope,
+  { limit, graphAugmentEnabled }: ResolvedSearchOptions,
+): Promise<MemorySearchResult[]> {
+  const ranked = await rankedHits(pool, query, scope, limit);
+
+  return applyGraphAugment(pool, ranked, limit, graphAugmentEnabled);
+}
+
+/** Strengthen what was retrieved, audit the search, and hand the results back unchanged. */
+async function finishSearch(
+  pool: PgPool,
+  results: MemorySearchResult[],
+  audit: Omit<SearchAudit, "resultCount">,
+): Promise<MemorySearchResult[]> {
+  // Fire-and-forget retrieval strengthening
+  strengthenRetrievals(pool, results).catch(() => {});
+  await auditLog(pool, { ...audit, resultCount: results.length });
+
+  return results;
+}
+
 export async function searchMemories(
   pool: PgPool,
   query: string,
   options: MemorySearchOptions = {},
 ): Promise<MemorySearchResult[]> {
-  const { agentId, poolName, limit, includeInvalidated, graphAugmentEnabled } =
-    resolveSearchOptions(options);
-  // eslint-disable-next-line re-lint/declare-near-use -- must capture the clock BEFORE the work it times; moving it down would shorten the reported latency
+  const resolved = resolveSearchOptions(options);
+  // Captures the clock BEFORE the work it times; moving it down would shorten the reported latency.
   const searchStartTime = Date.now();
-  const agent = agentId ? resolveAgentId(agentId) : null;
-  const poolId = await resolvePoolId(pool, poolName);
+  const agent = resolved.agentId ? resolveAgentId(resolved.agentId) : null;
+  const scope = await resolveScope(pool, agent, resolved);
 
-  if (poolNotFound(poolName, poolId)) {
+  if (!scope) {
     // Pool does not exist — return empty
     await auditLog(pool, { agentId: agent, query, resultCount: 0 });
 
     return [];
   }
-  const scope: SearchScope = { agent, poolId, includeInvalidated };
+  const results = await scopedResults(pool, query, scope, resolved);
 
-  let results = await rankedHits(pool, query, scope, limit);
-
-  results = await applyGraphAugment(pool, results, limit, graphAugmentEnabled);
-
-  // Fire-and-forget retrieval strengthening
-  strengthenRetrievals(pool, results).catch(() => {});
-
-  const latencyMs = Date.now() - searchStartTime;
-
-  await auditLog(pool, {
+  return finishSearch(pool, results, {
     agentId: agent,
     query,
-    resultCount: results.length,
-    latencyMs,
+    latencyMs: Date.now() - searchStartTime,
   });
-
-  return results;
 }
 
 // ── Retrieval strengthening ─────────────────────────────────────────
@@ -249,24 +274,25 @@ interface SearchAudit {
   latencyMs?: number;
 }
 
+const SEARCH_AUDIT_SQL = `INSERT INTO memory.audit_log (agent_id, operation, memory_key, metadata)
+       VALUES ($1, $2, NULL, $3)`;
+
 async function auditLog(
   pool: PgPool,
   { agentId, query, resultCount, latencyMs }: SearchAudit,
 ): Promise<void> {
+  const metadata = JSON.stringify({
+    query,
+    result_count: resultCount,
+    latency_ms: latencyMs,
+  });
+
   try {
-    await pool.query(
-      `INSERT INTO memory.audit_log (agent_id, operation, memory_key, metadata)
-       VALUES ($1, $2, NULL, $3)`,
-      [
-        agentId || "anonymous",
-        "search",
-        JSON.stringify({
-          query,
-          result_count: resultCount,
-          latency_ms: latencyMs,
-        }),
-      ],
-    );
+    await pool.query(SEARCH_AUDIT_SQL, [
+      agentId || "anonymous",
+      "search",
+      metadata,
+    ]);
   } catch {
     // Audit failures must never block search operations
   }

@@ -87,8 +87,21 @@ async function registerStoredPorts(
   ports: Map<string, unknown>,
   { pgPool, dgraphClient, providers }: StoredPortDeps,
 ): Promise<void> {
-  // Imported together rather than one before each `set`: they are loaded lazily to keep the lean MCP install free of pg/dgraph, and that laziness is about the MODULE graph, not the order the ports go into the map.
-  const [bridge, store, tasks, chunks, runs, trace] = await Promise.all([
+  const [bridge, store, tasks, chunks, runs, trace] = await storedModules();
+  const memory = store.selectMemoryStore({ pgPool, dgraph: dgraphClient });
+
+  ports.set("memory", new bridge.MemoryStoreBridge(memory));
+  ports.set("tasks", new tasks.PgTaskStore(pgPool));
+  ports.set("chunks", new chunks.PgChunks(pgPool));
+  ports.set("trace", new trace.DgraphTrace(dgraphClient));
+  registerPipelinePorts(ports, providers.pipeline, {
+    assemblyRuns: new runs.PgAssemblyRuns(pgPool),
+  });
+}
+
+/** Imported together rather than one before each `set`: they are loaded lazily to keep the lean MCP install free of pg/dgraph, and that laziness is about the MODULE graph, not the order the ports go into the map. */
+function storedModules() {
+  return Promise.all([
     import("../memory/memory-store-bridge.js"),
     import("../../memory-store.js"),
     import("../tasks/task-store-pg.js"),
@@ -96,19 +109,6 @@ async function registerStoredPorts(
     import("../assembly-runs/assembly-runs-pg.js"),
     import("../trace/trace-dgraph.js"),
   ]);
-
-  ports.set(
-    "memory",
-    new bridge.MemoryStoreBridge(
-      store.selectMemoryStore({ pgPool, dgraph: dgraphClient }),
-    ),
-  );
-  ports.set("tasks", new tasks.PgTaskStore(pgPool));
-  ports.set("chunks", new chunks.PgChunks(pgPool));
-  ports.set("trace", new trace.DgraphTrace(dgraphClient));
-  registerPipelinePorts(ports, providers.pipeline, {
-    assemblyRuns: new runs.PgAssemblyRuns(pgPool),
-  });
 }
 
 /** The org-wide `pipeline.*` adapters. A caller that already built the bundle passes it in so every repo shares those adapters; the per-repo defaults keep tests and bootstrap callers working as before. */
@@ -146,14 +146,8 @@ async function registerOutsidePorts(
   { pgPool, env, providers }: OutsidePortDeps,
 ): Promise<void> {
   const github = await gitHubPort(env);
-  const [settings, notify, knowledge, git, tests, agents] = await Promise.all([
-    import("../settings/settings-pg.js"),
-    import("../notify/notify-slack.js"),
-    import("../knowledge/knowledge-pg.js"),
-    import("../workspace/git-cli.js"),
-    import("../test-runner/test-runner-exec.js"),
-    import("../agents/agent-runner.js"),
-  ]);
+  const [settings, notify, knowledge, git, tests, agents] =
+    await outsideModules();
 
   ports.set("github", github);
   ports.set("pulls", github);
@@ -162,15 +156,23 @@ async function registerOutsidePorts(
   ports.set("knowledge", new knowledge.PgKnowledge(pgPool));
   ports.set("git", new git.GitCli(env));
   ports.set("tests", new tests.ExecTestRunner());
-  ports.set(
-    "agentRunner",
-    new agents.AgentRunner(env, {
-      station: providers.station,
-      llm: providers.llm,
-    }),
-  );
+  const runnerDeps = { station: providers.station, llm: providers.llm };
+
+  ports.set("agentRunner", new agents.AgentRunner(env, runnerDeps));
 
   await registerLedgerPorts(ports, { pgPool, env, providers });
+}
+
+/** The adapters that reach outside the process, imported lazily for the same reason the stored ones are. */
+function outsideModules() {
+  return Promise.all([
+    import("../settings/settings-pg.js"),
+    import("../notify/notify-slack.js"),
+    import("../knowledge/knowledge-pg.js"),
+    import("../workspace/git-cli.js"),
+    import("../test-runner/test-runner-exec.js"),
+    import("../agents/agent-runner.js"),
+  ]);
 }
 
 /** What the platform records about itself: who ran, what it cost, what it audited, which features it is tracking. */
@@ -178,11 +180,7 @@ async function registerLedgerPorts(
   ports: Map<string, unknown>,
   { pgPool, env, providers }: OutsidePortDeps,
 ): Promise<void> {
-  const [audit, usage, features] = await Promise.all([
-    import("../audit/audit-pg.js"),
-    import("../usage/usage-pg.js"),
-    import("../features/features-pg.js"),
-  ]);
+  const [audit, usage, features] = await ledgerModules();
 
   ports.set("agentDefs", await agentDefsForEnv(env, pgPool));
   ports.set(
@@ -195,6 +193,15 @@ async function registerLedgerPorts(
   );
   ports.set("usage", new usage.PgUsage(pgPool));
   ports.set("features", new features.PgFeatures(pgPool));
+}
+
+/** The self-record adapters, imported lazily for the same reason the stored ones are. */
+function ledgerModules() {
+  return Promise.all([
+    import("../audit/audit-pg.js"),
+    import("../usage/usage-pg.js"),
+    import("../features/features-pg.js"),
+  ]);
 }
 
 export async function createProject(

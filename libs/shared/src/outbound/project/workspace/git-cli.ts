@@ -49,22 +49,24 @@ export class GitCli implements GitPort {
     commit?: string,
   ): Promise<void> {
     if (branch) {
-      const current = this.git(
-        ["rev-parse", "--abbrev-ref", "HEAD"],
-        dir,
-      ).trim();
-
-      enforceTrue(
-        !(current !== branch && this.isDirty(dir)),
-        Error,
-        `refusing to switch ${dir} to ${branch}: the working tree has uncommitted changes`,
-      );
-      this.git(["checkout", branch], dir);
+      this.checkoutBranch(dir, branch);
     }
 
     if (commit) {
       this.git(["reset", "--hard", commit], dir);
     }
+  }
+
+  /** Switches branches only when the tree is clean — a dirty switch would drag uncommitted edits onto the target branch. */
+  private checkoutBranch(dir: string, branch: string): void {
+    const current = this.git(["rev-parse", "--abbrev-ref", "HEAD"], dir).trim();
+
+    enforceTrue(
+      !(current !== branch && this.isDirty(dir)),
+      Error,
+      `refusing to switch ${dir} to ${branch}: the working tree has uncommitted changes`,
+    );
+    this.git(["checkout", branch], dir);
   }
 
   private isDirty(dir: string): boolean {

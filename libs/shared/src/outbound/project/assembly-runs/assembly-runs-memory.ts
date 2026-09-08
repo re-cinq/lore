@@ -8,6 +8,11 @@ import {
   type SeedAssemblyLineNode,
 } from "./assembly-runs-memory-station-runs.js";
 import { AssemblyRunQueryStore } from "./assembly-runs-memory-queries.js";
+import {
+  inheritFromSource,
+  newRunLifecycle,
+  resumeRefs,
+} from "./assembly-runs-memory-rows.js";
 import type {
   AssemblyRunQuery,
   AssemblyRunsPort,
@@ -29,43 +34,6 @@ export interface SeedAssemblyLineEvent {
   source: string;
   params: Record<string, unknown>;
   dedupeKey: string;
-}
-
-/** Fork's subjectKey prefers the caller's override, falling back to source's. */
-function inheritedSubjectKey(
-  input: AssemblyRunStartInput,
-  source: AssemblyRunRecord,
-): string | undefined {
-  return input.subjectKey ?? source.subjectKey ?? undefined;
-}
-
-/** Fork inherits branch/taskId/subject (+args unless overridden) from source — the subject rides along because a fork re-runs the same work and must hold its source's guard (legal only from a terminal run). */
-function inheritFromSource(
-  input: AssemblyRunStartInput,
-  source: AssemblyRunRecord | null,
-): AssemblyRunStartInput {
-  if (!source) {
-    return input;
-  }
-
-  return {
-    ...input,
-    branch: source.branch ?? undefined,
-    taskId: source.taskId ?? undefined,
-    subjectKey: inheritedSubjectKey(input, source),
-    args: input.args ?? source.args,
-  };
-}
-
-/** Extracted from newRow so its many `??` defaults don't inflate that function's complexity. */
-function resumeRefs(input: AssemblyRunStartInput): {
-  resumedFromRunId: string | null;
-  resumedFromNodeId: string | null;
-} {
-  return {
-    resumedFromRunId: input.resumeFrom?.lineId ?? null,
-    resumedFromNodeId: input.resumeFrom?.nodeId ?? null,
-  };
 }
 
 /** In-memory AssemblyRunsPort — the behavioral spec of the Pg adapter; clock is injectable for deterministic ordering in tests. */
@@ -344,16 +312,8 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       branch: input.branch ?? null,
       subjectKey: input.subjectKey ?? null,
       args: input.args ?? {},
-      graph: null,
-      status: "queued",
-      outcome: null,
-      reason: null,
-      blueprintHash: null,
+      ...newRunLifecycle(this.clock()),
       ...resumeRefs(input),
-      inheritedNodeCount: 0,
-      createdAt: this.clock(),
-      startedAt: null,
-      finishedAt: null,
     };
   }
 

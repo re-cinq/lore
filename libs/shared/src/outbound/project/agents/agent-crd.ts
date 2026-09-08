@@ -287,6 +287,19 @@ function agentContainer(
   };
 }
 
+function stationTemplate(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+  isStation: boolean,
+) {
+  return {
+    ...templateLabels(def),
+    spec: {
+      containers: [agentContainer(def, opts, isStation)],
+    },
+  };
+}
+
 function stationCrd(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
@@ -300,12 +313,7 @@ function stationCrd(
     spec: {
       agentDefRef: name,
       deadlineMinutes: def.timeout_minutes ?? (isStation ? 15 : 30),
-      template: {
-        ...templateLabels(def),
-        spec: {
-          containers: [agentContainer(def, opts, isStation)],
-        },
-      },
+      template: stationTemplate(def, opts, isStation),
     },
   };
 }

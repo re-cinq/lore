@@ -14,6 +14,20 @@ export interface ParkedNode {
 /** A line that can still be resumed. A terminal line's node rows are history. */
 const OPEN_STATUSES = new Set(["running", "queued"]);
 
+/** The newest row still open (no outcome) that `matches`, or null. A revisit mints a new row, so an older open one has already been passed by the walk. */
+function newestOpen(
+  nodes: readonly ParkedNode[],
+  matches: (node: ParkedNode) => boolean,
+): ParkedNode | null {
+  return (
+    [...nodes].reverse().find((n) => matches(n) && n.outcome === null) ?? null
+  );
+}
+
+function nodeIdsOfType(graph: RunGraph, type: string): Set<string> {
+  return new Set(graph.nodes.filter((n) => n.type === type).map((n) => n.id));
+}
+
 /** The row nodeId is currently parked on, or null. "Parked" = a row for that node with no outcome yet; the newest such row wins, since a revisit mints a new row and an older open one has already been passed by the walk. */
 export function parkedNode(
   status: string | null,
@@ -24,11 +38,7 @@ export function parkedNode(
     return null;
   }
 
-  return (
-    [...nodes]
-      .reverse()
-      .find((n) => n.nodeId === nodeId && n.outcome === null) ?? null
-  );
+  return newestOpen(nodes, (n) => n.nodeId === nodeId);
 }
 
 /** The row parked on a human station of the given type, or null. Joins on TYPE from the run's own graph, not a hardcoded node id — an id constant is the fragile key that killed the pr_merged join (FR6.32). fallbackNodeId serves pre-clone runs (graph null); delete it with the other pre-clone fallbacks. */
@@ -51,15 +61,9 @@ export function parkedHumanNode(
   if (!status || !OPEN_STATUSES.has(status)) {
     return null;
   }
-  const typedIds = new Set(
-    graph.nodes.filter((n) => n.type === humanType).map((n) => n.id),
-  );
+  const typedIds = nodeIdsOfType(graph, humanType);
 
-  return (
-    [...nodes]
-      .reverse()
-      .find((n) => typedIds.has(n.nodeId) && n.outcome === null) ?? null
-  );
+  return newestOpen(nodes, (n) => typedIds.has(n.nodeId));
 }
 
 /** Where to report, and what the walk should do next. */

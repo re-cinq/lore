@@ -133,35 +133,43 @@ export class EventProxy implements EventReporter {
     }
   }
 
+  /** Reacts to one failed attempt — reauth, then either back off or give up; `drop` means the caller stops retrying. */
+  private async afterFailure(
+    message: ProxyMessage,
+    failure: { error: unknown; attempt: number },
+  ): Promise<"drop" | "retry"> {
+    const { attempts, delayMs } = this.deps.retry;
+    const step = nextDeliveryStep({ ...failure, attempts, delayMs });
+
+    if (step.reauth) {
+      await this.deps.onUnauthorized?.();
+    }
+
+    if (step.next.kind === "drop") {
+      this.log(
+        `[events] dropped ${describe(message)} after ${attempts} attempts: ${(failure.error as Error).message}`,
+      );
+
+      return "drop";
+    }
+    await this.sleep(step.next.delayMs);
+
+    return "retry";
+  }
+
   /** One message through the whole ladder; never throws — the queued path has nobody to return a failure to. */
   private async deliver(message: ProxyMessage): Promise<void> {
-    const { attempts, delayMs } = this.deps.retry;
-
-    for (let attempt = 1; attempt <= attempts; attempt++) {
+    for (let attempt = 1; attempt <= this.deps.retry.attempts; attempt++) {
       try {
         await this.deps.sinks[message.kind].deliver(message);
 
         return;
-      } catch (err) {
-        const step = nextDeliveryStep({
-          error: err,
-          attempt,
-          attempts,
-          delayMs,
-        });
+      } catch (error) {
+        const outcome = await this.afterFailure(message, { error, attempt });
 
-        if (step.reauth) {
-          await this.deps.onUnauthorized?.();
-        }
-
-        if (step.next.kind === "drop") {
-          this.log(
-            `[events] dropped ${describe(message)} after ${attempts} attempts: ${(err as Error).message}`,
-          );
-
+        if (outcome === "drop") {
           return;
         }
-        await this.sleep(step.next.delayMs);
       }
     }
   }

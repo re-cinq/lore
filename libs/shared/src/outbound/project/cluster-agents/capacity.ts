@@ -48,7 +48,15 @@ export function capacityFor(
       reason: `no registered cluster-agent offers ${tags}`,
     };
   }
-  // Predicts who WILL take the work: reaper's offline agents don't count even if claimed later.
+
+  return verdictAmongProviders(providers, tags);
+}
+
+/** Predicts who WILL take the work: reaper's offline agents don't count even if claimed later. */
+function verdictAmongProviders(
+  providers: ClusterAgent[],
+  tags: string,
+): CapacityVerdict {
   const available = providers.filter(
     (agent) => mayClaim(agent) && agent.status === "active",
   );

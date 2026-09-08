@@ -15,6 +15,55 @@ import {
   type CreateFeatureInput,
 } from "./features-port.js";
 
+const INSERT_FEATURE_SQL = `INSERT INTO lore.features
+         (repo, title, slug, path, original_prompt, status, parent_feature_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7)
+       RETURNING *`;
+
+const INSERT_ITERATION_SQL = `INSERT INTO lore.feature_iterations
+         (feature_id, iteration, status, user_answers, parent_iteration)
+       VALUES ($1, $2, 'running', $3, $4)
+       RETURNING *`;
+
+/** The seven feature-insert binds, in statement order. */
+function insertFeatureParams(
+  repo: string,
+  input: CreateFeatureInput,
+  slug: string,
+  parentFeatureId: string | null,
+): unknown[] {
+  return [
+    repo,
+    input.title,
+    slug,
+    `specs/${slug}`,
+    input.prompt,
+    parentFeatureId,
+    input.createdBy ?? "ui",
+  ];
+}
+
+/** The SET clause and its binds for a status transition; only patch fields actually present are written, so an absent field keeps its stored value. */
+function statusUpdate(
+  status: FeatureStatus,
+  patch: FeaturePatch | undefined,
+): { sets: string[]; params: unknown[] } {
+  const sets = ["status = $1"];
+  const params: unknown[] = [status];
+
+  for (const col of PATCH_COLUMNS) {
+    const value = patch?.[col];
+
+    if (value !== undefined) {
+      params.push(value);
+      sets.push(`${col} = $${params.length}`);
+    }
+  }
+  sets.push("updated_at = now()");
+
+  return { sets, params };
+}
+
 /** Postgres-backed FeaturesPort: JSONB columns pre-parsed by node-pg. */
 export class PgFeatures implements FeaturesPort {
   constructor(private readonly pool: PgPool) {}
@@ -26,19 +75,8 @@ export class PgFeatures implements FeaturesPort {
   ): Promise<Feature> {
     const slug = slugifyFeatureTitle(input.title);
     const { rows } = await this.pool.query<Feature>(
-      `INSERT INTO lore.features
-         (repo, title, slug, path, original_prompt, status, parent_feature_id, created_by)
-       VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7)
-       RETURNING *`,
-      [
-        repo,
-        input.title,
-        slug,
-        `specs/${slug}`,
-        input.prompt,
-        parentFeatureId,
-        input.createdBy ?? "ui",
-      ],
+      INSERT_FEATURE_SQL,
+      insertFeatureParams(repo, input, slug, parentFeatureId),
     );
 
     return rows[0] as Feature;
@@ -121,10 +159,7 @@ export class PgFeatures implements FeaturesPort {
   ): Promise<FeatureIteration> {
     const iteration = await this.bumpIteration(repo, id);
     const { rows: inserted } = await this.pool.query<FeatureIteration>(
-      `INSERT INTO lore.feature_iterations
-         (feature_id, iteration, status, user_answers, parent_iteration)
-       VALUES ($1, $2, 'running', $3, $4)
-       RETURNING *`,
+      INSERT_ITERATION_SQL,
       [
         id,
         iteration,
@@ -173,18 +208,8 @@ export class PgFeatures implements FeaturesPort {
     status: FeatureStatus,
     patch?: FeaturePatch,
   ): Promise<Feature> {
-    const sets = ["status = $1"];
-    const params: unknown[] = [status];
+    const { sets, params } = statusUpdate(status, patch);
 
-    for (const col of PATCH_COLUMNS) {
-      const value = patch?.[col];
-
-      if (value !== undefined) {
-        params.push(value);
-        sets.push(`${col} = $${params.length}`);
-      }
-    }
-    sets.push("updated_at = now()");
     params.push(id, repo);
     const { rows } = await this.pool.query<Feature>(
       `UPDATE lore.features SET ${sets.join(", ")}

@@ -96,6 +96,44 @@ function normalizeLlmCallDefaults(
   };
 }
 
+/** The three foreign keys the Pg insert derives through joins. */
+interface LlmCallCorrelation {
+  taskId: string | null;
+  assemblyLineId: string | null;
+  stationRunId: string | null;
+}
+
+/** The three correlation keys under the column names the row stores them as. */
+function correlationColumns(correlation: LlmCallCorrelation) {
+  return {
+    task_id: correlation.taskId,
+    assembly_line_id: correlation.assemblyLineId,
+    station_run_id: correlation.stationRunId,
+  };
+}
+
+/** The stored row, with the defaults the Pg insert applies through COALESCE. */
+function toStoredCall(
+  record: LlmCallRecord,
+  correlation: LlmCallCorrelation,
+  createdAt: Date,
+): StoredLlmCall {
+  const defaults = normalizeLlmCallDefaults(record);
+
+  return {
+    ...correlationColumns(correlation),
+    job_name: defaults.jobName,
+    model: record.model,
+    input_tokens: record.inputTokens,
+    output_tokens: record.outputTokens,
+    cost_usd: defaults.costUsd,
+    duration_ms: record.durationMs,
+    status: defaults.status,
+    error: defaults.error,
+    created_at: createdAt,
+  };
+}
+
 /** In-memory {@link UsagePort}: the behavioral spec of the Pg adapter; uncorrelated rows are kept, not rejected (#945). */
 export class InMemoryUsage implements UsagePort {
   readonly rows: StoredLlmCall[] = [];
@@ -122,6 +160,18 @@ export class InMemoryUsage implements UsagePort {
 
   // Not modeled: Pg casts the given id with `::uuid`, erroring on a non-uuid string rather than storing uncorrelated — seed valid uuids.
   async logLlmCall(record: LlmCallRecord): Promise<LlmCallResult> {
+    const correlation = this.correlate(record);
+
+    this.rows.push(toStoredCall(record, correlation, this.now()));
+
+    return {
+      correlated:
+        correlation.taskId !== null || correlation.assemblyLineId !== null,
+    };
+  }
+
+  /** Resolves the row's foreign keys against the seeded tasks, runs, and nodes. */
+  private correlate(record: LlmCallRecord): LlmCallCorrelation {
     const given = record.taskId ?? null;
     const taskId = resolveTaskId(given, this.taskIds);
     const node = findMatchingNode(this.nodes, record.agentCrName);
@@ -130,26 +180,12 @@ export class InMemoryUsage implements UsagePort {
       given,
       this.assemblyLineIds,
     );
-    const assemblyLineId = resolveAssemblyLineId(record, node, lineFromGiven);
-    const stationRunId = resolveStationRunId(record, node);
-    const defaults = normalizeLlmCallDefaults(record);
 
-    this.rows.push({
-      task_id: taskId,
-      assembly_line_id: assemblyLineId,
-      station_run_id: stationRunId,
-      job_name: defaults.jobName,
-      model: record.model,
-      input_tokens: record.inputTokens,
-      output_tokens: record.outputTokens,
-      cost_usd: defaults.costUsd,
-      duration_ms: record.durationMs,
-      status: defaults.status,
-      error: defaults.error,
-      created_at: this.now(),
-    });
-
-    return { correlated: taskId !== null || assemblyLineId !== null };
+    return {
+      taskId,
+      assemblyLineId: resolveAssemblyLineId(record, node, lineFromGiven),
+      stationRunId: resolveStationRunId(record, node),
+    };
   }
 
   async processedCounts(): Promise<ProcessedCounts> {

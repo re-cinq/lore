@@ -17,20 +17,23 @@ import type { SourceFetcher } from "./context-assembly-fetchers-types.js";
 
 /** Social/environmental context sources: the live knowledge graph, cross-repo transfer, and production incidents. */
 
+function longQueryWords(query: string): string[] {
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 3);
+}
+
 async function fetchGraph(
   pool: PgPool,
   query: string,
   repo: string | undefined,
 ): Promise<FetchResult> {
   try {
-    const words = query
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((w) => w.length > 3);
     const seen = new Set<string>();
     const sources: SourceItem[] = [];
 
-    for (const word of words.slice(0, 3)) {
+    for (const word of longQueryWords(query).slice(0, 3)) {
       const graphResults = await queryLiveGraph(pool, { entity: word, repo });
 
       addUniqueGraphLines(graphResults, seen, sources);
@@ -92,19 +95,25 @@ function toCrossRepoItem(row: ChunkSearchHit): SourceItem {
   });
 }
 
+async function crossRepoChunks(
+  pool: PgPool,
+  query: string,
+  repo: string,
+): Promise<ChunkSearchHit[]> {
+  const [linkedRepos, schemas] = await Promise.all([
+    linkedReposFor(pool, repo),
+    listChunkSchemas(pool),
+  ]);
+
+  return searchCrossRepoChunks(pool, query, repo, { linkedRepos, schemas });
+}
+
 async function fetchCrossRepo(
   pool: PgPool,
   query: string,
   repo: string,
 ): Promise<FetchResult> {
-  const [linkedRepos, schemas] = await Promise.all([
-    linkedReposFor(pool, repo),
-    listChunkSchemas(pool),
-  ]);
-  const rows = await searchCrossRepoChunks(pool, query, repo, {
-    linkedRepos,
-    schemas,
-  });
+  const rows = await crossRepoChunks(pool, query, repo);
 
   if (rows.length === 0) {
     return { sources: [], status: "empty" };
@@ -125,6 +134,23 @@ function incidentsListFrom(
   return Array.isArray(settings?.incidents) ? settings.incidents : [];
 }
 
+/** Incidents from the last 30 days — older ones no longer describe how the system behaves today. */
+function recentIncidents(incidents: Incident[]): Incident[] {
+  const cutoff = Date.now() - 30 * 86400000;
+
+  return incidents.filter((i) => new Date(i.date).getTime() > cutoff);
+}
+
+function toIncidentItem(incident: Incident): SourceItem {
+  const resolved = incident.resolved ? " (resolved)" : "";
+  const link = incident.url ? ` [link](${incident.url})` : "";
+
+  return mkItem(
+    `- **${incident.severity || "unknown"}**: ${incident.title}${resolved} — ${incident.date}${link}`,
+    { content_type: "incident" },
+  );
+}
+
 async function fetchIncidents(
   pool: PgPool,
   repo: string,
@@ -132,27 +158,13 @@ async function fetchIncidents(
   const { rows } = await pool.query<{
     settings: { incidents?: Incident[] } | null;
   }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
-  const incidents = incidentsListFrom(rows[0]?.settings);
-
-  if (incidents.length === 0) {
-    return { sources: [], status: "empty" };
-  }
-  const cutoff = Date.now() - 30 * 86400000;
-  const recent = incidents.filter((i) => new Date(i.date).getTime() > cutoff);
+  const recent = recentIncidents(incidentsListFrom(rows[0]?.settings));
 
   if (recent.length === 0) {
     return { sources: [], status: "empty" };
   }
 
-  return {
-    sources: recent.map((i) =>
-      mkItem(
-        `- **${i.severity || "unknown"}**: ${i.title}${i.resolved ? " (resolved)" : ""} — ${i.date}${i.url ? ` [link](${i.url})` : ""}`,
-        { content_type: "incident" },
-      ),
-    ),
-    status: "ok",
-  };
+  return { sources: recent.map(toIncidentItem), status: "ok" };
 }
 
 export const socialFetchers: Record<string, SourceFetcher> = {

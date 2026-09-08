@@ -15,7 +15,32 @@ import { DECOMPOSITION_INSTRUCTIONS } from "../../../domain/feature-planning/dec
 
 const READ_ONLY = "agent definitions are read-only without a database";
 
-/** Union of candidate task-types.yaml paths from both loaders; <cwd>/scripts is the mcp-server path. */
+/** The fixed well-known locations, tried after any explicitly configured path; <cwd>/scripts is the mcp-server path. */
+function wellKnownPaths(): string[] {
+  return [
+    resolve("scripts/task-types.yaml"),
+    resolve("task-types.yaml"),
+    resolve("../scripts/task-types.yaml"),
+    "/config/task-types.yaml",
+  ];
+}
+
+/** The env-derived locations, tried last so an explicit path or a checkout beside the process always wins. */
+function envPaths(env: NodeJS.ProcessEnv): string[] {
+  const paths: string[] = [];
+
+  if (env.CONTEXT_PATH) {
+    paths.push(resolve(env.CONTEXT_PATH, "scripts/task-types.yaml"));
+  }
+
+  if (env.HOME) {
+    paths.push(resolve(env.HOME, ".re-cinq/lore/scripts/task-types.yaml"));
+  }
+
+  return paths;
+}
+
+/** Union of candidate task-types.yaml paths from both loaders, in precedence order. */
 function candidatePaths(
   configPath: string | undefined,
   env: NodeJS.ProcessEnv,
@@ -29,22 +54,8 @@ function candidatePaths(
   if (env.TASK_TYPES_PATH) {
     paths.push(resolve(env.TASK_TYPES_PATH));
   }
-  paths.push(
-    resolve("scripts/task-types.yaml"),
-    resolve("task-types.yaml"),
-    resolve("../scripts/task-types.yaml"),
-    "/config/task-types.yaml",
-  );
 
-  if (env.CONTEXT_PATH) {
-    paths.push(resolve(env.CONTEXT_PATH, "scripts/task-types.yaml"));
-  }
-
-  if (env.HOME) {
-    paths.push(resolve(env.HOME, ".re-cinq/lore/scripts/task-types.yaml"));
-  }
-
-  return paths;
+  return [...paths, ...wellKnownPaths(), ...envPaths(env)];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- one raw task-types.yaml entry; shape owned by task-types-config.js

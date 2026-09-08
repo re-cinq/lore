@@ -25,6 +25,31 @@ type FileLeaseRecord = Omit<
   phase?: string;
 };
 
+type AcquireArgs = {
+  branchName: string;
+  taskId: string | null;
+  holder: string;
+  ttlSec: number;
+};
+
+type RefreshArgs = {
+  branchName: string;
+  holder: string;
+  ttlSec: number;
+  phase?: string;
+};
+
+/** The record written when a branch is taken, stamped at `now` so the acquire and its expiry share one clock reading. */
+function newLeaseRecord(args: AcquireArgs, now: number): FileLeaseRecord {
+  return {
+    branch_name: args.branchName,
+    task_id: args.taskId,
+    holder: args.holder,
+    acquired_at: new Date(now).toISOString(),
+    expires_at: new Date(now + args.ttlSec * 1000).toISOString(),
+  };
+}
+
 /** A rejected acquire result when `existing` is still live at `now`, else null so the caller proceeds to take it. */
 function rejectedIfHeld(
   existing: FileLeaseRecord | null,
@@ -72,6 +97,24 @@ export class FileLeaseBackend implements LeaseBackend {
     );
   }
 
+  private async takeLease(
+    span: Span,
+    args: AcquireArgs,
+  ): Promise<AcquireResult> {
+    const existing = await this.readRecord(args.branchName);
+    const now = Date.now();
+    const rejected = rejectedIfHeld(existing, now, span);
+
+    if (rejected) {
+      return rejected;
+    }
+    const tookOverFrom = existing?.holder;
+
+    await this.writeRecord(newLeaseRecord(args, now));
+
+    return acquiredResult(span, tookOverFrom);
+  }
+
   async acquire(
     branchName: string,
     taskId: string | null,
@@ -81,28 +124,27 @@ export class FileLeaseBackend implements LeaseBackend {
     return await leaseSpan(
       "acquire",
       { backend: "file", branchName, taskId: taskId ?? "", holder, ttlSec },
-      async (span) => {
-        const existing = await this.readRecord(branchName);
-        const now = Date.now();
-        const rejected = rejectedIfHeld(existing, now, span);
-
-        if (rejected) {
-          return rejected;
-        }
-
-        const tookOverFrom = existing?.holder;
-
-        await this.writeRecord({
-          branch_name: branchName,
-          task_id: taskId,
-          holder,
-          acquired_at: new Date(now).toISOString(),
-          expires_at: new Date(now + ttlSec * 1000).toISOString(),
-        });
-
-        return acquiredResult(span, tookOverFrom);
-      },
+      async (span) =>
+        await this.takeLease(span, { branchName, taskId, holder, ttlSec }),
     );
+  }
+
+  private async refreshRecord(span: Span, args: RefreshArgs): Promise<boolean> {
+    const existing = await this.readRecord(args.branchName);
+
+    if (!existing || existing.holder !== args.holder) {
+      span.setAttribute("outcome", "not_held");
+
+      return false;
+    }
+    await this.writeRecord({
+      ...existing,
+      expires_at: new Date(Date.now() + args.ttlSec * 1000).toISOString(),
+      ...(args.phase ? { phase: args.phase } : {}),
+    });
+    span.setAttribute("outcome", "refreshed");
+
+    return true;
   }
 
   async refresh(
@@ -114,23 +156,8 @@ export class FileLeaseBackend implements LeaseBackend {
     return await leaseSpan(
       "refresh",
       { backend: "file", branchName, holder, ttlSec, phase },
-      async (span) => {
-        const existing = await this.readRecord(branchName);
-
-        if (!existing || existing.holder !== holder) {
-          span.setAttribute("outcome", "not_held");
-
-          return false;
-        }
-        await this.writeRecord({
-          ...existing,
-          expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-          ...(phase ? { phase } : {}),
-        });
-        span.setAttribute("outcome", "refreshed");
-
-        return true;
-      },
+      async (span) =>
+        await this.refreshRecord(span, { branchName, holder, ttlSec, phase }),
     );
   }
 
@@ -166,30 +193,49 @@ export class FileLeaseBackend implements LeaseBackend {
     }
   }
 
-  async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
-    return await leaseSpan("reap", { backend: "file" }, async (span) => {
-      const entries = await this.listLeaseFiles();
-      const reaped: ExpiredLease[] = [];
+  /** Deletes one lease file when it expired before `cutoff`, returning what was swept, or null when it is still live. */
+  private async reapFile(
+    entry: string,
+    cutoff: Date,
+  ): Promise<ExpiredLease | null> {
+    const rec = await this.readRecord(
+      decodeURIComponent(entry.replace(/\.json$/, "")),
+    );
 
-      for (const entry of entries) {
-        const rec = await this.readRecord(
-          decodeURIComponent(entry.replace(/\.json$/, "")),
-        );
+    if (!rec || new Date(rec.expires_at).getTime() >= cutoff.getTime()) {
+      return null;
+    }
+    await fs.unlink(path.join(this.leasesDir, entry));
 
-        if (!rec || new Date(rec.expires_at).getTime() >= cutoff.getTime()) {
-          continue;
-        }
-        await fs.unlink(path.join(this.leasesDir, entry));
-        reaped.push({
-          branch_name: rec.branch_name,
-          task_id: rec.task_id,
-          holder: rec.holder,
-          expires_at: rec.expires_at,
-        });
+    return {
+      branch_name: rec.branch_name,
+      task_id: rec.task_id,
+      holder: rec.holder,
+      expires_at: rec.expires_at,
+    };
+  }
+
+  private async reapAll(span: Span, cutoff: Date): Promise<ExpiredLease[]> {
+    const entries = await this.listLeaseFiles();
+    const reaped: ExpiredLease[] = [];
+
+    for (const entry of entries) {
+      const lease = await this.reapFile(entry, cutoff);
+
+      if (lease) {
+        reaped.push(lease);
       }
-      span.setAttribute("reaped_count", reaped.length);
+    }
+    span.setAttribute("reaped_count", reaped.length);
 
-      return reaped;
-    });
+    return reaped;
+  }
+
+  async reapExpired(cutoff: Date): Promise<ExpiredLease[]> {
+    return await leaseSpan(
+      "reap",
+      { backend: "file" },
+      async (span) => await this.reapAll(span, cutoff),
+    );
   }
 }

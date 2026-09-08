@@ -66,20 +66,31 @@ export function resolveAgentConfig(
     return null;
   }
   // Per FIELD, not per layer: the topmost layer that sets a field wins it, so a project row overriding only the model still inherits the org prompt.
-  const layered = <K extends keyof AgentDefinition>(
-    field: K,
-  ): AgentDefinition[K] | null =>
+  const layered: LayeredField = (field) =>
     pick(project?.[field], org?.[field], yamlDefault?.[field]);
 
+  return mergedFields(top.name, projectIdOf(project), layered);
+}
+
+type LayeredField = <K extends keyof AgentDefinition>(
+  field: K,
+) => AgentDefinition[K] | null;
+
+/** Assembles the merged row out of the per-field resolver, so the merge rule and the column list stay separately readable. */
+function mergedFields(
+  name: string,
+  projectId: string | null,
+  layered: LayeredField,
+): AgentDefinition {
   return {
-    name: top.name,
+    name,
     model: layered("model"),
     timeout_minutes: layered("timeout_minutes"),
     prompt: layered("prompt"),
     image: layered("image"),
     execution_mode: layered("execution_mode") ?? "claude-code",
     review_required: layered("review_required") ?? false,
-    project_id: projectIdOf(project),
+    project_id: projectId,
     // Whole-object, not field-merged — a layer that sets config owns all of it, or splicing project skills into org disallowed_tools would produce a recipe nobody wrote.
     config: layered("config"),
   };

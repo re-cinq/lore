@@ -88,34 +88,70 @@ function planningPrompt(
   });
 }
 
+/** The basis this round builds on. A rejected basis is the CALLER's error, thrown before anything is appended. */
+function requireBasis(
+  feature: RefinementFeature,
+  rewoundTo: number | undefined,
+  invalidBasis: ErrorType,
+): ResolvedRoundBasis {
+  const basis = resolveRoundBasis(feature.iterations as never, rewoundTo);
+
+  enforceTrue(basis.ok, invalidBasis, basis.ok ? "" : basis.error);
+
+  return basis;
+}
+
+/** Everything decided BEFORE the round is appended, so a rejected basis or an unparked line leaves no orphan round behind. */
+async function prepareRound(
+  feature: RefinementFeature,
+  input: RefinementInput,
+  deps: RefinementRoundDeps,
+) {
+  const basis = requireBasis(feature, input.rewoundTo, deps.invalidBasis);
+  const priorGap = basis.basis?.gap_result ?? null;
+
+  return {
+    basis,
+    priorGap,
+    description: planningPrompt(feature, priorGap, input.answers),
+    parked: await awaitingNode(deps, feature.id),
+  };
+}
+
+type PreparedRound = Awaited<ReturnType<typeof prepareRound>>;
+
+/** Reports the appended round to the parked author node — the line resumes from there. */
+async function reportRound(
+  deps: RefinementRoundDeps,
+  prepared: PreparedRound,
+  iteration: number,
+  input: RefinementInput,
+): Promise<void> {
+  await deps.report(prepared.parked, "changes_requested", {
+    description: prepared.description,
+    round_feedback: composeRoundFeedback({
+      round: iteration,
+      priorGap: prepared.priorGap,
+      answers: input.answers,
+    }),
+    iteration,
+    resume_from_iteration: resumeFromIteration(input.rewoundTo, prepared.basis),
+  });
+}
+
 export async function startRefinementRound(
   feature: RefinementFeature,
   input: RefinementInput,
   deps: RefinementRoundDeps,
 ): Promise<RefinementRoundResult> {
-  const basis = resolveRoundBasis(feature.iterations as never, input.rewoundTo);
-
-  enforceTrue(basis.ok, deps.invalidBasis, basis.ok ? "" : basis.error);
-
-  const priorGap = basis.basis?.gap_result ?? null;
-  const description = planningPrompt(feature, priorGap, input.answers);
-  const parked = await awaitingNode(deps, feature.id);
+  const prepared = await prepareRound(feature, input, deps);
   const row = await deps.appendIteration(
     feature.id,
     input.answers,
-    basisIteration(basis),
+    basisIteration(prepared.basis),
   );
 
-  await deps.report(parked, "changes_requested", {
-    description,
-    round_feedback: composeRoundFeedback({
-      round: row.iteration,
-      priorGap,
-      answers: input.answers,
-    }),
-    iteration: row.iteration,
-    resume_from_iteration: resumeFromIteration(input.rewoundTo, basis),
-  });
+  await reportRound(deps, prepared, row.iteration, input);
 
-  return { iteration: row.iteration, runId: parked.lineId };
+  return { iteration: row.iteration, runId: prepared.parked.lineId };
 }

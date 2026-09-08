@@ -12,6 +12,32 @@ import type {
 
 const NIL_UUID = "'00000000-0000-0000-0000-000000000000'::uuid";
 
+/** One statement for the whole batch — UNNEST keeps it a single parameterised call regardless of size. */
+const RECORD_SQL = `INSERT INTO lore.catalog_apply_status
+         (cluster_agent_id, name, project_id, state, reason)
+       SELECT $1, u.name, u.project_id::uuid, u.state, u.reason
+         FROM UNNEST($2::text[], $3::text[], $4::text[], $5::text[])
+              AS u(name, project_id, state, reason)
+       ON CONFLICT (cluster_agent_id, name, (COALESCE(project_id, ${NIL_UUID})))
+       DO UPDATE SET
+         state = EXCLUDED.state,
+         reason = EXCLUDED.reason,
+         updated_at = now()`;
+
+/** The five binds: the cluster id, then one array per reported column. */
+function recordParams(
+  clusterAgentId: string,
+  reports: readonly CatalogApplyReport[],
+): unknown[] {
+  return [
+    clusterAgentId,
+    reports.map((r) => r.name),
+    reports.map((r) => r.projectId),
+    reports.map((r) => r.state),
+    reports.map((r) => r.reason),
+  ];
+}
+
 /** The row's own columns (via the model), plus `cluster_name` joined in from `pipeline.cluster_agents`. */
 type StatusRow = WireOf<
   typeof CatalogApplyStatusSchema.shape,
@@ -29,26 +55,7 @@ export class PgCatalogStatus implements CatalogStatusRepository {
       return;
     }
 
-    // One statement for the whole batch — UNNEST keeps it a single parameterised call regardless of size.
-    await this.pool.query(
-      `INSERT INTO lore.catalog_apply_status
-         (cluster_agent_id, name, project_id, state, reason)
-       SELECT $1, u.name, u.project_id::uuid, u.state, u.reason
-         FROM UNNEST($2::text[], $3::text[], $4::text[], $5::text[])
-              AS u(name, project_id, state, reason)
-       ON CONFLICT (cluster_agent_id, name, (COALESCE(project_id, ${NIL_UUID})))
-       DO UPDATE SET
-         state = EXCLUDED.state,
-         reason = EXCLUDED.reason,
-         updated_at = now()`,
-      [
-        clusterAgentId,
-        reports.map((r) => r.name),
-        reports.map((r) => r.projectId),
-        reports.map((r) => r.state),
-        reports.map((r) => r.reason),
-      ],
-    );
+    await this.pool.query(RECORD_SQL, recordParams(clusterAgentId, reports));
   }
 
   async list(): Promise<CatalogApplyStatus[]> {

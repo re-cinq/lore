@@ -11,6 +11,26 @@ import {
 } from "./task-store-port.js";
 import type { SeedStoreTask, StoredTaskEvent } from "./task-store-memory.js";
 
+/** A spec-task of `repo` whose bundle names `featureId` — `context_bundle->>'feature_id'` extracts text, and a NULL bundle matches nothing. */
+function belongsToFeature(
+  t: SeedStoreTask,
+  repo: string,
+  featureId: string,
+): boolean {
+  return (
+    t.target_repo === repo &&
+    t.task_type === "spec-task" &&
+    t.context_bundle?.["feature_id"] != null &&
+    String(t.context_bundle["feature_id"]) === featureId
+  );
+}
+
+function bySpecTaskId(a: FeatureTaskRow, b: FeatureTaskRow): number {
+  return String(a.context_bundle?.["spec_task_id"] ?? "").localeCompare(
+    String(b.context_bundle?.["spec_task_id"] ?? ""),
+  );
+}
+
 function listRowIdentity(t: SeedStoreTask) {
   return {
     id: t.id,
@@ -150,24 +170,13 @@ export class TaskQueryStore {
     repo: string,
     featureId: string,
   ): Promise<FeatureTaskRow[]> {
-    // context_bundle->>'feature_id' extracts text; a NULL bundle matches nothing.
     return this.tasks
-      .filter(
-        (t) =>
-          t.target_repo === repo &&
-          t.task_type === "spec-task" &&
-          t.context_bundle?.["feature_id"] != null &&
-          String(t.context_bundle["feature_id"]) === featureId,
-      )
+      .filter((t) => belongsToFeature(t, repo, featureId))
       .map((t) => ({
         description: t.description ?? "",
         status: t.status ?? "",
         context_bundle: t.context_bundle ?? null,
       }))
-      .sort((a, b) =>
-        String(a.context_bundle?.["spec_task_id"] ?? "").localeCompare(
-          String(b.context_bundle?.["spec_task_id"] ?? ""),
-        ),
-      );
+      .sort(bySpecTaskId);
   }
 }

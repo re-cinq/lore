@@ -33,25 +33,41 @@ export class PgBaseline implements BaselinePort {
     windowStart: Date,
     windowEnd: Date,
   ): Promise<TaskBaselineStats> {
-    const { rows } = await this.pool.query(
-      `SELECT
-         count(*) FILTER (WHERE pr_url IS NOT NULL)::text AS issues_count,
-         (
-           percentile_cont(0.5) WITHIN GROUP (
-             ORDER BY EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600
-           )
-         )::text AS median_ttm
-       FROM pipeline.tasks
-       WHERE target_repo = $1
-         AND created_at >= $2
-         AND created_at < $3`,
-      [repo, windowStart, windowEnd],
-    );
-    const row = rows[0] as unknown as BaselineStatsRow | undefined;
+    const row = await selectBaselineStatsRow(this.pool, {
+      repo,
+      windowStart,
+      windowEnd,
+    });
 
     return {
       issues_count: parseInt(row?.issues_count ?? "0", 10),
       median_ttm_hours: row?.median_ttm ? parseFloat(row.median_ttm) : null,
     };
   }
+}
+
+const BASELINE_STATS_SQL = `SELECT
+   count(*) FILTER (WHERE pr_url IS NOT NULL)::text AS issues_count,
+   (
+     percentile_cont(0.5) WITHIN GROUP (
+       ORDER BY EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600
+     )
+   )::text AS median_ttm
+ FROM pipeline.tasks
+ WHERE target_repo = $1
+   AND created_at >= $2
+   AND created_at < $3`;
+
+/** The single counters row for one repo's baseline window, or undefined when the window holds no tasks. */
+async function selectBaselineStatsRow(
+  pool: PgPool,
+  window: { repo: string; windowStart: Date; windowEnd: Date },
+): Promise<BaselineStatsRow | undefined> {
+  const { rows } = await pool.query(BASELINE_STATS_SQL, [
+    window.repo,
+    window.windowStart,
+    window.windowEnd,
+  ]);
+
+  return rows[0] as unknown as BaselineStatsRow | undefined;
 }

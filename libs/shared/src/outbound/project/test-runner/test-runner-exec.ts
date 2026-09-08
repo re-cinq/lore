@@ -92,20 +92,31 @@ export class ExecTestRunner implements TestRunnerPort {
     const fileResults = await mapWithLimit(files, concurrency, (file) =>
       this.runTest(cwd, file),
     );
-    const resultByFile = new Map(
-      files.map((file, index) => [file, fileResults[index]]),
-    );
-    const results: RunResult[] = [];
-
-    for (const [file, ids] of byFile) {
-      const run = resultByFile.get(file)!;
-
-      results.push(...ids.map(() => run));
-    }
+    const results = fanOutByFile(byFile, files, fileResults);
     const passed = results.filter((r) => r.passed).length;
 
     return { passed, failed: results.length - passed, results };
   }
+}
+
+/** One run per file, repeated back out to every descriptor that file holds. */
+function fanOutByFile(
+  byFile: ReturnType<typeof groupRunsByFile>,
+  files: string[],
+  fileResults: RunResult[],
+): RunResult[] {
+  const resultByFile = new Map(
+    files.map((file, index) => [file, fileResults[index]]),
+  );
+  const results: RunResult[] = [];
+
+  for (const [file, ids] of byFile) {
+    const run = resultByFile.get(file)!;
+
+    results.push(...ids.map(() => run));
+  }
+
+  return results;
 }
 
 function loadManifest(cwd: string): TestCommandManifest {

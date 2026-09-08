@@ -92,6 +92,43 @@ function nodeParams(
   return { ...node, ...run };
 }
 
+/** Assembly-line NODE CR: own event family, deduped per CR NAME — a task-keyed dedupe would swallow every node after the first, since one line's nodes all share a task. */
+function agentNodeEvent(
+  action: string,
+  node: {
+    assemblyLineId: string;
+    nodeId: string;
+    iteration: number;
+    agentName: string;
+  },
+  run: { taskId: string; phase: TerminalPhase; status: unknown },
+): EventInsert {
+  return {
+    eventName: `kubernetes.agent_node.${action}`,
+    source: "kubernetes",
+    params: nodeParams(node, run),
+    dedupeKey: k8sAgentNodeDedupeKey(node.agentName, run.phase),
+  };
+}
+
+function agentEvent(
+  action: string,
+  agentName: string | null,
+  run: { taskId: string; phase: TerminalPhase; status: unknown },
+): EventInsert {
+  return {
+    eventName: `kubernetes.agent.${action}`,
+    source: "kubernetes",
+    params: {
+      taskId: run.taskId,
+      agentName,
+      phase: run.phase,
+      status: run.status,
+    },
+    dedupeKey: k8sDedupeKey(run.taskId, run.phase),
+  };
+}
+
 export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
   const terminal = terminalAgentPhase(agent);
 
@@ -102,25 +139,15 @@ export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
   const action = TERMINAL_ACTIONS[phase];
   const { assemblyLineId, nodeId, iteration } = assemblyNodeIdentity(labels);
   const agentName = agent.metadata?.name ?? null;
-  const status = agentStatus(agent, phase);
+  const run = { taskId, phase, status: agentStatus(agent, phase) };
 
-  // Assembly-line NODE CR: own event family, deduped per CR NAME — a task-keyed dedupe would swallow every node after the first, since one line's nodes all share a task.
   if (isAssemblyNodeEvent(assemblyLineId, nodeId, agentName)) {
-    return {
-      eventName: `kubernetes.agent_node.${action}`,
-      source: "kubernetes",
-      params: nodeParams(
-        { assemblyLineId, nodeId, iteration, agentName },
-        { taskId, phase, status },
-      ),
-      dedupeKey: k8sAgentNodeDedupeKey(agentName, phase),
-    };
+    return agentNodeEvent(
+      action,
+      { assemblyLineId, nodeId, iteration, agentName },
+      run,
+    );
   }
 
-  return {
-    eventName: `kubernetes.agent.${action}`,
-    source: "kubernetes",
-    params: { taskId, agentName, phase, status },
-    dedupeKey: k8sDedupeKey(taskId, phase),
-  };
+  return agentEvent(action, agentName, run);
 }

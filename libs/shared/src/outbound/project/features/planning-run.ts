@@ -45,15 +45,15 @@ export async function findParkedAuthorNode(
     line.graph,
   );
 
-  return {
-    runId: line.id,
-    parked:
-      decision.kind === "resume"
-        ? {
-            nodeId: decision.nodeId,
-            iteration: decision.iteration,
-            lineId: line.id,
-          }
-        : null,
-  };
+  return { runId: line.id, parked: parkedTarget(decision, line.id) };
+}
+
+/** The node the dispatch decision parks on, or null when the line is not waiting on the author. */
+function parkedTarget(
+  decision: ReturnType<typeof decideRoundDispatch>,
+  lineId: string,
+): ({ lineId: string } & ParkedTarget) | null {
+  return decision.kind === "resume"
+    ? { nodeId: decision.nodeId, iteration: decision.iteration, lineId }
+    : null;
 }

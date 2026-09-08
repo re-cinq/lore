@@ -29,6 +29,15 @@ function isCompleteVisit(
   return namesTheVisit && countsTheIteration;
 }
 
+/** The visit fields as they arrive on the wire, before completeness is judged. */
+function readVisit(fields: Record<string, unknown>): ParsedVisit {
+  return {
+    assemblyRunId: nonEmptyString(fields.assembly_run),
+    nodeId: nonEmptyString(fields.node),
+    iteration: fields.iteration,
+  };
+}
+
 /** Identity from source; requires all fields present or returns null (all-or-nothing). */
 export function parseCarriedRunIdentity(
   source: unknown,
@@ -38,11 +47,7 @@ export function parseCarriedRunIdentity(
   }
 
   const fields = source as Record<string, unknown>;
-  const visit: ParsedVisit = {
-    assemblyRunId: nonEmptyString(fields.assembly_run),
-    nodeId: nonEmptyString(fields.node),
-    iteration: fields.iteration,
-  };
+  const visit = readVisit(fields);
 
   if (!isCompleteVisit(visit)) {
     return null;

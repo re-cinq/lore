@@ -60,9 +60,7 @@ function assertResumeInput(
   );
 }
 
-/** The source must be the SAME definition, at the same content hash, and already over. A changed definition is refused rather than replayed: the prefix being reused was produced by nodes that may no longer exist. */
-function assertForkableSource(
-  input: AssemblyRunStartInput,
+function assertSourcePresent(
   source: AssemblyRunRecord | null,
   resumeFrom: NonNullable<AssemblyRunStartInput["resumeFrom"]>,
 ): asserts source is AssemblyRunRecord {
@@ -71,6 +69,13 @@ function assertForkableSource(
     ResumeRefusedError,
     `resume-from source line "${resumeFrom.lineId}" not found`,
   );
+}
+
+/** The source must have run the SAME definition, in the same repo, at the same content hash. */
+function assertSameRepoAndDefinition(
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord,
+): void {
   enforceTrue(
     source.repo === input.repo,
     ResumeRefusedError,
@@ -81,12 +86,22 @@ function assertForkableSource(
     ResumeRefusedError,
     `resume-from source line "${source.id}" ran definition "${source.blueprintName}", not "${input.blueprintName}"`,
   );
+  assertSameDefinition(input, source);
+}
+
+/** The source must be the SAME definition, at the same content hash, and already over. A changed definition is refused rather than replayed: the prefix being reused was produced by nodes that may no longer exist. */
+function assertForkableSource(
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord | null,
+  resumeFrom: NonNullable<AssemblyRunStartInput["resumeFrom"]>,
+): asserts source is AssemblyRunRecord {
+  assertSourcePresent(source, resumeFrom);
+  assertSameRepoAndDefinition(input, source);
   enforceTrue(
     source.status === "finished" || source.status === "failed",
     ResumeRefusedError,
     `resume-from source line "${source.id}" is still ${source.status} — only a finished or failed line can be forked`,
   );
-  assertSameDefinition(input, source);
 }
 
 /** The definition must be byte-identical to the one that produced the prefix. A changed definition is refused rather than replayed: the nodes whose output is being inherited may no longer exist, and a fork onto a graph they are absent from would carry results nothing in the new run accounts for. */
@@ -108,12 +123,12 @@ function assertSameDefinition(
   );
 }
 
-/** The node rows the new run inherits: history up to and including the chosen node's latest completed row. Every row in it must have an outcome — a prefix containing a node that never finished is not a replayable history, it is a run that was still going. */
-function prefixThrough(
+/** Index of the chosen node's latest completed row, refusing a fork whose target visit never happened. */
+function cutoffThrough(
   source: AssemblyRunRecord,
   nodes: StationRunRecord[],
   resumeFrom: NonNullable<AssemblyRunStartInput["resumeFrom"]>,
-): StationRunRecord[] {
+): number {
   const cutoff = resumeCutoffIndex(
     nodes,
     resumeFrom.nodeId,
@@ -127,6 +142,17 @@ function prefixThrough(
       ? `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" node to fork from`
       : `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" iteration ${resumeFrom.iteration} to fork from`,
   );
+
+  return cutoff;
+}
+
+/** The node rows the new run inherits: history up to and including the chosen node's latest completed row. Every row in it must have an outcome — a prefix containing a node that never finished is not a replayable history, it is a run that was still going. */
+function prefixThrough(
+  source: AssemblyRunRecord,
+  nodes: StationRunRecord[],
+  resumeFrom: NonNullable<AssemblyRunStartInput["resumeFrom"]>,
+): StationRunRecord[] {
+  const cutoff = cutoffThrough(source, nodes, resumeFrom);
   const prefix = nodes.slice(0, cutoff + 1);
   const unfinished = prefix.find((n) => n.outcome === null);
 

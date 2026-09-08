@@ -56,6 +56,40 @@ function isMergeableFeatureRequestOnBranch(
 }
 
 /** In-memory {@link TaskQueueRepository}: behavioral spec of the Pg adapter over seeded rows; `now` is injectable for deterministic age-dependent sweeps in tests. */
+function isMergeable(t: SeedTask): boolean {
+  return (
+    (t.status === "pr-created" || t.status === "review") &&
+    t.pr_number != null &&
+    t.pr_url != null
+  );
+}
+
+function mergeableBundle(t: SeedTask) {
+  return orNull(
+    t.context_bundle as {
+      feature_id?: string;
+      slug?: string;
+      spec_slug?: string;
+    } | null,
+  );
+}
+
+function toMergeableTask(t: SeedTask): MergeableTask {
+  return {
+    id: t.id,
+    target_repo: orEmpty(t.target_repo),
+    target_branch: orNull(t.target_branch as string | null | undefined),
+    pr_url: t.pr_url as string,
+    pr_number: t.pr_number as number,
+    issue_number: orNull(t.issue_number),
+    task_type: orEmpty(t.task_type),
+    description: orEmpty(t.description as string | null | undefined),
+    created_at: orEmpty(t.created_at),
+    task_group_id: orNull(t.task_group_id),
+    context_bundle: mergeableBundle(t),
+  };
+}
+
 export class InMemoryTaskQueue implements TaskQueueRepository {
   private readonly specTasks: SpecTaskStore;
 
@@ -225,32 +259,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
   }
 
   async mergeableTasks(): Promise<MergeableTask[]> {
-    return this.tasks
-      .filter(
-        (t) =>
-          (t.status === "pr-created" || t.status === "review") &&
-          t.pr_number != null &&
-          t.pr_url != null,
-      )
-      .map((t) => ({
-        id: t.id,
-        target_repo: orEmpty(t.target_repo),
-        target_branch: orNull(t.target_branch as string | null | undefined),
-        pr_url: t.pr_url as string,
-        pr_number: t.pr_number as number,
-        issue_number: orNull(t.issue_number),
-        task_type: orEmpty(t.task_type),
-        description: orEmpty(t.description as string | null | undefined),
-        created_at: orEmpty(t.created_at),
-        task_group_id: orNull(t.task_group_id),
-        context_bundle: orNull(
-          t.context_bundle as {
-            feature_id?: string;
-            slug?: string;
-            spec_slug?: string;
-          } | null,
-        ),
-      }));
+    return this.tasks.filter(isMergeable).map(toMergeableTask);
   }
 
   hasSpecTasksForSlug(repo: string, slug: string): Promise<boolean> {

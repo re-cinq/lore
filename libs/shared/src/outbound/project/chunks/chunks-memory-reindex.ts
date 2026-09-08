@@ -17,6 +17,22 @@ function adoptRow(row: ChunkRow, schema: string): void {
   };
 }
 
+/** The rows of the named files whose OLDEST chunk predates the cutoff — a file re-ingested recently is left alone even when some of its chunks are older. */
+function dueForTouch(named: ChunkRow[], cutoff: number): ChunkRow[] {
+  const oldestByFile = new Map<string, number>();
+
+  for (const row of named) {
+    const stamp = new Date(row.ingestedAt).getTime();
+    const oldest = oldestByFile.get(row.filePath);
+
+    oldestByFile.set(row.filePath, Math.min(stamp, oldest ?? stamp));
+  }
+
+  return named.filter(
+    (row) => (oldestByFile.get(row.filePath) ?? Infinity) < cutoff,
+  );
+}
+
 export class ReindexChunkStore {
   constructor(private readonly host: { readonly rows: ChunkRow[] }) {}
 
@@ -94,18 +110,7 @@ export class ReindexChunkStore {
     const named = this.reindexOwnedForRepo(schema, repo).filter((row) =>
       paths.has(row.filePath),
     );
-    const oldestByFile = new Map<string, number>();
-
-    for (const row of named) {
-      const stamp = new Date(row.ingestedAt).getTime();
-      const oldest = oldestByFile.get(row.filePath);
-
-      oldestByFile.set(row.filePath, Math.min(stamp, oldest ?? stamp));
-    }
-
-    const targets = named.filter(
-      (row) => (oldestByFile.get(row.filePath) ?? Infinity) < cutoff,
-    );
+    const targets = dueForTouch(named, cutoff);
     const now = new Date().toISOString();
 
     for (const row of targets) {
@@ -163,6 +168,13 @@ export class ReindexChunkStore {
     );
     const { moved, dropIds } = this.adoptLegacyRows(schema, repo);
 
+    this.dropLegacyRows(repo, dropIds);
+
+    return { moved, dropped: moved + dropIds.size };
+  }
+
+  /** Removes the org_shared rows the adopt pass marked, in place so the host keeps the same array. */
+  private dropLegacyRows(repo: string, dropIds: Set<string>): void {
     const kept = this.host.rows.filter(
       (row) =>
         !(
@@ -173,8 +185,6 @@ export class ReindexChunkStore {
     );
 
     this.host.rows.splice(0, this.host.rows.length, ...kept);
-
-    return { moved, dropped: moved + dropIds.size };
   }
 
   /** Moves each legacy row the target does not already hold, and collects the ids of those it does. A row skipped because the target has a newer copy is still dropped — the two ids are counted separately so the caller can report what moved against what merely went away. */

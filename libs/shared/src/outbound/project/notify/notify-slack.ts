@@ -44,12 +44,7 @@ export class NotifySlack implements NotifyPort {
     message: string,
     opts: NotifyOptions = {},
   ): Promise<NotifyResult> {
-    const { rows } = await this.pool.query(
-      "SELECT settings FROM lore.repos WHERE full_name = $1",
-      [repo],
-    );
-    const row = rows[0] as RepoNotifyRow | undefined;
-    const { darkFactory, slackChannelId } = repoNotifySettings(row);
+    const { darkFactory, slackChannelId } = await this.repoSettings(repo);
     const channels = resolveDarkFactorySettings(darkFactory).notify;
     const decision = decideNotify(level, { channels });
 
@@ -62,6 +57,16 @@ export class NotifySlack implements NotifyPort {
     }
 
     return decision;
+  }
+
+  /** The repo's dark-factory notify block and its default Slack destination. */
+  private async repoSettings(repo: string): Promise<RepoNotifySettings> {
+    const { rows } = await this.pool.query(
+      "SELECT settings FROM lore.repos WHERE full_name = $1",
+      [repo],
+    );
+
+    return repoNotifySettings(rows[0] as RepoNotifyRow | undefined);
   }
 
   private async post(

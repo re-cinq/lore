@@ -8,8 +8,22 @@ import {
   type ChunkSearchHit,
 } from "./context-assembly-chunk-search.js";
 import type { SourceFetcher } from "./context-assembly-fetchers-types.js";
+import type { SourceItem } from "./context-assembly-format.js";
+import type { MemorySearchResult } from "./memory-search.js";
 
 /** Content/knowledge context sources: repo docs+specs, source code, ADRs, agent memory, episodes, and rule files. */
+
+const RECENT_CONFLICTS_SQL = `SELECT new_fact_id FROM memory.fact_conflicts
+       WHERE new_fact_id = ANY($1) AND created_at > now() - interval '7 days'`;
+
+async function conflictIdRows(pool: PgPool, factIds: string[]) {
+  const { rows } = await pool.query<{ new_fact_id: string }>(
+    RECENT_CONFLICTS_SQL,
+    [factIds],
+  );
+
+  return rows;
+}
 
 async function memoriesConflictSet(
   pool: PgPool,
@@ -22,20 +36,33 @@ async function memoriesConflictSet(
   }
 
   try {
-    const { rows: conflicts } = await pool.query<{ new_fact_id: string }>(
-      `SELECT new_fact_id FROM memory.fact_conflicts
-       WHERE new_fact_id = ANY($1) AND created_at > now() - interval '7 days'`,
-      [factIds],
-    );
-
-    for (const c of conflicts) {
-      conflictSet.add(c.new_fact_id);
+    for (const conflict of await conflictIdRows(pool, factIds)) {
+      conflictSet.add(conflict.new_fact_id);
     }
   } catch {
     /* non-fatal */
   }
 
   return conflictSet;
+}
+
+function factIdsOf(results: MemorySearchResult[]): string[] {
+  return results
+    .filter((r) => r.id && (r.source === "fact" || r.source === "episode"))
+    .map((r) => r.id!);
+}
+
+function toMemoryItem(
+  result: MemorySearchResult,
+  conflictSet: Set<string>,
+): SourceItem {
+  const tag = result.confidence ? ` [${result.confidence}]` : "";
+  const conflict = result.id && conflictSet.has(result.id) ? " [CONFLICT]" : "";
+
+  return mkItem(
+    `**${result.key}** (${result.source})${tag}${conflict}: ${result.value}`,
+    { source_path: result.key, content_type: result.source },
+  );
 }
 
 async function fetchMemories(
@@ -49,24 +76,20 @@ async function fetchMemories(
     if (results.length === 0) {
       return { sources: [], status: "empty" };
     }
-    const factIds = results
-      .filter((r) => r.id && (r.source === "fact" || r.source === "episode"))
-      .map((r) => r.id!);
-    const conflictSet = await memoriesConflictSet(pool, factIds);
-    const sources = results.map((r) => {
-      const tag = r.confidence ? ` [${r.confidence}]` : "";
-      const conflict = r.id && conflictSet.has(r.id) ? " [CONFLICT]" : "";
-
-      return mkItem(`**${r.key}** (${r.source})${tag}${conflict}: ${r.value}`, {
-        source_path: r.key,
-        content_type: r.source,
-      });
-    });
+    const conflictSet = await memoriesConflictSet(pool, factIdsOf(results));
+    const sources = results.map((r) => toMemoryItem(r, conflictSet));
 
     return { sources, status: "ok" };
   } catch {
     return { sources: [], status: "error" };
   }
+}
+
+function toEpisodeItem(result: MemorySearchResult): SourceItem {
+  return mkItem(`**${result.key}**: ${result.value}`, {
+    source_path: result.key,
+    content_type: "episode",
+  });
 }
 
 async function fetchEpisodes(
@@ -76,21 +99,13 @@ async function fetchEpisodes(
 ): Promise<FetchResult> {
   try {
     const results = await searchMemories(pool, query, { agentId, limit: 5 });
-    const episodeResults = results.filter((r) => r.source === "episode");
+    const episodes = results.filter((r) => r.source === "episode");
 
-    if (episodeResults.length === 0) {
+    if (episodes.length === 0) {
       return { sources: [], status: "empty" };
     }
 
-    return {
-      sources: episodeResults.map((r) =>
-        mkItem(`**${r.key}**: ${r.value}`, {
-          source_path: r.key,
-          content_type: "episode",
-        }),
-      ),
-      status: "ok",
-    };
+    return { sources: episodes.map(toEpisodeItem), status: "ok" };
   } catch {
     return { sources: [], status: "error" };
   }
@@ -114,19 +129,35 @@ function matchRules(rows: ChunkSearchHit[], query: string): ChunkSearchHit[] {
   });
 }
 
+async function ruleChunks(
+  pool: PgPool,
+  repo: string,
+): Promise<ChunkSearchHit[]> {
+  const schema = await resolveChunkSchemaForRepo(pool, repo);
+  const { rows } = await pool.query<ChunkSearchHit>(
+    `SELECT content, file_path FROM ${schema}.chunks
+       WHERE repo = $1 AND content_type = 'rule'
+       ORDER BY file_path`,
+    [repo],
+  );
+
+  return rows;
+}
+
+function toRuleItem(row: ChunkSearchHit): SourceItem {
+  return mkItem(row.content, {
+    source_path: row.file_path,
+    content_type: "rule",
+  });
+}
+
 async function fetchRules(
   pool: PgPool,
   query: string,
   repo: string,
 ): Promise<FetchResult> {
   try {
-    const schema = await resolveChunkSchemaForRepo(pool, repo);
-    const { rows } = await pool.query<ChunkSearchHit>(
-      `SELECT content, file_path FROM ${schema}.chunks
-       WHERE repo = $1 AND content_type = 'rule'
-       ORDER BY file_path`,
-      [repo],
-    );
+    const rows = await ruleChunks(pool, repo);
 
     if (rows.length === 0) {
       return { sources: [], status: "empty" };
@@ -138,12 +169,7 @@ async function fetchRules(
       return { sources: [], status: "no-match" };
     }
 
-    return {
-      sources: matched.map((r) =>
-        mkItem(r.content, { source_path: r.file_path, content_type: "rule" }),
-      ),
-      status: "ok",
-    };
+    return { sources: matched.map(toRuleItem), status: "ok" };
   } catch {
     return { sources: [], status: "error" };
   }

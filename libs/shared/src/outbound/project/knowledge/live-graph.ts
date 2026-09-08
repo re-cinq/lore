@@ -74,30 +74,23 @@ function allGraphQuery(validFilter: string): string {
 
 export async function queryLiveGraph(
   pool: PgPool,
-  {
-    entity,
-    relationType,
-    repo,
-    includeInvalidated = false,
-  }: LiveGraphFilter = {},
+  filter: LiveGraphFilter = {},
 ): Promise<LiveGraphResult[]> {
+  const { entity, relationType, repo, includeInvalidated = false } = filter;
   const validFilter = includeInvalidated ? "" : "AND e.valid_to IS NULL";
-  const relationParam = emptyToNull(relationType);
-  const repoParam = emptyToNull(repo);
+  const params = [emptyToNull(relationType), emptyToNull(repo)];
 
-  if (entity) {
-    const { rows } = await pool.query<LiveGraphResult>(
-      entityGraphQuery(validFilter),
-      [entity, relationParam, repoParam],
-    );
+  return entity
+    ? runGraphQuery(pool, entityGraphQuery(validFilter), [entity, ...params])
+    : runGraphQuery(pool, allGraphQuery(validFilter), params);
+}
 
-    return rows;
-  }
-
-  const { rows } = await pool.query<LiveGraphResult>(
-    allGraphQuery(validFilter),
-    [relationParam, repoParam],
-  );
+async function runGraphQuery(
+  pool: PgPool,
+  sql: string,
+  params: Array<string | null>,
+): Promise<LiveGraphResult[]> {
+  const { rows } = await pool.query<LiveGraphResult>(sql, params);
 
   return rows;
 }

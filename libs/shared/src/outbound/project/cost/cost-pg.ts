@@ -11,30 +11,29 @@ export class PgCost implements CostPort {
   constructor(private readonly pool: PgPool) {}
 
   async upsertDaily(row: AnthropicCostDailyRow): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO pipeline.anthropic_cost_daily
-         (bucket_date, model, cost_usd, input_tokens, output_tokens,
-          cache_creation_tokens, cache_read_tokens, fetched_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, now())
-       ON CONFLICT (bucket_date, model) DO UPDATE SET
-         cost_usd = EXCLUDED.cost_usd,
-         input_tokens = EXCLUDED.input_tokens,
-         output_tokens = EXCLUDED.output_tokens,
-         cache_creation_tokens = EXCLUDED.cache_creation_tokens,
-         cache_read_tokens = EXCLUDED.cache_read_tokens,
-         fetched_at = now()`,
-      [
-        row.bucketDate,
-        row.model,
-        row.costUsd,
-        row.inputTokens,
-        row.outputTokens,
-        row.cacheCreationTokens,
-        row.cacheReadTokens,
-      ],
-    );
+    await this.pool.query(ANTHROPIC_UPSERT_SQL, [
+      row.bucketDate,
+      row.model,
+      row.costUsd,
+      row.inputTokens,
+      row.outputTokens,
+      row.cacheCreationTokens,
+      row.cacheReadTokens,
+    ]);
   }
 }
+
+const ANTHROPIC_UPSERT_SQL = `INSERT INTO pipeline.anthropic_cost_daily
+   (bucket_date, model, cost_usd, input_tokens, output_tokens,
+    cache_creation_tokens, cache_read_tokens, fetched_at)
+ VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+ ON CONFLICT (bucket_date, model) DO UPDATE SET
+   cost_usd = EXCLUDED.cost_usd,
+   input_tokens = EXCLUDED.input_tokens,
+   output_tokens = EXCLUDED.output_tokens,
+   cache_creation_tokens = EXCLUDED.cache_creation_tokens,
+   cache_read_tokens = EXCLUDED.cache_read_tokens,
+   fetched_at = now()`;
 
 /** Postgres-backed {@link GcpCostPort}: a single upsert into `pipeline.gcp_cost_daily`, same replace-on-resync shape as the Anthropic table. */
 export class PgGcpCost implements GcpCostPort {

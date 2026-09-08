@@ -30,26 +30,46 @@ function makeHttp(cfg: HttpConfig) {
   const headers = requestHeaders(cfg);
   const base = `${cfg.baseUrl}/api/repos/${cfg.repo}`;
 
-  return {
-    async get<T>(path: string, query: Record<string, string> = {}): Promise<T> {
-      const qs = new URLSearchParams(query).toString();
+  const call = { fetchImpl: cfg.fetchImpl, base, headers };
 
-      return unwrap(
-        cfg.fetchImpl(`${base}${path}${qs ? `?${qs}` : ""}`, { headers }),
-        `GET ${path}`,
-      );
-    },
-    async post<T>(path: string, body: unknown): Promise<T> {
-      return unwrap(
-        cfg.fetchImpl(`${base}${path}`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-        }),
-        `POST ${path}`,
-      );
-    },
+  return {
+    get: <T>(path: string, query: Record<string, string> = {}): Promise<T> =>
+      httpGet<T>(call, path, query),
+    post: <T>(path: string, body: unknown): Promise<T> =>
+      httpPost<T>(call, path, body),
   };
+}
+
+interface HttpCall {
+  fetchImpl: typeof fetch;
+  base: string;
+  headers: Record<string, string>;
+}
+
+function httpGet<T>(
+  call: HttpCall,
+  path: string,
+  query: Record<string, string>,
+): Promise<T> {
+  const qs = new URLSearchParams(query).toString();
+
+  return unwrap(
+    call.fetchImpl(`${call.base}${path}${qs ? `?${qs}` : ""}`, {
+      headers: call.headers,
+    }),
+    `GET ${path}`,
+  );
+}
+
+function httpPost<T>(call: HttpCall, path: string, body: unknown): Promise<T> {
+  return unwrap(
+    call.fetchImpl(`${call.base}${path}`, {
+      method: "POST",
+      headers: call.headers,
+      body: JSON.stringify(body),
+    }),
+    `POST ${path}`,
+  );
 }
 
 function requestHeaders(cfg: HttpConfig): Record<string, string> {

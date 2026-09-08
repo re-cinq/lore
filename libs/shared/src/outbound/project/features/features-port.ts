@@ -213,33 +213,31 @@ interface PlanningRecoveryInput {
   runOpen?: boolean;
 }
 
+/** The liveness inputs {@link runningRecovery} reads, with the stale window defaulted. */
+function recoveryProbe(args: PlanningRecoveryInput) {
+  return {
+    runOpen: args.runOpen,
+    isActive: args.isActive,
+    nowMs: args.nowMs,
+    windowMs: args.windowMs ?? PLANNING_RECOVERY_STALE_MS,
+  };
+}
+
 /** Pure: reconciles a mid-planning feature whose latest round looks stuck. Running+dead-runtime -> orphan (mark failed, revert feature); ready+still-planning -> transition (re-apply a missed status write); else none. */
 export function decidePlanningRecovery(
   args: PlanningRecoveryInput,
 ): PlanningRecovery {
-  const {
-    iterations,
-    featureStatus,
-    isActive,
-    nowMs,
-    windowMs = PLANNING_RECOVERY_STALE_MS,
-  } = args;
-  const latest = iterations.at(-1);
+  const latest = args.iterations.at(-1);
 
   if (!latest) {
     return { kind: "none" };
   }
 
   if (latest.status === "running") {
-    return runningRecovery(latest, {
-      runOpen: args.runOpen,
-      isActive,
-      nowMs,
-      windowMs,
-    });
+    return runningRecovery(latest, recoveryProbe(args));
   }
 
-  if (missedReadyTransition(latest, featureStatus)) {
+  if (missedReadyTransition(latest, args.featureStatus)) {
     return { kind: "transition", iteration: latest.iteration };
   }
 

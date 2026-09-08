@@ -87,32 +87,20 @@ function includedSection(
   };
 }
 
-function fitSection(
+/** No room left — either the running total ran out, or this section's share was too small to hold a useful excerpt. */
+function budgetExhausted(allocatedBudget = 0): SectionFit {
+  return {
+    ...EXCLUDED_SECTION,
+    allocatedBudget,
+    omitReason: "budget exhausted",
+  };
+}
+
+/** The items that fit, packed at the section's allocated share with the per-doc cap applied. */
+function fittedSection(
   deduped: SourceItem[],
-  status: FetchStatus,
-  section: { priority: number; max_tokens?: number },
-  { remaining, minTokens, nonEmptyWeight }: SectionBudget,
+  allocatedBudget: number,
 ): SectionFit {
-  const excluded = EXCLUDED_SECTION;
-
-  if (deduped.length === 0) {
-    return { ...excluded, omitReason: emptyStatusReason(status) };
-  }
-
-  if (remaining <= 0) {
-    return { ...excluded, omitReason: "budget exhausted" };
-  }
-  const allocatedBudget = allocate(section, {
-    remaining,
-    minTokens,
-    nonEmptyWeight,
-  });
-
-  // Under ~100 tokens there is no room for a useful excerpt — half a paragraph is worse than saying the section was omitted.
-  if (allocatedBudget <= 100) {
-    return { ...excluded, allocatedBudget, omitReason: "budget exhausted" };
-  }
-
   return includedSection(
     allocatedBudget,
     fitItemsToBudget(
@@ -121,6 +109,29 @@ function fitSection(
       perDocCapFor(deduped, allocatedBudget),
     ),
   );
+}
+
+function fitSection(
+  deduped: SourceItem[],
+  status: FetchStatus,
+  section: { priority: number; max_tokens?: number },
+  budget: SectionBudget,
+): SectionFit {
+  if (deduped.length === 0) {
+    return { ...EXCLUDED_SECTION, omitReason: emptyStatusReason(status) };
+  }
+
+  if (budget.remaining <= 0) {
+    return budgetExhausted();
+  }
+  const allocatedBudget = allocate(section, budget);
+
+  // Under ~100 tokens there is no room for a useful excerpt — half a paragraph is worse than saying the section was omitted.
+  if (allocatedBudget <= 100) {
+    return budgetExhausted(allocatedBudget);
+  }
+
+  return fittedSection(deduped, allocatedBudget);
 }
 
 export interface FetchedSection {
@@ -182,39 +193,63 @@ export interface AllocatedSections {
   traceSections: TraceSection[];
 }
 
+interface SectionWeights {
+  minTokens: number;
+  nonEmptyWeight: number;
+}
+
+/** One section's dedupe-then-fit pass, against what the sections before it already claimed. */
+function fitOneSection(
+  { section, res }: FetchedSection,
+  seenAcrossSections: Set<string>,
+  remaining: number,
+  { minTokens, nonEmptyWeight }: SectionWeights,
+): SectionFitOutcome {
+  const deduped = dropSeen(dedupeItems(res.sources), seenAcrossSections);
+  const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
+  const fit = fitSection(deduped, res.status, section, {
+    remaining,
+    minTokens,
+    nonEmptyWeight,
+  });
+
+  return { section, res, fit, deduped, rawTokens };
+}
+
+function orderedByPriority(fetched: FetchedSection[]): FetchedSection[] {
+  return [...fetched].sort((a, b) => a.section.priority - b.section.priority);
+}
+
+/** Walk the priority-ordered sections, deducting each included section's tokens from what the rest may spend. */
+function packSections(
+  ordered: FetchedSection[],
+  weights: SectionWeights,
+): AllocatedSections {
+  let remaining = weights.minTokens;
+  const serialized: SerializedSection[] = [];
+  const traceSections: TraceSection[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of ordered) {
+    const outcome = fitOneSection(entry, seen, remaining, weights);
+
+    if (outcome.fit.included) {
+      remaining -= outcome.fit.finalTokens;
+      serialized.push(buildSerializedSection(entry.section, outcome.fit));
+    }
+    traceSections.push(buildTraceSection(outcome));
+  }
+
+  return { serialized, traceSections };
+}
+
 /** Allocate the token budget by priority (lower number = larger share), highest first, deducting as we go. A document is emitted in its highest-priority section only — no repeats across sections. */
 export function allocateSections(
   fetched: FetchedSection[],
   minTokens: number,
 ): AllocatedSections {
-  const nonEmptyWeight = computeNonEmptyWeight(fetched);
-  const ordered = [...fetched].sort(
-    (a, b) => a.section.priority - b.section.priority,
-  );
-
-  let remaining = minTokens;
-  const serialized: SerializedSection[] = [];
-  const traceSections: TraceSection[] = [];
-  const seenAcrossSections = new Set<string>();
-
-  for (const { section, res } of ordered) {
-    const deduped = dropSeen(dedupeItems(res.sources), seenAcrossSections);
-    const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
-    const fit = fitSection(deduped, res.status, section, {
-      remaining,
-      minTokens,
-      nonEmptyWeight,
-    });
-
-    if (fit.included) {
-      remaining -= fit.finalTokens;
-      serialized.push(buildSerializedSection(section, fit));
-    }
-
-    traceSections.push(
-      buildTraceSection({ section, res, fit, deduped, rawTokens }),
-    );
-  }
-
-  return { serialized, traceSections };
+  return packSections(orderedByPriority(fetched), {
+    minTokens,
+    nonEmptyWeight: computeNonEmptyWeight(fetched),
+  });
 }

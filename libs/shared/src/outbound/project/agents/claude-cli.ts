@@ -22,30 +22,50 @@ function cliArgs(model: string, prompt: string): string[] {
   ];
 }
 
-/** Collects the run's stdout and settles on exit. A timeout SIGTERMs rather than killing outright, so the CLI can flush the transcript it has produced so far — that output is the only record of what the agent did before it hung. A missing exit code counts as 1: a process that died without one did not succeed. */
+/** Accumulates the child's stdout, handing back a reader for whatever has arrived so far. */
+function readStdout(proc: ReturnType<typeof spawn>): () => string {
+  let stdout = "";
+
+  proc.stdout?.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
+
+  return () => stdout;
+}
+
+/** Settles the promise on the process's own terminal events. A missing exit code counts as 1: a process that died without one did not succeed. */
+function settleOnExit(
+  proc: ReturnType<typeof spawn>,
+  timer: ReturnType<typeof setTimeout>,
+  handlers: {
+    resolve: (result: ClaudeCliResult) => void;
+    reject: (err: Error) => void;
+    output: () => string;
+  },
+): void {
+  proc.on("error", (err) => {
+    clearTimeout(timer);
+    handlers.reject(err);
+  });
+  proc.on("close", (code) => {
+    clearTimeout(timer);
+    handlers.resolve({ exitCode: code ?? 1, output: handlers.output() });
+  });
+}
+
+/** Collects the run's stdout and settles on exit. A timeout SIGTERMs rather than killing outright, so the CLI can flush the transcript it has produced so far — that output is the only record of what the agent did before it hung. */
 function collectOutput(
   proc: ReturnType<typeof spawn>,
   timeoutMs: number,
 ): Promise<ClaudeCliResult> {
   return new Promise<ClaudeCliResult>((resolve, reject) => {
-    let stdout = "";
-
-    proc.stdout?.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
+    const output = readStdout(proc);
     const timer = setTimeout(() => {
       proc.kill("SIGTERM");
       reject(new Error(`agent CLI timed out after ${timeoutMs / 1000}s`));
     }, timeoutMs);
 
-    proc.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-    proc.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ exitCode: code ?? 1, output: stdout });
-    });
+    settleOnExit(proc, timer, { resolve, reject, output });
   });
 }
 
