@@ -77,31 +77,37 @@ interface BackfillOneSpecArgs {
   codeChunks: TestChunk[];
 }
 
+/** One spec's backfill plus the line that says what came of it; the log is here so the caller's catch stays about failure only. */
+async function backfillAndLog(
+  args: BackfillOneSpecArgs,
+): Promise<SpecBackfillSummary> {
+  const { project, repo, specPath, chunks, codeChunks } = args;
+  const summary = await runBackfillForSpec(
+    project,
+    repo,
+    { path: specPath, chunks },
+    codeChunks,
+  );
+
+  console.log(
+    `[job] spec-coverage-backfill: ${repo}:${specPath} — ${summary.suggestions} suggestions, ${summary.prUrl || "no PR"}`,
+  );
+
+  return summary;
+}
+
 async function backfillOneSpec(
   args: BackfillOneSpecArgs,
 ): Promise<SpecBackfillSummary | null> {
-  const { project, repo, specPath, chunks, codeChunks } = args;
-
-  if (!isAssertionSource(specPath)) {
+  if (!isAssertionSource(args.specPath)) {
     return null;
   }
 
   try {
-    const summary = await runBackfillForSpec(
-      project,
-      repo,
-      { path: specPath, chunks },
-      codeChunks,
-    );
-
-    console.log(
-      `[job] spec-coverage-backfill: ${repo}:${specPath} — ${summary.suggestions} suggestions, ${summary.prUrl || "no PR"}`,
-    );
-
-    return summary;
+    return await backfillAndLog(args);
   } catch (err) {
     console.error(
-      `[job] spec-coverage-backfill: error on ${repo}:${specPath}:`,
+      `[job] spec-coverage-backfill: error on ${args.repo}:${args.specPath}:`,
       err,
     );
 
@@ -195,29 +201,34 @@ import {
   judgeAndCompose,
 } from "./spec-coverage-suggest.js";
 
+// Two gates before a PR: candidates must be FOUND, then each must survive the judge. A suggestion nobody vouched for costs a reviewer more than it saves.
+async function judgeSpec(
+  repo: string,
+  spec: { path: string; chunks: SpecChunkWithEmbedding[] },
+  codeChunks: TestChunk[],
+) {
+  const found = await findBackfillCandidates(
+    repo,
+    spec.path,
+    spec.chunks,
+    codeChunks,
+  );
+
+  return found ? judgeAndCompose(spec.path, found.content, found) : null;
+}
+
 async function runBackfillForSpec(
   project: Project,
   repo: string,
   spec: { path: string; chunks: SpecChunkWithEmbedding[] },
   codeChunks: TestChunk[],
 ): Promise<SpecBackfillSummary> {
-  const specPath = spec.path;
-  const found = await findBackfillCandidates(
-    repo,
-    specPath,
-    spec.chunks,
-    codeChunks,
-  );
-
-  if (!found) {
-    return { suggestions: 0, prUrl: null };
-  }
-  // Two gates before a PR: candidates must be FOUND, then each must survive the judge. A suggestion nobody vouched for costs a reviewer more than it saves.
-  const judged = await judgeAndCompose(specPath, found.content, found);
+  const judged = await judgeSpec(repo, spec, codeChunks);
 
   if (!judged) {
     return { suggestions: 0, prUrl: null };
   }
+  const specPath = spec.path;
 
   return {
     suggestions: judged.applied,

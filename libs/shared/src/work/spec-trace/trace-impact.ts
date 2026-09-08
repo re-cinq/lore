@@ -191,14 +191,24 @@ function graphCommitOf(baseline: ImpactAssembly["baseline"]) {
     : {};
 }
 
-function assembleImpactReport({
-  options,
-  changed,
-  baseline,
-  code,
-  doc,
-  docsCount,
-}: ImpactAssembly): ImpactReport {
+/** The distinct test files a run would have to execute to re-check every coupled statement. */
+function testSelectorsOf(statements: ImpactStatement[]): string[] {
+  return [...new Set(statements.flatMap((s) => s.tests.map((t) => t.file)))];
+}
+
+/** What the sweep actually looked at, so an empty report can say so instead of reading as a clean bill of health. */
+function examinedOf({ changed, code, doc, docsCount }: ImpactAssembly) {
+  return {
+    files: changed.length,
+    withGraphData: code.withGraphData,
+    docs: docsCount,
+    newStatements: doc.newStatements,
+    changedWithoutTests: doc.changedWithoutTests,
+  };
+}
+
+function assembleImpactReport(assembly: ImpactAssembly): ImpactReport {
+  const { options, changed, baseline, code, doc } = assembly;
   const statements = withTestsTouched([...code.raw, ...doc.raw], changed);
 
   return {
@@ -208,17 +218,9 @@ function assembleImpactReport({
     ...(code.skipped.length ? { skipped: code.skipped } : {}),
     statements,
     orphaned: code.orphaned,
-    testSelectors: [
-      ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
-    ],
+    testSelectors: testSelectorsOf(statements),
     ...graphCommitOf(baseline),
-    examined: {
-      files: changed.length,
-      withGraphData: code.withGraphData,
-      docs: docsCount,
-      newStatements: doc.newStatements,
-      changedWithoutTests: doc.changedWithoutTests,
-    },
+    examined: examinedOf(assembly),
   };
 }
 
@@ -230,6 +232,30 @@ const EMPTY_IMPACT = {
   testSelectors: [],
 } satisfies Partial<ImpactReport>;
 
+/** A protocol-1 client diffed against the base-branch tip, so its file list carries everything merged to base since branch point; suppress rather than publish. */
+function legacyClientImpact(): ImpactReport {
+  return {
+    ...EMPTY_IMPACT,
+    protocol: 1,
+    skipped: [{ path: "*", reason: "legacy-client" }],
+  };
+}
+
+/** Everything the report is assembled from, read code-side first and then doc-side. */
+async function gatherImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  changed: ChangedRange[],
+  options: ImpactOptions,
+): Promise<ImpactAssembly> {
+  const baseline = await readGraphBaseline(dgraph, repo);
+  const code = await codeImpact(dgraph, repo, changed, baseline.commit);
+  const docs = options.docs ?? [];
+  const doc = await docImpact(dgraph, repo, docs);
+
+  return { options, changed, baseline, code, doc, docsCount: docs.length };
+}
+
 export async function computeImpact(
   dgraph: DgraphClientPort | null,
   repo: string,
@@ -240,25 +266,11 @@ export async function computeImpact(
     return { ...EMPTY_IMPACT, status: "unavailable" };
   }
 
-  // A protocol-1 client diffed against the base-branch tip, so its file list carries everything merged to base since branch point; suppress rather than publish.
   if ((options.protocol ?? 1) < 2) {
-    return {
-      ...EMPTY_IMPACT,
-      protocol: 1,
-      skipped: [{ path: "*", reason: "legacy-client" }],
-    };
+    return legacyClientImpact();
   }
-  const baseline = await readGraphBaseline(dgraph, repo);
-  const code = await codeImpact(dgraph, repo, changed, baseline.commit);
-  const docs = options.docs ?? [];
-  const doc = await docImpact(dgraph, repo, docs);
 
-  return assembleImpactReport({
-    options,
-    changed,
-    baseline,
-    code,
-    doc,
-    docsCount: docs.length,
-  });
+  return assembleImpactReport(
+    await gatherImpact(dgraph, repo, changed, options),
+  );
 }

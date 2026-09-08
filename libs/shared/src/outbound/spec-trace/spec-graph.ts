@@ -52,14 +52,13 @@ function enrichment(feature: PersistentFeatureNode) {
   };
 }
 
-// Persistent Feature rows win (ADR-027): enrich a matching computed node, or inject a standalone node for a draft with no spec yet. Pure.
-export function mergePersistentFeatures(
-  graph: SpecGraph,
-  features: PersistentFeatureNode[],
-): SpecGraph {
-  const byPath = new Map(features.map((f) => [f.path, f]));
+/** Enriches every computed Feature node from the persistent row at the same path, reporting which paths were consumed. */
+function enrichFeatureNodes(
+  nodes: SpecGraphNode[],
+  byPath: Map<string, PersistentFeatureNode>,
+): { nodes: SpecGraphNode[]; matched: Set<string> } {
   const matched = new Set<string>();
-  const nodes = graph.nodes.map((node) => {
+  const enriched = nodes.map((node) => {
     const feature =
       node.type === "Feature" && node.path ? byPath.get(node.path) : undefined;
 
@@ -70,7 +69,16 @@ export function mergePersistentFeatures(
 
     return { ...node, ...enrichment(feature) };
   });
-  const standalone: SpecGraphNode[] = features
+
+  return { nodes: enriched, matched };
+}
+
+/** A node per persistent Feature the computed graph never produced — a draft with no spec file yet. */
+function standaloneFeatureNodes(
+  features: PersistentFeatureNode[],
+  matched: Set<string>,
+): SpecGraphNode[] {
+  return features
     .filter((feature) => !matched.has(feature.path))
     .map((feature) => ({
       id: `feature:${feature.id}`,
@@ -78,6 +86,16 @@ export function mergePersistentFeatures(
       path: feature.path,
       ...enrichment(feature),
     }));
+}
+
+// Persistent Feature rows win (ADR-027): enrich a matching computed node, or inject a standalone node for a draft with no spec yet. Pure.
+export function mergePersistentFeatures(
+  graph: SpecGraph,
+  features: PersistentFeatureNode[],
+): SpecGraph {
+  const byPath = new Map(features.map((f) => [f.path, f]));
+  const { nodes, matched } = enrichFeatureNodes(graph.nodes, byPath);
+  const standalone = standaloneFeatureNodes(features, matched);
 
   return { nodes: [...nodes, ...standalone], links: graph.links };
 }

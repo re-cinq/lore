@@ -33,12 +33,12 @@ function similarity(a: string, b: string): number {
 /** Threshold below which statements are unrelated; set where single-clause edits pair but different sentences do not. */
 const MIN_SIMILARITY = 0.45;
 
-/** Pair removed statements to replacements by similarity; each addition claimed once. */
-export function pairRewrites(
+/** Every above-threshold before/after combination, best score first; ties broken by text so the output is stable run to run. */
+function rankedCandidates(
   removed: string[],
   added: string[],
-): Map<string, string | null> {
-  const candidates = removed
+): Array<{ before: string; after: string; score: number }> {
+  return removed
     .flatMap((before) =>
       added.map((after) => ({
         before,
@@ -46,10 +46,16 @@ export function pairRewrites(
         score: similarity(before, after),
       })),
     )
-    .filter((c) => c.score >= MIN_SIMILARITY)
-    // Ties broken by text so the output is stable run to run.
+    .filter((candidate) => candidate.score >= MIN_SIMILARITY)
     .sort((a, b) => b.score - a.score || a.after.localeCompare(b.after));
+}
 
+/** Pair removed statements to replacements by similarity; each addition claimed once. */
+export function pairRewrites(
+  removed: string[],
+  added: string[],
+): Map<string, string | null> {
+  const candidates = rankedCandidates(removed, added);
   const pairs = new Map<string, string | null>(
     removed.map((before) => [before, null]),
   );

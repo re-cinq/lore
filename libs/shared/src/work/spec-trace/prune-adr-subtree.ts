@@ -80,13 +80,9 @@ type QueriedAdr = {
   links?: Array<UidRef & { stmt?: UidRef[] | UidRef; acOwners?: UidRef[] }>;
 };
 
-/** Back-references naming `adr.uid` that also need deleting, plus the ADR node itself and its `Repo.adrs` edge. */
-function buildAdrDeletes(
-  adr: QueriedAdr,
-  rootUid: string | undefined,
-): string[] {
-  const deletes = [
-    `<${adr.uid}> * * .`,
+/** The incoming `decided_by`/`supersedes` refs naming `adr.uid`, one delete per citing node. */
+function adrCiterDeletes(adr: QueriedAdr): string[] {
+  return [
     ...uids(adr.citers).map(
       (uid) => `<${uid}> <Statement.decided_by> <${adr.uid}> .`,
     ),
@@ -96,6 +92,17 @@ function buildAdrDeletes(
     ...uids(adr.superseders).map(
       (uid) => `<${uid}> <ADR.supersedes> <${adr.uid}> .`,
     ),
+  ];
+}
+
+/** Back-references naming `adr.uid` that also need deleting, plus the ADR node itself and its `Repo.adrs` edge. */
+function buildAdrDeletes(
+  adr: QueriedAdr,
+  rootUid: string | undefined,
+): string[] {
+  const deletes = [
+    `<${adr.uid}> * * .`,
+    ...adrCiterDeletes(adr),
     ...(adr.links ?? []).flatMap((link) => adrLinkDeletes(link)),
   ];
 

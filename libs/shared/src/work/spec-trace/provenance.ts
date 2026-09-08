@@ -87,18 +87,17 @@ export interface ProvenanceConflict {
   targets: string[];
 }
 
-/** Finds every pair that drew two or more DISTINCT targets across sources (read in canonical order); pairs with a single target are not conflicts. */
-export function detectProvenanceConflicts(
+/** Groups every ref by its `(specPath, ordinal)` pair, accumulating the DISTINCT targets each pair drew in canonical read order. */
+function targetsByPair(
   sources: ProvenanceSources,
-): ProvenanceConflict[] {
+): Map<string, ProvenanceConflict> {
   const pairs = new Map<string, ProvenanceConflict>();
 
   for (const { ref } of refsInReadOrder(sources)) {
-    const key = pairKey(ref);
-    const existing = pairs.get(key);
+    const existing = pairs.get(pairKey(ref));
 
     if (!existing) {
-      pairs.set(key, {
+      pairs.set(pairKey(ref), {
         specPath: ref.specPath,
         ordinal: ref.ordinal,
         targets: [ref.target],
@@ -111,5 +110,14 @@ export function detectProvenanceConflicts(
     }
   }
 
-  return [...pairs.values()].filter((pair) => pair.targets.length >= 2);
+  return pairs;
+}
+
+/** Finds every pair that drew two or more DISTINCT targets across sources (read in canonical order); pairs with a single target are not conflicts. */
+export function detectProvenanceConflicts(
+  sources: ProvenanceSources,
+): ProvenanceConflict[] {
+  return [...targetsByPair(sources).values()].filter(
+    (pair) => pair.targets.length >= 2,
+  );
 }

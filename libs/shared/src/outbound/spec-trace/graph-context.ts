@@ -140,24 +140,29 @@ function distinct(
 /** Default budget cap on ranked statements — a token-budget proxy for the assembled block. */
 export const DEFAULT_LIMIT = 12;
 
-export function assembleGraphContext(
-  graph: GraphContextResult,
-  opts: { limit?: number } = {},
-): GraphContextBlock {
-  const limit = opts.limit ?? DEFAULT_LIMIT;
+/** Statements deduped by xid (first row for an xid wins) and ordered by signal rank. */
+function rankStatements(rows: StmtRow[]): GraphContextStatement[] {
   const byXid = new Map<string, GraphContextStatement>();
 
-  for (const row of graph.q ?? []) {
+  for (const row of rows) {
     const stmt = toStatement(row);
 
     if (!byXid.has(stmt.xid)) {
       byXid.set(stmt.xid, stmt);
     }
   }
-  const ranked = [...byXid.values()].sort(
+
+  return [...byXid.values()].sort(
     (a, b) => SIGNAL_RANK[a.signal] - SIGNAL_RANK[b.signal],
   );
-  const statements = ranked.slice(0, limit);
+}
+
+export function assembleGraphContext(
+  graph: GraphContextResult,
+  opts: { limit?: number } = {},
+): GraphContextBlock {
+  const ranked = rankStatements(graph.q ?? []);
+  const statements = ranked.slice(0, opts.limit ?? DEFAULT_LIMIT);
 
   return {
     statements,

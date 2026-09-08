@@ -19,12 +19,10 @@ function serializeRanges(ranges: CoveredChunk[]): string {
   return ranges.map((r) => `${r.startLine}-${r.endLine}`).join(",");
 }
 
-/** Upserts File nodes and returns as faceted edge targets with merged intervals serialized to ranges facet. */
-async function upsertCoveredFiles(
-  dgraph: DgraphClientPort,
-  repo: string,
+/** Groups covered intervals by the file they belong to, preserving covered order within each file. */
+function groupRangesByFile(
   covered: CoveredChunk[],
-): Promise<FacetedTarget[]> {
+): Map<string, CoveredChunk[]> {
   const rangesByFile = new Map<string, CoveredChunk[]>();
 
   for (const range of covered) {
@@ -33,9 +31,19 @@ async function upsertCoveredFiles(
       rangesByFile.set(range.file, []).get(range.file)!
     ).push(range);
   }
+
+  return rangesByFile;
+}
+
+/** Upserts File nodes and returns as faceted edge targets with merged intervals serialized to ranges facet. */
+async function upsertCoveredFiles(
+  dgraph: DgraphClientPort,
+  repo: string,
+  covered: CoveredChunk[],
+): Promise<FacetedTarget[]> {
   const targets: FacetedTarget[] = [];
 
-  for (const [file, ranges] of rangesByFile) {
+  for (const [file, ranges] of groupRangesByFile(covered)) {
     const uid = await upsertByXid(dgraph, "File", `${repo}|${file}`, {
       "File.repo": repo,
       "File.path": file,
@@ -65,14 +73,13 @@ async function readCoversUids(
   });
 }
 
-/** Sets TestChunk.coverage edge when matching TestChunk exists; query and mutate in separate txns. */
-async function linkTestChunkCoverage(
+/** The uid of the TestChunk this coverage record describes, or undefined when no ingest has projected one. */
+async function findTestChunkUid(
   dgraph: DgraphClientPort,
   repo: string,
   record: { testFile: string; testName: string },
-  coverageUid: string,
-): Promise<void> {
-  const testChunkUid = await withTxn(dgraph, async (txn) => {
+): Promise<string | undefined> {
+  return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($file: string, $name: string, $repo: string){ tc(func: eq(TestChunk.file_path, $file)) @filter(eq(TestChunk.test_name, $name) AND eq(TestChunk.repo, $repo)){ uid } }`,
       { $file: record.testFile, $name: record.testName, $repo: repo },
@@ -80,6 +87,16 @@ async function linkTestChunkCoverage(
 
     return firstOf(res.data.tc)?.uid as string | undefined;
   });
+}
+
+/** Sets TestChunk.coverage edge when matching TestChunk exists; query and mutate in separate txns. */
+async function linkTestChunkCoverage(
+  dgraph: DgraphClientPort,
+  repo: string,
+  record: { testFile: string; testName: string },
+  coverageUid: string,
+): Promise<void> {
+  const testChunkUid = await findTestChunkUid(dgraph, repo, record);
 
   if (!testChunkUid) {
     return;
@@ -95,8 +112,26 @@ async function linkTestChunkCoverage(
   );
 }
 
-/** One test's coverage: its node, the files it covers, and the edges between. The previous targets are read BEFORE the replace so the ones this run dropped can be garbage-collected — a File node no coverage owns any more is invisible from the graph's entry point but still occupies it. Everything is also hung off the Repo root for the same reason: a node reachable from nothing is a node nobody can query. */
-/** Points this coverage at the files it now covers, and garbage-collects the ones it dropped. The previous targets are read BEFORE the replace: after it, there is no record of what this coverage used to own, and a File node nothing points at is unreachable from the graph's entry point while still occupying it. */
+/** Repoints the coverage at its new file targets and garbage-collects the ones it dropped: a File node nothing points at is unreachable from the graph's entry point while still occupying it. */
+async function replaceCoverTargets(
+  dgraph: DgraphClientPort,
+  coverageUid: string,
+  previous: string[],
+  fileTargets: FacetedTarget[],
+): Promise<void> {
+  await replaceEdgeWithFacets(
+    dgraph,
+    coverageUid,
+    "Coverage.covers",
+    fileTargets,
+  );
+  await gcOrphanChunks(dgraph, "File", {
+    previous,
+    current: fileTargets.map((t) => t.uid),
+  });
+}
+
+/** Points this coverage at the files it now covers. The previous targets are read BEFORE the replace: after it, there is no record of what this coverage used to own. */
 async function replaceCovers(
   dgraph: DgraphClientPort,
   repo: string,
@@ -105,20 +140,25 @@ async function replaceCovers(
 ): Promise<string[]> {
   const previousCovers = await readCoversUids(dgraph, coverageUid);
   const fileTargets = await upsertCoveredFiles(dgraph, repo, record.covered);
-  const fileUids = fileTargets.map((t) => t.uid);
 
-  await replaceEdgeWithFacets(
-    dgraph,
-    coverageUid,
-    "Coverage.covers",
-    fileTargets,
-  );
-  await gcOrphanChunks(dgraph, "File", {
-    previous: previousCovers,
-    current: fileUids,
+  await replaceCoverTargets(dgraph, coverageUid, previousCovers, fileTargets);
+
+  return fileTargets.map((t) => t.uid);
+}
+
+/** Hangs the coverage node and the files it covers off the Repo root, so both stay reachable from the graph's entry point. */
+async function attachCoverageToRepoRoot(
+  dgraph: DgraphClientPort,
+  repo: string,
+  coverageUid: string,
+  fileUids: string[],
+): Promise<void> {
+  await upsertByXid(dgraph, "Repo", repo, {
+    "Repo.coverage": [{ uid: coverageUid }],
+    ...(fileUids.length
+      ? { "Repo.files": fileUids.map((uid) => ({ uid })) }
+      : {}),
   });
-
-  return fileUids;
 }
 
 async function ingestOneCoverage(
@@ -134,12 +174,7 @@ async function ingestOneCoverage(
   });
   const fileUids = await replaceCovers(dgraph, meta.repo, coverageUid, record);
 
-  await upsertByXid(dgraph, "Repo", meta.repo, {
-    "Repo.coverage": [{ uid: coverageUid }],
-    ...(fileUids.length
-      ? { "Repo.files": fileUids.map((uid) => ({ uid })) }
-      : {}),
-  });
+  await attachCoverageToRepoRoot(dgraph, meta.repo, coverageUid, fileUids);
   await linkTestChunkCoverage(dgraph, meta.repo, record, coverageUid);
 
   return fileUids.length;

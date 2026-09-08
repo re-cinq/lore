@@ -70,6 +70,30 @@ function isValidScore(score: unknown): score is number {
   return typeof score === "number" && score >= 0 && score <= 1;
 }
 
+/** The ordinal the model claims to have matched, or null when it answered with anything but a number. */
+function pickedOrdinal(suggestion: JudgeSuggestion): number | null {
+  return typeof suggestion.statement_ordinal === "number"
+    ? suggestion.statement_ordinal
+    : null;
+}
+
+/** A confirmed match; an absent or out-of-range score falls back to the threshold rather than to zero, because the model already answered matches=true. */
+function matchVerdict(
+  match: { ordinal: number; text: string },
+  suggestion: JudgeSuggestion,
+  rationale: string,
+): JudgeVerdict {
+  return {
+    matches: true,
+    statement_ordinal: match.ordinal,
+    statement_text: match.text,
+    match_score: isValidScore(suggestion.score)
+      ? suggestion.score
+      : JUDGE_SCORE_THRESHOLD,
+    rationale,
+  };
+}
+
 function resolveJudgeVerdict(
   testable: { ordinal: number; text: string }[],
   suggestion: JudgeSuggestion,
@@ -80,41 +104,23 @@ function resolveJudgeVerdict(
     return noMatchVerdict(rationale);
   }
 
-  const ordinal =
-    typeof suggestion.statement_ordinal === "number"
-      ? suggestion.statement_ordinal
-      : null;
+  const ordinal = pickedOrdinal(suggestion);
   const match = testable.find((s) => s.ordinal === ordinal);
 
-  if (!match) {
-    return noMatchVerdict(
-      `Judge picked ordinal ${ordinal} not in the enumerated set; dropped.`,
-    );
-  }
-
-  const score = isValidScore(suggestion.score)
-    ? suggestion.score
-    : JUDGE_SCORE_THRESHOLD;
-
-  return {
-    matches: true,
-    statement_ordinal: match.ordinal,
-    statement_text: match.text,
-    match_score: score,
-    rationale,
-  };
+  return match
+    ? matchVerdict(match, suggestion, rationale)
+    : noMatchVerdict(
+        `Judge picked ordinal ${ordinal} not in the enumerated set; dropped.`,
+      );
 }
 
-export async function judgeLink(
+/** The judge prompt: the spec's testable statements enumerated by ordinal, and the candidate test's source. */
+function judgePrompt(
   spec: { file_path: string; content: string },
   testable: { ordinal: number; text: string }[],
   candidate: JudgeCandidate,
-): Promise<JudgeVerdict> {
-  if (testable.length === 0) {
-    return noMatchVerdict("No testable statements; nothing to validate.");
-  }
-  const result = await Llm.instance.completeWithTool<JudgeSuggestion>({
-    prompt: `Decide whether the TEST validates a SPECIFIC enumerated TESTABLE STATEMENT below. Answer true only when the test exercises a behaviour described by ONE statement — not merely shared vocabulary.
+): string {
+  return `Decide whether the TEST validates a SPECIFIC enumerated TESTABLE STATEMENT below. Answer true only when the test exercises a behaviour described by ONE statement — not merely shared vocabulary.
 
 If true, pick the SINGLE statement most strongly validated (its ordinal) and a confidence \`score\` 0.0–1.0. If false, omit ordinal/score.
 
@@ -126,7 +132,17 @@ ${formatTestableStatements(testable)}
 TEST (${candidate.test_file} › ${candidate.test_name}):
 ---
 ${candidate.content.substring(0, 4000)}
----`,
+---`;
+}
+
+/** Asks the model through a TOOL so the answer arrives as fields rather than prose to interpret. */
+async function askJudge(
+  spec: { file_path: string; content: string },
+  testable: { ordinal: number; text: string }[],
+  candidate: JudgeCandidate,
+): Promise<JudgeSuggestion> {
+  const result = await Llm.instance.completeWithTool<JudgeSuggestion>({
+    prompt: judgePrompt(spec, testable, candidate),
     systemPrompt:
       "You judge whether a test validates one specific enumerated statement of a specification. Be strict: shared vocabulary is not validation. Pick a single best-match statement when matches=true and give a one-sentence rationale.",
     toolName: "judge_link",
@@ -136,5 +152,20 @@ ${candidate.content.substring(0, 4000)}
     jobName: "spec_coverage_backfill",
   });
 
-  return resolveJudgeVerdict(testable, result.parsed);
+  return result.parsed;
+}
+
+export async function judgeLink(
+  spec: { file_path: string; content: string },
+  testable: { ordinal: number; text: string }[],
+  candidate: JudgeCandidate,
+): Promise<JudgeVerdict> {
+  if (testable.length === 0) {
+    return noMatchVerdict("No testable statements; nothing to validate.");
+  }
+
+  return resolveJudgeVerdict(
+    testable,
+    await askJudge(spec, testable, candidate),
+  );
 }

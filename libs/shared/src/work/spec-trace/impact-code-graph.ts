@@ -10,7 +10,6 @@ import {
   type ImpactStatement,
 } from "./impact-statement.js";
 import type { OrphanStatement } from "./impact-types.js";
-import { firstOf } from "./uid-refs.js";
 
 interface GraphImplChunk {
   "CodeChunk.start_line"?: number;
@@ -108,6 +107,18 @@ function statementsForCoverage(
   });
 }
 
+/** Whether any range `cov` covers in this file overlaps the diff's changed ranges. */
+function coverageOverlaps(
+  cov: GraphCoverage,
+  ranges: [number, number][],
+): boolean {
+  const covered = parseRanges(cov.file?.[0]?.["file|ranges"] ?? "");
+
+  return covered.some(([cs, ce]) =>
+    ranges.some(([s, e]) => intervalsOverlap(cs, ce, s, e)),
+  );
+}
+
 /** Coverage covering `file` whose facet ranges overlap the diff → validated statements + selectors. */
 export async function validatedByImpact(
   dgraph: DgraphClientPort,
@@ -124,15 +135,9 @@ export async function validatedByImpact(
     return (res.data.covs ?? []) as GraphCoverage[];
   });
 
-  const overlapping = covs.filter((cov) => {
-    const covered = parseRanges(firstOf(cov.file)?.["file|ranges"] ?? "");
-
-    return covered.some(([cs, ce]) =>
-      ranges.some(([s, e]) => intervalsOverlap(cs, ce, s, e)),
-    );
-  });
-
-  return overlapping.flatMap((cov) => statementsForCoverage(cov, file));
+  return covs
+    .filter((cov) => coverageOverlaps(cov, ranges))
+    .flatMap((cov) => statementsForCoverage(cov, file));
 }
 
 interface GraphFootprintStatement extends GraphStatement {
@@ -226,14 +231,13 @@ function orphanFor(
   return buildOrphanStatement(stmt, killed[0]);
 }
 
-/** A statement is orphaned when EVERY range covering it is killed by the diff's deletions. */
-export async function orphanImpact(
+/** Coverage nodes touching `file`, read at their orphan-detection projection. */
+async function readOrphanCoverages(
   dgraph: DgraphClientPort,
   repo: string,
   file: string,
-  deleted: [number, number][],
-): Promise<OrphanStatement[]> {
-  const covs = await withTxn(dgraph, async (txn) => {
+): Promise<GraphOrphanCoverage[]> {
+  return await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(ORPHAN_QUERY, {
       $repo: repo,
       $fp: file,
@@ -241,24 +245,45 @@ export async function orphanImpact(
 
     return (res.data.covs ?? []) as GraphOrphanCoverage[];
   });
-  const byXid = new Map<string, OrphanStatement>();
+}
 
-  const candidateStmts = covs
+/** Every statement reachable from the coverage nodes that actually cover the file. */
+function orphanCandidates(
+  covs: GraphOrphanCoverage[],
+): GraphFootprintStatement[] {
+  return covs
     .filter((cov) => Boolean(cov.file?.length))
     .flatMap((cov) => cov.tc ?? [])
     .flatMap((tc) => tc.stmts ?? []);
+}
 
-  for (const stmt of candidateStmts) {
+/** Dedupe key: the statement's own xid, or a spec+text stand-in when the projection omitted it. */
+function orphanKey(
+  stmt: GraphFootprintStatement,
+  orphan: OrphanStatement,
+): string {
+  return (
+    stmt["Statement.xid"] ??
+    `${orphan.specPath}::${stmt["Statement.text"] ?? ""}`
+  );
+}
+
+/** A statement is orphaned when EVERY range covering it is killed by the diff's deletions. */
+export async function orphanImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  file: string,
+  deleted: [number, number][],
+): Promise<OrphanStatement[]> {
+  const covs = await readOrphanCoverages(dgraph, repo, file);
+  const byXid = new Map<string, OrphanStatement>();
+
+  for (const stmt of orphanCandidates(covs)) {
     const orphan = orphanFor(stmt, file, deleted);
 
-    if (!orphan) {
-      continue;
+    if (orphan) {
+      byXid.set(orphanKey(stmt, orphan), orphan);
     }
-    const xid =
-      stmt["Statement.xid"] ??
-      `${orphan.specPath}::${stmt["Statement.text"] ?? ""}`;
-
-    byXid.set(xid, orphan);
   }
 
   return [...byXid.values()];

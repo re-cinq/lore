@@ -106,19 +106,7 @@ export async function groupStatementsBySentence(
   const groups = new Map<string, SentenceGroup>();
 
   for (const { descriptor, fileChunkUid } of entries) {
-    if (parseSpecAnchors(descriptor.spec).length > 0) {
-      continue;
-    }
-    // Structural (describe-nesting) link is primary; falls back to a hand-written name for backward compatibility.
-    const link =
-      sentenceLinkFromSuite(descriptor) ?? parseSentenceLink(descriptor.name);
-
-    if (!link) {
-      continue;
-    }
-
-    addDescriptorToSentenceGroups(groups, {
-      matches: await resolveSentenceLink(dgraph, repo, link),
+    await addResolvedDescriptor(dgraph, repo, groups, {
       descriptor,
       fileChunkUid,
       failed: resultById.get(descriptor.id)?.passed === false,
@@ -126,6 +114,41 @@ export async function groupStatementsBySentence(
   }
 
   return [...groups.values()];
+}
+
+/** The sentence link an anchorless descriptor carries: the structural (describe-nesting) link is primary, a hand-written name is the backward-compatible fallback; an anchored descriptor has none, since its anchors already resolved it. */
+function anchorlessSentenceLink(descriptor: TestDescriptor) {
+  if (parseSpecAnchors(descriptor.spec).length > 0) {
+    return undefined;
+  }
+
+  return (
+    sentenceLinkFromSuite(descriptor) ?? parseSentenceLink(descriptor.name)
+  );
+}
+
+/** Resolves one descriptor's sentence link against the live graph and folds its TestChunk into every node the link matched. */
+async function addResolvedDescriptor(
+  dgraph: DgraphClientPort,
+  repo: string,
+  groups: Map<string, SentenceGroup>,
+  entry: { descriptor: TestDescriptor; fileChunkUid: string; failed: boolean },
+): Promise<void> {
+  const link = anchorlessSentenceLink(entry.descriptor);
+
+  if (!link) {
+    return;
+  }
+
+  addDescriptorToSentenceGroups(groups, {
+    ...entry,
+    matches: await resolveSentenceLink(dgraph, repo, link),
+  });
+}
+
+/** A group with no contributions yet, for the first descriptor that resolves to this node. */
+function emptySentenceGroup(match: SentenceMatch): SentenceGroup {
+  return { ...match, validatingChunkUids: [], failingTestNames: [] };
 }
 
 function addDescriptorToSentenceGroups(
@@ -138,11 +161,7 @@ function addDescriptorToSentenceGroups(
   },
 ): void {
   for (const match of entry.matches) {
-    const group = groups.get(match.uid) ?? {
-      ...match,
-      validatingChunkUids: [],
-      failingTestNames: [],
-    };
+    const group = groups.get(match.uid) ?? emptySentenceGroup(match);
 
     group.validatingChunkUids.push(entry.fileChunkUid);
 
@@ -153,7 +172,6 @@ function addDescriptorToSentenceGroups(
   }
 }
 
-/** Writes a sentence-resolved group onto its existing node by uid, same violated/violation_reason handling as {@link writeStatementGroup}. */
 /** The write for one group: the tests that validate the statement, and whether any of them failed. The reason is included ONLY on failure — an empty reason beside `violated: false` reads as a violation nobody could name. */
 function groupMutation(group: SentenceGroup, failed: boolean) {
   return {
@@ -172,6 +190,7 @@ function groupMutation(group: SentenceGroup, failed: boolean) {
   };
 }
 
+/** Writes a sentence-resolved group onto its existing node by uid, same violated/violation_reason handling as {@link writeStatementGroup}. */
 export async function writeSentenceGroup(
   dgraph: DgraphClientPort,
   group: SentenceGroup,

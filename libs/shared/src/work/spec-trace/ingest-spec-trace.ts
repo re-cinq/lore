@@ -54,6 +54,17 @@ async function ingestCoverageKind(
   };
 }
 
+/** A test-report payload: the descriptors, their results, and the spec links they carry. */
+async function ingestTestReportKind(
+  dgraph: DgraphClientPort,
+  repo: string,
+  payload: unknown,
+): Promise<SpecTraceOutcome> {
+  const result = await ingestTestReport(dgraph, repo, payload as TestReport);
+
+  return { kind: "test-report", ...result };
+}
+
 export async function ingestSpecTrace(
   dgraph: DgraphClientPort,
   repo: string,
@@ -61,15 +72,8 @@ export async function ingestSpecTrace(
   payload: unknown,
 ): Promise<SpecTraceOutcome> {
   switch (kind) {
-    case "test-report": {
-      const result = await ingestTestReport(
-        dgraph,
-        repo,
-        payload as TestReport,
-      );
-
-      return { kind, ...result };
-    }
+    case "test-report":
+      return ingestTestReportKind(dgraph, repo, payload);
     case "coverage":
       return ingestCoverageKind(dgraph, repo, payload as CoveragePayload);
     default:

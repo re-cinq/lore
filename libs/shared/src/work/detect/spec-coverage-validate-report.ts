@@ -65,6 +65,31 @@ interface SpecSectionsResult {
   elided: number;
 }
 
+/** One spec's heading and bullets, or nothing at all when the budget cannot carry them; the budget it answers with is what the next section starts from. */
+function specSection(
+  specPath: string,
+  list: BrokenLink[],
+  budget: number,
+): { lines: string[]; budget: number; elided: number } {
+  const heading = `### \`${specPath}\``;
+
+  if (budget + heading.length > MAX_ISSUE_BODY) {
+    return { lines: [], budget, elided: list.length };
+  }
+  const section = sectionBulletsWithinBudget(list, budget + heading.length + 2);
+
+  // Every bullet was elided — a dangling empty heading would misread as a clean spec.
+  if (section.bullets.length === 0) {
+    return { lines: [], budget, elided: section.elided };
+  }
+
+  return {
+    lines: [heading, "", ...section.bullets, ""],
+    budget: section.sectionBudget + 1,
+    elided: section.elided,
+  };
+}
+
 // Whole bullets only, up to the budget — a raw slice could cut mid-line and drop the footer.
 function renderSpecSections(
   bySpec: Map<string, BrokenLink[]>,
@@ -75,26 +100,11 @@ function renderSpecSections(
   let elided = 0;
 
   for (const [specPath, list] of bySpec) {
-    const heading = `### \`${specPath}\``;
+    const section = specSection(specPath, list, budget);
 
-    if (budget + heading.length > MAX_ISSUE_BODY) {
-      elided += list.length;
-      continue;
-    }
-
-    const section = sectionBulletsWithinBudget(
-      list,
-      budget + heading.length + 2,
-    );
-
+    lines.push(...section.lines);
+    budget = section.budget;
     elided += section.elided;
-
-    // Every bullet was elided — a dangling empty heading would misread as a clean spec.
-    if (section.bullets.length === 0) {
-      continue;
-    }
-    lines.push(heading, "", ...section.bullets, "");
-    budget = section.sectionBudget + 1;
   }
 
   return { lines, elided };

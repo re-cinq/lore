@@ -96,30 +96,23 @@ type InsertionOutcome =
   | { kind: "skip"; reason: SkipReason }
   | { kind: "insert"; newContent: string; applied: number };
 
+function insertionSkip(
+  ord: number,
+  reason: SkipReason["reason"],
+): InsertionOutcome {
+  return { kind: "skip", reason: { statement_ordinal: ord, reason } };
+}
+
 function insertOne(entry: OrderedInsertion, content: string): InsertionOutcome {
   const { ord, list, text } = entry;
-
-  if (text.length === 0) {
-    return {
-      kind: "skip",
-      reason: { statement_ordinal: ord, reason: "not-found" },
-    };
-  }
-
   const idx = content.indexOf(text);
 
   if (idx < 0) {
-    return {
-      kind: "skip",
-      reason: { statement_ordinal: ord, reason: "not-found" },
-    };
+    return insertionSkip(ord, "not-found");
   }
 
   if (parseTestLinksInStatement(text).length > 0) {
-    return {
-      kind: "skip",
-      reason: { statement_ordinal: ord, reason: "already-linked" },
-    };
+    return insertionSkip(ord, "already-linked");
   }
 
   const tail = ` (${list.map(renderLink).join(", ")})`;
@@ -165,16 +158,11 @@ function buildUnifiedDiff(before: string, after: string): string {
   return out.join("\n");
 }
 
-// For each statement_ordinal, locates the matching text and appends a `(...)` parenthetical of `[label](path#Lline)` links (comma-separated when multiple); skips already-linked or not-found statements.
-export function proposeLinkInsertions(
+// Each insertion is applied to the content the previous one produced, which is why the entries arrive deepest-first.
+function applyInsertions(
+  ordered: OrderedInsertion[],
   content: string,
-  suggestions: Suggestion[],
-): InsertionResult {
-  if (suggestions.length === 0) {
-    return { newContent: content, diffPreview: "", applied: 0, skipped: [] };
-  }
-
-  const ordered = orderInsertions(groupByOrdinal(suggestions), content);
+): { newContent: string; applied: number; skipped: SkipReason[] } {
   const skipped: SkipReason[] = [];
   let applied = 0;
   let newContent = content;
@@ -190,6 +178,20 @@ export function proposeLinkInsertions(
     applied += outcome.applied;
   }
 
+  return { newContent, applied, skipped };
+}
+
+// For each statement_ordinal, locates the matching text and appends a `(...)` parenthetical of `[label](path#Lline)` links (comma-separated when multiple); skips already-linked or not-found statements.
+export function proposeLinkInsertions(
+  content: string,
+  suggestions: Suggestion[],
+): InsertionResult {
+  if (suggestions.length === 0) {
+    return { newContent: content, diffPreview: "", applied: 0, skipped: [] };
+  }
+
+  const ordered = orderInsertions(groupByOrdinal(suggestions), content);
+  const { newContent, applied, skipped } = applyInsertions(ordered, content);
   const diffPreview = applied > 0 ? buildUnifiedDiff(content, newContent) : "";
 
   return { newContent, diffPreview, applied, skipped };

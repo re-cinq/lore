@@ -50,6 +50,23 @@ async function raisedEvidence(
   return existing ? (highestTier([existing, incoming]) ?? incoming) : incoming;
 }
 
+/** Points the statement back at the reified link, so the edge is reachable from both ends. */
+async function attachTraceLink(
+  dgraph: DgraphClientPort,
+  statementUid: string,
+  traceLinkUid: string,
+): Promise<void> {
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({
+      setJson: {
+        uid: statementUid,
+        "Statement.trace_links": [{ uid: traceLinkUid }],
+      },
+      commitNow: true,
+    }),
+  );
+}
+
 /** Upsert TraceLink with deterministic xid; evidence only ever raises tier, never lowers. */
 export async function upsertTraceLink(
   dgraph: DgraphClientPort,
@@ -65,15 +82,7 @@ export async function upsertTraceLink(
     "TraceLink.evidence": evidence,
   });
 
-  await withTxn(dgraph, (txn) =>
-    txn.mutate({
-      setJson: {
-        uid: args.statementUid,
-        "Statement.trace_links": [{ uid: traceLinkUid }],
-      },
-      commitNow: true,
-    }),
-  );
+  await attachTraceLink(dgraph, args.statementUid, traceLinkUid);
 
   return traceLinkUid;
 }
@@ -103,36 +112,48 @@ async function readStatementEdges(
   });
 }
 
-/** A validated_by edge is EXECUTION-VERIFIED only when a run actually covered the statement; a human-written link that no test exercised stays human-linked, so the two never read as the same strength of claim. An implemented_by edge is always human-linked — nothing executes it. */
+interface DerivedLink {
+  targetUid: string;
+  targetXid: string;
+  kind: TraceLinkKind;
+  evidence: EvidenceTier;
+}
+
+function validatedLinks(
+  stmt: StatementEdges,
+  evidence: EvidenceTier,
+): DerivedLink[] {
+  return (stmt.validated ?? []).map((target) => ({
+    targetUid: target.uid,
+    targetXid: target["TestChunk.xid"],
+    kind: "validated_by",
+    evidence,
+  }));
+}
+
+/** An implemented_by edge is always human-linked — nothing executes it. */
+function implementedLinks(stmt: StatementEdges): DerivedLink[] {
+  return (stmt.implemented ?? []).map((target) => ({
+    targetUid: target.uid,
+    targetXid: target["CodeChunk.xid"],
+    kind: "implemented_by",
+    evidence: "human-linked",
+  }));
+}
+
+/** A validated_by edge is EXECUTION-VERIFIED only when a run actually covered the statement; a human-written link that no test exercised stays human-linked, so the two never read as the same strength of claim. */
 async function deriveLinks(
   dgraph: DgraphClientPort,
   statementXid: string,
   stmt: StatementEdges,
-): Promise<
-  Array<{
-    targetUid: string;
-    targetXid: string;
-    kind: TraceLinkKind;
-    evidence: EvidenceTier;
-  }>
-> {
+): Promise<DerivedLink[]> {
   const verdict = await verifyCoverageLink(dgraph, statementXid);
   const validatedEvidence: EvidenceTier =
     verdict === "execution-verified" ? "execution-verified" : "human-linked";
 
   return [
-    ...(stmt.validated ?? []).map((target) => ({
-      targetUid: target.uid,
-      targetXid: target["TestChunk.xid"],
-      kind: "validated_by" as const,
-      evidence: validatedEvidence,
-    })),
-    ...(stmt.implemented ?? []).map((target) => ({
-      targetUid: target.uid,
-      targetXid: target["CodeChunk.xid"],
-      kind: "implemented_by" as const,
-      evidence: "human-linked" as const,
-    })),
+    ...validatedLinks(stmt, validatedEvidence),
+    ...implementedLinks(stmt),
   ];
 }
 

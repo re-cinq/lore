@@ -68,24 +68,32 @@ export interface GraphDriftDecision {
   statements: DriftedStatement[];
 }
 
+// A projected statement in the shape the drift Issue renders from; the section HEADING is carried rather than its uid because the reader of the Issue has no way to resolve a uid.
+function toDriftedStatement(
+  statement: TraceDocument["statements"][number],
+  headingByUid: Map<string, string>,
+): DriftedStatement {
+  return {
+    text: statement.text,
+    ordinal: statement.ordinal,
+    section: statement.sectionUid
+      ? headingByUid.get(statement.sectionUid)
+      : undefined,
+    reason: statement.violated ? "violated" : "drifted",
+    links: statement.links.map((l) => ({
+      kind: l.kind,
+      label: l.label,
+      path: l.path,
+      line: l.line,
+    })),
+  };
+}
+
 // A statement drifts when a binding test fails (`violated`) or the projection flagged it (`drifted`); deterministic, no LLM. Link-rot is owned by the validate pass, not here.
 export function decideGraphDrift(doc: TraceDocument): GraphDriftDecision {
   const headingByUid = new Map(doc.sections.map((s) => [s.uid, s.heading]));
-  const rows = doc.statements;
-  const statements: DriftedStatement[] = rows
-    .filter((s) => s.violated || s.drifted)
-    .map((s) => ({
-      text: s.text,
-      ordinal: s.ordinal,
-      section: s.sectionUid ? headingByUid.get(s.sectionUid) : undefined,
-      reason: s.violated ? "violated" : "drifted",
-      links: s.links.map((l) => ({
-        kind: l.kind,
-        label: l.label,
-        path: l.path,
-        line: l.line,
-      })),
-    }));
+  const drifted = doc.statements.filter((s) => s.violated || s.drifted);
+  const statements = drifted.map((s) => toDriftedStatement(s, headingByUid));
 
   return {
     available: doc.statements.length > 0,
