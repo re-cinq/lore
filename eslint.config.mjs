@@ -230,7 +230,13 @@ export default tseslint.config(
       // Error since 2026-09-08: all five sites became lookup tables keyed by
       // the tag, which a mapped type still checks for exhaustiveness.
       "re-lint/prefer-polymorphism": "error",
-      "re-lint/max-member-chain": "warn",
+      // Error since 2026-09-08, drained package by package (#1875, #1876,
+      // #1878, #1881, #1885). Naming the collaborator turned into real
+      // dependency narrowing — a helper that took a whole GitHub client now
+      // takes the one sub-API it calls — and the payload readers removed
+      // duplication rather than just satisfying the rule. Off in tests below,
+      // where an assertion reaching into captured data is navigation.
+      "re-lint/max-member-chain": "error",
       "re-lint/callee-below-caller": "warn",
       // Error since 2026-09-08: 20 declarations moved down to their first use.
       // The other 19 carry an inline disable, because moving them would change
