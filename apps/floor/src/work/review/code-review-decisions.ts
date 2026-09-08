@@ -50,7 +50,7 @@ export function decideReviewOnReply(input: {
 }
 
 // The thread context threaded through pipeline.events "context" args (comment-triage → follow-up line), GitHub-shaped.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface CommentContext {
   repo: string;
   pr_number: number;

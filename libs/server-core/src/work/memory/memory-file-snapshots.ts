@@ -14,7 +14,7 @@ import {
 } from "./memory-file-core.js";
 
 // The on-disk snapshot file shape; snake_case mirrors memory.snapshots' raw pg-row output (models/snapshot.ts).
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface SnapshotRecord {
   snapshot_id: string;
   agent_id: string;

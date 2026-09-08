@@ -13,7 +13,7 @@ import { reassembleSpec } from "../spec-summary.js";
 import { formatBrokenLinksReport } from "./spec-coverage-validate-report.js";
 
 // A `chunks` projection: file_path/ingested_at are model columns, start_line/end_line come from the chunker's metadata JSONB.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface ChunkLineRange {
   file_path: string;
   start_line: number | null;

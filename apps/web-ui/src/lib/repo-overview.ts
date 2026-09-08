@@ -1,7 +1,7 @@
 // The overview page is a container excluded from coverage, so anything that decides rather than fetches lives here.
 
 // Projects five lore.repos columns (models/repo.ts); Date allowed since a raw pg row, not just RepoRecord's wire JSON, can reach this.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface RepoEnrollmentRecord {
   onboarded_at?: string | Date | null;
   onboarding_pr_merged?: boolean | null;

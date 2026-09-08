@@ -66,7 +66,7 @@ export interface OpenParams {
   pr_number: number;
 }
 // The `pipeline.events` args for a github.issue_comment/pull_request_review_comment row (github-map.ts), GitHub-shaped.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface CommentParams extends OpenParams {
   comment_id: number;
   comment_author: string;
@@ -74,7 +74,7 @@ export interface CommentParams extends OpenParams {
   in_reply_to_id?: number | null;
 }
 // The `pipeline.events` args for a github.pull_request_review.submitted row (github-map.ts), GitHub-shaped.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface ReviewSubmittedParams extends OpenParams {
   review_id?: number | null;
   review_state?: string;

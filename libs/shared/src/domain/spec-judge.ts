@@ -14,7 +14,7 @@ export interface Assertion {
 export type MatchKind = "assertion" | "directory" | "embedding";
 
 // Judge-pipeline output, not a DB row — spec_test_links was dropped in migration 0008; the source of truth is now the inline markdown link.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface SpecTestLink {
   test_file: string;
   test_name: string;
@@ -53,7 +53,7 @@ export interface CandidateSelection {
 }
 
 // Judge-pipeline output, not a DB row — same as SpecTestLink above.
-// eslint-disable-next-line lore/no-row-types-outside-models
+// eslint-disable-next-line re-lint/no-row-types-outside-models
 export interface Judgment {
   test_file: string;
   test_name: string;
