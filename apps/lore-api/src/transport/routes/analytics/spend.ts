@@ -70,14 +70,7 @@ async function overviewSections(pool: Pool) {
     dailyUsage,
     latencyStats,
     jobRuns,
-  ] = await Promise.all([
-    rows(pool, TASK_SUMMARY_SQL),
-    rows(pool, USAGE_BY_TASK_TYPE_SQL),
-    rows(pool, USAGE_BY_REPO_SQL),
-    rows(pool, DAILY_USAGE_SQL),
-    rows(pool, TOOL_LATENCY_SQL),
-    rows(pool, RECENT_JOB_RUNS_SQL),
-  ]);
+  ] = await overviewQueries(pool);
 
   return {
     task_summary: summaryRows[0] ?? null,
@@ -87,6 +80,17 @@ async function overviewSections(pool: Pool) {
     latency_stats: latencyStats,
     job_runs: jobRuns,
   };
+}
+
+function overviewQueries(pool: Pool) {
+  return Promise.all([
+    rows(pool, TASK_SUMMARY_SQL),
+    rows(pool, USAGE_BY_TASK_TYPE_SQL),
+    rows(pool, USAGE_BY_REPO_SQL),
+    rows(pool, DAILY_USAGE_SQL),
+    rows(pool, TOOL_LATENCY_SQL),
+    rows(pool, RECENT_JOB_RUNS_SQL),
+  ]);
 }
 
 async function serveAnalyticsOverview(

@@ -116,6 +116,20 @@ const ActivityCountsSchema = z.object({
 
 const JobRunReadSchema = wireSchema(JobRunSchema, JOB_RUN_COLUMNS);
 
+const TASKS_7D_SQL = `SELECT count(*)::int as c FROM pipeline.tasks
+        WHERE target_repo = $1 AND created_at >= now() - interval '7 days'`;
+
+const AUTO_MERGED_7D_SQL = `SELECT count(*)::int as c FROM pipeline.audit_log
+        WHERE repo = $1
+          AND event_type = 'auto_merge_decision'
+          AND payload->>'outcome' = 'merged'
+          AND created_at >= now() - interval '7 days'`;
+
+const ESCALATIONS_7D_SQL = `SELECT count(*)::int as c FROM pipeline.audit_log
+        WHERE repo = $1
+          AND event_type = 'escalation_issued'
+          AND created_at >= now() - interval '7 days'`;
+
 export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     memoryAuditRoute(getPool),
@@ -135,6 +149,12 @@ async function serveMemoryAudit(
 
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const query = request.query as unknown as MemoryAuditQuery;
+
+  return h.response(await memoryAuditPage(pool, query));
+}
+
+/** The filtered count and the filtered page, read through one WHERE clause so the total can never describe a different set than the rows. */
+async function memoryAuditPage(pool: Pool, query: MemoryAuditQuery) {
   const { where, params } = memoryAuditFilter(query);
   const { rows: countRows } = await pool.query<{ count: number }>(
     `SELECT count(*)::int as count FROM memory.audit_log ${where}`,
@@ -149,7 +169,7 @@ async function serveMemoryAudit(
     [...params, query.limit, query.offset],
   );
 
-  return h.response({ entries, total: countRows[0]?.count ?? 0 });
+  return { entries, total: countRows[0]?.count ?? 0 };
 }
 
 function memoryAuditRoute(getPool: () => Pool | null): ServerRoute {
@@ -188,24 +208,38 @@ function memoryAuditFilter(query: MemoryAuditQuery): {
 } {
   const conditions: string[] = [];
   const params: unknown[] = [];
-  const agent = trimmedOrUndefined(query.agent);
 
-  if (agent) {
-    params.push(agent);
-    conditions.push(`agent_id = $${params.length}`);
-  }
-  const operation = trimmedOrUndefined(query.operation);
-
-  if (operation) {
-    params.push(operation);
-    conditions.push(`operation = $${params.length}`);
-  }
+  pushEquals({ conditions, params, column: "agent_id", value: query.agent });
+  pushEquals({
+    conditions,
+    params,
+    column: "operation",
+    value: query.operation,
+  });
 
   if (query.zero_results) {
     conditions.push(`metadata->>'result_count' = '0'`);
   }
 
   return { where: whereClause(conditions), params };
+}
+
+/** Appends one `column = $n` equality, skipping a blank value, so the positional index and the condition are always allocated together. */
+function pushEquals(clause: {
+  conditions: string[];
+  params: unknown[];
+  column: string;
+  value?: string;
+}): void {
+  const trimmed = trimmedOrUndefined(clause.value);
+
+  if (!trimmed) {
+    return;
+  }
+  const { conditions, params } = clause;
+
+  params.push(trimmed);
+  conditions.push(`${clause.column} = $${params.length}`);
 }
 
 /** A repo's recent bus events, newest first: what the Floor was asked to do, and in which order. */
@@ -217,19 +251,10 @@ async function serveRepoEvents(
   const pool = getPool();
 
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-  const { repo, limit, offset } = request.query as unknown as EventsQuery;
+  const query = request.query as unknown as EventsQuery;
 
   try {
-    const { rows } = await pool.query(
-      `SELECT ${selectList(EVENT_BROWSE_COLUMNS)}
-         FROM pipeline.events
-        WHERE repo = $1
-        ORDER BY captured_at DESC
-        LIMIT $2 OFFSET $3`,
-      [repo, limit, offset],
-    );
-
-    return h.response({ events: rows });
+    return h.response({ events: await repoEventRows(pool, query) });
   } catch (err) {
     if (missingTable(err)) {
       return h.response({ events: [] });
@@ -237,6 +262,19 @@ async function serveRepoEvents(
 
     throw err;
   }
+}
+
+async function repoEventRows(pool: Pool, { repo, limit, offset }: EventsQuery) {
+  const { rows } = await pool.query(
+    `SELECT ${selectList(EVENT_BROWSE_COLUMNS)}
+       FROM pipeline.events
+      WHERE repo = $1
+      ORDER BY captured_at DESC
+      LIMIT $2 OFFSET $3`,
+    [repo, limit, offset],
+  );
+
+  return rows;
 }
 
 function eventsRoute(getPool: () => Pool | null): ServerRoute {
@@ -264,50 +302,36 @@ function jobRunRoute(getPool: () => Pool | null): ServerRoute {
       description: "One scheduled-job run",
       errors: [404],
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { rows } = await pool.query(
-        `SELECT ${selectList(JOB_RUN_COLUMNS)}
-           FROM pipeline.job_runs WHERE id = $1`,
-        [request.params.id],
-      );
-
-      return rows.length > 0
-        ? h.response(rows[0])
-        : h.response({ error: "Job run not found" }).code(404);
-    },
+    handler: (request, h) => serveJobRun(getPool, request, h),
   };
+}
+
+async function serveJobRun(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { rows } = await pool.query(
+    `SELECT ${selectList(JOB_RUN_COLUMNS)}
+       FROM pipeline.job_runs WHERE id = $1`,
+    [request.params.id],
+  );
+
+  return rows.length > 0
+    ? h.response(rows[0])
+    : h.response({ error: "Job run not found" }).code(404);
 }
 
 /** Seven-day counters for a repo — the numbers the dashboard tiles read, computed here rather than client-side so every caller counts the same way. */
 /** The three seven-day counters. Auto-merges and escalations are counted from the AUDIT log rather than from task status: a task can be merged by a human after the machine deferred, and only the audit row says which happened. */
 async function sevenDayCounts(pool: Pool, repo: string) {
   return {
-    tasks: await countOrNull(
-      pool,
-      `SELECT count(*)::int as c FROM pipeline.tasks
-        WHERE target_repo = $1 AND created_at >= now() - interval '7 days'`,
-      [repo],
-    ),
-    auto_merged: await countOrNull(
-      pool,
-      `SELECT count(*)::int as c FROM pipeline.audit_log
-        WHERE repo = $1
-          AND event_type = 'auto_merge_decision'
-          AND payload->>'outcome' = 'merged'
-          AND created_at >= now() - interval '7 days'`,
-      [repo],
-    ),
-    escalations: await countOrNull(
-      pool,
-      `SELECT count(*)::int as c FROM pipeline.audit_log
-        WHERE repo = $1
-          AND event_type = 'escalation_issued'
-          AND created_at >= now() - interval '7 days'`,
-      [repo],
-    ),
+    tasks: await countOrNull(pool, TASKS_7D_SQL, [repo]),
+    auto_merged: await countOrNull(pool, AUTO_MERGED_7D_SQL, [repo]),
+    escalations: await countOrNull(pool, ESCALATIONS_7D_SQL, [repo]),
   };
 }
 

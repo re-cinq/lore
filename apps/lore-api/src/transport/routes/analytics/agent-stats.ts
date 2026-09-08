@@ -3,7 +3,12 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { isMemoryDbAvailable } from "@re-cinq/lore-server-core/features/memory/memory.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -34,18 +39,24 @@ export function agentStatsRoute(getPool: () => Pool | null): ServerRoute {
         description: "Health and activity counters for an agent",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool && isMemoryDbAvailable(), apiError(503), DB_UNAVAILABLE);
-
-      const { agent_id } = request.query as unknown as AgentStatsQuery;
-
-      try {
-        return h.response(await agentStatsBundle(pool, agent_id));
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveAgentStats(getPool, request, h),
   };
+}
+
+async function serveAgentStats(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool && isMemoryDbAvailable(), apiError(503), DB_UNAVAILABLE);
+
+  const { agent_id } = request.query as unknown as AgentStatsQuery;
+
+  try {
+    return h.response(await agentStatsBundle(pool, agent_id));
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
 }

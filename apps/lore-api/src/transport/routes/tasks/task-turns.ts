@@ -4,7 +4,12 @@ import { zodResponse } from "../../http/zod-response.js";
 import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -85,16 +90,8 @@ function relayableEvent(line: string): boolean {
   return !isAttributedEnvelope(parsed) && parsed.kind !== "file";
 }
 
-// Relays a local run's redacted transcript to the Floor's cluster-internal /api/agent-events sink so it lands in pipeline.agent_run_turns like cluster runs (#1295); lore-api attaches the internal token laptops can't hold.
-/** How many relayed turns were stored, and how many the filter skipped. */
-const TurnsRelayedSchema = z.object({
-  forwarded: z.number(),
-  skipped: z.number(),
-});
-
 type RelayResult = { forwarded: number; skipped: number } | { error: string };
 
-/** Forwards a local runner's turns to the Floor's sink. The task id keys everything the sink writes, so an unknown id is REFUSED rather than stored uncorrelated. */
 /** Forwards the batch to the Floor's own sink. Each line is wrapped with its KEY, which is what makes a resend idempotent — the Floor dedupes on it, so a retried relay replaces rather than duplicates. */
 async function forwardToFloor(
   taskId: string,
@@ -116,24 +113,32 @@ async function forwardToFloor(
   return { ok: upstream.ok, status: upstream.status };
 }
 
-async function relayTurns(
-  pool: Pool,
-  taskId: string,
-  body: { raw: string; offset: number | null },
-  floor: { url: string; token: string },
-): Promise<RelayResult> {
+/** The task id keys everything the sink writes, so an unknown id is REFUSED rather than stored uncorrelated. */
+async function enforceTaskExists(pool: Pool, taskId: string): Promise<void> {
   const { rows } = await pool.query(
     `SELECT id FROM pipeline.tasks WHERE id = $1`,
     [taskId],
   );
 
   enforceTrue(rows.length !== 0, apiError(404), `task not found: ${taskId}`);
+}
 
-  const { raw } = body;
-  const lines = raw
+function transcriptLines(raw: string): string[] {
+  return raw
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+// Relays a local run's redacted transcript to the Floor's cluster-internal /api/agent-events sink so it lands in pipeline.agent_run_turns like cluster runs (#1295); lore-api attaches the internal token laptops can't hold.
+async function relayTurns(
+  pool: Pool,
+  taskId: string,
+  body: { raw: string; offset: number | null },
+  floor: { url: string; token: string },
+): Promise<RelayResult> {
+  await enforceTaskExists(pool, taskId);
+  const lines = transcriptLines(body.raw);
   const relayable = keyedRelayableLines(taskId, lines, body.offset);
   const skipped = lines.length - relayable.length;
 
@@ -150,6 +155,12 @@ async function relayTurns(
 
 const TaskTurnsParams = z.object({
   taskId: z.string().uuid(),
+});
+
+/** How many relayed turns were stored, and how many the filter skipped. */
+const TurnsRelayedSchema = z.object({
+  forwarded: z.number(),
+  skipped: z.number(),
 });
 
 const TURNS_ROUTE_OPTIONS = zodResponse(
@@ -182,39 +193,53 @@ function relayTarget(): { url: string; token: string } {
   return { url, token };
 }
 
+/** The POST's own payload: the raw NDJSON plus the offset that keys it into the whole transcript. */
+function turnsBody(request: Request): { raw: string; offset: number | null } {
+  return {
+    raw: rawBody(request),
+    offset: parseTurnOffset(request.headers["x-turn-offset"]),
+  };
+}
+
+// 502, not 500: the relay itself worked and the FLOOR refused, which is a different thing for a caller deciding whether to retry.
+function relayResponse(
+  relayed: RelayResult,
+  h: ResponseToolkit,
+): ResponseObject {
+  return "error" in relayed
+    ? h.response({ error: relayed.error }).code(502)
+    : h.response(relayed);
+}
+
+async function serveTurnsPost(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const { taskId } = request.params as z.infer<typeof TaskTurnsParams>;
+  const floor = relayTarget();
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  try {
+    return relayResponse(
+      await relayTurns(pool, taskId, turnsBody(request), floor),
+      h,
+    );
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/task-turns/{taskId}",
     options: TURNS_ROUTE_OPTIONS,
-    handler: async (request, h) => {
-      const { taskId } = request.params as z.infer<typeof TaskTurnsParams>;
-      const floor = relayTarget();
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      try {
-        const relayed = await relayTurns(
-          pool,
-          taskId,
-          {
-            raw: rawBody(request),
-            offset: parseTurnOffset(request.headers["x-turn-offset"]),
-          },
-          floor,
-        );
-
-        // 502, not 500: the relay itself worked and the FLOOR refused, which is a different thing for a caller deciding whether to retry.
-        return "error" in relayed
-          ? h.response({ error: relayed.error }).code(502)
-          : h.response(relayed);
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveTurnsPost(getPool, request, h),
   };
 }

@@ -47,6 +47,21 @@ type PrTrailerResult = {
   trailer_source: "pr_body" | "final_commit";
 } | null;
 
+// Final commit on the PR head branch, read when the PR body carries no trailer.
+async function taskIdFromHeadCommit(
+  git: Awaited<ReturnType<typeof getOctokit>>["rest"]["git"],
+  target: { owner: string; repo: string; sha: string },
+): Promise<PrTrailerResult> {
+  const commit = await git.getCommit({
+    owner: target.owner,
+    repo: target.repo,
+    commit_sha: target.sha,
+  });
+  const taskId = parseTrailers(commit.data.message)?.taskId;
+
+  return taskId ? { task_id: taskId, trailer_source: "final_commit" } : null;
+}
+
 async function taskIdFromGithub(
   owner: string,
   repoName: string,
@@ -65,25 +80,19 @@ async function taskIdFromGithub(
     return { task_id: fromBody[1], trailer_source: "pr_body" };
   }
 
-  // Final commit on the PR head branch.
-  const commit = await git.getCommit({
-    owner,
-    repo: repoName,
-    commit_sha: pr.head.sha,
-  });
-  const trailers = parseTrailers(commit.data.message);
-  const taskId = trailers?.taskId;
+  const head = { owner, repo: repoName, sha: pr.head.sha };
 
-  return taskId ? { task_id: taskId, trailer_source: "final_commit" } : null;
+  return taskIdFromHeadCommit(git, head);
 }
 
-/** Resolves a PR back to the task that opened it. In dark-factory mode the `Lore-Task:` trailer is the only cross-reference, so this read is what makes a PR traceable. */
-/** The PR this read is about. The number is checked against digits explicitly: hapi's `{number}` segment does not constrain the way the legacy matcher did, and an unchecked parse would carry a NaN into the query rather than refusing here. */
-function prTarget(request: Request): {
+interface PrTarget {
   owner: string;
   repoName: string;
   prNumber: number;
-} {
+}
+
+/** The PR this read is about. The number is checked against digits explicitly: hapi's `{number}` segment does not constrain the way the legacy matcher did, and an unchecked parse would carry a NaN into the query rather than refusing here. */
+function prTarget(request: Request): PrTarget {
   enforceTrue(
     /^[0-9]+$/.test(request.params.number),
     apiError(400),
@@ -97,23 +106,11 @@ function prTarget(request: Request): {
   };
 }
 
-async function serveTaskByPr(
-  getPool: () => Pool | null,
-  request: Request,
+// Not in the DB: read the PR body and its final commit for a `Lore-Task:` trailer, which is the only cross-reference a dark-factory PR carries.
+async function githubFallback(
+  { owner, repoName, prNumber }: PrTarget,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), "database unavailable");
-  const { owner, repoName, prNumber } = prTarget(request);
-  // The DB first: it holds the link for every PR Lore opened itself, and the trailer parse below is for PRs it did not.
-  const dbTaskId = await taskIdFromDb(pool, `${owner}/${repoName}`, prNumber);
-
-  if (dbTaskId) {
-    return h.response({ task_id: dbTaskId, trailer_source: "db" });
-  }
-
-  // Not in the DB: read the PR body and its final commit for a `Lore-Task:` trailer, which is the only cross-reference a dark-factory PR carries.
   try {
     const fromGithub = await taskIdFromGithub(owner, repoName, prNumber);
 
@@ -130,6 +127,27 @@ async function serveTaskByPr(
 
     return h.response({ error: "github_api" }).code(500);
   }
+}
+
+/** Resolves a PR back to the task that opened it. In dark-factory mode the `Lore-Task:` trailer is the only cross-reference, so this read is what makes a PR traceable. */
+async function serveTaskByPr(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), "database unavailable");
+  const target = prTarget(request);
+  const { owner, repoName, prNumber } = target;
+  // The DB first: it holds the link for every PR Lore opened itself, and the trailer parse below is for PRs it did not.
+  const dbTaskId = await taskIdFromDb(pool, `${owner}/${repoName}`, prNumber);
+
+  if (dbTaskId) {
+    return h.response({ task_id: dbTaskId, trailer_source: "db" });
+  }
+
+  return githubFallback(target, h);
 }
 
 export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {

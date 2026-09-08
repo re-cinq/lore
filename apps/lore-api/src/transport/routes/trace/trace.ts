@@ -36,17 +36,22 @@ const TraceReadSchema = z.record(z.string(), z.unknown());
 type ProjectResult = Awaited<ReturnType<typeof projectFor>>;
 type Trace = ProjectResult["trace"];
 
+// A deployment whose lore.features table was never created reads as no features.
+function listFeaturesTolerantly(featureStore: ProjectResult["features"]) {
+  return featureStore.list().catch((err) => {
+    if ((err as { code?: string }).code === "42P01") {
+      return [];
+    }
+    throw err;
+  });
+}
+
 // lore.features is source of truth for Feature nodes (ADR-027); tolerate 42P01.
 async function graphWithFeatures(trace: Trace, project: ProjectResult) {
   const { features: featureStore } = project;
   const [graph, features] = await Promise.all([
     trace.graph(),
-    featureStore.list().catch((err) => {
-      if ((err as { code?: string }).code === "42P01") {
-        return [];
-      }
-      throw err;
-    }),
+    listFeaturesTolerantly(featureStore),
   ]);
 
   return mergePersistentFeatures(
@@ -83,6 +88,27 @@ const PATH_KINDS: Record<
   source: async (trace, filePath) => ({ source: await trace.source(filePath) }),
 };
 
+/** The body for one {kind}: the no-path handlers shape their own, the rest need the ?path= the guard below demands. */
+async function traceResult(
+  request: Request,
+  kind: string,
+  filePath: string,
+): Promise<object> {
+  const project = await projectFor(
+    `${request.params.owner}/${request.params.repo}`,
+  );
+  const trace = project.trace;
+  const noPathHandler = NO_PATH_KINDS[kind];
+
+  if (noPathHandler) {
+    return noPathHandler(trace, project);
+  }
+
+  enforceTrue(filePath, apiError(400), "path query param required");
+
+  return PATH_KINDS[kind](trace, filePath);
+}
+
 /** A traceability read, shaped by {kind}: the spec-to-test graph the coverage view and the VS Code extension both read. */
 async function serveTrace(
   request: Request,
@@ -94,19 +120,7 @@ async function serveTrace(
   const { path: filePath = "" } = request.query as TraceQuery;
 
   try {
-    const project = await projectFor(
-      `${request.params.owner}/${request.params.repo}`,
-    );
-    const trace = project.trace;
-    const noPathHandler = NO_PATH_KINDS[kind];
-
-    if (noPathHandler) {
-      return h.response(await noPathHandler(trace, project));
-    }
-
-    enforceTrue(filePath, apiError(400), "path query param required");
-
-    return h.response(await PATH_KINDS[kind](trace, filePath));
+    return h.response(await traceResult(request, kind, filePath));
   } catch (err) {
     // Guard's refusal carries its status; only unexpected failure needs shaping.
     rethrowBoom(err);

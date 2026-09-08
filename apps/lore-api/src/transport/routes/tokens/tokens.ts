@@ -114,6 +114,17 @@ const WRITE_OPTIONS = zodResponse(bearerScope("admin"), TokenWriteSchema, {
   errors: [400],
 });
 
+// Fallback only — a concrete verb above always wins in hapi.
+function tokensMethodNotAllowedRoute(): ServerRoute {
+  return {
+    method: "*",
+    path: "/api/tokens",
+    options: bearerScope("admin"),
+    handler: (_request: Request, h: ResponseToolkit) =>
+      h.response({ error: "method not allowed" }).code(405),
+  };
+}
+
 export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   return [
     {
@@ -128,25 +139,12 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
       options: WRITE_OPTIONS,
       handler: (request, h) => writeToken(getPool(), request, h),
     },
-    {
-      // Fallback only — a concrete verb above always wins in hapi.
-      method: "*",
-      path: "/api/tokens",
-      options: bearerScope("admin"),
-      handler: (_request: Request, h: ResponseToolkit) =>
-        h.response({ error: "method not allowed" }).code(405),
-    },
+    tokensMethodNotAllowedRoute(),
   ];
 }
 
-async function listTokens(
-  pool: Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-) {
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-  // List active tokens (never return the actual token)
-  const { limit, offset } = request.query as unknown as TokensQuery;
+// One page of active tokens (never returns the actual token) plus the full count.
+async function fetchTokenPage(pool: Pool, { limit, offset }: TokensQuery) {
   const { rows } = await pool.query(
     `SELECT id, name, scopes, created_by, expires_at, last_used, created_at
        FROM pipeline.api_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC
@@ -157,12 +155,18 @@ async function listTokens(
     `SELECT count(*)::int as total FROM pipeline.api_tokens WHERE revoked_at IS NULL`,
   );
 
-  return h.response({
-    tokens: rows,
-    total: countRows[0].total,
-    limit,
-    offset,
-  });
+  return { tokens: rows, total: countRows[0].total, limit, offset };
+}
+
+async function listTokens(
+  pool: Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+) {
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const query = request.query as unknown as TokensQuery;
+
+  return h.response(await fetchTokenPage(pool, query));
 }
 
 async function revokeToken(pool: Pool, h: ResponseToolkit, tokenId: string) {

@@ -71,25 +71,27 @@ async function servePause(
   return h.response(result.body).code(result.code);
 }
 
+const PAUSE_OPTIONS = zodResponse(
+  {
+    ...bearerScope("write"),
+    validate: { payload: zodValidate(PauseBody) },
+  },
+  PauseResponse,
+  {
+    name: "ClusterAgentPause",
+    description:
+      "The cluster-agent's new paused state — paused agents are passed over when work is handed out, but stay alive and finish what they hold",
+    errors: [404],
+  },
+);
+
 export function clusterAgentPauseRoute(
   getPool: () => Pool | null,
 ): ServerRoute {
   return {
     method: "PUT",
     path: "/api/cluster-agents/{id}/paused",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(PauseBody) },
-      },
-      PauseResponse,
-      {
-        name: "ClusterAgentPause",
-        description:
-          "The cluster-agent's new paused state — paused agents are passed over when work is handed out, but stay alive and finish what they hold",
-        errors: [404],
-      },
-    ),
+    options: PAUSE_OPTIONS,
     handler: (request, h) => servePause(getPool, request, h),
   };
 }

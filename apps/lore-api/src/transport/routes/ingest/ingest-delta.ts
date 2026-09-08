@@ -4,21 +4,23 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { z } from "zod";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
-import {
-  createDgraphClient,
-  ingestSpecTrace,
-  projectAdrFile,
-  projectSpecFile,
-  deleteSpecSubtree,
-  deleteAdrSubtree,
-  pruneTestFiles,
-  type SpecTraceOutcome,
-  type DgraphClientPort,
-} from "@re-cinq/lore-shared";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
+import { defaultDeps, type IngestDeltaDeps } from "./ingest-delta-deps.js";
+import {
+  advanceStoredCommit,
+  storedCommit,
+  type DeltaCommit,
+} from "./ingest-delta-state.js";
+
+export type { IngestDeltaDeps } from "./ingest-delta-deps.js";
 
 /** POST incremental CI delta ingest; state advances by CAS (base_commit is observed state). */
 
@@ -55,85 +57,21 @@ const IngestDeltaResultSchema = z.object({
   pruned_test_files: z.number(),
 });
 
-export interface IngestDeltaDeps {
-  /** Availability gate + the client the default projectors close over. */
-  dgraph(): DgraphClientPort | null;
-  projectSpec(
-    repo: string,
-    path: string,
-    content: string,
-  ): Promise<{ projected: boolean }>;
-  projectAdr(
-    repo: string,
-    path: string,
-    content: string,
-  ): Promise<{ projected: boolean }>;
-  deleteSpec(repo: string, path: string): Promise<void>;
-  deleteAdr(repo: string, path: string): Promise<void>;
-  ingestReport(repo: string, payload: unknown): Promise<SpecTraceOutcome>;
-  pruneTests(repo: string, files: string[]): Promise<{ prunedChunks: number }>;
-}
-
-const defaultDeps = (): IngestDeltaDeps => {
-  let client: DgraphClientPort | null | undefined;
-  const dgraph = () =>
-    client === undefined ? (client = createDgraphClient()) : client;
-  const must = (): DgraphClientPort => {
-    const c = dgraph();
-
-    enforceTrue(c, Error, "ingest-delta: no dgraph client");
-
-    return c!;
-  };
-
+/** The CAS input this delta carries, named the way the state store reads it. */
+function deltaCommit(repo: string, body: IngestDeltaBody): DeltaCommit {
   return {
-    dgraph,
-    projectSpec: (repo, path, content) =>
-      projectSpecFile({ repo, filePath: path, content }, must()),
-    projectAdr: (repo, path, content) =>
-      projectAdrFile({ repo, filePath: path, content }, must()),
-    deleteSpec: (repo, path) => deleteSpecSubtree(must(), repo, path),
-    deleteAdr: (repo, path) => deleteAdrSubtree(must(), repo, path),
-    ingestReport: (repo, payload) =>
-      ingestSpecTrace(must(), repo, "test-report", payload),
-    pruneTests: (repo, files) => pruneTestFiles(must(), repo, files),
+    repo,
+    kind: body.kind,
+    commit: body.commit,
+    baseCommit: body.base_commit,
   };
-};
-
-const UNDEFINED_TABLE = "42P01";
-
-function isUndefinedTableError(err: unknown): boolean {
-  return err instanceof Error && "code" in err && err.code === UNDEFINED_TABLE;
-}
-
-/** The stored commit, with a pre-migration cluster reading as "no state". */
-async function storedCommit(
-  pool: Pool,
-  repo: string,
-  kind: string,
-): Promise<string | null> {
-  try {
-    const { rows } = await pool.query<{ commit_sha: string }>(
-      `SELECT commit_sha FROM pipeline.ingest_state
-        WHERE repo = $1 AND kind = $2`,
-      [repo, kind],
-    );
-
-    return rows[0]?.commit_sha ?? null;
-  } catch (err) {
-    if (isUndefinedTableError(err)) {
-      return null;
-    }
-
-    throw err;
-  }
 }
 
 async function applyTestReportDelta(
   deps: IngestDeltaDeps,
   repo: string,
   body: IngestDeltaBody,
-): Promise<{ testChunks: number; prunedTestFiles: number }> {
+): Promise<{ test_chunks: number; pruned_test_files: number }> {
   let testChunks = 0;
   let prunedTestFiles = 0;
 
@@ -146,7 +84,7 @@ async function applyTestReportDelta(
     prunedTestFiles = body.deleted.length;
   }
 
-  return { testChunks, prunedTestFiles };
+  return { test_chunks: testChunks, pruned_test_files: prunedTestFiles };
 }
 
 function docFunctions(
@@ -216,6 +154,20 @@ const INGEST_DELTA_OPTIONS = zodResponse(
   },
 );
 
+/** A kind this deployment can actually project, into a graph store that exists. */
+function assertDeltaSupported(deps: IngestDeltaDeps, kind: string): void {
+  enforceTrue(
+    INGEST_DELTA_KINDS.has(kind),
+    apiError(400),
+    `unknown kind "${kind}" — expected one of ${[...INGEST_DELTA_KINDS].join(", ")}`,
+  );
+  enforceTrue(
+    deps.dgraph(),
+    apiError(503),
+    "no graph store configured — LORE_DGRAPH_HTTP is unset on this deployment",
+  );
+}
+
 /** Every reason to refuse a delta BEFORE projecting any of it. The stale-base check is the race detection: two CI runs diffing the same base would each project against a commit the other has moved past, so the loser must re-fetch and re-diff. */
 async function assertDeltaAcceptable(
   pool: Pool,
@@ -223,16 +175,7 @@ async function assertDeltaAcceptable(
   repo: string,
   body: IngestDeltaBody,
 ): Promise<void> {
-  enforceTrue(
-    INGEST_DELTA_KINDS.has(body.kind),
-    apiError(400),
-    `unknown kind "${body.kind}" — expected one of ${[...INGEST_DELTA_KINDS].join(", ")}`,
-  );
-  enforceTrue(
-    deps.dgraph(),
-    apiError(503),
-    "no graph store configured — LORE_DGRAPH_HTTP is unset on this deployment",
-  );
+  assertDeltaSupported(deps, body.kind);
 
   const current = await storedCommit(pool, repo, body.kind);
 
@@ -243,21 +186,23 @@ async function assertDeltaAcceptable(
   );
 }
 
+/** Whether this body completes its upload — an absent envelope is one part of one. */
+function isFinalChunk(body: IngestDeltaBody): boolean {
+  return (
+    body.seq === undefined || body.total === undefined || body.seq >= body.total
+  );
+}
+
 /** What this delta did to the STORED commit, once its chunks have been projected. A partial upload projects its share but must NOT advance the commit — the next chunk still needs the same base — and an unmigrated `ingest_state` is not a failure either, because the graph has already absorbed the delta. Only a commit that moved under us is a conflict. */
 async function settleDelta(
   pool: Pool,
   repo: string,
   body: IngestDeltaBody,
 ): Promise<"pending-chunks" | "unrecorded" | "advanced"> {
-  const finalChunk =
-    body.seq === undefined ||
-    body.total === undefined ||
-    body.seq >= body.total;
-
-  if (!finalChunk) {
+  if (!isFinalChunk(body)) {
     return "pending-chunks";
   }
-  const advanced = await advanceStoredCommit(pool, repo, body);
+  const advanced = await advanceStoredCommit(pool, deltaCommit(repo, body));
 
   if (advanced === "unrecorded") {
     return "unrecorded";
@@ -272,35 +217,6 @@ async function settleDelta(
   return "advanced";
 }
 
-export function ingestDeltaRoute(
-  getPool: () => Pool | null,
-  deps: IngestDeltaDeps = defaultDeps(),
-): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/repos/{owner}/{repo}/ingest",
-    options: INGEST_DELTA_OPTIONS,
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const body = request.payload as IngestDeltaBody;
-      const repo = `${request.params.owner}/${request.params.repo}`;
-
-      await assertDeltaAcceptable(pool, deps, repo, body);
-
-      const counts = await applyDelta(deps, repo, body);
-
-      return h.response({
-        kind: body.kind,
-        commit: body.commit,
-        state: await settleDelta(pool, repo, body),
-        ...counts,
-      });
-    },
-  };
-}
-
 /** Project one delta into the graph. A test report and a doc delta touch different parts of it, so each reports its own counts and leaves the other's at zero. */
 async function applyDelta(
   deps: IngestDeltaDeps,
@@ -313,47 +229,48 @@ async function applyDelta(
   pruned_test_files: number;
 }> {
   if (body.kind === "test-report") {
-    const { testChunks, prunedTestFiles } = await applyTestReportDelta(
-      deps,
-      repo,
-      body,
-    );
+    const counts = await applyTestReportDelta(deps, repo, body);
 
-    return {
-      projected: 0,
-      deleted: 0,
-      test_chunks: testChunks,
-      pruned_test_files: prunedTestFiles,
-    };
+    return { projected: 0, deleted: 0, ...counts };
   }
   const { projected, deleted } = await applyDocDelta(deps, repo, body);
 
   return { projected, deleted, test_chunks: 0, pruned_test_files: 0 };
 }
 
-/** Compare-and-swap on the stored commit: it advances only if it still holds the base this delta was diffed against. "unrecorded" means the table does not exist yet. */
-async function advanceStoredCommit(
-  pool: Pool,
-  repo: string,
-  body: IngestDeltaBody,
-): Promise<boolean | "unrecorded"> {
-  try {
-    const { rows } = await pool.query<{ commit_sha: string }>(
-      `INSERT INTO pipeline.ingest_state (repo, kind, commit_sha)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (repo, kind) DO UPDATE
-               SET commit_sha = EXCLUDED.commit_sha, updated_at = now()
-               WHERE pipeline.ingest_state.commit_sha IS NOT DISTINCT FROM $4
-             RETURNING commit_sha`,
-      [repo, body.kind, body.commit, body.base_commit],
-    );
+/** Guard, project, then settle the stored pointer — in that order, so a refused delta writes nothing. */
+async function serveIngestDelta(
+  getPool: () => Pool | null,
+  deps: IngestDeltaDeps,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
 
-    return rows.length > 0;
-  } catch (err) {
-    if (isUndefinedTableError(err)) {
-      return "unrecorded";
-    }
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const body = request.payload as IngestDeltaBody;
+  const repo = `${request.params.owner}/${request.params.repo}`;
 
-    throw err;
-  }
+  await assertDeltaAcceptable(pool, deps, repo, body);
+
+  const counts = await applyDelta(deps, repo, body);
+
+  return h.response({
+    kind: body.kind,
+    commit: body.commit,
+    state: await settleDelta(pool, repo, body),
+    ...counts,
+  });
+}
+
+export function ingestDeltaRoute(
+  getPool: () => Pool | null,
+  deps: IngestDeltaDeps = defaultDeps(),
+): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/repos/{owner}/{repo}/ingest",
+    options: INGEST_DELTA_OPTIONS,
+    handler: (request, h) => serveIngestDelta(getPool, deps, request, h),
+  };
 }

@@ -462,12 +462,9 @@ export default tseslint.config(
     // its queue, so no bound is ever unenforced. Queue at introduction:
     // web-ui 505, shared 326, floor 220, lore-api 213, mcp-server 73,
     // server-core 50, cluster-agent 43, stations 41, assembly-lines 7,
-    // event-router 6, vscode-extension 2 — 1,486 in total. Drained so far:
-    // mcp-server, lore-api outside routes/, floor, and shared.
-    files: [
-      "apps/web-ui/**/*.{ts,tsx}",
-      "apps/lore-api/src/transport/routes/**/*.{ts,tsx}",
-    ],
+    // event-router 6, vscode-extension 2 — 1,486 in total. apps/web-ui is the
+    // last one left; every other package is at 20.
+    files: ["apps/web-ui/**/*.{ts,tsx}"],
     rules: {
       "max-lines-per-function": [
         "error",

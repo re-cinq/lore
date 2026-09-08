@@ -48,7 +48,30 @@ const FACT_MATCH_SQL = `SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref
           ORDER BY score DESC
           LIMIT 20`;
 
-/** Attaches each memory's version history and extracted facts. The `has_facts` EXISTS flag on the row above skips a per-row fact query when there are none — 100 rows would otherwise be 100 extra round trips. */
+async function readMemoryVersions(pool: Pool, memoryId: unknown) {
+  const { rows } = await pool.query(
+    `SELECT version, value, created_at FROM memory.memory_versions
+            WHERE memory_id = $1 ORDER BY version DESC`,
+    [memoryId],
+  );
+
+  return rows;
+}
+
+/** The `has_facts` EXISTS flag on the row skips this query when there are none — 100 rows would otherwise be 100 extra round trips. */
+async function readMemoryFacts(pool: Pool, memory: Record<string, unknown>) {
+  if (!memory.has_facts) {
+    return [];
+  }
+  const { rows } = await pool.query(
+    `SELECT fact_text, created_at FROM memory.facts WHERE memory_id = $1`,
+    [memory.id],
+  );
+
+  return rows;
+}
+
+/** Attaches each memory's version history and extracted facts. */
 async function withHistory(
   pool: Pool,
   memories: Record<string, unknown>[],
@@ -56,24 +79,33 @@ async function withHistory(
   const detailed = [];
 
   for (const memory of memories) {
-    const { rows: versions } = await pool.query(
-      `SELECT version, value, created_at FROM memory.memory_versions
-            WHERE memory_id = $1 ORDER BY version DESC`,
-      [memory.id],
-    );
-    const facts = memory.has_facts
-      ? (
-          await pool.query(
-            `SELECT fact_text, created_at FROM memory.facts WHERE memory_id = $1`,
-            [memory.id],
-          )
-        ).rows
-      : [];
-
-    detailed.push({ ...memory, versions, facts });
+    detailed.push({
+      ...memory,
+      versions: await readMemoryVersions(pool, memory.id),
+      facts: await readMemoryFacts(pool, memory),
+    });
   }
 
   return detailed;
+}
+
+/** Memories and facts ranked lexically against one query, in that order. */
+async function serveMemorySearch(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { q } = request.query as unknown as MemorySearchQuery;
+
+  const [{ rows: memories }, { rows: facts }] = await Promise.all([
+    pool.query(MEMORY_MATCH_SQL, [q]),
+    pool.query(FACT_MATCH_SQL, [q]),
+  ]);
+
+  return h.response({ results: [...memories, ...facts] });
 }
 
 export function memorySearchRoute(getPool: () => Pool | null): ServerRoute {
@@ -91,21 +123,17 @@ export function memorySearchRoute(getPool: () => Pool | null): ServerRoute {
         description: "Ranked memories and facts",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { q } = request.query as unknown as MemorySearchQuery;
-
-      const [{ rows: memories }, { rows: facts }] = await Promise.all([
-        pool.query(MEMORY_MATCH_SQL, [q]),
-        pool.query(FACT_MATCH_SQL, [q]),
-      ]);
-
-      return h.response({ results: [...memories, ...facts] });
-    },
+    handler: (request, h) => serveMemorySearch(getPool, request, h),
   };
 }
+
+const MEMORY_LIST_SQL = `SELECT m.id, m.key, m.value, m.version, m.created_at, m.ttl_seconds,
+            EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
+       FROM memory.memories m
+      WHERE m.agent_id = $1 AND m.is_deleted = FALSE
+        AND (m.expires_at IS NULL OR m.expires_at > now())
+      ORDER BY m.created_at DESC
+      LIMIT $2`;
 
 /** An agent's memories with their versions and extracted facts — the browse view behind the memory page. */
 async function serveMemoryList(
@@ -121,16 +149,7 @@ async function serveMemoryList(
   const { rows: memories } = await pool.query<{
     id: string;
     has_facts: boolean;
-  }>(
-    `SELECT m.id, m.key, m.value, m.version, m.created_at, m.ttl_seconds,
-            EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
-       FROM memory.memories m
-      WHERE m.agent_id = $1 AND m.is_deleted = FALSE
-        AND (m.expires_at IS NULL OR m.expires_at > now())
-      ORDER BY m.created_at DESC
-      LIMIT $2`,
-    [agent, limit],
-  );
+  }>(MEMORY_LIST_SQL, [agent, limit]);
 
   return h.response({ memories: await withHistory(pool, memories) });
 }

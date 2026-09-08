@@ -18,6 +18,33 @@ function billedSlice(
   return { billedUsd: row.billed_usd, billedThrough: row.billed_through };
 }
 
+const BILLED_SINCE_ANCHOR_SQL = `SELECT
+       COALESCE(SUM(cost_usd)
+         FILTER (WHERE bucket_date >= (($1::timestamptz) AT TIME ZONE 'UTC')::date),
+         0)::float8 AS billed_usd,
+       MAX(bucket_date)::text AS billed_through
+     FROM pipeline.anthropic_cost_daily`;
+
+const COMPUTED_SINCE_BILLED_SQL = `SELECT COALESCE(SUM(lc.cost_usd), 0)::float8 AS cost_usd
+       FROM pipeline.llm_calls lc
+       LEFT JOIN pipeline.station_runs sr
+         ON sr.station_run_id = lc.station_run_id
+      WHERE lc.created_at >= $1::timestamptz
+        AND ($2::date IS NULL OR lc.created_at::date > $2::date)
+        AND sr.cluster_agent_id IS NULL
+        AND lc.model NOT LIKE ALL($3::text[])`;
+
+// Anchor = the OPENING entry (not MIN over everything — a backdated top-up must not drag the window back), falling back to earliest non-correction; corrections are excluded from the anchor but not the total; rendered as an explicit ISO-8601 UTC string since a pg Date doesn't survive the wire+RSC boundary.
+const CREDIT_LEDGER_TOTAL_SQL = `SELECT COALESCE(SUM(amount_usd), 0)::float8 AS ledger_total_usd,
+       to_char(
+         COALESCE(
+           MIN(effective_at) FILTER (WHERE kind = 'opening'),
+           MIN(effective_at) FILTER (WHERE kind <> 'correction')
+         ) AT TIME ZONE 'UTC',
+         'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+       ) AS anchored_at
+     FROM pipeline.credit_ledger`;
+
 // remaining = ledger - (billed + computed); the two halves meet at billed_through (billed through-and-including it, computed strictly after) — an off-by-one double-counts or drops a day.
 async function remainingBudget(
   pool: Pool,
@@ -28,16 +55,7 @@ async function remainingBudget(
   const [billedRow] = await optionalTableRows<{
     billed_usd: number;
     billed_through: string | null;
-  }>(
-    pool,
-    `SELECT
-       COALESCE(SUM(cost_usd)
-         FILTER (WHERE bucket_date >= (($1::timestamptz) AT TIME ZONE 'UTC')::date),
-         0)::float8 AS billed_usd,
-       MAX(bucket_date)::text AS billed_through
-     FROM pipeline.anthropic_cost_daily`,
-    [anchoredAt],
-  );
+  }>(pool, BILLED_SINCE_ANCHOR_SQL, [anchoredAt]);
   const { billedUsd, billedThrough } = billedSlice(billedRow);
 
   return remainingBudgetFrom(pool, anchoredAt, ledgerTotalUsd, {
@@ -56,14 +74,7 @@ async function remainingBudgetFrom(
   // Computed spend strictly after billed_through, only Anthropic-charged calls (Gemini calls since 2026-09-02 excluded).
   const computedRows = await optionalTableRows<{ cost_usd: number }>(
     pool,
-    `SELECT COALESCE(SUM(lc.cost_usd), 0)::float8 AS cost_usd
-       FROM pipeline.llm_calls lc
-       LEFT JOIN pipeline.station_runs sr
-         ON sr.station_run_id = lc.station_run_id
-      WHERE lc.created_at >= $1::timestamptz
-        AND ($2::date IS NULL OR lc.created_at::date > $2::date)
-        AND sr.cluster_agent_id IS NULL
-        AND lc.model NOT LIKE ALL($3::text[])`,
+    COMPUTED_SINCE_BILLED_SQL,
     [anchoredAt, billedThrough, [...NON_ANTHROPIC_LIKE_PATTERNS]],
   );
   const computed = computedRows.at(0);
@@ -83,19 +94,7 @@ export async function readBudget(pool: Pool) {
   const ledgerRows = await optionalTableRows<{
     ledger_total_usd: number;
     anchored_at: string | null;
-  }>(
-    pool,
-    // Anchor = the OPENING entry (not MIN over everything — a backdated top-up must not drag the window back), falling back to earliest non-correction; corrections are excluded from the anchor but not the total; rendered as an explicit ISO-8601 UTC string since a pg Date doesn't survive the wire+RSC boundary.
-    `SELECT COALESCE(SUM(amount_usd), 0)::float8 AS ledger_total_usd,
-       to_char(
-         COALESCE(
-           MIN(effective_at) FILTER (WHERE kind = 'opening'),
-           MIN(effective_at) FILTER (WHERE kind <> 'correction')
-         ) AT TIME ZONE 'UTC',
-         'YYYY-MM-DD"T"HH24:MI:SS"Z"'
-       ) AS anchored_at
-     FROM pipeline.credit_ledger`,
-  );
+  }>(pool, CREDIT_LEDGER_TOTAL_SQL);
   const ledger = ledgerRows.at(0);
   const budget = ledger?.anchored_at
     ? await remainingBudget(pool, ledger.anchored_at, ledger.ledger_total_usd)

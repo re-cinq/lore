@@ -94,18 +94,26 @@ function hasCursor(cursor: string | null | undefined): cursor is string {
   return cursor !== null && cursor !== undefined;
 }
 
-async function buildSnapshotResponse(
+/** Every catalog entry the snapshot names, each resolved to the definition a cluster renders. */
+function snapshotEntries(
   deps: CatalogEventsDeps,
-  cursor: string | null | undefined,
-): Promise<{ code: 200; body: z.infer<typeof CatalogEventsResponse> }> {
-  const snap = await deps.events.snapshot();
-  const entries = await Promise.all(
-    snap.entries.map(async (entry) => ({
+  entries: readonly { name: string; projectId: string | null }[],
+): Promise<Array<z.infer<typeof CatalogEntrySchema>>> {
+  return Promise.all(
+    entries.map(async (entry) => ({
       name: entry.name,
       project_id: entry.projectId,
       definition: await deps.resolveEntry(entry.name, entry.projectId),
     })),
   );
+}
+
+async function buildSnapshotResponse(
+  deps: CatalogEventsDeps,
+  cursor: string | null | undefined,
+): Promise<{ code: 200; body: z.infer<typeof CatalogEventsResponse> }> {
+  const snap = await deps.events.snapshot();
+  const entries = await snapshotEntries(deps, snap.entries);
 
   return {
     code: 200,
@@ -180,6 +188,29 @@ export async function handleCatalogEvents(
   return buildTailResponse(deps, cursor);
 }
 
+/** The live repositories the route reads through, with catalog entries resolved against the YAML fallback. */
+function catalogEventsDeps(pool: Pool): CatalogEventsDeps {
+  const yaml = new AgentDefsYaml();
+
+  return {
+    agents: new PgClusterAgents(pool),
+    events: new PgCatalogEvents(pool),
+    resolveEntry: (name, projectId) =>
+      resolveCatalogEntry(pool, yaml, name, projectId),
+  };
+}
+
+/** A non-numeric `ack` is dropped rather than refused: an unparseable cursor must never advance one. */
+function requestedCursor(request: Request): CatalogCursor {
+  const ackRaw = request.query.ack;
+
+  return {
+    ack:
+      typeof ackRaw === "string" && /^\d+$/.test(ackRaw) ? ackRaw : undefined,
+    snapshot: request.query.snapshot === "1",
+  };
+}
+
 /** The catalog changes a cluster-agent has not applied yet, from its cursor — the pull side of catalog sync, since nothing is pushed to a cluster. */
 async function serveCatalogEvents(
   getPool: () => Pool | null,
@@ -189,24 +220,12 @@ async function serveCatalogEvents(
   const pool = getPool();
 
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-  const bearer = extractBearer(request.headers.authorization);
-  const ackRaw = request.query.ack;
-  const yaml = new AgentDefsYaml();
 
   const result = await handleCatalogEvents(
-    {
-      agents: new PgClusterAgents(pool),
-      events: new PgCatalogEvents(pool),
-      resolveEntry: (name, projectId) =>
-        resolveCatalogEntry(pool, yaml, name, projectId),
-    },
-    bearer,
+    catalogEventsDeps(pool),
+    extractBearer(request.headers.authorization),
     request.params.id,
-    {
-      ack:
-        typeof ackRaw === "string" && /^\d+$/.test(ackRaw) ? ackRaw : undefined,
-      snapshot: request.query.snapshot === "1",
-    },
+    requestedCursor(request),
   );
 
   return h.response(result.body).code(result.code);

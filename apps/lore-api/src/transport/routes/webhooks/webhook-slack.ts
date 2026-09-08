@@ -69,35 +69,56 @@ const KNOWN_TASK_TYPES = [
   "feature-request",
 ];
 
+// Plain-string error bodies use text/plain (hapi defaults to text/html).
+function plainText(
+  h: ResponseToolkit,
+  message: string,
+  code: number,
+): ResponseObject {
+  return h.response(message).type("text/plain").code(code);
+}
+
+/** The two headers Slack signs its request with. */
+function slackHeaders(request: Request): {
+  timestamp: string;
+  signature: string;
+} {
+  return {
+    timestamp: request.headers["x-slack-request-timestamp"] as string,
+    signature: request.headers["x-slack-signature"] as string,
+  };
+}
+
 /** Slack's own request check: the shared secret must be configured, the request signed, and recent enough that a replayed one is refused. Returns the refusal, or null when the request is genuine. */
 function authenticateSlack(
   request: Request,
   body: string,
   h: ResponseToolkit,
 ): ResponseObject | null {
-  // Plain-string error bodies use text/plain (hapi defaults to text/html).
   const slackSecret = process.env.LORE_SLACK_SIGNING_SECRET;
 
   if (!slackSecret) {
-    return h
-      .response("Slack signing secret not configured")
-      .type("text/plain")
-      .code(503);
+    return plainText(h, "Slack signing secret not configured", 503);
   }
-  const timestamp = request.headers["x-slack-request-timestamp"] as string;
-  const slackSig = request.headers["x-slack-signature"] as string;
+  const { timestamp, signature } = slackHeaders(request);
 
-  if (!timestamp || !slackSig) {
-    return h.response("Unauthorized").type("text/plain").code(401);
+  if (!timestamp || !signature) {
+    return plainText(h, "Unauthorized", 401);
   }
 
   if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
-    return h.response("Request too old").type("text/plain").code(401);
+    return plainText(h, "Request too old", 401);
   }
 
-  return verifySlackSignature(slackSecret, timestamp, slackSig, body)
+  return verifySlackSignature(slackSecret, timestamp, signature, body)
     ? null
-    : h.response("Invalid signature").type("text/plain").code(401);
+    : plainText(h, "Invalid signature", 401);
+}
+
+/** Who typed the command and where, as the reply plumbing needs it. */
+export interface SlackSender {
+  channelId: string;
+  userName: string;
 }
 
 export interface SlashCommand {
@@ -191,7 +212,7 @@ function createdMessage(
 function taskInput(
   command: SlashCommand,
   targetRepo: string,
-  from: { channelId: string; userName: string },
+  from: SlackSender,
 ) {
   return {
     description: command.description,
@@ -206,20 +227,12 @@ function taskInput(
   };
 }
 
-async function createReply(
-  pool: Pool | null,
+/** Creates the task and answers with the channel message, or with the failure spelled out — a slash command that silently created nothing is worse than one that says why. */
+async function createdReply(
   command: SlashCommand,
-  from: { channelId: string; userName: string },
+  targetRepo: string,
+  from: SlackSender,
 ): Promise<object> {
-  const targetRepo = await repoForSlackChannel(pool, from.channelId);
-
-  if (!targetRepo) {
-    return {
-      response_type: "ephemeral",
-      text: "No repo mapped to this channel. Set `slack_channel_id` in repo settings.",
-    };
-  }
-
   try {
     const taskResult = await createTask(taskInput(command, targetRepo, from));
 
@@ -232,14 +245,28 @@ async function createReply(
   }
 }
 
+async function createReply(
+  pool: Pool | null,
+  command: SlashCommand,
+  from: SlackSender,
+): Promise<object> {
+  const targetRepo = await repoForSlackChannel(pool, from.channelId);
+
+  if (!targetRepo) {
+    return {
+      response_type: "ephemeral",
+      text: "No repo mapped to this channel. Set `slack_channel_id` in repo settings.",
+    };
+  }
+
+  return createdReply(command, targetRepo, from);
+}
+
 function commandTextFrom(params: URLSearchParams): string {
   return (params.get("text") || "").trim();
 }
 
-function slackSender(params: URLSearchParams): {
-  channelId: string;
-  userName: string;
-} {
+function slackSender(params: URLSearchParams): SlackSender {
   return {
     channelId: params.get("channel_id") || "",
     userName: params.get("user_name") || "unknown",
@@ -252,6 +279,26 @@ function challengeResponse(h: ResponseToolkit, params: URLSearchParams) {
     .response(params.get("challenge") || "")
     .type("text/plain")
     .code(200);
+}
+
+/** What the typed command becomes: the usage note, a retry, or a new task. Reached only for an already-verified request. */
+async function commandReply(
+  getPool: () => Pool | null,
+  params: URLSearchParams,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const commandText = commandTextFrom(params);
+
+  if (!commandText) {
+    return h.response({ response_type: "ephemeral", text: USAGE });
+  }
+  const command = parseSlashCommand(commandText);
+
+  if (command.retryTaskId) {
+    return h.response(await retryReply(command.retryTaskId));
+  }
+
+  return h.response(await createReply(getPool(), command, slackSender(params)));
 }
 
 /** The /lore slash command. Answers with the message Slack renders back in the channel, so the reply IS the user-visible result rather than a status code. */
@@ -271,18 +318,8 @@ async function serveSlackCommand(
   if (params.get("type") === "url_verification") {
     return challengeResponse(h, params);
   }
-  const commandText = commandTextFrom(params);
 
-  if (!commandText) {
-    return h.response({ response_type: "ephemeral", text: USAGE });
-  }
-  const command = parseSlashCommand(commandText);
-
-  if (command.retryTaskId) {
-    return h.response(await retryReply(command.retryTaskId));
-  }
-
-  return h.response(await createReply(getPool(), command, slackSender(params)));
+  return commandReply(getPool, params, h);
 }
 
 export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {

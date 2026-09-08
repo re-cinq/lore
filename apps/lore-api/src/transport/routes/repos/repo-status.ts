@@ -95,6 +95,20 @@ async function onboardedStatus(
   };
 }
 
+/** The status document for one repo — an absent row reads as "not onboarded", not as an error. */
+async function repoStatusBody(pool: Pool, repo: string) {
+  const { rows } = await pool.query(
+    `SELECT settings, last_ingested_at FROM lore.repos WHERE full_name = $1`,
+    [repo],
+  );
+
+  if (rows.length === 0) {
+    return { onboarded: false, repo };
+  }
+
+  return onboardedStatus(pool, repo, rows[0]);
+}
+
 async function serveRepoStatus(
   getPool: () => Pool | null,
   request: Request,
@@ -108,16 +122,7 @@ async function serveRepoStatus(
   }
 
   try {
-    const repoRow = await pool.query(
-      `SELECT settings, last_ingested_at FROM lore.repos WHERE full_name = $1`,
-      [repo],
-    );
-
-    if (repoRow.rows.length === 0) {
-      return h.response({ onboarded: false, repo });
-    }
-
-    return h.response(await onboardedStatus(pool, repo, repoRow.rows[0]));
+    return h.response(await repoStatusBody(pool, repo));
   } catch (err) {
     console.error("[repo-status] Error:", errorMessage(err));
 

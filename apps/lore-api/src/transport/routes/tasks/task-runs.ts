@@ -81,20 +81,17 @@ async function serveTaskRuns(
 
   const missing = await enforceTaskExists(pool, taskId, h);
 
-  if (missing) {
-    return missing;
-  }
+  return missing ?? (await respondWithRuns(pool, taskId, h));
+}
 
+/** A pipeline.assembly_runs that does not exist yet reads as no runs, not as a failure — the table arrives with a migration. */
+async function respondWithRuns(
+  pool: Pool,
+  taskId: string,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
   try {
-    const { rows } = await pool.query<TaskRunRow>(
-      `SELECT ${selectList(TASK_RUN_COLUMNS)}
-         FROM pipeline.assembly_runs
-        WHERE task_id = $1
-        ORDER BY created_at DESC`,
-      [taskId],
-    );
-
-    return h.response({ runs: rows });
+    return h.response({ runs: await readTaskRuns(pool, taskId) });
   } catch (err) {
     if ((err as { code?: string }).code === UNDEFINED_TABLE) {
       return h.response({ runs: [] });
@@ -102,6 +99,18 @@ async function serveTaskRuns(
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
+}
+
+async function readTaskRuns(pool: Pool, taskId: string): Promise<TaskRunRow[]> {
+  const { rows } = await pool.query<TaskRunRow>(
+    `SELECT ${selectList(TASK_RUN_COLUMNS)}
+         FROM pipeline.assembly_runs
+        WHERE task_id = $1
+        ORDER BY created_at DESC`,
+    [taskId],
+  );
+
+  return rows;
 }
 
 export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {

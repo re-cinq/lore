@@ -74,31 +74,44 @@ interface RunnerStatusUpdate {
   error: string | undefined;
 }
 
+/** The SET list and its bind values built together, because each optional column's placeholder number is decided by how many values precede it. */
+function statusSetClauses({ status, prUrl, error }: RunnerStatusUpdate): {
+  clauses: string[];
+  values: unknown[];
+} {
+  const clauses = ["status = $1", "updated_at = now()"];
+  const values: unknown[] = [status];
+
+  if (prUrl) {
+    clauses.push(`pr_url = $${values.length + 1}`);
+    values.push(prUrl);
+  }
+
+  if (error) {
+    clauses.push(`error = $${values.length + 1}`);
+    values.push(error);
+  }
+
+  return { clauses, values };
+}
+
 async function updateTaskStatus(
   pool: Pool,
   taskId: string,
-  { status, prUrl, error }: RunnerStatusUpdate,
+  update: RunnerStatusUpdate,
 ) {
+  const { status } = update;
+
   enforceTrue(
     ALLOWED_STATUSES.includes(status),
     apiError(400),
     `invalid status: ${status}`,
   );
-  const setClauses = ["status = $1", "updated_at = now()"];
-  const values: unknown[] = [status];
+  const { clauses, values } = statusSetClauses(update);
 
-  if (prUrl) {
-    setClauses.push(`pr_url = $${values.length + 1}`);
-    values.push(prUrl);
-  }
-
-  if (error) {
-    setClauses.push(`error = $${values.length + 1}`);
-    values.push(error);
-  }
   values.push(taskId);
   await pool.query(
-    `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${values.length}`,
+    `UPDATE pipeline.tasks SET ${clauses.join(", ")} WHERE id = $${values.length}`,
     values,
   );
 
@@ -183,19 +196,14 @@ async function setPriority(
   if (parsed.action !== "set-priority" || !parsed.priority) {
     return null;
   }
-  const resolvedPriority =
-    parsed.priority === "immediate" ? "immediate" : "normal";
+  const priority = parsed.priority === "immediate" ? "immediate" : "normal";
 
   await pool.query(
     `UPDATE pipeline.tasks SET priority = $1, updated_at = now() WHERE id = $2 AND status = 'pending'`,
-    [resolvedPriority, taskId],
+    [priority, taskId],
   );
 
-  return h.response({
-    ok: true,
-    task_id: taskId,
-    priority: resolvedPriority,
-  });
+  return h.response({ ok: true, task_id: taskId, priority });
 }
 
 /** The local runner reporting progress: no action field, a task id and a status. */

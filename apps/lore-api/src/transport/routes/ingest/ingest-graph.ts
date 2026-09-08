@@ -35,15 +35,8 @@ type IngestGraphBody = z.infer<typeof IngestGraphBody>;
 /** Which projection kinds the push triggered. */
 const IngestTriggeredSchema = z.object({ triggered: z.array(z.string()) });
 
-/** Projects a repo's specs or ADRs into the traceability graph. Test projection is deliberately NOT accepted here — that path is CI-only, through the lore-code-trace binary. */
-async function serveIngestGraph(
-  getPool: () => Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const repo = `${request.params.owner}/${request.params.repo}`;
-  const body = request.payload as IngestGraphBody;
-
+/** The doc kinds a push asked for, defaulting to both; an unknown kind is refused rather than dropped. */
+function resolveDocKinds(body: IngestGraphBody): string[] {
   const requested =
     body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
   const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
@@ -54,6 +47,18 @@ async function serveIngestGraph(
     `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
   );
 
+  return requested;
+}
+
+/** Projects a repo's specs or ADRs into the traceability graph. Test projection is deliberately NOT accepted here — that path is CI-only, through the lore-code-trace binary. */
+async function serveIngestGraph(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const repo = `${request.params.owner}/${request.params.repo}`;
+  const body = request.payload as IngestGraphBody;
+  const requested = resolveDocKinds(body);
   // Each doc kind → fire-and-forget projection trigger.
   const pool = getPool();
 

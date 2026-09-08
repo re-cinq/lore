@@ -1,5 +1,6 @@
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
+import type Hapi from "@hapi/hapi";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { listTasks } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
@@ -40,17 +41,21 @@ export function listTasksRoute(): ServerRoute {
       TaskPageSchema,
       { name: "TaskPage", description: "A page of pipeline tasks" },
     ),
-    handler: async (request, h) => {
-      const { status, limit, offset } =
-        request.query as unknown as ListTasksQuery;
-
-      try {
-        const result = await listTasks(status, limit, offset);
-
-        return h.response({ ...result, limit, offset });
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: serveListTasks,
   };
+}
+
+async function serveListTasks(
+  request: Hapi.Request,
+  h: Hapi.ResponseToolkit,
+): Promise<Hapi.ResponseObject> {
+  const { status, limit, offset } = request.query as unknown as ListTasksQuery;
+
+  try {
+    const result = await listTasks(status, limit, offset);
+
+    return h.response({ ...result, limit, offset });
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
 }

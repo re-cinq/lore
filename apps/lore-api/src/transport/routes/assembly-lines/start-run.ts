@@ -83,6 +83,32 @@ function resumePoint(resumeFrom: {
   };
 }
 
+/** The start payload a fork carries: the source visit to resume at, plus the CURRENT definition's hash as the drift guard's left-hand side. */
+function resumeInput(
+  body: z.infer<typeof StartBody>,
+  input: AssemblyRunStartInput,
+  definition: AssemblyLine,
+): AssemblyRunStartInput {
+  return {
+    ...input,
+    blueprintHash: definitionHash(definition),
+    resumeFrom: resumePoint(
+      body.resume_from as NonNullable<typeof body.resume_from>,
+    ),
+  };
+}
+
+/** Only the port's typed REFUSALS (drift, non-terminal source, missing visit — all pre-write) become a 409; anything else stays the internal failure it is. */
+function rethrowResumeFailure(err: unknown): never {
+  rethrowBoom(err);
+
+  if (err instanceof ResumeRefusedError) {
+    throw apiError(409)(err.message);
+  }
+
+  throw err;
+}
+
 async function startResumedRun(
   body: z.infer<typeof StartBody>,
   input: AssemblyRunStartInput,
@@ -98,22 +124,9 @@ async function startResumedRun(
   );
 
   try {
-    return await start({
-      ...input,
-      blueprintHash: definitionHash(definition),
-      resumeFrom: resumePoint(
-        body.resume_from as NonNullable<typeof body.resume_from>,
-      ),
-    });
+    return await start(resumeInput(body, input, definition));
   } catch (err) {
-    rethrowBoom(err);
-
-    // Only the port's typed REFUSALS (drift, non-terminal source, missing visit — all pre-write) become a 409; anything else stays the internal failure it is.
-    if (err instanceof ResumeRefusedError) {
-      throw apiError(409)(err.message);
-    }
-
-    throw err;
+    return rethrowResumeFailure(err);
   }
 }
 
@@ -136,6 +149,23 @@ async function serveStartRun(
   return h.response({ id }).code(201);
 }
 
+/** The route's declared contract: task scope, a validated body, and a 201 carrying the new run's id. */
+function startRunOptions() {
+  return zodResponse(
+    {
+      ...bearerScope("task"),
+      validate: { payload: zodValidate(StartBody) },
+    },
+    StartResponse,
+    {
+      name: "AssemblyRunStarted",
+      status: 201,
+      description: "Run started",
+      errors: [400, 409],
+    },
+  );
+}
+
 export function startRunRoute(
   start: StartRun = defaultStart,
   loadDefinitions: LoadDefinitions = loadBuiltinAssemblyLines,
@@ -143,19 +173,7 @@ export function startRunRoute(
   return {
     method: "POST",
     path: "/api/assembly-runs",
-    options: zodResponse(
-      {
-        ...bearerScope("task"),
-        validate: { payload: zodValidate(StartBody) },
-      },
-      StartResponse,
-      {
-        name: "AssemblyRunStarted",
-        status: 201,
-        description: "Run started",
-        errors: [400, 409],
-      },
-    ),
+    options: startRunOptions(),
     handler: (request, h) => serveStartRun(start, loadDefinitions, request, h),
   };
 }

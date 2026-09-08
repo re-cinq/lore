@@ -57,11 +57,13 @@ function inFlightConflict(feature: {
     : null;
 }
 
-/** What the author is asking this round to do. `rewoundTo` is the iteration they NAMED, kept separate from the basis the sequence resolves — conflating the two breaks rewind, because a resolved basis is not evidence that anyone asked to rewind. */
-function roundInput(body: {
+interface RoundBody {
   user_answers?: unknown;
   from_iteration?: unknown;
-}) {
+}
+
+/** What the author is asking this round to do. `rewoundTo` is the iteration they NAMED, kept separate from the basis the sequence resolves — conflating the two breaks rewind, because a resolved basis is not evidence that anyone asked to rewind. */
+function roundInput(body: RoundBody) {
   return {
     answers: parseSectionAnswers(body.user_answers),
     rewoundTo:
@@ -69,14 +71,25 @@ function roundInput(body: {
   };
 }
 
+/** The round was ACCEPTED, not completed: the line walks it asynchronously, so there is no task to point the caller at yet. */
+function roundAccepted(
+  round: Awaited<ReturnType<typeof startRefinementRound>>,
+) {
+  return {
+    code: 202,
+    body: {
+      iteration: round.iteration,
+      ...runIdBothSpellings(round.runId),
+      task_id: null,
+    },
+  };
+}
+
 export async function startPlanningRound(
   getPool: () => Pool | null,
   request: Request,
 ): Promise<{ code: number; body: object }> {
-  const body = request.payload as {
-    user_answers?: unknown;
-    from_iteration?: unknown;
-  };
+  const body = request.payload as RoundBody;
   const project = await projectFor(repoOf(request.params));
   const feature = await project.features.get(request.params.id);
 
@@ -94,14 +107,7 @@ export async function startPlanningRound(
     roundDeps(getPool, project),
   );
 
-  return {
-    code: 202,
-    body: {
-      iteration: round.iteration,
-      ...runIdBothSpellings(round.runId),
-      task_id: null,
-    },
-  };
+  return roundAccepted(round);
 }
 
 /** What the resumed line is told. The merge onto existing args is SHALLOW, and that shapes all three keys: `description` is rewritten because a tail node would otherwise still read refine's brief (#1470), the author's answers ride along because dropping them loses their feedback, and the two refine-only keys are explicitly nulled — omitting them would leave the previous round's values in place. */
@@ -125,7 +131,43 @@ function acceptArgs(
   };
 }
 
-/** Accepting a plan reports SUCCESS to the node the line is parked on, so the spec work runs as an edge of the same line rather than a new one. Two structural guards catch a double-click — the feature's state, and whether anything is actually parked — and the refusal names the run so the author can see which one. */
+/** First structural guard against a double-click: a feature already past planning cannot be finalized again. */
+function enforceFinalizable(status: Parameters<typeof canFinalize>[0]): void {
+  enforceTrue(
+    canFinalize(status),
+    apiError(409),
+    `cannot finalize a feature in '${status}' state`,
+  );
+}
+
+/** Second structural guard: nothing is waiting for the author. The refusal names the run so they can see which one. */
+function enforceParked<T>(
+  parked: T,
+  runId: Parameters<typeof runIdBothSpellings>[0],
+): asserts parked is NonNullable<T> {
+  enforceTrue(
+    parked,
+    apiError(409, runIdBothSpellings(runId)),
+    "no plan is waiting to be accepted — this feature's line is not parked on the author",
+  );
+}
+
+/** Reports SUCCESS to the parked node, carrying the args the resumed line reads. */
+async function reportAccepted(
+  getPool: () => Pool | null,
+  feature: Parameters<typeof acceptArgs>[0],
+  request: Request,
+  parked: Parameters<typeof reportToParkedNode>[1],
+): Promise<void> {
+  const body = request.payload as { user_answers?: unknown };
+
+  await reportToParkedNode(eventReporterFor(getPool()), parked, {
+    outcome: "success",
+    args: acceptArgs(feature, body.user_answers),
+  });
+}
+
+/** Accepting a plan reports SUCCESS to the node the line is parked on, so the spec work runs as an edge of the same line rather than a new one. */
 export async function acceptPlan(
   getPool: () => Pool | null,
   request: Request,
@@ -136,29 +178,16 @@ export async function acceptPlan(
   const feature = await project.features.get(id);
 
   enforceTrue(feature, apiError(404), "feature not found");
-  enforceTrue(
-    canFinalize(feature.status),
-    apiError(409),
-    `cannot finalize a feature in '${feature.status}' state`,
-  );
+  enforceFinalizable(feature.status);
 
   const { runId, parked } = await findParkedAuthorNode(
     project.assemblyRuns,
     id,
   );
 
-  enforceTrue(
-    parked,
-    apiError(409, runIdBothSpellings(runId)),
-    "no plan is waiting to be accepted — this feature's line is not parked on the author",
-  );
+  enforceParked(parked, runId);
 
-  const body = request.payload as { user_answers?: unknown };
-
-  await reportToParkedNode(eventReporterFor(getPool()), parked, {
-    outcome: "success",
-    args: acceptArgs(feature, body.user_answers),
-  });
+  await reportAccepted(getPool, feature, request, parked);
 
   return parked;
 }

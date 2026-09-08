@@ -2,7 +2,12 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { z } from "zod";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 
@@ -66,6 +71,32 @@ async function chunkCollection(
   return resolve(chunks, q);
 }
 
+/** One chunk collection, named by {kind} and read through the repo's Project rather than Postgres. */
+async function serveChunks(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const kind = request.params.kind;
+
+  enforceTrue(CHUNK_KINDS.has(kind), apiError(404), "not found");
+  const q = request.query as Record<string, string | undefined>;
+
+  try {
+    const chunks = (
+      await projectFor(`${request.params.owner}/${request.params.repo}`)
+    ).chunks;
+
+    return h.response(await chunkCollection(kind, chunks, q));
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    return h
+      .response({ error: err instanceof Error ? err.message : String(err) })
+      .code(500);
+  }
+}
+
 export function chunksRoute(): ServerRoute {
   return {
     method: "GET",
@@ -75,26 +106,6 @@ export function chunksRoute(): ServerRoute {
       description: "A chunk collection, shaped by {kind}",
       errors: [400],
     }),
-    handler: async (request, h) => {
-      const kind = request.params.kind;
-
-      enforceTrue(CHUNK_KINDS.has(kind), apiError(404), "not found");
-      const q = request.query as Record<string, string | undefined>;
-
-      try {
-        const chunks = (
-          await projectFor(`${request.params.owner}/${request.params.repo}`)
-        ).chunks;
-
-        return h.response(await chunkCollection(kind, chunks, q));
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        return h
-          .response({ error: err instanceof Error ? err.message : String(err) })
-          .code(500);
-      }
-    },
+    handler: (request, h) => serveChunks(request, h),
   };
 }

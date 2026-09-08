@@ -1,7 +1,12 @@
 import { zodResponse } from "../../http/zod-response.js";
 import { z } from "zod";
 import { errorMessage, getQueryEmbedding } from "@re-cinq/lore-shared";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 
@@ -23,6 +28,20 @@ const EmbedBody = z.object({
   text: z.string().min(1).max(20_000),
 });
 
+async function serveEmbed(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  try {
+    const { text } = request.payload as z.infer<typeof EmbedBody>;
+    const embedding = await (embedOverride ?? getQueryEmbedding)(text);
+
+    return h.response({ embedding });
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function embedRoute(): ServerRoute {
   return {
     method: "POST",
@@ -39,15 +58,6 @@ export function embedRoute(): ServerRoute {
         errors: [400],
       },
     ),
-    handler: async (request, h) => {
-      try {
-        const { text } = request.payload as z.infer<typeof EmbedBody>;
-        const embedding = await (embedOverride ?? getQueryEmbedding)(text);
-
-        return h.response({ embedding });
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveEmbed(request, h),
   };
 }

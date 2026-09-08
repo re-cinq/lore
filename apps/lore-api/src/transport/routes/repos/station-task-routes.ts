@@ -43,6 +43,32 @@ const StationTaskListSchema = z.object({
   ),
 });
 
+/** The tasks already open against one spec — what a drift detector checks before filing another. */
+async function serveDriftTasks(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  try {
+    const q = request.query as Record<string, string | undefined>;
+
+    enforceTrue(
+      q.task_type && q.spec_path,
+      apiError(400),
+      "task_type + spec_path required",
+    );
+    const p = await projectFor(repoOf(request.params));
+
+    return h.response({
+      tasks: await p.tasks.driftTasksForSpec(q.task_type, q.spec_path),
+    });
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    return fail(h, err);
+  }
+}
+
 export function driftTasksRoute(): ServerRoute {
   return {
     method: "GET",
@@ -51,27 +77,28 @@ export function driftTasksRoute(): ServerRoute {
       name: "DriftTaskList",
       description: "Tasks already open for a spec",
     }),
-    handler: async (request, h) => {
-      try {
-        const q = request.query as Record<string, string | undefined>;
+    handler: (request, h) => serveDriftTasks(request, h),
+  };
+}
 
-        enforceTrue(
-          q.task_type && q.spec_path,
-          apiError(400),
-          "task_type + spec_path required",
-        );
-        const p = await projectFor(repoOf(request.params));
+/** The open-task lookup this request names; both selectors are required, so a half-specified query is refused rather than answered with everything. */
+function openLikeQuery(request: Request): {
+  taskType: string;
+  descriptionPrefix: string;
+  statuses: string[];
+} {
+  const q = request.query as Record<string, string | undefined>;
 
-        return h.response({
-          tasks: await p.tasks.driftTasksForSpec(q.task_type, q.spec_path),
-        });
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
+  enforceTrue(
+    q.task_type && q.description_prefix,
+    apiError(400),
+    "task_type + description_prefix required",
+  );
 
-        return fail(h, err);
-      }
-    },
+  return {
+    taskType: q.task_type,
+    descriptionPrefix: q.description_prefix,
+    statuses: (q.statuses ?? "").split(",").filter(Boolean),
   };
 }
 
@@ -81,23 +108,10 @@ async function serveOpenLikeTasks(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    const q = request.query as Record<string, string | undefined>;
-
-    enforceTrue(
-      q.task_type && q.description_prefix,
-      apiError(400),
-      "task_type + description_prefix required",
-    );
-    const statuses = (q.statuses ?? "").split(",").filter(Boolean);
+    const query = openLikeQuery(request);
     const p = await projectFor(repoOf(request.params));
 
-    return h.response({
-      tasks: await p.tasks.findOpenLike({
-        taskType: q.task_type,
-        descriptionPrefix: q.description_prefix,
-        statuses,
-      }),
-    });
+    return h.response({ tasks: await p.tasks.findOpenLike(query) });
   } catch (err) {
     // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);
@@ -118,6 +132,27 @@ export function openLikeTasksRoute(): ServerRoute {
   };
 }
 
+/** Queues one task against the repo on behalf of a station pod, which cannot reach the queue itself. */
+async function serveCreateRepoTask(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  try {
+    const body = request.payload as z.infer<typeof TaskBody>;
+    const p = await projectFor(repoOf(request.params));
+    const created = await p.tasks.create({
+      description: body.description,
+      taskType: body.taskType,
+      createdBy: body.createdBy,
+      contextBundle: body.contextBundle,
+    });
+
+    return h.response(created);
+  } catch (err) {
+    return fail(h, err);
+  }
+}
+
 export function createRepoTaskRoute(): ServerRoute {
   return {
     method: "POST",
@@ -130,21 +165,6 @@ export function createRepoTaskRoute(): ServerRoute {
       StationTaskCreatedSchema,
       { name: "StationTaskCreated", description: "The task that was queued" },
     ),
-    handler: async (request, h) => {
-      try {
-        const body = request.payload as z.infer<typeof TaskBody>;
-        const p = await projectFor(repoOf(request.params));
-        const created = await p.tasks.create({
-          description: body.description,
-          taskType: body.taskType,
-          createdBy: body.createdBy,
-          contextBundle: body.contextBundle,
-        });
-
-        return h.response(created);
-      } catch (err) {
-        return fail(h, err);
-      }
-    },
+    handler: (request, h) => serveCreateRepoTask(request, h),
   };
 }

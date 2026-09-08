@@ -3,7 +3,12 @@ import { zodResponse } from "../../http/zod-response.js";
 import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
@@ -95,6 +100,31 @@ function scheduleSessionExtraction(
   ).catch(() => {});
 }
 
+interface SessionEpisode {
+  agent: string;
+  content: string;
+  repo: string | null;
+}
+
+/** Stores the episode and, when it is genuinely new, starts its extraction — a content hash already held is a duplicate, not a second episode. */
+async function storeAndExtract(pool: Pool, episode: SessionEpisode) {
+  const { agent, content, repo } = episode;
+  const episodeId = await insertSessionEpisode(pool, {
+    agent,
+    content,
+    contentHash: createHash("sha256").update(content).digest("hex"),
+    repo,
+  });
+
+  if (episodeId === undefined) {
+    return { status: "duplicate" };
+  }
+
+  scheduleSessionExtraction(pool, { episodeId, content, agent, repo });
+
+  return { status: "ok", episode_id: episodeId };
+}
+
 /** Writes the session as an episode and starts fact extraction. Two outcomes are not errors: an empty session is skipped, and a content hash already stored is a duplicate — the Stop hook fires more than once per session. */
 async function ingestSession(
   pool: Pool | null,
@@ -107,31 +137,32 @@ async function ingestSession(
     return { status: "skipped", reason: "empty session" };
   }
 
-  const content = sessionContent(repo, summary);
-  const agent = agent_id || "session-hook";
-  const scopedRepo = repo || null;
-
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
-  const episodeId = await insertSessionEpisode(pool, {
-    agent,
-    content,
-    contentHash: createHash("sha256").update(content).digest("hex"),
-    repo: scopedRepo,
+  return storeAndExtract(pool, {
+    agent: agent_id || "session-hook",
+    content: sessionContent(repo, summary),
+    repo: repo || null,
   });
+}
 
-  if (episodeId === undefined) {
-    return { status: "duplicate" };
+async function serveSessionSummary(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  try {
+    return h.response(
+      await ingestSession(pool, request.payload as SessionSummaryBody),
+    );
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    return h.response({ error: errorMessage(err) }).code(500);
   }
-
-  scheduleSessionExtraction(pool, {
-    episodeId,
-    content,
-    agent,
-    repo: scopedRepo,
-  });
-
-  return { status: "ok", episode_id: episodeId };
 }
 
 export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
@@ -149,19 +180,6 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
         description: "What became of the posted session",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      try {
-        return h.response(
-          await ingestSession(pool, request.payload as SessionSummaryBody),
-        );
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveSessionSummary(getPool, request, h),
   };
 }

@@ -12,28 +12,36 @@ interface BilledAnthropicTotals {
 }
 
 // `as_of`, not a row count, distinguishes "synced and owes nothing" from "never synced" — the view hides billed sections for the latter rather than showing a confident zero.
-function toBilledAnthropicTotals(
-  row:
-    | {
-        billed_usd: number;
-        input_tokens: number;
-        output_tokens: number;
-        as_of: string | null;
-        billed_through: string | null;
-      }
-    | undefined,
-): BilledAnthropicTotals {
-  if (!row) {
-    return {
-      totalUsd: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      asOf: null,
-      billedThrough: null,
-      available: false,
-    };
-  }
+const NO_BILLED_ANTHROPIC_TOTALS: BilledAnthropicTotals = {
+  totalUsd: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  asOf: null,
+  billedThrough: null,
+  available: false,
+};
 
+const BILLED_ANTHROPIC_TOTALS_SQL = `SELECT
+       COALESCE(SUM(cost_usd)
+         FILTER (WHERE bucket_date >= $1::date AND bucket_date <= $2::date),
+         0)::float8 AS billed_usd,
+       COALESCE(SUM(input_tokens)
+         FILTER (WHERE bucket_date >= $1::date AND bucket_date <= $2::date),
+         0)::float8 AS input_tokens,
+       COALESCE(SUM(output_tokens)
+         FILTER (WHERE bucket_date >= $1::date AND bucket_date <= $2::date),
+         0)::float8 AS output_tokens,
+       MAX(fetched_at) AS as_of,
+       MAX(bucket_date)::text AS billed_through
+     FROM pipeline.anthropic_cost_daily`;
+
+function billedTotalsOf(row: {
+  billed_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  as_of: string | null;
+  billed_through: string | null;
+}): BilledAnthropicTotals {
   return {
     totalUsd: row.billed_usd,
     inputTokens: row.input_tokens,
@@ -54,25 +62,10 @@ async function readBilledAnthropicTotals(
     output_tokens: number;
     as_of: string | null;
     billed_through: string | null;
-  }>(
-    pool,
-    `SELECT
-       COALESCE(SUM(cost_usd)
-         FILTER (WHERE bucket_date >= $1::date AND bucket_date <= $2::date),
-         0)::float8 AS billed_usd,
-       COALESCE(SUM(input_tokens)
-         FILTER (WHERE bucket_date >= $1::date AND bucket_date <= $2::date),
-         0)::float8 AS input_tokens,
-       COALESCE(SUM(output_tokens)
-         FILTER (WHERE bucket_date >= $1::date AND bucket_date <= $2::date),
-         0)::float8 AS output_tokens,
-       MAX(fetched_at) AS as_of,
-       MAX(bucket_date)::text AS billed_through
-     FROM pipeline.anthropic_cost_daily`,
-    [interval.from, interval.to],
-  );
+  }>(pool, BILLED_ANTHROPIC_TOTALS_SQL, [interval.from, interval.to]);
+  const row = billedTotalRows.at(0);
 
-  return toBilledAnthropicTotals(billedTotalRows[0]);
+  return row ? billedTotalsOf(row) : NO_BILLED_ANTHROPIC_TOTALS;
 }
 
 interface UnbilledAnthropicSpend {
@@ -137,8 +130,8 @@ async function readBilledAnthropicDaily(
 export async function readAnthropicSpend(pool: Pool, win: SpendWindow) {
   const { interval } = win;
   const totals = await readBilledAnthropicTotals(pool, interval);
-  const billedByModel = await readBilledAnthropicByModel(pool, interval);
-  const billedDaily = await readBilledAnthropicDaily(pool, interval);
+  const byModel = await readBilledAnthropicByModel(pool, interval);
+  const daily = await readBilledAnthropicDaily(pool, interval);
   const unbilled = await readUnbilledAnthropicSpend(
     pool,
     win,
@@ -146,15 +139,21 @@ export async function readAnthropicSpend(pool: Pool, win: SpendWindow) {
   );
 
   return {
+    ...billedAnthropicSection(totals),
+    by_model: byModel,
+    daily,
+    unbilled_usd: unbilled.costUsd,
+    unbilled_days: unbilled.days,
+  };
+}
+
+function billedAnthropicSection(totals: BilledAnthropicTotals) {
+  return {
     available: totals.available,
     total_usd: totals.totalUsd,
     input_tokens: totals.inputTokens,
     output_tokens: totals.outputTokens,
     as_of: totals.asOf,
     billed_through: totals.billedThrough,
-    by_model: billedByModel,
-    daily: billedDaily,
-    unbilled_usd: unbilled.costUsd,
-    unbilled_days: unbilled.days,
   };
 }

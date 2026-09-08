@@ -10,6 +10,7 @@ import {
   TaskEventSchema,
   TASK_EVENT_COLUMNS,
 } from "@re-cinq/lore-shared/models/task-event.js";
+import type Hapi from "@hapi/hapi";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { getTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
@@ -33,19 +34,24 @@ export function getTaskRoute(): ServerRoute {
       description: "One task and the transitions it has recorded",
       errors: [404],
     }),
-    handler: async (request, h) => {
-      try {
-        const task = await getTask(request.params.id);
-
-        enforceTrue(task, apiError(404), "not found");
-
-        return h.response(task);
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: serveGetTask,
   };
+}
+
+async function serveGetTask(
+  request: Hapi.Request,
+  h: Hapi.ResponseToolkit,
+): Promise<Hapi.ResponseObject> {
+  try {
+    const task = await getTask(request.params.id);
+
+    enforceTrue(task, apiError(404), "not found");
+
+    return h.response(task);
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
 }

@@ -144,6 +144,24 @@ async function handleGet(
 type CeremonyOutcome =
   { ok: true; ceremony: Ceremony } | { ok: false; body: object; code: number };
 
+const TWO_KEY_DETAIL =
+  "Privileged fields require an X-Lore-Approval-PR header. " +
+  "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.";
+
+/** The approval PR that carried the second key, recorded so the audit row names who authorized the change. */
+function twoKeyCeremony(evidence: {
+  prRef: string;
+  approver: string;
+  prUrl: string;
+}): Ceremony {
+  return {
+    tier: "two_key",
+    pr_ref: evidence.prRef,
+    approver: evidence.approver,
+    pr_url: evidence.prUrl,
+  };
+}
+
 /** Two-key check (FR3.9): privileged fields require an approval-PR header. */
 async function resolveCeremony(
   request: Request,
@@ -154,24 +172,10 @@ async function resolveCeremony(
     return { ok: true, ceremony: { tier: "admin" } };
   }
 
-  const gate = await checkApproval(
-    request,
-    repo,
-    twoKey,
-    "Privileged fields require an X-Lore-Approval-PR header. " +
-      "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.",
-  );
+  const gate = await checkApproval(request, repo, twoKey, TWO_KEY_DETAIL);
 
   return gate.ok
-    ? {
-        ok: true,
-        ceremony: {
-          tier: "two_key",
-          pr_ref: gate.evidence.prRef,
-          approver: gate.evidence.approver,
-          pr_url: gate.evidence.prUrl,
-        },
-      }
+    ? { ok: true, ceremony: twoKeyCeremony(gate.evidence) }
     : { ok: false, body: gate.body, code: gate.code };
 }
 
@@ -196,14 +200,9 @@ async function handlePut(
     return h.response(outcome.body).code(outcome.code);
   }
 
-  return await writeSettings({
-    pool,
-    repo,
-    h,
-    twoKey,
-    ceremony: outcome.ceremony,
-    ...parsed,
-  });
+  const write = { pool, repo, h, twoKey, ...parsed };
+
+  return await writeSettings({ ...write, ceremony: outcome.ceremony });
 }
 
 interface SettingsWrite extends SettingsPatch {
@@ -214,7 +213,6 @@ interface SettingsWrite extends SettingsPatch {
   ceremony: Ceremony;
 }
 
-/** The transaction itself. The row is SELECTed `FOR UPDATE` because the patch is a merge of what was read: two concurrent PUTs to one repo would otherwise each write a merge of the state they saw, and the later write would silently drop the earlier one's fields. The baseline capture runs AFTER the commit — it reads counters, and holding the row lock through it would serialize unrelated writes. */
 /** The write and its audit row, in that order and inside the same transaction. Both or neither: a settings change with no audit entry is exactly the thing the dark-factory rollback runbook cannot reconstruct. */
 async function writeAndAudit(
   client: PoolClient,
@@ -234,11 +232,40 @@ async function writeAndAudit(
   });
 }
 
+/** A repo with no row is not onboarded; the transaction is unwound before answering so the connection goes back clean. */
+async function rollbackNotOnboarded(
+  client: PoolClient,
+  h: ResponseToolkit,
+  repo: string,
+): Promise<ResponseObject> {
+  await client.query("ROLLBACK");
+
+  return h.response({ error: "repo not onboarded", repo }).code(404);
+}
+
+/** What the caller sees once the change is durable, plus the baseline snapshot — taken AFTER the commit because it reads counters, and holding the row lock through it would serialize unrelated writes. */
+async function committedResponse(
+  write: SettingsWrite,
+  applied: ReturnType<typeof applyPatch>,
+): Promise<ResponseObject> {
+  const { pool, repo, h, ceremony } = write;
+
+  await captureBaselineIfEnabling(
+    repo,
+    pool,
+    applied.prev.dark_factory,
+    applied.next,
+  );
+
+  return h.response({ ok: true, applied: applied.next, ceremony });
+}
+
+/** The transaction itself. The row is SELECTed `FOR UPDATE` because the patch is a merge of what was read: two concurrent PUTs to one repo would otherwise each write a merge of the state they saw, and the later write would silently drop the earlier one's fields. */
 async function applyUnderLock(
   client: PoolClient,
   write: SettingsWrite,
 ): Promise<ResponseObject> {
-  const { pool, repo, h, patch, toPatch } = write;
+  const { repo, h, patch, toPatch } = write;
 
   await client.query("BEGIN");
   const { rows } = await client.query(
@@ -247,26 +274,14 @@ async function applyUnderLock(
   );
 
   if (rows.length === 0) {
-    await client.query("ROLLBACK");
-
-    return h.response({ error: "repo not onboarded", repo }).code(404);
+    return await rollbackNotOnboarded(client, h, repo);
   }
   const applied = applyPatch(rows[0].settings, patch, toPatch);
 
   await writeAndAudit(client, write, applied);
   await client.query("COMMIT");
-  await captureBaselineIfEnabling(
-    repo,
-    pool,
-    applied.prev.dark_factory,
-    applied.next,
-  );
 
-  return h.response({
-    ok: true,
-    applied: applied.next,
-    ceremony: write.ceremony,
-  });
+  return await committedResponse(write, applied);
 }
 
 /** Read current, merge patch, write back, audit — under one row lock, because two concurrent PUTs to the same repo would otherwise each write a merge of the state they read. lore.repos.settings is JSONB. */

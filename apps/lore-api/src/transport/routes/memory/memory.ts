@@ -158,9 +158,25 @@ async function embeddingFor(body: MemoryBody): Promise<number[] | null> {
   return body.action === "search" ? getQueryEmbedding(body.query) : null;
 }
 
+type MemoryWriteBody = Extract<MemoryBody, { action: "write" }>;
+
+// Fire-and-forget: the caller is waiting on the write, not on the facts.
+function scheduleFactExtraction(pool: Pool | null, body: MemoryWriteBody) {
+  if (!(body.extract_facts && isMemoryDbAvailable())) {
+    return;
+  }
+
+  void extractFactsForMemory(pool!, {
+    key: body.key,
+    value: body.value,
+    agentId: resolveAgentId(body.agent_id),
+    repo: body.repo,
+  });
+}
+
 async function writeAction(
   pool: Pool | null,
-  body: Extract<MemoryBody, { action: "write" }>,
+  body: MemoryWriteBody,
   embedding: number[] | null,
 ): Promise<object> {
   const written = isMemoryDbAvailable()
@@ -174,15 +190,7 @@ async function writeAction(
       })
     : writeMemoryFile(body.key, body.value, body.agent_id, body.ttl);
 
-  // Fire-and-forget: the caller is waiting on the write, not on the facts.
-  if (body.extract_facts && isMemoryDbAvailable()) {
-    void extractFactsForMemory(pool!, {
-      key: body.key,
-      value: body.value,
-      agentId: resolveAgentId(body.agent_id),
-      repo: body.repo,
-    });
-  }
+  scheduleFactExtraction(pool, body);
 
   return written;
 }
@@ -243,6 +251,33 @@ async function listAction(
   return { ...result, limit: body.limit, offset: body.offset };
 }
 
+/** Dispatches the body's `action` to the verb that answers it. */
+async function memoryActionResult(
+  pool: Pool | null,
+  body: MemoryBody,
+): Promise<object> {
+  // Only the two actions that carry text to match on pay for an embedding.
+  const embedding = await embeddingFor(body);
+
+  if (body.action === "write") {
+    return writeAction(pool, body, embedding);
+  }
+
+  if (body.action === "read") {
+    return readAction(body);
+  }
+
+  if (body.action === "search") {
+    return searchAction(pool, body);
+  }
+
+  if (body.action === "delete") {
+    return deleteAction(body);
+  }
+
+  return listAction(body);
+}
+
 /** The memory verbs behind one POST: read, write, delete and list share a route because the MCP adapter proxies them as one action field. */
 async function serveMemoryAction(
   getPool: () => Pool | null,
@@ -253,26 +288,7 @@ async function serveMemoryAction(
   const body = request.payload as MemoryBody;
 
   try {
-    // Only the two actions that carry text to match on pay for an embedding.
-    const embedding = await embeddingFor(body);
-
-    if (body.action === "write") {
-      return h.response(await writeAction(pool, body, embedding));
-    }
-
-    if (body.action === "read") {
-      return h.response(await readAction(body));
-    }
-
-    if (body.action === "search") {
-      return h.response(await searchAction(pool, body));
-    }
-
-    if (body.action === "delete") {
-      return h.response(await deleteAction(body));
-    }
-
-    return h.response(await listAction(body));
+    return h.response(await memoryActionResult(pool, body));
   } catch (err) {
     return h.response({ error: errorMessage(err) }).code(500);
   }

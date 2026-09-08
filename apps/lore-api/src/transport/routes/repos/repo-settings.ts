@@ -99,6 +99,34 @@ async function notifyTeamChanged(pool: Pool, repo: string): Promise<void> {
   }
 }
 
+/** The stored team for a repo, refusing when the repo was never onboarded. */
+async function loadRepoTeam(pool: Pool, repo: string): Promise<string | null> {
+  const { rows } = await pool.query<{ team: string | null }>(
+    `SELECT full_name, team FROM lore.repos WHERE full_name = $1`,
+    [repo],
+  );
+
+  enforceTrue(rows.length !== 0, apiError(404), "Repo not found");
+
+  return rows[0].team;
+}
+
+/** Writes the columns this patch touched; a patch that names none is a client error. */
+async function applyRepoUpdates(
+  pool: Pool,
+  repo: string,
+  body: RepoSettingsBody,
+): Promise<void> {
+  const { updates, values } = repoUpdateClauses(body);
+
+  enforceTrue(updates.length !== 0, apiError(400), "No fields to update");
+  values.push(repo);
+  await pool.query(
+    `UPDATE lore.repos SET ${updates.join(", ")} WHERE full_name = $${values.length}`,
+    values,
+  );
+}
+
 /** One repo's settings. Cross-repo links are bidirectional, so writing them here also updates the repo on the other side of the link. */
 async function serveRepoSettings(
   getPool: () => Pool | null,
@@ -110,32 +138,15 @@ async function serveRepoSettings(
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const repo = `${request.params.owner}/${request.params.repo}`;
   const body = request.payload as RepoSettingsBody;
-
-  const { rows } = await pool.query<{ team: string | null }>(
-    `SELECT full_name, team FROM lore.repos WHERE full_name = $1`,
-    [repo],
-  );
-
-  enforceTrue(rows.length !== 0, apiError(404), "Repo not found");
-
+  const existingTeam = await loadRepoTeam(pool, repo);
   const darkFactory = (body.settings as { dark_factory?: unknown } | undefined)
     ?.dark_factory;
 
   enforceDarkFactoryAllowed(darkFactory, repo);
-
-  const { updates, values } = repoUpdateClauses(body);
-
-  enforceTrue(updates.length !== 0, apiError(400), "No fields to update");
-  values.push(repo);
-  await pool.query(
-    `UPDATE lore.repos SET ${updates.join(", ")} WHERE full_name = $${values.length}`,
-    values,
-  );
-
-  const existing = rows[0];
+  await applyRepoUpdates(pool, repo, body);
 
   // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
-  if (body.team !== undefined && (body.team || null) !== existing.team) {
+  if (body.team !== undefined && (body.team || null) !== existingTeam) {
     await notifyTeamChanged(pool, repo);
   }
 

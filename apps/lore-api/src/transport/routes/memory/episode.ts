@@ -31,45 +31,34 @@ const EpisodeWrittenSchema = z.union([
   z.object({ status: z.literal("duplicate") }),
 ]);
 
-async function insertEpisode(
-  pool: Pool,
-  fields: {
-    agent: string;
-    safeContent: string;
-    contentHash: string;
-    source: string;
-    ref: string | null;
-  },
-) {
+/** One episode's stored shape — sanitized content, its hash, and where it came from. */
+interface EpisodeRecord {
+  agent: string;
+  safeContent: string;
+  contentHash: string;
+  source: string;
+  ref: string | null;
+}
+
+async function insertEpisode(pool: Pool, record: EpisodeRecord) {
+  const { agent, safeContent, contentHash, source, ref } = record;
   const { rows } = await pool.query(
     `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
      VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (agent_id, content_hash) DO NOTHING
      RETURNING id`,
-    [
-      fields.agent,
-      fields.safeContent,
-      fields.contentHash,
-      fields.source,
-      fields.ref,
-    ],
+    [agent, safeContent, contentHash, source, ref],
   );
 
   return rows[0]?.id as string | undefined;
 }
 
-interface BackgroundExtractionFields {
-  episodeId: string;
-  safeContent: string;
-  agent: string;
-  ref: string | null;
-}
-
 function scheduleBackgroundExtraction(
   pool: Pool,
-  fields: BackgroundExtractionFields,
+  episodeId: string,
+  record: EpisodeRecord,
 ) {
-  const { episodeId, safeContent, agent, ref } = fields;
+  const { safeContent, agent, ref } = record;
 
   extractFactsFromEpisode(episodeId, safeContent, agent, pool).catch(() => {});
   const gLlm = makeGraphLlmCall(pool);
@@ -90,27 +79,21 @@ function scheduleBackgroundExtraction(
 /** Stores one episode and starts its fact extraction. Content is SANITIZED before it is hashed or stored — this table is org-wide, and a secret in a conversation turn would otherwise be readable by every agent. The hash is what makes a re-posted turn a duplicate rather than a second episode, and extraction is scheduled only for a genuinely new one. */
 async function writeEpisode(pool: Pool, body: EpisodeBody) {
   const { content, source, ref, agent_id } = body;
-  const agent = agent_id || "unknown";
   const safeContent = sanitizeContent(content);
-  const scopedRef = ref || null;
-  const episodeId = await insertEpisode(pool, {
-    agent,
+  const record: EpisodeRecord = {
+    agent: agent_id || "unknown",
     safeContent,
     contentHash: createHash("sha256").update(safeContent).digest("hex"),
     source: source || "session",
-    ref: scopedRef,
-  });
+    ref: ref || null,
+  };
+  const episodeId = await insertEpisode(pool, record);
 
   if (episodeId === undefined) {
     return { status: "duplicate" };
   }
 
-  scheduleBackgroundExtraction(pool, {
-    episodeId,
-    safeContent,
-    agent,
-    ref: scopedRef,
-  });
+  scheduleBackgroundExtraction(pool, episodeId, record);
 
   return { status: "ok", episode_id: episodeId };
 }

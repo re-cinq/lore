@@ -1,4 +1,4 @@
-import type { ServerRoute } from "@hapi/hapi";
+import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { latestReadyIteration } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { featureRunId } from "@re-cinq/lore-shared/project/features/planning-run.js";
@@ -82,6 +82,24 @@ function getFeatureRoute(): ServerRoute {
   };
 }
 
+/** The poll payload: the feature row, its latest iteration, and the run the wizard's graph hangs on. */
+async function featurePoll(request: Request, h: ResponseToolkit) {
+  const project = await projectFor(repoOf(request.params));
+  const feature = await project.features.get(request.params.id);
+
+  enforceTrue(feature, apiError(404), "feature not found");
+  const { iterations, ...row } = feature;
+  // The run the graph hangs on; a resumed round mints no task of its own.
+  const runId = await featureRunId(project.assemblyRuns, feature.id);
+
+  return h.response({
+    feature: row,
+    latest_iteration: iterations[iterations.length - 1] ?? null,
+    last_ready_iteration: latestReadyIteration(iterations),
+    ...runIdBothSpellings(runId),
+  });
+}
+
 /** GET .../features/:id/status — the wizard's 4s poll; gap_result too big to re-send often. */
 function featureStatusRoute(): ServerRoute {
   return {
@@ -91,25 +109,24 @@ function featureStatusRoute(): ServerRoute {
       name: "FeaturePoll",
       errors: [404],
     }),
-    handler: (request, h) =>
-      run(h, async () => {
-        const project = await projectFor(repoOf(request.params));
-        const feature = await project.features.get(request.params.id);
-
-        enforceTrue(feature, apiError(404), "feature not found");
-        const { iterations, ...row } = feature;
-
-        return h.response({
-          feature: row,
-          latest_iteration: iterations[iterations.length - 1] ?? null,
-          last_ready_iteration: latestReadyIteration(iterations),
-          // The run the graph hangs on; a resumed round mints no task of its own.
-          ...runIdBothSpellings(
-            await featureRunId(project.assemblyRuns, feature.id),
-          ),
-        });
-      }),
+    handler: (request, h) => run(h, () => featurePoll(request, h)),
   };
+}
+
+/** The spec-tasks the merged spec became. */
+async function featureDecomposition(request: Request, h: ResponseToolkit) {
+  const project = await projectFor(repoOf(request.params));
+
+  // Unknown id is NOT empty tree; conflating them reports success for typos.
+  enforceTrue(
+    await project.features.get(request.params.id),
+    apiError(404),
+    "feature not found",
+  );
+
+  return h.response({
+    tasks: await project.tasks.specTasksForFeature(request.params.id),
+  });
 }
 
 /** GET .../features/:id/decomposition — the spec-tasks the merged spec became. */
@@ -121,21 +138,7 @@ function featureDecompositionRoute(): ServerRoute {
       name: "FeatureDecomposition",
       errors: [404],
     }),
-    handler: (request, h) =>
-      run(h, async () => {
-        const project = await projectFor(repoOf(request.params));
-
-        // Unknown id is NOT empty tree; conflating them reports success for typos.
-        enforceTrue(
-          await project.features.get(request.params.id),
-          apiError(404),
-          "feature not found",
-        );
-
-        return h.response({
-          tasks: await project.tasks.specTasksForFeature(request.params.id),
-        });
-      }),
+    handler: (request, h) => run(h, () => featureDecomposition(request, h)),
   };
 }
 

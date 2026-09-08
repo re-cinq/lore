@@ -37,27 +37,54 @@ const UsageResponse = z.object({
   applied: z.array(ApplyStatusSchema),
 });
 
+interface StationUsageRef {
+  blueprint: string;
+  nodeId: string;
+  inherited: boolean;
+}
+
+/** One catalog entry with the blueprint nodes that dispatch it. */
+function usageEntry(name: string, refs: StationUsageRef[]) {
+  return {
+    name,
+    used_by: refs.map((ref) => ({
+      blueprint: ref.blueprint,
+      node_id: ref.nodeId,
+      inherited: ref.inherited,
+    })),
+  };
+}
+
 /** The wire shape from the walk's map — sorted so the response is stable. */
 export function usageResponse(
-  usage: ReadonlyMap<
-    string,
-    Array<{ blueprint: string; nodeId: string; inherited: boolean }>
-  >,
+  usage: ReadonlyMap<string, StationUsageRef[]>,
   applied: z.infer<typeof UsageResponse>["applied"] = [],
 ): z.infer<typeof UsageResponse> {
   return {
     usage: [...usage]
-      .map(([name, refs]) => ({
-        name,
-        used_by: refs.map((ref) => ({
-          blueprint: ref.blueprint,
-          node_id: ref.nodeId,
-          inherited: ref.inherited,
-        })),
-      }))
+      .map(([name, refs]) => usageEntry(name, refs))
       .sort((a, b) => a.name.localeCompare(b.name)),
     applied,
   };
+}
+
+/** What each cluster did with each definition; no database is not a claim that nothing applied — it is an absence the caller renders as unknown. */
+async function appliedStatuses(
+  pool: Pool | null,
+): Promise<z.infer<typeof UsageResponse>["applied"]> {
+  if (!pool) {
+    return [];
+  }
+
+  const statuses = await new PgCatalogStatus(pool).list();
+
+  return statuses.map((s) => ({
+    name: s.name,
+    project_id: s.projectId,
+    cluster: s.clusterName,
+    state: s.state,
+    reason: s.reason,
+  }));
 }
 
 export function agentDefinitionUsageRoute(
@@ -72,21 +99,10 @@ export function agentDefinitionUsageRoute(
         "Every station name a builtin blueprint node dispatches, with the nodes that reference it",
     }),
     handler: async (_request, h) => {
-      const pool = getPool();
-      // No database is not a claim that nothing applied — it is an absence the caller renders as unknown.
-      const applied = pool
-        ? (await new PgCatalogStatus(pool).list()).map((s) => ({
-            name: s.name,
-            project_id: s.projectId,
-            cluster: s.clusterName,
-            state: s.state,
-            reason: s.reason,
-          }))
-        : [];
+      const applied = await appliedStatuses(getPool());
+      const lines = await loadBuiltinAssemblyLines();
 
-      return h.response(
-        usageResponse(stationUsage(await loadBuiltinAssemblyLines()), applied),
-      );
+      return h.response(usageResponse(stationUsage(lines), applied));
     },
   };
 }

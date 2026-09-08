@@ -36,20 +36,23 @@ export interface ClaimDeps {
   runs: Pick<AssemblyRunsPort, "claimNextStationRun">;
 }
 
+/** The registered agent behind a presented token. */
+type ClaimantAgent = Awaited<
+  ReturnType<ClaimDeps["agents"]["findByTokenHash"]>
+> &
+  object;
+
+/** Every way a claim ends without work being handed over. */
+type ClaimRefusal =
+  { code: 401 | 403; body: { error: string } } | { code: 204 };
+
 /** The handler core, injectable for tests: authenticate, match, claim. */
 /** Who is asking, and whether they may claim at all. A PAUSED agent gets the same 204 as "nothing queued" — it needs no new client behaviour, just its existing idle backoff — and the check lives here because pausing is a fact about the registry, not about the queue. */
 async function authorizeClaimant(
   deps: ClaimDeps,
   bearer: string | undefined,
   agentId: string,
-): Promise<
-  | {
-      agent: Awaited<ReturnType<ClaimDeps["agents"]["findByTokenHash"]>> &
-        object;
-    }
-  | { code: 401 | 403; body: { error: string } }
-  | { code: 204 }
-> {
+): Promise<{ agent: ClaimantAgent } | ClaimRefusal> {
   if (!bearer) {
     return { code: 401, body: { error: "unauthorized" } };
   }
@@ -79,6 +82,23 @@ function claimBody(
   };
 }
 
+/** The next queued run for this agent's tags, or the 204 that tells it to keep polling. */
+async function claimNextRun(
+  deps: ClaimDeps,
+  agent: ClaimantAgent,
+): Promise<{ code: 200; body: z.infer<typeof ClaimResponse> } | { code: 204 }> {
+  const claimed = await deps.runs.claimNextStationRun({
+    clusterAgentId: agent.id,
+    tags: agent.tags,
+  });
+
+  if (!claimed) {
+    return { code: 204 };
+  }
+
+  return { code: 200, body: claimBody(claimed) };
+}
+
 export async function handleClaim(
   deps: ClaimDeps,
   bearer: string | undefined,
@@ -93,17 +113,8 @@ export async function handleClaim(
   if ("code" in authorized) {
     return authorized;
   }
-  const agent = authorized.agent;
-  const claimed = await deps.runs.claimNextStationRun({
-    clusterAgentId: agent.id,
-    tags: agent.tags,
-  });
 
-  if (!claimed) {
-    return { code: 204 };
-  }
-
-  return { code: 200, body: claimBody(claimed) };
+  return claimNextRun(deps, authorized.agent);
 }
 
 /** A cluster-agent asking for work. Dispatch is PULL-only, so this is the one path by which a run reaches any cluster — including the platform's own. */
@@ -115,14 +126,10 @@ async function serveClaim(
   const pool = getPool();
 
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-  const bearer = extractBearer(request.headers.authorization);
 
   const result = await handleClaim(
-    {
-      agents: new PgClusterAgents(pool),
-      runs: new PgAssemblyRuns(pool),
-    },
-    bearer,
+    { agents: new PgClusterAgents(pool), runs: new PgAssemblyRuns(pool) },
+    extractBearer(request.headers.authorization),
     request.params.id,
   );
 

@@ -1,6 +1,11 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
@@ -42,6 +47,29 @@ export async function handleHeartbeat(
   return { code: 200, body: { status: "ok" } };
 }
 
+/** A cluster-agent saying it is still there. */
+async function serveHeartbeat(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const authHeader = request.headers.authorization;
+  const bearer = (
+    Array.isArray(authHeader) ? authHeader[0] : authHeader
+  )?.replace("Bearer ", "");
+
+  const result = await handleHeartbeat(
+    { agents: new PgClusterAgents(pool), now: () => new Date() },
+    bearer,
+    request.params.id,
+  );
+
+  return h.response(result.body).code(result.code);
+}
+
 export function clusterAgentHeartbeatRoute(
   getPool: () => Pool | null,
 ): ServerRoute {
@@ -52,22 +80,6 @@ export function clusterAgentHeartbeatRoute(
       name: "ClusterAgentHeartbeat",
       description: "Liveness acknowledgement; last_seen_at was bumped",
     }),
-    handler: async (request: Request, h: ResponseToolkit) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const authHeader = request.headers.authorization;
-      const bearer = (
-        Array.isArray(authHeader) ? authHeader[0] : authHeader
-      )?.replace("Bearer ", "");
-
-      const result = await handleHeartbeat(
-        { agents: new PgClusterAgents(pool), now: () => new Date() },
-        bearer,
-        request.params.id,
-      );
-
-      return h.response(result.body).code(result.code);
-    },
+    handler: (request, h) => serveHeartbeat(getPool, request, h),
   };
 }
