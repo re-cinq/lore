@@ -40,51 +40,24 @@ type ReadyQuery = z.infer<typeof ReadyQuery>;
 type ClaimBody = z.infer<typeof ClaimBody>;
 type CompleteBody = z.infer<typeof CompleteBody>;
 
-/** The spec-task DAG's four operations, each answering what it changed. */
+/** Every operation in the DAG answers a failure the same way: a 500 carrying the message, because the MCP tools on the other end report it verbatim to the developer. */
+async function respondOr500(
+  h: ResponseToolkit,
+  read: () => Promise<object>,
+): Promise<ResponseObject> {
+  try {
+    return h.response(await read());
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
+/** How many spec tasks the sync parsed, upserted and newly created. */
 const SpecSyncSchema = z.object({
   parsed: z.number(),
   synced: z.number(),
   created: z.number(),
 });
-const SpecReadySchema = z.object({
-  tasks: z.array(z.record(z.string(), z.unknown())),
-});
-const SpecClaimSchema = z.object({
-  claimed: z.boolean(),
-  task_id: z.string(),
-  agent_id: z.string(),
-});
-const SpecCompleteSchema = z.record(z.string(), z.unknown());
-
-/** Parses a tasks.md and upserts each checklist item. Idempotent by design: it runs again on every re-sync of the same spec, and must converge rather than duplicate. */
-async function serveSpecTaskSync(
-  getPool: () => Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-  const { repo, spec_slug, tasks_markdown } = request.payload as SyncBody;
-
-  try {
-    const parsed = parseTasks(tasks_markdown);
-
-    if (parsed.length === 0) {
-      return h.response({ parsed: 0, synced: 0, created: 0 });
-    }
-    const { synced, created } = await syncTasksToDb(
-      pool,
-      { repo, specSlug: spec_slug },
-      parsed,
-    );
-
-    return h.response({ parsed: parsed.length, synced, created });
-  } catch (err) {
-    return h.response({ error: errorMessage(err) }).code(500);
-  }
-}
 
 export function specTasksSyncRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -105,6 +78,40 @@ export function specTasksSyncRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+/** Parses a tasks.md and upserts each checklist item. Idempotent by design: it runs again on every re-sync of the same spec, and must converge rather than duplicate. */
+async function serveSpecTaskSync(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const body = request.payload as SyncBody;
+
+  return respondOr500(h, () => syncedCounts(pool, body));
+}
+
+async function syncedCounts(
+  pool: Pool,
+  { repo, spec_slug, tasks_markdown }: SyncBody,
+): Promise<{ parsed: number; synced: number; created: number }> {
+  const parsed = parseTasks(tasks_markdown);
+
+  if (parsed.length === 0) {
+    return { parsed: 0, synced: 0, created: 0 };
+  }
+  const target = { repo, specSlug: spec_slug };
+  const { synced, created } = await syncTasksToDb(pool, target, parsed);
+
+  return { parsed: parsed.length, synced, created };
+}
+
+/** The spec tasks whose dependencies have all merged. */
+const SpecReadySchema = z.object({
+  tasks: z.array(z.record(z.string(), z.unknown())),
+});
+
 export function specTasksReadyRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -120,21 +127,31 @@ export function specTasksReadyRoute(getPool: () => Pool | null): ServerRoute {
         description: "Spec tasks whose dependencies have merged",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const { repo } = request.query as unknown as ReadyQuery;
-
-      try {
-        return h.response({ tasks: await getReadyTasks(pool, repo) });
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveSpecTasksReady(getPool, request, h),
   };
 }
+
+async function serveSpecTasksReady(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { repo } = request.query as unknown as ReadyQuery;
+
+  return respondOr500(h, async () => ({
+    tasks: await getReadyTasks(pool, repo),
+  }));
+}
+
+/** Whether the claim succeeded, and who now holds the task. */
+const SpecClaimSchema = z.object({
+  claimed: z.boolean(),
+  task_id: z.string(),
+  agent_id: z.string(),
+});
 
 export function specTasksClaimRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -148,23 +165,29 @@ export function specTasksClaimRoute(getPool: () => Pool | null): ServerRoute {
       SpecClaimSchema,
       { name: "SpecTaskClaimed", description: "Whether the claim succeeded" },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const { task_id, agent_id } = request.payload as ClaimBody;
-
-      try {
-        const claimed = await claimTask(pool, task_id, agent_id);
-
-        return h.response({ claimed, task_id, agent_id });
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveSpecTaskClaim(getPool, request, h),
   };
 }
+
+async function serveSpecTaskClaim(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { task_id, agent_id } = request.payload as ClaimBody;
+
+  return respondOr500(h, async () => ({
+    claimed: await claimTask(pool, task_id, agent_id),
+    task_id,
+    agent_id,
+  }));
+}
+
+/** The completed task's new state. */
+const SpecCompleteSchema = z.record(z.string(), z.unknown());
 
 export function specTasksCompleteRoute(
   getPool: () => Pool | null,
@@ -183,18 +206,19 @@ export function specTasksCompleteRoute(
         description: "The completed task's new state",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const { task_id } = request.payload as CompleteBody;
-
-      try {
-        return h.response(await completeTask(pool, task_id));
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveSpecTaskComplete(getPool, request, h),
   };
+}
+
+async function serveSpecTaskComplete(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { task_id } = request.payload as CompleteBody;
+
+  return respondOr500(h, () => completeTask(pool, task_id));
 }

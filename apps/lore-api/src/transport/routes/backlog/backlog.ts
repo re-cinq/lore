@@ -1,5 +1,10 @@
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { orderBacklog, BACKLOG_LABEL_SEED } from "@re-cinq/lore-shared";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
@@ -96,31 +101,50 @@ async function loadBacklogState(
   pool: Pool,
   repo: string,
 ): Promise<BacklogState> {
+  const settings = await readRepoSettings(pool, repo);
+  const taskRows = await readLoopTasks(pool, repo);
+
+  return {
+    enabled: resolveEnabled(settings),
+    taskRows,
+    openIssues: await readOpenIssues(repo),
+    currentRunId: await readCurrentRunId(pool, repo),
+    ...(await readRunIndex(pool, taskRows)),
+  };
+}
+
+/** The repo's settings blob, or a 404 — an unknown repo has no backlog to report on. */
+async function readRepoSettings(
+  pool: Pool,
+  repo: string,
+): Promise<Record<string, unknown> | null> {
   const { rows } = await pool.query<{
     settings: Record<string, unknown> | null;
   }>("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
 
   enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
 
-  const taskRows = await readLoopTasks(pool, repo);
-  const openIssues = await (
-    await projectFor(repo)
-  ).issues.list({
-    state: "open",
-  });
-  const currentRunId = await readCurrentRunId(pool, repo);
-  // Last, and in this order: the node read is scoped to the task ids above, and the run lookup shares its cursor.
+  return rows[0].settings;
+}
+
+async function readOpenIssues(repo: string): Promise<OpenIssues> {
+  const project = await projectFor(repo);
+
+  return project.issues.list({ state: "open" });
+}
+
+// Last, and in this order: the node read is scoped to the task ids above, and the run lookup shares its cursor.
+async function readRunIndex(
+  pool: Pool,
+  taskRows: LoopTaskRow[],
+): Promise<Pick<BacklogState, "runByTask" | "nodeRows">> {
   const { taskRuns, nodeRows } = await fetchRunContext(
     pool,
     taskRows.map((t) => t.id),
   );
 
   return {
-    enabled: resolveEnabled(rows[0].settings),
-    taskRows,
-    openIssues,
-    currentRunId,
-    runByTask: new Map(taskRuns.map((r) => [r.task_id, r])),
+    runByTask: new Map(taskRuns.map((r) => [r.task_id, r] as const)),
     nodeRows,
   };
 }
@@ -138,18 +162,24 @@ function nextTickets(
 
   return orderBacklog(openIssues)
     .filter((i) => !guardedIssues.has(i.number))
-    .map((i) => ({
-      issue_number: i.number,
-      issue_url: i.url ?? null,
-      title: i.title,
-      priority: priorityOf(i),
-      pr_url: null,
-      state: "queued",
-      created_at: i.createdAt ? new Date(i.createdAt).toISOString() : null,
-      error: null,
-      run_id: null,
-      pipeline: null,
-    }));
+    .map(queuedTicket);
+}
+
+function queuedTicket(issue: OpenIssues[number]) {
+  return {
+    issue_number: issue.number,
+    issue_url: issue.url ?? null,
+    title: issue.title,
+    priority: priorityOf(issue),
+    pr_url: null,
+    state: "queued",
+    created_at: issue.createdAt
+      ? new Date(issue.createdAt).toISOString()
+      : null,
+    error: null,
+    run_id: null,
+    pipeline: null,
+  };
 }
 
 /** Settled work, newest first and capped. The current ticket is excluded by identity rather than by status, so a task that settled between the two reads does not appear twice. */
@@ -169,23 +199,28 @@ function projectBacklog(state: BacklogState): {
   next: unknown[];
   recent: Ticket[];
 } {
-  const { taskRows, openIssues, runByTask, nodeRows } = state;
+  const { taskRows, openIssues } = state;
   const currentRow = taskRows.find((t) =>
     (OPEN_TASK_STATES as readonly string[]).includes(t.status),
   );
 
   return {
-    current: currentRow
-      ? taskTicket(
-          currentRow,
-          openIssues,
-          runByTask.get(currentRow.id),
-          nodeRows,
-        )
-      : null,
+    current: currentTicket(state, currentRow),
     next: nextTickets(openIssues, taskRows),
     recent: recentTickets(state, currentRow),
   };
+}
+
+/** The ticket being worked right now, if any. */
+function currentTicket(
+  state: BacklogState,
+  currentRow: LoopTaskRow | undefined,
+): Ticket | null {
+  const { openIssues, runByTask, nodeRows } = state;
+
+  return currentRow
+    ? taskTicket(currentRow, openIssues, runByTask.get(currentRow.id), nodeRows)
+    : null;
 }
 
 function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
@@ -197,22 +232,27 @@ function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
       description:
         "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const repo = repoOf(request.params);
-      const state = await loadBacklogState(pool, repo);
-
-      return h
-        .response({
-          enabled: state.enabled,
-          current_run_id: state.currentRunId,
-          ...projectBacklog(state),
-        })
-        .code(200);
-    },
+    handler: (request, h) => serveReadBacklog(getPool, request, h),
   };
+}
+
+async function serveReadBacklog(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const state = await loadBacklogState(pool, repoOf(request.params));
+
+  return h
+    .response({
+      enabled: state.enabled,
+      current_run_id: state.currentRunId,
+      ...projectBacklog(state),
+    })
+    .code(200);
 }
 
 /** Flips the loop's `enabled` flag. The UPDATE merges rather than replaces at BOTH levels — the repo's other settings and the loop's own other keys must survive a toggle. */
@@ -264,20 +304,26 @@ function writeBacklogRoute(getPool: () => Pool | null): ServerRoute {
         description: "Enable or disable the repo's backlog loop.",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const repo = repoOf(request.params);
-      const { enabled } = request.payload as { enabled: boolean };
-
-      await setLoopEnabled(pool, repo, enabled);
-
-      if (enabled) {
-        await seedBacklogLabels(repo);
-      }
-
-      return h.response({ ok: true as const, enabled }).code(200);
-    },
+    handler: (request, h) => serveToggleBacklog(getPool, request, h),
   };
+}
+
+async function serveToggleBacklog(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const repo = repoOf(request.params);
+  const { enabled } = request.payload as { enabled: boolean };
+
+  await setLoopEnabled(pool, repo, enabled);
+
+  if (enabled) {
+    await seedBacklogLabels(repo);
+  }
+
+  return h.response({ ok: true as const, enabled }).code(200);
 }

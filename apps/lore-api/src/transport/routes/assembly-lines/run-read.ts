@@ -37,19 +37,21 @@ interface NodeGraphFields {
   stationInherited: boolean;
 }
 
+/** What is knowable about a visit whose node is no longer in the graph — everything but the route, which still resolves from the run's own args. */
+const UNKNOWN_NODE = {
+  type: null,
+  promptRef: null,
+  station: null,
+  stationInherited: false,
+};
+
 // The page a HUMAN station's worker acts on, resolved against THIS run's args (FR6.40); null when a placeholder (e.g. pr_url) isn't there yet — a half-built href is worse than no link.
 function nodeGraphFields(
   node: RunGraphNode | undefined,
   args: Record<string, unknown>,
 ): NodeGraphFields {
   if (!node) {
-    return {
-      type: null,
-      promptRef: null,
-      route: resolveRoute(undefined, args),
-      station: null,
-      stationInherited: false,
-    };
+    return { ...UNKNOWN_NODE, route: resolveRoute(undefined, args) };
   }
 
   return {
@@ -93,6 +95,23 @@ function resolvePort(
   return runs ?? new PgAssemblyRuns(pool as Pool);
 }
 
+type RunGraph = Awaited<ReturnType<typeof resolveRunGraph>>;
+
+/** Each visit joined to the node it visited; a visit whose node has left the graph still describes itself. */
+function describeNodes(
+  rows: StationRunRecord[],
+  graph: RunGraph,
+  args: Record<string, unknown>,
+) {
+  return rows.map((row) =>
+    describeNode(
+      row,
+      graph?.nodes.find((n) => n.id === row.nodeId),
+      args,
+    ),
+  );
+}
+
 async function serveRunRead(
   getPool: () => Pool | null,
   load: () => Promise<Map<string, AssemblyLine>>,
@@ -112,13 +131,7 @@ async function serveRunRead(
   return {
     line,
     definitionKnown: Boolean(graph),
-    nodes: rows.map((row) =>
-      describeNode(
-        row,
-        graph?.nodes.find((n) => n.id === row.nodeId),
-        line.args,
-      ),
-    ),
+    nodes: describeNodes(rows, graph, line.args),
   };
 }
 

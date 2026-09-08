@@ -42,6 +42,24 @@ const SEPARATOR = "\n\n---\n\n";
 // The same chars-per-token heuristic the assembly engine's truncateText uses.
 const CHARS_PER_TOKEN = 4;
 
+/** Takes chunk contents in order until the next one would not fit; the first is always kept, so a single oversized chunk is still served rather than dropped to nothing. */
+function joinWithinBudget(contents: string[], maxChars: number): string | null {
+  const parts: string[] = [];
+  let used = 0;
+
+  for (const content of contents) {
+    const cost = content.length + (parts.length > 0 ? SEPARATOR.length : 0);
+
+    if (parts.length > 0 && used + cost > maxChars) {
+      break;
+    }
+    parts.push(content);
+    used += cost;
+  }
+
+  return parts.length > 0 ? parts.join(SEPARATOR) : null;
+}
+
 /** Joins doc/adr/spec chunks until budget exceeded; prevents ~3MB overflow on Agent CR size (#1761). */
 async function joinedDocChunksWithinBudget(
   pool: Pool,
@@ -49,27 +67,17 @@ async function joinedDocChunksWithinBudget(
   maxTokens: number,
 ): Promise<string | null> {
   const schema = await resolveChunkSchemaForRepo(pool, repo);
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<{ content: string }>(
     `SELECT content, content_type, file_path FROM ${schema}.chunks
      WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
      ORDER BY content_type, ingested_at DESC`,
     [repo],
   );
-  const maxChars = maxTokens * CHARS_PER_TOKEN;
-  const parts: string[] = [];
-  let used = 0;
 
-  for (const r of rows as Array<{ content: string }>) {
-    const cost = r.content.length + (parts.length > 0 ? SEPARATOR.length : 0);
-
-    if (parts.length > 0 && used + cost > maxChars) {
-      break;
-    }
-    parts.push(r.content);
-    used += cost;
-  }
-
-  return parts.length > 0 ? parts.join(SEPARATOR) : null;
+  return joinWithinBudget(
+    rows.map((r) => r.content),
+    maxTokens * CHARS_PER_TOKEN,
+  );
 }
 
 /** No-query path: repo chunks within budget, or null when repo/pool is missing. */
@@ -90,18 +98,20 @@ const AssembledContextSchema = z.object({
   trace: z.unknown().optional(),
 });
 
+interface AssembleOptions {
+  repo?: string;
+  template?: string;
+  maxTokens?: number;
+  agentId?: string;
+  debug?: boolean;
+  crossRepoRequested: boolean;
+}
+
 /** Assembles against a query. The Dgraph client is optional — null when LORE_DGRAPH_HTTP is unset, which is the ordinary case outside the central cluster. */
 async function assembleForQuery(
   pool: Pool,
   query: string,
-  opts: {
-    repo?: string;
-    template?: string;
-    maxTokens?: number;
-    agentId?: string;
-    debug?: boolean;
-    crossRepoRequested: boolean;
-  },
+  opts: AssembleOptions,
 ): Promise<Awaited<ReturnType<typeof assembleContext>>> {
   const repo = opts.repo || undefined;
 

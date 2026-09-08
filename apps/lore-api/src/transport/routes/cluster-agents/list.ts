@@ -1,8 +1,14 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
+import type { ClusterAgent } from "@re-cinq/lore-shared/models/cluster-agent.js";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
@@ -80,6 +86,22 @@ function offlineEvent(entry: {
   };
 }
 
+/** One registered cluster on the wire. The open-claim count rides ALONG with the roster row: an agent's name says nothing about whether it is holding work. */
+function rosterItem(
+  agent: ClusterAgent,
+  runningClaims: number,
+): z.infer<typeof ClusterAgentListItem> {
+  return {
+    id: agent.id,
+    name: agent.name,
+    tags: agent.tags,
+    status: agent.status,
+    paused: agent.paused,
+    last_seen_at: agent.lastSeenAt.toISOString(),
+    running_claims: runningClaims,
+  };
+}
+
 export async function handleClusterAgentList(
   deps: ClusterAgentListDeps,
 ): Promise<ClusterAgentListBody> {
@@ -90,17 +112,27 @@ export async function handleClusterAgentList(
   ]);
 
   return {
-    agents: roster.map((agent) => ({
-      id: agent.id,
-      name: agent.name,
-      tags: agent.tags,
-      status: agent.status,
-      paused: agent.paused,
-      last_seen_at: agent.lastSeenAt.toISOString(),
-      running_claims: openClaims[agent.id] ?? 0,
-    })),
+    agents: roster.map((agent) => rosterItem(agent, openClaims[agent.id] ?? 0)),
     offline_events: offlineEntries.map(offlineEvent),
   };
+}
+
+/** The registered-cluster roster. */
+async function serveClusterAgentList(
+  getPool: () => Pool | null,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  const body = await handleClusterAgentList({
+    agents: new PgClusterAgents(pool),
+    runs: new PgAssemblyRuns(pool),
+    audit: new PgAudit(pool),
+  });
+
+  return h.response(body);
 }
 
 export function clusterAgentListRoute(getPool: () => Pool | null): ServerRoute {
@@ -112,18 +144,7 @@ export function clusterAgentListRoute(getPool: () => Pool | null): ServerRoute {
       description:
         "Every registered cluster-agent with its open-claim count, plus recent offline events",
     }),
-    handler: async (_request: Request, h: ResponseToolkit) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const body = await handleClusterAgentList({
-        agents: new PgClusterAgents(pool),
-        runs: new PgAssemblyRuns(pool),
-        audit: new PgAudit(pool),
-      });
-
-      return h.response(body);
-    },
+    handler: (_request: Request, h: ResponseToolkit) =>
+      serveClusterAgentList(getPool, h),
   };
 }

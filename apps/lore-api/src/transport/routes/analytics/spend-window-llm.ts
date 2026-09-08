@@ -31,20 +31,11 @@ async function readByCluster(pool: Pool, fromTs: string, toTs: string) {
   );
 }
 
-/** What Lore metered itself, from pipeline.llm_calls: one total and seven cuts of it. */
 /** The seven breakdowns, run together — they are independent reads over the same window, and doing them in sequence made the spend page's slowest query seven times over. `by_kind` is the only view that separates code-review lines (which carry no task) from tasks and from the memory jobs. */
 async function llmBreakdowns(pool: Pool, win: SpendWindow) {
   const { fromTs, toTs } = win;
   const [totals, byBlueprint, byRepo, byModel, byKind, daily, byTaskType] =
-    await Promise.all([
-      pool.query(TOTALS_SQL, [fromTs, toTs]),
-      pool.query(BY_BLUEPRINT_SQL, [fromTs, toTs]),
-      pool.query(BY_REPO_SQL, [fromTs, toTs]),
-      pool.query(BY_MODEL_SQL, [fromTs, toTs]),
-      pool.query(BY_KIND_SQL, [fromTs, toTs]),
-      pool.query(DAILY_SQL, [fromTs, toTs]),
-      pool.query(BY_TASK_TYPE_SQL, [fromTs, toTs]),
-    ]);
+    await breakdownQueries(pool, [fromTs, toTs]);
 
   return {
     totals: totals.rows[0] as {
@@ -62,6 +53,19 @@ async function llmBreakdowns(pool: Pool, win: SpendWindow) {
   };
 }
 
+function breakdownQueries(pool: Pool, params: [string, string]) {
+  return Promise.all([
+    pool.query(TOTALS_SQL, params),
+    pool.query(BY_BLUEPRINT_SQL, params),
+    pool.query(BY_REPO_SQL, params),
+    pool.query(BY_MODEL_SQL, params),
+    pool.query(BY_KIND_SQL, params),
+    pool.query(DAILY_SQL, params),
+    pool.query(BY_TASK_TYPE_SQL, params),
+  ]);
+}
+
+/** What Lore metered itself, from pipeline.llm_calls: one total and seven cuts of it. */
 export async function readLlmSpend(pool: Pool, win: SpendWindow) {
   const b = await llmBreakdowns(pool, win);
 

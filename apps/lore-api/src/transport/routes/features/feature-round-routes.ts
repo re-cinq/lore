@@ -45,27 +45,36 @@ const createPlanningTask: StartPlanningDeps["createPlanningTask"] = async ({
   return task.task_id as string;
 };
 
+interface CreateFeatureBody {
+  title?: unknown;
+  prompt?: unknown;
+  parent_feature_id?: string;
+}
+
+/** How the shared planning starter reaches this repo's own feature store. */
+function planningDeps(
+  features: Awaited<ReturnType<typeof projectFor>>["features"],
+): Parameters<typeof startFeaturePlanning>[1] {
+  return {
+    createFeature: (feature) => features.create(feature),
+    appendIteration: (featureId, answers) =>
+      features.appendIteration(featureId, answers),
+    createPlanningTask,
+    attachIterationTask: (featureId, iteration, taskId) =>
+      features.attachIterationTask(featureId, iteration, taskId),
+  };
+}
+
 /** POST .../features — create a draft + kick planning round 1. */
 /** Files the feature and starts its first planning round. The sequence itself lives in shared — this contributes the payload parsing and the 201. */
 async function createFeature(request: Request, h: ResponseToolkit) {
-  const body = request.payload as {
-    title?: unknown;
-    prompt?: unknown;
-    parent_feature_id?: string;
-  };
+  const body = request.payload as CreateFeatureBody;
   const { title, prompt } = enforceFeatureInput(body.title, body.prompt);
   const repo = repoOf(request.params);
   const features = (await projectFor(repo)).features;
   const started = await startFeaturePlanning(
     { repo, title, prompt, parentFeatureId: body.parent_feature_id },
-    {
-      createFeature: (feature) => features.create(feature),
-      appendIteration: (featureId, answers) =>
-        features.appendIteration(featureId, answers),
-      createPlanningTask,
-      attachIterationTask: (featureId, iteration, taskId) =>
-        features.attachIterationTask(featureId, iteration, taskId),
-    },
+    planningDeps(features),
   );
 
   return h
@@ -153,27 +162,32 @@ export function iterationResultRoute(): ServerRoute {
   };
 }
 
+/** One accept-the-plan route; the two spellings differ only in path while the UI rolls over. */
+function finalizeRoute(getPool: () => Pool | null, path: string): ServerRoute {
+  return {
+    method: "POST",
+    path,
+    options: {
+      ...zodResponse(bearerScope("write"), SpecFileStartedSchema, {
+        name: "SpecFileStarted",
+        status: 202,
+        errors: [404, 409],
+      }),
+      payload: WRITE_PAYLOAD,
+    },
+    handler: (request, h) =>
+      run(h, async () => {
+        const parked = await acceptPlan(getPool, request);
+
+        return h.response(runIdBothSpellings(parked.lineId)).code(202);
+      }),
+  };
+}
+
 /** POST .../features/:id/create-spec-file and /finalize — accept the plan; served both paths during UI rollout. */
 export function finalizeRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [`${BASE}/{id}/create-spec-file`, `${BASE}/{id}/finalize`].map(
-    (path): ServerRoute => ({
-      method: "POST",
-      path,
-      options: {
-        ...zodResponse(bearerScope("write"), SpecFileStartedSchema, {
-          name: "SpecFileStarted",
-          status: 202,
-          errors: [404, 409],
-        }),
-        payload: WRITE_PAYLOAD,
-      },
-      handler: (request, h) =>
-        run(h, async () => {
-          const parked = await acceptPlan(getPool, request);
-
-          return h.response(runIdBothSpellings(parked.lineId)).code(202);
-        }),
-    }),
+    (path) => finalizeRoute(getPool, path),
   );
 }
 

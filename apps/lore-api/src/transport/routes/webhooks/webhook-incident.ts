@@ -147,6 +147,22 @@ function buildIncidentCandidate(
   };
 }
 
+// Validates the candidate and clamps its date to now, so a future-dated incident cannot evict the real ones.
+function validatedEntry(
+  candidate: IncidentCandidate,
+  now: number,
+): { error: string } | { entry: IncidentEntry } {
+  const parsed = IncidentEntrySchema.safeParse(candidate);
+
+  if (!parsed.success) {
+    return { error: formatZodError(parsed.error) };
+  }
+
+  const clampedMs = Math.min(Date.parse(parsed.data.date), now);
+
+  return { entry: { ...parsed.data, date: new Date(clampedMs).toISOString() } };
+}
+
 // Normalize PagerDuty/Opsgenie/direct payload; validate date as ISO clamped to now to prevent eviction.
 export function parseIncident(
   body: string,
@@ -165,19 +181,9 @@ export function parseIncident(
     return { error: "repo must be in owner/name form" };
   }
 
-  const candidate = buildIncidentCandidate(incident, now);
-  const parsed = IncidentEntrySchema.safeParse(candidate);
+  const validated = validatedEntry(buildIncidentCandidate(incident, now), now);
 
-  if (!parsed.success) {
-    return { error: formatZodError(parsed.error) };
-  }
-
-  const clampedMs = Math.min(Date.parse(parsed.data.date), now);
-
-  return {
-    repo,
-    entry: { ...parsed.data, date: new Date(clampedMs).toISOString() },
-  };
+  return "error" in validated ? validated : { repo, entry: validated.entry };
 }
 
 function firstHeaderValue(
@@ -202,15 +208,7 @@ function credentialsPresented(
   return signatureOk || tokenOk;
 }
 
-// Upserts the parsed incident onto the repo's FIFO-capped settings list.
-/** Appends the incident and keeps only the ten most recent. Capped in SQL rather than in code because the settings blob is read on every context assembly — an unbounded incident list would grow into every agent's prompt budget. */
-async function appendIncident(
-  pool: Pool,
-  repo: string,
-  entry: IncidentEntry,
-): Promise<void> {
-  await pool.query(
-    `UPDATE lore.repos
+const APPEND_INCIDENT_SQL = `UPDATE lore.repos
              SET settings = jsonb_set(
                COALESCE(settings, '{}'),
                '{incidents}',
@@ -222,9 +220,16 @@ async function appendIncident(
                  LIMIT 10
                ) sub)
              )
-             WHERE full_name = $1`,
-    [repo, JSON.stringify(entry)],
-  );
+             WHERE full_name = $1`;
+
+// Upserts the parsed incident onto the repo's FIFO-capped settings list.
+/** Appends the incident and keeps only the ten most recent. Capped in SQL rather than in code because the settings blob is read on every context assembly — an unbounded incident list would grow into every agent's prompt budget. */
+async function appendIncident(
+  pool: Pool,
+  repo: string,
+  entry: IncidentEntry,
+): Promise<void> {
+  await pool.query(APPEND_INCIDENT_SQL, [repo, JSON.stringify(entry)]);
 }
 
 async function upsertIncident(
@@ -243,6 +248,26 @@ async function upsertIncident(
       })
       .code(500);
   }
+}
+
+/** Parses the already-verified body and records it. Reached only after the signature check, so nothing here re-reads or re-serializes the raw payload. */
+async function recordIncident(
+  getPool: () => Pool | null,
+  body: string,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const result = parseIncident(body, Date.now());
+
+  // result.error exists only inside this branch; type-narrowing prevents enforce.
+  if ("error" in result) {
+    return h.response({ error: result.error }).code(400);
+  }
+
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), "database unavailable");
+
+  return upsertIncident(pool, result, h);
 }
 
 /** A production incident from PagerDuty or Opsgenie. Recorded on the repo so context assembly can surface it at priority 1 — an agent working during an incident should know. */
@@ -268,18 +293,7 @@ async function serveIncident(
     "unauthorized",
   );
 
-  const result = parseIncident(body, Date.now());
-
-  // result.error exists only inside this branch; type-narrowing prevents enforce.
-  if ("error" in result) {
-    return h.response({ error: result.error }).code(400);
-  }
-
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), "database unavailable");
-
-  return upsertIncident(pool, result, h);
+  return recordIncident(getPool, body, h);
 }
 
 export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {

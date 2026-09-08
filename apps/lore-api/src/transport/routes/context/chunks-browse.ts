@@ -1,23 +1,17 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { buildChunkUnionQuery } from "../../../work/chunks/chunk-union.js";
-import {
-  SCHEMA_RE,
-  ORG_SHARED_SCHEMA,
-  pickSchema,
-} from "../../../work/chunks/repo-schema.js";
-import { memoizeWithTtl } from "../../../work/chunks/ttl-memo.js";
-
-/** Context browser chunk reads via schema union (ADR-032); queries per-team schemas + org_shared. */
-
-const SCHEMA_CATALOG_TTL_MS = 30_000;
-
 import {
   ByPathQuery,
   ChunkByPathSchema,
@@ -26,62 +20,9 @@ import {
   ChunkTypeListSchema,
   ChunksQuery,
 } from "./chunks-browse-schemas.js";
+import { schemaReaders } from "./chunk-schema-readers.js";
 
-/** Schemas that actually hold a `chunks` table, read from the catalog. */
-/** Schemas that actually HAVE a chunks table. The name pattern is enforced in SQL and again in code because these names are interpolated into later queries — a schema list is the one place this API builds SQL from data. */
-async function readProvisionedSchemas(pool: Pool): Promise<string[]> {
-  const { rows } = await pool.query(
-    `SELECT table_schema FROM information_schema.tables
-        WHERE table_name = 'chunks' AND table_schema ~ '^[a-z][a-z0-9_]{0,62}$'`,
-  );
-
-  return rows
-    .map((r) => r.table_schema as string)
-    .filter((s: string) => SCHEMA_RE.test(s));
-}
-
-/** Team schemas some repo actually references, intersected with the ones provisioned — a team named on a repo whose schema was never created would otherwise put a missing relation into the union. `org_shared` is always included: it holds context that belongs to no single team. */
-async function readReferencedSchemas(
-  pool: Pool,
-  provisioned: () => Promise<string[]>,
-): Promise<string[]> {
-  const { rows } = await pool.query(
-    `SELECT DISTINCT team FROM lore.repos WHERE team IS NOT NULL AND team ~ '^[a-z][a-z0-9_]{0,62}$'`,
-  );
-  const existing = new Set(await provisioned());
-  const schemas = rows
-    .map((r) => r.team as string)
-    .filter((s: string) => SCHEMA_RE.test(s) && existing.has(s));
-
-  if (!schemas.includes(ORG_SHARED_SCHEMA)) {
-    schemas.push(ORG_SHARED_SCHEMA);
-  }
-
-  return schemas;
-}
-
-function schemaReaders(pool: Pool) {
-  const listChunkSchemas = memoizeWithTtl(
-    () => readProvisionedSchemas(pool),
-    SCHEMA_CATALOG_TTL_MS,
-  );
-  /** Referenced, provisioned team schemas + org_shared. */
-  const getChunkSchemas = memoizeWithTtl(
-    () => readReferencedSchemas(pool, listChunkSchemas),
-    SCHEMA_CATALOG_TTL_MS,
-  );
-
-  async function repoSchema(repo: string): Promise<string> {
-    const { rows } = await pool.query<{ team: string | null }>(
-      `SELECT team FROM lore.repos WHERE full_name = $1`,
-      [repo],
-    );
-
-    return pickSchema(rows[0]?.team, await listChunkSchemas());
-  }
-
-  return { getChunkSchemas, repoSchema };
-}
+/** Context browser chunk reads via schema union (ADR-032); queries per-team schemas + org_shared. */
 
 export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
@@ -92,21 +33,17 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
   ];
 }
 
-/** One repo's chunks read from its own schema — no union needed, so this path skips the cross-schema query entirely. */
-async function readRepoChunks(
-  pool: Pool,
-  schema: string,
-  page: {
-    repo: string;
-    type?: string;
-    q?: string;
-    orderBy: string;
-    pageSize: number;
-    offset: number;
-  },
-): Promise<Record<string, unknown>[]> {
-  const { rows } = await pool.query(
-    `SELECT id, file_path, content_type, repo, metadata,
+interface ChunkPage {
+  repo: string;
+  type?: string;
+  q?: string;
+  orderBy: string;
+  pageSize: number;
+  offset: number;
+}
+
+function repoChunkSql(schema: string, page: ChunkPage): string {
+  return `SELECT id, file_path, content_type, repo, metadata,
                   substring(content, 1, 300) as content, ingested_at,
                   CASE WHEN $3::text IS NULL THEN 0
                        ELSE ts_rank(search_tsv, websearch_to_tsquery('english', $3)) END as rank
@@ -115,9 +52,20 @@ async function readRepoChunks(
               AND ($2::text IS NULL OR content_type = $2)
               AND ($3::text IS NULL OR search_tsv @@ websearch_to_tsquery('english', $3))
             ORDER BY ${page.orderBy}
-            LIMIT ${page.pageSize} OFFSET ${page.offset}`,
-    [page.repo, page.type || null, page.q || null],
-  );
+            LIMIT ${page.pageSize} OFFSET ${page.offset}`;
+}
+
+/** One repo's chunks read from its own schema — no union needed, so this path skips the cross-schema query entirely. */
+async function readRepoChunks(
+  pool: Pool,
+  schema: string,
+  page: ChunkPage,
+): Promise<Record<string, unknown>[]> {
+  const { rows } = await pool.query(repoChunkSql(schema, page), [
+    page.repo,
+    page.type || null,
+    page.q || null,
+  ]);
 
   return rows;
 }
@@ -200,19 +148,12 @@ function listChunksRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
-/** The content types in scope. Deliberately NOT filtered by the current selection: these drive the filter chips, and a chip that disappears when you select it cannot be unselected. */
-async function readChunkTypes(pool: Pool, repo?: string): Promise<string[]> {
-  const { getChunkSchemas, repoSchema } = schemaReaders(pool);
-
-  if (repo) {
-    const { rows } = await pool.query<{ content_type: string }>(
-      `SELECT DISTINCT content_type FROM ${await repoSchema(repo)}.chunks WHERE repo = $1`,
-      [repo],
-    );
-
-    return rows.map((r) => r.content_type).filter(Boolean);
-  }
-  const union = buildChunkUnionQuery(await getChunkSchemas(), (schema) => ({
+/** The content types across every team schema at once, de-duplicated. */
+async function readUnionChunkTypes(
+  pool: Pool,
+  schemas: string[],
+): Promise<string[]> {
+  const union = buildChunkUnionQuery(schemas, (schema) => ({
     sql: `SELECT DISTINCT content_type FROM ${schema}.chunks`,
     params: [],
   }));
@@ -226,6 +167,22 @@ async function readChunkTypes(pool: Pool, repo?: string): Promise<string[]> {
   );
 
   return [...new Set(rows.map((r) => r.content_type).filter(Boolean))];
+}
+
+/** The content types in scope. Deliberately NOT filtered by the current selection: these drive the filter chips, and a chip that disappears when you select it cannot be unselected. */
+async function readChunkTypes(pool: Pool, repo?: string): Promise<string[]> {
+  const { getChunkSchemas, repoSchema } = schemaReaders(pool);
+
+  if (repo) {
+    const { rows } = await pool.query<{ content_type: string }>(
+      `SELECT DISTINCT content_type FROM ${await repoSchema(repo)}.chunks WHERE repo = $1`,
+      [repo],
+    );
+
+    return rows.map((r) => r.content_type).filter(Boolean);
+  }
+
+  return readUnionChunkTypes(pool, await getChunkSchemas());
 }
 
 function chunkTypesRoute(getPool: () => Pool | null): ServerRoute {
@@ -296,6 +253,26 @@ function chunkSummaryRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+/** One file path read across every team schema — the path is unique per repo but not across them. */
+async function readUnionChunksByPath(
+  pool: Pool,
+  schemas: string[],
+  path: string,
+): Promise<unknown[]> {
+  const union = buildChunkUnionQuery(schemas, (schema, offset) => ({
+    sql: `SELECT id, content_type, content, metadata, repo
+                  FROM ${schema}.chunks WHERE file_path = $${offset}`,
+    params: [path],
+  }));
+
+  if (union === null) {
+    return [];
+  }
+  const { rows } = await pool.query(union.sql, union.params);
+
+  return rows;
+}
+
 /** Every chunk ingested from one file. A file path is unique per repo but NOT across them, so the global view spans all schemas and returns the repo on each row for the caller to group by. */
 async function readChunksByPath(
   pool: Pool,
@@ -313,21 +290,21 @@ async function readChunksByPath(
 
     return rows;
   }
-  const union = buildChunkUnionQuery(
-    await getChunkSchemas(),
-    (schema, offset) => ({
-      sql: `SELECT id, content_type, content, metadata, repo
-                  FROM ${schema}.chunks WHERE file_path = $${offset}`,
-      params: [path],
-    }),
-  );
 
-  if (union === null) {
-    return [];
-  }
-  const { rows } = await pool.query(union.sql, union.params);
+  return readUnionChunksByPath(pool, await getChunkSchemas(), path);
+}
 
-  return rows;
+async function serveChunksByPath(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { path, repo } = request.query as unknown as ByPathQuery;
+
+  return h.response({ chunks: await readChunksByPath(pool, path, repo) });
 }
 
 function chunksByPathRoute(getPool: () => Pool | null): ServerRoute {
@@ -345,13 +322,6 @@ function chunksByPathRoute(getPool: () => Pool | null): ServerRoute {
         description: "Every chunk ingested from one file",
       },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { path, repo } = request.query as unknown as ByPathQuery;
-
-      return h.response({ chunks: await readChunksByPath(pool, path, repo) });
-    },
+    handler: (request, h) => serveChunksByPath(getPool, request, h),
   };
 }

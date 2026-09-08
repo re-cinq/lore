@@ -1,7 +1,12 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
@@ -30,16 +35,32 @@ export interface ReleaseDeps {
   runs: Pick<AssemblyRunsPort, "requeueStationRun">;
 }
 
+type ReleaseResult =
+  | { code: 200; body: z.infer<typeof ReleaseResponse> }
+  | { code: 401 | 403 | 503; body: { error: string } };
+
+/** Puts the unlaunched visit back on the queue and says so out loud: a run that keeps bouncing between clusters is only legible if each refusal names the agent and its reason. */
+async function requeueAndLog(
+  deps: ReleaseDeps,
+  agentName: string,
+  body: z.infer<typeof ReleaseBody>,
+): Promise<"requeued" | "settled"> {
+  const requeued = await deps.runs.requeueStationRun(body.node_row_id);
+
+  console.warn(
+    `[lore-api] cluster-agent ${agentName} could not launch station run row ${body.node_row_id} (${requeued ? "requeued" : "already settled"}): ${body.reason}`,
+  );
+
+  return requeued ? "requeued" : "settled";
+}
+
 /** The handler core, injectable for tests: authenticate, then requeue. */
 export async function handleRelease(
   deps: ReleaseDeps,
   bearer: string | undefined,
   agentId: string,
   body: z.infer<typeof ReleaseBody>,
-): Promise<
-  | { code: 200; body: z.infer<typeof ReleaseResponse> }
-  | { code: 401 | 403 | 503; body: { error: string } }
-> {
+): Promise<ReleaseResult> {
   if (!bearer) {
     return { code: 401, body: { error: "unauthorized" } };
   }
@@ -50,13 +71,30 @@ export async function handleRelease(
     return { code: 403, body: { error: "forbidden" } };
   }
 
-  const requeued = await deps.runs.requeueStationRun(body.node_row_id);
+  return {
+    code: 200,
+    body: { status: await requeueAndLog(deps, agent.name, body) },
+  };
+}
 
-  console.warn(
-    `[lore-api] cluster-agent ${agent.name} could not launch station run row ${body.node_row_id} (${requeued ? "requeued" : "already settled"}): ${body.reason}`,
+/** A cluster-agent handing back work it could not start. */
+async function serveRelease(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  const result = await handleRelease(
+    { agents: new PgClusterAgents(pool), runs: new PgAssemblyRuns(pool) },
+    extractBearer(request.headers.authorization),
+    request.params.id,
+    request.payload as z.infer<typeof ReleaseBody>,
   );
 
-  return { code: 200, body: { status: requeued ? "requeued" : "settled" } };
+  return h.response(result.body).code(result.code);
 }
 
 export function clusterAgentReleaseRoute(
@@ -74,19 +112,6 @@ export function clusterAgentReleaseRoute(
           "Whether the unlaunched visit went back on the queue or had already settled",
       },
     ),
-    handler: async (request: Request, h: ResponseToolkit) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const result = await handleRelease(
-        { agents: new PgClusterAgents(pool), runs: new PgAssemblyRuns(pool) },
-        extractBearer(request.headers.authorization),
-        request.params.id,
-        request.payload as z.infer<typeof ReleaseBody>,
-      );
-
-      return h.response(result.body).code(result.code);
-    },
+    handler: (request, h) => serveRelease(getPool, request, h),
   };
 }

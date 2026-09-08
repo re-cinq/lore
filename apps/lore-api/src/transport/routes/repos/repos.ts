@@ -43,6 +43,26 @@ const RepoListResponse = z.object({
   offset: z.number(),
 });
 
+/** One page in wire shape: the stored columns per repo, plus the two counts the list renders. */
+async function repoListPage(pool: Pool, limit: number, offset: number) {
+  const { repos, total } = await getOnboardedReposWithCounts(
+    pool,
+    limit,
+    offset,
+  );
+
+  return {
+    repos: repos.map(({ taskCount, activeAgents, ...repo }) => ({
+      ...toRow(REPO_COLUMNS, repo),
+      task_count: taskCount,
+      active_agents: activeAgents,
+    })),
+    total,
+    limit,
+    offset,
+  };
+}
+
 /** A page of onboarded repos with their per-repo metadata and task counts. */
 async function serveRepoList(
   getPool: () => Pool | null,
@@ -55,22 +75,7 @@ async function serveRepoList(
   const { limit, offset } = request.query as unknown as ReposQuery;
 
   try {
-    const { repos, total } = await getOnboardedReposWithCounts(
-      pool,
-      limit,
-      offset,
-    );
-
-    return h.response({
-      repos: repos.map(({ taskCount, activeAgents, ...repo }) => ({
-        ...toRow(REPO_COLUMNS, repo),
-        task_count: taskCount,
-        active_agents: activeAgents,
-      })),
-      total,
-      limit,
-      offset,
-    });
+    return h.response(await repoListPage(pool, limit, offset));
   } catch (err) {
     console.error("[repos] API error:", errorMessage(err));
 

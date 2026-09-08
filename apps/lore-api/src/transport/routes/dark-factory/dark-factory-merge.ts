@@ -101,6 +101,17 @@ export interface AppliedPatch {
   next: DarkFactoryState;
 }
 
+/** The two blocks the patch folds over, read out of the row's JSONB before anything is written back. An absent block reads as empty — a repo that never had settings is not an error. */
+function storedBlocks(settings: Record<string, unknown>) {
+  return {
+    prev: (settings.dark_factory ?? {}) as DarkFactoryState,
+    prevTo: (settings.task_overrides ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >,
+  };
+}
+
 /** Pure merge step: folds the patch (and optional task_overrides patch) over the row's current JSONB settings. */
 export function applyPatch(
   stored: Record<string, unknown> | null,
@@ -108,11 +119,7 @@ export function applyPatch(
   toPatch: TaskOverridesPatch | undefined,
 ): AppliedPatch {
   const settings: Record<string, unknown> = stored ?? {};
-  const prev = (settings.dark_factory ?? {}) as DarkFactoryState;
-  const prevTo = (settings.task_overrides ?? {}) as Record<
-    string,
-    Record<string, unknown>
-  >;
+  const { prev, prevTo } = storedBlocks(settings);
   const next = mergedDarkFactory(prev, patch);
 
   settings.dark_factory = next;

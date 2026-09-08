@@ -56,6 +56,11 @@ const RegisterResponse = z.object({
   token: z.string(),
 });
 
+/** What a registration can answer with: the identity and its token, or the name refusal. */
+type RegisterResult =
+  | { code: 200; body: z.infer<typeof RegisterResponse> }
+  | { code: 409; body: { error: string } };
+
 export interface RegisterDeps {
   repository: ClusterAgentsRepository;
   registrationToken: string | undefined;
@@ -99,17 +104,22 @@ const NAME_TAKEN = {
   body: { error: "name is registered to a live identity" },
 };
 
+/** The registered identity as the agent sees it. The token appears here and nowhere else — only its hash is stored. */
+function registeredBody(
+  agent: ClusterAgent,
+  token: string,
+): z.infer<typeof RegisterResponse> {
+  return { id: agent.id, name: agent.name, tags: agent.tags, token };
+}
+
 /** The handler core, injectable for tests: gate, decide, mint, persist. */
 /** Writes the registration and answers with the token. Losing a concurrent registration reads the same as a taken NAME — another process holds it either way, and the loser must re-register rather than assume it won. The token is served here and never again: only its hash is stored. */
 async function registerAgent(
   deps: RegisterDeps,
   body: RegisterBody,
-  decision: Exclude<RegistrationDecision, { kind: "reject" }>,
+  decision: IssuableDecision,
   presented: string,
-): Promise<
-  | { code: 200; body: z.infer<typeof RegisterResponse> }
-  | { code: 409; body: { error: string } }
-> {
+): Promise<RegisterResult> {
   const issued = issueTokenForDecision(decision, presented);
   const agent = await persistRegistration(deps, decision, {
     name: body.name,
@@ -122,25 +132,14 @@ async function registerAgent(
     return NAME_TAKEN;
   }
 
-  return {
-    code: 200,
-    body: {
-      id: agent.id,
-      name: agent.name,
-      tags: agent.tags,
-      token: issued.token,
-    },
-  };
+  return { code: 200, body: registeredBody(agent, issued.token) };
 }
 
 export async function handleRegister(
   deps: RegisterDeps,
   bearer: string | undefined,
   body: RegisterBody,
-): Promise<
-  | { code: 200; body: z.infer<typeof RegisterResponse> }
-  | { code: 401 | 409 | 503; body: { error: string } }
-> {
+): Promise<RegisterResult | { code: 401 | 503; body: { error: string } }> {
   if (isUnauthorizedRegistration(deps, bearer)) {
     return { code: 401, body: { error: "unauthorized" } };
   }
@@ -181,25 +180,27 @@ async function serveRegister(
   return h.response(result.body).code(result.code);
 }
 
+const REGISTER_OPTIONS = zodResponse(
+  {
+    auth: false,
+    validate: { payload: zodValidate(RegisterBody) },
+  },
+  RegisterResponse,
+  {
+    name: "ClusterAgentRegistration",
+    description:
+      "The registered identity with its per-agent token — served once and never again",
+    errors: [401, 409],
+  },
+);
+
 export function clusterAgentRegisterRoute(
   getPool: () => Pool | null,
 ): ServerRoute {
   return {
     method: "POST",
     path: "/api/cluster-agents/register",
-    options: zodResponse(
-      {
-        auth: false,
-        validate: { payload: zodValidate(RegisterBody) },
-      },
-      RegisterResponse,
-      {
-        name: "ClusterAgentRegistration",
-        description:
-          "The registered identity with its per-agent token — served once and never again",
-        errors: [401, 409],
-      },
-    ),
+    options: REGISTER_OPTIONS,
     handler: (request, h) => serveRegister(getPool, request, h),
   };
 }

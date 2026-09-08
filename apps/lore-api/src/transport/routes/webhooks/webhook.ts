@@ -44,6 +44,23 @@ const WebhookSecretSchema = z.object({
   canonicalUrl: z.string(),
 });
 
+/** No configured host is reported as unknown rather than as an error: the deployment is simply not wired for webhooks yet. */
+const HOST_NOT_CONFIGURED = {
+  state: "unknown",
+  canonicalUrl: "",
+  reason: "webhook_host_not_configured",
+};
+
+// 403 = App lacks Webhooks permission; surface as unknown for graceful UI fallback.
+function webhookReadFailure(err: unknown, url: string) {
+  const reason =
+    (err as { status?: number }).status === 403
+      ? "app_no_webhook_permission"
+      : "read_failed";
+
+  return { state: "unknown", canonicalUrl: url, reason };
+}
+
 /** Whether this deployment's webhook plumbing is configured, without revealing the secret it would verify against. */
 async function serveWebhookStatus(
   request: Request,
@@ -52,11 +69,7 @@ async function serveWebhookStatus(
   const url = canonicalUrl();
 
   if (!url) {
-    return h.response({
-      state: "unknown",
-      canonicalUrl: "",
-      reason: "webhook_host_not_configured",
-    });
+    return h.response(HOST_NOT_CONFIGURED);
   }
 
   try {
@@ -64,13 +77,7 @@ async function serveWebhookStatus(
       classifyWebhook(await listRepoWebhooks(repoOf(request)), url),
     );
   } catch (err) {
-    // 403 = App lacks Webhooks permission; surface as unknown for graceful UI fallback.
-    const reason =
-      (err as { status?: number }).status === 403
-        ? "app_no_webhook_permission"
-        : "read_failed";
-
-    return h.response({ state: "unknown", canonicalUrl: url, reason });
+    return h.response(webhookReadFailure(err, url));
   }
 }
 

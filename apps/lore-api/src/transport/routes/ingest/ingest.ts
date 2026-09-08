@@ -29,6 +29,17 @@ type IngestBody = z.infer<typeof IngestBody>;
 /** What the ingest wrote — counts per kind. */
 const IngestResultSchema = z.record(z.string(), z.unknown());
 
+/** True when at least one posted file actually changed the store — the gate on the re-link trigger. */
+function anyFileLanded(results: unknown): boolean {
+  return (
+    Array.isArray(results) &&
+    results.some(
+      (r: { status?: string }) =>
+        r.status === "ingested" || r.status === "deleted",
+    )
+  );
+}
+
 /** Stores posted content into a repo's context immediately, rather than waiting for the nightly pass. */
 async function serveIngest(
   getPool: () => Pool | null,
@@ -42,15 +53,9 @@ async function serveIngest(
   try {
     const { files, repo, commit } = request.payload as IngestBody;
     const result = await ingestFiles(pool, files, repo, commit || "HEAD");
-    // Fire-and-forget test re-link (gate: content-hash, landed files only).
-    const landed = Array.isArray(result.results)
-      ? result.results.some(
-          (r: { status?: string }) =>
-            r.status === "ingested" || r.status === "deleted",
-        )
-      : false;
 
-    if (landed) {
+    // Fire-and-forget test re-link (gate: content-hash, landed files only).
+    if (anyFileLanded(result.results)) {
       void triggerAgentSpecCoverageValidate(pool, repo);
     }
 

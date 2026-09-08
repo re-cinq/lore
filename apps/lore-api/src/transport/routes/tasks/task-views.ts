@@ -33,6 +33,39 @@ const UNDEFINED_TABLE = "42P01";
 const missingTable = (err: unknown) =>
   (err as { code?: string }).code === UNDEFINED_TABLE;
 
+const REPO_TASKS_SQL = `SELECT ${selectList(REPO_TASK_COLUMNS)}
+     FROM pipeline.tasks
+    WHERE target_repo = $1
+    ORDER BY created_at DESC
+    LIMIT $2`;
+
+const AUDIT_LOG_SQL = `SELECT event_type, payload, created_at FROM pipeline.audit_log
+  WHERE repo = $1 AND event_type = ANY($2)
+  ORDER BY created_at DESC LIMIT $3`;
+
+const TASK_EVENTS_SQL = `SELECT ${selectList(TASK_EVENT_COLUMNS)}
+     FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`;
+
+const TASK_LLM_CALLS_SQL = `SELECT ${selectList(TASK_RUNTIME_LLM_COLUMNS)}
+     FROM pipeline.llm_calls WHERE task_id = $1 ORDER BY created_at`;
+
+/** A table these dashboards read may not exist yet on a fresh install, so an empty page is the honest answer; any other failure is not ours to swallow. */
+async function rowsOrEmpty<T>(
+  read: () => Promise<{ rows: T[] }>,
+): Promise<T[]> {
+  try {
+    const { rows } = await read();
+
+    return rows;
+  } catch (err) {
+    if (missingTable(err)) {
+      return [];
+    }
+
+    throw err;
+  }
+}
+
 export function taskViewRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     repoTasksRoute(getPool),
@@ -54,24 +87,11 @@ async function serveRepoTasks(
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
   const { repo, limit } = request.query as unknown as RepoTasksQuery;
 
-  try {
-    const { rows } = await pool.query(
-      `SELECT ${selectList(REPO_TASK_COLUMNS)}
-         FROM pipeline.tasks
-        WHERE target_repo = $1
-        ORDER BY created_at DESC
-        LIMIT $2`,
-      [repo, limit],
-    );
+  const tasks = await rowsOrEmpty(() =>
+    pool.query(REPO_TASKS_SQL, [repo, limit]),
+  );
 
-    return h.response({ tasks: rows });
-  } catch (err) {
-    if (missingTable(err)) {
-      return h.response({ tasks: [] });
-    }
-
-    throw err;
-  }
+  return h.response({ tasks });
 }
 
 function repoTasksRoute(getPool: () => Pool | null): ServerRoute {
@@ -160,6 +180,22 @@ function agentActivitySql(repo: string | undefined): string {
           ORDER BY last_active DESC NULLS LAST`;
 }
 
+/** Per-agent activity rolled up across both the task and the memory side. */
+async function serveAgentActivity(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { repo } = request.query as unknown as AgentActivityQuery;
+
+  const { rows } = await pool.query(agentActivitySql(repo), repo ? [repo] : []);
+
+  return h.response({ agents: rows });
+}
+
 function agentActivityRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -172,20 +208,25 @@ function agentActivityRoute(getPool: () => Pool | null): ServerRoute {
       AgentActivitySchema,
       { name: "AgentActivity", description: "Per-agent activity roll-up" },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { repo } = request.query as unknown as AgentActivityQuery;
-
-      const { rows } = await pool.query(
-        agentActivitySql(repo),
-        repo ? [repo] : [],
-      );
-
-      return h.response({ agents: rows });
-    },
+    handler: (request, h) => serveAgentActivity(getPool, request, h),
   };
+}
+
+/** A task's transitions and the LLM calls it made, both in creation order. */
+async function serveTaskRuntime(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const taskId = request.params.id;
+
+  const { rows: events } = await pool.query(TASK_EVENTS_SQL, [taskId]);
+  const { rows: llmCalls } = await pool.query(TASK_LLM_CALLS_SQL, [taskId]);
+
+  return h.response({ events, llm_calls: llmCalls });
 }
 
 function taskRuntimeRoute(getPool: () => Pool | null): ServerRoute {
@@ -196,25 +237,7 @@ function taskRuntimeRoute(getPool: () => Pool | null): ServerRoute {
       name: "TaskRuntime",
       description: "A task's transitions and LLM calls",
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const taskId = request.params.id;
-
-      const { rows: events } = await pool.query(
-        `SELECT ${selectList(TASK_EVENT_COLUMNS)}
-           FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,
-        [taskId],
-      );
-      const { rows: llmCalls } = await pool.query(
-        `SELECT ${selectList(TASK_RUNTIME_LLM_COLUMNS)}
-           FROM pipeline.llm_calls WHERE task_id = $1 ORDER BY created_at`,
-        [taskId],
-      );
-
-      return h.response({ events, llm_calls: llmCalls });
-    },
+    handler: (request, h) => serveTaskRuntime(getPool, request, h),
   };
 }
 
@@ -230,22 +253,12 @@ async function serveAuditLog(
   const { repo, event_types, limit } =
     request.query as unknown as AuditLogQuery;
 
-  try {
-    const { rows } = await pool.query(
-      `SELECT event_type, payload, created_at FROM pipeline.audit_log
-        WHERE repo = $1 AND event_type = ANY($2)
-        ORDER BY created_at DESC LIMIT $3`,
-      [repo, event_types.split(",").map((t) => t.trim()), limit],
-    );
+  const types = event_types.split(",").map((t) => t.trim());
+  const entries = await rowsOrEmpty(() =>
+    pool.query(AUDIT_LOG_SQL, [repo, types, limit]),
+  );
 
-    return h.response({ entries: rows });
-  } catch (err) {
-    if (missingTable(err)) {
-      return h.response({ entries: [] });
-    }
-
-    throw err;
-  }
+  return h.response({ entries });
 }
 
 function auditLogRoute(getPool: () => Pool | null): ServerRoute {

@@ -3,7 +3,7 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { z } from "zod";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type { ResponseObject, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
 
 // Is the factory's model access down right now (#1455)? Derived on READ from station_runs, not mirrored from the Floor's in-memory gate — lore-api can't see another pod's memory.
@@ -79,6 +79,29 @@ const RECENT_FAILURES_SQL = `
 /** Postgres "undefined column" — a database that predates migration 0042. */
 const UNDEFINED_COLUMN = "42703";
 
+/** Whether an account-wide LLM outage is degrading the factory right now. */
+async function serveLlmStatus(
+  getPool: () => Pool | null,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), "database unavailable");
+
+  try {
+    const { rows } = await pool.query(RECENT_FAILURES_SQL, [WINDOW_MINUTES]);
+
+    return h.response(decideLlmStatus(rows as RecentFailureGroup[]));
+  } catch (err) {
+    // Pre-0042 DB (no failure columns) answers HEALTHY, not 500 — this is polled by a BANNER, don't let the outage-reporter report itself.
+    if ((err as { code?: string }).code === UNDEFINED_COLUMN) {
+      return h.response(HEALTHY);
+    }
+
+    throw err;
+  }
+}
+
 export function llmStatusRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -88,25 +111,6 @@ export function llmStatusRoute(getPool: () => Pool | null): ServerRoute {
       description:
         "Whether an account-wide LLM outage is degrading the factory",
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), "database unavailable");
-
-      try {
-        const { rows } = await pool.query(RECENT_FAILURES_SQL, [
-          WINDOW_MINUTES,
-        ]);
-
-        return h.response(decideLlmStatus(rows as RecentFailureGroup[]));
-      } catch (err) {
-        // Pre-0042 DB (no failure columns) answers HEALTHY, not 500 — this is polled by a BANNER, don't let the outage-reporter report itself.
-        if ((err as { code?: string }).code === UNDEFINED_COLUMN) {
-          return h.response(HEALTHY);
-        }
-
-        throw err;
-      }
-    },
+    handler: (_request, h) => serveLlmStatus(getPool, h),
   };
 }

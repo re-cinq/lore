@@ -77,6 +77,28 @@ function toRecord(
   };
 }
 
+/** Validates the reported batch and stores it. An unparseable batch is a 400 AFTER authentication, so a bad body never tells an anonymous caller whether the agent id exists. */
+async function recordReports(
+  deps: CatalogStatusDeps,
+  agentId: string,
+  body: unknown,
+): Promise<
+  | { code: 200; body: z.infer<typeof StatusRecorded> }
+  | { code: 400; body: { error: string } }
+> {
+  const parsed = ReportSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return { code: 400, body: { error: "invalid report" } };
+  }
+
+  const { reports } = parsed.data;
+
+  await deps.status.record(agentId, reports.map(toRecord));
+
+  return { code: 200, body: { ok: true, recorded: reports.length } };
+}
+
 export async function handleCatalogStatus(
   deps: CatalogStatusDeps,
   bearer: string | undefined,
@@ -86,22 +108,13 @@ export async function handleCatalogStatus(
   | { code: 200; body: z.infer<typeof StatusRecorded> }
   | { code: 400 | 401 | 403; body: { error: string } }
 > {
-  const agent = await authorizeAgent(deps, bearer, agentId);
+  const authorized = await authorizeAgent(deps, bearer, agentId);
 
-  if ("code" in agent) {
-    return agent;
-  }
-  const parsed = ReportSchema.safeParse(body);
-
-  if (!parsed.success) {
-    return { code: 400, body: { error: "invalid report" } };
+  if ("code" in authorized) {
+    return authorized;
   }
 
-  const { reports } = parsed.data;
-
-  await deps.status.record(agent.agent.id, reports.map(toRecord));
-
-  return { code: 200, body: { ok: true, recorded: reports.length } };
+  return recordReports(deps, authorized.agent.id, body);
 }
 
 /** A cluster-agent reporting what it applied. The cursor moves only on this report, so a failed apply is retried rather than skipped. */

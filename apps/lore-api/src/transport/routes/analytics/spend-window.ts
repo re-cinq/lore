@@ -88,16 +88,22 @@ async function serveSpendWindow(
     deps,
   );
 
-  return h
-    .response({
-      interval: win.interval,
-      llm: await readLlmSpend(pool, win),
-      billed: await readAnthropicSpend(pool, win),
-      gcp: await readGcpSpend(pool, win),
-      compute: await readComputeSpend(pool, win, deps),
-      budget: await readBudget(pool),
-    })
-    .code(200);
+  return h.response(await spendWindowBody(pool, win, deps)).code(200);
+}
+
+async function spendWindowBody(
+  pool: Pool,
+  win: SpendWindow,
+  deps: SpendWindowDeps,
+) {
+  return {
+    interval: win.interval,
+    llm: await readLlmSpend(pool, win),
+    billed: await readAnthropicSpend(pool, win),
+    gcp: await readGcpSpend(pool, win),
+    compute: await readComputeSpend(pool, win, deps),
+    budget: await readBudget(pool),
+  };
 }
 
 export function spendWindowRoute(

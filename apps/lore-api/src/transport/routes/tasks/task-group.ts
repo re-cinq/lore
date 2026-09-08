@@ -43,21 +43,24 @@ async function serveTaskGroup(
   const { id } = request.params as unknown as GroupParams;
 
   try {
-    const { rows } = await pool.query<{ status: string }>(
-      `SELECT id, description, task_type, status, target_repo, pr_url, created_at
-       FROM pipeline.tasks WHERE task_group_id = $1 ORDER BY created_at`,
-      [id],
-    );
-
-    return h.response({
-      group_id: id,
-      total: rows.length,
-      completed: rows.filter((t) => TERMINAL_SUCCESS.includes(t.status)).length,
-      tasks: rows,
-    });
+    return h.response(await readTaskGroup(pool, id));
   } catch (err) {
     return h.response({ error: errorMessage(err) }).code(500);
   }
+}
+
+const GROUP_TASKS_SQL = `SELECT id, description, task_type, status, target_repo, pr_url, created_at
+       FROM pipeline.tasks WHERE task_group_id = $1 ORDER BY created_at`;
+
+async function readTaskGroup(pool: Pool, id: string) {
+  const { rows } = await pool.query<{ status: string }>(GROUP_TASKS_SQL, [id]);
+
+  return {
+    group_id: id,
+    total: rows.length,
+    completed: rows.filter((t) => TERMINAL_SUCCESS.includes(t.status)).length,
+    tasks: rows,
+  };
 }
 
 export function taskGroupRoute(getPool: () => Pool | null): ServerRoute {

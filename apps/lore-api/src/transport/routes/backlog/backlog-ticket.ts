@@ -129,23 +129,39 @@ export function taskTicket(
   run: LoopRunRow | undefined,
   nodeRows: readonly NodeRow[],
 ): Ticket | null {
-  if (!row.issue_number) {
+  const { issue_number } = row;
+
+  if (!issue_number) {
     return null;
   }
-  const issue = openIssues.find((i) => i.number === row.issue_number);
-  const { error, run_id } = runSummary(run);
+  const issue = openIssues.find((i) => i.number === issue_number);
 
   return {
-    issue_number: row.issue_number,
+    ...ticketIssueFields(row, issue_number, issue),
+    ...ticketTaskFields(row),
+    ...runSummary(run),
+    pipeline: pipelineOf(run, nodeRows),
+  };
+}
+
+function ticketIssueFields(
+  row: LoopTaskRow,
+  issueNumber: number,
+  issue: IssueRef | undefined,
+) {
+  return {
+    issue_number: issueNumber,
     issue_url: row.issue_url,
     title: ticketTitle(issue, row),
     priority: priorityOf(issue),
+  };
+}
+
+function ticketTaskFields(row: LoopTaskRow) {
+  return {
     pr_url: row.pr_url,
     state: row.status,
     created_at: new Date(row.created_at).toISOString(),
-    error,
-    run_id,
-    pipeline: pipelineOf(run, nodeRows),
   };
 }
 
@@ -153,6 +169,17 @@ interface RunContext {
   taskRuns: LoopRunRow[];
   nodeRows: NodeRow[];
 }
+
+const LOOP_RUNS_SQL = `SELECT DISTINCT ON (task_id) id, task_id, status, reason, graph
+       FROM pipeline.assembly_runs
+      WHERE task_id = ANY($1::uuid[])
+        AND blueprint_name = 'implementation-loop'
+      ORDER BY task_id, created_at DESC`;
+
+const RUN_NODES_SQL = `SELECT assembly_run_id, node_id, iteration, outcome
+       FROM pipeline.station_runs
+      WHERE assembly_run_id = ANY($1::uuid[])
+      ORDER BY started_at`;
 
 // Each listed task's latest loop run + node rows, two batched queries; guarded because `= ANY($1)` on an empty JS array makes Postgres guess the type and 500 on a fresh repo.
 export async function fetchRunContext(
@@ -162,25 +189,16 @@ export async function fetchRunContext(
   if (taskIds.length === 0) {
     return { taskRuns: [], nodeRows: [] };
   }
-  const { rows: taskRuns } = await pool.query<LoopRunRow>(
-    `SELECT DISTINCT ON (task_id) id, task_id, status, reason, graph
-       FROM pipeline.assembly_runs
-      WHERE task_id = ANY($1::uuid[])
-        AND blueprint_name = 'implementation-loop'
-      ORDER BY task_id, created_at DESC`,
-    [taskIds],
-  );
+  const { rows: taskRuns } = await pool.query<LoopRunRow>(LOOP_RUNS_SQL, [
+    taskIds,
+  ]);
 
   if (taskRuns.length === 0) {
     return { taskRuns, nodeRows: [] };
   }
-  const { rows: nodeRows } = await pool.query<NodeRow>(
-    `SELECT assembly_run_id, node_id, iteration, outcome
-       FROM pipeline.station_runs
-      WHERE assembly_run_id = ANY($1::uuid[])
-      ORDER BY started_at`,
-    [taskRuns.map((r) => r.id)],
-  );
+  const { rows: nodeRows } = await pool.query<NodeRow>(RUN_NODES_SQL, [
+    taskRuns.map((r) => r.id),
+  ]);
 
   return { taskRuns, nodeRows };
 }

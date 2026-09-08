@@ -85,7 +85,31 @@ async function applyOrgPatch(
   return agent;
 }
 
-/** The org-default write. Two nested try blocks on purpose: a malformed body is the CALLER's mistake and answers 400 with the parse issues, while anything after it is either a guard's own refusal (which already carries its status) or an unexpected failure. */
+/** Parses the body and applies it. A malformed body is the CALLER's mistake and answers 400 with the parse issues, rather than reaching the route's catch. */
+async function orgUpdateOutcome(
+  pool: Pool,
+  name: string,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  let patch: ReturnType<typeof parseAgentPatch>;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
+    patch = parseAgentPatch(request.payload ?? {});
+  } catch (err) {
+    return h
+      .response({ error: "invalid_agent", issues: issuesOf(err) })
+      .code(400);
+  }
+
+  return h.response({
+    ok: true,
+    agent: await applyOrgPatch(pool, name, patch),
+  });
+}
+
+/** The org-default write. Anything past the body parse is either a guard's own refusal (which already carries its status) or an unexpected failure. */
 async function serveOrgUpdate(
   getPool: () => Pool | null,
   request: Request,
@@ -97,21 +121,7 @@ async function serveOrgUpdate(
   const name = request.params.name as string;
 
   try {
-    let patch: ReturnType<typeof parseAgentPatch>;
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
-      patch = parseAgentPatch(request.payload ?? {});
-    } catch (err) {
-      return h
-        .response({ error: "invalid_agent", issues: issuesOf(err) })
-        .code(400);
-    }
-
-    return h.response({
-      ok: true,
-      agent: await applyOrgPatch(pool, name, patch),
-    });
+    return await orgUpdateOutcome(pool, name, request, h);
   } catch (err) {
     // A guard's refusal (the org image gate) already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);

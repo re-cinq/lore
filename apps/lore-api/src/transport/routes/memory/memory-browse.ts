@@ -73,17 +73,8 @@ function readEntities(
   );
 }
 
-/** Only a SELECTED entity has edges to show — unselected, this is the explorer's costliest query, so it is not run at all. */
-async function readEdgesFor(
-  pool: Pool,
-  entity: string | undefined,
-  showInvalid: boolean | undefined,
-): Promise<Record<string, unknown>[]> {
-  if (!entity) {
-    return [];
-  }
-  const { rows } = await pool.query(
-    `SELECT s.name as source_name, s.entity_type as source_type,
+function edgesSql(showInvalid: boolean | undefined): string {
+  return `SELECT s.name as source_name, s.entity_type as source_type,
                       e.relation_type, t.name as target_name, t.entity_type as target_type,
                       e.valid_from, e.valid_to,
                       CASE WHEN ep.id IS NOT NULL THEN 'episode' ELSE 'memory' END as source_label
@@ -94,9 +85,19 @@ async function readEdgesFor(
                 WHERE (LOWER(s.name) = LOWER($1) OR LOWER(t.name) = LOWER($1))
                   ${showInvalid ? "" : "AND e.valid_to IS NULL"}
                 ORDER BY e.valid_from DESC
-                LIMIT 50`,
-    [entity],
-  );
+                LIMIT 50`;
+}
+
+/** Only a SELECTED entity has edges to show — unselected, this is the explorer's costliest query, so it is not run at all. */
+async function readEdgesFor(
+  pool: Pool,
+  entity: string | undefined,
+  showInvalid: boolean | undefined,
+): Promise<Record<string, unknown>[]> {
+  if (!entity) {
+    return [];
+  }
+  const { rows } = await pool.query(edgesSql(showInvalid), [entity]);
 
   return rows;
 }
@@ -144,6 +145,28 @@ function graphBrowseRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+const POOL_LIST_SQL = `
+        SELECT sp.id, sp.name, sp.created_by, sp.created_at,
+               count(m.id)::int as entry_count,
+               count(DISTINCT m.agent_id)::int as agent_count
+          FROM memory.shared_pools sp
+          LEFT JOIN memory.memories m ON m.pool_id = sp.id AND m.is_deleted = FALSE
+         GROUP BY sp.id
+         ORDER BY sp.created_at DESC
+      `;
+
+async function servePoolList(
+  getPool: () => Pool | null,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { rows } = await pool.query(POOL_LIST_SQL);
+
+  return h.response({ pools: rows });
+}
+
 function listPoolsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -152,23 +175,23 @@ function listPoolsRoute(getPool: () => Pool | null): ServerRoute {
       name: "SharedPoolList",
       description: "Every shared pool, with how much it holds",
     }),
-    handler: async (_request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { rows } = await pool.query(`
-        SELECT sp.id, sp.name, sp.created_by, sp.created_at,
-               count(m.id)::int as entry_count,
-               count(DISTINCT m.agent_id)::int as agent_count
-          FROM memory.shared_pools sp
-          LEFT JOIN memory.memories m ON m.pool_id = sp.id AND m.is_deleted = FALSE
-         GROUP BY sp.id
-         ORDER BY sp.created_at DESC
-      `);
-
-      return h.response({ pools: rows });
-    },
+    handler: (_request, h) => servePoolList(getPool, h),
   };
+}
+
+/** The live entries of one pool — expired and soft-deleted memories are not what it holds. */
+async function readPoolEntries(pool: Pool, poolId: unknown) {
+  const { rows } = await pool.query(
+    `SELECT m.id, m.key, m.value, m.agent_id, m.version, m.created_at
+       FROM memory.memories m
+      WHERE m.pool_id = $1
+        AND m.is_deleted = FALSE
+        AND (m.expires_at IS NULL OR m.expires_at > now())
+      ORDER BY m.created_at DESC`,
+    [poolId],
+  );
+
+  return rows;
 }
 
 /** One shared pool and what it holds. Pools are how memory crosses agent boundaries, so the count is what tells a reader whether anyone is actually using it. */
@@ -187,17 +210,11 @@ async function servePoolDetail(
   );
 
   enforceTrue(rows.length !== 0, apiError(404), "Pool not found");
-  const { rows: entries } = await pool.query(
-    `SELECT m.id, m.key, m.value, m.agent_id, m.version, m.created_at
-       FROM memory.memories m
-      WHERE m.pool_id = $1
-        AND m.is_deleted = FALSE
-        AND (m.expires_at IS NULL OR m.expires_at > now())
-      ORDER BY m.created_at DESC`,
-    [rows[0].id],
-  );
 
-  return h.response({ pool: rows[0], entries });
+  return h.response({
+    pool: rows[0],
+    entries: await readPoolEntries(pool, rows[0].id),
+  });
 }
 
 function poolDetailRoute(getPool: () => Pool | null): ServerRoute {
@@ -232,6 +249,30 @@ function episodeFilter(source: string | undefined, agent: string | undefined) {
   return { where, params };
 }
 
+async function readEpisodeCount(
+  pool: Pool,
+  where: string,
+  params: unknown[],
+): Promise<number> {
+  const { rows } = await pool.query<{ count: number }>(
+    `SELECT count(*)::int as count FROM memory.episodes e ${where}`,
+    params,
+  );
+
+  return rows[0]?.count ?? 0;
+}
+
+function episodePageSql(where: string, paramCount: number): string {
+  return `SELECT e.id, e.agent_id, e.source, e.ref,
+            LEFT(e.content, 300) as content_preview,
+            (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count,
+            e.created_at
+       FROM memory.episodes e
+       ${where}
+      ORDER BY e.created_at DESC
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+}
+
 /** Recent episodes — the raw text facts were extracted FROM, which is what makes an extracted fact auditable. */
 async function serveEpisodeList(
   getPool: () => Pool | null,
@@ -244,24 +285,13 @@ async function serveEpisodeList(
   const { source, agent, limit, offset } =
     request.query as unknown as EpisodesQuery;
   const { where, params } = episodeFilter(source, agent);
-
-  const { rows: countRows } = await pool.query<{ count: number }>(
-    `SELECT count(*)::int as count FROM memory.episodes e ${where}`,
-    params,
-  );
+  const total = await readEpisodeCount(pool, where, params);
   const { rows: episodes } = await pool.query(
-    `SELECT e.id, e.agent_id, e.source, e.ref,
-            LEFT(e.content, 300) as content_preview,
-            (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count,
-            e.created_at
-       FROM memory.episodes e
-       ${where}
-      ORDER BY e.created_at DESC
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    episodePageSql(where, params.length),
     [...params, limit, offset],
   );
 
-  return h.response({ episodes, total: countRows[0]?.count ?? 0 });
+  return h.response({ episodes, total });
 }
 
 function listEpisodesRoute(getPool: () => Pool | null): ServerRoute {

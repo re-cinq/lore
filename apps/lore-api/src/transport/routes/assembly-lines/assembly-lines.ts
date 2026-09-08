@@ -90,6 +90,20 @@ async function selectRuns(
   });
 }
 
+/** The selected runs already enriched into wire rows; a task-centric caller gets the full record so it can draw the graph. */
+async function runListRows(
+  pool: Pool,
+  port: AssemblyRunsPort,
+  query: RunsQuery,
+) {
+  const selected = await selectRuns(port, query);
+  const enrichment = await enrichmentById(pool, selected);
+
+  return selected.map((run) =>
+    toRunRow(run, enrichment.get(run.id), query.task_id !== undefined),
+  );
+}
+
 /** A page of runs, newest first. Filters are applied in SQL rather than after the fetch, because a busy org's run table is large and the page is small. */
 async function serveRunList(
   getPool: () => Pool | null,
@@ -103,14 +117,9 @@ async function serveRunList(
   const query = request.query as unknown as RunsQuery;
 
   try {
-    const selected = await selectRuns(portFor(pool), query);
-    const enrichment = await enrichmentById(pool, selected);
+    const runs = await runListRows(pool, portFor(pool), query);
 
-    return h.response({
-      runs: selected.map((run) =>
-        toRunRow(run, enrichment.get(run.id), query.task_id !== undefined),
-      ),
-    });
+    return h.response({ runs });
   } catch (err) {
     if (missingTable(err)) {
       return h.response({ runs: [] });
@@ -124,21 +133,40 @@ function listRunsRoute(
   getPool: () => Pool | null,
   portFor: (pool: Pool) => AssemblyRunsPort,
 ): ServerRoute {
+  const validate = { query: zodValidate(RunsQuery) };
+  const meta = {
+    name: "AssemblyRunList",
+    description: "A page of runs, newest first",
+  };
+
   return {
     method: "GET",
     path: "/api/assembly-runs",
     options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(RunsQuery) },
-      },
+      { ...bearerScope("read"), validate },
       RunListSchema,
-      {
-        name: "AssemblyRunList",
-        description: "A page of runs, newest first",
-      },
+      meta,
     ),
     handler: (request, h) => serveRunList(getPool, portFor, request, h),
+  };
+}
+
+type StationRunVisit = Awaited<
+  ReturnType<AssemblyRunsPort["listStationRuns"]>
+>[number];
+
+/** One station visit as the timeline draws it. */
+function stationRunRow(visit: StationRunVisit) {
+  return {
+    node_id: visit.nodeId,
+    station_run_id: visit.stationRunId,
+    iteration: visit.iteration,
+    outcome: visit.outcome,
+    agent_cr_name: visit.agentCrName,
+    input: visit.input,
+    commit_sha: visit.commitSha,
+    started_at: visit.startedAt.toISOString(),
+    finished_at: visit.finishedAt?.toISOString() ?? null,
   };
 }
 
@@ -156,19 +184,7 @@ async function serveRunNodes(
   try {
     const visits = await portFor(pool).listStationRuns(request.params.id);
 
-    return h.response({
-      nodes: visits.map((visit) => ({
-        node_id: visit.nodeId,
-        station_run_id: visit.stationRunId,
-        iteration: visit.iteration,
-        outcome: visit.outcome,
-        agent_cr_name: visit.agentCrName,
-        input: visit.input,
-        commit_sha: visit.commitSha,
-        started_at: visit.startedAt.toISOString(),
-        finished_at: visit.finishedAt?.toISOString() ?? null,
-      })),
-    });
+    return h.response({ nodes: visits.map(stationRunRow) });
   } catch (err) {
     if (missingTable(err)) {
       return h.response({ nodes: [] });
@@ -254,6 +270,34 @@ function runTokenUsageRoute(
   };
 }
 
+/** The flat by-id record. A database predating the run tables reads as "not found" rather than a 500 — the row genuinely is not there. */
+async function serveRunDetail(
+  getPool: () => Pool | null,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  try {
+    const run = await portFor(pool).getById(request.params.id);
+
+    enforceTrue(run, apiError(404), "Run not found");
+    const enrichment = await enrichmentById(pool, [run]);
+
+    return h.response(toRunRow(run, enrichment.get(run.id), true));
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    enforceTrue(!missingTable(err), apiError(404), "Run not found");
+
+    throw err;
+  }
+}
+
 /** FLAT by-id read, served ONLY under the legacy spelling now (canonical /api/assembly-runs/{id} serves the enriched shape from run-read.ts); DELETE with the aliases (#1347 PR3). Registered OUTSIDE withLegacyAlias deliberately — aliasing it to itself would make hapi reject the duplicate route. */
 function runDetailRoute(
   getPool: () => Pool | null,
@@ -267,26 +311,6 @@ function runDetailRoute(
       description: "One run, carrying the blueprint clone it walked",
       errors: [404],
     }),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      try {
-        const run = await portFor(pool).getById(request.params.id);
-
-        enforceTrue(run, apiError(404), "Run not found");
-        const enrichment = await enrichmentById(pool, [run]);
-
-        return h.response(toRunRow(run, enrichment.get(run.id), true));
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        enforceTrue(!missingTable(err), apiError(404), "Run not found");
-
-        throw err;
-      }
-    },
+    handler: (request, h) => serveRunDetail(getPool, portFor, request, h),
   };
 }

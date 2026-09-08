@@ -3,7 +3,12 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -30,18 +35,24 @@ export function usageRoute(getPool: () => Pool | null): ServerRoute {
       AgentUsageSchema,
       { name: "AgentUsage", description: "Token and cost usage for an agent" },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const { agent_id } = request.query as unknown as UsageQuery;
-
-      try {
-        return h.response(await agentUsage(pool, agent_id));
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveUsage(getPool, request, h),
   };
+}
+
+async function serveUsage(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  const { agent_id } = request.query as unknown as UsageQuery;
+
+  try {
+    return h.response(await agentUsage(pool, agent_id));
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
 }

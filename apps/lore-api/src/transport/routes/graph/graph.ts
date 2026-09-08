@@ -28,6 +28,18 @@ type GraphQuery = z.infer<typeof GraphQuery>;
 /** Graph query results — shape follows the query. */
 const GraphQuerySchema = z.record(z.string(), z.unknown());
 
+/** The snake_case wire query as the graph reader's camelCase options. */
+function graphOptions(query: GraphQuery) {
+  const {
+    entity,
+    relation_type: relationType,
+    repo,
+    include_invalidated: includeInvalidated,
+  } = query;
+
+  return { entity, relationType, repo, includeInvalidated };
+}
+
 /** Entities and relationships matching a query. The graph is written asynchronously by episode ingestion, so this read may legitimately trail the memory it describes. */
 async function serveGraph(
   getPool: () => Pool | null,
@@ -38,22 +50,10 @@ async function serveGraph(
 
   enforceTrue(pool, apiError(503), "knowledge graph requires PostgreSQL");
 
-  const {
-    entity,
-    relation_type: relationType,
-    repo,
-    include_invalidated: includeInvalidated,
-  } = request.query as unknown as GraphQuery;
-
   try {
-    const results = await queryLiveGraph(pool, {
-      entity,
-      relationType,
-      repo,
-      includeInvalidated,
-    });
+    const options = graphOptions(request.query as unknown as GraphQuery);
 
-    return h.response(results);
+    return h.response(await queryLiveGraph(pool, options));
   } catch (err) {
     return h.response({ error: errorMessage(err) }).code(500);
   }

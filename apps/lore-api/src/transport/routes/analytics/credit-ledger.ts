@@ -2,7 +2,12 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 // Records money added to the Anthropic account (no balance-read endpoint exists); append-only, corrections are compensating negative rows, never updates.
 
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
@@ -66,13 +71,7 @@ const CREDIT_LEDGER_OPTIONS = zodResponse(
   },
 );
 
-/** Day and time compose in POSTGRES, not here: the midnight default counts the whole day rather than silently skipping money already spent on it. */
-async function insertCreditEntry(
-  pool: Pool,
-  entry: z.infer<typeof CreditEntryBody>,
-): Promise<Record<string, unknown>> {
-  const { rows } = await pool.query(
-    `INSERT INTO pipeline.credit_ledger
+const CREDIT_ENTRY_INSERT_SQL = `INSERT INTO pipeline.credit_ledger
              (effective_at, amount_usd, kind, note, actor)
            VALUES (
              COALESCE($1::date, current_date)
@@ -81,16 +80,21 @@ async function insertCreditEntry(
            RETURNING id::int,
              to_char(effective_at AT TIME ZONE 'UTC',
                'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS effective_at,
-             amount_usd::float8, kind, note, actor`,
-    [
-      entry.effective_date ?? null,
-      entry.effective_time ?? null,
-      entry.amount_usd,
-      entry.kind,
-      entry.note,
-      entry.recorded_by,
-    ],
-  );
+             amount_usd::float8, kind, note, actor`;
+
+/** Day and time compose in POSTGRES, not here: the midnight default counts the whole day rather than silently skipping money already spent on it. */
+async function insertCreditEntry(
+  pool: Pool,
+  entry: z.infer<typeof CreditEntryBody>,
+): Promise<Record<string, unknown>> {
+  const { rows } = await pool.query(CREDIT_ENTRY_INSERT_SQL, [
+    entry.effective_date ?? null,
+    entry.effective_time ?? null,
+    entry.amount_usd,
+    entry.kind,
+    entry.note,
+    entry.recorded_by,
+  ]);
 
   return rows[0];
 }
@@ -100,28 +104,38 @@ export function creditLedgerRoute(getPool: () => Pool | null): ServerRoute {
     method: "POST",
     path: "/api/spend/credits",
     options: CREDIT_LEDGER_OPTIONS,
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      try {
-        const entry = await insertCreditEntry(
-          pool,
-          request.payload as z.infer<typeof CreditEntryBody>,
-        );
-
-        return h.response(entry).code(201);
-      } catch (err) {
-        // Table arrives with migration 0045; an undeployed cluster should say the figure is unrecordable, not that the request is malformed.
-        enforceTrue(
-          (err as { code?: string }).code !== UNDEFINED_TABLE,
-          apiError(503),
-          DB_UNAVAILABLE,
-        );
-
-        throw err;
-      }
-    },
+    handler: (request, h) => serveCreditEntry(getPool, request, h),
   };
+}
+
+async function serveCreditEntry(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  try {
+    const entry = await insertCreditEntry(
+      pool,
+      request.payload as z.infer<typeof CreditEntryBody>,
+    );
+
+    return h.response(entry).code(201);
+  } catch (err) {
+    enforceLedgerTablePresent(err);
+
+    throw err;
+  }
+}
+
+/** Table arrives with migration 0045; an undeployed cluster should say the figure is unrecordable, not that the request is malformed. */
+function enforceLedgerTablePresent(err: unknown): void {
+  enforceTrue(
+    (err as { code?: string }).code !== UNDEFINED_TABLE,
+    apiError(503),
+    DB_UNAVAILABLE,
+  );
 }

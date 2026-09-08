@@ -31,22 +31,32 @@ async function serveJobRunLogs(
   const { job_name: jobName, run_id: runId } = request.query as JobRunLogsQuery;
 
   try {
-    const { Storage } = await import("@google-cloud/storage");
-    const bucket = new Storage().bucket(
-      process.env.LORE_LOG_BUCKET || "lore-task-logs",
-    );
-    const file = bucket.file(`__job_runs__/${jobName}/${runId}/output.log`);
-    const [exists] = await file.exists();
+    const captured = await readJobRunOutput(jobName, runId);
 
-    if (!exists) {
-      return h.response({ logs: "", complete: false });
-    }
-    const [content] = await file.download();
-
-    return h.response({ logs: content.toString("utf-8"), complete: true });
+    return h.response(captured);
   } catch (err) {
     return h.response({ error: errorMessage(err) }).code(500);
   }
+}
+
+/** Absent output reads as an incomplete run rather than an error: a pod reaped before it flushed has no object yet. */
+async function readJobRunOutput(
+  jobName: string,
+  runId: string,
+): Promise<{ logs: string; complete: boolean }> {
+  const { Storage } = await import("@google-cloud/storage");
+  const bucket = new Storage().bucket(
+    process.env.LORE_LOG_BUCKET || "lore-task-logs",
+  );
+  const file = bucket.file(`__job_runs__/${jobName}/${runId}/output.log`);
+  const [exists] = await file.exists();
+
+  if (!exists) {
+    return { logs: "", complete: false };
+  }
+  const [content] = await file.download();
+
+  return { logs: content.toString("utf-8"), complete: true };
 }
 
 export function jobRunLogsRoute(): ServerRoute {

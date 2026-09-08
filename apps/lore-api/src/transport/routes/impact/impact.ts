@@ -1,7 +1,12 @@
 import { zodResponse } from "../../http/zod-response.js";
 /** POST /api/repos/:o/:r/impact — pre-merge spec-breakage query; fail-soft (no Dgraph). */
 
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import {
   createDgraphClient,
   computeImpact,
@@ -14,6 +19,7 @@ import {
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
+import { failureReason } from "./impact-failure.js";
 
 // Fail-soft: unknown files degrade to []; missing body coerces to {}.
 const ImpactBody = z.preprocess(
@@ -42,6 +48,24 @@ const UNAVAILABLE: ImpactReport = {
 /** A change-impact report plus the PR annotations and comment it produced. */
 const ImpactReportSchema = z.record(z.string(), z.unknown());
 
+/** A diff's coupled spec statements, plus the PR annotations and comment they render as. Annotations are produced only for an `ok` report: an unavailable graph must not annotate a PR with an empty finding set. */
+async function serveImpact(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const repo = `${request.params.owner}/${request.params.repo}`;
+  const body = request.payload as ImpactBody;
+  const files = Array.isArray(body.files) ? body.files : [];
+  const docs = Array.isArray(body.docs) ? body.docs : [];
+
+  const report = await safeComputeImpact(repo, files, docs, body.protocol);
+  const annotations =
+    report.status === "ok" ? buildImpactAnnotations(report, files) : [];
+  const comment = buildImpactComment(report);
+
+  return h.response({ ...report, annotations, comment });
+}
+
 export function impactRoute(): ServerRoute {
   return {
     method: "POST",
@@ -59,19 +83,7 @@ export function impactRoute(): ServerRoute {
         errors: [400],
       },
     ),
-    handler: async (request, h) => {
-      const repo = `${request.params.owner}/${request.params.repo}`;
-      const body = request.payload as ImpactBody;
-      const files = Array.isArray(body.files) ? body.files : [];
-      const docs = Array.isArray(body.docs) ? body.docs : [];
-
-      const report = await safeComputeImpact(repo, files, docs, body.protocol);
-      const annotations =
-        report.status === "ok" ? buildImpactAnnotations(report, files) : [];
-      const comment = buildImpactComment(report);
-
-      return h.response({ ...report, annotations, comment });
-    },
+    handler: (request, h) => serveImpact(request, h),
   };
 }
 
@@ -91,11 +103,8 @@ async function safeComputeImpact(
   try {
     return await computeImpact(dgraph, repo, files, { docs, protocol });
   } catch (err) {
-    const reason =
-      err instanceof Error ? (err.stack ?? err.message) : String(err);
-
     console.error(
-      `[impact] query failed for ${repo} (Dgraph reachable but errored): ${reason}`,
+      `[impact] query failed for ${repo} (Dgraph reachable but errored): ${failureReason(err)}`,
     );
 
     return UNAVAILABLE;

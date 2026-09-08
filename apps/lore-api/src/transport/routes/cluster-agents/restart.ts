@@ -1,6 +1,11 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
@@ -25,15 +30,24 @@ export interface RestartDeps {
   restart: () => Promise<void>;
 }
 
+type RestartResult =
+  | { code: 200; body: z.infer<typeof RestartResponse> }
+  | { code: 400 | 404; body: { error: string } };
+
+/** A satellite is refused rather than queued: lore-api has no inbound path to it, so pretending to restart one would report a bounce that never happened. */
+const SATELLITE_UNREACHABLE = {
+  code: 400 as const,
+  body: {
+    error:
+      "only the central cluster-agent is reachable from lore-api — a satellite has no inbound path",
+  },
+};
+
 /** The handler core, injectable for tests. */
 export async function handleRestart(
   deps: RestartDeps,
   id: string,
-): Promise<
-  | { code: 200; body: z.infer<typeof RestartResponse> }
-  | { code: 400; body: { error: string } }
-  | { code: 404; body: { error: string } }
-> {
+): Promise<RestartResult> {
   const agent = await deps.agents.findById(id);
 
   if (!agent) {
@@ -41,13 +55,7 @@ export async function handleRestart(
   }
 
   if (agent.name !== CENTRAL_CLUSTER_AGENT_NAME) {
-    return {
-      code: 400,
-      body: {
-        error:
-          "only the central cluster-agent is reachable from lore-api — a satellite has no inbound path",
-      },
-    };
+    return SATELLITE_UNREACHABLE;
   }
 
   await deps.restart();
@@ -56,6 +64,24 @@ export async function handleRestart(
     code: 200,
     body: { id: agent.id, name: agent.name, restarted: true },
   };
+}
+
+/** Bounces the central cluster-agent's pod. */
+async function serveRestart(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  const result = await handleRestart(
+    { agents: new PgClusterAgents(pool), restart: restartClusterAgent },
+    request.params.id,
+  );
+
+  return h.response(result.body).code(result.code);
 }
 
 export function clusterAgentRestartRoute(
@@ -70,17 +96,6 @@ export function clusterAgentRestartRoute(
         "Bounces the central cluster-agent so it re-pulls the latest image on restart. Refused for a satellite — lore-api has no inbound path to it.",
       errors: [400, 404],
     }),
-    handler: async (request: Request, h: ResponseToolkit) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-      const result = await handleRestart(
-        { agents: new PgClusterAgents(pool), restart: restartClusterAgent },
-        request.params.id,
-      );
-
-      return h.response(result.body).code(result.code);
-    },
+    handler: (request, h) => serveRestart(getPool, request, h),
   };
 }

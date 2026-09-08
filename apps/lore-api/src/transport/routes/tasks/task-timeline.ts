@@ -67,17 +67,13 @@ function extrasField(
   return trailers.extras ? { extras: trailers.extras } : {};
 }
 
-/** One stage commit, or `null` when the commit carries no Lore trailers. */
-function buildStageCommit(
+/** The wire shape of a commit already known to carry Lore trailers. */
+function stageCommitOf(
   c: RawCommit,
+  trailers: NonNullable<ReturnType<typeof parseTrailers>>,
   prevTimeMs: number,
-): TimelineCommit | null {
+): TimelineCommit {
   const { message } = c.commit;
-  const trailers = parseTrailers(message);
-
-  if (!trailers) {
-    return null;
-  }
   const committedIso = committedIsoOf(c);
   const committedMs = new Date(committedIso).getTime();
 
@@ -91,6 +87,17 @@ function buildStageCommit(
     summary: message.split("\n")[0],
     ...extrasField(trailers),
   };
+}
+
+/** One stage commit, or `null` when the commit carries no Lore trailers. */
+function buildStageCommit(
+  c: RawCommit,
+  prevTimeMs: number,
+): TimelineCommit | null {
+  const { message } = c.commit;
+  const trailers = parseTrailers(message);
+
+  return trailers ? stageCommitOf(c, trailers, prevTimeMs) : null;
 }
 
 export function buildTimeline(
@@ -130,8 +137,25 @@ function leaseFromRow(row: { holder: string; expires_at: string }): {
   };
 }
 
+/** The lease is read last: it says whether anyone holds the branch right now, which only matters once there are commits to hold. */
+async function historyView(
+  pool: Pool,
+  history: BranchCommits,
+  branchName: string,
+  createdAt: Date,
+): Promise<Record<string, unknown>> {
+  const commits = buildTimeline(history.commits, createdAt);
+
+  return {
+    pr_state: history.prState,
+    commits,
+    current_stage: commits.at(-1)?.stage ?? null,
+    lease: await readLease(pool, branchName),
+  };
+}
+
 /** Two of the three outcomes are not errors: a task with no branch yet has no timeline to read, and a deleted branch is a merged or abandoned one. Only GitHub failing is a 500. */
-/** The timeline from the branch's own history. A DELETED branch is reported as such rather than as an empty timeline — the work happened, and saying "no commits" would read as the task having done nothing. The lease is read last: it says whether anyone is holding the branch right now, which only matters once there are commits to hold. */
+/** The timeline from the branch's own history. A DELETED branch is reported as such rather than as an empty timeline — the work happened, and saying "no commits" would read as the task having done nothing. */
 async function branchTimeline(
   pool: Pool,
   task: TimelineTaskRow,
@@ -148,13 +172,34 @@ async function branchTimeline(
   }
 
   enforceTrue(history !== "github-error", apiError(500), "github_api");
-  const commits = buildTimeline(history.commits, task.created_at);
 
+  return historyView(pool, history, branch.name, task.created_at);
+}
+
+/** The identity half of the response, shared by every timeline outcome. */
+function timelineBase(
+  taskId: string,
+  task: TimelineTaskRow,
+): Record<string, unknown> {
   return {
-    pr_state: history.prState,
-    commits,
-    current_stage: commits.at(-1)?.stage ?? null,
-    lease: await readLease(pool, branch.name),
+    task_id: taskId,
+    branch_name: task.target_branch,
+    repo: task.target_repo,
+    pr_number: task.pr_number,
+    pr_url: task.pr_url,
+  };
+}
+
+// A task with no branch yet is PENDING, not empty: it has not failed to produce commits, it has not started.
+function pendingTimeline(
+  base: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...base,
+    pr_state: null,
+    commits: [],
+    current_stage: null,
+    pending: "no_branch",
   };
 }
 
@@ -165,32 +210,14 @@ async function taskTimeline(
   const task = await readTaskRow(pool, taskId);
 
   enforceTrue(task, apiError(404), "task_not_found");
-  const base = {
-    task_id: taskId,
-    branch_name: task.target_branch,
-    repo: task.target_repo,
-    pr_number: task.pr_number,
-    pr_url: task.pr_url,
-  };
+  const base = timelineBase(taskId, task);
 
-  // A task with no branch yet is PENDING, not empty: it has not failed to produce commits, it has not started.
   if (!task.target_repo || !task.target_branch) {
-    return {
-      ...base,
-      pr_state: null,
-      commits: [],
-      current_stage: null,
-      pending: "no_branch",
-    };
+    return pendingTimeline(base);
   }
+  const branch = { repo: task.target_repo, name: task.target_branch };
 
-  return {
-    ...base,
-    ...(await branchTimeline(pool, task, {
-      repo: task.target_repo,
-      name: task.target_branch,
-    })),
-  };
+  return { ...base, ...(await branchTimeline(pool, task, branch)) };
 }
 
 export function timelineRoute(getPool: () => Pool | null): ServerRoute {
@@ -253,10 +280,31 @@ async function listBranchCommits(
 }
 
 /** What a branch read can answer: its history, or one of the two ways there is no history to report. Both non-answers are values rather than throws — the caller reports each of them differently, and neither is a failure of this service. */
-type BranchHistory =
-  | { commits: RawCommit[]; prState: "open" | "closed" | "merged" | null }
-  | "branch-deleted"
-  | "github-error";
+interface BranchCommits {
+  commits: RawCommit[];
+  prState: "open" | "closed" | "merged" | null;
+}
+
+type BranchHistory = BranchCommits | "branch-deleted" | "github-error";
+
+/** The happy path of a branch read, left to throw so its caller owns every way it can fail. */
+async function fetchBranchHistory(
+  repo: string,
+  branch: string,
+  prNumber: number | null,
+): Promise<BranchCommits> {
+  const [owner, repoName] = repo.split("/");
+  const { repos, pulls } = (await getOctokit()).rest;
+  const target = { owner, repo: repoName, branch };
+  const commits = await listBranchCommits(repos, target);
+
+  return {
+    commits,
+    prState: prNumber
+      ? await readPrState(pulls, owner, repoName, prNumber)
+      : null,
+  };
+}
 
 /** Read through the GitHub API rather than a checkout — the branch is the remote source of truth, and this service holds no clone. A 404 means the branch is gone, which the caller reports rather than treating as failure. */
 async function readBranchHistory(
@@ -265,20 +313,7 @@ async function readBranchHistory(
   prNumber: number | null,
 ): Promise<BranchHistory> {
   try {
-    const [owner, repoName] = repo.split("/");
-    const { repos, pulls } = (await getOctokit()).rest;
-    const commits = await listBranchCommits(repos, {
-      owner,
-      repo: repoName,
-      branch,
-    });
-
-    return {
-      commits,
-      prState: prNumber
-        ? await readPrState(pulls, owner, repoName, prNumber)
-        : null,
-    };
+    return await fetchBranchHistory(repo, branch, prNumber);
   } catch (err) {
     if ((err as { status?: number }).status === 404) {
       return "branch-deleted";

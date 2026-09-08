@@ -1,5 +1,10 @@
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { getHealthStatus } from "@re-cinq/lore-server-core/platform/db.js";
 import { validateClientToken } from "../../http/auth.js";
 
@@ -37,29 +42,36 @@ async function fetchTaskStats(
   }
 }
 
+/** Liveness plus, for a reader-scoped caller, the task counters. */
+async function serveHealthz(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+  const health = await getHealthStatus();
+  const { status, code } = healthResponseStatus(health.connected);
+  const bearer = bearerToken(request.headers.authorization);
+  const isAuthed = bearer
+    ? await validateClientToken(pool, bearer, "read")
+    : false;
+
+  if (!isAuthed) {
+    return h.response({ status }).code(code);
+  }
+
+  const tasks =
+    health.connected && pool ? await fetchTaskStats(pool) : ZERO_TASKS;
+
+  return h.response({ status, database: health, tasks }).code(code);
+}
+
 /** GET /healthz — liveness + readiness probe; auth optional for stats. */
 export function healthzRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/healthz",
     options: { auth: false },
-    handler: async (request, h) => {
-      const pool = getPool();
-      const health = await getHealthStatus();
-      const { status, code } = healthResponseStatus(health.connected);
-      const bearer = bearerToken(request.headers.authorization);
-      const isAuthed = bearer
-        ? await validateClientToken(pool, bearer, "read")
-        : false;
-
-      if (!isAuthed) {
-        return h.response({ status }).code(code);
-      }
-
-      const tasks =
-        health.connected && pool ? await fetchTaskStats(pool) : ZERO_TASKS;
-
-      return h.response({ status, database: health, tasks }).code(code);
-    },
+    handler: (request, h) => serveHealthz(getPool, request, h),
   };
 }

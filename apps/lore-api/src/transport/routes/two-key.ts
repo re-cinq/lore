@@ -35,6 +35,15 @@ function approvalFailure(err: unknown): ApprovalOutcome {
   return { ok: false, code: 503, body: { error: "github_api_unavailable" } };
 }
 
+/** The second key was never presented: no approval-PR header on a write that needs one. */
+function twoKeyRequired(fieldPaths: string[], detail: string): ApprovalOutcome {
+  return {
+    ok: false,
+    code: 403,
+    body: { error: "two_key_required", field_paths: fieldPaths, detail },
+  };
+}
+
 export async function checkApproval(
   request: Request,
   repo: string,
@@ -44,11 +53,7 @@ export async function checkApproval(
   const prRef = request.headers["x-lore-approval-pr"];
 
   if (typeof prRef !== "string" || !prRef) {
-    return {
-      ok: false,
-      code: 403,
-      body: { error: "two_key_required", field_paths: fieldPaths, detail },
-    };
+    return twoKeyRequired(fieldPaths, detail);
   }
 
   try {

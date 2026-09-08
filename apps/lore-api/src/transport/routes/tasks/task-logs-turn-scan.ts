@@ -112,6 +112,18 @@ interface TurnScanPageContext {
   sawTurns: boolean;
 }
 
+// The terminal step, carrying the slice the scan accumulated; `sliced` says the budget ran out mid-row, which is what "there is more" means here.
+function scanDone(
+  state: TurnScanState,
+  context: TurnScanPageContext,
+  sliced: boolean,
+): TurnScanStep {
+  return {
+    kind: "done",
+    result: turnSliceResult(context.taskId, state, sliced, context.sawTurns),
+  };
+}
+
 // Folds one fetched page into the scan, deciding whether the walk restarts, finishes, or continues.
 function stepTurnScan(
   state: TurnScanState,
@@ -128,15 +140,7 @@ function stepTurnScan(
   }
 
   if (outcome === "sliced" || page.length < TURNS_PAGE_SIZE) {
-    return {
-      kind: "done",
-      result: turnSliceResult(
-        context.taskId,
-        state,
-        outcome === "sliced",
-        context.sawTurns,
-      ),
-    };
+    return scanDone(state, context, outcome === "sliced");
   }
 
   return { kind: "continue", afterId: nextPageAfterId(page, state) };
@@ -151,6 +155,29 @@ function nextPageAfterId(
   return last ? last.id : state.boundaryId;
 }
 
+// Pages forward until the scan finishes; `null` means the resume cursor proved stale and the whole walk has to start over from row id 0.
+async function walkTurnPages(
+  turns: AgentRunTurnsRepository,
+  { taskId, offset }: { taskId: string; offset: number },
+  scan: { state: TurnScanState; afterId: string; sawTurns: boolean },
+): Promise<TurnSlice | null> {
+  const { state } = scan;
+  let afterId = scan.afterId;
+  let sawTurns = scan.sawTurns;
+
+  for (;;) {
+    const page = await turns.listByTask(taskId, afterId, TURNS_PAGE_SIZE);
+
+    sawTurns = sawTurns || page.length > 0;
+    const step = stepTurnScan(state, page, { taskId, offset, sawTurns });
+
+    if (step.kind !== "continue") {
+      return step.kind === "done" ? step.result : null;
+    }
+    afterId = step.afterId;
+  }
+}
+
 // Flattens turns to the UTF-16 slice [offset, offset+LOG_SLICE_MAX); `resume` seeks straight to the previous cursor's row boundary instead of re-paging the whole prefix (#1307) — a stale/forged offset past the boundary falls back to a full rescan from row id 0, while an at-boundary cursor is trusted as-is (bearer-scoped, so a forged skip only affects the forger's own read); a rewind below the boundary self-heals the same way.
 export async function readTurnSlice(
   turns: AgentRunTurnsRepository,
@@ -158,30 +185,10 @@ export async function readTurnSlice(
   offset: number,
   resume: TurnResume | null,
 ): Promise<TurnSlice> {
-  const {
-    state,
-    afterId: startId,
-    sawTurns: startSawTurns,
-  } = initTurnScanState(resume, offset);
-  let afterId = startId;
-  let sawTurns = startSawTurns;
+  const scan = initTurnScanState(resume, offset);
+  const walked = await walkTurnPages(turns, { taskId, offset }, scan);
 
-  for (;;) {
-    const page = await turns.listByTask(taskId, afterId, TURNS_PAGE_SIZE);
-
-    sawTurns = sawTurns || page.length > 0;
-
-    const step = stepTurnScan(state, page, { taskId, offset, sawTurns });
-
-    if (step.kind === "restart") {
-      return readTurnSlice(turns, taskId, offset, null);
-    }
-
-    if (step.kind === "done") {
-      return step.result;
-    }
-    afterId = step.afterId;
-  }
+  return walked ?? readTurnSlice(turns, taskId, offset, null);
 }
 
 interface TurnScanState {

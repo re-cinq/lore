@@ -4,7 +4,12 @@ import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-pg.js";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -42,6 +47,32 @@ const TaskLogSliceSchema = z.object({
 
 const LogsAcceptedSchema = z.object({ ok: z.literal(true) });
 
+/** The GCS bucket the mcp local runner's log buffers live in; imported lazily so a deployment without GCS never loads the client. */
+async function logBucket() {
+  const { Storage } = await import("@google-cloud/storage");
+
+  return new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
+}
+
+/** Stores one local run's whole buffer; a re-POST overwrites rather than appends. */
+async function storeTaskLogs(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  try {
+    const { task_id, repo, logs } = request.payload as TaskLogsBody;
+    const bucket = await logBucket();
+
+    await bucket
+      .file(`${repo}/${task_id}/output.log`)
+      .save(logs, { resumable: false, contentType: "text/plain" });
+
+    return h.response({ ok: true });
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function taskLogsPostRoute(): ServerRoute {
   return {
     method: "POST",
@@ -54,23 +85,7 @@ export function taskLogsPostRoute(): ServerRoute {
       LogsAcceptedSchema,
       { name: "TaskLogsAccepted", description: "The log buffer was stored" },
     ),
-    handler: async (request, h) => {
-      try {
-        const { task_id, repo, logs } = request.payload as TaskLogsBody;
-        const { Storage } = await import("@google-cloud/storage");
-        const bucket = new Storage().bucket(
-          process.env.LORE_LOG_BUCKET || "lore-task-logs",
-        );
-
-        await bucket
-          .file(`${repo}/${task_id}/output.log`)
-          .save(logs, { resumable: false, contentType: "text/plain" });
-
-        return h.response({ ok: true });
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => storeTaskLogs(request, h),
   };
 }
 
@@ -166,36 +181,43 @@ interface LogsBucketRead {
   finished: boolean;
 }
 
+interface TranscriptSlice {
+  logs: string;
+  next_offset: number;
+  complete: boolean;
+}
+
+type LogFile = ReturnType<Awaited<ReturnType<typeof logBucket>>["file"]>;
+
+/** The stored buffer from `offset` on. The whole object is downloaded because GCS holds it as one blob — there is no server-side range this read could push down. */
+async function downloadedSlice(
+  file: LogFile,
+  offset: number,
+  complete: boolean,
+): Promise<TranscriptSlice> {
+  const [content] = await file.download();
+  const full = content.toString("utf-8");
+
+  return { logs: full.substring(offset), next_offset: full.length, complete };
+}
+
 async function readLogsBucket({
   pool,
   repo,
   taskId,
   offset,
   finished,
-}: LogsBucketRead): Promise<{
-  logs: string;
-  next_offset: number;
-  complete: boolean;
-}> {
-  const { Storage } = await import("@google-cloud/storage");
-  const bucket = new Storage().bucket(
-    process.env.LORE_LOG_BUCKET || "lore-task-logs",
-  );
+}: LogsBucketRead): Promise<TranscriptSlice> {
+  const bucket = await logBucket();
   const file = bucket.file(`${repo}/${taskId}/output.log`);
   const [exists] = await file.exists();
 
   if (!exists) {
     return { logs: "", next_offset: 0, complete: finished };
   }
-  const [content] = await file.download();
-  const full = content.toString("utf-8");
 
   // The local runner re-POSTs the full buffer while running, so a bucket hit doesn't mean the run ended; no pool means no status to check.
-  return {
-    logs: full.substring(offset),
-    next_offset: full.length,
-    complete: pool ? finished : true,
-  };
+  return downloadedSlice(file, offset, pool ? finished : true);
 }
 
 /** A slice of one task's transcript, from whichever source holds it. The TURN STORE is read first: a cluster run streams into `pipeline.agent_run_turns` while it works, and the log bucket is only ever written by the mcp local runner — so a cluster task has turns and no bucket, and a local one has the reverse. */
@@ -223,6 +245,23 @@ async function readTranscript(
   });
 }
 
+async function serveTaskLogs(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const query = request.query as unknown as TaskLogsQuery;
+
+  try {
+    return h.response(await readTranscript(getPool(), query));
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
 export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -239,17 +278,6 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
         errors: [404],
       },
     ),
-    handler: async (request, h) => {
-      const query = request.query as unknown as TaskLogsQuery;
-
-      try {
-        return h.response(await readTranscript(getPool(), query));
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        return h.response({ error: errorMessage(err) }).code(500);
-      }
-    },
+    handler: (request, h) => serveTaskLogs(getPool, request, h),
   };
 }
