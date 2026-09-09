@@ -14,6 +14,44 @@ import {
 
 const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
+export async function cleanupStaleTasks(): Promise<void> {
+  const tasks = readTasks();
+  let changed = false;
+
+  for (const task of tasks) {
+    if (task.status !== "running") {
+      continue;
+    }
+
+    if (isProcessAlive(task.pid)) {
+      continue;
+    }
+
+    await recoverStaleTask(task);
+    changed = true;
+  }
+
+  if (changed) {
+    writeTasks(tasks);
+  }
+}
+
+/** Marks a dead task failed, best-effort-cleans its orphaned worktree, and re-queues it for GKE when stale enough. */
+async function recoverStaleTask(task: LocalTask): Promise<void> {
+  task.status = "failed";
+  task.error = "Process exited unexpectedly";
+
+  try {
+    removeOrphanedWorktree(task.worktreePath);
+  } catch {
+    /* best effort */
+  }
+
+  if (isStaleForRequeue(task.startedAt)) {
+    await requeueStaleTask(task);
+  }
+}
+
 /** Removes an orphaned worktree by resolving its main repo from the .git file. */
 function removeOrphanedWorktree(worktreePath: string): void {
   if (!fs.existsSync(worktreePath)) {
@@ -37,6 +75,11 @@ function removeOrphanedWorktree(worktreePath: string): void {
   });
 }
 
+/** True once a dead task has been unattended long enough that the machine likely slept. */
+function isStaleForRequeue(startedAt: string): boolean {
+  return Date.now() - new Date(startedAt).getTime() > STALE_THRESHOLD_MS;
+}
+
 /** Re-queues a stale local task for GKE (best effort). */
 async function requeueStaleTask(task: LocalTask): Promise<void> {
   const apiUrl = getApiUrl();
@@ -55,48 +98,5 @@ async function requeueStaleTask(task: LocalTask): Promise<void> {
     console.log(`[lore] Stale local task ${task.taskId} re-queued for GKE`);
   } catch {
     /* best effort */
-  }
-}
-
-/** True once a dead task has been unattended long enough that the machine likely slept. */
-function isStaleForRequeue(startedAt: string): boolean {
-  return Date.now() - new Date(startedAt).getTime() > STALE_THRESHOLD_MS;
-}
-
-/** Marks a dead task failed, best-effort-cleans its orphaned worktree, and re-queues it for GKE when stale enough. */
-async function recoverStaleTask(task: LocalTask): Promise<void> {
-  task.status = "failed";
-  task.error = "Process exited unexpectedly";
-
-  try {
-    removeOrphanedWorktree(task.worktreePath);
-  } catch {
-    /* best effort */
-  }
-
-  if (isStaleForRequeue(task.startedAt)) {
-    await requeueStaleTask(task);
-  }
-}
-
-export async function cleanupStaleTasks(): Promise<void> {
-  const tasks = readTasks();
-  let changed = false;
-
-  for (const task of tasks) {
-    if (task.status !== "running") {
-      continue;
-    }
-
-    if (isProcessAlive(task.pid)) {
-      continue;
-    }
-
-    await recoverStaleTask(task);
-    changed = true;
-  }
-
-  if (changed) {
-    writeTasks(tasks);
   }
 }

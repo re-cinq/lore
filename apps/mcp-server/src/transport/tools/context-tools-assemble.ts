@@ -23,10 +23,6 @@ interface AssembleContextExtraArgs {
   agent_id?: string;
 }
 
-function resolveRepoLabel(repo: string | undefined): string {
-  return repo || detectCurrentRepo() || "";
-}
-
 const ASSEMBLE_CONTEXT_INPUT = {
   query: z
     .string()
@@ -62,6 +58,51 @@ const ASSEMBLE_CONTEXT_INPUT = {
     ),
 };
 
+export function registerAssembleContextTool(server: McpServer) {
+  server.tool(
+    "lore_assemble_context",
+    `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
+Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
+    ASSEMBLE_CONTEXT_INPUT,
+    async (args) =>
+      trackLatency("lore_assemble_context", async () => {
+        try {
+          return await assembleContext(args);
+        } catch (err) {
+          return textResult(`Error assembling context: ${errorMessage(err)}`);
+        }
+      }),
+  );
+}
+
+/** The mandatory first call, served entirely by the API — the adapter holds no pool, so with no LORE_API_URL there is nothing to degrade to and it says so instead of returning an empty bundle. */
+async function assembleContext(args: {
+  query: string;
+  template: string;
+  max_tokens?: number;
+  repo?: string;
+  agent_id?: string;
+  cross_repo?: boolean;
+}) {
+  const { query, template, max_tokens, repo, agent_id, cross_repo } = args;
+
+  if (!process.env.LORE_API_URL || !process.env.LORE_INGEST_TOKEN) {
+    return textResult(
+      "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
+    );
+  }
+  const resolvedRepo = resolveRepoLabel(repo);
+  const extras = buildAssembleExtras({ max_tokens, cross_repo, agent_id });
+
+  return interpretProxiedContext(
+    await cachedAssemble({ query, template, repo: resolvedRepo }, extras),
+  );
+}
+
+function resolveRepoLabel(repo: string | undefined): string {
+  return repo || detectCurrentRepo() || "";
+}
+
 function buildAssembleExtras(
   args: AssembleContextExtraArgs,
 ): Record<string, string> {
@@ -80,6 +121,22 @@ function buildAssembleExtras(
   }
 
   return extras;
+}
+
+/** Cached for 10 minutes on the query itself: a session re-orienting asks the same question repeatedly, and each miss is a full assembly across every source. */
+async function cachedAssemble(
+  key: { query: string; template: string; repo: string },
+  extras: Record<string, string>,
+): Promise<ProxyResult> {
+  return withReadCache(
+    {
+      tool: "lore_assemble_context",
+      args: { ...key, ...extras },
+      repo: key.repo || undefined,
+      ttlSeconds: 600,
+    },
+    () => fetchAssembledContext(new URLSearchParams({ ...key, ...extras })),
+  );
 }
 
 async function fetchAssembledContext(
@@ -115,62 +172,5 @@ async function interpretProxiedContext(
 
   return textResult(
     "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
-  );
-}
-
-/** Cached for 10 minutes on the query itself: a session re-orienting asks the same question repeatedly, and each miss is a full assembly across every source. */
-async function cachedAssemble(
-  key: { query: string; template: string; repo: string },
-  extras: Record<string, string>,
-): Promise<ProxyResult> {
-  return withReadCache(
-    {
-      tool: "lore_assemble_context",
-      args: { ...key, ...extras },
-      repo: key.repo || undefined,
-      ttlSeconds: 600,
-    },
-    () => fetchAssembledContext(new URLSearchParams({ ...key, ...extras })),
-  );
-}
-
-/** The mandatory first call, served entirely by the API — the adapter holds no pool, so with no LORE_API_URL there is nothing to degrade to and it says so instead of returning an empty bundle. */
-async function assembleContext(args: {
-  query: string;
-  template: string;
-  max_tokens?: number;
-  repo?: string;
-  agent_id?: string;
-  cross_repo?: boolean;
-}) {
-  const { query, template, max_tokens, repo, agent_id, cross_repo } = args;
-
-  if (!process.env.LORE_API_URL || !process.env.LORE_INGEST_TOKEN) {
-    return textResult(
-      "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
-    );
-  }
-  const resolvedRepo = resolveRepoLabel(repo);
-  const extras = buildAssembleExtras({ max_tokens, cross_repo, agent_id });
-
-  return interpretProxiedContext(
-    await cachedAssemble({ query, template, repo: resolvedRepo }, extras),
-  );
-}
-
-export function registerAssembleContextTool(server: McpServer) {
-  server.tool(
-    "lore_assemble_context",
-    `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
-Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
-    ASSEMBLE_CONTEXT_INPUT,
-    async (args) =>
-      trackLatency("lore_assemble_context", async () => {
-        try {
-          return await assembleContext(args);
-        } catch (err) {
-          return textResult(`Error assembling context: ${errorMessage(err)}`);
-        }
-      }),
   );
 }

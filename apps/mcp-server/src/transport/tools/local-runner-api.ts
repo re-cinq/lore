@@ -7,29 +7,6 @@ interface ApiCredentials {
   token: string;
 }
 
-function resolveApiCredentials(): ApiCredentials | null {
-  const apiUrl = process.env.LORE_API_URL || "";
-  const token = process.env.LORE_INGEST_TOKEN || "";
-
-  return apiUrl && token ? { apiUrl, token } : null;
-}
-
-// /api/task is both the create and the claim endpoint — the action is carried in the body, so one poster serves both callers.
-function postTask(
-  creds: ApiCredentials,
-  body: Record<string, unknown>,
-): Promise<Response> {
-  return fetch(`${creds.apiUrl}/api/task`, {
-    signal: AbortSignal.timeout(30_000),
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${creds.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-}
-
 /** Registers the task via the API, returning the server-issued id, or null when offline. */
 export async function createPipelineTaskViaApi(
   description: string,
@@ -50,6 +27,13 @@ export async function createPipelineTaskViaApi(
   });
 }
 
+function resolveApiCredentials(): ApiCredentials | null {
+  const apiUrl = process.env.LORE_API_URL || "";
+  const token = process.env.LORE_INGEST_TOKEN || "";
+
+  return apiUrl && token ? { apiUrl, token } : null;
+}
+
 async function postTaskCreate(
   creds: ApiCredentials,
   body: Record<string, unknown>,
@@ -64,6 +48,22 @@ async function postTaskCreate(
   }
 }
 
+// /api/task is both the create and the claim endpoint — the action is carried in the body, so one poster serves both callers.
+function postTask(
+  creds: ApiCredentials,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  return fetch(`${creds.apiUrl}/api/task`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${creds.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 // Lore's own /api/task/{id} wire response (mirrors pipeline.tasks columns).
 // eslint-disable-next-line re-lint/no-row-types-outside-models
 interface FetchedTask {
@@ -74,28 +74,6 @@ interface FetchedTask {
   target_repo: string;
   issue_number?: number;
   created_at: string;
-}
-
-function toPendingTask(fetchedTask: FetchedTask): PendingTask | undefined {
-  if (fetchedTask.status !== "pending") {
-    return undefined;
-  }
-
-  return {
-    id: fetchedTask.id,
-    description: fetchedTask.description,
-    task_type: fetchedTask.task_type,
-    target_repo: fetchedTask.target_repo,
-    issue_number: fetchedTask.issue_number,
-    created_at: fetchedTask.created_at,
-  };
-}
-
-function getTask(creds: ApiCredentials, taskId: string): Promise<Response> {
-  return fetch(`${creds.apiUrl}/api/task/${taskId}`, {
-    signal: AbortSignal.timeout(30_000),
-    headers: { Authorization: `Bearer ${creds.token}` },
-  });
 }
 
 /** Fetches one task from the API; undefined when unreachable or not pending. */
@@ -120,6 +98,28 @@ export async function fetchPendingTaskFromApi(
   } catch {
     return undefined;
   }
+}
+
+function getTask(creds: ApiCredentials, taskId: string): Promise<Response> {
+  return fetch(`${creds.apiUrl}/api/task/${taskId}`, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { Authorization: `Bearer ${creds.token}` },
+  });
+}
+
+function toPendingTask(fetchedTask: FetchedTask): PendingTask | undefined {
+  if (fetchedTask.status !== "pending") {
+    return undefined;
+  }
+
+  return {
+    id: fetchedTask.id,
+    description: fetchedTask.description,
+    task_type: fetchedTask.task_type,
+    target_repo: fetchedTask.target_repo,
+    issue_number: fetchedTask.issue_number,
+    created_at: fetchedTask.created_at,
+  };
 }
 
 /** Local pending cache first, then the API fallback (supports cross-repo tasks). */
