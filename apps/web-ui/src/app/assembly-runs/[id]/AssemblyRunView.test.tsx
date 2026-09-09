@@ -131,4 +131,40 @@ describe("AssemblyRunView", () => {
       "Assembly Runs / re-cinq/lore / code-review",
     );
   });
+  it("steps through the repo's backlog for a run the implementation loop started", () => {
+    const { container } = render(
+      <AssemblyRunView run={run({ blueprintName: "implementation-loop" })} />,
+    );
+    const trail = container.querySelector(".breadcrumb");
+
+    expect(
+      Array.from(trail?.querySelectorAll("a") ?? []).map((a) =>
+        a.getAttribute("href"),
+      ),
+    ).toEqual([
+      "/assembly-runs",
+      "/repos/re-cinq/lore",
+      "/repos/re-cinq/lore/implementation-loop",
+    ]);
+  });
+
+  it("reads the backlog step by name between the repo and the line", () => {
+    const { container } = render(
+      <AssemblyRunView run={run({ blueprintName: "implementation-loop" })} />,
+    );
+
+    expect(container.querySelector(".breadcrumb")).toHaveTextContent(
+      "Assembly Runs / re-cinq/lore / Backlog / implementation-loop",
+    );
+  });
+
+  it("leaves the backlog out of a run no backlog started", () => {
+    const { container } = render(<AssemblyRunView run={run()} />);
+
+    expect(
+      container.querySelector(
+        'a[href="/repos/re-cinq/lore/implementation-loop"]',
+      ),
+    ).toBeNull();
+  });
 });
