@@ -33,6 +33,16 @@ export interface EventsRouteDeps {
   findByTokenHash?: ReporterAuthDeps["findByTokenHash"];
 }
 
+export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/events",
+    // No hapi auth: two branches authenticate differently; strategy can't pick before handler.
+    options: { auth: false, payload: { parse: false } },
+    handler: captureHandler(deps),
+  };
+}
+
 // Captures one delivery, from either branch. The inserts are SEQUENTIAL on purpose: a partial failure surfaces as a 5xx so the sender retries the whole delivery, and every insert is idempotent, so a retry costs nothing.
 function captureHandler(deps: EventsRouteDeps): Lifecycle.Method {
   return async (request, h) => {
@@ -55,21 +65,28 @@ function captureHandler(deps: EventsRouteDeps): Lifecycle.Method {
   };
 }
 
-export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/events",
-    // No hapi auth: two branches authenticate differently; strategy can't pick before handler.
-    options: { auth: false, payload: { parse: false } },
-    handler: captureHandler(deps),
-  };
-}
-
 /** GitHub's signature header (presence selects branch); validity checked by branch itself. */
 function githubSignature(headers: Record<string, unknown>): string | undefined {
   const sig = headers["x-hub-signature-256"];
 
   return typeof sig === "string" ? sig : undefined;
+}
+
+/** The GitHub branch: verify over the raw body, then map. */
+function fromGitHub(
+  headers: Record<string, unknown>,
+  raw: string,
+  signature: string,
+  deps: EventsRouteDeps,
+): EventInsert[] {
+  const eventType = headers["x-github-event"] as string | undefined;
+  const deliveryId = (headers["x-github-delivery"] as string | undefined) ?? "";
+
+  return mapGitHubEvent(
+    enforceGitHubDelivery(eventType, raw, signature, deps),
+    parseJsonBody(raw, "webhook body"),
+    deliveryId,
+  );
 }
 
 // The three things that must hold before a GitHub body is trusted. Each error names what to fix, because these are read in a delivery log rather than at a terminal: a 500 for the missing secret (503 would tell GitHub to redeliver, but an unset env var needs a redeploy), a 401 for a mismatch, a 400 for a body with no event type.
@@ -92,23 +109,6 @@ function enforceGitHubDelivery(
   enforceTrue(eventType, apiError(400), "missing x-github-event header");
 
   return eventType;
-}
-
-/** The GitHub branch: verify over the raw body, then map. */
-function fromGitHub(
-  headers: Record<string, unknown>,
-  raw: string,
-  signature: string,
-  deps: EventsRouteDeps,
-): EventInsert[] {
-  const eventType = headers["x-github-event"] as string | undefined;
-  const deliveryId = (headers["x-github-delivery"] as string | undefined) ?? "";
-
-  return mapGitHubEvent(
-    enforceGitHubDelivery(eventType, raw, signature, deps),
-    parseJsonBody(raw, "webhook body"),
-    deliveryId,
-  );
 }
 
 /** The reporting branch: validate ingest or per-agent token, return generic shape. */

@@ -23,6 +23,18 @@ export {
   type EdgeConditionValue,
 } from "./assembly-line-schema.js";
 
+// Parses and fully validates an assembly line definition; throws AssemblyLineLoadError on malformed YAML, schema violation, dangling/unreachable nodes, non-exit terminal nodes, uncovered outcomes, or unbounded back-edges.
+export function parseAssemblyLine(
+  yamlSrc: string,
+  source = "<inline>",
+): AssemblyLine {
+  const wf = checkSchema(readYaml(yamlSrc, source), source);
+
+  validateAssemblyLine(wf, source);
+
+  return wf;
+}
+
 // YAML syntax only. The parser's own message is kept and tagged with the file, since "bad indentation at line 12" is the whole diagnosis and rewording it would lose the line number.
 function readYaml(yamlSrc: string, source: string): unknown {
   try {
@@ -33,13 +45,6 @@ function readYaml(yamlSrc: string, source: string): unknown {
       source,
     );
   }
-}
-
-/** Reads a zod failure into one line — the navigation of someone else's error shape, named once. */
-function zodIssueText(error: ZodError): string {
-  const { issues } = error;
-
-  return issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
 }
 
 // Shape only — the graph checks come after. Every issue is reported at once rather than the first: a hand-authored definition usually has more than one, and one round trip per field is a poor way to learn the schema.
@@ -56,16 +61,11 @@ function checkSchema(raw: unknown, source: string): AssemblyLine {
   return parsed.data;
 }
 
-// Parses and fully validates an assembly line definition; throws AssemblyLineLoadError on malformed YAML, schema violation, dangling/unreachable nodes, non-exit terminal nodes, uncovered outcomes, or unbounded back-edges.
-export function parseAssemblyLine(
-  yamlSrc: string,
-  source = "<inline>",
-): AssemblyLine {
-  const wf = checkSchema(readYaml(yamlSrc, source), source);
+/** Reads a zod failure into one line — the navigation of someone else's error shape, named once. */
+function zodIssueText(error: ZodError): string {
+  const { issues } = error;
 
-  validateAssemblyLine(wf, source);
-
-  return wf;
+  return issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
 }
 
 export async function loadAssemblyLineFile(
@@ -74,22 +74,6 @@ export async function loadAssemblyLineFile(
   const yamlSrc = await fs.readFile(filepath, "utf-8");
 
   return parseAssemblyLine(yamlSrc, filepath);
-}
-
-// The YAML files in `dir`, or none when the directory does not exist. A missing directory is not an error: a deployment with no custom definitions has nothing to load, which is different from a directory it could not read.
-async function listYamlFiles(dir: string): Promise<string[]> {
-  let entries: string[];
-
-  try {
-    entries = await fs.readdir(dir);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return [];
-    }
-    throw err;
-  }
-
-  return entries.filter((e) => e.endsWith(".yaml") || e.endsWith(".yml"));
 }
 
 // Loads every `*.yaml`/`*.yml` file under `dir` into a map keyed by assembly-line name; fail-fast on any invalid file or duplicate name.
@@ -111,4 +95,20 @@ export async function loadAssemblyLineDir(
   }
 
   return out;
+}
+
+// The YAML files in `dir`, or none when the directory does not exist. A missing directory is not an error: a deployment with no custom definitions has nothing to load, which is different from a directory it could not read.
+async function listYamlFiles(dir: string): Promise<string[]> {
+  let entries: string[];
+
+  try {
+    entries = await fs.readdir(dir);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+    throw err;
+  }
+
+  return entries.filter((e) => e.endsWith(".yaml") || e.endsWith(".yml"));
 }

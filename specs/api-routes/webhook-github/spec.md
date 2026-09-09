@@ -39,7 +39,7 @@ Registered on the event-router ([registration](../../../apps/event-router/src/tr
   recomputes `sha256=hex(hmac(secret, rawBody))` and constant-time compares.
   No hapi auth strategy runs on the path (the two branches authenticate
   differently). The router bounds bodies at GitHub's 25 MB delivery cap
-  ([body cap](../../../apps/event-router/src/transport/server.ts#L51)), and
+  ([body cap](../../../apps/event-router/src/transport/server.ts#L21)), and
   both ingresses carry the matching `proxy-body-size`.
 - **Request body** (raw, signed): a GitHub webhook JSON payload. Mapped by
   `X-GitHub-Event` (`libs/shared/src/outbound/project/events/github-map.ts`):
