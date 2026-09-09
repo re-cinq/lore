@@ -36,7 +36,7 @@ const DRAIN_TIMEOUT_MS = 5_000;
 /** This agent's per-agent token once registered, lived here since the reporter and the claim loop are wired together in this composition root. */
 let agentToken: string | undefined;
 
-// Chosen ONCE at boot by selectReporterToken, not resolved per call: a central cluster reports with the LORE_INGEST_TOKEN it mounts, a satellite with the per-agent token registration mints (still a thunk there, so re-registration rotations are picked up). The old `LORE_INGEST_TOKEN ?? agentToken` let the variable appear on a satellite AFTER boot and shadow the per-agent token — the 2026-08-24 outage, where each end typechecked and every call 401'd.
+// The STRATEGY is chosen once at boot, the token itself per call: every cluster reports as itself with the per-agent token registration mints, and a central one falls back to the LORE_INGEST_TOKEN it mounts only until that token exists. The old `LORE_INGEST_TOKEN ?? agentToken` inverted it — central always has the variable set, so it never reached the per-agent token and never authenticated as itself; the same shadowing on a satellite was the 2026-08-24 outage, where each end typechecked and every call 401'd.
 const currentToken = selectReporterToken(process.env, () => agentToken);
 
 // A THUNK — see currentToken. Absent EVENT_ROUTER_URL there is no reporter to build.
