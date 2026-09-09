@@ -10,19 +10,6 @@ const LiveSchema = z.object({
   station_run_id: z.string().nullable(),
 });
 
-// What is LEFT (no API exposes a balance, so it's whatever a person recorded in credit_ledger); null (not zero) when unmigrated/empty, same distinction billed.available draws.
-export const BudgetSchema = z
-  .object({
-    ledger_total_usd: z.number(),
-    // Billed spend through billed_through plus Lore-computed spend strictly after it, summed to one number.
-    spent_since_usd: z.number(),
-    // Deliberately allowed to go negative: clamping at zero would hide the overrun that matters most.
-    remaining_usd: z.number(),
-    // The earliest ledger effective_at, as an ISO-8601 UTC instant (not a day) so a stale anchor is visible and a midday top-up isn't charged the prior morning's spend.
-    anchored_at: z.string(),
-  })
-  .nullable();
-
 export const SpendWindowSchema = z.object({
   interval: z.object({ from: z.string(), to: z.string() }),
   llm: z.object({
@@ -106,7 +93,6 @@ export const SpendWindowSchema = z.object({
     unbilled_usd: z.number(),
     unbilled_days: z.number(),
   }),
-  budget: BudgetSchema,
   // Google's own billing (gcp_cost_daily, via gcp-cost-sync + Cloud Billing export); authoritative counterpart to the compute ESTIMATE below, reported beside it, net of credits.
   gcp: z.object({
     available: z.boolean(),

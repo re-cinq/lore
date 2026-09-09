@@ -25,7 +25,7 @@ function DailyBilledTable({ title, rows }: DailyBilledProps) {
   );
 }
 
-/** The invoice split by model. A row with no model name is billing that is not per-token — it is labelled rather than hidden, because it still comes out of the same balance. */
+/** The invoice split by model. A row with no model name is billing that is not per-token — it is labelled rather than hidden, because it still lands on the same invoice. */
 function BilledByModel({ byModel }: BilledByModelProps) {
   return (
     <CostTable

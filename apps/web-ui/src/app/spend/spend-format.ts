@@ -1,5 +1,3 @@
-import type { BudgetRow } from "./SpendView";
-
 export const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
@@ -22,56 +20,3 @@ export const stamp = (iso: string) => {
     `${pad(t.getHours())}:${pad(t.getMinutes())}`
   );
 };
-
-const MS_PER_DAY = 86_400_000;
-
-/** Local midnight for a `YYYY-MM-DD` day, for the reason `day` gives. */
-const midnight = (isoDay: string) => {
-  const [year, month, dayOfMonth] = isoDay.split("-").map(Number);
-
-  return new Date(year, month - 1, dayOfMonth);
-};
-
-/** Anchor day: parse as string, not Date, to avoid UTC→local timezone shift. */
-export const anchorDay = (anchoredAt: string) => anchoredAt.slice(0, 10);
-
-/** Clock part, or null if entry anchors to start of day (no known time). */
-export const anchorTime = (anchoredAt: string) => {
-  const clock = anchoredAt.slice(11, 16);
-
-  return !clock || clock === "00:00" ? null : clock;
-};
-
-/** Whole days from the anchor day through today, counting today itself. */
-function elapsedDaysSince(anchoredAt: string, today: Date): number {
-  const startOfToday = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate(),
-  );
-
-  return (
-    Math.round(
-      (startOfToday.getTime() - midnight(anchorDay(anchoredAt)).getTime()) /
-        MS_PER_DAY,
-    ) + 1
-  );
-}
-
-/** Daily burn rate and projected runway from anchor; null if anchor is future or no spend yet. */
-export function budgetOutlook(
-  budget: NonNullable<BudgetRow>,
-  today: Date,
-): { burnPerDay: number; daysLeft: number } | null {
-  const elapsedDays = elapsedDaysSince(budget.anchored_at, today);
-
-  if (elapsedDays < 1 || budget.spent_since_usd <= 0) {
-    return null;
-  }
-  const burnPerDay = budget.spent_since_usd / elapsedDays;
-
-  return {
-    burnPerDay,
-    daysLeft: Math.max(0, Math.floor(budget.remaining_usd / burnPerDay)),
-  };
-}

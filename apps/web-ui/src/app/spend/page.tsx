@@ -1,9 +1,8 @@
 export const dynamic = "force-dynamic";
-import { recordTopUpAction } from "./actions";
 import SpendWindowPanel from "./SpendWindowPanel";
 import styles from "./SpendView.module.css";
 
-// Interval-scoped view; server provides static chrome and top-up action
+// Interval-scoped view; server provides the static chrome
 export default function SpendPage() {
   return (
     <div>
@@ -14,7 +13,7 @@ export default function SpendPage() {
         Anthropic&apos;s authoritative billed total needs an admin key and
         appears only when one is configured.
       </p>
-      <SpendWindowPanel recordAction={recordTopUpAction} />
+      <SpendWindowPanel />
     </div>
   );
 }
