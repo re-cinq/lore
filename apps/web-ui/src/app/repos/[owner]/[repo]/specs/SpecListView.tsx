@@ -12,17 +12,21 @@ import { groupSpecSummaries, type SpecSummaryInput } from "@/lib/spec-grouping";
 import { type SpecStatusFilter, type SpecStatusInfo } from "@/lib/spec-status";
 
 /** A spec's status is read from its `spec.md` where there is one, falling back to whatever file the group leads with — a folder of fragments still has a status, it just is not on a file with that name. */
+function groupStatusOf(statuses: Record<string, SpecStatusInfo>) {
+  return (group: { key: string; files: { filePath: string }[] }) => {
+    const { files } = group;
+
+    return statuses[`${group.key}/spec.md`] ?? statuses[files[0]?.filePath];
+  };
+}
+
 function visibleSpecs(
   specs: SpecSummaryInput[],
   statuses: Record<string, SpecStatusInfo>,
   view: { filter: SpecStatusFilter; query: string; order: DocSortOrder },
 ) {
   const groups = groupSpecSummaries(specs);
-  const statusOf = (group: { key: string; files: { filePath: string }[] }) => {
-    const { files } = group;
-
-    return statuses[`${group.key}/spec.md`] ?? statuses[files[0]?.filePath];
-  };
+  const statusOf = groupStatusOf(statuses);
   const { counts, visible } = filterDocCards(groups, statusOf, view.filter, {
     query: view.query,
     textOf: (group) => `${group.title} ${group.description} ${group.key}`,
@@ -30,25 +34,21 @@ function visibleSpecs(
 
   return {
     counts,
-    visible,
     ordered: sortDocCards(visible, view.order, statusOf),
     statusOf,
     groupCount: groups.length,
   };
 }
 
-/** One spec folder. Each file's label drops the folder prefix, so a group of fragments reads as its parts rather than repeating the path. */
-function SpecGroupCard({
-  group,
-  status,
-  owner,
-  repo,
-}: {
+interface SpecGroupCardProps {
   group: ReturnType<typeof groupSpecSummaries>[number];
   status: SpecStatusInfo | undefined;
-  owner: string;
-  repo: string;
-}) {
+  /** Repo route the file links hang off, e.g. `/repos/owner/repo`. */
+  base: string;
+}
+
+/** One spec folder. Each file's label drops the folder prefix, so a group of fragments reads as its parts rather than repeating the path. */
+function SpecGroupCard({ group, status, base }: SpecGroupCardProps) {
   return (
     <SpecCard
       title={group.title}
@@ -59,7 +59,7 @@ function SpecGroupCard({
         label: file.filePath.startsWith(`${group.key}/`)
           ? file.filePath.slice(group.key.length + 1)
           : file.filePath,
-        href: `/repos/${owner}/${repo}/specs/${encodeURIComponent(file.filePath)}`,
+        href: `${base}/specs/${encodeURIComponent(file.filePath)}`,
       }))}
     />
   );
@@ -76,17 +76,18 @@ function EmptySpecs() {
   );
 }
 
-function SpecCards({
-  groups,
-  statusOf,
-  owner,
-  repo,
-}: {
+/** The status filter narrowed the list to nothing, which is a different answer from the repo having no specs at all. */
+function EmptySpecFilter() {
+  return <p className="muted">No specs match this status filter.</p>;
+}
+
+interface SpecCardsProps {
   groups: ReturnType<typeof visibleSpecs>["ordered"];
   statusOf: ReturnType<typeof visibleSpecs>["statusOf"];
-  owner: string;
-  repo: string;
-}) {
+  base: string;
+}
+
+function SpecCards({ groups, statusOf, base }: SpecCardsProps) {
   return (
     <>
       {groups.map((group) => (
@@ -94,11 +95,29 @@ function SpecCards({
           key={group.key}
           group={group}
           status={statusOf(group)}
-          owner={owner}
-          repo={repo}
+          base={base}
         />
       ))}
     </>
+  );
+}
+
+interface SpecListBodyProps {
+  view: ReturnType<typeof useDocListView>;
+  base: string;
+  model: ReturnType<typeof visibleSpecs>;
+}
+
+/** The filtered, ordered list. Counts come from the FULL set, so picking a status does not make the other statuses look empty. */
+function SpecListBody({ view, base, model }: SpecListBodyProps) {
+  const { counts, ordered, statusOf, groupCount } = model;
+
+  return (
+    <div>
+      <DocListToolbar view={view} counts={counts} total={groupCount} />
+      <SpecCards groups={ordered} statusOf={statusOf} base={base} />
+      {ordered.length === 0 && <EmptySpecFilter />}
+    </div>
   );
 }
 
@@ -109,36 +128,20 @@ interface SpecListViewProps {
   statuses?: Record<string, SpecStatusInfo>;
 }
 
-export default function SpecListView({
-  owner,
-  repo,
-  specs,
-  statuses = {},
-}: SpecListViewProps) {
+export default function SpecListView(props: SpecListViewProps) {
+  const { owner, repo, specs, statuses = {} } = props;
   const view = useDocListView();
 
   // No specs at all and none MATCHING are different answers: the first says the repo has none, the second that this filter is too narrow.
   if (specs.length === 0) {
     return <EmptySpecs />;
   }
-  const { counts, visible, ordered, statusOf, groupCount } = visibleSpecs(
-    specs,
-    statuses,
-    view,
-  );
 
   return (
-    <div>
-      <DocListToolbar view={view} counts={counts} total={groupCount} />
-      <SpecCards
-        groups={ordered}
-        statusOf={statusOf}
-        owner={owner}
-        repo={repo}
-      />
-      {visible.length === 0 ? (
-        <p className="muted">No specs match this status filter.</p>
-      ) : null}
-    </div>
+    <SpecListBody
+      view={view}
+      base={`/repos/${owner}/${repo}`}
+      model={visibleSpecs(specs, statuses, view)}
+    />
   );
 }

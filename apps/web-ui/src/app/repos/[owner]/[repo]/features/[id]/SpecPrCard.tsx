@@ -18,11 +18,18 @@ export default function SpecPrCard({ feature }: { feature: FeatureRow }) {
       ) : (
         <Alert>The branch is pushed; the PR link is on its way.</Alert>
       )}
-      <p className="meta">
-        Review and merge it when you are ready. Decomposition into user stories
-        and tasks starts automatically on merge — you do not need to come back
-        here.
-      </p>
+      <MergeNote />
     </div>
+  );
+}
+
+/** What happens after the merge, so the author knows this page needs no second visit. */
+function MergeNote() {
+  return (
+    <p className="meta">
+      Review and merge it when you are ready. Decomposition into user stories
+      and tasks starts automatically on merge — you do not need to come back
+      here.
+    </p>
   );
 }

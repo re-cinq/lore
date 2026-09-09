@@ -95,17 +95,12 @@ interface SectionBodyProps {
   onChange: (next: FeedbackState) => void;
 }
 
-function SectionBody({
-  section,
-  index,
-  gap,
-  feedback,
-  onChange,
-}: SectionBodyProps) {
+/** The section's follow-up questions, in the order the round asked them. */
+function SectionQuestions(props: Omit<SectionBodyProps, "index" | "gap">) {
+  const { section, feedback, onChange } = props;
+
   return (
-    <SectionCard title={section.title} highlight={index === 0}>
-      {section.content && <Markdown markdown={section.content} />}
-      <SectionMockups section={section} stylesheet={gap.mockup_stylesheet} />
+    <>
       {(section.questions ?? []).map((q) => (
         <QuestionInput
           key={q.id}
@@ -114,6 +109,22 @@ function SectionBody({
           onChange={onChange}
         />
       ))}
+    </>
+  );
+}
+
+function SectionBody(props: SectionBodyProps) {
+  const { section, index, gap, feedback, onChange } = props;
+
+  return (
+    <SectionCard title={section.title} highlight={index === 0}>
+      {section.content && <Markdown markdown={section.content} />}
+      <SectionMockups section={section} stylesheet={gap.mockup_stylesheet} />
+      <SectionQuestions
+        section={section}
+        feedback={feedback}
+        onChange={onChange}
+      />
       <SectionFeedback
         sectionKey={section.title}
         feedback={feedback}
@@ -123,15 +134,15 @@ function SectionBody({
   );
 }
 
-function SplitSuggestion({
-  rationale,
-  proposedFeatures,
-  onCreateDraft,
-}: {
+interface SplitSuggestionProps {
   rationale: string;
   proposedFeatures: { title: string; scope: string }[];
   onCreateDraft: (title: string, prompt: string) => void;
-}) {
+}
+
+function SplitSuggestion(props: SplitSuggestionProps) {
+  const { rationale, proposedFeatures, onCreateDraft } = props;
+
   return (
     <SectionCard title="This feature looks large — consider splitting">
       <p>{rationale}</p>
@@ -172,14 +183,15 @@ function SplitSuggestionSlot({
   );
 }
 
-/** Direction that belongs to no section. Capped and counted because it rides into the next round's prompt: an unbounded field here is an unbounded prompt there. */
-function FreeFormCard({
-  feedback,
-  onChange,
-}: {
+interface FeedbackProps {
   feedback: FeedbackState;
   onChange: (next: FeedbackState) => void;
-}) {
+}
+
+/** Direction that belongs to no section. Capped and counted because it rides into the next round's prompt: an unbounded field here is an unbounded prompt there. */
+function FreeFormCard(props: FeedbackProps) {
+  const { feedback, onChange } = props;
+
   return (
     <SectionCard title="Anything else?">
       <textarea
@@ -204,17 +216,11 @@ interface GapSectionsProps {
 }
 
 /** Every section the round produced. Keyed on title AND index because two sections can legitimately share a heading, and a duplicate key would let React reuse one section's inputs for the other. */
-function SectionList({
-  sections,
-  gap,
-  feedback,
-  onChange,
-}: {
-  sections: GapSection[];
-  gap: GapResult;
-  feedback: FeedbackState;
-  onChange: (next: FeedbackState) => void;
-}) {
+function SectionList(
+  props: FeedbackProps & { sections: GapSection[]; gap: GapResult },
+) {
+  const { sections, gap, feedback, onChange } = props;
+
   return sections.map((section, index) => (
     <SectionBody
       key={`${section.title}-${index}`}
@@ -227,12 +233,8 @@ function SectionList({
   ));
 }
 
-export default function GapSections({
-  gap,
-  feedback,
-  onChange,
-  onCreateDraft,
-}: GapSectionsProps) {
+export default function GapSections(props: GapSectionsProps) {
+  const { gap, feedback, onChange, onCreateDraft } = props;
   const sections = sectionsOf(gap);
 
   return (
@@ -240,12 +242,7 @@ export default function GapSections({
       {sections.length === 0 && (
         <EmptySections draft={gap.draft_spec_markdown?.trim() ?? ""} />
       )}
-      <SectionList
-        sections={sections}
-        gap={gap}
-        feedback={feedback}
-        onChange={onChange}
-      />
+      <SectionList {...props} sections={sections} />
 
       <SplitSuggestionSlot
         split={gap.split_suggestion}

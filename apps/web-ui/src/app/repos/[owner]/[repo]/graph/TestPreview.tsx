@@ -4,18 +4,20 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 
+interface FileSliceRange {
+  repo: string;
+  path: string;
+  start: number;
+  end?: number;
+}
+
 /** One slice of a repo file. An open-ended range is sent without `end`, which the route reads as "to the end of the symbol" rather than as line zero. */
 async function fetchSlice({
   repo,
   path,
   start,
   end,
-}: {
-  repo: string;
-  path: string;
-  start: number;
-  end?: number;
-}): Promise<string> {
+}: FileSliceRange): Promise<string> {
   const params = new URLSearchParams({
     path,
     start: String(start),
@@ -32,30 +34,37 @@ async function fetchSlice({
   return ((await res.json()) as { text: string }).text;
 }
 
-/** The lines this test occupies, fetched from the repo. `cancelled` guards the setState rather than aborting the request: the popover unmounts as soon as the pointer leaves, and a half-finished fetch is cheaper to ignore than to tear down. */
+/** Starts the fetch and returns the cleanup. `cancelled` guards the setState rather than aborting the request: the popover unmounts as soon as the pointer leaves, and a half-finished fetch is cheaper to ignore than to tear down. */
+function loadSlice(
+  range: FileSliceRange,
+  onText: (slice: string) => void,
+  onError: () => void,
+): () => void {
+  let cancelled = false;
+  const ifLive = (fn: () => void) => {
+    if (!cancelled) {
+      fn();
+    }
+  };
+
+  fetchSlice(range)
+    .then((slice) => ifLive(() => onText(slice)))
+    .catch(() => ifLive(onError));
+
+  return () => {
+    cancelled = true;
+  };
+}
+
+/** The lines this test occupies, fetched from the repo. */
 function useFileSlice(repo: string, path: string, start: number, end?: number) {
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    fetchSlice({ repo, path, start, end })
-      .then((slice) => {
-        if (!cancelled) {
-          setText(slice);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setError(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [repo, path, start, end]);
+  useEffect(
+    () => loadSlice({ repo, path, start, end }, setText, () => setError(true)),
+    [repo, path, start, end],
+  );
 
   return { text, error };
 }
@@ -74,12 +83,7 @@ export default function TestPreview({
   path,
   start,
   end,
-}: {
-  repo: string;
-  path: string;
-  start: number;
-  end?: number;
-}) {
+}: FileSliceRange) {
   const { text, error } = useFileSlice(repo, path, start, end);
 
   if (error || text === null) {

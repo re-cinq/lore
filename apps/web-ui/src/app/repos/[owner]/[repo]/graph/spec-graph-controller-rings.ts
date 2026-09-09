@@ -48,6 +48,34 @@ function renderSectionArcs(
 }
 
 /** Selecting a section clears `selectedIdRef` — a section is not a graph NODE, so leaving the previous node's id set would keep highlighting it behind the newly selected arc. */
+function selectSection(
+  c: GraphController,
+  exp: ExpandData,
+  section: SectionArc,
+): void {
+  c.selectedIdRef.current = null;
+  c.setSelected({
+    id: section.uid,
+    type: "Section",
+    label: section.heading,
+    path: exp.specPath,
+  });
+}
+
+function hoverSection(
+  c: GraphController,
+  event: PointerEvent,
+  section: SectionArc,
+): void {
+  const [pointerX, pointerY] = d3.pointer(event, c.el);
+
+  c.setHover({
+    text: `${section.heading} — ${section.tested}/${section.total} tested`,
+    x: pointerX,
+    y: pointerY,
+  });
+}
+
 function wireSectionHandlers(
   sel: d3.Selection<SVGPathElement, SectionArc, SVGGElement, unknown>,
   exp: ExpandData,
@@ -56,23 +84,53 @@ function wireSectionHandlers(
   sel
     .on("click", (event: PointerEvent, section) => {
       event.stopPropagation();
-      c.selectedIdRef.current = null;
-      c.setSelected({
-        id: section.uid,
-        type: "Section",
-        label: section.heading,
-        path: exp.specPath,
-      });
+      selectSection(c, exp, section);
     })
-    .on("mouseenter mousemove", (event: PointerEvent, section) => {
-      const [pointerX, pointerY] = d3.pointer(event, c.el);
+    .on("mouseenter mousemove", (event: PointerEvent, section) =>
+      hoverSection(c, event, section),
+    )
+    .on("mouseleave", () => c.setHover(null));
+}
 
-      c.setHover({
-        text: `${section.heading} — ${section.tested}/${section.total} tested`,
-        x: pointerX,
-        y: pointerY,
-      });
+/** Selecting a statement arc clears `selectedIdRef` for the same reason a section does — an arc is not a node. */
+function selectStatement(
+  c: GraphController,
+  exp: ExpandData,
+  s: StatementArc,
+): void {
+  c.selectedIdRef.current = null;
+  c.setSelected({
+    id: s.uid,
+    type: "Statement",
+    label: "",
+    detail: s.text,
+    path: exp.specPath,
+  });
+}
+
+function hoverStatement(
+  c: GraphController,
+  event: PointerEvent,
+  s: StatementArc,
+): void {
+  const [px, py] = d3.pointer(event, c.el);
+
+  c.setHover({ text: s.text || "(statement)", x: px, y: py });
+}
+
+function wireStatementHandlers(
+  sel: d3.Selection<SVGPathElement, StatementArc, SVGGElement, unknown>,
+  exp: ExpandData,
+  c: GraphController,
+): void {
+  sel
+    .on("click", (event: PointerEvent, s) => {
+      event.stopPropagation();
+      selectStatement(c, exp, s);
     })
+    .on("mouseenter mousemove", (event: PointerEvent, s) =>
+      hoverStatement(c, event, s),
+    )
     .on("mouseleave", () => c.setHover(null));
 }
 
@@ -89,23 +147,7 @@ function renderStatementArcs(
     .attr("fill", (s) => (s.tested ? TESTED_FILL : UNTESTED_FILL))
     .attr("fill-opacity", 0.78)
     .style("cursor", "pointer")
-    .on("click", (event: PointerEvent, s) => {
-      event.stopPropagation();
-      c.selectedIdRef.current = null;
-      c.setSelected({
-        id: s.uid,
-        type: "Statement",
-        label: "",
-        detail: s.text,
-        path: exp.specPath,
-      });
-    })
-    .on("mouseenter mousemove", (event: PointerEvent, s) => {
-      const [px, py] = d3.pointer(event, c.el);
-
-      c.setHover({ text: s.text || "(statement)", x: px, y: py });
-    })
-    .on("mouseleave", () => c.setHover(null));
+    .call((sel) => wireStatementHandlers(sel, exp, c));
 }
 
 export function renderRings(
@@ -130,6 +172,19 @@ export function renderRings(
     });
 }
 
+/** Re-renders the rings and reheats the simulation so the new pinning takes effect, then persists the state. */
+function commitRingChange(
+  c: GraphController,
+  coverageTint: (t: number) => string,
+  alpha: number,
+): void {
+  applyRingState(c);
+  renderRings(c, coverageTint);
+  c.sim.alpha(alpha);
+  c.sim.restart();
+  c.saveState();
+}
+
 export function collapseSpecNode(
   c: GraphController,
   d: SimNode,
@@ -138,11 +193,26 @@ export function collapseSpecNode(
   c.expanded.delete(d.id);
   d.fx = null;
   d.fy = null;
-  applyRingState(c);
-  renderRings(c, coverageTint);
-  c.sim.alpha(0.4);
-  c.sim.restart();
-  c.saveState();
+  commitRingChange(c, coverageTint, 0.4);
+}
+
+/** The spec's ring data, or nothing when the request fails or the spec has no sections and no statements. */
+async function fetchSpecRing(
+  repo: string,
+  specPath: string,
+): Promise<SpecRing | undefined> {
+  const res = await fetch(
+    `/api/repos/${repo}/spec-ring?spec=${encodeURIComponent(specPath)}`,
+    { signal: AbortSignal.timeout(15_000) },
+  );
+
+  if (!res.ok) {
+    return undefined;
+  }
+  const ring = (await res.json()) as SpecRing;
+  const empty = ring.sections.length === 0 && ring.statements.length === 0;
+
+  return empty ? undefined : ring;
 }
 
 async function expandSpecNode(
@@ -156,25 +226,14 @@ async function expandSpecNode(
   // Pin spec to prevent ring drift on sim restart, so double-click collapse still hits.
   d.fx = d.x;
   d.fy = d.y;
-  const res = await fetch(
-    `/api/repos/${c.repo}/spec-ring?spec=${encodeURIComponent(d.path)}`,
-    { signal: AbortSignal.timeout(15_000) },
-  );
 
-  if (!res.ok) {
-    return;
-  }
-  const ring = (await res.json()) as SpecRing;
+  const ring = await fetchSpecRing(c.repo, d.path);
 
-  if (ring.sections.length === 0 && ring.statements.length === 0) {
+  if (!ring) {
     return;
   }
   c.expanded.set(d.id, computeRing(d.path, ring));
-  applyRingState(c);
-  renderRings(c, coverageTint);
-  c.sim.alpha(0.5);
-  c.sim.restart();
-  c.saveState();
+  commitRingChange(c, coverageTint, 0.5);
 }
 
 export async function toggleExpand(

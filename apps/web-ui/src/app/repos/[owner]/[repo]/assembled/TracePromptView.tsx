@@ -1,20 +1,17 @@
 import { buildTagTree } from "./tag-tree";
 import TagBox from "./TagBox";
 import { TraceCard } from "./TraceCard";
-import type { AssembledContextViewProps } from "./AssembledContextView";
+import type { AssemblyTrace, TraceSection } from "./trace-types";
 import styles from "./AssembledContextView.module.css";
 
-export function TraceSources({
-  owner,
-  repo,
-  sections,
-}: {
+interface TraceSourcesProps {
   owner: string;
   repo: string;
-  sections: NonNullable<
-    NonNullable<AssembledContextViewProps["result"]>["trace"]
-  >["sections"];
-}) {
+  sections: TraceSection[];
+}
+
+/** Every section the assembly considered, as one card each. */
+export function TraceSources({ owner, repo, sections }: TraceSourcesProps) {
   return (
     <>
       <h3 className={styles.sourcesTitle}>Sources</h3>
@@ -31,7 +28,7 @@ export function TraceSources({
 }
 
 interface AssembledPromptProps {
-  trace: NonNullable<NonNullable<AssembledContextViewProps["result"]>["trace"]>;
+  trace: AssemblyTrace;
   text: string;
   raw: boolean;
   onToggleRaw: () => void;
@@ -53,16 +50,22 @@ function PromptToolbar({
       >
         {raw ? "Rendered" : "Raw"}
       </button>
-      <button
-        type="button"
-        className="btn btn-ghost"
-        // lib.dom types navigator.clipboard as always present; insecure contexts and older browsers leave it undefined at runtime.
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        onClick={() => void navigator.clipboard?.writeText(text)}
-      >
-        Copy
-      </button>
+      <CopyButton text={text} />
     </div>
+  );
+}
+
+function CopyButton({ text }: Pick<AssembledPromptProps, "text">) {
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost"
+      // lib.dom types navigator.clipboard as always present; insecure contexts and older browsers leave it undefined at runtime.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      onClick={() => void navigator.clipboard?.writeText(text)}
+    >
+      Copy
+    </button>
   );
 }
 

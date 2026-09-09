@@ -29,18 +29,15 @@ function EditHeader({
   );
 }
 
-/** The form, or the note that no such definition resolved. A name in the URL is not proof one exists — an org definition can be removed while a repo still links to it. */
-function EditBody({
-  fullName,
-  agentName,
-  agent,
-  action,
-}: {
+interface EditBodyProps {
   fullName: string;
   agentName: string;
   agent: AgentDefinition | null;
   action: AgentFormAction;
-}) {
+}
+
+/** The form, or the note that no such definition resolved. A name in the URL is not proof one exists — an org definition can be removed while a repo still links to it. */
+function EditBody({ fullName, agentName, agent, action }: EditBodyProps) {
   if (!agent) {
     return (
       <div className="empty-state">
@@ -79,27 +76,15 @@ async function saveEdit(
   return saveResultToState(saved);
 }
 
-export default async function EditAgent({
-  params,
-}: {
-  params: Promise<{ owner: string; repo: string; name: string }>;
-}) {
-  const { owner, repo, name } = await params;
-  const fullName = `${owner}/${repo}`;
-  // The name is URL-encoded because a definition name may contain a slash.
-  const agentName = decodeURIComponent(name);
-  const agent =
-    (await listAgents(fullName)).find((a) => a.name === agentName) ?? null;
+/** The definition this URL names, resolved through the same precedence the dispatcher uses; null when the name resolves to nothing. */
+async function findAgent(fullName: string, agentName: string) {
+  const agents = await listAgents(fullName);
 
-  async function saveAction(
-    _prev: AgentFormState,
-    formData: FormData,
-  ): Promise<AgentFormState> {
-    "use server";
+  return agents.find((a) => a.name === agentName) ?? null;
+}
 
-    return await saveEdit(fullName, formData);
-  }
-
+/** Heading and body together, so the page function is left with only the resolving it has to await. */
+function EditAgentPage({ fullName, agentName, agent, action }: EditBodyProps) {
   return (
     <div>
       <EditHeader fullName={fullName} agentName={agentName} />
@@ -107,8 +92,35 @@ export default async function EditAgent({
         fullName={fullName}
         agentName={agentName}
         agent={agent}
-        action={saveAction}
+        action={action}
       />
     </div>
+  );
+}
+
+interface EditAgentProps {
+  params: Promise<{ owner: string; repo: string; name: string }>;
+}
+
+export default async function EditAgent({ params }: EditAgentProps) {
+  const { owner, repo, name } = await params;
+  const fullName = `${owner}/${repo}`;
+  // The name is URL-encoded because a definition name may contain a slash.
+  const agentName = decodeURIComponent(name);
+  const agent = await findAgent(fullName, agentName);
+
+  async function saveAction(_prev: AgentFormState, formData: FormData) {
+    "use server";
+
+    return await saveEdit(fullName, formData);
+  }
+
+  return (
+    <EditAgentPage
+      fullName={fullName}
+      agentName={agentName}
+      agent={agent}
+      action={saveAction}
+    />
   );
 }

@@ -33,12 +33,9 @@ function EventsTable({ owner, repo, events, hasMore }: EventsViewProps) {
 }
 
 /** Presentational view for repo's event stream; container runs query, InfiniteEvents appends rest on scroll. */
-export default function EventsView({
-  owner,
-  repo,
-  events,
-  hasMore,
-}: EventsViewProps) {
+export default function EventsView(props: EventsViewProps) {
+  const { owner, repo, events } = props;
+
   return (
     <div>
       <h2>Events</h2>
@@ -48,12 +45,7 @@ export default function EventsView({
       {events.length === 0 ? (
         <Alert variant="secondary">No events yet.</Alert>
       ) : (
-        <EventsTable
-          owner={owner}
-          repo={repo}
-          events={events}
-          hasMore={hasMore}
-        />
+        <EventsTable {...props} />
       )}
     </div>
   );

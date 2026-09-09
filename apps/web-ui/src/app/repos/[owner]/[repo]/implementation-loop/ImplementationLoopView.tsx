@@ -68,14 +68,13 @@ function LoopExplainer() {
   );
 }
 
-/** What the loop is, and the one control that runs it. The button is disabled for the length of the transition so a double click cannot send two conflicting toggles. */
-function LoopHeader({
-  enabled,
-  toggle,
-}: {
+interface LoopHeaderProps {
   enabled: boolean;
   toggle: (enabled: boolean) => Promise<void>;
-}) {
+}
+
+/** What the loop is, and the one control that runs it. The button is disabled for the length of the transition so a double click cannot send two conflicting toggles. */
+function LoopHeader({ enabled, toggle }: LoopHeaderProps) {
   const [pending, startTransition] = useTransition();
 
   return (
@@ -95,16 +94,14 @@ function LoopHeader({
   );
 }
 
-/** One stage of the backlog. Each empty text says what would put a ticket here rather than just "none", because an empty section usually means the reader has something to do. */
-function LoopSection({
-  heading,
-  tickets,
-  emptyText,
-}: {
+interface LoopSectionProps {
   heading: string;
   tickets: ImplementationLoop["next"];
   emptyText: string;
-}) {
+}
+
+/** One stage of the backlog. Each empty text says what would put a ticket here rather than just "none", because an empty section usually means the reader has something to do. */
+function LoopSection({ heading, tickets, emptyText }: LoopSectionProps) {
   return (
     <section className={styles.section}>
       <h2>{heading}</h2>
@@ -113,65 +110,100 @@ function LoopSection({
   );
 }
 
-/** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */
-export default function ImplementationLoopView({
-  loop,
-  toggle,
-}: {
+const EMPTY_BACKLOG =
+  "The backlog is empty. Label an issue priority:high, priority:medium, or priority:low to queue it.";
+
+/** The three stages of the backlog, in the order a ticket moves through them. */
+function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
+  return [
+    {
+      heading: "Current",
+      tickets: loop.current ? [loop.current] : [],
+      emptyText: "No ticket is being worked right now.",
+    },
+    {
+      heading: "Next up",
+      tickets: loop.next,
+      emptyText: EMPTY_BACKLOG,
+    },
+    {
+      heading: "Recently addressed",
+      tickets: loop.recent,
+      emptyText: "Nothing addressed yet.",
+    },
+  ];
+}
+
+interface LoopViewProps {
   loop: ImplementationLoop;
   toggle: (enabled: boolean) => Promise<void>;
-}) {
+}
+
+/** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */
+export default function ImplementationLoopView(props: LoopViewProps) {
+  const { loop, toggle } = props;
+
   return (
     <div>
       <LoopHeader enabled={loop.enabled} toggle={toggle} />
       <LoopExplainer />
 
-      <LoopSection
-        heading="Current"
-        tickets={loop.current ? [loop.current] : []}
-        emptyText="No ticket is being worked right now."
-      />
-      <LoopSection
-        heading="Next up"
-        tickets={loop.next}
-        emptyText="The backlog is empty. Label an issue priority:high, priority:medium, or priority:low to queue it."
-      />
-      <LoopSection
-        heading="Recently addressed"
-        tickets={loop.recent}
-        emptyText="Nothing addressed yet."
-      />
+      {backlogStages(loop).map((stage) => (
+        <LoopSection key={stage.heading} {...stage} />
+      ))}
     </div>
   );
 }
 
-function TicketTable({
-  tickets,
-  emptyText,
-}: {
+function TicketTableHead() {
+  return (
+    <thead>
+      <tr>
+        <th className={styles.statusCol}>Status</th>
+        <th>Ticket</th>
+        <th>Stages</th>
+        <th className={styles.actionsCol}>Actions</th>
+      </tr>
+    </thead>
+  );
+}
+
+interface TicketTableProps {
   tickets: LoopTicket[];
   emptyText: string;
-}) {
+}
+
+function TicketTable({ tickets, emptyText }: TicketTableProps) {
   if (tickets.length === 0) {
     return <Alert variant="secondary">{emptyText}</Alert>;
   }
 
   return (
     <table className={styles.ticketTable} data-testid="ticket-table">
-      <thead>
-        <tr>
-          <th className={styles.statusCol}>Status</th>
-          <th>Ticket</th>
-          <th>Stages</th>
-          <th className={styles.actionsCol}>Actions</th>
-        </tr>
-      </thead>
+      <TicketTableHead />
       <tbody>
         {tickets.map((ticket, i) => (
           <TicketRow key={`${ticket.issue_number}-${i}`} ticket={ticket} />
         ))}
       </tbody>
     </table>
+  );
+}
+
+/** When the ticket entered its current state. Absent on a ticket the loop has not touched yet. */
+function TicketTime({ ticket }: { ticket: LoopTicket }) {
+  if (!ticket.created_at) {
+    return null;
+  }
+
+  return (
+    <span
+      className={styles.timeAgo}
+      title={ticket.created_at}
+      data-testid="ticket-time"
+    >
+      {timeAgo(ticket.created_at)}
+    </span>
   );
 }
 
@@ -186,44 +218,62 @@ function TicketStatusCell({ ticket }: { ticket: LoopTicket }) {
       >
         {ticket.state}
       </span>
-      {ticket.created_at && (
-        <span
-          className={styles.timeAgo}
-          title={ticket.created_at}
-          data-testid="ticket-time"
-        >
-          {timeAgo(ticket.created_at)}
-        </span>
-      )}
+      <TicketTime ticket={ticket} />
     </td>
+  );
+}
+
+/** The issue reference, linked out when the ticket knows its issue URL. */
+function TicketLink({ ticket }: { ticket: LoopTicket }) {
+  const label = `#${ticket.issue_number} ${ticket.title}`;
+
+  return ticket.issue_url ? (
+    <a href={ticket.issue_url} target="_blank" rel="noreferrer">
+      {label}
+    </a>
+  ) : (
+    <span>{label}</span>
+  );
+}
+
+/** Why the loop could not finish the ticket, shown inline so a blocked ticket explains itself. */
+function TicketError({ ticket }: { ticket: LoopTicket }) {
+  if (!ticket.error) {
+    return null;
+  }
+
+  return (
+    <p
+      className={styles.errorLine}
+      title={ticket.error}
+      data-testid={`ticket-error-${ticket.issue_number}`}
+    >
+      {ticket.error}
+    </p>
   );
 }
 
 function TicketTitleCell({ ticket }: { ticket: LoopTicket }) {
   return (
     <td>
-      {ticket.issue_url ? (
-        <a href={ticket.issue_url} target="_blank" rel="noreferrer">
-          #{ticket.issue_number} {ticket.title}
-        </a>
-      ) : (
-        <span>
-          #{ticket.issue_number} {ticket.title}
-        </span>
-      )}
+      <TicketLink ticket={ticket} />
       {ticket.priority && (
         <span className={styles.priority}>{ticket.priority}</span>
       )}
-      {ticket.error && (
-        <p
-          className={styles.errorLine}
-          title={ticket.error}
-          data-testid={`ticket-error-${ticket.issue_number}`}
-        >
-          {ticket.error}
-        </p>
-      )}
+      <TicketError ticket={ticket} />
     </td>
+  );
+}
+
+function TicketPrLink({ ticket }: { ticket: LoopTicket }) {
+  if (!ticket.pr_url) {
+    return null;
+  }
+
+  return (
+    <a href={ticket.pr_url} target="_blank" rel="noreferrer" className="button">
+      PR
+    </a>
   );
 }
 
@@ -235,16 +285,7 @@ function TicketActionsCell({ ticket }: { ticket: LoopTicket }) {
           Run
         </a>
       )}
-      {ticket.pr_url && (
-        <a
-          href={ticket.pr_url}
-          target="_blank"
-          rel="noreferrer"
-          className="button"
-        >
-          PR
-        </a>
-      )}
+      <TicketPrLink ticket={ticket} />
     </td>
   );
 }
@@ -271,6 +312,20 @@ const DOT_STATES = new Set([
   "changes_requested",
 ]);
 
+type PipelineNode = NonNullable<LoopTicket["pipeline"]>[number];
+
+function PipelineDot({ node }: { node: PipelineNode }) {
+  const state = DOT_STATES.has(node.state) ? node.state : "failed";
+
+  return (
+    <span
+      title={`${node.node_id}: ${node.state}`}
+      data-testid={`mini-node-${node.node_id}`}
+      className={`${styles.dot} ${styles[state as keyof typeof styles]}`}
+    />
+  );
+}
+
 function MiniPipeline({ ticket }: { ticket: LoopTicket }) {
   if (!ticket.pipeline || !ticket.run_id) {
     return null;
@@ -284,18 +339,7 @@ function MiniPipeline({ ticket }: { ticket: LoopTicket }) {
       data-testid="mini-pipeline"
     >
       {ticket.pipeline.map((node) => (
-        <span
-          key={node.node_id}
-          title={`${node.node_id}: ${node.state}`}
-          data-testid={`mini-node-${node.node_id}`}
-          className={`${styles.dot} ${
-            styles[
-              DOT_STATES.has(node.state)
-                ? (node.state as keyof typeof styles)
-                : "failed"
-            ]
-          }`}
-        />
+        <PipelineDot key={node.node_id} node={node} />
       ))}
     </a>
   );

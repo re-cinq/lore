@@ -9,15 +9,17 @@ const WORKING: Record<string, string> = {
   issues: "Filing the Issues and spec-tasks on GitHub",
 };
 
+interface DecompositionProgressCardProps {
+  nodeId: string;
+  since?: string;
+  iteration?: number;
+}
+
 export default function DecompositionProgressCard({
   nodeId,
   since,
   iteration,
-}: {
-  nodeId: string;
-  since?: string;
-  iteration?: number;
-}) {
+}: DecompositionProgressCardProps) {
   return (
     <div className="spec-card" role="status">
       <h3>{WORKING[nodeId] ?? "Decomposing the spec"}</h3>

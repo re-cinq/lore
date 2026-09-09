@@ -48,22 +48,28 @@ function ContextHelp() {
         Context is everything Lore has ingested about this repo — conventions,
         ADRs, specs, and code — stored as embedded chunks.
       </p>
-      <ul>
-        <li>
-          Agents load it on turn 1 of every task via{" "}
-          <code>assemble_context</code>, and search it with{" "}
-          <code>search_context</code>.
-        </li>
-        <li>
-          It is refreshed by nightly ingestion; a repo not ingested in over 7
-          days is flagged <strong>stale</strong>.
-        </li>
-        <li>
-          Higher-signal chunks (incidents, conflicts, recent facts) are surfaced
-          first within the token budget.
-        </li>
-      </ul>
+      <ContextHelpPoints />
     </HelpPopover>
+  );
+}
+
+/** How an agent reaches context, how fresh it is, and what it actually sees of it. */
+function ContextHelpPoints() {
+  return (
+    <ul>
+      <li>
+        Agents load it on turn 1 of every task via <code>assemble_context</code>
+        , and search it with <code>search_context</code>.
+      </li>
+      <li>
+        It is refreshed by nightly ingestion; a repo not ingested in over 7 days
+        is flagged <strong>stale</strong>.
+      </li>
+      <li>
+        Higher-signal chunks (incidents, conflicts, recent facts) are surfaced
+        first within the token budget.
+      </li>
+    </ul>
   );
 }
 
@@ -136,7 +142,7 @@ function detailHrefOf(
 
 /** Presentational view for repo's ingested context; container runs queries and hands view-model down. */
 export default function RepoContextView(props: RepoContextViewProps) {
-  const { owner, repo, type, q, chunks, hasMore = false } = props;
+  const { owner, repo } = props;
   const base = `/repos/${owner}/${repo}/context`;
 
   return (
@@ -146,22 +152,33 @@ export default function RepoContextView(props: RepoContextViewProps) {
       <ContextFilters
         basePath={base}
         types={props.types}
-        activeType={type}
-        q={q}
+        activeType={props.type}
+        q={props.q}
       />
 
+      <ChunkSection {...props} base={base} fullName={`${owner}/${repo}`} />
+    </div>
+  );
+}
+
+type ChunkSectionProps = RepoContextViewProps & {
+  base: string;
+  fullName: string;
+};
+
+/** The count, then the chunks — or, with nothing to show, why the list is empty. */
+function ChunkSection({ hasMore = false, ...props }: ChunkSectionProps) {
+  const { chunks, q, type } = props;
+
+  return (
+    <>
       <ChunkCount count={chunks.length} q={q} more={hasMore} />
 
       {chunks.length === 0 ? (
         <Alert variant="secondary">{emptyMessage(q, type)}</Alert>
       ) : (
-        <ChunkList
-          {...props}
-          hasMore={hasMore}
-          base={base}
-          fullName={`${owner}/${repo}`}
-        />
+        <ChunkList {...props} hasMore={hasMore} />
       )}
-    </div>
+    </>
   );
 }

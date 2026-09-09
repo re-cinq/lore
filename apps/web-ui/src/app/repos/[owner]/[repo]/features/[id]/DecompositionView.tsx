@@ -11,16 +11,16 @@ function TaskStatus({ status }: { status: string }) {
   );
 }
 
-/** The story's heading. A group with no Issue is headed "Tasks" rather than left unlabelled — those are the tasks the decomposition produced without a story to hang them on, which is a real state and not a gap. */
-function StoryTitle({
-  issue,
-  owner,
-  repo,
-}: {
+interface StoryTitleProps {
   issue: number | null;
   owner: string;
   repo: string;
-}) {
+}
+
+/** The story's heading. A group with no Issue is headed "Tasks" rather than left unlabelled — those are the tasks the decomposition produced without a story to hang them on, which is a real state and not a gap. */
+function StoryTitle(props: StoryTitleProps) {
+  const { issue, owner, repo } = props;
+
   return (
     <h4 className={styles.storyTitle}>
       {issue !== null ? (
@@ -38,16 +38,16 @@ function StoryTitle({
   );
 }
 
-/** One user story and the tasks decomposed from it. A group with no Issue is headed "Tasks" rather than left unlabelled — those are the tasks the decomposition produced without a story to hang them on, which is a real state, not a gap. */
-function StoryGroup({
-  story,
-  owner,
-  repo,
-}: {
+interface StoryGroupProps {
   story: DecompStoryGroup;
   owner: string;
   repo: string;
-}) {
+}
+
+/** One user story and the tasks decomposed from it. A group with no Issue is headed "Tasks" rather than left unlabelled — those are the tasks the decomposition produced without a story to hang them on, which is a real state, not a gap. */
+function StoryGroup(props: StoryGroupProps) {
+  const { story, owner, repo } = props;
+
   return (
     <div className={styles.story}>
       <StoryTitle issue={story.storyIssue} owner={owner} repo={repo} />
@@ -71,18 +71,35 @@ function DecompCounts({ stories, tasks }: { stories: number; tasks: number }) {
   );
 }
 
-/** Story/task tree from merged feature spec decomposition (ADR-029), hidden until complete. */
-export default function DecompositionView({
-  owner,
-  repo,
-  stories,
-  total,
-}: {
+interface DecompositionViewProps {
   owner: string;
   repo: string;
   stories: DecompStoryGroup[];
   total: number;
-}) {
+}
+
+/** Every story group in order. The index keys the storyless group, which has no Issue number to key on. */
+function StoryList(props: Omit<DecompositionViewProps, "total">) {
+  const { stories, owner, repo } = props;
+
+  return (
+    <>
+      {stories.map((story, index) => (
+        <StoryGroup
+          key={story.storyIssue ?? `tasks-${index}`}
+          story={story}
+          owner={owner}
+          repo={repo}
+        />
+      ))}
+    </>
+  );
+}
+
+/** Story/task tree from merged feature spec decomposition (ADR-029), hidden until complete. */
+export default function DecompositionView(props: DecompositionViewProps) {
+  const { owner, repo, stories, total } = props;
+
   if (total === 0) {
     return null;
   }
@@ -92,14 +109,7 @@ export default function DecompositionView({
       <h3>
         Decomposition <DecompCounts stories={stories.length} tasks={total} />
       </h3>
-      {stories.map((story, index) => (
-        <StoryGroup
-          key={story.storyIssue ?? `tasks-${index}`}
-          story={story}
-          owner={owner}
-          repo={repo}
-        />
-      ))}
+      <StoryList stories={stories} owner={owner} repo={repo} />
     </div>
   );
 }

@@ -6,14 +6,19 @@ import StatusBadge from "./StatusBadge";
 import styles from "./FeatureListView.module.scss";
 import type { FeatureRow } from "@/lib/feature-types";
 
-/** The features, or an invitation to plan one. The empty state names the control by its label so a first-time reader knows where to start. */
-function FeatureGrid({
-  features,
-  base,
-}: {
+interface FeatureGridProps {
   features: FeatureRow[];
   base: string;
-}) {
+}
+
+interface FeatureListViewProps {
+  owner: string;
+  repo: string;
+  features: FeatureRow[];
+}
+
+/** The features, or an invitation to plan one. The empty state names the control by its label so a first-time reader knows where to start. */
+function FeatureGrid({ features, base }: FeatureGridProps) {
   if (features.length === 0) {
     return (
       <div className="spec-card">
@@ -55,15 +60,8 @@ function FeatureCard({ feature, base }: { feature: FeatureRow; base: string }) {
   );
 }
 
-export default function FeatureListView({
-  owner,
-  repo,
-  features,
-}: {
-  owner: string;
-  repo: string;
-  features: FeatureRow[];
-}) {
+export default function FeatureListView(props: FeatureListViewProps) {
+  const { owner, repo, features } = props;
   const base = `/repos/${owner}/${repo}/features`;
 
   return (

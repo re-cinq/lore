@@ -33,13 +33,26 @@ function FeatureFields() {
   );
 }
 
+/** Why the prompt is worth writing carefully: it is the whole input to the planning round. */
+function PlanningBlurb() {
+  return (
+    <p className="meta">
+      Describe what you want. A planning Station analyzes it against this
+      project and returns a gap-closing analysis you can refine before a spec PR
+      is opened.
+    </p>
+  );
+}
+
+interface SmartFeatureCreateViewProps {
+  action: CreateAction;
+  definition?: AssemblyLineDefinition | null;
+}
+
 export default function SmartFeatureCreateView({
   action,
   definition = null,
-}: {
-  action: CreateAction;
-  definition?: AssemblyLineDefinition | null;
-}) {
+}: SmartFeatureCreateViewProps) {
   const [state, formAction, pending] = useActionState(action, null);
 
   return (
@@ -47,11 +60,7 @@ export default function SmartFeatureCreateView({
       <h2>Plan a new feature</h2>
 
       <FeatureAssemblyLine definition={definition} />
-      <p className="meta">
-        Describe what you want. A planning Station analyzes it against this
-        project and returns a gap-closing analysis you can refine before a spec
-        PR is opened.
-      </p>
+      <PlanningBlurb />
       <FeatureFields />
       <FormError message={state?.error} />
       <SubmitButton pending={pending} pendingLabel="Starting planning…">

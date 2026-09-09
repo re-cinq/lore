@@ -51,18 +51,15 @@ function metaFields(meta: Record<string, string | string[]>) {
   };
 }
 
-/** The documents this ADR points at. `relates` names a spec and `amends` another ADR, so the two go to different routes. */
-function CrossLinks({
-  owner,
-  repo,
-  relates,
-  amends,
-}: {
+interface CrossLinksProps {
   owner: string;
   repo: string;
   relates: string | undefined;
   amends: string | undefined;
-}) {
+}
+
+/** The documents this ADR points at. `relates` names a spec and `amends` another ADR, so the two go to different routes. */
+function CrossLinks({ owner, repo, relates, amends }: CrossLinksProps) {
   return (
     <>
       <CrossLinkField
@@ -79,15 +76,13 @@ function CrossLinks({
   );
 }
 
-export default function AdrMetaView({
-  owner,
-  repo,
-  meta,
-}: {
+interface AdrMetaViewProps {
   owner: string;
   repo: string;
   meta: Record<string, string | string[]>;
-}) {
+}
+
+export default function AdrMetaView({ owner, repo, meta }: AdrMetaViewProps) {
   const { statusInfo, date, domains, relates, amends } = metaFields(meta);
 
   if (isEmptyMeta([statusInfo, date, relates, amends, ...domains])) {

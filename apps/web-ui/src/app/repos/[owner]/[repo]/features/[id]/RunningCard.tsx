@@ -25,20 +25,13 @@ function useElapsedSeconds(since: string | undefined): number | null {
     : Math.max(0, Math.floor((now - start) / 1000));
 }
 
-/** Elapsed/budget timer ticking every second; turns red when deadline (reaper's kill time) passes. */
-function ElapsedTimer({
-  since,
-  timeoutMinutes,
-}: {
-  since: string | undefined;
+/** The timer itself, once there is a count to show. Over budget it says so in both the styling and the tooltip, since the styling alone does not explain what happens next. */
+interface TimerReadoutProps {
+  secs: number;
   timeoutMinutes: number;
-}) {
-  const secs = useElapsedSeconds(since);
+}
 
-  // A start time that will not parse means there is nothing to count from; no timer beats a timer counting from zero.
-  if (secs === null) {
-    return null;
-  }
+function TimerReadout({ secs, timeoutMinutes }: TimerReadoutProps) {
   const over = secs > timeoutMinutes * 60;
 
   return (
@@ -56,6 +49,24 @@ function ElapsedTimer({
       · {formatSeconds(secs)} / {timeoutMinutes}:00
     </span>
   );
+}
+
+/** Elapsed/budget timer ticking every second; turns red when deadline (reaper's kill time) passes. */
+function ElapsedTimer({
+  since,
+  timeoutMinutes,
+}: {
+  since: string | undefined;
+  timeoutMinutes: number;
+}) {
+  const secs = useElapsedSeconds(since);
+
+  // A start time that will not parse means there is nothing to count from; no timer beats a timer counting from zero.
+  if (secs === null) {
+    return null;
+  }
+
+  return <TimerReadout secs={secs} timeoutMinutes={timeoutMinutes} />;
 }
 
 /** Run's spent tokens; omit "0 tokens" on pod that hasn't streamed first turn yet. */
@@ -125,31 +136,47 @@ interface RunningCardProps {
   phase?: "round" | "spec";
 }
 
-export default function RunningCard({
-  iteration,
-  since,
-  timeoutMinutes,
-  nodeId,
-  liveOutput,
-  run,
-  phase = "round",
-}: RunningCardProps) {
-  const spec = phase === "spec";
+interface StatusLineProps {
+  spec: boolean;
+  iteration: number;
+  since: string | undefined;
+  budget: number;
+  tokens: RunTokens | null | undefined;
+}
+
+/** What the line is doing, how long it has been doing it, and what it has spent — one line, because that is how it is read. */
+function RunningStatusLine(props: StatusLineProps) {
+  const { spec, iteration, since, budget, tokens } = props;
+
+  return (
+    <p className={styles.status}>
+      {statusText(spec, iteration)}
+      <span className="planning-dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+      <ElapsedTimer since={since} timeoutMinutes={budget} />
+      <TokenCount tokens={tokens} />
+    </p>
+  );
+}
+
+export default function RunningCard(props: RunningCardProps) {
+  const { iteration, since, nodeId, liveOutput, run } = props;
+  const spec = props.phase === "spec";
   // Node's deadline when line names one; round's budget only for features with no line.
-  const budget = effectiveBudget(run, nodeId, timeoutMinutes);
+  const budget = effectiveBudget(run, nodeId, props.timeoutMinutes);
 
   return (
     <div className="spec-card">
-      <p className={styles.status}>
-        {statusText(spec, iteration)}
-        <span className="planning-dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </span>
-        <ElapsedTimer since={since} timeoutMinutes={budget} />
-        <TokenCount tokens={run?.tokens} />
-      </p>
+      <RunningStatusLine
+        spec={spec}
+        iteration={iteration}
+        since={since}
+        budget={budget}
+        tokens={run?.tokens}
+      />
       <Alert>{refreshHint(spec)}</Alert>
       <RunGraph run={run} />
       {liveOutput && <pre className={styles.output}>{liveOutput}</pre>}

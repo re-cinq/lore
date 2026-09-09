@@ -50,35 +50,51 @@ function DateCell({ ingestedAt }: { ingestedAt: string | null }) {
 }
 
 /** One row in context list: type badge, path, metadata, date, clamped preview. */
-export default function ContextCard({
-  chunk,
-  detailHref,
-  repo,
-  repoLabel,
-}: ContextCardProps) {
+export default function ContextCard(props: ContextCardProps) {
   // Both columns permit NULL; untyped/pathless chunks are real rows, not crashes
-  const contentType = contentTypeOf(chunk.content_type);
-  const header = chunkHeader(contentType, chunk.metadata ?? null);
+  const contentType = contentTypeOf(props.chunk.content_type);
+  const header = chunkHeader(contentType, props.chunk.metadata ?? null);
 
   return (
     <div className={styles.card}>
-      <div className={styles.head}>
-        <span className={badgeClassForType(contentType)}>
-          {formatEnumLabel(contentType)}
-        </span>
-        <PathCell filePath={chunk.file_path} detailHref={detailHref} />
-        {repoLabel && <span className={styles.repo}>{repoLabel}</span>}
-        <DateCell ingestedAt={chunk.ingested_at} />
-      </div>
+      <CardHead {...props} contentType={contentType} />
       {header && <p className={styles.subhead}>{header}</p>}
-      <ChunkBody
-        content={chunk.content}
-        contentType={contentType}
-        filePath={chunk.file_path ?? ""}
-        repo={repo}
-        metadata={chunk.metadata ?? undefined}
-        preview
-      />
+      <CardPreview {...props} contentType={contentType} />
     </div>
+  );
+}
+
+type CardVariantProps = ContextCardProps & { contentType: string };
+
+/** The row's identity line: type badge, path, repo label and ingest date. */
+function CardHead({
+  chunk,
+  contentType,
+  detailHref,
+  repoLabel,
+}: CardVariantProps) {
+  return (
+    <div className={styles.head}>
+      <span className={badgeClassForType(contentType)}>
+        {formatEnumLabel(contentType)}
+      </span>
+      <PathCell filePath={chunk.file_path} detailHref={detailHref} />
+      {repoLabel && <span className={styles.repo}>{repoLabel}</span>}
+      <DateCell ingestedAt={chunk.ingested_at} />
+    </div>
+  );
+}
+
+/** The clamped body preview; a pathless chunk still renders, it just has no file to resolve links against. */
+function CardPreview({ chunk, contentType, repo }: CardVariantProps) {
+  return (
+    <ChunkBody
+      content={chunk.content}
+      contentType={contentType}
+      filePath={chunk.file_path ?? ""}
+      repo={repo}
+      metadata={chunk.metadata ?? undefined}
+      preview
+    />
   );
 }

@@ -41,13 +41,47 @@ function bundlePoints(l: SimLink, state: CanvasDrawState): [number, number][] {
     .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
 }
 
+/** Draws the bundled curve, reporting false when fewer than three control points make it not a curve worth bending. */
+function strokeBundle(
+  deps: EdgeDrawDeps,
+  bundlePts: [number, number][],
+): boolean {
+  if (bundlePts.length <= 2) {
+    return false;
+  }
+  const { ctx, bundleLine } = deps;
+
+  ctx.beginPath();
+  bundleLine(bundlePts);
+  ctx.stroke();
+
+  return true;
+}
+
+/** Straight edge, clipped so it never crosses an open ring's interior. */
+function strokeStraight(
+  ctx: CanvasRenderingContext2D,
+  endpoints: { s: SimNode; t: SimNode },
+  state: CanvasDrawState,
+): void {
+  const { s, t } = endpoints;
+  const pieces = visibleSegments(pointOf(s), pointOf(t), state.ringDiscs);
+
+  ctx.beginPath();
+  pieces.forEach((p) => {
+    ctx.moveTo(p.a.x, p.a.y);
+    ctx.lineTo(p.b.x, p.b.y);
+  });
+  ctx.stroke();
+}
+
 function strokeEdge(
   deps: EdgeDrawDeps,
   l: SimLink,
   endpoints: { s: SimNode; t: SimNode },
   state: CanvasDrawState,
 ): void {
-  const { ctx, colors, bundleLine } = deps;
+  const { ctx, colors } = deps;
   const { s, t } = endpoints;
   const op = state.edgeOpacity(idOf(s), idOf(t));
 
@@ -57,25 +91,9 @@ function strokeEdge(
   ctx.globalAlpha = op;
   ctx.strokeStyle = colors.edgeColor;
 
-  const bundlePts = bundlePoints(l, state);
-
-  // Fewer than three control points is not a curve worth bending; fall through to the straight edge.
-  if (bundlePts.length > 2) {
-    ctx.beginPath();
-    bundleLine(bundlePts);
-    ctx.stroke();
-
-    return;
+  if (!strokeBundle(deps, bundlePoints(l, state))) {
+    strokeStraight(ctx, endpoints, state);
   }
-  // Straight edge, clipped so it never crosses an open ring's interior.
-  const pieces = visibleSegments(pointOf(s), pointOf(t), state.ringDiscs);
-
-  ctx.beginPath();
-  pieces.forEach((p) => {
-    ctx.moveTo(p.a.x, p.a.y);
-    ctx.lineTo(p.b.x, p.b.y);
-  });
-  ctx.stroke();
 }
 
 export function drawEdges(

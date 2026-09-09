@@ -35,6 +35,23 @@ export function CrossingsLabel({ crossings }: { crossings: number }) {
   );
 }
 
+/** Everything about the tooltip's look; only its position depends on where the pointer is. */
+const TOOLTIP_BODY: React.CSSProperties = {
+  maxWidth: 320,
+  pointerEvents: "none",
+  padding: "6px 9px",
+  borderRadius: 6,
+  border: "1px solid var(--border)",
+  background: "var(--bg-surface)",
+  color: "var(--text)",
+  boxShadow: "var(--shadow-lg)",
+  fontSize: "var(--fs-xs)",
+  lineHeight: 1.4,
+  maxHeight: 240,
+  overflow: "hidden",
+  zIndex: 10,
+};
+
 export function HoverTooltip({
   hover,
 }: {
@@ -46,19 +63,7 @@ export function HoverTooltip({
         position: "absolute",
         left: Math.min(hover.x + 14, 9999),
         top: hover.y + 14,
-        maxWidth: 320,
-        pointerEvents: "none",
-        padding: "6px 9px",
-        borderRadius: 6,
-        border: "1px solid var(--border)",
-        background: "var(--bg-surface)",
-        color: "var(--text)",
-        boxShadow: "var(--shadow-lg)",
-        fontSize: "var(--fs-xs)",
-        lineHeight: 1.4,
-        maxHeight: 240,
-        overflow: "hidden",
-        zIndex: 10,
+        ...TOOLTIP_BODY,
       }}
     >
       <HoverMarkdown text={hover.text} />
@@ -150,13 +155,12 @@ function SelectedNodePathLine({ selected }: { selected: SpecGraphNode }) {
   );
 }
 
-function SelectedNodeTestPreview({
-  selected,
-  repo,
-}: {
+interface SelectedNodeProps {
   selected: SpecGraphNode;
   repo: string;
-}) {
+}
+
+function SelectedNodeTestPreview({ selected, repo }: SelectedNodeProps) {
   if (selected.type !== "TestChunk" || !selected.path || !selected.line) {
     return null;
   }
@@ -191,13 +195,7 @@ const CARD_STYLE: React.CSSProperties = {
 };
 
 /** Where this node can be opened: its source, and anything the graph knows it relates to. External links open in a new tab so the graph keeps its layout — which is dragged by hand and worth not losing. */
-function NodeLinks({
-  selected,
-  repo,
-}: {
-  selected: SpecGraphNode;
-  repo: string;
-}) {
+function NodeLinks({ selected, repo }: SelectedNodeProps) {
   return (
     <div style={{ display: "flex", gap: 12 }}>
       {nodeLinks(selected, repo).map((l) => (
@@ -233,15 +231,15 @@ function NodeDetailMarkdown({ detail }: { detail?: string }) {
   );
 }
 
+interface SelectedNodeCardProps extends SelectedNodeProps {
+  onClose: () => void;
+}
+
 export function SelectedNodeCard({
   selected,
   repo,
   onClose,
-}: {
-  selected: SpecGraphNode;
-  repo: string;
-  onClose: () => void;
-}) {
+}: SelectedNodeCardProps) {
   return (
     <div style={CARD_STYLE}>
       <SelectedNodeHeader selected={selected} onClose={onClose} />

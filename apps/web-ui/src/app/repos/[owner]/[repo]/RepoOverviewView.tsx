@@ -49,31 +49,24 @@ export interface RepoOverviewViewProps {
 export default function RepoOverviewView(props: RepoOverviewViewProps) {
   const { owner, repo, readme, enrollmentChecks } = props;
   const { reonboardAction, setupWebhookAction } = props;
+  const { recentTasks, latestEvents } = props;
 
   return (
     <div>
-      {readme && (
-        <ReadmeBox
-          markdown={readme.markdown}
-          rawBaseUrl={readme.rawBaseUrl}
-          htmlUrl={readme.htmlUrl}
-        />
-      )}
+      {readme && <ReadmeBox {...readme} />}
       <EnrollmentSection
         checks={enrollmentChecks}
         reonboardAction={reonboardAction}
         setupWebhookAction={setupWebhookAction}
       />
       <DarkFactoryCard {...props} />
-      <RecentTasks owner={owner} repo={repo} recentTasks={props.recentTasks} />
-      <LatestEvents
-        owner={owner}
-        repo={repo}
-        latestEvents={props.latestEvents}
-      />
+      <RecentTasks owner={owner} repo={repo} recentTasks={recentTasks} />
+      <LatestEvents owner={owner} repo={repo} latestEvents={latestEvents} />
     </div>
   );
 }
+
+type RepoLinkProps = Pick<RepoOverviewViewProps, "owner" | "repo">;
 
 type DarkFactoryStatsProps = Pick<
   RepoOverviewViewProps,
@@ -98,19 +91,12 @@ function ModeValue({ enabled }: { enabled: boolean }) {
   );
 }
 
-/** The week's dark-factory figures. Auto-merges are toned as success and escalations as danger only when NON-ZERO, so a quiet week reads as quiet rather than as good or bad news. */
-function DarkFactoryStats({
-  darkFactoryEnabled,
-  trustLevel,
-  darkTasksWeek,
-  autoMergedWeek,
-  escalationsWeek,
-}: DarkFactoryStatsProps) {
+/** Auto-merges are toned as success and escalations as danger only when NON-ZERO, so a quiet week reads as quiet rather than as good or bad news. */
+function WeeklyOutcomeStats(props: DarkFactoryStatsProps) {
+  const { autoMergedWeek, escalationsWeek } = props;
+
   return (
-    <div className={styles.stats}>
-      <Stat label="Mode" value={<ModeValue enabled={darkFactoryEnabled} />} />
-      <Stat label="Trust" value={trustLevel} />
-      <Stat label="Tasks (7d)" value={darkTasksWeek} />
+    <>
       <Stat
         label="Auto-merged (7d)"
         value={autoMergedWeek}
@@ -121,20 +107,28 @@ function DarkFactoryStats({
         value={escalationsWeek}
         tone={tonedWhenNonZero(escalationsWeek, styles.danger)}
       />
+    </>
+  );
+}
+
+/** The week's dark-factory figures. */
+function DarkFactoryStats(props: DarkFactoryStatsProps) {
+  const { darkFactoryEnabled, trustLevel, darkTasksWeek } = props;
+
+  return (
+    <div className={styles.stats}>
+      <Stat label="Mode" value={<ModeValue enabled={darkFactoryEnabled} />} />
+      <Stat label="Trust" value={trustLevel} />
+      <Stat label="Tasks (7d)" value={darkTasksWeek} />
+      <WeeklyOutcomeStats {...props} />
     </div>
   );
 }
 
 /** The repo's dark-factory posture at a glance: whether it is on, how far it is trusted, and what the last seven days produced. */
-function DarkFactoryCard({
-  owner,
-  repo,
-  darkFactoryEnabled,
-  trustLevel,
-  darkTasksWeek,
-  autoMergedWeek,
-  escalationsWeek,
-}: DarkFactoryStatsProps & Pick<RepoOverviewViewProps, "owner" | "repo">) {
+function DarkFactoryCard(props: DarkFactoryStatsProps & RepoLinkProps) {
+  const { owner, repo } = props;
+
   return (
     <div className={`spec-card ${styles.dfCard}`}>
       <div className={styles.dfHead}>
@@ -143,13 +137,7 @@ function DarkFactoryCard({
           configure →
         </Link>
       </div>
-      <DarkFactoryStats
-        darkFactoryEnabled={darkFactoryEnabled}
-        trustLevel={trustLevel}
-        darkTasksWeek={darkTasksWeek}
-        autoMergedWeek={autoMergedWeek}
-        escalationsWeek={escalationsWeek}
-      />
+      <DarkFactoryStats {...props} />
     </div>
   );
 }
@@ -195,22 +183,25 @@ function taskCells(task: RepoOverviewViewProps["recentTasks"][number]) {
   ];
 }
 
-function RecentTasks({
-  owner,
-  repo,
-  recentTasks,
-}: Pick<RepoOverviewViewProps, "owner" | "repo" | "recentTasks">) {
-  // No table at all when there are no tasks — an empty grid says less than the invitation to create one.
+// No table at all when there are no tasks — an empty grid says less than the invitation to create one.
+function CreateFirstTaskPrompt({ owner, repo }: RepoLinkProps) {
+  return (
+    <>
+      <h2>Recent Tasks</h2>
+      <Alert variant="secondary">
+        No tasks yet.{" "}
+        <Link href={`/repos/${owner}/${repo}/tasks`}>Create one</Link>
+      </Alert>
+    </>
+  );
+}
+
+type RecentTasksProps = RepoLinkProps &
+  Pick<RepoOverviewViewProps, "recentTasks">;
+
+function RecentTasks({ owner, repo, recentTasks }: RecentTasksProps) {
   if (recentTasks.length === 0) {
-    return (
-      <>
-        <h2>Recent Tasks</h2>
-        <Alert variant="secondary">
-          No tasks yet.{" "}
-          <Link href={`/repos/${owner}/${repo}/tasks`}>Create one</Link>
-        </Alert>
-      </>
-    );
+    return <CreateFirstTaskPrompt owner={owner} repo={repo} />;
   }
 
   return (

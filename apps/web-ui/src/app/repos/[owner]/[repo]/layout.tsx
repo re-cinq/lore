@@ -20,14 +20,13 @@ function repoTabs(base: string) {
   ];
 }
 
-export default async function RepoLayout({
-  children,
-  params,
-}: {
+interface RepoLayoutProps {
   children: React.ReactNode;
   params: Promise<{ owner: string; repo: string }>;
-}) {
-  const { owner, repo } = await params;
+}
+
+export default async function RepoLayout(props: RepoLayoutProps) {
+  const { owner, repo } = await props.params;
   const base = `/repos/${owner}/${repo}`;
   const meta = await getRepoMeta(`${owner}/${repo}`).catch(() => null);
 
@@ -40,7 +39,7 @@ export default async function RepoLayout({
         <p className={`meta ${styles.desc}`}>{meta.description}</p>
       )}
       <TabNav tabs={repoTabs(base)} base={base} />
-      <div className={styles.body}>{children}</div>
+      <div className={styles.body}>{props.children}</div>
     </div>
   );
 }

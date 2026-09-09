@@ -33,11 +33,8 @@ function searchHref(
 }
 
 /** Keyword search box; client-side nav via router transition preserves active type filter. */
-export default function SearchForm({
-  basePath,
-  activeType,
-  q,
-}: SearchFormProps) {
+export default function SearchForm(props: SearchFormProps) {
+  const { basePath, activeType, q } = props;
   const router = useRouter();
   const [value, setValue] = useState(q ?? "");
   const [isPending, startTransition] = useTransition();
@@ -49,17 +46,28 @@ export default function SearchForm({
 
   return (
     <form className="search-form" onSubmit={submit}>
-      <input
-        type="text"
-        name="q"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Search context…"
-        aria-label="Search context"
-      />
+      <SearchInput value={value} onChange={setValue} />
       <button type="submit" disabled={isPending}>
         {isPending ? "Searching…" : "Search"}
       </button>
     </form>
+  );
+}
+
+interface SearchInputProps {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function SearchInput({ value, onChange }: SearchInputProps) {
+  return (
+    <input
+      type="text"
+      name="q"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="Search context…"
+      aria-label="Search context"
+    />
   );
 }

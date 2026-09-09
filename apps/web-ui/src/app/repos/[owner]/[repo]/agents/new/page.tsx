@@ -41,18 +41,15 @@ function NewAgentHeader({ fullName }: { fullName: string }) {
   );
 }
 
-export default async function NewAgent({
-  params,
-}: {
+interface NewAgentProps {
   params: Promise<{ owner: string; repo: string }>;
-}) {
+}
+
+export default async function NewAgent({ params }: NewAgentProps) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  async function createAction(
-    _prev: AgentFormState,
-    formData: FormData,
-  ): Promise<AgentFormState> {
+  async function createAction(_prev: AgentFormState, formData: FormData) {
     "use server";
 
     return await createDefinition(fullName, formData);

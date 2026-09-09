@@ -100,6 +100,24 @@ function summarize(event: ConsoleAuditEvent): string {
   return summarizer ? summarizer(payload) : event.event_type;
 }
 
+function toWorkItem(task: ConsoleTask): WorkItem {
+  return {
+    id: task.id,
+    type: task.task_type,
+    status: task.status,
+    prUrl: task.pr_url,
+    createdAt: task.created_at,
+  };
+}
+
+function toDecisionItem(event: ConsoleAuditEvent): DecisionItem {
+  return {
+    kind: event.event_type,
+    summary: summarize(event),
+    createdAt: event.created_at,
+  };
+}
+
 export function deriveDarkFactoryConsole(
   input: DarkFactoryConsoleInput,
 ): DarkFactoryConsoleModel {
@@ -110,17 +128,7 @@ export function deriveDarkFactoryConsole(
     },
     config: input.resolved,
     trustLevel: input.trustLevel,
-    workItems: input.tasks.map((task) => ({
-      id: task.id,
-      type: task.task_type,
-      status: task.status,
-      prUrl: task.pr_url,
-      createdAt: task.created_at,
-    })),
-    decisions: input.decisions.map((event) => ({
-      kind: event.event_type,
-      summary: summarize(event),
-      createdAt: event.created_at,
-    })),
+    workItems: input.tasks.map(toWorkItem),
+    decisions: input.decisions.map(toDecisionItem),
   };
 }

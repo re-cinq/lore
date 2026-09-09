@@ -46,35 +46,62 @@ function edgeLevelOpacity(
   return levelPairOpacity(focusLevels.get(sourceId), focusLevels.get(targetId));
 }
 
+/** The mutable half of a focus state: the two settings the setters write and every opacity read consults. */
+interface FocusVars {
+  focusLevels: Map<string, number> | null;
+  searchTerm: string;
+}
+
+type SearchMatcher = (id: string) => boolean;
+
+/** Does this node id match the live query? Reads the node fresh each call, because expand/collapse replaces the map. */
+function createMatcher(
+  getNodeById: () => Map<string, SimNode>,
+  vars: FocusVars,
+): SearchMatcher {
+  return (id) => {
+    const node = getNodeById().get(id);
+
+    return node ? nodeMatchesQuery(node, vars.searchTerm) : false;
+  };
+}
+
+function nodeOpacityOf(
+  vars: FocusVars,
+  matchesSearch: SearchMatcher,
+  id: string,
+): number {
+  return vars.searchTerm.trim()
+    ? searchOpacity(matchesSearch(id), 1)
+    : levelOpacity(vars.focusLevels, id);
+}
+
+function edgeOpacityOf(
+  vars: FocusVars,
+  matchesSearch: SearchMatcher,
+  sourceId: string,
+  targetId: string,
+): number {
+  return vars.searchTerm.trim()
+    ? searchOpacity(matchesSearch(sourceId) && matchesSearch(targetId), 0.5)
+    : edgeLevelOpacity(vars.focusLevels, sourceId, targetId);
+}
+
 export function createFocusState(
   getNodeById: () => Map<string, SimNode>,
 ): FocusState {
-  let focusLevels: Map<string, number> | null = null;
-  let searchTerm = "";
-
-  const matchesSearch = (id: string) => {
-    const n = getNodeById().get(id);
-
-    return n ? nodeMatchesQuery(n, searchTerm) : false;
-  };
-
-  const nodeOpacity = (id: string): number =>
-    searchTerm.trim()
-      ? searchOpacity(matchesSearch(id), 1)
-      : levelOpacity(focusLevels, id);
-  const edgeOpacity = (sourceId: string, targetId: string): number =>
-    searchTerm.trim()
-      ? searchOpacity(matchesSearch(sourceId) && matchesSearch(targetId), 0.5)
-      : edgeLevelOpacity(focusLevels, sourceId, targetId);
+  const vars: FocusVars = { focusLevels: null, searchTerm: "" };
+  const matchesSearch = createMatcher(getNodeById, vars);
 
   return {
-    nodeOpacity,
-    edgeOpacity,
+    nodeOpacity: (id) => nodeOpacityOf(vars, matchesSearch, id),
+    edgeOpacity: (sourceId, targetId) =>
+      edgeOpacityOf(vars, matchesSearch, sourceId, targetId),
     setFocusLevels: (levels) => {
-      focusLevels = levels;
+      vars.focusLevels = levels;
     },
     setSearchTerm: (term) => {
-      searchTerm = term;
+      vars.searchTerm = term;
     },
   };
 }

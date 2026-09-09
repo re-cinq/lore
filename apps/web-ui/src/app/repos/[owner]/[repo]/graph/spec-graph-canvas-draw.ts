@@ -63,6 +63,32 @@ export function visibleLeaf(
   return isLeafCanvas(n.type) && !(collapsing && aggHidden.has(n.id));
 }
 
+interface WorldPassDeps {
+  ctx: CanvasRenderingContext2D;
+  dpr: number;
+  colors: CanvasColors;
+  aggHidden: Set<string>;
+  bundleLine: d3.Line<[number, number]>;
+}
+
+/** World-space pass: edges then leaf dots, under the zoom transform. */
+function drawWorld(
+  deps: WorldPassDeps,
+  state: CanvasDrawState,
+  collapsing: boolean,
+): void {
+  const { ctx, dpr, colors, aggHidden, bundleLine } = deps;
+  const { transform } = state;
+
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  ctx.translate(transform.x, transform.y);
+  ctx.scale(transform.k, transform.k);
+  drawEdges({ ctx, colors, aggHidden, bundleLine }, state, collapsing);
+  drawLeafNodes({ ctx, colors, aggHidden }, state, collapsing);
+  ctx.restore();
+}
+
 export function createCanvasDrawer(params: CanvasDrawerParams) {
   const { ctx, canvas, dpr, colors, aggHidden, aggBadges } = params;
   const bundleLine = d3
@@ -76,14 +102,7 @@ export function createCanvasDrawer(params: CanvasDrawerParams) {
 
     const collapsing = isAggregating(state.transform.k);
 
-    // World-space pass: edges then leaf dots, under the zoom transform.
-    ctx.save();
-    ctx.scale(dpr, dpr);
-    ctx.translate(state.transform.x, state.transform.y);
-    ctx.scale(state.transform.k, state.transform.k);
-    drawEdges({ ctx, colors, aggHidden, bundleLine }, state, collapsing);
-    drawLeafNodes({ ctx, colors, aggHidden }, state, collapsing);
-    ctx.restore();
+    drawWorld({ ctx, dpr, colors, aggHidden, bundleLine }, state, collapsing);
 
     if (collapsing) {
       drawAggregationBadges({ ctx, dpr, colors, aggBadges }, state);

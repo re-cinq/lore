@@ -15,10 +15,10 @@ function RowSection({ rows }: { rows: number }) {
   );
 }
 
-// Fallback for repo segment; tab subroutes have no closer loading.tsx, so stay tab-neutral (no overview-specific text).
-export default function RepoLoading() {
+/** The two cards above the row sections: the repo blurb and the stat strip. */
+function HeaderCards() {
   return (
-    <div role="status" aria-label="Loading repository">
+    <>
       <div className={`spec-card ${styles.card}`}>
         {Array.from({ length: 4 }, (_, i) => (
           <Skeleton width={`${85 - i * 10}%`} key={i} />
@@ -32,6 +32,15 @@ export default function RepoLoading() {
           ))}
         </div>
       </div>
+    </>
+  );
+}
+
+// Fallback for repo segment; tab subroutes have no closer loading.tsx, so stay tab-neutral (no overview-specific text).
+export default function RepoLoading() {
+  return (
+    <div role="status" aria-label="Loading repository">
+      <HeaderCards />
       <RowSection rows={3} />
       <RowSection rows={5} />
     </div>

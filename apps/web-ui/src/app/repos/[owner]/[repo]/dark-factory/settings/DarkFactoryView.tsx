@@ -37,13 +37,24 @@ function SettingsHeader() {
   );
 }
 
-export default function DarkFactoryView({
-  fullName,
-  resolved,
-  rawImage,
-  defaultExecutionImage,
-  saveAction,
-}: DarkFactoryViewProps) {
+/** Which container a run executes in. Left empty it inherits the platform default, shown as the placeholder rather than as a stored value. */
+function ExecutionImageField(props: DarkFactoryViewProps) {
+  const { rawImage, defaultExecutionImage } = props;
+
+  return (
+    <>
+      <label>Execution image (BYO toolchain)</label>
+      <input
+        name="df_execution_image"
+        defaultValue={rawImage ?? ""}
+        placeholder={defaultExecutionImage}
+      />
+    </>
+  );
+}
+
+export default function DarkFactoryView(props: DarkFactoryViewProps) {
+  const { fullName, resolved, saveAction } = props;
   const [state, formAction] = useActionState(saveAction, INITIAL_SAVE_STATE);
 
   return (
@@ -57,12 +68,7 @@ export default function DarkFactoryView({
 
         <ModeFields resolved={resolved} />
         <AutoMergeFields resolved={resolved} />
-        <label>Execution image (BYO toolchain)</label>
-        <input
-          name="df_execution_image"
-          defaultValue={rawImage ?? ""}
-          placeholder={defaultExecutionImage}
-        />
+        <ExecutionImageField {...props} />
 
         <ApprovalPrField />
         <button type="submit">Save Dark Factory</button>
@@ -108,18 +114,15 @@ const YES_NO_OPTIONS: [string, string][] = [
   ["yes", "Yes"],
 ];
 
-/** A labelled select over a fixed set of values, given as `[value, label]` pairs so the stored value and the words a reader sees stay together at the call site. */
-function ChoiceField({
-  label,
-  name,
-  value,
-  options,
-}: {
+interface ChoiceFieldProps {
   label: string;
   name: string;
   value: string;
   options: [string, string][];
-}) {
+}
+
+/** A labelled select over a fixed set of values, given as `[value, label]` pairs so the stored value and the words a reader sees stay together at the call site. */
+function ChoiceField({ label, name, value, options }: ChoiceFieldProps) {
   return (
     <>
       <label>{label}</label>
@@ -150,17 +153,14 @@ function NotifyField({ selected }: { selected: readonly string[] }) {
   );
 }
 
-/** What the factory does at all: whether it runs dark, whether it files Issues, whether it reviews, and who hears about it. */
-function ModeFields({ resolved }: { resolved: ResolvedDarkFactorySettings }) {
+interface ResolvedProps {
+  resolved: ResolvedDarkFactorySettings;
+}
+
+/** How a dark run reports itself: whether it files an Issue, and whether a review runs before merge. */
+function ReportingFields({ resolved }: ResolvedProps) {
   return (
     <>
-      <ChoiceField
-        label="Dark mode enabled"
-        name="df_enabled"
-        value={resolved.enabled ? "yes" : "no"}
-        options={YES_NO_OPTIONS}
-      />
-
       <ChoiceField
         label="Create GitHub Issue"
         name="df_create_issue"
@@ -173,6 +173,22 @@ function ModeFields({ resolved }: { resolved: ResolvedDarkFactorySettings }) {
         value={resolved.review}
         options={REVIEW_OPTIONS}
       />
+    </>
+  );
+}
+
+/** What the factory does at all: whether it runs dark, whether it files Issues, whether it reviews, and who hears about it. */
+function ModeFields({ resolved }: ResolvedProps) {
+  return (
+    <>
+      <ChoiceField
+        label="Dark mode enabled"
+        name="df_enabled"
+        value={resolved.enabled ? "yes" : "no"}
+        options={YES_NO_OPTIONS}
+      />
+
+      <ReportingFields resolved={resolved} />
 
       <NotifyField selected={resolved.notify} />
     </>
@@ -216,12 +232,28 @@ function MinTrustField({ value }: { value: string }) {
   );
 }
 
-/** When a PR may merge itself. Every "No" here is a downgrade, which is exactly what the approval ceremony gates. */
-function AutoMergeFields({
-  resolved,
-}: {
-  resolved: ResolvedDarkFactorySettings;
-}) {
+type AutoMerge = ResolvedDarkFactorySettings["auto_merge"];
+
+/** Every "No" here is a downgrade, which is exactly what the approval ceremony gates. */
+function AutoMergeRequirements({ autoMerge }: { autoMerge: AutoMerge }) {
+  return (
+    <>
+      <RequirementField
+        label="Require green CI to auto-merge"
+        name="df_am_green_ci"
+        required={autoMerge.require_green_ci}
+      />
+      <RequirementField
+        label="Require bot approval to auto-merge"
+        name="df_am_bot_approval"
+        required={autoMerge.require_bot_approval}
+      />
+    </>
+  );
+}
+
+/** When a PR may merge itself: which paths it may touch, and the trust and safety gates it must clear first. */
+function AutoMergeFields({ resolved }: ResolvedProps) {
   const { auto_merge: autoMerge } = resolved;
 
   return (
@@ -233,18 +265,9 @@ function AutoMergeFields({
         defaultValue={autoMerge.paths.join("\n")}
       />
 
-      <MinTrustField value={resolved.auto_merge.min_trust} />
+      <MinTrustField value={autoMerge.min_trust} />
 
-      <RequirementField
-        label="Require green CI to auto-merge"
-        name="df_am_green_ci"
-        required={resolved.auto_merge.require_green_ci}
-      />
-      <RequirementField
-        label="Require bot approval to auto-merge"
-        name="df_am_bot_approval"
-        required={resolved.auto_merge.require_bot_approval}
-      />
+      <AutoMergeRequirements autoMerge={autoMerge} />
     </>
   );
 }

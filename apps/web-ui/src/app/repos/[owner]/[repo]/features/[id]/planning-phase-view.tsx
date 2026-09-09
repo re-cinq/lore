@@ -52,15 +52,26 @@ interface PhaseInput {
   latestCreatedAt: string | undefined;
 }
 
+/** The running card, wired to the working NODE: its start, its deadline, and its live output. */
+function PhaseRunningCard(props: PhaseInput & { showSpec: boolean }) {
+  const { phase, poll, showSpec } = props;
+
+  return (
+    <RunningCard
+      iteration={props.iteration}
+      since={runningCardSince(phase, props.latestCreatedAt)}
+      timeoutMinutes={props.timeoutMinutes}
+      nodeId={runningCardNodeId(phase)}
+      liveOutput={poll.liveOutput}
+      run={poll.run}
+      phase={showSpec ? "spec" : "round"}
+    />
+  );
+}
+
 /** Same card as a planning round: same line, and the author has no decision to make while it runs. Returns null when the line wants nothing said and the author's analysis view takes over. */
-function runningPhaseCard({
-  phase,
-  poll,
-  iteration,
-  timeoutMinutes,
-  finalizing,
-  latestCreatedAt,
-}: PhaseInput): ReactNode {
+function runningPhaseCard(props: PhaseInput): ReactNode {
+  const { phase, poll, finalizing } = props;
   const { working, showSpec } = runningPhase(
     phase,
     finalizing,
@@ -71,17 +82,7 @@ function runningPhaseCard({
     return null;
   }
 
-  return (
-    <RunningCard
-      iteration={iteration}
-      since={runningCardSince(phase, latestCreatedAt)}
-      timeoutMinutes={timeoutMinutes}
-      nodeId={runningCardNodeId(phase)}
-      liveOutput={poll.liveOutput}
-      run={poll.run}
-      phase={showSpec ? "spec" : "round"}
-    />
-  );
+  return <PhaseRunningCard {...props} showSpec={showSpec} />;
 }
 
 /** Decompose progress. The iteration shown is the decompose NODE's attempt — a correction round — not the count of planning rounds that ran before the PR, which would read as though planning had restarted. */
@@ -100,17 +101,13 @@ function DecomposeCard({
 }
 
 /** What the machine is doing, if anything: the finished view, the parked spec PR, the decompose progress, or the running card. */
-export function phaseView({
-  phase,
-  poll,
-  settledView,
-  iteration,
-  timeoutMinutes,
-  finalizing,
-  latestCreatedAt,
-}: PhaseInput & { settledView: ReactNode }): ReactNode {
+export function phaseView(
+  props: PhaseInput & { settledView: ReactNode },
+): ReactNode {
+  const { phase, poll } = props;
+
   if (isFeatureSettled(phase, poll.feature.status)) {
-    return <>{settledView}</>;
+    return <>{props.settledView}</>;
   }
 
   // Spec PR open, line parked on `merged`: waiting on a PERSON, not on the machine.
@@ -123,12 +120,5 @@ export function phaseView({
     return <DecomposeCard phase={phase} />;
   }
 
-  return runningPhaseCard({
-    phase,
-    poll,
-    iteration,
-    timeoutMinutes,
-    finalizing,
-    latestCreatedAt,
-  });
+  return runningPhaseCard(props);
 }
