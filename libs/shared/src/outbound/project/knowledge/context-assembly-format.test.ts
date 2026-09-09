@@ -64,6 +64,27 @@ describe("dedupeItems", () => {
 
     expect(dedupeItems(sources)).toHaveLength(2);
   });
+
+  it("keeps a path-less item at rank 2 between two keyed survivors instead of moving it last", () => {
+    const keyed = (path: string, score: number) => ({
+      text: path,
+      tokens: 1,
+      source_path: path,
+      score,
+    });
+    const ranked = [
+      keyed("a.ts", 0.9),
+      { text: "memory", tokens: 1, score: 0.8 },
+      keyed("b.ts", 0.7),
+      keyed("a.ts", 0.1),
+    ];
+
+    expect(dedupeItems(ranked).map((it) => it.text)).toEqual([
+      "a.ts",
+      "memory",
+      "b.ts",
+    ]);
+  });
 });
 
 describe("serializeDocument", () => {
