@@ -50,6 +50,16 @@ describe("withCiFeedback", () => {
     expect(withCiFeedback("Do the work.", null)).toBe("Do the work.");
   });
 
+  it("cuts a summary past the cap, because the args it renders are external input", () => {
+    expect(
+      withCiFeedback("Do the work.", {
+        sha: "deadbeef",
+        failedChecks: "lint",
+        summary: "x".repeat(3000),
+      }),
+    ).toContain(`${"x".repeat(2500)}\n...(truncated)`);
+  });
+
   it("appends the failed check names and what those jobs reported", () => {
     expect(
       withCiFeedback("Do the work.", {
