@@ -93,4 +93,16 @@ describe("POST /api/stations/{name}", () => {
     expect((await run("boom")).statusCode).toBe(500);
     expect((await run("boom")).statusCode).toBe(500);
   });
+
+  it("includes the station name as 'job' in the 200 body, so a courier or operator can confirm which station ran", async () => {
+    // FR9.1: the courier posts POST /api/stations/{name} and the response carries
+    // { job, summary } — job mirrors the path param so callers get a self-describing
+    // confirmation without parsing the URL they already sent.
+    const res = await run("approval-check");
+
+    expect({ status: res.statusCode, body: res.result }).toMatchObject({
+      status: 200,
+      body: { job: "approval-check", summary: "Checked 3 tasks, 1 approved" },
+    });
+  });
 });

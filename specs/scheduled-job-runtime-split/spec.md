@@ -246,7 +246,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 - **FR9.1 — The endpoint runs the job named in the path and returns its
   summary.** `200` with `{ job, summary }`, the summary being the one-line
   string that was `pipeline.job_runs.result_summary`. An unknown job name is
-  `404` — a courier typo must not read as success.
+  `404` — a courier typo must not read as success. ([validated by `stations.test.ts:97`](apps/stations/src/transport/routes/stations.test.ts#L97))
 - **FR9.2 — A failing job answers with a status and nothing else.** The
   courier's only channel is an HTTP status, and a job's error can carry
   connection strings and hostnames; the detail is logged where operators look
