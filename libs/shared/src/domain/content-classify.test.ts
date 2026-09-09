@@ -14,6 +14,20 @@ describe("classifyFile", () => {
     expect(classifyFile(".specify/spec.md")).toBe("spec");
   });
 
+  it("classifies libs/shared/src/work/chunker.test.ts and cmd/foo_test.go as test, and chunker.ts as code", () => {
+    expect({
+      vitest: classifyFile("libs/shared/src/work/chunker.test.ts"),
+      go: classifyFile("cmd/foo_test.go"),
+      source: classifyFile("libs/shared/src/work/chunker.ts"),
+      specMarkdown: classifyFile("specs/x/spec.md"),
+    }).toEqual({
+      vitest: "test",
+      go: "test",
+      source: "code",
+      specMarkdown: "spec",
+    });
+  });
+
   it("classifies source files as code by extension", () => {
     expect(classifyFile("src/index.ts")).toBe("code");
     expect(classifyFile("main.go")).toBe("code");

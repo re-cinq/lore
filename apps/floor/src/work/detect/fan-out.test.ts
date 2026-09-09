@@ -251,7 +251,7 @@ describe("specReposSql", () => {
     expect(sql).toContain("content_type IN ('spec', 'code')");
     expect(sql).toContain("HAVING bool_or(content_type = 'spec')");
     expect(sql).toContain(
-      "bool_or(content_type = 'code' AND ingested_at > now() - ($1 || ' days')::interval)",
+      "bool_or(content_type IN ('code', 'test') AND ingested_at > now() - ($1 || ' days')::interval)",
     );
   });
 

@@ -14,7 +14,8 @@ import readme from "../ReadmeBox.module.css";
 import styles from "./ChunkBody.module.css";
 
 /** Non-code types render as markdown prose (pull_request/rule/etc). */
-const CODE_TYPE = "code";
+// A test chunk is source too: fenced, highlighted, and linked by line range.
+const CODE_TYPES = new Set(["code", "test"]);
 
 type ChunkKind = "code" | "prose";
 
@@ -168,7 +169,7 @@ function useChunkView({
   branch = "main",
   metadata,
 }: ChunkBodyProps) {
-  const kind: ChunkKind = contentType === CODE_TYPE ? "code" : "prose";
+  const kind: ChunkKind = CODE_TYPES.has(contentType) ? "code" : "prose";
 
   return {
     components: useResolvedMarkdownLinks(repo, branch),
