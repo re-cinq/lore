@@ -12,7 +12,9 @@ describe("parseFailureSites", () => {
 
   it("returns src/foo.ts line 12 for the tsc colon diagnostic variant", () => {
     expect(
-      parseFailureSites("src/foo.ts:12:5 - error TS2345: Argument of type 'a'."),
+      parseFailureSites(
+        "src/foo.ts:12:5 - error TS2345: Argument of type 'a'.",
+      ),
     ).toEqual([{ path: "src/foo.ts", line: 12 }]);
   });
 
