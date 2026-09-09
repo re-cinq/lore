@@ -5,11 +5,6 @@ import { parseAssemblyLine } from "./loader.js";
 import { getNextTransition, type NodeVisit } from "./transition.js";
 import type { StageOutcome } from "./node-types.js";
 
-/**
- * The merge line's whole point is that one step failing does not skip the rest.
- * That is a property of its EDGES, so it is asserted on the blueprint rather than
- * left to the reader — the code it replaces got this wrong in a way no test saw.
- */
 const merge = parseAssemblyLine(
   readFileSync(join(import.meta.dirname, "assembly-lines/merge.yaml"), "utf8"),
 );
@@ -59,7 +54,6 @@ describe("the merge line", () => {
 });
 
 describe("the merge line actually walks", () => {
-  /** Drive the line from its entry, answering every node with `answer`. */
   function walk(
     answer: (nodeId: string) => StageOutcome,
     limit = 40,

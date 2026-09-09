@@ -19,12 +19,11 @@ describe("toggleImplementationLoopAction", () => {
       data: { ok: true, enabled: true },
     } as never);
 
-    await toggleImplementationLoopAction("re-cinq/lore", true);
+    await toggleImplementationLoopAction("re-cinq/lore", { enabled: true });
 
-    expect(setImplementationLoopEnabled).toHaveBeenCalledWith(
-      "re-cinq/lore",
-      true,
-    );
+    expect(setImplementationLoopEnabled).toHaveBeenCalledWith("re-cinq/lore", {
+      enabled: true,
+    });
     expect(revalidatePath).toHaveBeenCalledWith(
       "/repos/re-cinq/lore/implementation-loop",
     );
@@ -37,7 +36,7 @@ describe("toggleImplementationLoopAction", () => {
     } as never);
 
     await expect(
-      toggleImplementationLoopAction("re-cinq/lore", true),
+      toggleImplementationLoopAction("re-cinq/lore", { enabled: true }),
     ).rejects.toThrow();
     expect(revalidatePath).not.toHaveBeenCalled();
   });

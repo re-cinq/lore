@@ -1,0 +1,96 @@
+import type { PgPool } from "../../memory-store.js";
+
+// A computed self-join projection over memory.entities + memory.edges (entity/related_entity/direction are query-time aliases) — not one table's row; returns the snake_case shape lore_query_graph + context-assembly already consume.
+// eslint-disable-next-line re-lint/no-row-types-outside-models
+export interface LiveGraphResult {
+  entity: string;
+  entity_type: string;
+  relation: string;
+  related_entity: string;
+  related_type: string;
+  direction: "outgoing" | "incoming";
+  valid_from: string;
+}
+
+export interface LiveGraphFilter {
+  entity?: string;
+  relationType?: string;
+  repo?: string;
+  includeInvalidated?: boolean;
+}
+
+/** `value || null`, spelled as a call so it's not one more branch in the caller. */
+function emptyToNull(value: string | undefined): string | null {
+  return value || null;
+}
+
+/** One direction of the entity's edges: `near` is the side matched against the queried name, `far` the neighbor reported back. Both halves of the UNION are this same shape with the sides swapped — an edge is stored once, but the entity at either end wants to see it. */
+function edgesFrom(
+  near: "s" | "t",
+  far: "s" | "t",
+  direction: "outgoing" | "incoming",
+  validFilter: string,
+): string {
+  return `SELECT
+       ${near}.name as entity, ${near}.entity_type,
+       e.relation_type as relation,
+       ${far}.name as related_entity, ${far}.entity_type as related_type,
+       '${direction}' as direction,
+       e.valid_from
+     FROM memory.edges e
+     JOIN memory.entities s ON s.id = e.source_id
+     JOIN memory.entities t ON t.id = e.target_id
+     WHERE LOWER(${near}.name) = LOWER($1)
+       ${validFilter}
+       AND ($2::text IS NULL OR e.relation_type = $2)
+       AND ($3::text IS NULL OR ${near}.repo = $3)`;
+}
+
+function entityGraphQuery(validFilter: string): string {
+  return `${edgesFrom("s", "t", "outgoing", validFilter)}
+     UNION ALL
+     ${edgesFrom("t", "s", "incoming", validFilter)}
+     ORDER BY valid_from DESC
+     LIMIT 50`;
+}
+
+function allGraphQuery(validFilter: string): string {
+  return `SELECT
+     s.name as entity, s.entity_type,
+     e.relation_type as relation,
+     t.name as related_entity, t.entity_type as related_type,
+     'outgoing' as direction,
+     e.valid_from
+   FROM memory.edges e
+   JOIN memory.entities s ON s.id = e.source_id
+   JOIN memory.entities t ON t.id = e.target_id
+   WHERE 1=1
+     ${validFilter}
+     AND ($1::text IS NULL OR e.relation_type = $1)
+     AND ($2::text IS NULL OR s.repo = $2)
+   ORDER BY e.created_at DESC
+   LIMIT 50`;
+}
+
+export async function queryLiveGraph(
+  pool: PgPool,
+  filter: LiveGraphFilter = {},
+): Promise<LiveGraphResult[]> {
+  const { entity, relationType, repo, includeInvalidated = false } = filter;
+  const validFilter = includeInvalidated ? "" : "AND e.valid_to IS NULL";
+  const params = [emptyToNull(relationType), emptyToNull(repo)];
+
+  return entity
+    ? runGraphQuery(pool, entityGraphQuery(validFilter), [entity, ...params])
+    : runGraphQuery(pool, allGraphQuery(validFilter), params);
+}
+
+async function runGraphQuery(
+  pool: PgPool,
+  sql: string,
+  params: Array<string | null>,
+): Promise<LiveGraphResult[]> {
+  const { rows } = await pool.query<LiveGraphResult>(sql, params);
+
+  return rows;
+}

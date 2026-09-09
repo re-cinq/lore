@@ -281,6 +281,44 @@ describe("computeEnrollmentChecks", () => {
     expect(c.detail).toContain("401");
   });
 
+  it("webhook warns and names the stale host on wrong_url", () => {
+    const c = byId(
+      computeEnrollmentChecks(
+        input({
+          webhook: { state: "wrong_url", url: "https://old-host.example" },
+        }),
+      ),
+      "webhook",
+    );
+
+    expect(c).toMatchObject({
+      status: "warn",
+      action: { kind: "setup-webhook" },
+    });
+    expect(c.detail).toContain("https://old-host.example");
+  });
+
+  it("webhook warns when disabled (inactive)", () => {
+    expect(
+      byId(
+        computeEnrollmentChecks(input({ webhook: { state: "inactive" } })),
+        "webhook",
+      ),
+    ).toMatchObject({ status: "warn", detail: "webhook is disabled" });
+  });
+
+  it("webhook warns on narrow event subscriptions", () => {
+    expect(
+      byId(
+        computeEnrollmentChecks(input({ webhook: { state: "narrow_events" } })),
+        "webhook",
+      ),
+    ).toMatchObject({
+      status: "warn",
+      detail: "missing event types (PRs / checks / reviews)",
+    });
+  });
+
   it("webhook is unknown (no action) when the App lacks the webhook permission", () => {
     expect(
       byId(
@@ -297,7 +335,7 @@ describe("computeEnrollmentChecks", () => {
     });
   });
 
-  const HOOK_URL = "https://lore-webhook.gcp.re-cinq.com/api/webhook/github";
+  const HOOK_URL = "https://lore-events.gcp.re-cinq.com/api/events";
 
   it("webhook surfaces the URL to set by hand when not configured", () => {
     expect(

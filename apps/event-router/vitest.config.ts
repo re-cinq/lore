@@ -7,13 +7,8 @@ export default defineConfig({
     exclude: ["dist/**", "node_modules/**"],
     coverage: {
       provider: "v8",
-      // 100% on this service's decision logic. The excluded files are the IO
-      // shells and composition roots — the reconnect loop and live Watch
-      // (`k8s-watch.ts`), the pool, the hapi wiring, the boot — which cannot be
-      // exercised without a cluster and a database. Same split the Floor's
-      // config makes, and the reason `agent-reporting.ts` exists apart from the
-      // connection that feeds it.
-      include: ["src/delivery/routes/events.ts"],
+      // 100% on decision logic; IO shells excluded (need cluster + DB).
+      include: ["src/transport/routes/events.ts"],
       thresholds: {
         lines: 100,
         branches: 100,

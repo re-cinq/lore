@@ -139,7 +139,7 @@ as an assembly line** (`libs/assembly-lines/src/assembly-lines/{gap-detect,
 spec-drift,spec-coverage-validate,spec-coverage-backfill}.yaml`, a two-node
 `detect → done` graph) and **started by an event**: an in-process cron emitter
 inserts `cron.<job>.tick` at the historic cadence, the tick handler
-(`apps/floor/src/jobs/detect/fan-out.ts`) enumerates target repos, pre-creates
+(`apps/floor/src/work/detect/fan-out.ts`) enumerates target repos, pre-creates
 the `<job_ref>:<repo>` `pipeline.job_runs` row, and calls
 `assemblyLines().start(<definition>, {repo, branch, args:{job_run_id}})` per
 repo. *(Amended 2026-07: the dedicated repo-less runner was retired — detection
@@ -180,6 +180,37 @@ as K8s CronJobs — the carve-out still holds where runs are org-wide, memory-he
 or hours long. The detection pattern (`detect` node + tick fan-out) is the
 intended porting path for any of them that can be made per-repo.
 
+## Amendment (2026-09-08): `context_reindex` is retired
+
+The nightly full re-index CronJob had failed on every run for at least four
+nights, and nothing noticed — because nothing depended on it any more.
+Ingestion had already become merge-time only: the `ci-ingest` hook starts
+the ingest assembly line, whose station chunks and embeds (through
+`POST /api/embed`) on its own. The job, its `cronJobs` entry, the
+`apps/floor/src/work/context-jobs/reindex/` module, and the reindex-only
+chunk-port surface (`reindexOwnedFilePaths`, `chunkedFilePaths`,
+`staleChunkerFiles`, `touchChunksForFiles`, `pruneChunksForFiles`,
+`staleChunkCount`) are deleted, together with the `stale` chunk kind on
+lore-api and the stale-content gap in gap detection.
+
+The 2026-07 amendment below is therefore history, not policy: with no sweep,
+`ingested_at` again means "last written", the `ingested_by = 'reindex-job'`
+marker on existing rows is provenance only, and the stale-content signal —
+defined there as "reindex has stopped covering the repo" — would have read
+true for every repo forever, refiling the same `gap-fill` weekly, which is the
+exact defect that amendment had fixed. It is removed rather than re-owned.
+
+Accepted consequences, recorded so they are not rediscovered as bugs:
+
+- Chunks of a file deleted from the repo are not pruned automatically.
+- A `CHUNKER_VERSION` bump no longer reaches files that never change.
+- A file no merge has touched since onboarding stays unindexed until one does.
+
+Legacy relocation (`relocateLegacyChunks`, FR-20.21) survives, driven only by
+`internal.repo.team_changed`; the nightly self-healing pass that also called
+it is gone, so a team assigned outside the settings route no longer converges
+on its own.
+
 ## Amendment (2026-07): `context_reindex` verification sweep — `ingested_at` becomes a verification stamp (issue #967)
 
 `gap_detection`'s stale-content signal was born broken and no prior ADR or spec
@@ -190,7 +221,7 @@ days" was the permanent steady state of every stable doc, and gap-detect
 re-filed the same un-completable `gap-fill` task weekly, forever.
 
 **Decision.** Every per-repo `context_reindex` pass now ends with a
-verification sweep (`apps/floor/src/jobs/context-jobs/reindex/verify.ts`):
+verification sweep (`apps/floor/src/work/context-jobs/reindex/verify.ts`):
 chunks the reindex job owns whose files still exist in the repo tree get
 `ingested_at` re-stamped; owned chunks of deleted files are pruned. This
 redefines the semantics rather than restoring any prior intent:
@@ -221,7 +252,7 @@ repo's resolved team schema, and — where their `content_type` is one
 `classifyFile()` can return (`doc`/`code`/`adr`/`spec`) — adopted by the sweep
 via `ingested_by = 'reindex-job'`; rows with a non-classifiable `content_type`
 (pseudo-path writers such as `rule` / `pull_request`) are relocated but remain
-unowned ([validated by `migration-0035.test.ts:45`](apps/lore-api/src/features/agents/migration-0035.test.ts#L45))
+unowned ([validated by `migration-0035.test.ts:45`](apps/lore-api/src/work/agents/migration-0035.test.ts#L39))
 
 The relocation is also self-healing at runtime (the migration handles the
 past; this handles the future): the nightly reindex opens every
@@ -238,16 +269,16 @@ manual operation.
 The relocation's guarantees:
 
 - The loop targets only real team schemas resolved from `lore.repos`, never
-  `org_shared` itself ([validated by `migration-0035.test.ts:66`](apps/lore-api/src/features/agents/migration-0035.test.ts#L66))
+  `org_shared` itself ([validated by `migration-0035.test.ts:66`](apps/lore-api/src/work/agents/migration-0035.test.ts#L60))
 - A file already fresh in the target schema keeps its team-schema copy; only
-  files absent from the target move, guarded per repo + file_path ([validated by `migration-0035.test.ts:19`](apps/lore-api/src/features/agents/migration-0035.test.ts#L19))
+  files absent from the target move, guarded per repo + file_path ([validated by `migration-0035.test.ts:19`](apps/lore-api/src/work/agents/migration-0035.test.ts#L13))
 - Copy and delete run as one statement sharing one snapshot, and the delete
   removes only copied rows or stale duplicates — never a delete without a
-  copy ([validated by `migration-0035.test.ts:26`](apps/lore-api/src/features/agents/migration-0035.test.ts#L26))
-- The generated `search_tsv` column is omitted from the INSERT list ([validated by `migration-0035.test.ts:36`](apps/lore-api/src/features/agents/migration-0035.test.ts#L36))
-- Schema, repo, and team values are interpolated only via `format %I`/`%L` ([validated by `migration-0035.test.ts:51`](apps/lore-api/src/features/agents/migration-0035.test.ts#L51))
+  copy ([validated by `migration-0035.test.ts:26`](apps/lore-api/src/work/agents/migration-0035.test.ts#L20))
+- The generated `search_tsv` column is omitted from the INSERT list ([validated by `migration-0035.test.ts:36`](apps/lore-api/src/work/agents/migration-0035.test.ts#L30))
+- Schema, repo, and team values are interpolated only via `format %I`/`%L` ([validated by `migration-0035.test.ts:51`](apps/lore-api/src/work/agents/migration-0035.test.ts#L45))
 - Repos the `lore` runner cannot write are skipped with a NOTICE instead of
-  failing the deploy ([validated by `migration-0035.test.ts:61`](apps/lore-api/src/features/agents/migration-0035.test.ts#L61))
+  failing the deploy ([validated by `migration-0035.test.ts:61`](apps/lore-api/src/work/agents/migration-0035.test.ts#L55))
 
 Api-owned orphans of deleted files are still never pruned by anything —
 closing that needs a GitHub tree read and belongs in the reindex `verify.ts`
@@ -266,7 +297,7 @@ with coordinating a factory floor.
 
 Being a nightly batch is not one of the Floor's three exclusive powers
 ([ADR-024](./ADR-024-ubiquitous-language-execution-model.md), amendment 2026-08).
-A CronJob pod running `dist/delivery/job-runner.js` is already a separate process
+A CronJob pod running `dist/transport/job-runner.js` is already a separate process
 from the Floor — the only thing it still shares is the Floor's codebase and
 dependency tree. The detection family made this move first (amendment 2026-07,
 above): each became an assembly-line definition with a deterministic `detect`
@@ -277,7 +308,7 @@ their schedules:
 
 | Job | Shape | New home |
 |---|---|---|
-| `context_reindex` | tree-sitter chunking + embeddings over a checkout | the **ingest assembly line**, which already owns a chunking path |
+| `context_reindex` | tree-sitter chunking + embeddings over a checkout | **retired 2026-09-08** — no replacement; the merge-time ingest assembly line is the only ingestion |
 | `eval_runner` | shells out to the `promptfoo` binary, reads `EVALS_DIR` off disk | a **Station** |
 | `context_core_builder` | same promptfoo shell-out, plus promote/reject thresholds | a **Station** — sequenced after the eval line by an edge instead of by two cron times |
 | `consolidation` | Haiku pattern-extraction over recent facts | a **Station** |

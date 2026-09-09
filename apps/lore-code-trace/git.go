@@ -44,3 +44,25 @@ func gitMeta(dir string) (commit, branch, repo string, err error) {
 	repo, err = parseRepoFromRemote(remote)
 	return
 }
+
+// commitReachable reports whether sha is in this checkout's history — false
+// after a force-push or from an over-shallow clone, either of which makes the
+// recorded state unusable as a diff basis.
+func commitReachable(dir, sha string) bool {
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", sha, "HEAD")
+	cmd.Dir = dir
+	return cmd.Run() == nil
+}
+
+// changedSince lists paths changed and deleted between base and HEAD.
+func changedSince(dir, base string) (changed, deleted []string, err error) {
+	// core.quotePath=false: emit non-ASCII paths verbatim instead of C-quoted, so
+	// they match the descriptors' File fields (parseNameStatus unquotes whatever
+	// git insists on quoting anyway, i.e. control characters).
+	out, err := gitOutput(dir, "-c", "core.quotePath=false", "diff", "--name-status", base+"..HEAD")
+	if err != nil {
+		return nil, nil, err
+	}
+	changed, deleted = parseNameStatus(out)
+	return changed, deleted, nil
+}

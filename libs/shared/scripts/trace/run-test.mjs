@@ -80,9 +80,10 @@ try {
       continue;
     }
 
+    // COVERS targets real code, not the test itself
     if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) {
       continue;
-    } // COVERS targets real code, not the test itself
+    }
 
     for (const [statementId, range] of Object.entries(entry.statementMap)) {
       if ((entry.s[statementId] ?? 0) <= 0) {

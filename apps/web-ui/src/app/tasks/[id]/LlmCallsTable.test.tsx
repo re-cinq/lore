@@ -16,6 +16,12 @@ const call = (over: Partial<TaskRuntimeLlmCall> = {}): TaskRuntimeLlmCall => ({
 });
 
 describe("LlmCallsTable", () => {
+  it("renders as a collapsible card titled LLM Calls", () => {
+    render(<LlmCallsTable llmCalls={[]} repo="o/r" />);
+
+    expect(screen.getByText("LLM Calls").closest("summary")).not.toBeNull();
+  });
+
   it("renders the empty note when there are no calls", () => {
     render(<LlmCallsTable llmCalls={[]} repo="re-cinq/lore" />);
 
@@ -42,5 +48,28 @@ describe("LlmCallsTable", () => {
 
     expect(screen.getByText("failed")).toBeInTheDocument();
     expect(screen.getByText("rate limited")).toBeInTheDocument();
+  });
+
+  it("marks a failed call with no error text and renders no error line", () => {
+    render(
+      <LlmCallsTable
+        llmCalls={[call({ status: "failed", error: null })]}
+        repo="re-cinq/lore"
+      />,
+    );
+
+    expect(screen.getByText("failed")).toBeInTheDocument();
+    expect(screen.queryByText("rate limited")).not.toBeInTheDocument();
+  });
+
+  it("renders an em dash when duration and created_at are absent", () => {
+    render(
+      <LlmCallsTable
+        llmCalls={[call({ duration_ms: 0, created_at: null })]}
+        repo="re-cinq/lore"
+      />,
+    );
+
+    expect(screen.getAllByText("—")).toHaveLength(2);
   });
 });

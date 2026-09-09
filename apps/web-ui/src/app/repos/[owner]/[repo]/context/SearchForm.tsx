@@ -12,49 +12,62 @@ export interface SearchFormProps {
   q?: string;
 }
 
-/**
- * Keyword search box for the context list. Submitting navigates client-side via
- * the router inside a transition so the button can show a pending state while
- * the new results load. Preserves the active type filter in the URL.
- */
-export default function SearchForm({
-  basePath,
-  activeType,
-  q,
-}: SearchFormProps) {
+/** The URL this search asks for. Carries the active type filter along with the query, so searching does not silently widen the list back to every content type. */
+function searchHref(
+  basePath: string,
+  value: string,
+  activeType: string | undefined,
+): string {
+  const params = new URLSearchParams();
+
+  if (value) {
+    params.set("q", value);
+  }
+
+  if (activeType) {
+    params.set("type", activeType);
+  }
+  const qs = params.toString();
+
+  return qs ? `${basePath}?${qs}` : basePath;
+}
+
+/** Keyword search box; client-side nav via router transition preserves active type filter. */
+export default function SearchForm(props: SearchFormProps) {
+  const { basePath, activeType, q } = props;
   const router = useRouter();
   const [value, setValue] = useState(q ?? "");
   const [isPending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const params = new URLSearchParams();
-
-    if (value) {
-      params.set("q", value);
-    }
-
-    if (activeType) {
-      params.set("type", activeType);
-    }
-    const qs = params.toString();
-
-    startTransition(() => router.push(qs ? `${basePath}?${qs}` : basePath));
+    startTransition(() => router.push(searchHref(basePath, value, activeType)));
   };
 
   return (
     <form className="search-form" onSubmit={submit}>
-      <input
-        type="text"
-        name="q"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Search context…"
-        aria-label="Search context"
-      />
+      <SearchInput value={value} onChange={setValue} />
       <button type="submit" disabled={isPending}>
         {isPending ? "Searching…" : "Search"}
       </button>
     </form>
+  );
+}
+
+interface SearchInputProps {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function SearchInput({ value, onChange }: SearchInputProps) {
+  return (
+    <input
+      type="text"
+      name="q"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="Search context…"
+      aria-label="Search context"
+    />
   );
 }

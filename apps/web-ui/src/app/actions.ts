@@ -13,36 +13,16 @@ import { clearIngestStatusCache } from "@/lib/ingest-status-cache";
 import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
 import { revalidatePath } from "next/cache";
 
-/**
- * Fail-soft per repo so one bad repo never sinks the batch — but every
- * failure is reported with its reason, never swallowed: the App lacking the
- * Workflows permission made this action silently open zero PRs for the
- * org's entire history.
- */
-async function openFixPRs(
-  repos: string[],
-  open: (repo: string) => Promise<{ url: string; number: number } | null>,
-): Promise<FixWorkflowResult> {
-  const results = await Promise.all(
-    repos.map(async (repo) => {
-      try {
-        const pr = await open(repo);
+type OpenPr = (repo: string) => Promise<{ url: string; number: number } | null>;
 
-        return pr
-          ? { repo, url: pr.url }
-          : {
-              repo,
-              error:
-                "no PR was opened (GitHub App not configured, or no open fix PR found for the existing fix branch)",
-            };
-      } catch (err) {
-        return {
-          repo,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    }),
-  );
+type FixOutcome =
+  { repo: string; url: string } | { repo: string; error: string };
+
+const NO_PR_REASON =
+  "no PR was opened (GitHub App not configured, or no open fix PR found for the existing fix branch)";
+
+/** Splits the per-repo outcomes into what opened and what did not. Failures keep their repo AND their reason: a run that opened three PRs out of five is not a success, and the two that failed are only actionable with the reason attached. */
+function partitionResults(results: FixOutcome[]): FixWorkflowResult {
   const prs = results
     .map((r) => ("url" in r ? r.url : null))
     .filter((url): url is string => url !== null);
@@ -50,10 +30,33 @@ async function openFixPRs(
     (r): r is { repo: string; error: string } => "error" in r,
   );
 
+  return { opened: prs.length, prs, failed };
+}
+
+/** One repo's attempt, an outcome either way — a thrown error is a reported failure, never a lost run. */
+async function attemptFix(repo: string, open: OpenPr): Promise<FixOutcome> {
+  try {
+    const pr = await open(repo);
+
+    return pr ? { repo, url: pr.url } : { repo, error: NO_PR_REASON };
+  } catch (err) {
+    return { repo, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Fail-soft per repo, every failure reported with its reason — a silent App-permission gap once opened zero PRs org-wide.
+async function openFixPRs(
+  repos: string[],
+  open: OpenPr,
+): Promise<FixWorkflowResult> {
+  const results = await Promise.all(
+    repos.map((repo) => attemptFix(repo, open)),
+  );
+
   clearIngestStatusCache();
   revalidatePath("/");
 
-  return { opened: prs.length, prs, failed };
+  return partitionResults(results);
 }
 
 /** Open a fix-PR installing the canonical ingest workflow on each repo. */
@@ -69,12 +72,7 @@ export async function fixIngestWorkflows(
   );
 }
 
-/**
- * Open a fix-PR installing the canonical spec-impact workflow on each repo.
- * Worth surfacing separately: until a repo is on v2 the backend suppresses
- * its findings, so a stale workflow is not a cosmetic drift but a check that
- * is switched off.
- */
+// Separate from fixIngestWorkflows: until a repo is on v2 the backend suppresses its findings, so a stale workflow disables the check entirely.
 export async function fixTraceImpactWorkflows(
   repos: string[],
 ): Promise<FixWorkflowResult> {

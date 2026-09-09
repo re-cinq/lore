@@ -1,44 +1,19 @@
-// Hand mirror of AgentRunEventRow from
-// libs/shared/src/project/agent-run-events/agent-run-events-port.ts. web-ui is
-// excluded from the npm workspace and built in an isolated Docker context, so it
-// cannot import @re-cinq/lore-shared; scripts/type-drift/run-stream-types.drift.ts
-// makes drift from the canonical type a compile-time failure.
-//
-// The one deliberate divergence: `createdAt` is a Date on the port and a string
-// here, because this side only ever sees the JSON projection of the row. The
-// drift guard is therefore keys-only, never structural.
-//
-// DECISION (#1419): structural, not debt. The Floor serves this shape and the
-// Floor generates no OpenAPI document — no generator, no zodResponse call — so
-// there is nothing for a generated type to come from. Revisit if the Floor gains
-// a document, or if #1347 moves this read to lore-api.
+import type { components } from "./api/schema";
+import { num, record, str } from "./json-field";
 
-export type AgentRunEventType =
-  | "init"
-  | "message"
-  | "thinking"
-  | "tool_call"
-  | "tool_result"
-  | "result"
-  | "hook";
+/** The one multiplexed run stream's frame, as lore-api publishes it (ADR-037 amendment 2026-09): generated from the OpenAPI contract, so there is no hand mirror to drift. */
+export type RunStreamFrame = components["schemas"]["RunStreamFrame"];
 
-export interface RunStreamEvent {
-  id: string;
-  taskId: string;
-  agentCrName: string | null;
-  assemblyLineId: string | null;
-  stationRunId: string | null;
-  nodeId: string | null;
-  iteration: number | null;
-  eventType: AgentRunEventType;
-  toolName: string | null;
-  toolUseId: string | null;
-  isError: boolean;
-  filePaths: string[];
-  summary: string | null;
-  payload: Record<string, unknown>;
-  createdAt: string;
-}
+export type AgentEventFrame = Extract<RunStreamFrame, { type: "agent_event" }>;
+export type NodeStatusFrame = Extract<RunStreamFrame, { type: "node_status" }>;
+export type RunStatusFrame = Extract<RunStreamFrame, { type: "run_status" }>;
+export type TaskEventFrame = Extract<RunStreamFrame, { type: "task_event" }>;
+export type CiCheckFrame = Extract<RunStreamFrame, { type: "ci_check" }>;
+
+/** One projected agent event — the `agent_event` frame's payload, and the shape the history endpoint pages. */
+export type RunStreamEvent = AgentEventFrame["event"];
+
+export type AgentRunEventType = RunStreamEvent["eventType"];
 
 const EVENT_TYPES: ReadonlySet<string> = new Set<AgentRunEventType>([
   "init",
@@ -50,19 +25,15 @@ const EVENT_TYPES: ReadonlySet<string> = new Set<AgentRunEventType>([
   "hook",
 ]);
 
-function str(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
-}
-
-function num(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
+/** The frame types the reducers know; anything else is dropped for forward-compatibility. */
+const FRAME_TYPES: ReadonlySet<string> = new Set<RunStreamFrame["type"]>([
+  "agent_event",
+  "node_status",
+  "run_status",
+  "task_event",
+  "ci_check",
+  "catchup_complete",
+]);
 
 function isEventType(value: string | null): value is AgentRunEventType {
   return value !== null && EVENT_TYPES.has(value);
@@ -72,13 +43,7 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
 }
 
-/**
- * Parse one SSE `data:` payload into the mirrored row. Returns null — never
- * throws — for malformed JSON, a non-object body, a missing identity field, or
- * an `eventType` this client does not know. Dropping unknown event types
- * silently is the forward-compatibility contract: the Floor may add an eighth
- * stream-json kind without breaking a deployed browser tab.
- */
+/** Parse SSE payload; returns null on error; silently drops unknown event types for forward-compatibility. */
 export function parseRunStreamEvent(raw: string): RunStreamEvent | null {
   try {
     return parseRunStreamRow(JSON.parse(raw));
@@ -87,11 +52,7 @@ export function parseRunStreamEvent(raw: string): RunStreamEvent | null {
   }
 }
 
-/**
- * The same validation over an already-decoded row. The REST history endpoint
- * hands back parsed JSON objects, so re-stringifying them just to feed
- * parseRunStreamEvent would be the only alternative. Same rules, same nulls.
- */
+/** Validates an already-decoded row without re-stringifying. */
 export function parseRunStreamRow(value: unknown): RunStreamEvent | null {
   const body = record(value);
   const id = str(body.id);
@@ -107,21 +68,75 @@ export function parseRunStreamRow(value: unknown): RunStreamEvent | null {
     return null;
   }
 
+  return { id, taskId, eventType, createdAt, ...optionalEventFields(body) };
+}
+
+/** Every field a row may omit; each one narrows to null/empty rather than rejecting the row. */
+function optionalEventFields(
+  body: Record<string, unknown>,
+): Omit<RunStreamEvent, "id" | "taskId" | "eventType" | "createdAt"> {
   return {
-    id,
-    taskId,
     agentCrName: str(body.agentCrName),
     assemblyLineId: str(body.assemblyLineId),
     stationRunId: str(body.stationRunId),
     nodeId: str(body.nodeId),
     iteration: num(body.iteration),
-    eventType,
     toolName: str(body.toolName),
     toolUseId: str(body.toolUseId),
     isError: body.isError === true,
     filePaths: stringList(body.filePaths),
     summary: str(body.summary),
     payload: record(body.payload),
-    createdAt,
   };
+}
+
+/** The key each state family must carry to be applicable; a frame missing it is dropped rather than applied half-formed. */
+const FRAME_KEYS: Record<
+  Exclude<RunStreamFrame["type"], "agent_event">,
+  [string, string]
+> = {
+  node_status: ["node", "node_id"],
+  run_status: ["run", "id"],
+  task_event: ["event", "id"],
+  ci_check: ["check", "repo"],
+  catchup_complete: ["last_id", ""],
+};
+
+function hasKey(
+  body: Record<string, unknown>,
+  [member, field]: [string, string],
+): boolean {
+  if (field === "") {
+    return str(body[member]) !== null;
+  }
+
+  return str(record(body[member])[field]) !== null;
+}
+
+/** Parse one SSE frame's data. An agent event is validated field by field (it feeds the reducer's fold); the state families are checked for their key and otherwise trusted, since they are re-sent whole on every reconnect. */
+export function parseRunStreamFrame(raw: string): RunStreamFrame | null {
+  try {
+    return classifyFrame(record(JSON.parse(raw)));
+  } catch {
+    return null;
+  }
+}
+
+function classifyFrame(body: Record<string, unknown>): RunStreamFrame | null {
+  const type = str(body.type);
+
+  if (type === null || !FRAME_TYPES.has(type)) {
+    return null;
+  }
+
+  if (type === "agent_event") {
+    const event = parseRunStreamRow(body.event);
+
+    return event === null ? null : { type, event };
+  }
+  const kind = type as keyof typeof FRAME_KEYS;
+
+  return hasKey(body, FRAME_KEYS[kind])
+    ? (body as unknown as RunStreamFrame)
+    : null;
 }

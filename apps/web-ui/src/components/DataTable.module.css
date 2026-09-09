@@ -1,0 +1,7 @@
+.mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.center {
+  text-align: center;
+}

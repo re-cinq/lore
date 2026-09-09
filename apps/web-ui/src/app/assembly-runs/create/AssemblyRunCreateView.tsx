@@ -3,18 +3,77 @@ import { TaskTypeSelect } from "@/components/TaskTypeSelect";
 import styles from "./AssemblyRunCreateView.module.css";
 
 export interface AssemblyRunCreateViewProps {
-  /** Onboarded repos for the target-repo dropdown. */
   onboardedRepos: { full_name: string }[];
-  /** Server action wired to the Create-Task form ("actions up"). */
   createTaskAction: (formData: FormData) => void | Promise<void>;
 }
 
-/**
- * Presentational view for the create-task form. Pure render — the
- * onboarded-repo list is resolved by the container (`page.tsx`) and passed
- * down; the only mutation (Create Task) is handed in as `createTaskAction`
- * and fired back up via the form, keeping this component free of data access.
- */
+interface TargetRepoFieldProps {
+  repos: AssemblyRunCreateViewProps["onboardedRepos"];
+}
+
+function TargetRepoInput() {
+  return (
+    <input
+      name="target_repo"
+      defaultValue="re-cinq/lore"
+      placeholder="owner/repo"
+    />
+  );
+}
+
+/** A picker once repos are onboarded, a free-text field before that — the first task on a fresh install has nothing to pick from, and typing the repo is how it gets created. */
+function TargetRepoField({ repos }: TargetRepoFieldProps) {
+  if (repos.length === 0) {
+    return <TargetRepoInput />;
+  }
+
+  return (
+    <select name="target_repo">
+      {repos.map((r) => (
+        <option key={r.full_name} value={r.full_name}>
+          {r.full_name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** The task types a human can start from this form. Narrower than the full set on purpose: onboard and review are started by the platform in response to something, not typed in here. */
+const TASK_TYPE_OPTIONS = [
+  { value: "general", label: "General" },
+  { value: "runbook", label: "Runbook" },
+  { value: "implementation", label: "Implementation" },
+  { value: "gap-fill", label: "Gap Fill" },
+];
+
+/** Opting out of the local-runner queue. Unchecked means the task waits to be picked up on a developer's machine, which is the cheaper default. */
+function PriorityField() {
+  return (
+    <label className={styles.priorityLabel}>
+      <input type="checkbox" name="priority" value="immediate" />
+      <span>Execute immediately</span>
+      <span className={`meta ${styles.priorityHint}`}>
+        — runs on GKE now instead of waiting for local pickup
+      </span>
+    </label>
+  );
+}
+
+function DescriptionField() {
+  return (
+    <>
+      <label>Description</label>
+      <textarea
+        name="description"
+        rows={4}
+        required
+        placeholder="What should the agent do? Be specific..."
+      />
+    </>
+  );
+}
+
+// Pure render — page.tsx resolves the repo list; the only mutation (Create Task) is passed in as createTaskAction and fired via the form.
 export default function AssemblyRunCreateView({
   onboardedRepos,
   createTaskAction,
@@ -23,48 +82,15 @@ export default function AssemblyRunCreateView({
     <div>
       <h1>Create Task</h1>
       <form action={createTaskAction} className="task-form">
-        <label>Description</label>
-        <textarea
-          name="description"
-          rows={4}
-          required
-          placeholder="What should the agent do? Be specific..."
-        />
+        <DescriptionField />
 
         <label>Task Type</label>
-        <TaskTypeSelect
-          options={[
-            { value: "general", label: "General" },
-            { value: "runbook", label: "Runbook" },
-            { value: "implementation", label: "Implementation" },
-            { value: "gap-fill", label: "Gap Fill" },
-          ]}
-        />
+        <TaskTypeSelect options={TASK_TYPE_OPTIONS} />
 
         <label>Target Repository</label>
-        {onboardedRepos.length > 0 ? (
-          <select name="target_repo">
-            {onboardedRepos.map((r) => (
-              <option key={r.full_name} value={r.full_name}>
-                {r.full_name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input
-            name="target_repo"
-            defaultValue="re-cinq/lore"
-            placeholder="owner/repo"
-          />
-        )}
+        <TargetRepoField repos={onboardedRepos} />
 
-        <label className={styles.priorityLabel}>
-          <input type="checkbox" name="priority" value="immediate" />
-          <span>Execute immediately</span>
-          <span className={`meta ${styles.priorityHint}`}>
-            — runs on GKE now instead of waiting for local pickup
-          </span>
-        </label>
+        <PriorityField />
 
         <SubmitButton pendingLabel="Creating…">Create Task</SubmitButton>
       </form>

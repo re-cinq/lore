@@ -19,18 +19,18 @@ const params = Promise.resolve({ id: "run-1" });
 function authorized() {
   getServerSession.mockResolvedValue({ accessToken: "gho_x" });
   fetchAssemblyRun.mockResolvedValue({ id: "run-1", repo: "re-cinq/lore" });
-  userCanAccessRepo.mockResolvedValue(true);
+  userCanAccessRepo.mockResolvedValue(true); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
 }
 
 function sseResponse(status = 200) {
-  return new Response("id: 1\nevent: agent-event\ndata: {}\n\n", { status });
+  return new Response("id: 1\nevent: agent_event\ndata: {}\n\n", { status });
 }
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.LORE_FLOOR_URL = "http://floor:3000";
+  process.env.LORE_API_URL = "http://api:3000";
   process.env.LORE_INGEST_TOKEN = "tok";
   fetchMock = vi.fn().mockResolvedValue(sseResponse());
   vi.stubGlobal("fetch", fetchMock);
@@ -69,7 +69,7 @@ describe("auth ladder", () => {
   it("returns 403 when the user cannot access the run repo", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
     fetchAssemblyRun.mockResolvedValue({ id: "run-1", repo: "other/repo" });
-    userCanAccessRepo.mockResolvedValue(false);
+    userCanAccessRepo.mockResolvedValue(false); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
 
     const res = await GET(new Request("http://ui/x"), { params });
 
@@ -79,13 +79,13 @@ describe("auth ladder", () => {
 });
 
 describe("upstream proxying", () => {
-  it("requests /api/agent-events/stream/run-1 on the Floor", async () => {
+  it("requests /api/assembly-runs/run-1/stream on lore-api", async () => {
     authorized();
 
     await GET(new Request("http://ui/x"), { params });
 
     expect(String(fetchMock.mock.calls[0][0])).toContain(
-      "http://floor:3000/api/agent-events/stream/run-1",
+      "http://api:3000/api/assembly-runs/run-1/stream",
     );
   });
 
@@ -165,7 +165,7 @@ describe("anti-buffering headers (FR4.8)", () => {
 });
 
 describe("upstream failures", () => {
-  it("returns 503 as a JSON error, not an event stream, at Floor subscriber capacity", async () => {
+  it("returns 503 as a JSON error, not an event stream, at subscriber capacity", async () => {
     authorized();
     fetchMock.mockResolvedValue(sseResponse(503));
 
@@ -175,11 +175,11 @@ describe("upstream failures", () => {
     expect(res.headers.get("Content-Type")).toContain("application/json");
     expect(res.headers.get("X-Accel-Buffering")).toBeNull();
     expect(await res.json()).toEqual({
-      error: "Floor stream unavailable (503)",
+      error: "Run stream unavailable (503)",
     });
   });
 
-  it("returns 404 as a JSON error when the Floor has no stream route", async () => {
+  it("returns 404 as a JSON error when lore-api has no stream route", async () => {
     authorized();
     fetchMock.mockResolvedValue(sseResponse(404));
 

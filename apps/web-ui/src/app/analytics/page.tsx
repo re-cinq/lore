@@ -9,35 +9,35 @@ import AnalyticsView, {
   type JobRun,
 } from "./AnalyticsView";
 
-export default async function AnalyticsPage() {
+/** Every analytics slice, or an empty one of each. An unreachable lore-api renders the page with empty tables rather than an error: each table carries its own "no data yet" text, which is the same thing the reader would see on a fresh install. */
+async function readOverview() {
   const result = await getAnalyticsOverview();
-  const data =
-    result.status === "ok"
-      ? result.data
-      : {
-          task_summary: null,
-          usage_by_task_type: [],
-          usage_by_repo: [],
-          daily_usage: [],
-          latency_stats: [],
-          job_runs: [],
-        };
-  const taskSummary = data.task_summary as TaskSummary | null;
-  const usageByTaskType =
-    data.usage_by_task_type as unknown as UsageByTaskType[];
-  const usageByRepo = data.usage_by_repo as unknown as UsageByRepo[];
-  const dailyUsage = data.daily_usage as unknown as DailyUsage[];
-  const latencyStats = data.latency_stats as unknown as LatencyStats[];
-  const jobRuns = data.job_runs as unknown as JobRun[];
+
+  return result.status === "ok"
+    ? result.data
+    : {
+        task_summary: null,
+        usage_by_task_type: [],
+        usage_by_repo: [],
+        daily_usage: [],
+        latency_stats: [],
+        job_runs: [],
+      };
+}
+
+export default async function AnalyticsPage() {
+  const overview = await readOverview();
 
   return (
     <AnalyticsView
-      taskSummary={taskSummary}
-      latencyStats={latencyStats}
-      usageByTaskType={usageByTaskType}
-      usageByRepo={usageByRepo}
-      dailyUsage={dailyUsage}
-      jobRuns={jobRuns}
+      taskSummary={overview.task_summary as TaskSummary | null}
+      latencyStats={overview.latency_stats as unknown as LatencyStats[]}
+      usageByTaskType={
+        overview.usage_by_task_type as unknown as UsageByTaskType[]
+      }
+      usageByRepo={overview.usage_by_repo as unknown as UsageByRepo[]}
+      dailyUsage={overview.daily_usage as unknown as DailyUsage[]}
+      jobRuns={overview.job_runs as unknown as JobRun[]}
     />
   );
 }

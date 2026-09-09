@@ -30,12 +30,12 @@ github_org       = "your-github-org"
 # omitted). Set it to turn agent MCP access on.
 lore_mcp_url = "https://lore-mcp.example.com"
 
-# GitHub-webhook ingress host for the Floor. Empty ("") disables that ingress.
-# Retired once webhooks are re-pointed at the event router (ADR-044).
+# Floor /api/webhook ingress host: CI ingest doors plus the legacy
+# /api/webhook/github alias (rewritten to the event-router). Empty ("")
+# disables that ingress.
 lore_webhook_hostname = "lore-webhook.example.com"
 
-# Where GitHub delivers webhooks under ADR-044. Stand this up and re-point the
-# repos' webhooks BEFORE retiring lore_webhook_hostname.
+# The event-router front door: the canonical GitHub webhook URL (ADR-044).
 lore_event_router_hostname = "lore-events.example.com"
 
 # The Floor's agent-telemetry ingress, which registered SATELLITE clusters
@@ -54,6 +54,22 @@ enable_ui_admin_token = false
 # Adds the `anthropic-admin-key` entry (from `lore-anthropic-admin-api-key`) to
 # the anthropic ExternalSecrets, for the cost-sync maintenance job.
 enable_anthropic_admin_key = false
+
+# Gemini credential for agent runs (GEMINI_API_KEY into agent-secrets + the
+# gemini model family in the central catalog render). Seed lore-gemini-api-key
+# before or right after the apply; a listed family with no key in the Secret
+# fails run pods on their secretKeyRef.
+enable_gemini = false
+
+# Cloud Billing budget for this project, stated per week (see budget.tf: Google
+# only resets budgets monthly, so it is applied as weekly * 52 / 12, with a
+# forecast rule that fires the moment the run rate exceeds the weekly pace).
+# Alerts only, never a spend cap. Applying needs Billing Account Costs Manager.
+enable_gcp_budget       = false
+gcp_billing_account     = "012345-6789AB-CDEF01"
+# In the billing account's own currency (DKK on this account; ~7000 DKK = ~USD 1000).
+gcp_budget_weekly       = 7000
+gcp_budget_alert_emails = []
 
 # --- Misc ---
 log_retention_days = 30

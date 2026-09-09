@@ -1,6 +1,4 @@
-// The detail card for the selected graph node: the plain-language "why" plus the
-// supporting facts and links. Pure render over the presenter's output.
-
+// Detail card for the selected graph node: plain-language "why" plus supporting facts and links. Pure render over the presenter's output.
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
@@ -11,16 +9,10 @@ import {
 import { describeNode, type NodeDetail } from "@/lib/run-node-detail-presenter";
 import type { NodeStatusTone } from "@/lib/run-node-status";
 import type { StepView } from "@/lib/step-presenter";
+import { modelShortLabel, type NodeModel } from "@/lib/node-models";
+import CollapsibleCard from "@/components/CollapsibleCard";
+import { StatusPill } from "@/components/StatusPill";
 import styles from "./RunNodeDetail.module.css";
-
-const PILL_CLASS: Record<NodeStatusTone, string> = {
-  ok: styles.pillOk,
-  warn: styles.pillWarn,
-  err: styles.pillErr,
-  running: styles.pillRunning,
-  waiting: styles.pillWaiting,
-  idle: styles.pillIdle,
-};
 
 const WHY_CLASS: Record<NodeStatusTone, string> = {
   ok: styles.whyOk,
@@ -40,6 +32,10 @@ export interface RunNodeDetailProps {
   repo: string;
   /** Every walk row of this node in execution order — the loop history. */
   attempts: StepView[];
+  /** Header-row actions (the retry button), forwarded to the card's summary. */
+  actions?: React.ReactNode;
+  /** The model this node runs on, with where the answer came from; absent for a node that runs no recipe. */
+  model?: NodeModel | null;
 }
 
 function Fact({
@@ -61,125 +57,231 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
   const detail: NodeDetail = describeNode(props);
 
   return (
-    <section className={styles.card} aria-label={`${props.nodeId} detail`}>
-      <div className={styles.head}>
-        <span className={styles.name}>{props.nodeId}</span>
-        <span className={`${styles.pill} ${PILL_CLASS[detail.tone]}`}>
-          {detail.statusLabel}
-        </span>
-        {detail.nodeType ? (
-          <span className={styles.meta}>{detail.nodeType}</span>
-        ) : null}
-      </div>
-
+    <CollapsibleCard
+      defaultOpen
+      title={props.nodeId}
+      status={{ label: detail.statusLabel, tone: detail.tone }}
+      labels={[detail.nodeType]}
+      actions={props.actions}
+    >
       <p className={`${styles.why} ${WHY_CLASS[detail.tone]}`}>{detail.why}</p>
+      <ErroredSteps failures={detail.failures} />
+      <NodeFacts detail={detail} repo={props.repo} model={props.model} />
+      <AttemptHistory attempts={props.attempts} repo={props.repo} />
+      <TouchedFiles files={detail.files} />
+    </CollapsibleCard>
+  );
+}
 
-      {detail.failures.length > 0 ? (
-        <div className={styles.failures}>
-          <div className={styles.failuresHead}>
-            Errored steps ({detail.failures.length})
-          </div>
-          <ul className={styles.failList}>
-            {detail.failures.map((step, i) => (
-              <li key={i} className={styles.failItem}>
-                <span className={styles.failTool}>{step.tool}</span>
-                <span className={styles.failDetail}>{step.detail}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+/** Only a failed node lists these: a succeeded node can carry errored tool calls it retried past, which are the reason for nothing. */
+function ErroredSteps({ failures }: { failures: NodeDetail["failures"] }) {
+  if (failures.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.failures}>
+      <div className={styles.failuresHead}>
+        Errored steps ({failures.length})
+      </div>
+      <ul className={styles.failList}>
+        {failures.map((step, i) => (
+          <li key={i} className={styles.failItem}>
+            <span className={styles.failTool}>{step.tool}</span>
+            <span className={styles.failDetail}>{step.detail}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function StartedAtFact({ startedAt }: { startedAt: string | null }) {
+  if (!startedAt) {
+    return <Fact label="Started">—</Fact>;
+  }
+
+  return (
+    <Fact label="Started">
+      <time dateTime={startedAt} title={startedAt}>
+        {formatRelativeTime(startedAt)}
+      </time>
+    </Fact>
+  );
+}
+
+function transcriptSummary(detail: NodeDetail): string {
+  const eventLabel = `${detail.eventCount} event${detail.eventCount === 1 ? "" : "s"}`;
+  const droppedLabel =
+    detail.droppedCount > 0 ? ` (+${detail.droppedCount} dropped)` : "";
+
+  return `${eventLabel}${droppedLabel}`;
+}
+
+function AgentCrFact({ agentCrName }: { agentCrName: string | null }) {
+  if (!agentCrName) {
+    return null;
+  }
+
+  return (
+    <Fact label="Agent CR">
+      <span className={styles.mono}>{agentCrName}</span>
+    </Fact>
+  );
+}
+
+interface CommitFactProps {
+  commitSha: string | null;
+  repo: string;
+}
+
+function CommitFact({ commitSha, repo }: CommitFactProps) {
+  if (!commitSha) {
+    return null;
+  }
+
+  return (
+    <Fact label="Commit">
+      <a
+        className={styles.mono}
+        href={`https://github.com/${repo}/commit/${commitSha}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {commitSha.substring(0, 7)}
+      </a>
+    </Fact>
+  );
+}
+
+/** Which model the node runs on, and whether the catalog or the definition said so — a per-repo override changes the first without touching the second. */
+function ModelFact({ model }: { model: NodeModel | null | undefined }) {
+  if (!model) {
+    return null;
+  }
+
+  return (
+    <Fact label="Model">
+      {modelShortLabel(model.model)}{" "}
+      <span className={styles.attemptMeta}>({model.source})</span>
+    </Fact>
+  );
+}
+
+interface NodeFactsProps {
+  detail: NodeDetail;
+  repo: string;
+  model: NodeModel | null | undefined;
+}
+
+function NodeFacts({ detail, repo, model }: NodeFactsProps) {
+  return (
+    <dl className={styles.facts}>
+      <ModelFact model={model} />
+      <Fact label="Attempt">{detail.iteration || "—"}</Fact>
+      <Fact label="Duration">{detail.durationLabel}</Fact>
+      <StartedAtFact startedAt={detail.startedAt} />
+      <Fact label="Outcome">{detail.outcomeLabel}</Fact>
+      <Fact label="Files touched">{detail.files.length || "—"}</Fact>
+      <Fact label="Transcript">{transcriptSummary(detail)}</Fact>
+      <AgentCrFact agentCrName={detail.agentCrName} />
+      <CommitFact commitSha={detail.commitSha} repo={repo} />
+    </dl>
+  );
+}
+
+/** The stage commit this attempt made, linked to GitHub. Shown short, as a sha is read: the full forty characters carry no more meaning to a human and crowd out the row. */
+function CommitLink({ sha, repo }: { sha: string | null; repo: string }) {
+  if (!sha) {
+    return null;
+  }
+
+  return (
+    <a
+      className={styles.mono}
+      href={`https://github.com/${repo}/commit/${sha}`}
+      target="_blank"
+      rel="noreferrer"
+    >
+      {sha.substring(0, 7)}
+    </a>
+  );
+}
+
+interface AttemptStepProps {
+  step: RunNodeDetailProps["attempts"][number];
+  repo: string;
+}
+
+/** What an attempt left behind: the pod that ran it, the commit it made, the edge it took, and why. Each is omitted when absent rather than rendered blank — an attempt that never reached a pod has no CR name, and an empty slot would read as one that failed to load. */
+function AttemptRefs({ step, repo }: AttemptStepProps) {
+  return (
+    <>
+      {step.agentCrName ? (
+        <span className={`${styles.attemptMeta} ${styles.mono}`}>
+          {step.agentCrName}
+        </span>
       ) : null}
-
-      <dl className={styles.facts}>
-        <Fact label="Attempt">{detail.iteration || "—"}</Fact>
-        <Fact label="Duration">{detail.durationLabel}</Fact>
-        <Fact label="Started">
-          {detail.startedAt ? (
-            <time dateTime={detail.startedAt} title={detail.startedAt}>
-              {formatRelativeTime(detail.startedAt)}
-            </time>
-          ) : (
-            "—"
-          )}
-        </Fact>
-        <Fact label="Outcome">{detail.outcomeLabel}</Fact>
-        <Fact label="Files touched">{detail.files.length || "—"}</Fact>
-        <Fact label="Transcript">
-          {detail.eventCount} event{detail.eventCount === 1 ? "" : "s"}
-          {detail.droppedCount > 0 ? ` (+${detail.droppedCount} dropped)` : ""}
-        </Fact>
-        {detail.agentCrName ? (
-          <Fact label="Agent CR">
-            <span className={styles.mono}>{detail.agentCrName}</span>
-          </Fact>
-        ) : null}
-        {detail.commitSha ? (
-          <Fact label="Commit">
-            <a
-              className={styles.mono}
-              href={`https://github.com/${props.repo}/commit/${detail.commitSha}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {detail.commitSha.substring(0, 7)}
-            </a>
-          </Fact>
-        ) : null}
-      </dl>
-
-      {props.attempts.length > 1 ? (
-        <div className={styles.attempts}>
-          <div className={styles.attemptsHead}>
-            Attempts ({props.attempts.length})
-          </div>
-          <ol className={styles.attemptList}>
-            {props.attempts.map((step) => (
-              <li key={step.iteration} className={styles.attemptItem}>
-                <span className={styles.attemptMeta}>
-                  attempt {step.iteration}
-                </span>
-                <span className={`${styles.pill} ${PILL_CLASS[step.tone]}`}>
-                  {step.label}
-                </span>
-                <span className={styles.attemptMeta}>
-                  {formatDuration(step.durationSeconds)}
-                </span>
-                {step.agentCrName ? (
-                  <span className={`${styles.attemptMeta} ${styles.mono}`}>
-                    {step.agentCrName}
-                  </span>
-                ) : null}
-                {step.commitSha ? (
-                  <a
-                    className={styles.mono}
-                    href={`https://github.com/${props.repo}/commit/${step.commitSha}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {step.commitSha.substring(0, 7)}
-                  </a>
-                ) : null}
-                {step.transition ? (
-                  <span className={styles.attemptEdge}>{step.transition}</span>
-                ) : null}
-                {step.reason ? (
-                  <span className={styles.attemptReason}>{step.reason}</span>
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        </div>
+      <CommitLink sha={step.commitSha} repo={repo} />
+      {step.transition ? (
+        <span className={styles.attemptEdge}>{step.transition}</span>
       ) : null}
-
-      {detail.files.length > 0 ? (
-        <ul className={styles.files}>
-          {detail.files.map((file) => (
-            <li key={file} className={styles.mono}>
-              {file}
-            </li>
-          ))}
-        </ul>
+      {step.reason ? (
+        <span className={styles.attemptReason}>{step.reason}</span>
       ) : null}
-    </section>
+    </>
+  );
+}
+
+/** One attempt. Every field past the status pill is optional and omitted when absent rather than rendered blank — an attempt that never reached a pod has no CR name, and an empty slot would read as a name that failed to load. */
+function AttemptRow({ step, repo }: AttemptStepProps) {
+  return (
+    <li className={styles.attemptItem}>
+      <span className={styles.attemptMeta}>attempt {step.iteration}</span>
+      <StatusPill label={step.label} tone={step.tone} />
+      <span className={styles.attemptMeta}>
+        {formatDuration(step.durationSeconds)}
+      </span>
+      <AttemptRefs step={step} repo={repo} />
+    </li>
+  );
+}
+
+/** Only shown once a node has been visited more than once — a single attempt is already the card above. */
+interface AttemptHistoryProps {
+  attempts: RunNodeDetailProps["attempts"];
+  repo: string;
+}
+
+function AttemptHistory({ attempts, repo }: AttemptHistoryProps) {
+  if (attempts.length <= 1) {
+    return null;
+  }
+
+  return (
+    <div className={styles.attempts}>
+      <div className={styles.attemptsHead}>Attempts ({attempts.length})</div>
+      <ol className={styles.attemptList}>
+        {attempts.map((step) => (
+          <AttemptRow key={step.iteration} step={step} repo={repo} />
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function TouchedFiles({ files }: { files: string[] }) {
+  if (files.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul className={styles.files}>
+      {files.map((file) => (
+        <li key={file} className={styles.mono}>
+          {file}
+        </li>
+      ))}
+    </ul>
   );
 }

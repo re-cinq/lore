@@ -1,13 +1,6 @@
 "use client";
 
-// Presentational cross-repo doc list shared by the global /specs and /adrs
-// viewers, sourced from the spec-traceability graph. Groups by repo; `kind`
-// picks both the detail-page href and the chip legend. It is a plain string
-// rather than an href-building callback on purpose: this is a client component
-// rendered by server components, and functions cannot cross that boundary.
-// The lifecycle status pill per path comes from the statuses prop (keyed
-// `repo::filePath`, parsed from the graph's byte-exact sources) and drives the
-// filter chips — the graph is the source of truth for list and statuses alike.
+// `kind` is a plain string, not an href-building callback, since a client component rendered by server components cannot receive functions across that boundary.
 import { useState } from "react";
 import Link from "next/link";
 import styles from "./GlobalDocsView.module.scss";
@@ -21,78 +14,152 @@ import type {
   SpecStatusInfo,
 } from "@/lib/spec-status";
 
+type StatusOf = (repo: string, filePath: string) => SpecStatusInfo | undefined;
+
 const hrefFor = (kind: DocKind, repo: string, filePath: string): string =>
   `/repos/${repo}/${kind === "adr" ? "adrs" : "specs"}/${encodeURIComponent(filePath)}`;
 
-export default function GlobalDocsView({
-  docs,
-  statuses = {},
-  emptyHint,
-  noMatchHint,
-  kind = "spec",
-}: {
+function groupByRepo(
+  visible: Array<{ repo: string; filePath: string }>,
+): Map<string, string[]> {
+  const byRepo = new Map<string, string[]>();
+
+  for (const { repo, filePath } of visible) {
+    const bucket = byRepo.get(repo);
+
+    if (bucket) {
+      bucket.push(filePath);
+      continue;
+    }
+
+    byRepo.set(repo, [filePath]);
+  }
+
+  return byRepo;
+}
+
+interface RepoDocListProps {
+  repo: string;
+  paths: string[];
+  kind: DocKind;
+  statusOf: StatusOf;
+}
+
+function RepoDocList({ repo, paths, kind, statusOf }: RepoDocListProps) {
+  return (
+    <section className={styles.repoGroup}>
+      <h2 className={styles.repoName}>{repo}</h2>
+      <ul className={styles.docList}>
+        {paths.map((filePath) => {
+          const status = statusOf(repo, filePath);
+
+          return (
+            <li key={filePath} className={styles.docItem}>
+              <Link href={hrefFor(kind, repo, filePath)}>{filePath}</Link>
+              {status && <SpecStatusPill status={status} />}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+interface GlobalDocsViewProps {
   docs: Array<{ repo: string; filePath: string }>;
   statuses?: Record<string, SpecStatusInfo>;
   emptyHint: string;
   noMatchHint: string;
   kind?: DocKind;
-}) {
-  const [filter, setFilter] = useState<SpecStatusFilter>("all");
-  const [query, setQuery] = useState("");
+}
 
-  if (docs.length === 0) {
-    return <p className={styles.hint}>{emptyHint}</p>;
-  }
-
-  const statusOf = (repo: string, filePath: string) =>
-    statuses[`${repo}::${filePath}`];
+/** The docs this filter and query admit, grouped by repo. Counts come from the FULL set, not the visible one — the status chips have to keep reporting how many of each there are, or selecting one would make the others look empty. */
+function visibleDocs(
+  docs: GlobalDocsViewProps["docs"],
+  statusOf: StatusOf,
+  { filter, query }: { filter: SpecStatusFilter; query: string },
+) {
   const { counts, visible } = filterDocCards(
     docs,
     (doc) => statusOf(doc.repo, doc.filePath),
     filter,
-    query,
-    (doc) => `${doc.repo} ${doc.filePath}`,
+    { query, textOf: (doc) => `${doc.repo} ${doc.filePath}` },
   );
 
-  const byRepo = new Map<string, string[]>();
+  return { counts, byRepo: groupByRepo(visible) };
+}
 
-  for (const { repo, filePath } of visible) {
-    const bucket = byRepo.get(repo) ?? [];
+interface RepoDocListsProps {
+  byRepo: Map<string, string[]>;
+  kind: DocKind;
+  statusOf: StatusOf;
+  noMatchHint: string;
+}
 
-    if (!byRepo.has(repo)) {
-      byRepo.set(repo, bucket);
-    }
-    bucket.push(filePath);
+/** One list per repo holding a matching doc, or the no-match hint. Grouped by repo rather than flat because a path alone (`specs/spec.md`) does not say which repo it belongs to, and several repos use the same names. */
+function RepoDocLists({
+  byRepo,
+  kind,
+  statusOf,
+  noMatchHint,
+}: RepoDocListsProps) {
+  if (byRepo.size === 0) {
+    return <p className={styles.hint}>{noMatchHint}</p>;
+  }
+
+  return [...byRepo.entries()].map(([repo, paths]) => (
+    <RepoDocList
+      key={repo}
+      repo={repo}
+      paths={paths}
+      kind={kind}
+      statusOf={statusOf}
+    />
+  ));
+}
+
+interface DocSectionsProps {
+  view: GlobalDocsViewProps;
+  filter: SpecStatusFilter;
+  query: string;
+  onChange: (filter: SpecStatusFilter) => void;
+}
+
+/** The chips and the lists, both driven by the same filtered pass over the docs. */
+function DocSections({ view, filter, query, onChange }: DocSectionsProps) {
+  const { docs, statuses = {}, kind = "spec" } = view;
+  const statusOf: StatusOf = (repo, filePath) =>
+    statuses[`${repo}::${filePath}`];
+  const { counts, byRepo } = visibleDocs(docs, statusOf, { filter, query });
+  const chips = { counts, total: docs.length, active: filter, onChange, kind };
+  const lists = { byRepo, kind, statusOf, noMatchHint: view.noMatchHint };
+
+  return (
+    <>
+      <SpecStatusChips {...chips} />
+      <RepoDocLists {...lists} />
+    </>
+  );
+}
+
+export default function GlobalDocsView(props: GlobalDocsViewProps) {
+  const [filter, setFilter] = useState<SpecStatusFilter>("all");
+  const [query, setQuery] = useState("");
+
+  // Nothing at all and nothing MATCHING are different answers: the first means the org has no specs yet, the second that this filter is too narrow.
+  if (props.docs.length === 0) {
+    return <p className={styles.hint}>{props.emptyHint}</p>;
   }
 
   return (
     <div>
       <DocListControls query={query} onQueryChange={setQuery} />
-      <SpecStatusChips
-        counts={counts}
-        total={docs.length}
-        active={filter}
+      <DocSections
+        view={props}
+        filter={filter}
+        query={query}
         onChange={setFilter}
-        kind={kind}
       />
-      {[...byRepo.entries()].map(([repo, paths]) => (
-        <section key={repo} className={styles.repoGroup}>
-          <h2 className={styles.repoName}>{repo}</h2>
-          <ul className={styles.docList}>
-            {paths.map((filePath) => {
-              const info = statusOf(repo, filePath);
-
-              return (
-                <li key={filePath} className={styles.docItem}>
-                  <Link href={hrefFor(kind, repo, filePath)}>{filePath}</Link>
-                  {info && <SpecStatusPill info={info} />}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ))}
-      {byRepo.size === 0 && <p className={styles.hint}>{noMatchHint}</p>}
     </div>
   );
 }

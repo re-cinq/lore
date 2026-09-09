@@ -32,18 +32,15 @@ const offlineEvent = (
 
 describe("ClusterAgentsView", () => {
   it("binds each row's Pause button to that row's agent id", async () => {
-    // The prop must be BOUND, never wrapped in an inline arrow: this view is a
-    // server component, and React refuses to serialize a plain closure to a
-    // client component — which took the whole page down in production once.
-    // Binding is also what keeps the id server-side.
     const calls: Array<[string, boolean]> = [];
 
     render(
       <ClusterAgentsView
         installInfo={null}
-        togglePaused={async (id, paused) => {
+        togglePaused={async (id, { paused }) => {
           calls.push([id, paused]);
         }}
+        restart={async () => {}}
         agents={[
           agent({ id: "a", name: "minikube" }),
           agent({ id: "b", name: "eu-west4", paused: true }),
@@ -66,6 +63,7 @@ describe("ClusterAgentsView", () => {
       <ClusterAgentsView
         installInfo={null}
         togglePaused={async () => {}}
+        restart={async () => {}}
         agents={[
           agent({ id: "a", name: "minikube", tags: ["node:agent", "gpu"] }),
           agent({
@@ -93,6 +91,7 @@ describe("ClusterAgentsView", () => {
       <ClusterAgentsView
         installInfo={null}
         togglePaused={async () => {}}
+        restart={async () => {}}
         agents={[
           agent({ id: "a", name: "alive", status: "active" }),
           agent({ id: "b", name: "dead", status: "offline" }),
@@ -112,6 +111,7 @@ describe("ClusterAgentsView", () => {
         offlineEvents={[]}
         installInfo={null}
         togglePaused={async () => {}}
+        restart={async () => {}}
       />,
     );
 
@@ -124,6 +124,7 @@ describe("ClusterAgentsView", () => {
       <ClusterAgentsView
         installInfo={null}
         togglePaused={async () => {}}
+        restart={async () => {}}
         agents={[agent({ id: "agent-1", name: "minikube" })]}
         offlineEvents={[offlineEvent({})]}
       />,
@@ -145,6 +146,7 @@ describe("ClusterAgentsView", () => {
       <ClusterAgentsView
         installInfo={null}
         togglePaused={async () => {}}
+        restart={async () => {}}
         agents={[]}
         offlineEvents={[
           offlineEvent({
@@ -161,11 +163,36 @@ describe("ClusterAgentsView", () => {
     expect(screen.getAllByText("—")).toHaveLength(3);
   });
 
+  it("offers Restart only for the central row, bound to its agent id", async () => {
+    const calls: string[] = [];
+
+    render(
+      <ClusterAgentsView
+        installInfo={null}
+        togglePaused={async () => {}}
+        restart={async (id) => {
+          calls.push(id);
+        }}
+        agents={[
+          agent({ id: "a", name: "central" }),
+          agent({ id: "b", name: "gpu-box-1" }),
+        ]}
+        offlineEvents={[]}
+      />,
+    );
+
+    expect(screen.getAllByRole("button", { name: "Restart" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm restart" }));
+    await waitFor(() => expect(calls).toEqual(["a"]));
+  });
+
   it("renders — for an event with no cluster_agent_id and 0 without a link for an idle agent", () => {
     render(
       <ClusterAgentsView
         installInfo={null}
         togglePaused={async () => {}}
+        restart={async () => {}}
         agents={[agent({ id: "a", name: "idle", tags: [], running_claims: 0 })]}
         offlineEvents={[offlineEvent({ cluster_agent_id: null })]}
       />,

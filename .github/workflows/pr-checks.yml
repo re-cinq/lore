@@ -49,10 +49,9 @@ jobs:
       - name: Install deps
         run: npm ci --ignore-scripts && npm ci --prefix apps/web-ui --ignore-scripts
 
-      # eslint-plugin-lore's require-spec-link rule imports the compiled
-      # @re-cinq/lore-shared at config load, so shared must be built before any
-      # eslint run (the lint matrix job builds too; format was the last eslint
-      # entrypoint that didn't).
+      # Type-aware lint reads @re-cinq/lore-shared's compiled d.ts, so shared
+      # must be built before any eslint run (the lint matrix job builds too;
+      # format was the last eslint entrypoint that didn't).
       - name: Build shared
         run: npm run build -w @re-cinq/lore-shared
 
@@ -85,10 +84,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # 17 files / 130 tests self-skip unless a Dgraph answers on :8081, so the
-          # whole spec-traceability graph walk was green-by-skip in CI until now.
+          # Unit only: `npm test` sets LORE_SKIP_DGRAPH_TESTS=1, so the 19 live
+          # suites sit out. They are NOT skipped away — they run in
+          # test-integration.yml against its own Dgraph, where ~two dozen suites
+          # sharing one graph cannot flake this matrix.
           - name: shared
-            dgraph: true
             test: npm test -w @re-cinq/lore-shared
           # The assembly-lines kernel imports compiled @re-cinq/lore-shared (via subpaths),
           # so shared must be built before its suite runs.
@@ -127,6 +127,22 @@ jobs:
           - name: agent
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
             test: npm run test:coverage -w @re-cinq/lore-floor
+          # An import rule reports nothing when the code is clean AND when it has
+          # stopped looking, and three times the second was mistaken for the
+          # first (#1797, #1801, #1811). This lints deliberately-wrong fixtures
+          # and fails if the findings disappear — including a run from a
+          # subdirectory, which is the only way the cwd bug showed.
+          - name: eslint-canaries
+            build: npm run build -w @re-cinq/lore-shared
+            test: bash scripts/check-eslint-canaries.sh
+          # Paths declared outside TypeScript: a package's own main/types/
+          # exports/bin, and the compiled paths Helm charts, Dockerfiles and
+          # workflows spell out. Needs the FULL build — the point is to check
+          # every workspace's real dist, which is the only thing that catches a
+          # rename that left a consumer-facing declaration behind.
+          - name: declared-paths
+            build: npm run build
+            test: node scripts/check-declared-paths.mjs
           # Catalog drift guard. The seeded ai-agents-helm catalog.yaml is generated
           # from scripts/task-types.yaml by floor's gen:catalog; this fails the moment
           # a recipe edit lands without regenerating the catalog. The script builds
@@ -134,14 +150,6 @@ jobs:
           - name: catalog-drift
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
             test: bash scripts/check-catalog-drift.sh
-          # web-ui's builtin assembly-line graphs are GENERATED from the YAMLs —
-          # it is outside the workspace and carries no YAML parser, so it needs a
-          # copy, and the hand copy rotted (feature-planning claimed 2 nodes while
-          # the YAML had 9, and 8 lines were missing outright). This fails the moment
-          # a definition changes without regenerating.
-          - name: builtin-definitions-drift
-            build: npm run build -w @re-cinq/lore-shared
-            test: bash scripts/check-builtin-definitions-drift.sh
           # The OpenAPI artifact + the client types generated from it. web-ui's Docker
           # context (apps/web-ui) cannot reach lore-api at build time, so both are
           # COMMITTED rather than generated during the image build — which means only
@@ -161,26 +169,15 @@ jobs:
           # classifier ran nowhere, so a broken guard stayed green. Only
           # check-bootstrap-columns ran, and only from migrations.yml.
           # Files are passed explicitly via find: node 22 resolves a bare directory
-          # as a module entry point and dies with MODULE_NOT_FOUND, the same trap
-          # the eslint-rules entry below documents.
+          # as a module entry point and dies with MODULE_NOT_FOUND. The scripts
+          # include check-eslint-rules-registered (every re-lint rule is switched
+          # on somewhere in eslint.config.mjs) and check-spec-parser-parity (the
+          # spec parsers vendored into @re-cinq/eslint-plugin-re-lint still agree
+          # with libs/shared on this repo's own corpus; that one imports the
+          # compiled @re-cinq/lore-shared, hence the build).
           - name: scripts
-            test: find scripts -name '*.test.mjs' -print0 | xargs -0 node --test
-          # The lint rules' OWN tests. Every rule in tools/eslint-plugin-lore has a
-          # RuleTester suite, and until now nothing ran them — so a rule could start
-          # over-reporting, stop reporting, or crash on an edge-case AST and nothing
-          # would notice. Several are at `error` repo-wide, where a crashing rule
-          # red-lights every PR with a stack trace instead of a finding. Plain
-          # `node --test` on .mjs sources: no build, no install, no workspace deps.
-          # The script passes the test files EXPLICITLY rather than the rules/
-          # directory: node 22 (this runner) resolves a bare directory as a module
-          # entry point and dies with MODULE_NOT_FOUND, while node 20 (local) scans
-          # it — so the directory form passes locally and fails here.
-          # Needs shared BUILT: three rules read spec status/coverage through
-          # rules/lib/lore-shared.mjs, which imports @re-cinq/lore-shared/dist. Same
-          # dependency the lint-web-ui entry documents.
-          - name: eslint-rules
             build: npm run build -w @re-cinq/lore-shared
-            test: npm test --prefix tools/eslint-plugin-lore
+            test: find scripts -name '*.test.mjs' -print0 | xargs -0 node --test
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui

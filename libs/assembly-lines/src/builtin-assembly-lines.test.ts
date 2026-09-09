@@ -5,6 +5,7 @@ import {
   loadBuiltinAssemblyLines,
   memoizedPromise,
 } from "./builtin-assembly-lines.js";
+import { getNextTransition } from "./transition.js";
 
 describe("loadBuiltinAssemblyLines", () => {
   it("returns the same promise across calls — the dir is baked into the image", () => {
@@ -17,17 +18,45 @@ describe("loadBuiltinAssemblyLines", () => {
     expect(definitions.get("code-review")?.name).toBe("code-review");
   });
 
-  it("loads every YAML in the directory, none skipped", async () => {
-    // The schemas are strict, so an undeclared key in any shipped recipe is a load
-    // failure rather than a silently dropped field. Counting the files keeps that
-    // honest: a per-file catch that swallowed one would leave the map short, and
-    // "the catalog resolved" alone would not notice.
+  it("loads every YAML in the directory, none skipped (a per-file catch swallowing one would leave the map short, undetected by 'the catalog resolved' alone)", async () => {
     const dir = new URL("./assembly-lines/", import.meta.url);
     const yamlCount = (await readdir(dir)).filter((f) =>
       f.endsWith(".yaml"),
     ).length;
 
     expect((await loadBuiltinAssemblyLines()).size).toBe(yamlCount);
+  });
+
+  it("retries a failed code-review visit once, then fails the run instead of completing it", async () => {
+    const line = (await loadBuiltinAssemblyLines()).get("code-review");
+
+    expect(
+      getNextTransition(line!, [
+        { nodeId: "review", iteration: 1, outcome: "failed" },
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "review", iteration: 2 });
+    expect(
+      getNextTransition(line!, [
+        { nodeId: "review", iteration: 1, outcome: "failed" },
+        { nodeId: "review", iteration: 2, outcome: "failed" },
+      ]),
+    ).toMatchObject({ kind: "fail", outcome: "iteration_max" });
+  });
+
+  it("retries a failed code-review-recheck visit once, then fails the run instead of completing it", async () => {
+    const line = (await loadBuiltinAssemblyLines()).get("code-review-recheck");
+
+    expect(
+      getNextTransition(line!, [
+        { nodeId: "recheck", iteration: 1, outcome: "failed" },
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "recheck", iteration: 2 });
+    expect(
+      getNextTransition(line!, [
+        { nodeId: "recheck", iteration: 1, outcome: "failed" },
+        { nodeId: "recheck", iteration: 2, outcome: "failed" },
+      ]),
+    ).toMatchObject({ kind: "fail", outcome: "iteration_max" });
   });
 });
 

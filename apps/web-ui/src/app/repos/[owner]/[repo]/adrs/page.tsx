@@ -11,9 +11,7 @@ export default async function RepoAdrs({
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  // The spec-traceability graph is the source of truth — list each ADR as a card
-  // summary (title/description parsed from its byte-exact source), not Postgres.
-  // Lifecycle statuses ride along on the same summaries call.
+  // ADRs from graph summaries (not Postgres); statuses from same call.
   const adrs = (await fetchAdrSummaries(fullName)).sort((a, b) =>
     a.filePath.localeCompare(b.filePath),
   );

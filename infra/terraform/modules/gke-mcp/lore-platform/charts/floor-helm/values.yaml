@@ -119,22 +119,14 @@ slackBotTokenSecret:
   name: lore-slack-credentials
   key: bot-token
 
-# HMAC secret for verifying GitHub webhook signatures (the webhook ingress moved
-# into the Floor — POST /api/webhook/github). Optional: the env is mounted with
-# optional:true so a pod can start before the ExternalSecret lands (the handler
-# returns 503 until the secret is present).
-webhookSecret:
-  name: lore-floor-webhook-secret
-  key: secret
-
 gcpProject: ""
 
 # K8s CronJob batch jobs (one pod per run, isolated from the Deployment).
-# Each entry produces a CronJob that calls `node dist/delivery/job-runner.js {{ .job }}`
+# Each entry produces a CronJob that calls `node dist/transport/job-runner.js {{ .job }}`
 # inside the agent image, reusing the same env block as the Deployment
 # (see templates/_env.tpl). Schedules match the in-process pre-split
 # cadence one-for-one. Resources/deadlines override `cronJobDefaults`
-# per entry — heavy LLM/embedding jobs (context_reindex, eval_runner) get
+# per entry — the heavy LLM job (eval_runner) gets
 # bumped from the defaults below.
 #
 # Manual run for any of these:
@@ -180,18 +172,8 @@ cronJobs:
     job: context_core_builder
     schedule: "0 4 * * *"
 
-  # Heavy LLM / embedding jobs — bigger memory + longer deadline
-  - name: context-reindex
-    job: context_reindex
-    schedule: "0 2 * * *"
-    activeDeadlineSeconds: 10800  # 3h: full repo embedding refresh
-    resources:
-      requests:
-        cpu: "200m"
-        memory: 1Gi
-      limits:
-        cpu: "1000m"
-        memory: 2Gi
+  # Heavy LLM job — bigger memory + longer deadline. (context_reindex, the
+  # nightly full re-crawl, was retired 2026-09-08: ingestion is merge-time CI only.)
   - name: eval-runner
     job: eval_runner
     schedule: "0 3 * * *"

@@ -1,15 +1,8 @@
-// The single state machine the live stream and the replay view share: a pure
-// (state, event) => state fold, seeded from the persisted per-node walk rows and
-// advanced by the agent event stream.
-//
-// Per-event work is bounded by the node count and TRANSCRIPT_CAP, both fixed, so
-// a long run costs the same per event as a short one (spec FR4.6). The state
-// objects of untouched nodes are carried over by reference rather than rebuilt,
-// which is what keeps that true.
+// Pure state machine: (state, event) => state fold; seeded from walk rows, advanced by agent events; O(1) per event (spec FR4.6).
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyRunNode } from "./assembly-runs";
-import type { AgentRunEventType, RunStreamEvent } from "./run-stream-types";
+import type { RunStreamEvent } from "./run-stream-types";
 import { touchKind, type TouchCounts } from "./file-heatmap";
 
 /** Per-node rendered-transcript ceiling (spec FR4.5). */
@@ -17,10 +10,7 @@ export const TRANSCRIPT_CAP = 500;
 
 export type NodeRunStatus = "idle" | "running" | "succeeded" | "failed";
 
-// Deliberately verdict-free: the recorded outcome lives on the walk rows
-// (AssemblyRunNode) and is joined in by the view layer, so the event stream
-// can never overwrite a verdict — a review that exits 0 with a "failed" verdict
-// cannot masquerade as succeeded, by construction rather than by carry rules.
+// Verdict-free: outcome lives on walk rows (joined by view), so event stream never overwrites verdicts (by construction).
 export interface NodeRunState {
   status: NodeRunStatus;
   iteration: number;
@@ -29,26 +19,14 @@ export interface NodeRunState {
   droppedCount: number;
 }
 
-export interface TimelineEntry {
-  id: string;
-  nodeId: string;
-  iteration: number | null;
-  eventType: AgentRunEventType;
-  createdAt: string;
-}
-
 export interface RunLiveState {
   /** The newest applied event id — the SSE `Last-Event-ID` cursor. */
   lastEventId: string | null;
   nodeStates: Record<string, NodeRunState>;
   fileTouches: Record<string, TouchCounts>;
-  timeline: TimelineEntry[];
 }
 
-// Shared sentinel: every unseen node returns this same object, so a mutation of
-// it would corrupt every idle node at once. Frozen deeply — Object.freeze is
-// shallow, and freezing only the wrapper would still leave transcript.push()
-// silently working, which is the exact failure this guards against.
+// Shared sentinel: frozen deeply to prevent corruption of every idle node; shallow freeze would still allow transcript.push().
 const IDLE: NodeRunState = Object.freeze({
   status: "idle",
   iteration: 0,
@@ -56,11 +34,7 @@ const IDLE: NodeRunState = Object.freeze({
   droppedCount: 0,
 });
 
-/**
- * A walk row's outcome as a node status. A null outcome means the node is still
- * in flight; `success` and `changes_requested` both mean it ran to completion —
- * the second is a verdict the edge acts on, not a node failure.
- */
+/** Convert walk row outcome to node status; null = running; success/changes_requested = complete (latter is verdict, not failure). */
 function seedStatus(outcome: string | null): NodeRunStatus {
   if (outcome === null) {
     return "running";
@@ -69,40 +43,74 @@ function seedStatus(outcome: string | null): NodeRunStatus {
   return outcome.includes("failed") ? "failed" : "succeeded";
 }
 
-/**
- * The state a run starts from: every definition node idle, then each node the
- * walk has already visited set from its newest row.
- */
-export function initialRunState(
+function idleNodeStates(
   def: AssemblyLineDefinition | null,
-  visitRows: readonly AssemblyRunNode[],
-): RunLiveState {
+): Record<string, NodeRunState> {
   const nodeStates: Record<string, NodeRunState> = {};
 
   for (const node of def?.nodes ?? []) {
     nodeStates[node.id] = IDLE;
   }
 
+  return nodeStates;
+}
+
+/** Sets `row`'s node to its seeded state, unless a newer-iteration row already won. A node that already holds a transcript keeps it: the row carries the visit's verdict, not its events. */
+function applyVisitRow(
+  nodeStates: Record<string, NodeRunState | undefined>,
+  row: AssemblyRunNode,
+): void {
+  const seen = nodeStates[row.nodeId];
+
+  if (seen && seen.iteration > row.iteration) {
+    return;
+  }
+
+  nodeStates[row.nodeId] = {
+    status: seedStatus(row.outcome),
+    iteration: row.iteration,
+    ...carriedTranscript(seen),
+  };
+}
+
+/** What a re-seed keeps from the node's existing state: its transcript and the count of what the cap evicted. */
+function carriedTranscript(
+  seen: NodeRunState | undefined,
+): Pick<NodeRunState, "transcript" | "droppedCount"> {
+  return seen
+    ? { transcript: seen.transcript, droppedCount: seen.droppedCount }
+    : { transcript: [], droppedCount: 0 };
+}
+
+/** Re-seeds node status from visit rows that arrived after mount (a `node_status` frame); transcripts and the cursor are untouched. */
+export function withVisitRows(
+  state: RunLiveState,
+  visitRows: readonly AssemblyRunNode[],
+): RunLiveState {
+  const nodeStates = { ...state.nodeStates };
+
   for (const row of visitRows) {
-    const seen = nodeStates[row.nodeId];
+    applyVisitRow(nodeStates, row);
+  }
 
-    if (seen && seen.iteration > row.iteration) {
-      continue;
-    }
+  return { ...state, nodeStates };
+}
 
-    nodeStates[row.nodeId] = {
-      status: seedStatus(row.outcome),
-      iteration: row.iteration,
-      transcript: [],
-      droppedCount: 0,
-    };
+/** Initial run state: every definition node idle, then each visited node set from its newest row. */
+export function initialRunState(
+  def: AssemblyLineDefinition | null,
+  visitRows: readonly AssemblyRunNode[],
+): RunLiveState {
+  const nodeStates = idleNodeStates(def);
+
+  for (const row of visitRows) {
+    applyVisitRow(nodeStates, row);
   }
 
   return {
     lastEventId: null,
     nodeStates,
     fileTouches: {},
-    timeline: [],
   };
 }
 
@@ -159,13 +167,7 @@ function withFileTouches(
   return next;
 }
 
-/**
- * Is `id` past the cursor? Ids are string-encoded bigints from an identity
- * column, so they are digit strings without leading zeros: longer means larger,
- * and equal length orders lexicographically. Comparing this way rather than
- * keeping a set of applied ids is what makes de-duplication O(1) in both time
- * and memory — a per-event copy of a growing set made the fold quadratic.
- */
+/** Is id past cursor? Bigint string comparison (length then lex); O(1) dedup vs. O(n²) with a set. */
 function isNewer(id: string, cursor: string | null): boolean {
   if (cursor === null) {
     return true;
@@ -174,11 +176,7 @@ function isNewer(id: string, cursor: string | null): boolean {
   return id.length === cursor.length ? id > cursor : id.length > cursor.length;
 }
 
-/**
- * Apply one event. Returns the state unchanged (by identity) for an id at or
- * behind the cursor, so an SSE reconnect that replays overlapping events is a
- * no-op.
- */
+/** Apply one event; returns state unchanged (by identity) for id at/behind cursor (SSE reconnect replay = no-op). */
 export function reduceRunEvent(
   state: RunLiveState,
   event: RunStreamEvent,
@@ -191,37 +189,40 @@ export function reduceRunEvent(
     return { ...state, lastEventId: event.id };
   }
 
-  const node = state.nodeStates[event.nodeId] ?? IDLE;
-  const isLifecycle =
-    event.eventType === "init" || event.eventType === "result";
+  return applyNodeEvent(state, event, event.nodeId);
+}
 
+/** The node-scoped fold, plus the run-wide file-touch accumulator. */
+function applyNodeEvent(
+  state: RunLiveState,
+  event: RunStreamEvent,
+  nodeId: string,
+): RunLiveState {
   return {
     lastEventId: event.id,
-    nodeStates: {
-      ...state.nodeStates,
-      [event.nodeId]: {
-        status: nextStatus(event, node.status),
-        iteration: event.iteration ?? node.iteration,
-        ...appendCapped(node, event),
-      },
-    },
+    nodeStates: withNodeState(state, event, nodeId),
     fileTouches: withFileTouches(
       state.fileTouches,
       event.filePaths,
       event.toolName,
     ),
-    timeline: isLifecycle
-      ? [
-          ...state.timeline,
-          {
-            id: event.id,
-            nodeId: event.nodeId,
-            iteration: event.iteration,
-            eventType: event.eventType,
-            createdAt: event.createdAt,
-          },
-        ]
-      : state.timeline,
+  };
+}
+
+function withNodeState(
+  state: RunLiveState,
+  event: RunStreamEvent,
+  nodeId: string,
+): Record<string, NodeRunState> {
+  const node = state.nodeStates[nodeId] ?? IDLE;
+
+  return {
+    ...state.nodeStates,
+    [nodeId]: {
+      status: nextStatus(event, node.status),
+      iteration: event.iteration ?? node.iteration,
+      ...appendCapped(node, event),
+    },
   };
 }
 

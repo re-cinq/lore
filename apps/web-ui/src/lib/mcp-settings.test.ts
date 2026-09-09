@@ -178,6 +178,19 @@ describe("putPrivilegedSettings", () => {
     ).toEqual({ status: "error", message: "HTTP 503" });
   });
 
+  it("falls back to an empty body when a non-ok response's json() rejects", async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error("not json");
+      },
+    })) as unknown as typeof fetch;
+    expect(
+      await putPrivilegedSettings("o/r", { dark_factory: { enabled: true } }),
+    ).toEqual({ status: "error", message: "HTTP 500" });
+  });
+
   it("returns an error result when fetch throws", async () => {
     global.fetch = vi.fn(async () => {
       throw new Error("network down");

@@ -15,6 +15,10 @@ import {
   TOOL_PROGRESS_SKILL_FIRST,
   TOOL_PROGRESS_SKILL_LAST,
   SYSTEM_COMPACT_BOUNDARY,
+  GEMINI_ERROR_EVENT,
+  FILE_EVENT_PR_DESCRIPTION,
+  FILE_EVENT_MISSING,
+  wrapped,
 } from "@/lib/agent-log-entries.fixtures";
 
 describe("LogEntriesView", () => {
@@ -81,6 +85,24 @@ describe("LogEntriesView", () => {
 
     expect(details?.open).toBe(false);
     expect(details?.textContent).toMatch(/"permissionMode"/);
+  });
+
+  it("omits the version parenthetical when the session-init entry carries no version", () => {
+    render(
+      <LogEntriesView
+        entries={[
+          {
+            kind: "session-init",
+            model: "claude-sonnet-4-6",
+            detailsJson: "{}",
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText("session started — claude-sonnet-4-6"),
+    ).toBeInTheDocument();
   });
 
   it("renders 'thinking… ~444 tokens' italic-dimmed for a thinking-tokens entry", () => {
@@ -295,5 +317,62 @@ describe("hook entries", () => {
     render(<LogEntriesView entries={parseAgentLog(SYSTEM_COMPACT_BOUNDARY)} />);
 
     expect(screen.getByText("· system: compact_boundary")).toBeInTheDocument();
+  });
+});
+
+describe("LogEntriesView — gemini agent errors", () => {
+  it("renders an error-severity agent-error styled as an error", () => {
+    render(
+      <LogEntriesView entries={parseAgentLog(wrapped(GEMINI_ERROR_EVENT))} />,
+    );
+
+    expect(
+      screen.getByText(
+        "✗ error: Model gemini-2.5-pro not found for this API key",
+      ),
+    ).toHaveClass(styles.error);
+  });
+
+  it("renders a warning-severity agent-error dimmed, not as an error", () => {
+    render(
+      <LogEntriesView
+        entries={[
+          {
+            kind: "agent-error",
+            severity: "warning",
+            message: "context truncated",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("✗ warning: context truncated")).toHaveClass(
+      styles.dim,
+    );
+  });
+});
+
+describe("file artifact entries", () => {
+  it("renders the pr.description delivery as a collapsed details naming the event and path", () => {
+    render(
+      <LogEntriesView entries={parseAgentLog(FILE_EVENT_PR_DESCRIPTION)} />,
+    );
+
+    expect(
+      screen.getByText("⇢ pr.description — /workspace/target/.lore/pr-body.md"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/The codebase already consolidated the duplicated clip/),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a never-produced artifact as an error line carrying the reason", () => {
+    render(<LogEntriesView entries={parseAgentLog(FILE_EVENT_MISSING)} />);
+
+    expect(
+      screen.getByText(
+        "✗ pr.description not produced: agent exited before writing the file",
+      ),
+    ).toHaveClass(styles.error);
   });
 });

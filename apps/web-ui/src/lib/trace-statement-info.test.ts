@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { toStatementInfo } from "./trace-statement-info";
-import type { StatementInfo } from "@/app/repos/[owner]/[repo]/specs/SpecDetails";
+import type { StatementInfo } from "./trace-types";
 
 interface GraphStatement {
   ordinal: number;

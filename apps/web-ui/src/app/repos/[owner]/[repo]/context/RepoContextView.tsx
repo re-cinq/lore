@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import HelpPopover from "@/components/HelpPopover";
 import ContextFilters from "./ContextFilters";
 import ContextCard from "./ContextCard";
@@ -39,89 +40,145 @@ function emptyMessage(q?: string, type?: string): string {
   return "No context ingested yet. Context will appear after the nightly ingestion runs.";
 }
 
-/**
- * Presentational view for a single repo's ingested context. Pure render — the
- * container (`page.tsx`) runs the schema-scoped queries (distinct types,
- * filtered + ranked chunks) and hands the view-model down. Each chunk renders
- * as a rich card linking to its per-file detail page.
- */
-export default function RepoContextView({
-  owner,
-  repo,
-  type,
-  q,
-  types,
-  chunks,
-  hasMore = false,
-}: RepoContextViewProps) {
-  const base = `/repos/${owner}/${repo}/context`;
-  const fullName = `${owner}/${repo}`;
-
+/** What context is and how an agent gets it. Answers the three questions a reader arrives with — what is in here, how fresh is it, and what an agent actually sees of it. */
+function ContextHelp() {
   return (
-    <div>
+    <HelpPopover label="How context is used">
+      <p>
+        Context is everything Lore has ingested about this repo — conventions,
+        ADRs, specs, and code — stored as embedded chunks.
+      </p>
+      <ContextHelpPoints />
+    </HelpPopover>
+  );
+}
+
+/** How an agent reaches context, how fresh it is, and what it actually sees of it. */
+function ContextHelpPoints() {
+  return (
+    <ul>
+      <li>
+        Agents load it on turn 1 of every task via <code>assemble_context</code>
+        , and search it with <code>search_context</code>.
+      </li>
+      <li>
+        It is refreshed by nightly ingestion; a repo not ingested in over 7 days
+        is flagged <strong>stale</strong>.
+      </li>
+      <li>
+        Higher-signal chunks (incidents, conflicts, recent facts) are surfaced
+        first within the token budget.
+      </li>
+    </ul>
+  );
+}
+
+/** What context IS, for a reader who has not met the term. Kept beside the list rather than in a doc, because the question arises exactly here. */
+function ContextHeader() {
+  return (
+    <>
       <div className={styles.header}>
         <h2 className={styles.title}>Context</h2>
-        <HelpPopover label="How context is used">
-          <p>
-            Context is everything Lore has ingested about this repo —
-            conventions, ADRs, specs, and code — stored as embedded chunks.
-          </p>
-          <ul>
-            <li>
-              Agents load it on turn 1 of every task via{" "}
-              <code>assemble_context</code>, and search it with{" "}
-              <code>search_context</code>.
-            </li>
-            <li>
-              It is refreshed by nightly ingestion; a repo not ingested in over
-              7 days is flagged <strong>stale</strong>.
-            </li>
-            <li>
-              Higher-signal chunks (incidents, conflicts, recent facts) are
-              surfaced first within the token budget.
-            </li>
-          </ul>
-        </HelpPopover>
+        <ContextHelp />
       </div>
       <p className={`meta ${styles.intro}`}>
         Conventions, ADRs, specs, and code ingested from this repo that agents
         use as context.
       </p>
+    </>
+  );
+}
 
-      <ContextFilters basePath={base} types={types} activeType={type} q={q} />
+/** How many chunks are on screen. Says "showing first N" when the list is truncated, because a plain count would read as the total and make the repo look smaller than it is. */
+function ChunkCount({
+  count,
+  q,
+  more,
+}: {
+  count: number;
+  q: string | undefined;
+  more: boolean;
+}) {
+  return (
+    <p className="meta">
+      {more ? `showing first ${count}` : `${count}`} chunk
+      {count === 1 ? "" : "s"}
+      {q ? ` matching “${q}”` : ""}
+    </p>
+  );
+}
 
-      <p className="meta">
-        {hasMore ? `showing first ${chunks.length}` : `${chunks.length}`} chunk
-        {chunks.length === 1 ? "" : "s"}
-        {q ? ` matching “${q}”` : ""}
-      </p>
+/** The chunks and the way to ask for more. A chunk with no `file_path` came from a source with no file behind it — a memory or a fact — so it gets no detail link rather than one that would 404. */
+function ChunkList({ base, fullName, ...props }: ChunkListProps) {
+  return (
+    <>
+      {props.chunks.map((chunk) => (
+        <ContextCard
+          key={chunk.id}
+          chunk={chunk}
+          repo={fullName}
+          detailHref={detailHrefOf(chunk, base)}
+        />
+      ))}
+      <LoadMore {...props} initialOffset={CONTEXT_PAGE_SIZE} />
+    </>
+  );
+}
+
+type ChunkListProps = Pick<
+  RepoContextViewProps,
+  "chunks" | "owner" | "repo" | "q" | "type"
+> & { base: string; fullName: string; hasMore: boolean };
+
+/** The chunk's own page, or nothing. A chunk with no `file_path` came from a source with no file behind it — a memory or a fact — so it gets no link rather than one that would 404. */
+function detailHrefOf(
+  chunk: RepoContextViewProps["chunks"][number],
+  base: string,
+): string | undefined {
+  return chunk.file_path
+    ? `${base}/${encodeURIComponent(chunk.file_path)}`
+    : undefined;
+}
+
+/** Presentational view for repo's ingested context; container runs queries and hands view-model down. */
+export default function RepoContextView(props: RepoContextViewProps) {
+  const { owner, repo } = props;
+  const base = `/repos/${owner}/${repo}/context`;
+
+  return (
+    <div>
+      <ContextHeader />
+
+      <ContextFilters
+        basePath={base}
+        types={props.types}
+        activeType={props.type}
+        q={props.q}
+      />
+
+      <ChunkSection {...props} base={base} fullName={`${owner}/${repo}`} />
+    </div>
+  );
+}
+
+type ChunkSectionProps = RepoContextViewProps & {
+  base: string;
+  fullName: string;
+};
+
+/** The count, then the chunks — or, with nothing to show, why the list is empty. */
+function ChunkSection({ hasMore = false, ...props }: ChunkSectionProps) {
+  const { chunks, q, type } = props;
+
+  return (
+    <>
+      <ChunkCount count={chunks.length} q={q} more={hasMore} />
 
       {chunks.length === 0 ? (
-        <p className="meta">{emptyMessage(q, type)}</p>
+        <Alert variant="secondary">{emptyMessage(q, type)}</Alert>
       ) : (
-        <>
-          {chunks.map((c) => (
-            <ContextCard
-              key={c.id}
-              chunk={c}
-              repo={fullName}
-              detailHref={
-                c.file_path
-                  ? `${base}/${encodeURIComponent(c.file_path)}`
-                  : undefined
-              }
-            />
-          ))}
-          <LoadMore
-            owner={owner}
-            repo={repo}
-            q={q}
-            type={type}
-            initialOffset={CONTEXT_PAGE_SIZE}
-            hasMore={hasMore}
-          />
-        </>
+        <ChunkList {...props} hasMore={hasMore} />
       )}
-    </div>
+    </>
   );
 }

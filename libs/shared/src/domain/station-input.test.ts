@@ -1,0 +1,120 @@
+import { describe, it, expect } from "vitest";
+import {
+  parseStationInput,
+  serializeStationInput,
+  type StationInput,
+} from "./station-input.js";
+
+const floorEmitted = JSON.stringify({
+  assembly_run_id: "a1b2c3d4e5f6a7b8",
+  node_id: "validate",
+  node_type: "validate",
+  repo: "re-cinq/lore",
+  branch: "lore/impl-abcdef12",
+  task_id: "abcdef1234567890",
+  params: { validator: "all" },
+});
+
+describe("parseStationInput", () => {
+  it("parses the Floor's station_input JSON", () => {
+    expect(parseStationInput(floorEmitted)).toEqual({
+      assembly_run_id: "a1b2c3d4e5f6a7b8",
+      node_id: "validate",
+      node_type: "validate",
+      repo: "re-cinq/lore",
+      branch: "lore/impl-abcdef12",
+      task_id: "abcdef1234567890",
+      params: { validator: "all" },
+    });
+  });
+
+  it("defaults params to empty and allows a null task_id (detection runs)", () => {
+    const input = parseStationInput(
+      JSON.stringify({
+        assembly_line_id: "al-1",
+        node_id: "detect",
+        node_type: "detect",
+        repo: "re-cinq/lore",
+        branch: "detect/spec-drift/re-cinq/lore",
+        task_id: null,
+      }),
+    );
+
+    expect(input).toMatchObject({ task_id: null, params: {} });
+  });
+
+  it("throws on malformed JSON or missing required fields", () => {
+    expect(() => parseStationInput("{nope")).toThrow();
+    expect(() => parseStationInput(JSON.stringify({ node_id: "x" }))).toThrow();
+  });
+});
+
+describe("serializeStationInput", () => {
+  const input: StationInput = {
+    assembly_run_id: "a1b2c3d4e5f6a7b8",
+    node_id: "validate",
+    node_type: "validate",
+    repo: "re-cinq/lore",
+    branch: "lore/impl-abcdef12",
+    task_id: null,
+    params: { validator: "all" },
+  };
+
+  it("round-trips through the reader, which is what makes the two sides one", () => {
+    expect(parseStationInput(serializeStationInput(input))).toEqual(input);
+  });
+
+  it("rejects an empty repo at dispatch time rather than inside a pod", () => {
+    expect(() => serializeStationInput({ ...input, repo: "" })).toThrow();
+  });
+});
+
+describe("the run-id dual-key window (FR6.41 readers-first)", () => {
+  it("parses a pre-flip pod input carrying only assembly_line_id", () => {
+    const legacy = JSON.stringify({
+      assembly_line_id: "al-legacy",
+      node_id: "validate",
+      node_type: "validate",
+      repo: "re-cinq/lore",
+      branch: "b",
+      task_id: null,
+    });
+
+    expect(parseStationInput(legacy)).toMatchObject({
+      assembly_run_id: "al-legacy",
+    });
+  });
+
+  it("serializes both spellings so the neighbouring release parses either", () => {
+    const wire = JSON.parse(
+      serializeStationInput({
+        assembly_run_id: "al-9",
+        node_id: "n",
+        node_type: "validate",
+        repo: "o/r",
+        branch: "b",
+        task_id: null,
+        params: {},
+      }),
+    ) as Record<string, unknown>;
+
+    expect(wire).toMatchObject({
+      assembly_run_id: "al-9",
+      assembly_line_id: "al-9",
+    });
+  });
+
+  it("refuses an input naming the run under neither spelling", () => {
+    expect(() =>
+      parseStationInput(
+        JSON.stringify({
+          node_id: "n",
+          node_type: "validate",
+          repo: "o/r",
+          branch: "b",
+          task_id: null,
+        }),
+      ),
+    ).toThrow();
+  });
+});

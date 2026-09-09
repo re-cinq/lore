@@ -30,10 +30,10 @@ resolve a repo's schema (`lore.repos.team` when the schema exists, else
 - spec-drift's `specChunks` / `codeSymbols` in the same `PgChunks` class —
   issue #976.
 - the detect fan-out's target enumeration (`ACTIVE_SPEC_REPOS_SQL` /
-  `SPEC_REPOS_SQL` in `apps/floor/src/jobs/detect/fan-out.ts`) — issue #977.
+  `SPEC_REPOS_SQL` in `apps/floor/src/work/detect/fan-out.ts`) — issue #977.
 - context assembly's hybrid retrieval, rules, and cross-repo reads
-  (`libs/shared/src/project/knowledge/context-assembly.ts`), server-core's
-  context/ADR/PR-history reads (`libs/server-core/src/platform/db.ts`), the
+  (`libs/shared/src/outbound/project/knowledge/context-assembly.ts`), server-core's
+  context/ADR/PR-history reads (`libs/server-core/src/outbound/db.ts`), the
   lore-api context route, and feature-request's spec lookup — discovered while
   planning #979; tracked as the reader-repoint follow-up.
 

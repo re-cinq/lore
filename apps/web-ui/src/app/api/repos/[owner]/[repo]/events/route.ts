@@ -1,12 +1,10 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { pageOffsetParam } from "@/lib/page-offset";
 import { fetchRepoEvents } from "@/app/repos/[owner]/[repo]/events/events-data";
 import { serverError } from "@/lib/api-error";
 
-// Subsequent-page endpoint for the per-repo events list. The first page is
-// rendered server-side by page.tsx; this serves later pages to the
-// InfiniteEvents client component. Session is enforced upstream by withAuth
-// (middleware.ts).
+// Subsequent-page endpoint for the per-repo events list; session enforced upstream by withAuth (middleware.ts).
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ owner: string; repo: string }> },
@@ -14,10 +12,7 @@ export async function GET(
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
   const { searchParams } = new URL(req.url);
-  const offset = Math.max(
-    0,
-    parseInt(searchParams.get("offset") ?? "0", 10) || 0,
-  );
+  const offset = pageOffsetParam(searchParams);
 
   try {
     return NextResponse.json(await fetchRepoEvents(fullName, offset));

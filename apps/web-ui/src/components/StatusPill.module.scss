@@ -1,0 +1,38 @@
+.pill {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.ok {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.warn {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.err {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.running {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+/* Parked, not executing: warning tone, never the running blue. */
+.waiting {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.idle {
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}

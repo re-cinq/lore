@@ -45,11 +45,11 @@ Issue gets comment: "Working on this → PR #N"
 
 **1. Webhook endpoint** (`mcp-server/src/index.ts`)
 
-New HTTP handler: `POST /api/webhook/github`
+HTTP ingress: the GitHub branch of `POST /api/events` on the event-router (ADR-044)
 - Validates GitHub webhook signature (HMAC SHA-256)
-- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/project/events/github-map.test.ts#L298))
+- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:298`](libs/shared/src/outbound/project/events/github-map.test.ts#L298))
 - The event mapper is a guard at the door: it returns nothing when the `repository` is missing or the
-  event type is unhandled. ([validated by `github-map.test.ts:334`](libs/shared/src/project/events/github-map.test.ts#L334), [`github-map.test.ts:344`](libs/shared/src/project/events/github-map.test.ts#L344))
+  event type is unhandled. ([validated by `github-map.test.ts:334`](libs/shared/src/outbound/project/events/github-map.test.ts#L334), [`github-map.test.ts:344`](libs/shared/src/outbound/project/events/github-map.test.ts#L344))
 - If label name is `lore` (configurable):
   - Extract: issue title, body, repo full_name, issue number
   - Determine task type from issue labels, from the SAME table onboarding seeds the
@@ -61,7 +61,7 @@ New HTTP handler: `POST /api/webhook/github`
     - `lore:review` → review
     - `lore:runbook` → runbook
     - `lore` (alone) → the repo's `dispatch_default_type` (general by default)
-    ([validated by reads implementation off a lore:implementation label](libs/shared/src/task-types/dispatch-labels.test.ts#L5), [`dispatch-labels.test.ts:11`](libs/shared/src/task-types/dispatch-labels.test.ts#L11), [`dispatch-labels.test.ts:16`](libs/shared/src/task-types/dispatch-labels.test.ts#L16), [`dispatch-labels.test.ts:22`](libs/shared/src/task-types/dispatch-labels.test.ts#L22))
+    ([validated by reads implementation off a lore:implementation label](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L5), [`dispatch-labels.test.ts:11`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L11), [`dispatch-labels.test.ts:16`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L16), [`dispatch-labels.test.ts:22`](libs/shared/src/domain/task-types/dispatch-labels.test.ts#L22))
   - Create pipeline task with issue context
   - Comment on issue: "Lore agent is working on this. Task: `{id}`"
   - Add `lore-managed` label to the issue
@@ -84,7 +84,7 @@ For webhook-dispatched tasks, the originating issue IS the task's issue
 **3. Webhook registration**
 
 During `lore_onboard_repo`, configure the GitHub webhook on the target repo:
-- URL: `https://LORE_API_DOMAIN/api/webhook/github`
+- URL: `https://LORE_EVENTS_DOMAIN/api/events` (the event-router front door)
 - Events: `issues`
 - Secret: from `LORE_WEBHOOK_SECRET` env var
 - Content type: `application/json`
@@ -143,21 +143,21 @@ Defaults: label=`lore`, type=`general`.
 
 ## Acceptance Criteria
 
-1. Adding `lore` label to a GitHub Issue creates a pipeline task ([validated by `webhook.test.ts:32`](apps/lore-api/src/integration-tests/webhook.test.ts#L32))
+1. Adding `lore` label to a GitHub Issue creates a pipeline task ([validated by `webhook.test.ts:32`](apps/lore-api/src/integration-tests/webhook.test.ts#L31))
 
 2. Task type determined from `lore:*` label variants
 3. Agent works on the task, creates PR linked to the issue
 4. Issue gets comment with task ID and PR link; `loreTaskRef` links the task uuid to its deployed
-   assembly-line page and trims a trailing slash on the UI url. ([validated by `issue-body.test.ts:11`](apps/floor/src/jobs/task/issue-body.test.ts#L11))
+   assembly-line page and trims a trailing slash on the UI url. ([validated by `task-ref.test.ts:11`](apps/floor/src/domain/task-ref.test.ts#L11))
 
-5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook.test.ts:43`](apps/lore-api/src/integration-tests/webhook.test.ts#L43))
+5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook.test.ts:43`](apps/lore-api/src/integration-tests/webhook.test.ts#L42))
 
 6. Works on any onboarded repo with webhook configured
 
-7. The `POST /api/webhook/github` endpoint is a signed door: `verifyGitHubSignature` rejects a
+7. The GitHub branch of `POST /api/events` is a signed door: `verifyGitHubSignature` rejects a
    signature computed with a different secret (accepting only one over the same secret + raw body),
    and the route returns 202 capturing `{captured:0, events:[]}` for a validly-signed event that maps
    to no work; `parseJsonBody` returns the typed object and throws a 400 on a
    malformed body, naming the ingress that was parsing it and quoting the parser's own
    objection — five routes parse bodies this way, and a bare "invalid JSON" said a body
-   was rejected without saying which ingress rejected it or where the body went wrong. ([validated by `github-webhook.test.ts:26`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L26), [`github-webhook.test.ts:108`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L108), [`raw-body.test.ts:6`](apps/floor/src/delivery/http/raw-body.test.ts#L6), [`raw-body.test.ts:12`](apps/floor/src/delivery/http/raw-body.test.ts#L12))
+   was rejected without saying which ingress rejected it or where the body went wrong. ([validated by `events.test.ts:118`](apps/event-router/src/transport/routes/events.test.ts#L118), [`events.test.ts:99`](apps/event-router/src/transport/routes/events.test.ts#L99), [`raw-body.test.ts:6`](apps/floor/src/transport/http/raw-body.test.ts#L6), [`raw-body.test.ts:12`](apps/floor/src/transport/http/raw-body.test.ts#L12))

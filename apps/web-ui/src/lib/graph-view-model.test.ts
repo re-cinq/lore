@@ -127,15 +127,12 @@ describe("deriveVisibleGraph definition mode", () => {
     );
     const fromReview = graph.edges.filter((e) => e.from === "review");
 
-    // review branches to retrospective (success/failed) and address (changes_requested)
     expect(new Set(fromReview.map((e) => e.to))).toEqual(
       new Set(["retrospective", "address"]),
     );
-    // the changes_requested branch is color-coded (warn)
     expect(fromReview.find((e) => e.to === "address")).toMatchObject({
       tone: "warn",
     });
-    // outcomes are still listed inside the source node, never on the connector
     expect(graph.nodes.find((n) => n.id === "review")?.outcomes).toEqual([
       "success",
       "changes_requested",

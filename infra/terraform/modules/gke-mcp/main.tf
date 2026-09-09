@@ -39,6 +39,13 @@ resource "google_container_cluster" "main" {
     workload_pool = "${var.project_id}.svc.id.goog"
   }
 
+  # GKE cost allocation: breaks the cluster's line in the Cloud Billing export
+  # down per namespace/label instead of one blob. Free, and the /spend page's
+  # gcp-cost-sync is what reads the export it enriches.
+  cost_management_config {
+    enabled = true
+  }
+
   release_channel {
     channel = "REGULAR"
   }

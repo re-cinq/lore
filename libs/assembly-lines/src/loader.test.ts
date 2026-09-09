@@ -11,6 +11,33 @@ import {
 } from "./loader.js";
 import { definitionHash } from "./definition-hash.js";
 
+function nodeType(
+  wf: AssemblyLine | undefined,
+  id: string,
+): string | undefined {
+  return wf?.nodes.find((n) => n.id === id)?.type;
+}
+
+function hasNode(wf: AssemblyLine | undefined, id: string): boolean {
+  return wf?.nodes.some((n) => n.id === id) ?? false;
+}
+
+function edgeOn(
+  wf: AssemblyLine | undefined,
+  from: string,
+  to: string,
+): string | undefined {
+  return wf?.edges.find((e) => e.from === from && e.to === to)?.on;
+}
+
+function edgeTo(
+  wf: AssemblyLine | undefined,
+  from: string,
+  on: string,
+): string | undefined {
+  return wf?.edges.find((e) => e.from === from && e.on === on)?.to;
+}
+
 const linearAssemblyLine = `
 name: gap-fill
 description: A linear flow
@@ -66,10 +93,7 @@ edges: []
     ).toThrow(/Schema violation/);
   });
 
-  it("rejects a mistyped node key instead of discarding it", () => {
-    // `timeoutMinutes` is not the field name — `timeout_minutes` is. Without a
-    // strict schema the key is dropped in silence and the node runs with no
-    // timeout at all, which is the opposite of what the author asked for.
+  it("rejects a mistyped node key (timeoutMinutes instead of timeout_minutes) instead of silently discarding it and running with no timeout", () => {
     expect(() =>
       parseAssemblyLine(`
 name: x
@@ -103,9 +127,7 @@ onFailure: escalate
     ).toThrow(/Schema violation/);
   });
 
-  it("rejects a mistyped edge key instead of discarding it", () => {
-    // `iterationMax` silently dropped means an unbounded back-edge — the runaway
-    // the loader's cycle check exists to prevent.
+  it("rejects a mistyped edge key (iterationMax) instead of discarding it into an unbounded back-edge, the runaway the cycle check exists to prevent", () => {
     expect(() =>
       parseAssemblyLine(`
 name: x
@@ -206,10 +228,7 @@ edges:
     ).toThrow(/"b" has no outgoing edges/);
   });
 
-  it("accepts a human station and an unbounded back-edge out of it", () => {
-    // A human station's worker is a PERSON. The iteration_max rule exists so two
-    // agents cannot argue indefinitely; a person deciding each pass cannot run
-    // away, so the refine loop is legitimately unbounded.
+  it("accepts a human station and an unbounded back-edge out of it (a person deciding each pass cannot run away, unlike two arguing agents)", () => {
     const wf = parseAssemblyLine(`
 name: feature
 description: plan a feature with the author in the loop
@@ -252,9 +271,7 @@ edges:
     });
   });
 
-  it("still requires iteration_max on a back-edge between two agents", () => {
-    // The exemption is keyed strictly on the SOURCE node's type — it must not become
-    // a way to write an unbounded agent loop.
+  it("still requires iteration_max on a back-edge between two agents (the exemption is keyed strictly on the SOURCE node's type)", () => {
     expect(() =>
       parseAssemblyLine(`
 name: feature
@@ -294,9 +311,7 @@ edges:
     ).toThrow(/back-edge b → a requires iteration_max/);
   });
 
-  it("rejects a human station with no route", () => {
-    // A station whose worker is a person must say WHERE that person works, or the
-    // run can park on it with nothing able to tell anyone whose move it is.
+  it("rejects a human station with no route (or the run parks with nothing to tell anyone whose move it is)", () => {
     expect(() =>
       parseAssemblyLine(`
 name: feature
@@ -317,9 +332,7 @@ edges:
     ).toThrow(/human station "author" requires route/);
   });
 
-  it("rejects a route placeholder that is not an args reference", () => {
-    // Placeholders resolve against the run's args and nothing else — that is what
-    // keeps the engine domain-free: it still never learns what a feature is.
+  it("rejects a route placeholder that is not an args reference (placeholders resolve only against the run's args, keeping the engine domain-free)", () => {
     expect(() =>
       parseAssemblyLine(`
 name: feature
@@ -341,8 +354,7 @@ edges:
     ).toThrow(/route placeholder "\{repo\}"/);
   });
 
-  it("accepts an absolute route for a surface this platform does not own", () => {
-    // The GitHub PR view is a station like any other; its page simply is not ours.
+  it("accepts an absolute route for a surface this platform does not own (the GitHub PR view is a station like any other; its page simply is not ours)", () => {
     const wf = parseAssemblyLine(`
 name: feature
 description: waiting on a spec PR
@@ -367,9 +379,7 @@ edges:
     });
   });
 
-  it("accepts an issues station node", () => {
-    // A node type the enum does not know fails at LOAD, which is the point: the YAML
-    // is the contract, so a station that has no runner cannot be scheduled.
+  it("accepts an issues station node (an unknown node type fails at LOAD, since the YAML is the contract and a station with no runner cannot be scheduled)", () => {
     const wf = parseAssemblyLine(`
 name: feature-decompose
 description: decompose a merged spec, then file the issues
@@ -622,12 +632,7 @@ edges: []
 });
 
 describe("loadAssemblyLineDir — bundled assemblyLines", () => {
-  // The bundled YAML files live next to the loader. Resolve the
-  // assembly lines directory relative to this test file so this works in
-  // both source-tree and dist-tree runs.
   const here = new URL(".", import.meta.url).pathname;
-  // The bundled YAMLs are a sibling of this file (src/assembly-lines/), and the
-  // build copies them to dist/assembly-lines/ — same relative position either way.
   const assemblyLinesDir = path.resolve(here, "assembly-lines");
 
   it("loads all bundled assembly lines without error", async () => {
@@ -660,15 +665,10 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
 
     expect(wf?.entry).toBe("review");
     expect(wf?.exit).toBe("done");
-    expect(wf?.nodes.find((n) => n.id === "review")?.type).toBe("agent");
-    expect(wf?.nodes.find((n) => n.id === "refine")).toBeUndefined();
-    expect(
-      wf?.edges.find((e) => e.from === "review" && e.to === "done")?.on,
-    ).toBe("success");
-    expect(
-      wf?.edges.find((e) => e.from === "review" && e.on === "changes_requested")
-        ?.to,
-    ).toBe("done");
+    expect(nodeType(wf, "review")).toBe("agent");
+    expect(hasNode(wf, "refine")).toBe(false);
+    expect(edgeOn(wf, "review", "done")).toBe("success");
+    expect(edgeTo(wf, "review", "changes_requested")).toBe("done");
   });
 
   it("comment-triage is a triage(station)→done graph", async () => {
@@ -893,8 +893,6 @@ edges:
 });
 
 describe("uncoveredOutcomes", () => {
-  // Handcrafted (not parseAssemblyLine): the partial-coverage case is exactly
-  // what the loader now rejects, so the object cannot be built by parsing.
   const agentToExit = (on: EdgeConditionValue): AssemblyLine => ({
     name: "x",
     description: "d",
@@ -1000,9 +998,7 @@ edges:
     ).toBe("task");
   });
 
-  it("rejects a reference to a node that does not exist", () => {
-    // An unresolvable reference would silently start a fresh conversation at runtime,
-    // which is indistinguishable from one that continued and remembered nothing.
+  it("rejects a reference to a node that does not exist (an unresolvable reference would silently start a fresh conversation, indistinguishable from one that remembered nothing)", () => {
     expect(() =>
       parseAssemblyLine(
         line("    continues:\n      node: reviewe\n      key: line"),

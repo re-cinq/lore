@@ -2,17 +2,9 @@ import { getRepoMeta } from "@/lib/github";
 import TabNav from "./TabNav";
 import styles from "./layout.module.css";
 
-export default async function RepoLayout({
-  children,
-  params,
-}: {
-  children: React.ReactNode;
-  params: Promise<{ owner: string; repo: string }>;
-}) {
-  const { owner, repo } = await params;
-  const base = `/repos/${owner}/${repo}`;
-  const meta = await getRepoMeta(`${owner}/${repo}`).catch(() => null);
-  const tabs = [
+/** Every tab a repo has, in the order they are shown. Reads as the repo's table of contents, so the order is deliberate rather than alphabetical: what a reader wants first comes first. */
+function repoTabs(base: string) {
+  return [
     { href: base, label: "Overview" },
     { href: `${base}/tasks`, label: "Assembly Runs" },
     { href: `${base}/context`, label: "Context" },
@@ -26,6 +18,17 @@ export default async function RepoLayout({
     { href: `${base}/dark-factory`, label: "Dark Factory" },
     { href: `${base}/settings`, label: "Settings" },
   ];
+}
+
+interface RepoLayoutProps {
+  children: React.ReactNode;
+  params: Promise<{ owner: string; repo: string }>;
+}
+
+export default async function RepoLayout(props: RepoLayoutProps) {
+  const { owner, repo } = await props.params;
+  const base = `/repos/${owner}/${repo}`;
+  const meta = await getRepoMeta(`${owner}/${repo}`).catch(() => null);
 
   return (
     <div>
@@ -35,8 +38,8 @@ export default async function RepoLayout({
       {meta?.description && (
         <p className={`meta ${styles.desc}`}>{meta.description}</p>
       )}
-      <TabNav tabs={tabs} base={base} />
-      <div className={styles.body}>{children}</div>
+      <TabNav tabs={repoTabs(base)} base={base} />
+      <div className={styles.body}>{props.children}</div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { enforceTrue } from "../lib/enforce.js";
-import type { PgPool } from "../memory-store.js";
+import type { PgPool } from "../domain/memory-store-types.js";
 
 /** One recorded query() invocation. */
 export interface FakePgPoolCall {
@@ -13,11 +13,7 @@ export interface FakePgPoolResponse {
   rowCount?: number;
 }
 
-/**
- * The pool shape {@link fakePgPool} returns: {@link PgPool} widened with
- * `rowCount` on the result, so the same fake also satisfies rowCount-reading
- * ports (e.g. the leases' `LeasePool`) without a cast.
- */
+/** Pool shape with rowCount on result; satisfies rowCount-reading ports (LeasePool) without cast. */
 export interface FakePgPool extends PgPool {
   query<T = Record<string, unknown>>(
     text: string,
@@ -25,13 +21,7 @@ export interface FakePgPool extends PgPool {
   ): Promise<{ rows: T[]; rowCount: number }>;
 }
 
-/**
- * Scripted {@link PgPool} fake for adapter SQL-shape tests: responses are
- * consumed in call order, every invocation is recorded in `calls`, and a call
- * beyond the scripted responses throws (an adapter issuing an extra query must
- * fail the test, not silently read empty rows). Replaces the per-file
- * hand-rolled `mockPool`s (the untyped ones hid `pool as any` casts).
- */
+/** Scripted PgPool fake; responses consumed in order, calls recorded, beyond-script throws (catches extra queries). */
 export function fakePgPool(responses: FakePgPoolResponse[] = []): {
   pool: FakePgPool;
   calls: FakePgPoolCall[];
@@ -43,18 +33,28 @@ export function fakePgPool(responses: FakePgPoolResponse[] = []): {
       params?: unknown[],
     ): Promise<{ rows: T[]; rowCount: number }> {
       calls.push({ text, params });
-      const response = responses[calls.length - 1];
 
-      enforceTrue(
-        response,
-        Error,
-        `fakePgPool: unexpected call ${calls.length} — only ${responses.length} response(s) scripted.\nSQL: ${text}`,
-      );
-      const rows = (response.rows ?? []) as T[];
-
-      return { rows, rowCount: response.rowCount ?? rows.length };
+      return scriptedResult<T>(responses, calls.length, text);
     },
   };
 
   return { pool, calls };
+}
+
+/** The nth scripted response as a query result; a call past the end of the script throws with the offending SQL. */
+function scriptedResult<T>(
+  responses: FakePgPoolResponse[],
+  callNumber: number,
+  text: string,
+): { rows: T[]; rowCount: number } {
+  const response = responses[callNumber - 1];
+
+  enforceTrue(
+    response,
+    Error,
+    `fakePgPool: unexpected call ${callNumber} — only ${responses.length} response(s) scripted.\nSQL: ${text}`,
+  );
+  const rows = (response.rows ?? []) as T[];
+
+  return { rows, rowCount: response.rowCount ?? rows.length };
 }

@@ -133,4 +133,67 @@ describe("FileHeatmapView", () => {
 
     expect(screen.getByText("No files touched yet.")).toBeInTheDocument();
   });
+
+  it("renders as a collapsible card titled Files touched", () => {
+    render(
+      <FileHeatmapView
+        touches={{}}
+        showAll={false}
+        onToggleShowAll={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Files touched").closest("summary")).not.toBeNull();
+  });
+
+  it("renders rows as plain list items when no open handler is given", () => {
+    const { container } = render(
+      <FileHeatmapView
+        touches={{ "src/a.ts": touch(1, 0) }}
+        showAll={false}
+        onToggleShowAll={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector("[data-path]")?.tagName).toBe("LI");
+    expect(screen.queryByRole("button", { pressed: false })).toBeNull();
+  });
+
+  it("renders each row as a button that reports its path when an open handler is given", () => {
+    const onOpenFile = vi.fn();
+    const { container } = render(
+      <FileHeatmapView
+        touches={{ "src/a.ts": touch(1, 0) }}
+        showAll={false}
+        onToggleShowAll={vi.fn()}
+        onOpenFile={onOpenFile}
+      />,
+    );
+
+    const row = container.querySelector<HTMLElement>("[data-path='src/a.ts']");
+
+    expect(row?.tagName).toBe("BUTTON");
+    fireEvent.click(row as HTMLElement);
+    expect(onOpenFile).toHaveBeenCalledWith("src/a.ts");
+  });
+
+  it("marks only the active path's row as pressed", () => {
+    const { container } = render(
+      <FileHeatmapView
+        touches={{ "src/a.ts": touch(1, 0), "src/b.ts": touch(1, 0) }}
+        showAll={false}
+        onToggleShowAll={vi.fn()}
+        onOpenFile={vi.fn()}
+        activePath="src/b.ts"
+      />,
+    );
+
+    const pressed = (path: string) =>
+      container
+        .querySelector(`[data-path='${path}']`)
+        ?.getAttribute("aria-pressed");
+
+    expect(pressed("src/b.ts")).toBe("true");
+    expect(pressed("src/a.ts")).toBe("false");
+  });
 });

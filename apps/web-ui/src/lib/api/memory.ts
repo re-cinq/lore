@@ -2,22 +2,27 @@ import "server-only";
 import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
 
-// The memory browse reads, typed once. Each was a direct SELECT in a page body
-// before lore-api grew the endpoints (ADR-032). Shaped per screen: the graph
-// explorer's four reads arrive together because one page renders all four.
-
-export function getGraphBrowse(opts: {
+// Memory browse reads, typed once — were direct SELECTs before lore-api grew these endpoints (ADR-032); shaped per screen.
+type GraphBrowseOpts = {
   entity?: string;
   type?: string;
   showInvalid?: boolean;
-}): Promise<
-  ApiResult<{
-    stats: Record<string, number>;
-    entity_types: { entity_type: string; cnt: number }[];
-    entities: Record<string, unknown>[];
-    edges: Record<string, unknown>[];
-  }>
-> {
+};
+
+type GraphBrowseData = {
+  stats: Record<string, number>;
+  entity_types: { entity_type: string; cnt: number }[];
+  entities: Record<string, unknown>[];
+  edges: Record<string, unknown>[];
+};
+
+export function getGraphBrowse(
+  opts: GraphBrowseOpts,
+): Promise<ApiResult<GraphBrowseData>> {
+  return apiFetch("lore-api", `/api/graph-browse?${graphBrowseParams(opts)}`);
+}
+
+function graphBrowseParams(opts: GraphBrowseOpts): URLSearchParams {
   const params = new URLSearchParams();
 
   if (opts.entity) {
@@ -32,7 +37,7 @@ export function getGraphBrowse(opts: {
     params.set("show_invalid", "true");
   }
 
-  return apiFetch("lore-api", `/api/graph-browse?${params}`);
+  return params;
 }
 
 export function listPools(): Promise<
@@ -41,8 +46,7 @@ export function listPools(): Promise<
   return apiFetch("lore-api", "/api/pools");
 }
 
-/** A pool and its entries. A name no pool holds is a 404 result, which the page
- *  renders as its own "not found" state rather than a crash. */
+/** A pool and its entries; a name no pool holds is a 404 result the page renders as "not found" rather than a crash. */
 export function getPool(name: string): Promise<
   ApiResult<{
     pool: Record<string, unknown>;
@@ -86,8 +90,7 @@ export function listMemories(
   return apiFetch("lore-api", `/api/memories?${params}`);
 }
 
-/** The search page's lexical hits across memories and facts, ranked. Distinct
- *  from `lore_search_memory`, which is the embedding search. */
+/** Search page's lexical hits across memories/facts, ranked — distinct from `lore_search_memory`'s embedding search. */
 export function searchMemory(
   q: string,
 ): Promise<ApiResult<{ results: Record<string, unknown>[] }>> {

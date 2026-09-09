@@ -1,0 +1,120 @@
+# Feature Specification: CI Incremental Ingest
+
+| Field   | Value                                                          |
+| ------- | -------------------------------------------------------------- |
+| Feature | CI incremental ingest — diff against the last-ingested commit  |
+| Status  | In Progress                                                    |
+| Created | 2026-09-03                                                     |
+| Owner   | Platform Engineering                                           |
+| ADR     | [`ADR-023`](../../adrs/ADR-023-test-run-trace-binding.md) (CI-driven test projection) |
+
+Moves spec-traceability-graph ingestion out of per-chunk station pods and into
+a direct CI → lore-api handshake: Lore keeps the last commit it ingested per
+repo and kind, CI fetches it, `git diff`s against it, and posts only the DELTA
+as JSON — changed doc contents, an incremental test report, and the deleted
+paths — which lore-api projects in-process. The pod fan-out this replaces ran
+16,228 ingest pods in one month (52 per merge on this repo alone: a ~26MB
+full test report re-posted in 512KB chunks, one pod per chunk), each pod
+projecting for ~2 minutes after minutes of scheduling ceremony, and the burst
+rhythm was the main force holding the autoscaled node fleet inflated. The
+delta of a typical merge is a handful of files, the runner already holds the
+working tree and the report, and Actions minutes on this org's public repos
+cost nothing — so the projection's marginal home is the API process that
+already owns the dgraph egress and the Vertex embed path.
+
+## Functional Requirements
+
+- **FR1 — Lore keeps the last-ingested commit per repo and kind.**
+  `GET /api/repos/{owner}/{repo}/ingest-state?kind=` answers with the commit
+  the graph last absorbed for `specs`, `adrs` or `test-report`, read from
+  `pipeline.ingest_state` (migration 0059, one CAS-target row per repo+kind —
+  no history, because the graph itself is the durable outcome and a lost
+  pointer costs exactly one full re-ingest). A null commit is the full-ingest
+  signal, and a cluster whose migration has not landed answers null rather
+  than 500 — "no recorded state" and "state table absent" mean the same thing
+  to the caller: diff against nothing, send everything. An unknown kind is a
+  400 naming the valid set.
+  ([validated by returns the stored commit for the repo and kind](apps/lore-api/src/transport/routes/ingest/ingest-state.test.ts#L35), [`ingest-state.test.ts:54`](apps/lore-api/src/transport/routes/ingest/ingest-state.test.ts#L54), [`ingest-state.test.ts:66`](apps/lore-api/src/transport/routes/ingest/ingest-state.test.ts#L66), [`ingest-state.test.ts:78`](apps/lore-api/src/transport/routes/ingest/ingest-state.test.ts#L78), [`ingest-state.test.ts:103`](apps/lore-api/src/transport/routes/ingest/ingest-state.test.ts#L103))
+
+- **FR2 — the pointer advances by compare-and-set, never a blind write.**
+  Every delta names the state it OBSERVED as `base_commit` — what
+  `GET …/ingest-state` returned, which is also the diff basis except when
+  that commit is unreachable (FR5); the state row moves
+  to the new commit only while it still equals that base (`IS NOT DISTINCT
+  FROM`, so a first ingest CAS-es against null). A mismatch is a 409 carrying
+  the current commit — the racing merge's CI re-fetches the state and
+  re-diffs, so two merges landing together cannot silently skip one delta.
+  The check is STRICT even when the stored state is null under a non-null
+  claimed base: recorded state that vanished means the delta may miss earlier
+  changes, and the refusal converges to a full ingest. The pre-check runs
+  before projection (a stale delta is refused before any graph write) and the
+  CAS after it (a failed projection must never move the pointer past work
+  that did not land; projection is idempotent xid upserts, so the loser of
+  the rare mid-flight race redoes harmless work). On a cluster whose state
+  table has not been migrated the projection still lands and the response
+  says `unrecorded` instead of 500-ing CI — the next state fetch answers
+  null and the flow degrades to a full ingest per push.
+  ([validated by refuses a stale base with a 409 naming the current commit, and projects nothing](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L181), [`ingest-delta.test.ts:102`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L102), [`ingest-delta.test.ts:355`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L355), [`ingest-delta.test.ts:257`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L257), [`ingest-delta.test.ts:301`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L301), [`ingest-delta.test.ts:328`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L328))
+
+- **FR3 — the delta is JSON posted straight to lore-api, projected in-process.**
+  `POST /api/repos/{owner}/{repo}/ingest` (write scope) takes the kind, the
+  commit pair, changed doc files with their content inline (the runner has the
+  tree; the server needs no clone), the deleted paths, or the incremental
+  test report — and projects it right there via the shared projectors
+  (`projectSpecFile`/`projectAdrFile`/`ingestSpecTrace`): no event row, no
+  assembly line, no pod. A payload too large for one body — the full-ingest
+  fallback — rides a `{seq, total}` chunk envelope; every chunk projects
+  immediately (idempotent), and the state advances only with the final chunk.
+  Unknown kinds and malformed commits are 400s; a deployment without
+  `LORE_DGRAPH_HTTP` refuses with a 503 naming the missing configuration
+  instead of pretending to ingest.
+  ([validated by projects changed docs, prunes deleted ones, and advances the state](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L102), [`ingest-delta.test.ts:136`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L136), [`ingest-delta.test.ts:154`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L154), [`ingest-delta.test.ts:199`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L199), [`ingest-delta.test.ts:234`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L234), [`ingest-delta.test.ts:288`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L288), [`ingest-delta.test.ts:374`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L374))
+
+- **FR4 — deletions ride in the payload and prune their graph subtrees.** An
+  incremental report carries only CHANGED tests, so absence stops meaning
+  anything — the deleted paths are named explicitly. For docs the existing
+  whole-file prune (`deleteSpecSubtree`/`deleteAdrSubtree`) runs per deleted
+  path. For test files, `pruneTestFiles` deletes the file's whole subtree:
+  every TestChunk (per-test and the file-scoped coverage anchor), its
+  TestSuites, the Coverage nodes hanging off them, and the incoming edges
+  that would otherwise dangle — a Statement's or AcceptanceCriterion's
+  `validated_by` (the statement itself survives, reporting the link broken)
+  and the Repo root's `test_chunks`/`test_suites`/`coverage`. CodeChunks and Files the
+  doomed Coverage covered are garbage-collected through the shared ownership
+  rules, so a code chunk still covered by another test file survives. A path
+  with no graph presence prunes as a no-op, so a re-driven prune converges.
+  ([validated by prunes every TestChunk and TestSuite of the named files and keeps the rest](libs/shared/src/work/spec-trace/prune-test-files.test.ts#L107), [`prune-test-files.test.ts:142`](libs/shared/src/work/spec-trace/prune-test-files.test.ts#L142), [`prune-test-files.test.ts:193`](libs/shared/src/work/spec-trace/prune-test-files.test.ts#L193), [`prune-test-files.test.ts:230`](libs/shared/src/work/spec-trace/prune-test-files.test.ts#L230), [`prune-test-files.test.ts:171`](libs/shared/src/work/spec-trace/prune-test-files.test.ts#L171))
+
+- **FR5 — the runner diffs and filters (lore-code-trace).** `--post` now
+  runs the handshake before anything else: it fetches the state for
+  `test-report`; no state ⇒ a full ingest posted with `base_commit: null`. A
+  state whose commit is UNREACHABLE in the runner's history (force-pushed
+  main, over-shallow clone) ⇒ full ingest CONTENT with `base_commit` still set
+  to the observed commit — the CAS target is the observed state, not the diff
+  basis, and posting null against a recorded state would 409 on every retry
+  forever. Otherwise `git diff --name-status <base>..HEAD` (the workflow
+  checkout carries `fetch-depth: 0`; a shallow clone cannot reach the base)
+  selects the tests living in changed test files plus every test whose
+  coverage touches ANY changed file — an edit shifts the line ranges of
+  everything below it in the same file, so file-granularity re-projection is
+  the correct unit — and names the deleted paths (a rename deletes its old
+  path). On a 409 the runner re-fetches the state and re-diffs exactly once
+  before failing the step out loud. A lore-api that does not serve the routes
+  yet reads as "no state" on the fetch and as a typed absence on the post, and
+  the runner falls back to the chunked webhook rather than reddening CI. A delta that would exceed lore-api's 1 MiB body cap — the full ingest after a missing or unreachable state — rides FR3's `{seq, total}` envelope, split per descriptor under the cap, every chunk carrying the same observed base and the deleted paths riding the first; a delta that fits posts as one unchunked body. A delta post retries transient failures — a transport error, a 5xx or a 429 — with the webhook path's attempt budget and backoff, since projection is idempotent; a 409 never retries (the flow re-diffs instead) and neither does any other client error. The delta path uses its own five-minute client: the request waits on an in-process projection, not on a webhook's immediate 202.
+  ([validated by [`delta_test.go:8`](apps/lore-code-trace/delta_test.go#L8), [`delta_test.go:23`](apps/lore-code-trace/delta_test.go#L23), [`delta_test.go:55`](apps/lore-code-trace/delta_test.go#L55), [`delta_test.go:69`](apps/lore-code-trace/delta_test.go#L69), [`delta_test.go:79`](apps/lore-code-trace/delta_test.go#L79), [`delta_test.go:87`](apps/lore-code-trace/delta_test.go#L87), [`ingest_test.go:13`](apps/lore-code-trace/ingest_test.go#L13), [`ingest_test.go:37`](apps/lore-code-trace/ingest_test.go#L37), [`ingest_test.go:52`](apps/lore-code-trace/ingest_test.go#L52), [`ingest_test.go:69`](apps/lore-code-trace/ingest_test.go#L69), [`ingest_test.go:99`](apps/lore-code-trace/ingest_test.go#L99), [`ingest_test.go:117`](apps/lore-code-trace/ingest_test.go#L117), [`ingest_test.go:164`](apps/lore-code-trace/ingest_test.go#L164), [`ingest_test.go:182`](apps/lore-code-trace/ingest_test.go#L182), [`ingest_test.go:201`](apps/lore-code-trace/ingest_test.go#L201), [`ingest_test.go:221`](apps/lore-code-trace/ingest_test.go#L221), [`ingest_test.go:240`](apps/lore-code-trace/ingest_test.go#L240), [`ingest_test.go:254`](apps/lore-code-trace/ingest_test.go#L254), [`ingest_test.go:279`](apps/lore-code-trace/ingest_test.go#L279), [`ingest_test.go:309`](apps/lore-code-trace/ingest_test.go#L309), [`ingest_test.go:337 362 385 403 `](apps/lore-code-trace/ingest_test.go#L337 362 385 403 ))
+
+## Planned (next slices)
+
+The onboarding scaffold and the rollout are follow-up slices, specified here
+so the routes above have their consumer named:
+
+- **FR6 — onboarding scaffolds the incremental flow.** The `onboard` task's
+  generated `lore-tests.yml` / `lore-ingest.yml` workflows and the
+  `LORE_TESTS_INSTRUCTION` prompt teach the handshake — state fetch, diff,
+  JSON POST — instead of the retired chunk-webhook fan-out.
+
+- **FR7 — the pod path retires.** Once onboarded repos post deltas, the
+  `internal.ingest.spec_trace` payload-kind fan-out (one ingest assembly line
+  and one pod per 512KB chunk) and the Floor `ci-tests` webhook ingress are
+  removed; the ingest station keeps only what still needs a clone.

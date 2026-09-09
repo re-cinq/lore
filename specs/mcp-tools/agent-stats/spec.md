@@ -21,7 +21,7 @@ quiet or runaway agent means hand-writing SQL across several `memory.*` tables.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L557)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L557)).
 
 - **name**: `lore_agent_stats`
 - **description** (verbatim):
@@ -72,14 +72,14 @@ three failure texts, or `"Error fetching agent stats: {message}"`.
 ## Acceptance Criteria
 
 The request goes to `GET /api/agent-stats` for the resolved agent with the
-bearer token, and the response is printed as JSON. ([validated by `proxies to GET /api/agent-stats for the resolved agent and prints the JSON`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L112))
+bearer token, and the response is printed as JSON. ([validated by `proxies to GET /api/agent-stats for the resolved agent and prints the JSON`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L264))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L129))
+PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L281))
 
-Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts:305`](libs/server-core/src/features/memory/memory.test.ts#L305))
+Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts:377`](libs/server-core/src/work/memory/memory.test.ts#L377))
 
-Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `memory.test.ts:281`](libs/server-core/src/features/memory/memory.test.ts#L281))
+Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `memory.test.ts:353`](libs/server-core/src/work/memory/memory.test.ts#L353))
 
 ## Out of Scope
 

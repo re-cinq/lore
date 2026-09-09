@@ -1,76 +1,60 @@
-// Coordinated shutdown for the Floor.
-//
-// Registering ANY signal handler overrides Node's default terminate, so a handler
-// that does its job and returns leaves the process alive. The Floor had two —
-// one stopping the HTTP server, one flushing telemetry — and neither exited, while
-// the drain loop, scheduler and K8s watch kept the event loop busy forever. The
-// result was a process that stopped serving and never died: locally a Floor that
-// answers nothing while systemd reports it healthy, and in a rollout a pod that
-// fails its liveness probe for the whole termination grace period.
-//
-// One handler, in order, then exit.
+// Coordinated shutdown for the Floor: registering ANY signal handler overrides Node's default terminate, so two prior handlers that stopped without exiting left a process that stopped serving but never died — one handler here, in order, then exit.
 
 export interface ShutdownSteps {
   /** Stop accepting requests and drain in-flight ones. */
   stopServing: () => Promise<void>;
-  /**
-   * Drain the event proxy's in-memory queue, resolving to what it could not
-   * deliver. Absent when this process reports nothing.
-   *
-   * Runs AFTER `stopServing`, because an event produced by an in-flight request
-   * has to reach the queue before the queue is drained. Nothing awaited an
-   * event flush before this step existed, so a rollout took the backlog with it
-   * and every event in it waited for the reconcile cron.
-   */
+  /** Drain the event proxy's in-memory queue, resolving to what it could not deliver. Runs AFTER `stopServing` so an in-flight request's event reaches the queue first; before this step, a rollout took the backlog with it. */
   flushEvents?: () => Promise<number>;
   /** Flush traces/metrics so the last moments of the process are not lost. */
   flushTelemetry: () => Promise<void>;
   exit: (code: number) => void;
 }
 
-/**
- * A shutdown function safe to wire to several signals.
- *
- * Every step is best-effort: a shutdown that cannot complete must still terminate,
- * or the zombie this exists to kill comes straight back. It runs once however many
- * signals arrive — a supervisor sending SIGTERM then SIGKILL, or a Ctrl-C landing
- * mid-drain, must not restart the sequence.
- */
+/** Drains the in-memory queue, reporting what did not make it. Never throws: the process is already going down, and the reconcile cron is what re-emits an undelivered event — losing the exit path would be worse than losing the event. */
+async function drainEvents(steps: ShutdownSteps): Promise<void> {
+  const undrained = await steps.flushEvents?.().catch((err) => {
+    console.warn(`[floor] event drain failed: ${(err as Error).message}`);
+
+    return 0;
+  });
+
+  if (undrained) {
+    console.error(
+      `[floor] exiting with ${undrained} undelivered event(s) — the reconcile cron is what re-emits them`,
+    );
+  }
+}
+
+/** The teardown sequence itself, in the one order that works: stop serving, then drain what the last in-flight requests queued, then flush telemetry, then exit. */
+async function runShutdownSequence(
+  steps: ShutdownSteps,
+  signal: string,
+): Promise<void> {
+  console.log(`[floor] ${signal} — shutting down`);
+
+  await steps
+    .stopServing()
+    .catch((err) =>
+      console.warn(`[floor] stop failed: ${(err as Error).message}`),
+    );
+  await drainEvents(steps);
+  await steps
+    .flushTelemetry()
+    .catch((err) =>
+      console.warn(`[floor] telemetry flush failed: ${(err as Error).message}`),
+    );
+
+  steps.exit(0);
+}
+
+/** A shutdown function safe to wire to several signals. Every step is best-effort — a shutdown that cannot complete must still terminate — and it runs once however many signals arrive (SIGTERM then SIGKILL, or a Ctrl-C mid-drain, must not restart the sequence). */
 export function createShutdown(
   steps: ShutdownSteps,
 ): (signal: string) => Promise<void> {
   let running: Promise<void> | null = null;
 
   return (signal: string) => {
-    running ??= (async () => {
-      console.log(`[floor] ${signal} — shutting down`);
-
-      await steps
-        .stopServing()
-        .catch((err) =>
-          console.warn(`[floor] stop failed: ${(err as Error).message}`),
-        );
-      const undrained = await steps.flushEvents?.().catch((err) => {
-        console.warn(`[floor] event drain failed: ${(err as Error).message}`);
-
-        return 0;
-      });
-
-      if (undrained) {
-        console.error(
-          `[floor] exiting with ${undrained} undelivered event(s) — the reconcile cron is what re-emits them`,
-        );
-      }
-      await steps
-        .flushTelemetry()
-        .catch((err) =>
-          console.warn(
-            `[floor] telemetry flush failed: ${(err as Error).message}`,
-          ),
-        );
-
-      steps.exit(0);
-    })();
+    running ??= runShutdownSequence(steps, signal);
 
     return running;
   };

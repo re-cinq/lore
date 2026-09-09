@@ -34,4 +34,10 @@ describe("parseRangesFacet", () => {
       { startLine: 30, endLine: 30 },
     ]);
   });
+
+  it("falls back to start line when the end bound is non-numeric", () => {
+    expect(parseRangesFacet("10-bar")).toEqual([
+      { startLine: 10, endLine: 10 },
+    ]);
+  });
 });

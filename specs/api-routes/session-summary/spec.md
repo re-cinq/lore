@@ -26,12 +26,12 @@ hook's payload shape and its skip/duplicate semantics.
 ## Interface
 
 Registered as `exact("/api/session-summary", "POST")`
-([registration](../../../apps/lore-api/src/server/build-server.ts#L99)), dispatched by
+([registration](../../../apps/lore-api/src/app/build-server.ts#L99)), dispatched by
 `handleApiRoute` after the rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/session-summary`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/session-summary"] = "write"`
-  ([scope map](../../../apps/lore-api/src/api/routes/memory/session-summary.ts#L29)). Bearer required;
+  ([scope map](../../../apps/lore-api/src/transport/routes/memory/session-summary.ts#L29)). Bearer required;
   `admin` satisfies, `read`-only does not.
 - **Rate bucket**: `default` (200/min).
 
@@ -120,35 +120,35 @@ Numbered control flow of `handleSessionSummary(req, res, pool)`:
 ## Acceptance Criteria
 
 A request without `session_log` returns 400. ([validated by `returns 400 when
-session_log is missing`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L47))
+session_log is missing`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L47))
 
 A token whose scopes lack `write` is rejected 403 before the handler runs.
-([validated by `returns 403 when the token lacks write scope`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L53))
+([validated by `returns 403 when the token lacks write scope`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L53))
 
 A string summary shorter than 10 chars is skipped with `{ status: "skipped",
 reason: "empty session" }`. ([validated by `skips when the string summary is too
-short`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L65))
+short`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L65))
 
 An object `session_log` with a `.summary` field uses that field. ([validated by
-`uses the object .summary field`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L53), [validated by `session-summary.test.ts:71`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L71))
+`uses the object .summary field`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L53), [validated by `session-summary.test.ts:71`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L71))
 
 An object without `.summary` falls back to `JSON.stringify`. ([validated by
-`falls back to JSON.stringify for objects without a summary`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L83))
+`falls back to JSON.stringify for objects without a summary`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L83))
 
-A null pool returns 503. ([validated by `returns 503 when pool is null`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L95))
+A null pool returns 503. ([validated by `returns 503 when pool is null`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L95))
 
 An insert that conflicts yields `{ status: "duplicate" }`. ([validated by
-`returns duplicate when the insert conflicts`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L101))
+`returns duplicate when the insert conflicts`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L101))
 
 A thrown insert returns 500. ([validated by `returns 500 when the insert
-throws`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L110))
+throws`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L110))
 
 A rejecting fact extraction is swallowed and the response stays 200. ([validated
-by `swallows a failing session fact extraction`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L119))
+by `swallows a failing session fact extraction`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L119))
 
 With `ANTHROPIC_API_KEY` set, graph extraction runs and a rejection is swallowed.
 ([validated by `runs and swallows graph extraction when ANTHROPIC_API_KEY is
-set`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L135))
+set`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L135))
 
 The fact/entity/edge content produced by extraction is exercised only against the
 live model. *(untested: fact + graph extraction are live-IO LLM calls; the route
@@ -161,5 +161,5 @@ seam mocks both and asserts only the trigger/skip/swallow contract.)*
 - Episode lifecycle (decay, consolidation).
 - Token issuance and the scope schema.
 
-Code: handler [`handleSessionSummary`](../../../apps/lore-api/src/api/routes/memory/session-summary.ts#L24)
-(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/server/build-server.ts#L99).
+Code: handler [`handleSessionSummary`](../../../apps/lore-api/src/transport/routes/memory/session-summary.ts#L24)
+(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L99).

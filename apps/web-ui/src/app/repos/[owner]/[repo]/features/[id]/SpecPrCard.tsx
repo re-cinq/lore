@@ -1,13 +1,9 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import type { FeatureRow } from "@/lib/feature-types";
 
-// The spec PR is open and the line is parked on its `merged` wait node.
-//
-// Before the lifecycle became one line this state was invisible: the wizard
-// vanished and the finalized view said "Creating the spec PR…" indefinitely. The
-// author needs to know the machine is waiting on a PERSON, and that nothing else
-// is required of them once it merges.
+// Spec PR open, line parked on `merged` wait node; author needs to know machine waits on PERSON.
 export default function SpecPrCard({ feature }: { feature: FeatureRow }) {
   return (
     <div className="spec-card" role="status">
@@ -20,13 +16,20 @@ export default function SpecPrCard({ feature }: { feature: FeatureRow }) {
           {feature.spec_path ? ` — ${feature.spec_path}` : ""}
         </p>
       ) : (
-        <p className="meta">The branch is pushed; the PR link is on its way.</p>
+        <Alert>The branch is pushed; the PR link is on its way.</Alert>
       )}
-      <p className="meta">
-        Review and merge it when you are ready. Decomposition into user stories
-        and tasks starts automatically on merge — you do not need to come back
-        here.
-      </p>
+      <MergeNote />
     </div>
+  );
+}
+
+/** What happens after the merge, so the author knows this page needs no second visit. */
+function MergeNote() {
+  return (
+    <p className="meta">
+      Review and merge it when you are ready. Decomposition into user stories
+      and tasks starts automatically on merge — you do not need to come back
+      here.
+    </p>
   );
 }

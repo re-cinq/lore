@@ -8,7 +8,7 @@ export default defineConfig({
     exclude: ["src/integration-tests/**", "dist/**", "node_modules/**"],
     coverage: {
       provider: "v8",
-      include: ["src/api/routes.ts", "src/api/routes/**/*.ts"],
+      include: ["src/transport/route-list.ts", "src/transport/routes/**/*.ts"],
     },
   },
 });

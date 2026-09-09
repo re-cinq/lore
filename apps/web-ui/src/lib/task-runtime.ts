@@ -1,6 +1,4 @@
-// Per-task runtime records shared by the task detail page and the assembly-line
-// run page: the status-transition events (pipeline.task_events) and the LLM
-// cost/token rows (pipeline.llm_calls). Both are keyed by task_id.
+// Per-task runtime: status-transition events (pipeline.task_events) + LLM costs (pipeline.llm_calls).
 
 import { getTaskRuntime } from "./api/tasks";
 import type { components } from "./api/schema";

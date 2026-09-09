@@ -4,6 +4,7 @@ import {
   initialRunState,
   reduceRunEvent,
   replayTo,
+  withVisitRows,
 } from "./run-event-reducer";
 import type { RunStreamEvent } from "./run-stream-types";
 import type { AssemblyRunNode } from "./assembly-runs";
@@ -111,7 +112,6 @@ describe("initialRunState", () => {
       lastEventId: null,
       nodeStates: {},
       fileTouches: {},
-      timeline: [],
     });
   });
 });
@@ -288,17 +288,6 @@ describe("reduceRunEvent", () => {
     expect(state.fileTouches["src/a.ts"]).toEqual({ reads: 0, writes: 2 });
   });
 
-  it("records only init and result events on the run timeline", () => {
-    const state = replayTo(initialRunState(null, []), [
-      event({ eventType: "init" }),
-      event({ eventType: "tool_call" }),
-      event({ eventType: "result" }),
-    ]);
-
-    expect(state.timeline.map((t) => t.eventType)).toEqual(["init", "result"]);
-    expect(state.timeline[0]).toMatchObject({ nodeId: "implement" });
-  });
-
   it("advances lastEventId to the id of the applied event", () => {
     const state = reduceRunEvent(
       initialRunState(null, []),
@@ -310,11 +299,11 @@ describe("reduceRunEvent", () => {
 
   it("folds 5000 events in under 500ms", () => {
     const events = Array.from({ length: 5000 }, () => event());
-    const started = performance.now();
+    const started = performance.now(); // eslint-disable-line re-lint/no-nondeterministic-tests -- measuring wall-clock duration is the point of this test
 
     replayTo(initialRunState(implementationDefinition, []), events);
 
-    expect(performance.now() - started).toBeLessThan(500);
+    expect(performance.now() - started).toBeLessThan(500); // eslint-disable-line re-lint/no-nondeterministic-tests -- measuring wall-clock duration is the point of this test
   });
 });
 
@@ -338,8 +327,8 @@ describe("replayTo", () => {
     const base = initialRunState(null, []);
     const events = [event(), event()];
 
-    expect(replayTo(base, events).timeline).toEqual(
-      replayTo(base, events, events.length).timeline,
+    expect(replayTo(base, events)).toEqual(
+      replayTo(base, events, events.length),
     );
   });
 });
@@ -378,10 +367,6 @@ describe("fileTouches read/write intent", () => {
 });
 
 describe("replayTo is replayable-from-zero", () => {
-  // A run that loops back through validate on a review's changes_requested:
-  // implement -> validate -> push -> review -> address -> validate (iteration 2).
-  // The loop is what makes the rewind meaningful — a node's status and iteration
-  // both move forward and must come back to exactly where they were.
   const stream: RunStreamEvent[] = [
     event({ id: "1", nodeId: "implement", iteration: 1, eventType: "init" }),
     event({ id: "2", nodeId: "implement", iteration: 1, eventType: "result" }),
@@ -441,5 +426,32 @@ describe("replayTo is replayable-from-zero", () => {
     for (const node of implementationDefinition.nodes) {
       expect(atZero.nodeStates[node.id].status).toBe("idle");
     }
+  });
+});
+
+describe("withVisitRows", () => {
+  it("seeds a node the page learned about after mount as running from its row", () => {
+    const state = withVisitRows(initialRunState(implementationDefinition, []), [
+      visitRow({ nodeId: "validate", outcome: null }),
+    ]);
+
+    expect(state.nodeStates.validate).toMatchObject({
+      status: "running",
+      iteration: 1,
+    });
+  });
+
+  it("keeps a node's transcript and cursor while its row flips it to succeeded", () => {
+    const streamed = reduceRunEvent(
+      initialRunState(implementationDefinition, []),
+      event({ eventType: "tool_call", id: "5" }),
+    );
+    const state = withVisitRows(streamed, [visitRow({ outcome: "success" })]);
+
+    expect(state.nodeStates.implement).toMatchObject({
+      status: "succeeded",
+      transcript: streamed.nodeStates.implement.transcript,
+    });
+    expect(state.lastEventId).toBe("5");
   });
 });

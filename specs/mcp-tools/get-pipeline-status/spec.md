@@ -22,7 +22,7 @@ error.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L87)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts#L163)).
 
 - **name**: `lore_get_pipeline_status`
 - **description** (verbatim):
@@ -47,8 +47,8 @@ Returns one pipeline task's full record (status + ordered event timeline) as JSO
      returns `deniedError`; any other non-2xx returns `"Remote error: {statusText}"`;
      on success return the pretty-printed (`JSON.stringify(…, null, 2)`) response body.
    - **DB mode (`LORE_DB_HOST` set)** — call `getTask(task_id)`
-     ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L41)).
-2. **Shared CRUD** ([`getTask`](../../../libs/shared/src/pipeline-tasks.ts#L107)) — `SELECT * FROM
+     ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts#L41)).
+2. **Shared CRUD** ([`getTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L174)) — `SELECT * FROM
    pipeline.tasks WHERE id = $1`; if no row, return `null`; otherwise `SELECT *
    FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at` and return
    the task row spread with an `events` array.
@@ -74,21 +74,21 @@ pretty-printed task JSON (`{...row, events: [...]}`), or
 
 A task id with no matching row resolves to `null` (the handler surfaces this as
 `task not found`).
-([validated by `returns null when no task row matches the id`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L21))
+([validated by `returns null when no task row matches the id`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L13))
 
 A matching id returns the task row merged with its ordered `events` array.
-([validated by `returns the task with its ordered events when the id matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L28))
+([validated by `returns the task with its ordered events when the id matches`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L20))
 
 The stdio-proxy branch selects the not-configured, denied, and unreachable errors
 by cause (missing env, 401/403, network failure).
-([validated by `returns the not-configured message when the env is unset`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L165), [validated by `returns the denied message on a 401`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L179), [validated by `returns the unreachable message when fetch throws`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L197))
+([validated by `returns the not-configured message when the env is unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L215), [validated by `returns the denied message on a 401`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L229), [validated by `returns the unreachable message when fetch throws`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L247))
 
 The not-found and success envelope framing on the stdio path are exercised only
 against a live API. *(untested: the transport switch is inline in the handler
 closure — the success/not-found proxy responses need a live API; the shared CRUD
 is covered above.)*
 
-The `/api/task/:id` HTTP route (the stdio-proxy target) returns the task when found, 404 when no row matches, and 500 when the lookup throws. ([validated by GET /api/task/:id returns the task when found](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L32), [`get-task.test.ts:39`](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L39), [`get-task.test.ts:46`](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L46))
+The `/api/task/:id` HTTP route (the stdio-proxy target) returns the task when found, 404 when no row matches, and 500 when the lookup throws. ([validated by GET /api/task/:id returns the task when found](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L32), [`get-task.test.ts:39`](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L39), [`get-task.test.ts:46`](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L46))
 
 ## Out of Scope
 

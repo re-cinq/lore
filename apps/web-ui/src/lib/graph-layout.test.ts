@@ -54,6 +54,10 @@ describe("featureSeedPositions", () => {
 
     expect(dist(big.get("a")!)).toBeGreaterThan(dist(small.get("a")!));
   });
+
+  it("returns an empty map for no features", () => {
+    expect(featureSeedPositions([], center, 100)).toEqual(new Map());
+  });
 });
 
 describe("connectedComponents", () => {
@@ -68,7 +72,7 @@ describe("connectedComponents", () => {
 
     const sorted = comps
       .map((c) => [...c].sort())
-      .sort((x, y) => x[0].localeCompare(y[0]));
+      .sort((a, b) => a[0].localeCompare(b[0]));
 
     expect(sorted).toEqual([
       ["a", "b"],
@@ -78,6 +82,32 @@ describe("connectedComponents", () => {
 
   it("returns a singleton component for a node with no links", () => {
     expect(connectedComponents(["lonely"], [])).toEqual([["lonely"]]);
+  });
+
+  it("adopts a link endpoint missing from the node id list into its component", () => {
+    const comps = connectedComponents(
+      ["a"],
+      [{ source: "a", target: "stray" }],
+    );
+
+    const sorted = comps.map((c) => [...c].sort());
+
+    expect(sorted).toEqual([["a"]]);
+  });
+
+  it("adopts a link source missing from the node id list into its component", () => {
+    const comps = connectedComponents(
+      ["b"],
+      [{ source: "stray", target: "b" }],
+    );
+
+    const sorted = comps.map((c) => [...c].sort());
+
+    expect(sorted).toEqual([["b"]]);
+  });
+
+  it("treats a duplicated node id as the same node", () => {
+    expect(connectedComponents(["a", "a"], [])).toEqual([["a", "a"]]);
   });
 });
 
@@ -131,25 +161,41 @@ describe("containedVelocity", () => {
 
   it("leaves the velocity of a node inside the radius unchanged", () => {
     expect(
-      containedVelocity({ x: 10, y: 0 }, { vx: 5, vy: 0 }, center, 100),
+      containedVelocity(
+        { x: 10, y: 0 },
+        { vx: 5, vy: 0 },
+        { center, radius: 100 },
+      ),
     ).toEqual({ vx: 5, vy: 0 });
   });
 
   it("zeroes a denormal-tiny velocity to avoid float jitter", () => {
     expect(
-      containedVelocity({ x: 10, y: 0 }, { vx: 1e-9, vy: -1e-9 }, center, 100),
+      containedVelocity(
+        { x: 10, y: 0 },
+        { vx: 1e-9, vy: -1e-9 },
+        { center, radius: 100 },
+      ),
     ).toEqual({ vx: 0, vy: 0 });
   });
 
   it("cancels the outward velocity of a node past the border (it cannot move further out)", () => {
     expect(
-      containedVelocity({ x: 110, y: 0 }, { vx: 5, vy: 0 }, center, 100).vx,
+      containedVelocity(
+        { x: 110, y: 0 },
+        { vx: 5, vy: 0 },
+        { center, radius: 100 },
+      ).vx,
     ).toBeLessThanOrEqual(0);
   });
 
   it("keeps an already-inward velocity heading inward when past the border", () => {
     expect(
-      containedVelocity({ x: 110, y: 0 }, { vx: -5, vy: 0 }, center, 100).vx,
+      containedVelocity(
+        { x: 110, y: 0 },
+        { vx: -5, vy: 0 },
+        { center, radius: 100 },
+      ).vx,
     ).toBeLessThan(0);
   });
 
@@ -157,14 +203,12 @@ describe("containedVelocity", () => {
     const near = containedVelocity(
       { x: 110, y: 0 },
       { vx: 0, vy: 10 },
-      center,
-      100,
+      { center, radius: 100 },
     );
     const far = containedVelocity(
       { x: 600, y: 0 },
       { vx: 0, vy: 10 },
-      center,
-      100,
+      { center, radius: 100 },
     );
 
     expect(speed(far)).toBeLessThan(speed(near));
@@ -201,6 +245,15 @@ describe("radialTree", () => {
     expect(pos.get("c2")?.y).toBeCloseTo(-100);
   });
 
+  function radiusOf(
+    pos: Map<string, { x: number; y: number }>,
+    key: string,
+  ): number {
+    const point = pos.get(key);
+
+    return Math.hypot(point?.x ?? 0, point?.y ?? 0);
+  }
+
   it("puts each child one ring further out than its parent", () => {
     const pos = radialTree(
       "r",
@@ -211,12 +264,8 @@ describe("radialTree", () => {
       opts,
     );
 
-    expect(Math.hypot(pos.get("a")?.x ?? 0, pos.get("a")?.y ?? 0)).toBeCloseTo(
-      100,
-    );
-    expect(Math.hypot(pos.get("b")?.x ?? 0, pos.get("b")?.y ?? 0)).toBeCloseTo(
-      200,
-    );
+    expect(radiusOf(pos, "a")).toBeCloseTo(100);
+    expect(radiusOf(pos, "b")).toBeCloseTo(200);
   });
 
   it("centres a parent at the mean angle of its children", () => {
@@ -231,6 +280,13 @@ describe("radialTree", () => {
 
     expect(pos.get("mid")?.x).toBeCloseTo(-100);
     expect(pos.get("mid")?.y).toBeCloseTo(0);
+  });
+
+  it("visits a duplicated child only once", () => {
+    const pos = radialTree("r", new Map([["r", ["a", "a"]]]), opts);
+
+    expect(pos.get("r")).toEqual({ x: 0, y: 0 });
+    expect(pos.has("a")).toBe(true);
   });
 });
 
@@ -252,19 +308,42 @@ describe("separateSmallComponents", () => {
     const mainNodes = placed.filter((n) => !smallIds.has(n.id));
     const smallNodes = placed.filter((n) => smallIds.has(n.id));
 
-    for (const small of smallNodes) {
-      for (const main of mainNodes) {
+    smallNodes.forEach((small) => {
+      mainNodes.forEach((main) => {
         expect(
           Math.hypot(small.x - main.x, small.y - main.y),
         ).toBeGreaterThanOrEqual(margin);
-      }
-    }
+      });
+    });
+  });
+
+  it("avoids a divide-by-zero NaN for a small node sitting exactly on the centre", () => {
+    const center = { x: 0, y: 0 };
+    const nodes = [
+      { id: "m1", x: 50, y: 0 },
+      { id: "s1", x: 0, y: 0 },
+    ];
+
+    const moved = separateSmallComponents(nodes, new Set(["s1"]), center, 10);
+
+    expect(moved.get("s1")).toEqual({ x: 0, y: 0 });
+  });
+
+  it("leaves a small component untouched when already past the barrier", () => {
+    const center = { x: 0, y: 0 };
+    const nodes = [
+      { id: "m1", x: 0, y: 0 },
+      { id: "s1", x: 1000, y: 0 },
+    ];
+
+    const moved = separateSmallComponents(nodes, new Set(["s1"]), center, 10);
+
+    expect(moved.has("s1")).toBe(false);
   });
 });
 
 describe("featureRingRadius", () => {
   it("grows the ring so many trees don't overlap", () => {
-    // 20 trees of radius 300 need a circle big enough to seat them ~2.2·r apart
     expect(featureRingRadius(20, 300, 660)).toBeCloseTo(
       (20 * 2.2 * 300) / (2 * Math.PI),
     );
@@ -327,7 +406,6 @@ describe("countCrossings", () => {
   });
 
   it("sums crossings across several edges", () => {
-    // a-b and c-d cross; e-f sits apart and crosses neither.
     const p = new Map([
       ["a", { x: 0, y: 0 }],
       ["b", { x: 10, y: 10 }],

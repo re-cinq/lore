@@ -1,4 +1,4 @@
-# lore-ingest-version: 4
+# lore-ingest-version: 5
 # Canonical source: shared/src/ingest-workflow.ts (LORE_INGEST_WORKFLOW_CONTENT).
 # This file is reference-only; the agent installs the workflow from that constant.
 name: Lore Context Ingest
@@ -26,7 +26,9 @@ jobs:
       - name: Get changed files
         id: changes
         run: |
-          FILES=$(git diff --name-only HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          # --no-renames: a moved file must arrive as its old path (a delete)
+          # plus its new path, or the old path's chunks outlive the file.
+          FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
           echo "files=${FILES}" >> "$GITHUB_OUTPUT"
 
       - name: Notify Lore to ingest

@@ -52,7 +52,7 @@ describe("AuditView", () => {
     expect(screen.getByText("abcdef01…")).toBeInTheDocument();
     expect(screen.getByText("99887766…")).toBeInTheDocument();
     expect(
-      container.querySelector('td[title="abcdef0123456789"]'),
+      container.querySelector('[title="abcdef0123456789"]'),
     ).toBeInTheDocument();
     const writeBadge = container.querySelector(".op-badge.op-write");
 
@@ -243,9 +243,11 @@ describe("AuditView", () => {
     const prev = screen.getByRole("link", { name: /Previous/ });
     const next = screen.getByRole("link", { name: /Next/ });
 
+    expect(container.querySelector(".page-info")).toHaveTextContent(
+      "51–100 of 200",
+    );
     expect(prev).not.toHaveClass("disabled");
     expect(next).not.toHaveClass("disabled");
-    // offset 0 omits the offset param; filters preserved
     expect(prev).toHaveAttribute(
       "href",
       "/audit?agent=abcdef0123456789&op=search",
@@ -253,9 +255,6 @@ describe("AuditView", () => {
     expect(next).toHaveAttribute(
       "href",
       "/audit?agent=abcdef0123456789&op=search&offset=100",
-    );
-    expect(container.querySelector(".page-info")).toHaveTextContent(
-      "51–100 of 200",
     );
   });
 
