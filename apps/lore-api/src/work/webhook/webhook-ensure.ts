@@ -15,18 +15,6 @@ export type EnsureLoreWebhookResult =
   | { ok: true; hookId: number; created: boolean }
   | { ok: false; reason: WebhookSkipReason; detail?: string };
 
-function classifyEnsureFailure(err: unknown): EnsureLoreWebhookResult {
-  if ((err as { status?: number }).status === 403) {
-    return { ok: false, reason: "app_no_webhook_permission" };
-  }
-
-  return {
-    ok: false,
-    reason: "ensure_failed",
-    detail: errorMessage(err) || String(err),
-  };
-}
-
 export async function ensureLoreWebhook(
   repo: string,
 ): Promise<EnsureLoreWebhookResult> {
@@ -50,4 +38,16 @@ export async function ensureLoreWebhook(
   } catch (err) {
     return classifyEnsureFailure(err);
   }
+}
+
+function classifyEnsureFailure(err: unknown): EnsureLoreWebhookResult {
+  if ((err as { status?: number }).status === 403) {
+    return { ok: false, reason: "app_no_webhook_permission" };
+  }
+
+  return {
+    ok: false,
+    reason: "ensure_failed",
+    detail: errorMessage(err) || String(err),
+  };
 }

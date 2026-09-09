@@ -44,6 +44,31 @@ export type TaskRunRow = z.infer<typeof TaskRunSchema>;
 /** Postgres "relation does not exist" — a pre-0025 database has no assembly_lines table; a task there simply has no runs. */
 const UNDEFINED_TABLE = "42P01";
 
+export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/tasks/{id}/runs",
+    options: zodResponse(bearerScope("read"), TaskRunListSchema, {
+      name: "TaskRunList",
+      description: "The task's per-attempt runs, newest first",
+      errors: [404],
+    }),
+    handler: withPool(getPool, serveTaskRuns),
+  };
+}
+
+async function serveTaskRuns(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const taskId = request.params.id;
+
+  const missing = await enforceTaskExists(pool, taskId, h);
+
+  return missing ?? (await respondWithRuns(pool, taskId, h));
+}
+
 // The 404 comes first deliberately: an unknown task and a task with no runs both used to answer `{runs: []}`, misreading a never-existed id as "nothing started yet".
 /** Every attempt at one task. A task can be re-dispatched, so the run list — not the task row — is the execution history. */
 /** Refuses an unknown task with a 404 rather than an empty run list — "no runs" and "no such task" are different answers, and only the first invites the caller to wait. Returns a response when the check itself failed, so the caller can distinguish that from the task being absent. */
@@ -67,18 +92,6 @@ async function enforceTaskExists(
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
-}
-
-async function serveTaskRuns(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const taskId = request.params.id;
-
-  const missing = await enforceTaskExists(pool, taskId, h);
-
-  return missing ?? (await respondWithRuns(pool, taskId, h));
 }
 
 /** A pipeline.assembly_runs that does not exist yet reads as no runs, not as a failure — the table arrives with a migration. */
@@ -108,17 +121,4 @@ async function readTaskRuns(pool: Pool, taskId: string): Promise<TaskRunRow[]> {
   );
 
   return rows;
-}
-
-export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/tasks/{id}/runs",
-    options: zodResponse(bearerScope("read"), TaskRunListSchema, {
-      name: "TaskRunList",
-      description: "The task's per-attempt runs, newest first",
-      errors: [404],
-    }),
-    handler: withPool(getPool, serveTaskRuns),
-  };
 }

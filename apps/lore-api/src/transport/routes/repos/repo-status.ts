@@ -32,18 +32,77 @@ const RepoStatusSchema = z.object({
 
 const STALE_AFTER_MS = 7 * 86400000;
 
-function rowCount(result: { rows: Array<{ c?: string | number }> }): number {
-  const { rows } = result;
-
-  return Number(rows[0]?.c ?? 0);
+export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repo-status",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(RepoStatusQuery) },
+      },
+      RepoStatusSchema,
+      {
+        name: "RepoStatus",
+        description: "Onboarding state and current activity for a repo",
+      },
+    ),
+    handler: (request, h) => serveRepoStatus(getPool, request, h),
+  };
 }
 
-function isStale(lastIngested: string | null): boolean {
-  if (!lastIngested) {
-    return true;
+async function serveRepoStatus(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+  const { repo } = request.query as RepoStatusQuery;
+
+  if (!repo || !pool) {
+    return h.response({ onboarded: false });
   }
 
-  return Date.now() - new Date(lastIngested).getTime() > STALE_AFTER_MS;
+  try {
+    return h.response(await repoStatusBody(pool, repo));
+  } catch (err) {
+    console.error("[repo-status] Error:", errorMessage(err));
+
+    return h.response({ onboarded: false, error: errorMessage(err) });
+  }
+}
+
+/** The status document for one repo — an absent row reads as "not onboarded", not as an error. */
+async function repoStatusBody(pool: Pool, repo: string) {
+  const { rows } = await pool.query(
+    `SELECT settings, last_ingested_at FROM lore.repos WHERE full_name = $1`,
+    [repo],
+  );
+
+  if (rows.length === 0) {
+    return { onboarded: false, repo };
+  }
+
+  return onboardedStatus(pool, repo, rows[0]);
+}
+
+/** Onboarding state and current activity, including `last_ingested_at` and the staleness flag — the read that tells an agent its context may be out of date. */
+/** An onboarded repo's status. `stale` is computed here rather than left to the caller: every reader would otherwise pick its own threshold, and this flag is what an agent uses to decide whether to trust the context it just assembled. */
+async function onboardedStatus(
+  pool: Pool,
+  repo: string,
+  row: Parameters<typeof parseRepoRow>[0],
+) {
+  const { settings, lastIngested } = parseRepoRow(row);
+
+  return {
+    onboarded: true,
+    repo,
+    ...(await repoActivity(pool, repo)),
+    auto_review: settings.auto_review === true,
+    last_ingested_at: lastIngested,
+    stale: isStale(lastIngested),
+  };
 }
 
 function parseRepoRow(row: {
@@ -76,75 +135,16 @@ async function repoActivity(pool: Pool, repo: string) {
   };
 }
 
-/** Onboarding state and current activity, including `last_ingested_at` and the staleness flag — the read that tells an agent its context may be out of date. */
-/** An onboarded repo's status. `stale` is computed here rather than left to the caller: every reader would otherwise pick its own threshold, and this flag is what an agent uses to decide whether to trust the context it just assembled. */
-async function onboardedStatus(
-  pool: Pool,
-  repo: string,
-  row: Parameters<typeof parseRepoRow>[0],
-) {
-  const { settings, lastIngested } = parseRepoRow(row);
+function rowCount(result: { rows: Array<{ c?: string | number }> }): number {
+  const { rows } = result;
 
-  return {
-    onboarded: true,
-    repo,
-    ...(await repoActivity(pool, repo)),
-    auto_review: settings.auto_review === true,
-    last_ingested_at: lastIngested,
-    stale: isStale(lastIngested),
-  };
+  return Number(rows[0]?.c ?? 0);
 }
 
-/** The status document for one repo — an absent row reads as "not onboarded", not as an error. */
-async function repoStatusBody(pool: Pool, repo: string) {
-  const { rows } = await pool.query(
-    `SELECT settings, last_ingested_at FROM lore.repos WHERE full_name = $1`,
-    [repo],
-  );
-
-  if (rows.length === 0) {
-    return { onboarded: false, repo };
+function isStale(lastIngested: string | null): boolean {
+  if (!lastIngested) {
+    return true;
   }
 
-  return onboardedStatus(pool, repo, rows[0]);
-}
-
-async function serveRepoStatus(
-  getPool: () => Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const pool = getPool();
-  const { repo } = request.query as RepoStatusQuery;
-
-  if (!repo || !pool) {
-    return h.response({ onboarded: false });
-  }
-
-  try {
-    return h.response(await repoStatusBody(pool, repo));
-  } catch (err) {
-    console.error("[repo-status] Error:", errorMessage(err));
-
-    return h.response({ onboarded: false, error: errorMessage(err) });
-  }
-}
-
-export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repo-status",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(RepoStatusQuery) },
-      },
-      RepoStatusSchema,
-      {
-        name: "RepoStatus",
-        description: "Onboarding state and current activity for a repo",
-      },
-    ),
-    handler: (request, h) => serveRepoStatus(getPool, request, h),
-  };
+  return Date.now() - new Date(lastIngested).getTime() > STALE_AFTER_MS;
 }

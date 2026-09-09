@@ -36,6 +36,65 @@ const SessionSummarySchema = z.union([
   z.object({ status: z.literal("duplicate") }),
 ]);
 
+export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/session-summary",
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(SessionSummaryBody) },
+      },
+      SessionSummarySchema,
+      {
+        name: "SessionSummaryResult",
+        description: "What became of the posted session",
+      },
+    ),
+    handler: (request, h) => serveSessionSummary(getPool, request, h),
+  };
+}
+
+async function serveSessionSummary(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  try {
+    return h.response(
+      await ingestSession(pool, request.payload as SessionSummaryBody),
+    );
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
+/** Writes the session as an episode and starts fact extraction. Two outcomes are not errors: an empty session is skipped, and a content hash already stored is a duplicate — the Stop hook fires more than once per session. */
+async function ingestSession(
+  pool: Pool | null,
+  payload: SessionSummaryBody,
+): Promise<{ status: string; reason?: string; episode_id?: string }> {
+  const { session_log, repo, agent_id } = payload;
+  const summary = summaryText(session_log);
+
+  if (isEmptySummary(summary)) {
+    return { status: "skipped", reason: "empty session" };
+  }
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+  return storeAndExtract(pool, {
+    agent: agent_id || "session-hook",
+    content: sessionContent(repo, summary),
+    repo: repo || null,
+  });
+}
+
 function summaryText(sessionLog: SessionSummaryBody["session_log"]): string {
   if (typeof sessionLog === "string") {
     return sessionLog;
@@ -50,6 +109,31 @@ function isEmptySummary(summary: string): boolean {
 
 function sessionContent(repo: string | undefined, summary: string): string {
   return `Session in ${repo || "unknown"}\n\n${summary}`;
+}
+
+interface SessionEpisode {
+  agent: string;
+  content: string;
+  repo: string | null;
+}
+
+/** Stores the episode and, when it is genuinely new, starts its extraction — a content hash already held is a duplicate, not a second episode. */
+async function storeAndExtract(pool: Pool, episode: SessionEpisode) {
+  const { agent, content, repo } = episode;
+  const episodeId = await insertSessionEpisode(pool, {
+    agent,
+    content,
+    contentHash: createHash("sha256").update(content).digest("hex"),
+    repo,
+  });
+
+  if (episodeId === undefined) {
+    return { status: "duplicate" };
+  }
+
+  scheduleSessionExtraction(pool, { episodeId, content, agent, repo });
+
+  return { status: "ok", episode_id: episodeId };
 }
 
 async function insertSessionEpisode(
@@ -98,88 +182,4 @@ function scheduleSessionExtraction(
     { repo, sourceEpisodeId: episodeId, sourceMemoryId: null },
     gLlm,
   ).catch(() => {});
-}
-
-interface SessionEpisode {
-  agent: string;
-  content: string;
-  repo: string | null;
-}
-
-/** Stores the episode and, when it is genuinely new, starts its extraction — a content hash already held is a duplicate, not a second episode. */
-async function storeAndExtract(pool: Pool, episode: SessionEpisode) {
-  const { agent, content, repo } = episode;
-  const episodeId = await insertSessionEpisode(pool, {
-    agent,
-    content,
-    contentHash: createHash("sha256").update(content).digest("hex"),
-    repo,
-  });
-
-  if (episodeId === undefined) {
-    return { status: "duplicate" };
-  }
-
-  scheduleSessionExtraction(pool, { episodeId, content, agent, repo });
-
-  return { status: "ok", episode_id: episodeId };
-}
-
-/** Writes the session as an episode and starts fact extraction. Two outcomes are not errors: an empty session is skipped, and a content hash already stored is a duplicate — the Stop hook fires more than once per session. */
-async function ingestSession(
-  pool: Pool | null,
-  payload: SessionSummaryBody,
-): Promise<{ status: string; reason?: string; episode_id?: string }> {
-  const { session_log, repo, agent_id } = payload;
-  const summary = summaryText(session_log);
-
-  if (isEmptySummary(summary)) {
-    return { status: "skipped", reason: "empty session" };
-  }
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-  return storeAndExtract(pool, {
-    agent: agent_id || "session-hook",
-    content: sessionContent(repo, summary),
-    repo: repo || null,
-  });
-}
-
-async function serveSessionSummary(
-  getPool: () => Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const pool = getPool();
-
-  try {
-    return h.response(
-      await ingestSession(pool, request.payload as SessionSummaryBody),
-    );
-  } catch (err) {
-    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-    rethrowBoom(err);
-
-    return h.response({ error: errorMessage(err) }).code(500);
-  }
-}
-
-export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/session-summary",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(SessionSummaryBody) },
-      },
-      SessionSummarySchema,
-      {
-        name: "SessionSummaryResult",
-        description: "What became of the posted session",
-      },
-    ),
-    handler: (request, h) => serveSessionSummary(getPool, request, h),
-  };
 }

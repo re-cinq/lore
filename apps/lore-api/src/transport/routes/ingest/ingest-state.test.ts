@@ -2,19 +2,6 @@ import { describe, it, expect } from "vitest";
 import Hapi from "@hapi/hapi";
 import { ingestStateRoute } from "./ingest-state.js";
 
-function poolWith(
-  rows: unknown[],
-  issued: Array<{ sql: string; params: unknown[] }> = [],
-) {
-  return {
-    query: async (sql: string, params: unknown[] = []) => {
-      issued.push({ sql, params });
-
-      return { rows };
-    },
-  } as never;
-}
-
 async function serverWith(
   rows: unknown[],
   issued: Array<{ sql: string; params: unknown[] }> = [],
@@ -29,6 +16,19 @@ async function serverWith(
   server.route(ingestStateRoute(() => poolWith(rows, issued)));
 
   return server;
+}
+
+function poolWith(
+  rows: unknown[],
+  issued: Array<{ sql: string; params: unknown[] }> = [],
+) {
+  return {
+    query: async (sql: string, params: unknown[] = []) => {
+      issued.push({ sql, params });
+
+      return { rows };
+    },
+  } as never;
 }
 
 describe("GET /api/repos/{owner}/{repo}/ingest-state", () => {

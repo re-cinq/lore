@@ -28,16 +28,23 @@ type GraphQuery = z.infer<typeof GraphQuery>;
 /** Graph query results — shape follows the query. */
 const GraphQuerySchema = z.record(z.string(), z.unknown());
 
-/** The snake_case wire query as the graph reader's camelCase options. */
-function graphOptions(query: GraphQuery) {
-  const {
-    entity,
-    relation_type: relationType,
-    repo,
-    include_invalidated: includeInvalidated,
-  } = query;
-
-  return { entity, relationType, repo, includeInvalidated };
+export function graphRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/graph",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(GraphQuery) },
+      },
+      GraphQuerySchema,
+      {
+        name: "GraphQuery",
+        description: "Entities and relationships matching a query",
+      },
+    ),
+    handler: (request, h) => serveGraph(getPool, request, h),
+  };
 }
 
 /** Entities and relationships matching a query. The graph is written asynchronously by episode ingestion, so this read may legitimately trail the memory it describes. */
@@ -59,21 +66,14 @@ async function serveGraph(
   }
 }
 
-export function graphRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/graph",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(GraphQuery) },
-      },
-      GraphQuerySchema,
-      {
-        name: "GraphQuery",
-        description: "Entities and relationships matching a query",
-      },
-    ),
-    handler: (request, h) => serveGraph(getPool, request, h),
-  };
+/** The snake_case wire query as the graph reader's camelCase options. */
+function graphOptions(query: GraphQuery) {
+  const {
+    entity,
+    relation_type: relationType,
+    repo,
+    include_invalidated: includeInvalidated,
+  } = query;
+
+  return { entity, relationType, repo, includeInvalidated };
 }

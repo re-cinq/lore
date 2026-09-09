@@ -38,23 +38,19 @@ const RepoListResponse = z.object({
   offset: z.number(),
 });
 
-/** One page in wire shape: the stored columns per repo, plus the two counts the list renders. */
-async function repoListPage(pool: Pool, limit: number, offset: number) {
-  const { repos, total } = await getOnboardedReposWithCounts(
-    pool,
-    limit,
-    offset,
-  );
-
+export function reposRoute(getPool: () => Pool | null): ServerRoute {
   return {
-    repos: repos.map(({ taskCount, activeAgents, ...repo }) => ({
-      ...toRow(REPO_COLUMNS, repo),
-      task_count: taskCount,
-      active_agents: activeAgents,
-    })),
-    total,
-    limit,
-    offset,
+    method: "GET",
+    path: "/api/repos",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(ReposQuery) },
+      },
+      RepoListResponse,
+      { name: "RepoList", description: "A page of onboarded repos" },
+    ),
+    handler: withPool(getPool, serveRepoList),
   };
 }
 
@@ -75,18 +71,22 @@ async function serveRepoList(
   }
 }
 
-export function reposRoute(getPool: () => Pool | null): ServerRoute {
+/** One page in wire shape: the stored columns per repo, plus the two counts the list renders. */
+async function repoListPage(pool: Pool, limit: number, offset: number) {
+  const { repos, total } = await getOnboardedReposWithCounts(
+    pool,
+    limit,
+    offset,
+  );
+
   return {
-    method: "GET",
-    path: "/api/repos",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(ReposQuery) },
-      },
-      RepoListResponse,
-      { name: "RepoList", description: "A page of onboarded repos" },
-    ),
-    handler: withPool(getPool, serveRepoList),
+    repos: repos.map(({ taskCount, activeAgents, ...repo }) => ({
+      ...toRow(REPO_COLUMNS, repo),
+      task_count: taskCount,
+      active_agents: activeAgents,
+    })),
+    total,
+    limit,
+    offset,
   };
 }

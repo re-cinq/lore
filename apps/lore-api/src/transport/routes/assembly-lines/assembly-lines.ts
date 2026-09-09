@@ -46,17 +46,6 @@ const RunsQuery = z.object({
 
 type RunsQuery = z.infer<typeof RunsQuery>;
 
-// Canonical paths are /api/assembly-runs/* (FR6.41); also served at pre-rename /api/assembly-lines/* since web-ui ships as a separate image and would 404 otherwise. DELETE the aliases once no deployed client calls them.
-function withLegacyAlias(routes: ServerRoute[]): ServerRoute[] {
-  return routes.flatMap((route) => [
-    route,
-    {
-      ...route,
-      path: route.path.replace("/api/assembly-runs", "/api/assembly-lines"),
-    },
-  ]);
-}
-
 export function assemblyLineRoutes(
   getPool: () => Pool | null,
   // Injected by tests; production builds one per request off the pool, as run-read.ts does.
@@ -74,60 +63,15 @@ export function assemblyLineRoutes(
   ]).concat([runDetailRoute(getPool, portFor)]);
 }
 
-/** A task-centric caller DRAWS the run it gets back, so it needs the full record; a browse page renders tables that never touch the graph, so it gets summaries. */
-async function selectRuns(
-  port: AssemblyRunsPort,
-  query: RunsQuery,
-): Promise<Awaited<ReturnType<AssemblyRunsPort["listSummaries"]>>> {
-  if (query.task_id) {
-    return await port.list({ taskId: query.task_id, limit: query.limit });
-  }
-
-  return await port.listSummaries({
-    repo: query.repo,
-    blueprintName: query.blueprint,
-    status: query.status ? [query.status as AssemblyRunStatus] : undefined,
-    subjectKey: query.subject_key,
-    clusterAgentId: query.cluster_agent_id,
-    limit: query.limit,
-  });
-}
-
-/** The selected runs already enriched into wire rows; a task-centric caller gets the full record so it can draw the graph. */
-async function runListRows(
-  pool: Pool,
-  port: AssemblyRunsPort,
-  query: RunsQuery,
-) {
-  const selected = await selectRuns(port, query);
-  const enrichment = await enrichmentById(pool, selected);
-
-  // A task-centric caller gets the graph so it can draw the DAG; a plain page does not.
-  return query.task_id === undefined
-    ? selected.map((run) => toRunRow(run, enrichment.get(run.id)))
-    : selected.map((run) => toRunRowWithGraph(run, enrichment.get(run.id)));
-}
-
-/** A page of runs, newest first. Filters are applied in SQL rather than after the fetch, because a busy org's run table is large and the page is small. */
-async function serveRunList(
-  pool: Pool,
-  portFor: (pool: Pool) => AssemblyRunsPort,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const query = request.query as unknown as RunsQuery;
-
-  try {
-    const runs = await runListRows(pool, portFor(pool), query);
-
-    return h.response({ runs });
-  } catch (err) {
-    if (missingTable(err)) {
-      return h.response({ runs: [] });
-    }
-
-    throw err;
-  }
+// Canonical paths are /api/assembly-runs/* (FR6.41); also served at pre-rename /api/assembly-lines/* since web-ui ships as a separate image and would 404 otherwise. DELETE the aliases once no deployed client calls them.
+function withLegacyAlias(routes: ServerRoute[]): ServerRoute[] {
+  return routes.flatMap((route) => [
+    route,
+    {
+      ...route,
+      path: route.path.replace("/api/assembly-runs", "/api/assembly-lines"),
+    },
+  ]);
 }
 
 /** Every run route needs the pool AND the runs port; this states the pairing once. */
@@ -164,6 +108,77 @@ function listRunsRoute(
   };
 }
 
+/** A page of runs, newest first. Filters are applied in SQL rather than after the fetch, because a busy org's run table is large and the page is small. */
+async function serveRunList(
+  pool: Pool,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const query = request.query as unknown as RunsQuery;
+
+  try {
+    const runs = await runListRows(pool, portFor(pool), query);
+
+    return h.response({ runs });
+  } catch (err) {
+    if (missingTable(err)) {
+      return h.response({ runs: [] });
+    }
+
+    throw err;
+  }
+}
+
+/** The selected runs already enriched into wire rows; a task-centric caller gets the full record so it can draw the graph. */
+async function runListRows(
+  pool: Pool,
+  port: AssemblyRunsPort,
+  query: RunsQuery,
+) {
+  const selected = await selectRuns(port, query);
+  const enrichment = await enrichmentById(pool, selected);
+
+  // A task-centric caller gets the graph so it can draw the DAG; a plain page does not.
+  return query.task_id === undefined
+    ? selected.map((run) => toRunRow(run, enrichment.get(run.id)))
+    : selected.map((run) => toRunRowWithGraph(run, enrichment.get(run.id)));
+}
+
+/** A task-centric caller DRAWS the run it gets back, so it needs the full record; a browse page renders tables that never touch the graph, so it gets summaries. */
+async function selectRuns(
+  port: AssemblyRunsPort,
+  query: RunsQuery,
+): Promise<Awaited<ReturnType<AssemblyRunsPort["listSummaries"]>>> {
+  if (query.task_id) {
+    return await port.list({ taskId: query.task_id, limit: query.limit });
+  }
+
+  return await port.listSummaries({
+    repo: query.repo,
+    blueprintName: query.blueprint,
+    status: query.status ? [query.status as AssemblyRunStatus] : undefined,
+    subjectKey: query.subject_key,
+    clusterAgentId: query.cluster_agent_id,
+    limit: query.limit,
+  });
+}
+
+function runNodesRoute(
+  getPool: () => Pool | null,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/assembly-runs/{id}/nodes",
+    options: zodResponse(bearerScope("read"), StationRunListSchema, {
+      name: "StationRunList",
+      description: "The run's station visits, in visit order",
+    }),
+    handler: runHandler(getPool, portFor, serveRunNodes),
+  };
+}
+
 /** The run's station visits in VISIT order, not node order — a line that loops visits the same node more than once, and the sequence is what the timeline draws. */
 async function serveRunNodes(
   pool: Pool,
@@ -184,22 +199,41 @@ async function serveRunNodes(
   }
 }
 
-function runNodesRoute(
+function runTokenUsageRoute(
   getPool: () => Pool | null,
   portFor: (pool: Pool) => AssemblyRunsPort,
 ): ServerRoute {
   return {
     method: "GET",
-    path: "/api/assembly-runs/{id}/nodes",
-    options: zodResponse(bearerScope("read"), StationRunListSchema, {
-      name: "StationRunList",
-      description: "The run's station visits, in visit order",
+    path: "/api/assembly-runs/{id}/token-usage",
+    options: zodResponse(bearerScope("read"), TokenUsageSchema, {
+      name: "AssemblyRunTokenUsage",
+      description: "Tokens spent so far on the run",
     }),
-    handler: runHandler(getPool, portFor, serveRunNodes),
+    handler: runHandler(getPool, portFor, serveRunTokenUsage),
   };
 }
 
 /** Tokens spent on the run so far. Summed from llm_calls rather than stored on the run, so a run still in flight reports what it has spent up to now. */
+async function serveRunTokenUsage(
+  pool: Pool,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  try {
+    return h.response({
+      usage: await sumRunTokens(pool, request.params.id as string),
+    });
+  } catch (err) {
+    if (missingTable(err)) {
+      return h.response({ usage: null });
+    }
+
+    throw err;
+  }
+}
+
 /** Sums the run's tokens from `pipeline.agent_run_turns`, NOT `llm_calls`: the cost table only lands a row when the run ENDS, while turns arrive as the pod streams — this is the only source that can answer "so far". */
 async function sumRunTokens(pool: Pool, runId: string): Promise<unknown> {
   const { rows } = await pool.query(
@@ -222,37 +256,20 @@ async function sumRunTokens(pool: Pool, runId: string): Promise<unknown> {
   return rows[0] ?? null;
 }
 
-async function serveRunTokenUsage(
-  pool: Pool,
-  portFor: (pool: Pool) => AssemblyRunsPort,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  try {
-    return h.response({
-      usage: await sumRunTokens(pool, request.params.id as string),
-    });
-  } catch (err) {
-    if (missingTable(err)) {
-      return h.response({ usage: null });
-    }
-
-    throw err;
-  }
-}
-
-function runTokenUsageRoute(
+/** FLAT by-id read, served ONLY under the legacy spelling now (canonical /api/assembly-runs/{id} serves the enriched shape from run-read.ts); DELETE with the aliases (#1347 PR3). Registered OUTSIDE withLegacyAlias deliberately — aliasing it to itself would make hapi reject the duplicate route. */
+function runDetailRoute(
   getPool: () => Pool | null,
   portFor: (pool: Pool) => AssemblyRunsPort,
 ): ServerRoute {
   return {
     method: "GET",
-    path: "/api/assembly-runs/{id}/token-usage",
-    options: zodResponse(bearerScope("read"), TokenUsageSchema, {
-      name: "AssemblyRunTokenUsage",
-      description: "Tokens spent so far on the run",
+    path: "/api/assembly-lines/{id}",
+    options: zodResponse(bearerScope("read"), RunRowSchema, {
+      name: "AssemblyRunDetail",
+      description: "One run, carrying the blueprint clone it walked",
+      errors: [404],
     }),
-    handler: runHandler(getPool, portFor, serveRunTokenUsage),
+    handler: runHandler(getPool, portFor, serveRunDetail),
   };
 }
 
@@ -278,21 +295,4 @@ async function serveRunDetail(
 
     throw err;
   }
-}
-
-/** FLAT by-id read, served ONLY under the legacy spelling now (canonical /api/assembly-runs/{id} serves the enriched shape from run-read.ts); DELETE with the aliases (#1347 PR3). Registered OUTSIDE withLegacyAlias deliberately — aliasing it to itself would make hapi reject the duplicate route. */
-function runDetailRoute(
-  getPool: () => Pool | null,
-  portFor: (pool: Pool) => AssemblyRunsPort,
-): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/assembly-lines/{id}",
-    options: zodResponse(bearerScope("read"), RunRowSchema, {
-      name: "AssemblyRunDetail",
-      description: "One run, carrying the blueprint clone it walked",
-      errors: [404],
-    }),
-    handler: runHandler(getPool, portFor, serveRunDetail),
-  };
 }

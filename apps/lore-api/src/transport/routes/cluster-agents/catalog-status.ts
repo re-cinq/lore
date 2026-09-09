@@ -40,39 +40,42 @@ export interface CatalogStatusDeps {
   status: CatalogStatusRepository;
 }
 
-/** The handler core, injectable for tests: authenticate, then record. */
-/** One reported catalog entry, in the store's own spelling. `reason` rides along even for a success: a recipe that applied with a warning is what makes a later failure legible. */
-function toRecord(
-  r: z.infer<typeof ReportSchema>["reports"][number],
-): CatalogApplyReport {
+export function clusterAgentCatalogStatusRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
   return {
-    name: r.name,
-    projectId: r.project_id,
-    state: r.state,
-    reason: r.reason,
+    method: "POST",
+    path: "/api/cluster-agents/{id}/catalog-status",
+    options: zodResponse(
+      { auth: false, validate: { payload: zodValidate(ReportSchema) } },
+      StatusRecorded,
+      {
+        name: "ClusterAgentCatalogStatus",
+        description:
+          "Record what this cluster did with each catalog entry it read — applied, refused (with the reason), skipped or deleted",
+      },
+    ),
+    handler: withPool(getPool, serveCatalogStatus),
   };
 }
 
-/** Validates the reported batch and stores it. An unparseable batch is a 400 AFTER authentication, so a bad body never tells an anonymous caller whether the agent id exists. */
-async function recordReports(
-  deps: CatalogStatusDeps,
-  agentId: string,
-  body: unknown,
-): Promise<
-  | { code: 200; body: z.infer<typeof StatusRecorded> }
-  | { code: 400; body: { error: string } }
-> {
-  const parsed = ReportSchema.safeParse(body);
+/** A cluster-agent reporting what it applied. The cursor moves only on this report, so a failed apply is retried rather than skipped. */
+async function serveCatalogStatus(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const result = await handleCatalogStatus(
+    {
+      agents: new PgClusterAgents(pool),
+      status: new PgCatalogStatus(pool),
+    },
+    extractBearer(request.headers.authorization),
+    request.params.id,
+    request.payload,
+  );
 
-  if (!parsed.success) {
-    return { code: 400, body: { error: "invalid report" } };
-  }
-
-  const { reports } = parsed.data;
-
-  await deps.status.record(agentId, reports.map(toRecord));
-
-  return { code: 200, body: { ok: true, recorded: reports.length } };
+  return h.response(result.body).code(result.code);
 }
 
 export async function handleCatalogStatus(
@@ -97,40 +100,37 @@ export async function handleCatalogStatus(
   return recordReports(deps, authorized.agent.id, body);
 }
 
-/** A cluster-agent reporting what it applied. The cursor moves only on this report, so a failed apply is retried rather than skipped. */
-async function serveCatalogStatus(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const result = await handleCatalogStatus(
-    {
-      agents: new PgClusterAgents(pool),
-      status: new PgCatalogStatus(pool),
-    },
-    extractBearer(request.headers.authorization),
-    request.params.id,
-    request.payload,
-  );
+/** Validates the reported batch and stores it. An unparseable batch is a 400 AFTER authentication, so a bad body never tells an anonymous caller whether the agent id exists. */
+async function recordReports(
+  deps: CatalogStatusDeps,
+  agentId: string,
+  body: unknown,
+): Promise<
+  | { code: 200; body: z.infer<typeof StatusRecorded> }
+  | { code: 400; body: { error: string } }
+> {
+  const parsed = ReportSchema.safeParse(body);
 
-  return h.response(result.body).code(result.code);
+  if (!parsed.success) {
+    return { code: 400, body: { error: "invalid report" } };
+  }
+
+  const { reports } = parsed.data;
+
+  await deps.status.record(agentId, reports.map(toRecord));
+
+  return { code: 200, body: { ok: true, recorded: reports.length } };
 }
 
-export function clusterAgentCatalogStatusRoute(
-  getPool: () => Pool | null,
-): ServerRoute {
+/** The handler core, injectable for tests: authenticate, then record. */
+/** One reported catalog entry, in the store's own spelling. `reason` rides along even for a success: a recipe that applied with a warning is what makes a later failure legible. */
+function toRecord(
+  r: z.infer<typeof ReportSchema>["reports"][number],
+): CatalogApplyReport {
   return {
-    method: "POST",
-    path: "/api/cluster-agents/{id}/catalog-status",
-    options: zodResponse(
-      { auth: false, validate: { payload: zodValidate(ReportSchema) } },
-      StatusRecorded,
-      {
-        name: "ClusterAgentCatalogStatus",
-        description:
-          "Record what this cluster did with each catalog entry it read — applied, refused (with the reason), skipped or deleted",
-      },
-    ),
-    handler: withPool(getPool, serveCatalogStatus),
+    name: r.name,
+    projectId: r.project_id,
+    state: r.state,
+    reason: r.reason,
   };
 }

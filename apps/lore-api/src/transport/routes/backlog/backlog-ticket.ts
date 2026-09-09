@@ -58,6 +58,73 @@ export interface NodeRow {
   outcome: string | null;
 }
 
+export function taskTicket(
+  row: LoopTaskRow,
+  openIssues: readonly IssueRef[],
+  run: LoopRunRow | undefined,
+  nodeRows: readonly NodeRow[],
+): Ticket | null {
+  const { issue_number } = row;
+
+  if (!issue_number) {
+    return null;
+  }
+  const issue = openIssues.find((i) => i.number === issue_number);
+
+  return {
+    ...ticketIssueFields(row, issue_number, issue),
+    ...ticketTaskFields(row),
+    ...runSummary(run),
+    pipeline: pipelineOf(run, nodeRows),
+  };
+}
+
+function ticketIssueFields(
+  row: LoopTaskRow,
+  issueNumber: number,
+  issue: IssueRef | undefined,
+) {
+  return {
+    issue_number: issueNumber,
+    issue_url: row.issue_url,
+    title: ticketTitle(issue, row),
+    priority: priorityOf(issue),
+  };
+}
+
+function ticketTitle(issue: IssueRef | undefined, row: LoopTaskRow): string {
+  return issue?.title ?? row.description.split("\n")[0]; // eslint-disable-line re-lint/max-member-chain -- pipeline over a value already in hand
+}
+
+function ticketTaskFields(row: LoopTaskRow) {
+  return {
+    pr_url: row.pr_url,
+    state: row.status,
+    created_at: new Date(row.created_at).toISOString(),
+  };
+}
+
+function runSummary(run: LoopRunRow | undefined): {
+  error: string | null;
+  run_id: string | null;
+} {
+  return { error: run?.reason ?? null, run_id: run?.id ?? null };
+}
+
+// The mini graph: every graph node in definition order, colored by its latest station-run outcome.
+export function pipelineOf(
+  run: LoopRunRow | undefined,
+  nodeRows: readonly NodeRow[],
+): Array<{ node_id: string; state: string }> | null {
+  if (!run?.graph?.nodes) {
+    return null;
+  }
+  const latest = latestVisitByNode(run.id, nodeRows);
+  const { nodes } = run.graph;
+
+  return nodes.map((node) => nodeState(node, latest.get(node.id)));
+}
+
 /** Latest station-run visit per node in `run`, later iterations winning over earlier ones. */
 function latestVisitByNode(
   runId: string,
@@ -99,73 +166,6 @@ function nodeState(
   }
 
   return { node_id: node.id, state: visit.outcome };
-}
-
-// The mini graph: every graph node in definition order, colored by its latest station-run outcome.
-export function pipelineOf(
-  run: LoopRunRow | undefined,
-  nodeRows: readonly NodeRow[],
-): Array<{ node_id: string; state: string }> | null {
-  if (!run?.graph?.nodes) {
-    return null;
-  }
-  const latest = latestVisitByNode(run.id, nodeRows);
-  const { nodes } = run.graph;
-
-  return nodes.map((node) => nodeState(node, latest.get(node.id)));
-}
-
-function runSummary(run: LoopRunRow | undefined): {
-  error: string | null;
-  run_id: string | null;
-} {
-  return { error: run?.reason ?? null, run_id: run?.id ?? null };
-}
-
-function ticketTitle(issue: IssueRef | undefined, row: LoopTaskRow): string {
-  return issue?.title ?? row.description.split("\n")[0]; // eslint-disable-line re-lint/max-member-chain -- pipeline over a value already in hand
-}
-
-export function taskTicket(
-  row: LoopTaskRow,
-  openIssues: readonly IssueRef[],
-  run: LoopRunRow | undefined,
-  nodeRows: readonly NodeRow[],
-): Ticket | null {
-  const { issue_number } = row;
-
-  if (!issue_number) {
-    return null;
-  }
-  const issue = openIssues.find((i) => i.number === issue_number);
-
-  return {
-    ...ticketIssueFields(row, issue_number, issue),
-    ...ticketTaskFields(row),
-    ...runSummary(run),
-    pipeline: pipelineOf(run, nodeRows),
-  };
-}
-
-function ticketIssueFields(
-  row: LoopTaskRow,
-  issueNumber: number,
-  issue: IssueRef | undefined,
-) {
-  return {
-    issue_number: issueNumber,
-    issue_url: row.issue_url,
-    title: ticketTitle(issue, row),
-    priority: priorityOf(issue),
-  };
-}
-
-function ticketTaskFields(row: LoopTaskRow) {
-  return {
-    pr_url: row.pr_url,
-    state: row.status,
-    created_at: new Date(row.created_at).toISOString(),
-  };
 }
 
 interface RunContext {

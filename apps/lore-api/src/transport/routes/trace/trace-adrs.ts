@@ -10,6 +10,18 @@ const AdrListSchema = z.object({
   adrs: z.array(z.record(z.string(), z.unknown())),
 });
 
+export function traceAdrsRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/trace/adrs",
+    options: zodResponse(bearerScope("read"), AdrListSchema, {
+      name: "AdrList",
+      description: "Every ADR in the traceability graph",
+    }),
+    handler: (_request, h) => serveAdrList(h),
+  };
+}
+
 /** Every adr the graph holds. A deployment with no graph configured answers with an empty list rather than an error — the global viewer is readable before any projection has run. */
 async function serveAdrList(h: ResponseToolkit): Promise<ResponseObject> {
   const dgraph = createDgraphClient(process.env);
@@ -25,16 +37,4 @@ async function serveAdrList(h: ResponseToolkit): Promise<ResponseObject> {
       .response({ error: err instanceof Error ? err.message : String(err) })
       .code(500);
   }
-}
-
-export function traceAdrsRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/trace/adrs",
-    options: zodResponse(bearerScope("read"), AdrListSchema, {
-      name: "AdrList",
-      description: "Every ADR in the traceability graph",
-    }),
-    handler: (_request, h) => serveAdrList(h),
-  };
 }

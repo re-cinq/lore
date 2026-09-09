@@ -118,6 +118,18 @@ function listLabelsRoute(): ServerRoute {
   };
 }
 
+function ciConclusionRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/ci-conclusion",
+    options: zodResponse(bearerScope("read"), CiConclusionSchema, {
+      name: "RepoCiConclusion",
+      description: "CI's verdict for a ref",
+    }),
+    handler: (request, h) => serveCiConclusion(request, h),
+  };
+}
+
 /** CI's verdict for one ref. A missing `ref` is the caller's error, so its refusal keeps its own status rather than being flattened into the uniform 500. */
 async function serveCiConclusion(
   request: Request,
@@ -136,16 +148,4 @@ async function serveCiConclusion(
 
     return fail(h, err);
   }
-}
-
-function ciConclusionRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/ci-conclusion",
-    options: zodResponse(bearerScope("read"), CiConclusionSchema, {
-      name: "RepoCiConclusion",
-      description: "CI's verdict for a ref",
-    }),
-    handler: (request, h) => serveCiConclusion(request, h),
-  };
 }

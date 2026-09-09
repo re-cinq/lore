@@ -38,20 +38,27 @@ export interface WebhookStatus {
   reason?: string;
 }
 
-/** Does this hook's event list cover everything the bus dispatches? */
-function eventsCovered(events: string[]): boolean {
-  return (
-    events.includes("*") || REQUIRED_EVENTS.every((e) => events.includes(e))
-  );
-}
+export function classifyWebhook(
+  hooks: RepoHook[],
+  canonicalUrl: string,
+): WebhookStatus {
+  if (!canonicalUrl) {
+    return {
+      state: "unknown",
+      canonicalUrl: "",
+      reason: "webhook_host_not_configured",
+    };
+  }
 
-/** Every path Lore has pointed a repo hook at: the event-router front door and the pre-ADR-044 Floor ingress. A hook at either is ours — the classifier reports the legacy one as `wrong_url` and ensure repoints it in place instead of creating a second hook, so the legacy path stays listed for as long as any repo may still carry it. Host-agnostic on purpose: the host is what a repoint changes. */
-export const LORE_HOOK_PATHS = ["/api/events", "/api/webhook/github"] as const;
+  const lore = findLoreHook(hooks, canonicalUrl);
 
-export function isLoreHook(hook: { config: { url?: string } }): boolean {
-  const url = hook.config.url ?? "";
+  if (!lore) {
+    return { state: "missing", canonicalUrl };
+  }
 
-  return LORE_HOOK_PATHS.some((path) => url.endsWith(path));
+  const base = baseStatus(canonicalUrl, lore);
+
+  return { state: deriveHookState(lore, base), ...base };
 }
 
 /** Prefer the hook whose url is an exact canonical match, else any hook at a Lore hook path. */
@@ -76,10 +83,6 @@ function baseStatus(
     active: lore.active,
     lastCode: lore.last_response?.code ?? null,
   };
-}
-
-function isFailingDelivery(lastCode: number | null): boolean {
-  return lastCode !== null && lastCode >= 400;
 }
 
 const HOOK_STATE_RULES: Array<{
@@ -111,25 +114,22 @@ function deriveHookState(
   );
 }
 
-export function classifyWebhook(
-  hooks: RepoHook[],
-  canonicalUrl: string,
-): WebhookStatus {
-  if (!canonicalUrl) {
-    return {
-      state: "unknown",
-      canonicalUrl: "",
-      reason: "webhook_host_not_configured",
-    };
-  }
+/** Does this hook's event list cover everything the bus dispatches? */
+function eventsCovered(events: string[]): boolean {
+  return (
+    events.includes("*") || REQUIRED_EVENTS.every((e) => events.includes(e))
+  );
+}
 
-  const lore = findLoreHook(hooks, canonicalUrl);
+function isFailingDelivery(lastCode: number | null): boolean {
+  return lastCode !== null && lastCode >= 400;
+}
 
-  if (!lore) {
-    return { state: "missing", canonicalUrl };
-  }
+/** Every path Lore has pointed a repo hook at: the event-router front door and the pre-ADR-044 Floor ingress. A hook at either is ours — the classifier reports the legacy one as `wrong_url` and ensure repoints it in place instead of creating a second hook, so the legacy path stays listed for as long as any repo may still carry it. Host-agnostic on purpose: the host is what a repoint changes. */
+export const LORE_HOOK_PATHS = ["/api/events", "/api/webhook/github"] as const;
 
-  const base = baseStatus(canonicalUrl, lore);
+export function isLoreHook(hook: { config: { url?: string } }): boolean {
+  const url = hook.config.url ?? "";
 
-  return { state: deriveHookState(lore, base), ...base };
+  return LORE_HOOK_PATHS.some((path) => url.endsWith(path));
 }

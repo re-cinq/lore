@@ -65,21 +65,43 @@ export interface RunDodDeps {
 
 const ABSENT: DodProgress = { present: false };
 
-/** A file on a branch through the project facade; 424 rather than 500 when GitHub is unconfigured — nothing failed, the dependency is absent. */
-async function readThroughProject(
-  repo: string,
-  path: string,
-  ref: string,
-): Promise<string | null> {
-  const project = await projectFor(repo);
+export function runDodRoute(
+  getPool: () => Pool | null,
+  deps: RunDodDeps = {},
+): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/assembly-runs/{id}/dod",
+    options: zodResponse(bearerScope("read"), DodProgressSchema, {
+      name: "DodProgress",
+      description:
+        "The run's Definition of Done with each acceptance test matched against the branch's latest CI report",
+      errors: [404],
+    }),
+    handler: (request) => serveRunDod(getPool, deps, request),
+  };
+}
 
-  enforceTrue(
-    project.repo.isConfigured(),
-    apiError(424),
-    "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN.",
-  );
+async function serveRunDod(
+  getPool: () => Pool | null,
+  injected: RunDodDeps,
+  request: Request,
+): Promise<DodProgress> {
+  const deps = resolveDeps(getPool(), injected);
+  const run = await deps.runs.getById(request.params.id);
 
-  return project.repo.read(path, ref);
+  enforceTrue(run !== null, apiError(404), "assembly run not found");
+  const branch = openBranch(run);
+
+  if (branch === null) {
+    return ABSENT;
+  }
+  const [text, report] = await Promise.all([
+    deps.readFile(run.repo, DOD_PATH, branch),
+    deps.testReports.latestForBranch(run.repo, branch),
+  ]);
+
+  return progress(parseDodMarkdown(text ?? ""), report);
 }
 
 /** The injected ports, or ones built on the pool; refusing with 503 when neither is possible. */
@@ -99,6 +121,23 @@ function resolveDeps(
     testReports: deps.testReports ?? new PgTestReports(pool as Pool),
     readFile: deps.readFile ?? readThroughProject,
   };
+}
+
+/** A file on a branch through the project facade; 424 rather than 500 when GitHub is unconfigured — nothing failed, the dependency is absent. */
+async function readThroughProject(
+  repo: string,
+  path: string,
+  ref: string,
+): Promise<string | null> {
+  const project = await projectFor(repo);
+
+  enforceTrue(
+    project.repo.isConfigured(),
+    apiError(424),
+    "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN.",
+  );
+
+  return project.repo.read(path, ref);
 }
 
 /** The branch a live run's definition of done lives on; a finished or failed run has nothing left to show, so it costs no GitHub read. */
@@ -127,44 +166,5 @@ function progress(
       branch: report.branch,
       receivedAt: report.receivedAt.toISOString(),
     },
-  };
-}
-
-async function serveRunDod(
-  getPool: () => Pool | null,
-  injected: RunDodDeps,
-  request: Request,
-): Promise<DodProgress> {
-  const deps = resolveDeps(getPool(), injected);
-  const run = await deps.runs.getById(request.params.id);
-
-  enforceTrue(run !== null, apiError(404), "assembly run not found");
-  const branch = openBranch(run);
-
-  if (branch === null) {
-    return ABSENT;
-  }
-  const [text, report] = await Promise.all([
-    deps.readFile(run.repo, DOD_PATH, branch),
-    deps.testReports.latestForBranch(run.repo, branch),
-  ]);
-
-  return progress(parseDodMarkdown(text ?? ""), report);
-}
-
-export function runDodRoute(
-  getPool: () => Pool | null,
-  deps: RunDodDeps = {},
-): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/assembly-runs/{id}/dod",
-    options: zodResponse(bearerScope("read"), DodProgressSchema, {
-      name: "DodProgress",
-      description:
-        "The run's Definition of Done with each acceptance test matched against the branch's latest CI report",
-      errors: [404],
-    }),
-    handler: (request) => serveRunDod(getPool, deps, request),
   };
 }

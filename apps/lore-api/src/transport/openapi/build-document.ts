@@ -51,33 +51,28 @@ export interface GenerateOptions {
   serverUrl?: string;
 }
 
+/** The accumulators one document build threads through every route. */
+interface DocumentBuild {
+  coverage: Coverage;
+  schemas: Record<string, JsonSchema>;
+  paths: Record<string, Record<string, Operation>>;
+}
+
 const API_TITLE = "Lore API";
 const DEFAULT_VERSION = "0.1.0";
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH"]);
+
+const ERROR_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: { error: { type: "string" } },
+  required: ["error"],
+};
 
 const isExcludedPath = (path: string): boolean =>
   path === "/healthz" || path.startsWith("/dist/");
 
 const isPublic = (route: ServerRoute): boolean =>
   optionsOf(route).auth === false;
-
-function scopeOf(route: ServerRoute): string | undefined {
-  const plugins = optionsOf(route).plugins as
-    Record<string, { scope?: string } | undefined> | undefined;
-
-  return plugins?.["bearer-scope"]?.scope;
-}
-
-/** Concrete verbs for a route — expanding `method: "*"` via the sidecar. */
-function methodsOf(route: ServerRoute): string[] {
-  const method = Array.isArray(route.method) ? route.method : [route.method];
-
-  if (method.includes("*")) {
-    return WILDCARD_METHODS[route.path] ?? [];
-  }
-
-  return method.map((m) => m.toUpperCase());
-}
 
 /** Report wildcard routes that declare neither real methods nor a wildcard in WILDCARD_METHODS. */
 export function undeclaredWildcards(routes: ServerRoute[]): string[] {
@@ -97,6 +92,155 @@ export function undeclaredWildcards(routes: ServerRoute[]): string[] {
 /** `{owner}` / `{name?}` / `{artifact*}` → OpenAPI `{owner}`; strip optional/wildcard markers. */
 export function normalizePath(hapiPath: string): string {
   return hapiPath.replace(/\{(\w+)[?*]\}/g, "{$1}");
+}
+
+/** The document only (convenience for the serving route). */
+export function buildOpenApiDocument(
+  routes: ServerRoute[],
+  opts?: GenerateOptions,
+): OpenApiDocument {
+  return generateOpenApi(routes, opts).document;
+}
+
+export function generateOpenApi(
+  routes: ServerRoute[],
+  opts: GenerateOptions = {},
+): { document: OpenApiDocument; coverage: Coverage } {
+  const schemas: Record<string, JsonSchema> = { Error: ERROR_SCHEMA };
+  const paths: Record<string, Record<string, Operation>> = {};
+  const coverage = emptyCoverage();
+
+  collectPaths(routes, { coverage, schemas, paths });
+
+  const usedTags = new Set<string>(
+    Object.values(paths).flatMap((pathItem) =>
+      Object.values(pathItem).map((op) => op.tags[0]),
+    ),
+  );
+
+  const document = openApiDocument({ opts, usedTags, paths, schemas });
+
+  return { document, coverage };
+}
+
+function emptyCoverage(): Coverage {
+  return {
+    covered: [],
+    lifted: [],
+    freeform: [],
+    selfHandled: [],
+    bodyless: [],
+    uncovered: [],
+    excluded: [],
+    responses: [],
+    responsesMissing: [],
+  };
+}
+
+/** Walks every route into `build`, recording the ones deliberately left out of the contract. */
+function collectPaths(routes: ServerRoute[], build: DocumentBuild): void {
+  const { excluded } = build.coverage;
+
+  for (const route of routes) {
+    if (isExcludedPath(route.path)) {
+      excluded.push(route.path);
+      continue;
+    }
+
+    addRouteOperations(route, normalizePath(route.path), build);
+  }
+}
+
+/** Builds one Operation per method of the route into `paths`. */
+function addRouteOperations(
+  route: ServerRoute,
+  normPath: string,
+  build: DocumentBuild,
+): void {
+  for (const method of methodsOf(route)) {
+    const operation = buildOperation(route, method, normPath, build);
+
+    (build.paths[normPath] ??= {})[method.toLowerCase()] = operation;
+  }
+}
+
+/** Concrete verbs for a route — expanding `method: "*"` via the sidecar. */
+function methodsOf(route: ServerRoute): string[] {
+  const method = Array.isArray(route.method) ? route.method : [route.method];
+
+  if (method.includes("*")) {
+    return WILDCARD_METHODS[route.path] ?? [];
+  }
+
+  return method.map((m) => m.toUpperCase());
+}
+
+function buildOperation(
+  route: ServerRoute,
+  method: string,
+  normPath: string,
+  { coverage, schemas }: DocumentBuild,
+): Operation {
+  const key = `${method} ${route.path}`;
+  const success = registerResponse(route, key, schemas, coverage);
+  const op = baseOperation(route, method, normPath, success);
+
+  applyOptionalFields(op, route);
+
+  if (WRITE_METHODS.has(method)) {
+    applyRequestBody(op, route, method, coverage);
+  }
+
+  return op;
+}
+
+/** The always-present half of an operation; the sometimes-present fields are layered on by `applyOptionalFields`. */
+function baseOperation(
+  route: ServerRoute,
+  method: string,
+  normPath: string,
+  success: ReturnType<typeof registerResponse>,
+): Operation {
+  const publicOp = isPublic(route);
+  const hasBody = WRITE_METHODS.has(method);
+
+  return {
+    operationId: operationId(method, normPath),
+    summary: `${method} ${normPath}`,
+    tags: [tagFor(normPath)],
+    security: publicOp ? [] : [{ bearerAuth: [] }],
+    "x-rate-limit-bucket": bucketFor(route.path),
+    responses: responsesFor({ isPublicOp: publicOp, hasBody, success }),
+  };
+}
+
+function operationId(method: string, normPath: string): string {
+  const slug = normPath
+    .replace(/^\/+/, "")
+    .replace(/[/{}]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/_$/, "");
+
+  return `${method.toLowerCase()}_${slug}`;
+}
+
+/** The fields an operation carries only sometimes. They are set rather than always-present-and-empty because the generated client reads the DOCUMENT: an empty `parameters` array and an absent one produce different types. */
+function applyOptionalFields(op: Operation, route: ServerRoute): void {
+  const { params, hasOptional } = pathParameters(route.path);
+  const scope = scopeOf(route);
+
+  if (scope) {
+    op["x-required-scope"] = scope;
+  }
+
+  if (params.length) {
+    op.parameters = params;
+  }
+
+  if (hasOptional) {
+    op.description =
+      "A trailing path parameter is optional; omit it for the collection form.";
+  }
 }
 
 function pathParameters(hapiPath: string): {
@@ -123,113 +267,11 @@ function pathParameters(hapiPath: string): {
   return { params, hasOptional };
 }
 
-function operationId(method: string, normPath: string): string {
-  const slug = normPath
-    .replace(/^\/+/, "")
-    .replace(/[/{}]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/_$/, "");
+function scopeOf(route: ServerRoute): string | undefined {
+  const plugins = optionsOf(route).plugins as
+    Record<string, { scope?: string } | undefined> | undefined;
 
-  return `${method.toLowerCase()}_${slug}`;
-}
-
-/** The accumulators one document build threads through every route. */
-interface DocumentBuild {
-  coverage: Coverage;
-  schemas: Record<string, JsonSchema>;
-  paths: Record<string, Record<string, Operation>>;
-}
-
-/** The fields an operation carries only sometimes. They are set rather than always-present-and-empty because the generated client reads the DOCUMENT: an empty `parameters` array and an absent one produce different types. */
-function applyOptionalFields(op: Operation, route: ServerRoute): void {
-  const { params, hasOptional } = pathParameters(route.path);
-  const scope = scopeOf(route);
-
-  if (scope) {
-    op["x-required-scope"] = scope;
-  }
-
-  if (params.length) {
-    op.parameters = params;
-  }
-
-  if (hasOptional) {
-    op.description =
-      "A trailing path parameter is optional; omit it for the collection form.";
-  }
-}
-
-/** The always-present half of an operation; the sometimes-present fields are layered on by `applyOptionalFields`. */
-function baseOperation(
-  route: ServerRoute,
-  method: string,
-  normPath: string,
-  success: ReturnType<typeof registerResponse>,
-): Operation {
-  const publicOp = isPublic(route);
-  const hasBody = WRITE_METHODS.has(method);
-
-  return {
-    operationId: operationId(method, normPath),
-    summary: `${method} ${normPath}`,
-    tags: [tagFor(normPath)],
-    security: publicOp ? [] : [{ bearerAuth: [] }],
-    "x-rate-limit-bucket": bucketFor(route.path),
-    responses: responsesFor({ isPublicOp: publicOp, hasBody, success }),
-  };
-}
-
-function buildOperation(
-  route: ServerRoute,
-  method: string,
-  normPath: string,
-  { coverage, schemas }: DocumentBuild,
-): Operation {
-  const key = `${method} ${route.path}`;
-  const success = registerResponse(route, key, schemas, coverage);
-  const op = baseOperation(route, method, normPath, success);
-
-  applyOptionalFields(op, route);
-
-  if (WRITE_METHODS.has(method)) {
-    applyRequestBody(op, route, method, coverage);
-  }
-
-  return op;
-}
-
-/** Builds one Operation per method of the route into `paths`. */
-function addRouteOperations(
-  route: ServerRoute,
-  normPath: string,
-  build: DocumentBuild,
-): void {
-  for (const method of methodsOf(route)) {
-    const operation = buildOperation(route, method, normPath, build);
-
-    (build.paths[normPath] ??= {})[method.toLowerCase()] = operation;
-  }
-}
-
-/** Key-sorted copy, so a generated artifact records WHAT is served rather than the order the routes were registered in — regrouping the route list would otherwise rewrite 10k lines of JSON and drown the real diff. Plain code-unit comparison, NOT localeCompare: collation varies with the runtime's ICU data, so a laptop and CI could sort identically-named paths differently and each would read the other's output as drift. */
-function byKey<T>(entries: Record<string, T>): Record<string, T> {
-  return Object.fromEntries(
-    Object.entries(entries).sort(([a], [b]) => Number(a > b) - Number(a < b)),
-  );
-}
-
-function emptyCoverage(): Coverage {
-  return {
-    covered: [],
-    lifted: [],
-    freeform: [],
-    selfHandled: [],
-    bodyless: [],
-    uncovered: [],
-    excluded: [],
-    responses: [],
-    responsesMissing: [],
-  };
+  return plugins?.["bearer-scope"]?.scope;
 }
 
 /** The document's own preamble — what this contract is generated from, and what the two OpenAPI extensions mean. Kept beside the builder because it describes THIS generator's conventions, not the API's behaviour. */
@@ -242,17 +284,6 @@ const DOCUMENT_DESCRIPTION =
   "declare none are `/api/openapi.json` (this document) and `/api/docs` (HTML). " +
   "Per-route required scope is the `x-required-scope` extension (HTTP bearer has no " +
   "scope list); the rate-limit bucket is `x-rate-limit-bucket`.";
-
-/** The reusable half of the document: the auth scheme, the response schemas registered while walking the routes, and the shared error envelopes. */
-function documentComponents(
-  schemas: Record<string, JsonSchema>,
-): OpenApiDocument["components"] {
-  return {
-    securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },
-    schemas: byKey(schemas),
-    responses: errorResponses(),
-  };
-}
 
 /** Everything about the API that is NOT derived from walking the routes: its title, its description, and where it is served. */
 function openApiDocument(input: {
@@ -279,53 +310,22 @@ function openApiDocument(input: {
   };
 }
 
-const ERROR_SCHEMA: JsonSchema = {
-  type: "object",
-  properties: { error: { type: "string" } },
-  required: ["error"],
-};
-
-/** Walks every route into `build`, recording the ones deliberately left out of the contract. */
-function collectPaths(routes: ServerRoute[], build: DocumentBuild): void {
-  const { excluded } = build.coverage;
-
-  for (const route of routes) {
-    if (isExcludedPath(route.path)) {
-      excluded.push(route.path);
-      continue;
-    }
-
-    addRouteOperations(route, normalizePath(route.path), build);
-  }
+/** The reusable half of the document: the auth scheme, the response schemas registered while walking the routes, and the shared error envelopes. */
+function documentComponents(
+  schemas: Record<string, JsonSchema>,
+): OpenApiDocument["components"] {
+  return {
+    securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },
+    schemas: byKey(schemas),
+    responses: errorResponses(),
+  };
 }
 
-export function generateOpenApi(
-  routes: ServerRoute[],
-  opts: GenerateOptions = {},
-): { document: OpenApiDocument; coverage: Coverage } {
-  const schemas: Record<string, JsonSchema> = { Error: ERROR_SCHEMA };
-  const paths: Record<string, Record<string, Operation>> = {};
-  const coverage = emptyCoverage();
-
-  collectPaths(routes, { coverage, schemas, paths });
-
-  const usedTags = new Set<string>(
-    Object.values(paths).flatMap((pathItem) =>
-      Object.values(pathItem).map((op) => op.tags[0]),
-    ),
+/** Key-sorted copy, so a generated artifact records WHAT is served rather than the order the routes were registered in — regrouping the route list would otherwise rewrite 10k lines of JSON and drown the real diff. Plain code-unit comparison, NOT localeCompare: collation varies with the runtime's ICU data, so a laptop and CI could sort identically-named paths differently and each would read the other's output as drift. */
+function byKey<T>(entries: Record<string, T>): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(entries).sort(([a], [b]) => Number(a > b) - Number(a < b)),
   );
-
-  const document = openApiDocument({ opts, usedTags, paths, schemas });
-
-  return { document, coverage };
-}
-
-/** The document only (convenience for the serving route). */
-export function buildOpenApiDocument(
-  routes: ServerRoute[],
-  opts?: GenerateOptions,
-): OpenApiDocument {
-  return generateOpenApi(routes, opts).document;
 }
 
 /** One-line coverage summary for a boot-time log — FR7 (uncovered/excluded not silent). */

@@ -10,6 +10,30 @@ import { memoizeWithTtl } from "../../../work/chunks/ttl-memo.js";
 
 const SCHEMA_CATALOG_TTL_MS = 30_000;
 
+/** The two schema questions a browse read asks: every schema in scope, and the one schema a named repo lives in. */
+export function schemaReaders(pool: Pool) {
+  const listChunkSchemas = memoizeWithTtl(
+    () => readProvisionedSchemas(pool),
+    SCHEMA_CATALOG_TTL_MS,
+  );
+  /** Referenced, provisioned team schemas + org_shared. */
+  const getChunkSchemas = memoizeWithTtl(
+    () => readReferencedSchemas(pool, listChunkSchemas),
+    SCHEMA_CATALOG_TTL_MS,
+  );
+
+  async function repoSchema(repo: string): Promise<string> {
+    const { rows } = await pool.query<{ team: string | null }>(
+      `SELECT team FROM lore.repos WHERE full_name = $1`,
+      [repo],
+    );
+
+    return pickSchema(rows[0]?.team, await listChunkSchemas());
+  }
+
+  return { getChunkSchemas, repoSchema };
+}
+
 /** Schemas that actually HAVE a chunks table. The name pattern is enforced in SQL and again in code because these names are interpolated into later queries — a schema list is the one place this API builds SQL from data. */
 async function readProvisionedSchemas(pool: Pool): Promise<string[]> {
   const { rows } = await pool.query(
@@ -40,28 +64,4 @@ async function readReferencedSchemas(
   }
 
   return schemas;
-}
-
-/** The two schema questions a browse read asks: every schema in scope, and the one schema a named repo lives in. */
-export function schemaReaders(pool: Pool) {
-  const listChunkSchemas = memoizeWithTtl(
-    () => readProvisionedSchemas(pool),
-    SCHEMA_CATALOG_TTL_MS,
-  );
-  /** Referenced, provisioned team schemas + org_shared. */
-  const getChunkSchemas = memoizeWithTtl(
-    () => readReferencedSchemas(pool, listChunkSchemas),
-    SCHEMA_CATALOG_TTL_MS,
-  );
-
-  async function repoSchema(repo: string): Promise<string> {
-    const { rows } = await pool.query<{ team: string | null }>(
-      `SELECT team FROM lore.repos WHERE full_name = $1`,
-      [repo],
-    );
-
-    return pickSchema(rows[0]?.team, await listChunkSchemas());
-  }
-
-  return { getChunkSchemas, repoSchema };
 }

@@ -19,16 +19,6 @@ afterEach(() => {
 const flush = (): Promise<void> =>
   new Promise((resolve) => setImmediate(resolve));
 
-function collect(stream: PassThrough): () => string {
-  let out = "";
-
-  stream.on("data", (chunk: Buffer) => {
-    out += chunk.toString();
-  });
-
-  return () => out;
-}
-
 const eventNames = (text: string): string[] =>
   [...text.matchAll(/^event: (\S+)$/gm)].map((m) => m[1]);
 
@@ -125,6 +115,16 @@ function open(
   });
 
   return { text: collect(stream), stream, notifier, ready, teardown, prStatus };
+}
+
+function collect(stream: PassThrough): () => string {
+  let out = "";
+
+  stream.on("data", (chunk: Buffer) => {
+    out += chunk.toString();
+  });
+
+  return () => out;
 }
 
 describe("notifyFilterFor", () => {

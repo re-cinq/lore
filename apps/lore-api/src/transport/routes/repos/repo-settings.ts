@@ -21,25 +21,66 @@ import { OkSchema } from "../../http/ok-schema.js";
 
 // THE REFUSAL IS THE POINT: a patch touching privileged dark-factory fields is refused outright (nothing written) to keep the CODEOWNER-approval ceremony on PUT /settings/dark-factory from being bypassed by this blanket merge.
 
-/** Never throws: an invalid block is a client error, not a 500. */
-function safeParseDarkFactory(
-  raw: unknown,
-):
-  | { ok: true; value: ReturnType<typeof parseDarkFactorySettings> }
-  | { ok: false } {
-  try {
-    return { ok: true, value: parseDarkFactorySettings(raw) };
-  } catch {
-    return { ok: false };
-  }
-}
-
 const RepoSettingsBody = z.object({
   team: z.string().nullable().optional(),
   settings: z.record(z.string(), z.unknown()).optional(),
 });
 
 type RepoSettingsBody = z.infer<typeof RepoSettingsBody>;
+
+export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "PUT",
+    path: "/api/repos/{owner}/{repo}/settings",
+    options: zodResponse(
+      {
+        ...bearerScope("admin"),
+        validate: { payload: zodValidate(RepoSettingsBody) },
+      },
+      OkSchema,
+      {
+        name: "RepoSettingsSaved",
+        description: "The repo settings were written",
+      },
+    ),
+    handler: withPool(getPool, serveRepoSettings),
+  };
+}
+
+/** One repo's settings. Cross-repo links are bidirectional, so writing them here also updates the repo on the other side of the link. */
+async function serveRepoSettings(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const repo = `${request.params.owner}/${request.params.repo}`;
+  const body = request.payload as RepoSettingsBody;
+  const existingTeam = await loadRepoTeam(pool, repo);
+  const darkFactory = (body.settings as { dark_factory?: unknown } | undefined)
+    ?.dark_factory;
+
+  enforceDarkFactoryAllowed(darkFactory, repo);
+  await applyRepoUpdates(pool, repo, body);
+
+  // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
+  if (body.team !== undefined && (body.team || null) !== existingTeam) {
+    await notifyTeamChanged(pool, repo);
+  }
+
+  return h.response({ ok: true });
+}
+
+/** The stored team for a repo, refusing when the repo was never onboarded. */
+async function loadRepoTeam(pool: Pool, repo: string): Promise<string | null> {
+  const { rows } = await pool.query<{ team: string | null }>(
+    `SELECT full_name, team FROM lore.repos WHERE full_name = $1`,
+    [repo],
+  );
+
+  enforceTrue(rows.length !== 0, apiError(404), "Repo not found");
+
+  return rows[0].team;
+}
 
 function enforceDarkFactoryAllowed(darkFactory: unknown, repo: string): void {
   if (!darkFactory) {
@@ -56,6 +97,35 @@ function enforceDarkFactoryAllowed(darkFactory: unknown, repo: string): void {
     touched.length <= 0,
     apiError(403),
     `privileged dark-factory fields (${touched.join(", ")}) are written through PUT /api/repos/${repo}/settings/dark-factory, which requires the CODEOWNER approval PR`,
+  );
+}
+
+/** Never throws: an invalid block is a client error, not a 500. */
+function safeParseDarkFactory(
+  raw: unknown,
+):
+  | { ok: true; value: ReturnType<typeof parseDarkFactorySettings> }
+  | { ok: false } {
+  try {
+    return { ok: true, value: parseDarkFactorySettings(raw) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Writes the columns this patch touched; a patch that names none is a client error. */
+async function applyRepoUpdates(
+  pool: Pool,
+  repo: string,
+  body: RepoSettingsBody,
+): Promise<void> {
+  const { updates, values } = repoUpdateClauses(body);
+
+  enforceTrue(updates.length !== 0, apiError(400), "No fields to update");
+  values.push(repo);
+  await pool.query(
+    `UPDATE lore.repos SET ${updates.join(", ")} WHERE full_name = $${values.length}`,
+    values,
   );
 }
 
@@ -96,74 +166,4 @@ async function notifyTeamChanged(pool: Pool, repo: string): Promise<void> {
       err,
     );
   }
-}
-
-/** The stored team for a repo, refusing when the repo was never onboarded. */
-async function loadRepoTeam(pool: Pool, repo: string): Promise<string | null> {
-  const { rows } = await pool.query<{ team: string | null }>(
-    `SELECT full_name, team FROM lore.repos WHERE full_name = $1`,
-    [repo],
-  );
-
-  enforceTrue(rows.length !== 0, apiError(404), "Repo not found");
-
-  return rows[0].team;
-}
-
-/** Writes the columns this patch touched; a patch that names none is a client error. */
-async function applyRepoUpdates(
-  pool: Pool,
-  repo: string,
-  body: RepoSettingsBody,
-): Promise<void> {
-  const { updates, values } = repoUpdateClauses(body);
-
-  enforceTrue(updates.length !== 0, apiError(400), "No fields to update");
-  values.push(repo);
-  await pool.query(
-    `UPDATE lore.repos SET ${updates.join(", ")} WHERE full_name = $${values.length}`,
-    values,
-  );
-}
-
-/** One repo's settings. Cross-repo links are bidirectional, so writing them here also updates the repo on the other side of the link. */
-async function serveRepoSettings(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const repo = `${request.params.owner}/${request.params.repo}`;
-  const body = request.payload as RepoSettingsBody;
-  const existingTeam = await loadRepoTeam(pool, repo);
-  const darkFactory = (body.settings as { dark_factory?: unknown } | undefined)
-    ?.dark_factory;
-
-  enforceDarkFactoryAllowed(darkFactory, repo);
-  await applyRepoUpdates(pool, repo, body);
-
-  // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
-  if (body.team !== undefined && (body.team || null) !== existingTeam) {
-    await notifyTeamChanged(pool, repo);
-  }
-
-  return h.response({ ok: true });
-}
-
-export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "PUT",
-    path: "/api/repos/{owner}/{repo}/settings",
-    options: zodResponse(
-      {
-        ...bearerScope("admin"),
-        validate: { payload: zodValidate(RepoSettingsBody) },
-      },
-      OkSchema,
-      {
-        name: "RepoSettingsSaved",
-        description: "The repo settings were written",
-      },
-    ),
-    handler: withPool(getPool, serveRepoSettings),
-  };
 }

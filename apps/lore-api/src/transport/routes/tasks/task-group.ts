@@ -28,6 +28,25 @@ const TaskGroupSchema = z.object({
   tasks: z.array(z.record(z.string(), z.unknown())),
 });
 
+export function taskGroupRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/task-groups/{id}",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { params: zodValidate(GroupParams) },
+      },
+      TaskGroupSchema,
+      {
+        name: "TaskGroup",
+        description: "Every task in a group, with completion",
+      },
+    ),
+    handler: withPool(getPool, serveTaskGroup),
+  };
+}
+
 /** Every task in one feature's group, with completion state — the view that answers whether a multi-repo feature is done. */
 async function serveTaskGroup(
   pool: Pool,
@@ -54,24 +73,5 @@ async function readTaskGroup(pool: Pool, id: string) {
     total: rows.length,
     completed: rows.filter((t) => TERMINAL_SUCCESS.includes(t.status)).length,
     tasks: rows,
-  };
-}
-
-export function taskGroupRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/task-groups/{id}",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { params: zodValidate(GroupParams) },
-      },
-      TaskGroupSchema,
-      {
-        name: "TaskGroup",
-        description: "Every task in a group, with completion",
-      },
-    ),
-    handler: withPool(getPool, serveTaskGroup),
   };
 }

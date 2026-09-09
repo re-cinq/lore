@@ -88,6 +88,21 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_SPAN_DAYS = 92;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Spend page interval: YYYY-MM-DD bounds, default 7 days, max 92 days.
+export function spendInterval(
+  from: string | undefined,
+  to: string | undefined,
+  now: Date = new Date(),
+): { from: string; to: string } {
+  const resolvedTo = to ?? now.toISOString().slice(0, 10);
+  const resolvedFrom =
+    from ?? new Date(now.getTime() - 7 * DAY_MS).toISOString().slice(0, 10);
+
+  enforceValidSpan(resolvedFrom, resolvedTo);
+
+  return { from: resolvedFrom, to: resolvedTo };
+}
+
 // Bounds reach SQL as date literals, so shape is enforced here rather than trusted from the query string.
 function enforceValidSpan(from: string, to: string): void {
   for (const value of [from, to]) {
@@ -107,19 +122,4 @@ function enforceValidSpan(from: string, to: string): void {
     Error,
     `interval must span at most ${MAX_SPAN_DAYS} days`,
   );
-}
-
-// Spend page interval: YYYY-MM-DD bounds, default 7 days, max 92 days.
-export function spendInterval(
-  from: string | undefined,
-  to: string | undefined,
-  now: Date = new Date(),
-): { from: string; to: string } {
-  const resolvedTo = to ?? now.toISOString().slice(0, 10);
-  const resolvedFrom =
-    from ?? new Date(now.getTime() - 7 * DAY_MS).toISOString().slice(0, 10);
-
-  enforceValidSpan(resolvedFrom, resolvedTo);
-
-  return { from: resolvedFrom, to: resolvedTo };
 }

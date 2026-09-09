@@ -28,20 +28,6 @@ const EmbedBody = z.object({
   text: z.string().min(1).max(20_000),
 });
 
-async function serveEmbed(
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  try {
-    const { text } = request.payload as z.infer<typeof EmbedBody>;
-    const embedding = await (embedOverride ?? getQueryEmbedding)(text);
-
-    return h.response({ embedding });
-  } catch (err) {
-    return h.response({ error: errorMessage(err) }).code(500);
-  }
-}
-
 export function embedRoute(): ServerRoute {
   return {
     method: "POST",
@@ -60,4 +46,18 @@ export function embedRoute(): ServerRoute {
     ),
     handler: (request, h) => serveEmbed(request, h),
   };
+}
+
+async function serveEmbed(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  try {
+    const { text } = request.payload as z.infer<typeof EmbedBody>;
+    const embedding = await (embedOverride ?? getQueryEmbedding)(text);
+
+    return h.response({ embedding });
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
 }

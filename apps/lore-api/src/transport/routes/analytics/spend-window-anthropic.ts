@@ -35,20 +35,29 @@ const BILLED_ANTHROPIC_TOTALS_SQL = `SELECT
        MAX(bucket_date)::text AS billed_through
      FROM pipeline.anthropic_cost_daily`;
 
-function billedTotalsOf(row: {
-  billed_usd: number;
-  input_tokens: number;
-  output_tokens: number;
-  as_of: string | null;
-  billed_through: string | null;
-}): BilledAnthropicTotals {
+interface UnbilledAnthropicSpend {
+  costUsd: number;
+  days: number;
+}
+
+/** What Anthropic actually billed, plus the metered days it has not billed yet. */
+export async function readAnthropicSpend(pool: Pool, win: SpendWindow) {
+  const { interval } = win;
+  const totals = await readBilledAnthropicTotals(pool, interval);
+  const byModel = await readBilledAnthropicByModel(pool, interval);
+  const daily = await readBilledAnthropicDaily(pool, interval);
+  const unbilled = await readUnbilledAnthropicSpend(
+    pool,
+    win,
+    totals.billedThrough,
+  );
+
   return {
-    totalUsd: row.billed_usd,
-    inputTokens: row.input_tokens,
-    outputTokens: row.output_tokens,
-    asOf: row.as_of,
-    billedThrough: row.billed_through,
-    available: Boolean(row.as_of),
+    ...billedAnthropicSection(totals),
+    by_model: byModel,
+    daily,
+    unbilled_usd: unbilled.costUsd,
+    unbilled_days: unbilled.days,
   };
 }
 
@@ -68,32 +77,21 @@ async function readBilledAnthropicTotals(
   return row ? billedTotalsOf(row) : NO_BILLED_ANTHROPIC_TOTALS;
 }
 
-interface UnbilledAnthropicSpend {
-  costUsd: number;
-  days: number;
-}
-
-// Every interval day Anthropic has not billed yet; `billedThrough` is passed as a param (not joined in) so an absent anthropic_cost_daily can't take this sync-independent half down too.
-async function readUnbilledAnthropicSpend(
-  pool: Pool,
-  win: SpendWindow,
-  billedThrough: string | null,
-): Promise<UnbilledAnthropicSpend> {
-  const { rows } = await pool.query<{
-    cost_usd: number;
-    days: number;
-  }>(
-    `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd,
-            COUNT(DISTINCT created_at::date)::int AS days
-       FROM pipeline.llm_calls
-      WHERE created_at >= $1 AND created_at < $2
-        AND ($3::date IS NULL OR created_at::date > $3::date)
-        AND model NOT LIKE ALL($4::text[])`,
-    [win.fromTs, win.toTs, billedThrough, [...NON_ANTHROPIC_LIKE_PATTERNS]],
-  );
-  const row = rows.at(0);
-
-  return { costUsd: row?.cost_usd ?? 0, days: row?.days ?? 0 };
+function billedTotalsOf(row: {
+  billed_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  as_of: string | null;
+  billed_through: string | null;
+}): BilledAnthropicTotals {
+  return {
+    totalUsd: row.billed_usd,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
+    asOf: row.as_of,
+    billedThrough: row.billed_through,
+    available: Boolean(row.as_of),
+  };
 }
 
 async function readBilledAnthropicByModel(
@@ -126,25 +124,27 @@ async function readBilledAnthropicDaily(
   );
 }
 
-/** What Anthropic actually billed, plus the metered days it has not billed yet. */
-export async function readAnthropicSpend(pool: Pool, win: SpendWindow) {
-  const { interval } = win;
-  const totals = await readBilledAnthropicTotals(pool, interval);
-  const byModel = await readBilledAnthropicByModel(pool, interval);
-  const daily = await readBilledAnthropicDaily(pool, interval);
-  const unbilled = await readUnbilledAnthropicSpend(
-    pool,
-    win,
-    totals.billedThrough,
+// Every interval day Anthropic has not billed yet; `billedThrough` is passed as a param (not joined in) so an absent anthropic_cost_daily can't take this sync-independent half down too.
+async function readUnbilledAnthropicSpend(
+  pool: Pool,
+  win: SpendWindow,
+  billedThrough: string | null,
+): Promise<UnbilledAnthropicSpend> {
+  const { rows } = await pool.query<{
+    cost_usd: number;
+    days: number;
+  }>(
+    `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd,
+            COUNT(DISTINCT created_at::date)::int AS days
+       FROM pipeline.llm_calls
+      WHERE created_at >= $1 AND created_at < $2
+        AND ($3::date IS NULL OR created_at::date > $3::date)
+        AND model NOT LIKE ALL($4::text[])`,
+    [win.fromTs, win.toTs, billedThrough, [...NON_ANTHROPIC_LIKE_PATTERNS]],
   );
+  const row = rows.at(0);
 
-  return {
-    ...billedAnthropicSection(totals),
-    by_model: byModel,
-    daily,
-    unbilled_usd: unbilled.costUsd,
-    unbilled_days: unbilled.days,
-  };
+  return { costUsd: row?.cost_usd ?? 0, days: row?.days ?? 0 };
 }
 
 function billedAnthropicSection(totals: BilledAnthropicTotals) {

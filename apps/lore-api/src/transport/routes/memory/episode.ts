@@ -40,6 +40,61 @@ interface EpisodeRecord {
   ref: string | null;
 }
 
+export function episodeRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/episode",
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(EpisodeBody) },
+      },
+      EpisodeWrittenSchema,
+      { name: "EpisodeWritten", description: "Whether the episode was new" },
+    ),
+    handler: (request, h) => serveEpisodeWrite(getPool, request, h),
+  };
+}
+
+async function serveEpisodeWrite(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  try {
+    const written = await writeEpisode(pool!, request.payload as EpisodeBody);
+
+    return h.response(written);
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
+/** Ingests an episode and reports whether it was NEW: the writer is idempotent on content, so a re-posted conversation turn does not re-extract its facts. */
+/** Stores one episode and starts its fact extraction. Content is SANITIZED before it is hashed or stored — this table is org-wide, and a secret in a conversation turn would otherwise be readable by every agent. The hash is what makes a re-posted turn a duplicate rather than a second episode, and extraction is scheduled only for a genuinely new one. */
+async function writeEpisode(pool: Pool, body: EpisodeBody) {
+  const { content, source, ref, agent_id } = body;
+  const safeContent = sanitizeContent(content);
+  const record: EpisodeRecord = {
+    agent: agent_id || "unknown",
+    safeContent,
+    contentHash: createHash("sha256").update(safeContent).digest("hex"),
+    source: source || "session",
+    ref: ref || null,
+  };
+  const episodeId = await insertEpisode(pool, record);
+
+  if (episodeId === undefined) {
+    return { status: "duplicate" };
+  }
+
+  scheduleBackgroundExtraction(pool, episodeId, record);
+
+  return { status: "ok", episode_id: episodeId };
+}
+
 async function insertEpisode(pool: Pool, record: EpisodeRecord) {
   const { agent, safeContent, contentHash, source, ref } = record;
   const { rows } = await pool.query(
@@ -73,59 +128,4 @@ function scheduleBackgroundExtraction(
     { repo: ref, sourceEpisodeId: episodeId, sourceMemoryId: null },
     gLlm,
   ).catch(() => {});
-}
-
-/** Ingests an episode and reports whether it was NEW: the writer is idempotent on content, so a re-posted conversation turn does not re-extract its facts. */
-/** Stores one episode and starts its fact extraction. Content is SANITIZED before it is hashed or stored — this table is org-wide, and a secret in a conversation turn would otherwise be readable by every agent. The hash is what makes a re-posted turn a duplicate rather than a second episode, and extraction is scheduled only for a genuinely new one. */
-async function writeEpisode(pool: Pool, body: EpisodeBody) {
-  const { content, source, ref, agent_id } = body;
-  const safeContent = sanitizeContent(content);
-  const record: EpisodeRecord = {
-    agent: agent_id || "unknown",
-    safeContent,
-    contentHash: createHash("sha256").update(safeContent).digest("hex"),
-    source: source || "session",
-    ref: ref || null,
-  };
-  const episodeId = await insertEpisode(pool, record);
-
-  if (episodeId === undefined) {
-    return { status: "duplicate" };
-  }
-
-  scheduleBackgroundExtraction(pool, episodeId, record);
-
-  return { status: "ok", episode_id: episodeId };
-}
-
-async function serveEpisodeWrite(
-  getPool: () => Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const pool = getPool();
-
-  try {
-    const written = await writeEpisode(pool!, request.payload as EpisodeBody);
-
-    return h.response(written);
-  } catch (err) {
-    return h.response({ error: errorMessage(err) }).code(500);
-  }
-}
-
-export function episodeRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/episode",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(EpisodeBody) },
-      },
-      EpisodeWrittenSchema,
-      { name: "EpisodeWritten", description: "Whether the episode was new" },
-    ),
-    handler: (request, h) => serveEpisodeWrite(getPool, request, h),
-  };
 }

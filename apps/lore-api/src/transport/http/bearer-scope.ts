@@ -26,38 +26,6 @@ export function bearerScope(
 const denied = (statusCode: 401 | 403, error: string): Boom.Boom =>
   apiError(statusCode)(error);
 
-// hapi types the header as string | string[]; only the first value can carry the credential.
-function bearerOf(request: Request): string | undefined {
-  const authHeader = request.headers.authorization;
-
-  return (Array.isArray(authHeader) ? authHeader[0] : authHeader)?.replace(
-    "Bearer ",
-    "",
-  );
-}
-
-// The scope a route stamped via `bearerScope`, read out of hapi's per-route plugin config.
-function requiredScope(request: Request): TokenScope | undefined {
-  const { settings } = request.route;
-  const routeConfig = settings.plugins as Record<
-    string,
-    { scope?: TokenScope } | undefined
-  >;
-
-  return routeConfig[STRATEGY]?.scope;
-}
-
-// A route that stamps no scope via `bearerScope` accepts any valid token; `admin` satisfies every scope.
-function enforceRouteScope(request: Request, scopes: TokenScope[]): void {
-  const required = requiredScope(request);
-
-  enforceTrue(
-    !(required && !scopes.includes("admin") && !scopes.includes(required)),
-    (message) => denied(403, message),
-    "insufficient scope",
-  );
-}
-
 async function authenticateBearer(
   request: Request,
   h: ResponseToolkit,
@@ -73,6 +41,38 @@ async function authenticateBearer(
   enforceRouteScope(request, scopes);
 
   return h.authenticated({ credentials: { scope: scopes } });
+}
+
+// hapi types the header as string | string[]; only the first value can carry the credential.
+function bearerOf(request: Request): string | undefined {
+  const authHeader = request.headers.authorization;
+
+  return (Array.isArray(authHeader) ? authHeader[0] : authHeader)?.replace(
+    "Bearer ",
+    "",
+  );
+}
+
+// A route that stamps no scope via `bearerScope` accepts any valid token; `admin` satisfies every scope.
+function enforceRouteScope(request: Request, scopes: TokenScope[]): void {
+  const required = requiredScope(request);
+
+  enforceTrue(
+    !(required && !scopes.includes("admin") && !scopes.includes(required)),
+    (message) => denied(403, message),
+    "insufficient scope",
+  );
+}
+
+// The scope a route stamped via `bearerScope`, read out of hapi's per-route plugin config.
+function requiredScope(request: Request): TokenScope | undefined {
+  const { settings } = request.route;
+  const routeConfig = settings.plugins as Record<
+    string,
+    { scope?: TokenScope } | undefined
+  >;
+
+  return routeConfig[STRATEGY]?.scope;
 }
 
 const scheme =

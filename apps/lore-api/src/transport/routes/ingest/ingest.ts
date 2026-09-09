@@ -28,15 +28,24 @@ type IngestBody = z.infer<typeof IngestBody>;
 /** What the ingest wrote — counts per kind. */
 const IngestResultSchema = z.record(z.string(), z.unknown());
 
-/** True when at least one posted file actually changed the store — the gate on the re-link trigger. */
-function anyFileLanded(results: unknown): boolean {
-  return (
-    Array.isArray(results) &&
-    results.some(
-      (r: { status?: string }) =>
-        r.status === "ingested" || r.status === "deleted",
-    )
-  );
+export function ingestRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/ingest",
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(IngestBody) },
+      },
+      IngestResultSchema,
+      {
+        name: "IngestResult",
+        description: "What the ingest stored",
+        errors: [400],
+      },
+    ),
+    handler: withPool(getPool, serveIngest),
+  };
 }
 
 /** Stores posted content into a repo's context immediately, rather than waiting for the nightly pass. */
@@ -66,22 +75,13 @@ async function serveIngest(
   }
 }
 
-export function ingestRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/ingest",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(IngestBody) },
-      },
-      IngestResultSchema,
-      {
-        name: "IngestResult",
-        description: "What the ingest stored",
-        errors: [400],
-      },
-    ),
-    handler: withPool(getPool, serveIngest),
-  };
+/** True when at least one posted file actually changed the store — the gate on the re-link trigger. */
+function anyFileLanded(results: unknown): boolean {
+  return (
+    Array.isArray(results) &&
+    results.some(
+      (r: { status?: string }) =>
+        r.status === "ingested" || r.status === "deleted",
+    )
+  );
 }

@@ -49,24 +49,34 @@ const DarkFactoryAppliedSchema = z.object({
   }),
 });
 
-/** One route per verb so each declares its own contract; the wildcard route exists only to answer 405 instead of hapi's 404. */
-/** Both real verbs need the pool, so the guard is stated once. */
-function withPool(
-  getPool: () => Pool | null,
-  serve: (
-    request: Request,
-    h: ResponseToolkit,
-    pool: Pool,
-    repo: string,
-  ) => Promise<ResponseObject>,
-) {
-  return async (request: Request, h: ResponseToolkit) => {
-    const pool = getPool();
+type CeremonyOutcome =
+  { ok: true; ceremony: Ceremony } | { ok: false; body: object; code: number };
 
-    return pool
-      ? serve(request, h, pool, repoOf(request.params))
-      : h.response({ error: "database unavailable" }).code(503);
-  };
+const TWO_KEY_DETAIL =
+  "Privileged fields require an X-Lore-Approval-PR header. " +
+  "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.";
+
+interface SettingsWrite extends SettingsPatch {
+  pool: Pool;
+  repo: string;
+  h: ResponseToolkit;
+  twoKey: string[];
+  ceremony: Ceremony;
+}
+
+export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute[] {
+  return [
+    readRoute(getPool),
+    writeRoute(getPool),
+    {
+      // Fallback only — a concrete verb above always wins in hapi.
+      method: "*",
+      path: DF_PATH,
+      options: bearerScope("admin"),
+      handler: (_request: Request, h: ResponseToolkit) =>
+        h.response({ error: "method not allowed" }).code(405),
+    },
+  ];
 }
 
 /** Reads every knob RESOLVED — defaults merged in — so a caller sees what is in force rather than what happens to be stored. */
@@ -102,19 +112,24 @@ function writeRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
-export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute[] {
-  return [
-    readRoute(getPool),
-    writeRoute(getPool),
-    {
-      // Fallback only — a concrete verb above always wins in hapi.
-      method: "*",
-      path: DF_PATH,
-      options: bearerScope("admin"),
-      handler: (_request: Request, h: ResponseToolkit) =>
-        h.response({ error: "method not allowed" }).code(405),
-    },
-  ];
+/** One route per verb so each declares its own contract; the wildcard route exists only to answer 405 instead of hapi's 404. */
+/** Both real verbs need the pool, so the guard is stated once. */
+function withPool(
+  getPool: () => Pool | null,
+  serve: (
+    request: Request,
+    h: ResponseToolkit,
+    pool: Pool,
+    repo: string,
+  ) => Promise<ResponseObject>,
+) {
+  return async (request: Request, h: ResponseToolkit) => {
+    const pool = getPool();
+
+    return pool
+      ? serve(request, h, pool, repoOf(request.params))
+      : h.response({ error: "database unavailable" }).code(503);
+  };
 }
 
 async function handleGet(
@@ -140,44 +155,6 @@ async function handleGet(
 
     return h.response({ error: "internal" }).code(500);
   }
-}
-
-type CeremonyOutcome =
-  { ok: true; ceremony: Ceremony } | { ok: false; body: object; code: number };
-
-const TWO_KEY_DETAIL =
-  "Privileged fields require an X-Lore-Approval-PR header. " +
-  "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.";
-
-/** The approval PR that carried the second key, recorded so the audit row names who authorized the change. */
-function twoKeyCeremony(evidence: {
-  prRef: string;
-  approver: string;
-  prUrl: string;
-}): Ceremony {
-  return {
-    tier: "two_key",
-    pr_ref: evidence.prRef,
-    approver: evidence.approver,
-    pr_url: evidence.prUrl,
-  };
-}
-
-/** Two-key check (FR3.9): privileged fields require an approval-PR header. */
-async function resolveCeremony(
-  request: Request,
-  repo: string,
-  twoKey: string[],
-): Promise<CeremonyOutcome> {
-  if (twoKey.length === 0) {
-    return { ok: true, ceremony: { tier: "admin" } };
-  }
-
-  const gate = await checkApproval(request, repo, twoKey, TWO_KEY_DETAIL);
-
-  return gate.ok
-    ? { ok: true, ceremony: twoKeyCeremony(gate.evidence) }
-    : { ok: false, body: gate.body, code: gate.code };
 }
 
 async function handlePut(
@@ -206,59 +183,52 @@ async function handlePut(
   return await writeSettings({ ...write, ceremony: outcome.ceremony });
 }
 
-interface SettingsWrite extends SettingsPatch {
-  pool: Pool;
-  repo: string;
-  h: ResponseToolkit;
-  twoKey: string[];
-  ceremony: Ceremony;
-}
-
-/** The write and its audit row, in that order and inside the same transaction. Both or neither: a settings change with no audit entry is exactly the thing the dark-factory rollback runbook cannot reconstruct. */
-async function writeAndAudit(
-  client: PoolClient,
-  write: SettingsWrite,
-  applied: ReturnType<typeof applyPatch>,
-): Promise<void> {
-  await client.query(
-    `UPDATE lore.repos SET settings = $1 WHERE full_name = $2`,
-    [applied.settings, write.repo],
-  );
-  await auditChange(client, write, {
-    prev: applied.prev,
-    next: {
-      dark_factory: applied.next,
-      task_overrides: applied.settings.task_overrides,
-    },
-  });
-}
-
-/** A repo with no row is not onboarded; the transaction is unwound before answering so the connection goes back clean. */
-async function rollbackNotOnboarded(
-  client: PoolClient,
-  h: ResponseToolkit,
+/** Two-key check (FR3.9): privileged fields require an approval-PR header. */
+async function resolveCeremony(
+  request: Request,
   repo: string,
-): Promise<ResponseObject> {
-  await client.query("ROLLBACK");
+  twoKey: string[],
+): Promise<CeremonyOutcome> {
+  if (twoKey.length === 0) {
+    return { ok: true, ceremony: { tier: "admin" } };
+  }
 
-  return h.response({ error: "repo not onboarded", repo }).code(404);
+  const gate = await checkApproval(request, repo, twoKey, TWO_KEY_DETAIL);
+
+  return gate.ok
+    ? { ok: true, ceremony: twoKeyCeremony(gate.evidence) }
+    : { ok: false, body: gate.body, code: gate.code };
 }
 
-/** What the caller sees once the change is durable, plus the baseline snapshot — taken AFTER the commit because it reads counters, and holding the row lock through it would serialize unrelated writes. */
-async function committedResponse(
-  write: SettingsWrite,
-  applied: ReturnType<typeof applyPatch>,
-): Promise<ResponseObject> {
-  const { pool, repo, h, ceremony } = write;
+/** The approval PR that carried the second key, recorded so the audit row names who authorized the change. */
+function twoKeyCeremony(evidence: {
+  prRef: string;
+  approver: string;
+  prUrl: string;
+}): Ceremony {
+  return {
+    tier: "two_key",
+    pr_ref: evidence.prRef,
+    approver: evidence.approver,
+    pr_url: evidence.prUrl,
+  };
+}
 
-  await captureBaselineIfEnabling(
-    repo,
-    pool,
-    applied.prev.dark_factory,
-    applied.next,
-  );
+/** Read current, merge patch, write back, audit — under one row lock, because two concurrent PUTs to the same repo would otherwise each write a merge of the state they read. lore.repos.settings is JSONB. */
+async function writeSettings(write: SettingsWrite): Promise<ResponseObject> {
+  const { pool, h } = write;
+  const client = await pool.connect();
 
-  return h.response({ ok: true, applied: applied.next, ceremony });
+  try {
+    return await applyUnderLock(client, write);
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[dark-factory] PUT settings failed:", err);
+
+    return h.response({ error: "internal" }).code(500);
+  } finally {
+    client.release();
+  }
 }
 
 /** The transaction itself. The row is SELECTed `FOR UPDATE` because the patch is a merge of what was read: two concurrent PUTs to one repo would otherwise each write a merge of the state they saw, and the later write would silently drop the earlier one's fields. */
@@ -285,21 +255,34 @@ async function applyUnderLock(
   return await committedResponse(write, applied);
 }
 
-/** Read current, merge patch, write back, audit — under one row lock, because two concurrent PUTs to the same repo would otherwise each write a merge of the state they read. lore.repos.settings is JSONB. */
-async function writeSettings(write: SettingsWrite): Promise<ResponseObject> {
-  const { pool, h } = write;
-  const client = await pool.connect();
+/** A repo with no row is not onboarded; the transaction is unwound before answering so the connection goes back clean. */
+async function rollbackNotOnboarded(
+  client: PoolClient,
+  h: ResponseToolkit,
+  repo: string,
+): Promise<ResponseObject> {
+  await client.query("ROLLBACK");
 
-  try {
-    return await applyUnderLock(client, write);
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    console.error("[dark-factory] PUT settings failed:", err);
+  return h.response({ error: "repo not onboarded", repo }).code(404);
+}
 
-    return h.response({ error: "internal" }).code(500);
-  } finally {
-    client.release();
-  }
+/** The write and its audit row, in that order and inside the same transaction. Both or neither: a settings change with no audit entry is exactly the thing the dark-factory rollback runbook cannot reconstruct. */
+async function writeAndAudit(
+  client: PoolClient,
+  write: SettingsWrite,
+  applied: ReturnType<typeof applyPatch>,
+): Promise<void> {
+  await client.query(
+    `UPDATE lore.repos SET settings = $1 WHERE full_name = $2`,
+    [applied.settings, write.repo],
+  );
+  await auditChange(client, write, {
+    prev: applied.prev,
+    next: {
+      dark_factory: applied.next,
+      task_overrides: applied.settings.task_overrides,
+    },
+  });
 }
 
 /** The FR3.9 audit entry. Best-effort: a settings change the caller authorized must not fail because its own record could not be written. */
@@ -323,6 +306,23 @@ async function auditChange(
   await client
     .query(insert, [write.repo, JSON.stringify(payload)])
     .catch(() => {});
+}
+
+/** What the caller sees once the change is durable, plus the baseline snapshot — taken AFTER the commit because it reads counters, and holding the row lock through it would serialize unrelated writes. */
+async function committedResponse(
+  write: SettingsWrite,
+  applied: ReturnType<typeof applyPatch>,
+): Promise<ResponseObject> {
+  const { pool, repo, h, ceremony } = write;
+
+  await captureBaselineIfEnabling(
+    repo,
+    pool,
+    applied.prev.dark_factory,
+    applied.next,
+  );
+
+  return h.response({ ok: true, applied: applied.next, ceremony });
 }
 
 /** The pre-enablement snapshot SC1/SC4/SC6 measure against (#1353), taken here because this write is the only moment that knows dark mode is being turned ON — a snapshot taken later compares the repo against itself. After COMMIT and best-effort: a failed snapshot must neither roll the change back nor 500 it. */

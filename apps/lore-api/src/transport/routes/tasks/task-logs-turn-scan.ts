@@ -60,10 +60,35 @@ function cursorMismatches(match: CursorMatch): boolean {
   return BigInt(match.afterId) > PG_BIGINT_MAX;
 }
 
+interface TurnScanState {
+  consumed: number;
+  boundaryId: string;
+  boundaryChars: number;
+  slice: string;
+  mustValidateResume: boolean;
+}
+
+type TurnRow = Awaited<
+  ReturnType<AgentRunTurnsRepository["listByTask"]>
+>[number];
+
 interface TurnScanStart {
   state: TurnScanState;
   afterId: string;
   sawTurns: boolean;
+}
+
+// Flattens turns to the UTF-16 slice [offset, offset+LOG_SLICE_MAX); `resume` seeks straight to the previous cursor's row boundary instead of re-paging the whole prefix (#1307) — a stale/forged offset past the boundary falls back to a full rescan from row id 0, while an at-boundary cursor is trusted as-is (bearer-scoped, so a forged skip only affects the forger's own read); a rewind below the boundary self-heals the same way.
+export async function readTurnSlice(
+  turns: AgentRunTurnsRepository,
+  taskId: string,
+  offset: number,
+  resume: TurnResume | null,
+): Promise<TurnSlice> {
+  const scan = initTurnScanState(resume, offset);
+  const walked = await walkTurnPages(turns, { taskId, offset }, scan);
+
+  return walked ?? readTurnSlice(turns, taskId, offset, null);
 }
 
 // Seeds the scan state from a validated resume cursor, or from scratch.
@@ -85,76 +110,6 @@ function initTurnScanState(
     afterId,
     sawTurns: resume !== null,
   };
-}
-
-function turnSliceResult(
-  taskId: string,
-  state: TurnScanState,
-  { hasMore, sawTurns }: { hasMore: boolean; sawTurns: boolean },
-): TurnSlice {
-  return {
-    slice: state.slice,
-    hasMore,
-    sawTurns,
-    cursor: `${taskId}:${state.boundaryId}:${state.boundaryChars}`,
-  };
-}
-
-type TurnScanStep =
-  | { kind: "restart" }
-  | { kind: "done"; result: TurnSlice }
-  | { kind: "continue"; afterId: string };
-
-interface TurnScanPageContext {
-  taskId: string;
-  offset: number;
-  sawTurns: boolean;
-}
-
-// The terminal step, carrying the slice the scan accumulated; `sliced` says the budget ran out mid-row, which is what "there is more" means here.
-function scanDone(
-  state: TurnScanState,
-  context: TurnScanPageContext,
-  { sliced }: { sliced: boolean },
-): TurnScanStep {
-  return {
-    kind: "done",
-    result: turnSliceResult(context.taskId, state, {
-      hasMore: sliced,
-      sawTurns: context.sawTurns,
-    }),
-  };
-}
-
-// Folds one fetched page into the scan, deciding whether the walk restarts, finishes, or continues.
-function stepTurnScan(
-  state: TurnScanState,
-  page: Awaited<ReturnType<AgentRunTurnsRepository["listByTask"]>>,
-  context: TurnScanPageContext,
-): TurnScanStep {
-  if (state.mustValidateResume && page.length === 0) {
-    return { kind: "restart" };
-  }
-  const outcome = consumeTurnPage(state, page, context.offset);
-
-  if (outcome === "restart") {
-    return { kind: "restart" };
-  }
-
-  if (outcome === "sliced" || page.length < TURNS_PAGE_SIZE) {
-    return scanDone(state, context, { sliced: outcome === "sliced" });
-  }
-
-  return { kind: "continue", afterId: nextPageAfterId(page, state) };
-}
-
-function nextPageAfterId(
-  page: Awaited<ReturnType<AgentRunTurnsRepository["listByTask"]>>,
-  state: TurnScanState,
-): string {
-  const last = page.at(-1);
-
-  return last ? last.id : state.boundaryId;
 }
 
 // Pages forward until the scan finishes; `null` means the resume cursor proved stale and the whole walk has to start over from row id 0.
@@ -180,34 +135,80 @@ async function walkTurnPages(
   }
 }
 
-// Flattens turns to the UTF-16 slice [offset, offset+LOG_SLICE_MAX); `resume` seeks straight to the previous cursor's row boundary instead of re-paging the whole prefix (#1307) — a stale/forged offset past the boundary falls back to a full rescan from row id 0, while an at-boundary cursor is trusted as-is (bearer-scoped, so a forged skip only affects the forger's own read); a rewind below the boundary self-heals the same way.
-export async function readTurnSlice(
-  turns: AgentRunTurnsRepository,
-  taskId: string,
+type TurnScanStep =
+  | { kind: "restart" }
+  | { kind: "done"; result: TurnSlice }
+  | { kind: "continue"; afterId: string };
+
+interface TurnScanPageContext {
+  taskId: string;
+  offset: number;
+  sawTurns: boolean;
+}
+
+// Folds one fetched page into the scan, deciding whether the walk restarts, finishes, or continues.
+function stepTurnScan(
+  state: TurnScanState,
+  page: Awaited<ReturnType<AgentRunTurnsRepository["listByTask"]>>,
+  context: TurnScanPageContext,
+): TurnScanStep {
+  if (state.mustValidateResume && page.length === 0) {
+    return { kind: "restart" };
+  }
+  const outcome = consumeTurnPage(state, page, context.offset);
+
+  if (outcome === "restart") {
+    return { kind: "restart" };
+  }
+
+  if (outcome === "sliced" || page.length < TURNS_PAGE_SIZE) {
+    return scanDone(state, context, { sliced: outcome === "sliced" });
+  }
+
+  return { kind: "continue", afterId: nextPageAfterId(page, state) };
+}
+
+// Folds one page into the scan state: "restart" when the resume cursor proves stale, "sliced" when the slice budget is exhausted mid-page, else null.
+function consumeTurnPage(
+  state: TurnScanState,
+  page: Awaited<ReturnType<AgentRunTurnsRepository["listByTask"]>>,
   offset: number,
-  resume: TurnResume | null,
-): Promise<TurnSlice> {
-  const scan = initTurnScanState(resume, offset);
-  const walked = await walkTurnPages(turns, { taskId, offset }, scan);
+): "restart" | "sliced" | null {
+  for (const row of page) {
+    const outcome = consumeTurnRow(state, row, offset);
 
-  return walked ?? readTurnSlice(turns, taskId, offset, null);
+    if (outcome) {
+      return outcome;
+    }
+  }
+
+  return null;
 }
 
-interface TurnScanState {
-  consumed: number;
-  boundaryId: string;
-  boundaryChars: number;
-  slice: string;
-  mustValidateResume: boolean;
-}
+// Folds one row into the scan state: "restart" when the resume cursor proves stale, "sliced" when the slice budget is exhausted mid-row, else null.
+function consumeTurnRow(
+  state: TurnScanState,
+  row: TurnRow,
+  offset: number,
+): "restart" | "sliced" | null {
+  if (state.slice.length >= LOG_SLICE_MAX) {
+    return "sliced";
+  }
+  const line = `${JSON.stringify(row.envelope)}\n`;
+  const lineEndsBeforeOffset = state.consumed + line.length <= offset;
 
-type TurnRow = Awaited<
-  ReturnType<AgentRunTurnsRepository["listByTask"]>
->[number];
+  if (state.mustValidateResume && lineEndsBeforeOffset) {
+    return "restart";
+  }
+  state.mustValidateResume = false;
 
-function advanceBoundary(state: TurnScanState, row: TurnRow): void {
-  state.boundaryId = row.id;
-  state.boundaryChars = state.consumed;
+  if (lineEndsBeforeOffset) {
+    skipRowBeforeOffset(state, row, line);
+
+    return null;
+  }
+
+  return appendRowToSlice(state, row, line, offset);
 }
 
 // Consumes one row already known to end at or before the offset — advances past it without adding to the slice.
@@ -244,45 +245,44 @@ function appendRowToSlice(
   return null;
 }
 
-// Folds one row into the scan state: "restart" when the resume cursor proves stale, "sliced" when the slice budget is exhausted mid-row, else null.
-function consumeTurnRow(
-  state: TurnScanState,
-  row: TurnRow,
-  offset: number,
-): "restart" | "sliced" | null {
-  if (state.slice.length >= LOG_SLICE_MAX) {
-    return "sliced";
-  }
-  const line = `${JSON.stringify(row.envelope)}\n`;
-  const lineEndsBeforeOffset = state.consumed + line.length <= offset;
-
-  if (state.mustValidateResume && lineEndsBeforeOffset) {
-    return "restart";
-  }
-  state.mustValidateResume = false;
-
-  if (lineEndsBeforeOffset) {
-    skipRowBeforeOffset(state, row, line);
-
-    return null;
-  }
-
-  return appendRowToSlice(state, row, line, offset);
+function advanceBoundary(state: TurnScanState, row: TurnRow): void {
+  state.boundaryId = row.id;
+  state.boundaryChars = state.consumed;
 }
 
-// Folds one page into the scan state: "restart" when the resume cursor proves stale, "sliced" when the slice budget is exhausted mid-page, else null.
-function consumeTurnPage(
+// The terminal step, carrying the slice the scan accumulated; `sliced` says the budget ran out mid-row, which is what "there is more" means here.
+function scanDone(
   state: TurnScanState,
+  context: TurnScanPageContext,
+  { sliced }: { sliced: boolean },
+): TurnScanStep {
+  return {
+    kind: "done",
+    result: turnSliceResult(context.taskId, state, {
+      hasMore: sliced,
+      sawTurns: context.sawTurns,
+    }),
+  };
+}
+
+function turnSliceResult(
+  taskId: string,
+  state: TurnScanState,
+  { hasMore, sawTurns }: { hasMore: boolean; sawTurns: boolean },
+): TurnSlice {
+  return {
+    slice: state.slice,
+    hasMore,
+    sawTurns,
+    cursor: `${taskId}:${state.boundaryId}:${state.boundaryChars}`,
+  };
+}
+
+function nextPageAfterId(
   page: Awaited<ReturnType<AgentRunTurnsRepository["listByTask"]>>,
-  offset: number,
-): "restart" | "sliced" | null {
-  for (const row of page) {
-    const outcome = consumeTurnRow(state, row, offset);
+  state: TurnScanState,
+): string {
+  const last = page.at(-1);
 
-    if (outcome) {
-      return outcome;
-    }
-  }
-
-  return null;
+  return last ? last.id : state.boundaryId;
 }

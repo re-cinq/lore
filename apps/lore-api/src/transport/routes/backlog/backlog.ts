@@ -46,12 +46,52 @@ export function implementationLoopRoutes(
   return [readBacklogRoute(getPool), writeBacklogRoute(getPool)];
 }
 
-function resolveEnabled(settings: Record<string, unknown> | null): boolean {
-  const loop = (
-    settings as { implementation_loop?: { enabled?: unknown } } | null
-  )?.implementation_loop;
+function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: PATH,
+    options: zodResponse(bearerScope("read"), ImplementationLoopSchema, {
+      name: "ImplementationLoop",
+      description:
+        "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
+    }),
+    handler: withPool(getPool, serveReadBacklog),
+  };
+}
 
-  return loop?.enabled === true;
+function writeBacklogRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "PUT",
+    path: PATH,
+    options: zodResponse(
+      {
+        ...bearerScope("admin"),
+        validate: { payload: zodValidate(ToggleBodySchema) },
+      },
+      ToggleResultSchema,
+      {
+        name: "ImplementationLoopToggle",
+        description: "Enable or disable the repo's backlog loop.",
+      },
+    ),
+    handler: withPool(getPool, serveToggleBacklog),
+  };
+}
+
+async function serveReadBacklog(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const state = await loadBacklogState(pool, repoOf(request.params));
+
+  return h
+    .response({
+      enabled: state.enabled,
+      current_run_id: state.currentRunId,
+      ...projectBacklog(state),
+    })
+    .code(200);
 }
 
 type OpenIssues = Parameters<typeof taskTicket>[1];
@@ -67,36 +107,6 @@ interface BacklogState {
 }
 
 /** Everything the view needs, read in one place: the toggle, the loop's task rows, the repo's open issues, and the run each task belongs to. */
-/** The loop's own tasks, newest first. TWICE the display cap is read: the open ones are filtered out to build the "recent" list, and without the headroom a repo with several in flight would show a short one. */
-async function readLoopTasks(pool: Pool, repo: string): Promise<LoopTaskRow[]> {
-  const { rows } = await pool.query<LoopTaskRow>(
-    `SELECT ${selectList(LOOP_TASK_COLUMNS)}
-           FROM pipeline.tasks
-          WHERE target_repo = $1 AND task_type = 'implementation-loop'
-          ORDER BY created_at DESC
-          LIMIT ${RECENT_LIMIT * 2}`,
-    [repo],
-  );
-
-  return rows;
-}
-
-/** The run driving this repo's backlog, if one is open. Keyed on the `backlog` subject rather than on a task, because the driver run outlives any single ticket it works. */
-async function readCurrentRunId(
-  pool: Pool,
-  repo: string,
-): Promise<string | null> {
-  const { rows } = await pool.query<{ id: string }>(
-    `SELECT id FROM pipeline.assembly_runs
-          WHERE repo = $1 AND subject_key = 'backlog'
-            AND status IN ('queued', 'running')
-          ORDER BY created_at DESC LIMIT 1`,
-    [repo],
-  );
-
-  return rows[0]?.id ?? null;
-}
-
 async function loadBacklogState(
   pool: Pool,
   repo: string,
@@ -127,10 +137,48 @@ async function readRepoSettings(
   return rows[0].settings;
 }
 
+/** The loop's own tasks, newest first. TWICE the display cap is read: the open ones are filtered out to build the "recent" list, and without the headroom a repo with several in flight would show a short one. */
+async function readLoopTasks(pool: Pool, repo: string): Promise<LoopTaskRow[]> {
+  const { rows } = await pool.query<LoopTaskRow>(
+    `SELECT ${selectList(LOOP_TASK_COLUMNS)}
+           FROM pipeline.tasks
+          WHERE target_repo = $1 AND task_type = 'implementation-loop'
+          ORDER BY created_at DESC
+          LIMIT ${RECENT_LIMIT * 2}`,
+    [repo],
+  );
+
+  return rows;
+}
+
+function resolveEnabled(settings: Record<string, unknown> | null): boolean {
+  const loop = (
+    settings as { implementation_loop?: { enabled?: unknown } } | null
+  )?.implementation_loop;
+
+  return loop?.enabled === true;
+}
+
 async function readOpenIssues(repo: string): Promise<OpenIssues> {
   const project = await projectFor(repo);
 
   return project.issues.list({ state: "open" });
+}
+
+/** The run driving this repo's backlog, if one is open. Keyed on the `backlog` subject rather than on a task, because the driver run outlives any single ticket it works. */
+async function readCurrentRunId(
+  pool: Pool,
+  repo: string,
+): Promise<string | null> {
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id FROM pipeline.assembly_runs
+          WHERE repo = $1 AND subject_key = 'backlog'
+            AND status IN ('queued', 'running')
+          ORDER BY created_at DESC LIMIT 1`,
+    [repo],
+  );
+
+  return rows[0]?.id ?? null;
 }
 
 // Last, and in this order: the node read is scoped to the task ids above, and the run lookup shares its cursor.
@@ -147,6 +195,35 @@ async function readRunIndex(
     runByTask: new Map(taskRuns.map((r) => [r.task_id, r] as const)),
     nodeRows,
   };
+}
+
+function projectBacklog(state: BacklogState): {
+  current: Ticket | null;
+  next: unknown[];
+  recent: Ticket[];
+} {
+  const { taskRows, openIssues } = state;
+  const currentRow = taskRows.find((t) =>
+    (OPEN_TASK_STATES as readonly string[]).includes(t.status),
+  );
+
+  return {
+    current: currentTicket(state, currentRow),
+    next: nextTickets(openIssues, taskRows),
+    recent: recentTickets(state, currentRow),
+  };
+}
+
+/** The ticket being worked right now, if any. */
+function currentTicket(
+  state: BacklogState,
+  currentRow: LoopTaskRow | undefined,
+): Ticket | null {
+  const { openIssues, runByTask, nodeRows } = state;
+
+  return currentRow
+    ? taskTicket(currentRow, openIssues, runByTask.get(currentRow.id), nodeRows)
+    : null;
 }
 
 /** What is queued behind the current work. Issues whose task is neither failed nor cancelled are EXCLUDED — this mirrors the driver's own eligibility guard, and without it an issue already being worked appeared as "next up" and in "recent" at the same time. */
@@ -194,62 +271,21 @@ function recentTickets(state: BacklogState, currentRow: unknown): Ticket[] {
     .filter((t): t is Ticket => t !== null);
 }
 
-function projectBacklog(state: BacklogState): {
-  current: Ticket | null;
-  next: unknown[];
-  recent: Ticket[];
-} {
-  const { taskRows, openIssues } = state;
-  const currentRow = taskRows.find((t) =>
-    (OPEN_TASK_STATES as readonly string[]).includes(t.status),
-  );
-
-  return {
-    current: currentTicket(state, currentRow),
-    next: nextTickets(openIssues, taskRows),
-    recent: recentTickets(state, currentRow),
-  };
-}
-
-/** The ticket being worked right now, if any. */
-function currentTicket(
-  state: BacklogState,
-  currentRow: LoopTaskRow | undefined,
-): Ticket | null {
-  const { openIssues, runByTask, nodeRows } = state;
-
-  return currentRow
-    ? taskTicket(currentRow, openIssues, runByTask.get(currentRow.id), nodeRows)
-    : null;
-}
-
-function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: PATH,
-    options: zodResponse(bearerScope("read"), ImplementationLoopSchema, {
-      name: "ImplementationLoop",
-      description:
-        "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
-    }),
-    handler: withPool(getPool, serveReadBacklog),
-  };
-}
-
-async function serveReadBacklog(
+async function serveToggleBacklog(
   pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const state = await loadBacklogState(pool, repoOf(request.params));
+  const repo = repoOf(request.params);
+  const { enabled } = request.payload as { enabled: boolean };
 
-  return h
-    .response({
-      enabled: state.enabled,
-      current_run_id: state.currentRunId,
-      ...projectBacklog(state),
-    })
-    .code(200);
+  await setLoopEnabled(pool, repo, { enabled });
+
+  if (enabled) {
+    await seedBacklogLabels(repo);
+  }
+
+  return h.response({ ok: true as const, enabled }).code(200);
 }
 
 /** Flips the loop's `enabled` flag. The UPDATE merges rather than replaces at BOTH levels — the repo's other settings and the loop's own other keys must survive a toggle. */
@@ -284,40 +320,4 @@ async function seedBacklogLabels(repo: string): Promise<void> {
       `[implementation-loop] label seeding for ${repo} failed: ${String(err)}`,
     );
   }
-}
-
-function writeBacklogRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "PUT",
-    path: PATH,
-    options: zodResponse(
-      {
-        ...bearerScope("admin"),
-        validate: { payload: zodValidate(ToggleBodySchema) },
-      },
-      ToggleResultSchema,
-      {
-        name: "ImplementationLoopToggle",
-        description: "Enable or disable the repo's backlog loop.",
-      },
-    ),
-    handler: withPool(getPool, serveToggleBacklog),
-  };
-}
-
-async function serveToggleBacklog(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const repo = repoOf(request.params);
-  const { enabled } = request.payload as { enabled: boolean };
-
-  await setLoopEnabled(pool, repo, { enabled });
-
-  if (enabled) {
-    await seedBacklogLabels(repo);
-  }
-
-  return h.response({ ok: true as const, enabled }).code(200);
 }

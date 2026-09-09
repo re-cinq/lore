@@ -33,21 +33,6 @@ const ReembedResultSchema = z.object({
   stopped: z.boolean(),
 });
 
-async function serveReembed(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const { schema, limit, where } = request.payload as ReembedBody;
-  const result = await backfillEmbeddings(pool, getQueryEmbedding, {
-    schema,
-    limit,
-    where,
-  });
-
-  return h.response(result);
-}
-
 export function reembedRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -67,4 +52,19 @@ export function reembedRoute(getPool: () => Pool | null): ServerRoute {
     ),
     handler: withPool(getPool, serveReembed),
   };
+}
+
+async function serveReembed(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const { schema, limit, where } = request.payload as ReembedBody;
+  const result = await backfillEmbeddings(pool, getQueryEmbedding, {
+    schema,
+    limit,
+    where,
+  });
+
+  return h.response(result);
 }

@@ -16,27 +16,17 @@ import { bearerScope } from "../../http/bearer-scope.js";
 /** The stored event params, verbatim — shape varies by event name. */
 const EventPayloadSchema = z.record(z.string(), z.unknown());
 
-/** Reads one event's stored payload, refusing when the row belongs to another repo. */
-async function readEventPayload(
-  pool: Pool,
-  id: string,
-  repo: string,
-): Promise<object> {
-  const { rows } = await pool.query(
-    `SELECT params->'payload' AS payload, repo
-       FROM pipeline.events
-      WHERE id = $1`,
-    [id],
-  );
-  const row = rows[0] as { payload: unknown; repo: string | null } | undefined;
-
-  enforceTrue(
-    row && row.payload != null && row.repo === repo,
-    apiError(404),
-    "not found",
-  );
-
-  return row.payload as object;
+export function eventPayloadRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/events/{id}/payload",
+    options: zodResponse(bearerScope("read"), EventPayloadSchema, {
+      name: "EventPayload",
+      description: "One event's stored params",
+      errors: [404],
+    }),
+    handler: (request, h) => serveEventPayload(getPool, request, h),
+  };
 }
 
 /** The body of one scheduling event, fetched BY REFERENCE: an ingest pod is handed an event id rather than a payload, so a large report never rides through the dispatch. */
@@ -60,15 +50,25 @@ async function serveEventPayload(
   }
 }
 
-export function eventPayloadRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/events/{id}/payload",
-    options: zodResponse(bearerScope("read"), EventPayloadSchema, {
-      name: "EventPayload",
-      description: "One event's stored params",
-      errors: [404],
-    }),
-    handler: (request, h) => serveEventPayload(getPool, request, h),
-  };
+/** Reads one event's stored payload, refusing when the row belongs to another repo. */
+async function readEventPayload(
+  pool: Pool,
+  id: string,
+  repo: string,
+): Promise<object> {
+  const { rows } = await pool.query(
+    `SELECT params->'payload' AS payload, repo
+       FROM pipeline.events
+      WHERE id = $1`,
+    [id],
+  );
+  const row = rows[0] as { payload: unknown; repo: string | null } | undefined;
+
+  enforceTrue(
+    row && row.payload != null && row.repo === repo,
+    apiError(404),
+    "not found",
+  );
+
+  return row.payload as object;
 }

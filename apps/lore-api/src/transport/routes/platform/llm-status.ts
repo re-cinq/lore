@@ -79,6 +79,19 @@ const RECENT_FAILURES_SQL = `
 /** Postgres "undefined column" — a database that predates migration 0042. */
 const UNDEFINED_COLUMN = "42703";
 
+export function llmStatusRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/platform/llm-status",
+    options: zodResponse(bearerScope("read"), LlmStatusSchema, {
+      name: "PlatformLlmStatus",
+      description:
+        "Whether an account-wide LLM outage is degrading the factory",
+    }),
+    handler: (_request, h) => serveLlmStatus(getPool, h),
+  };
+}
+
 /** Whether an account-wide LLM outage is degrading the factory right now. */
 async function serveLlmStatus(
   getPool: () => Pool | null,
@@ -100,17 +113,4 @@ async function serveLlmStatus(
 
     throw err;
   }
-}
-
-export function llmStatusRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/platform/llm-status",
-    options: zodResponse(bearerScope("read"), LlmStatusSchema, {
-      name: "PlatformLlmStatus",
-      description:
-        "Whether an account-wide LLM outage is degrading the factory",
-    }),
-    handler: (_request, h) => serveLlmStatus(getPool, h),
-  };
 }

@@ -50,6 +50,26 @@ const OnboardResultSchema = z.union([
   }),
 ]);
 
+export function onboardRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/onboard",
+    options: zodResponse(
+      {
+        ...bearerScope("admin"),
+        validate: { payload: zodValidate(OnboardBody) },
+      },
+      OnboardResultSchema,
+      {
+        name: "OnboardResult",
+        description: "The queued onboarding, or the block that refused it",
+        errors: [400, 409],
+      },
+    ),
+    handler: withPool(getPool, serveOnboard),
+  };
+}
+
 /** Queues a repo's onboarding, or reports the block that refused it. Duplicate protection lives here rather than on the trust ladder — onboarding is allowed at every tier, but only once. */
 async function serveOnboard(
   pool: Pool,
@@ -69,24 +89,4 @@ async function serveOnboard(
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
-}
-
-export function onboardRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/onboard",
-    options: zodResponse(
-      {
-        ...bearerScope("admin"),
-        validate: { payload: zodValidate(OnboardBody) },
-      },
-      OnboardResultSchema,
-      {
-        name: "OnboardResult",
-        description: "The queued onboarding, or the block that refused it",
-        errors: [400, 409],
-      },
-    ),
-    handler: withPool(getPool, serveOnboard),
-  };
 }

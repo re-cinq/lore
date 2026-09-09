@@ -39,18 +39,6 @@ type ReadyQuery = z.infer<typeof ReadyQuery>;
 type ClaimBody = z.infer<typeof ClaimBody>;
 type CompleteBody = z.infer<typeof CompleteBody>;
 
-/** Every operation in the DAG answers a failure the same way: a 500 carrying the message, because the MCP tools on the other end report it verbatim to the developer. */
-async function respondOr500(
-  h: ResponseToolkit,
-  read: () => Promise<object>,
-): Promise<ResponseObject> {
-  try {
-    return h.response(await read());
-  } catch (err) {
-    return h.response({ error: errorMessage(err) }).code(500);
-  }
-}
-
 /** How many spec tasks the sync parsed, upserted and newly created. */
 const SpecSyncSchema = z.object({
   parsed: z.number(),
@@ -208,4 +196,16 @@ async function serveSpecTaskComplete(
   const { task_id } = request.payload as CompleteBody;
 
   return respondOr500(h, () => completeTask(pool, task_id));
+}
+
+/** Every operation in the DAG answers a failure the same way: a 500 carrying the message, because the MCP tools on the other end report it verbatim to the developer. */
+async function respondOr500(
+  h: ResponseToolkit,
+  read: () => Promise<object>,
+): Promise<ResponseObject> {
+  try {
+    return h.response(await read());
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
 }

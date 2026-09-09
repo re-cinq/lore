@@ -29,24 +29,6 @@ const PruneResultSchema = z.object({
   deleted_chunks: z.number(),
 });
 
-async function servePrune(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const { present_paths, ref } = request.payload as PruneBody;
-  const repo = `${request.params.owner}/${request.params.repo}`;
-
-  if (present_paths) {
-    return h.response(await pruneOrphanChunks(pool, repo, present_paths));
-  }
-  const reconciled = await reconcileOrphanChunks(pool, repo, ref);
-
-  return reconciled
-    ? h.response(reconciled)
-    : h.response({ error: `could not read the tree for ${repo}` }).code(502);
-}
-
 // A large repo's tracked-path list outgrows the 1MB server default: ~40k paths at 25 bytes each.
 const PRUNE_OPTIONS = {
   ...bearerScope("write"),
@@ -66,4 +48,22 @@ export function chunksPruneRoute(getPool: () => Pool | null): ServerRoute {
     }),
     handler: withPool(getPool, servePrune),
   };
+}
+
+async function servePrune(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const { present_paths, ref } = request.payload as PruneBody;
+  const repo = `${request.params.owner}/${request.params.repo}`;
+
+  if (present_paths) {
+    return h.response(await pruneOrphanChunks(pool, repo, present_paths));
+  }
+  const reconciled = await reconcileOrphanChunks(pool, repo, ref);
+
+  return reconciled
+    ? h.response(reconciled)
+    : h.response({ error: `could not read the tree for ${repo}` }).code(502);
 }

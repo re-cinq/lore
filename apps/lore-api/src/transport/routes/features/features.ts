@@ -82,6 +82,19 @@ function getFeatureRoute(): ServerRoute {
   };
 }
 
+/** GET .../features/:id/status — the wizard's 4s poll; gap_result too big to re-send often. */
+function featureStatusRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: `${BASE}/{id}/status`,
+    options: zodResponse(bearerScope("read"), FeaturePollSchema, {
+      name: "FeaturePoll",
+      errors: [404],
+    }),
+    handler: (request, h) => run(h, () => featurePoll(request, h)),
+  };
+}
+
 /** The poll payload: the feature row, its latest iteration, and the run the wizard's graph hangs on. */
 async function featurePoll(request: Request, h: ResponseToolkit) {
   const project = await projectFor(repoOf(request.params));
@@ -100,16 +113,16 @@ async function featurePoll(request: Request, h: ResponseToolkit) {
   });
 }
 
-/** GET .../features/:id/status — the wizard's 4s poll; gap_result too big to re-send often. */
-function featureStatusRoute(): ServerRoute {
+/** GET .../features/:id/decomposition — the spec-tasks the merged spec became. */
+function featureDecompositionRoute(): ServerRoute {
   return {
     method: "GET",
-    path: `${BASE}/{id}/status`,
-    options: zodResponse(bearerScope("read"), FeaturePollSchema, {
-      name: "FeaturePoll",
+    path: `${BASE}/{id}/decomposition`,
+    options: zodResponse(bearerScope("read"), FeatureDecompositionSchema, {
+      name: "FeatureDecomposition",
       errors: [404],
     }),
-    handler: (request, h) => run(h, () => featurePoll(request, h)),
+    handler: (request, h) => run(h, () => featureDecomposition(request, h)),
   };
 }
 
@@ -127,19 +140,6 @@ async function featureDecomposition(request: Request, h: ResponseToolkit) {
   return h.response({
     tasks: await project.tasks.specTasksForFeature(request.params.id),
   });
-}
-
-/** GET .../features/:id/decomposition — the spec-tasks the merged spec became. */
-function featureDecompositionRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: `${BASE}/{id}/decomposition`,
-    options: zodResponse(bearerScope("read"), FeatureDecompositionSchema, {
-      name: "FeatureDecomposition",
-      errors: [404],
-    }),
-    handler: (request, h) => run(h, () => featureDecomposition(request, h)),
-  };
 }
 
 /** DELETE .../features/:id — remove the feature + its iterations (CASCADE). */

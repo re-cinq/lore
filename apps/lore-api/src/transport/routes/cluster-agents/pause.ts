@@ -29,45 +29,6 @@ export interface PauseDeps {
   agents: Pick<ClusterAgentsRepository, "setPaused">;
 }
 
-/** The handler core, injectable for tests. */
-export async function handleSetPaused(
-  deps: PauseDeps,
-  id: string,
-  body: PauseBody,
-): Promise<
-  | { code: 200; body: z.infer<typeof PauseResponse> }
-  | { code: 404; body: { error: string } }
-> {
-  const agent = await deps.agents.setPaused(
-    id,
-    body.paused ? "paused" : "running",
-  );
-
-  if (!agent) {
-    return { code: 404, body: { error: "cluster agent not found" } };
-  }
-
-  return {
-    code: 200,
-    body: { id: agent.id, name: agent.name, paused: agent.paused },
-  };
-}
-
-/** Pauses or resumes one cluster-agent. A paused agent keeps heartbeating — it is still healthy, just not claiming — so its runs are not reaped out from under it. */
-async function servePause(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const result = await handleSetPaused(
-    { agents: new PgClusterAgents(pool) },
-    request.params.id,
-    request.payload as PauseBody,
-  );
-
-  return h.response(result.body).code(result.code);
-}
-
 const PAUSE_OPTIONS = zodResponse(
   {
     ...bearerScope("write"),
@@ -90,5 +51,44 @@ export function clusterAgentPauseRoute(
     path: "/api/cluster-agents/{id}/paused",
     options: PAUSE_OPTIONS,
     handler: withPool(getPool, servePause),
+  };
+}
+
+/** Pauses or resumes one cluster-agent. A paused agent keeps heartbeating — it is still healthy, just not claiming — so its runs are not reaped out from under it. */
+async function servePause(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const result = await handleSetPaused(
+    { agents: new PgClusterAgents(pool) },
+    request.params.id,
+    request.payload as PauseBody,
+  );
+
+  return h.response(result.body).code(result.code);
+}
+
+/** The handler core, injectable for tests. */
+export async function handleSetPaused(
+  deps: PauseDeps,
+  id: string,
+  body: PauseBody,
+): Promise<
+  | { code: 200; body: z.infer<typeof PauseResponse> }
+  | { code: 404; body: { error: string } }
+> {
+  const agent = await deps.agents.setPaused(
+    id,
+    body.paused ? "paused" : "running",
+  );
+
+  if (!agent) {
+    return { code: 404, body: { error: "cluster agent not found" } };
+  }
+
+  return {
+    code: 200,
+    body: { id: agent.id, name: agent.name, paused: agent.paused },
   };
 }

@@ -11,28 +11,6 @@ interface DelegateContext {
 
 const SPEC_FILES = [".specify/spec.md", ".specify/constitution.md"];
 
-function pipelineTaskSection(taskId?: string): string | null {
-  return taskId ? `## Pipeline task\nTask ID: ${taskId}` : null;
-}
-
-function specFileLabel(file: string): string {
-  return file.includes("spec") ? "Spec" : "Constitution";
-}
-
-function specFileSections(): string[] {
-  return SPEC_FILES.filter((file) => existsSync(file)).map(
-    (file) => `## ${specFileLabel(file)}\n${readFileSync(file, "utf8")}`,
-  );
-}
-
-function seedQuerySection(seedQuery?: string): string | null {
-  return seedQuery ? `## Seed query\n${seedQuery}` : null;
-}
-
-function branchSection(branch?: string): string | null {
-  return branch ? `## Branch\n${branch}` : null;
-}
-
 export async function buildContextBundle(
   context?: DelegateContext,
 ): Promise<string> {
@@ -47,4 +25,26 @@ export async function buildContextBundle(
   return parts
     .filter((part): part is string => part !== null)
     .join("\n\n---\n\n");
+}
+
+function pipelineTaskSection(taskId?: string): string | null {
+  return taskId ? `## Pipeline task\nTask ID: ${taskId}` : null;
+}
+
+function specFileSections(): string[] {
+  return SPEC_FILES.filter((file) => existsSync(file)).map(
+    (file) => `## ${specFileLabel(file)}\n${readFileSync(file, "utf8")}`,
+  );
+}
+
+function specFileLabel(file: string): string {
+  return file.includes("spec") ? "Spec" : "Constitution";
+}
+
+function seedQuerySection(seedQuery?: string): string | null {
+  return seedQuery ? `## Seed query\n${seedQuery}` : null;
+}
+
+function branchSection(branch?: string): string | null {
+  return branch ? `## Branch\n${branch}` : null;
 }

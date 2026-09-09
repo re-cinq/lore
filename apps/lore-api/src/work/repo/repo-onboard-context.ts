@@ -11,11 +11,6 @@ export type { RepoContext };
 
 // ── Fetch repo context for onboarding agents ────────────────────────
 
-/** Decodes base64-encoded file content returned by the GitHub API. */
-function decodeContent(encoded: string): string {
-  return Buffer.from(encoded, "base64").toString("utf-8");
-}
-
 type Octokit = Awaited<ReturnType<typeof getOctokit>>;
 
 type ReposApi = Octokit["rest"]["repos"];
@@ -32,15 +27,23 @@ interface SampledRepoRef {
 
 type RepoFileEntry = { name: string; path: string; type: string };
 
-/** Extracts file content from a GitHub `getContent` response, or null for a dir/empty file. */
-function fileContentIfPresent(content: GetContentResult): string | null {
-  if (Array.isArray(content)) {
-    return null;
-  }
+/** Fetches repo context (tree, key files, source samples) for onboarding agents to understand tech stack. */
+export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
+  const [owner, repo] = fullName.split("/");
 
-  return content.type === "file" && content.content
-    ? decodeContent(content.content)
-    : null;
+  enforceTrue(
+    !(!owner || !repo),
+    Error,
+    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
+  );
+
+  const { rest } = await getOctokit();
+  const reposApi = rest.repos;
+  const tree = await fetchTopLevelTree(reposApi, owner, repo, fullName);
+  const files = await fetchKeyFiles(reposApi, owner, repo, fullName);
+  const samples = await fetchSamples(reposApi, owner, repo, fullName);
+
+  return { tree, files, samples };
 }
 
 async function fetchTopLevelTree(
@@ -66,6 +69,38 @@ async function fetchTopLevelTree(
   }
 }
 
+async function fetchKeyFiles(
+  reposApi: ReposApi,
+  owner: string,
+  repo: string,
+  fullName: string,
+): Promise<Record<string, string>> {
+  const files: Record<string, string> = {};
+  const ref = { owner, repo, fullName };
+
+  await Promise.all(
+    KEY_FILES.map(async (path) => {
+      const decoded = await fetchOptionalFile(reposApi, ref, path);
+
+      if (decoded) {
+        files[path] = decoded;
+      }
+    }),
+  );
+
+  return files;
+}
+
+async function fetchOptionalFile(
+  reposApi: ReposApi,
+  target: SampledRepoRef,
+  path: string,
+): Promise<string | null> {
+  const content = await getContentOrNull(reposApi, target, path);
+
+  return content ? fileContentIfPresent(content) : null;
+}
+
 /** A 404 is SILENT — most repos hold only some of these paths, and logging every absent one would bury the errors that matter. */
 async function getContentOrNull(
   reposApi: ReposApi,
@@ -89,80 +124,20 @@ async function getContentOrNull(
   }
 }
 
-async function fetchOptionalFile(
-  reposApi: ReposApi,
-  target: SampledRepoRef,
-  path: string,
-): Promise<string | null> {
-  const content = await getContentOrNull(reposApi, target, path);
-
-  return content ? fileContentIfPresent(content) : null;
-}
-
-async function fetchKeyFiles(
-  reposApi: ReposApi,
-  owner: string,
-  repo: string,
-  fullName: string,
-): Promise<Record<string, string>> {
-  const files: Record<string, string> = {};
-  const ref = { owner, repo, fullName };
-
-  await Promise.all(
-    KEY_FILES.map(async (path) => {
-      const decoded = await fetchOptionalFile(reposApi, ref, path);
-
-      if (decoded) {
-        files[path] = decoded;
-      }
-    }),
-  );
-
-  return files;
-}
-
-/** 200 lines is enough to read a repo's style, which is all a sample is for. */
-async function fetchSampleHead(
-  reposApi: ReposApi,
-  ref: SampledRepoRef,
-  path: string,
-): Promise<string | null> {
-  const full = await fetchOptionalFile(reposApi, ref, path);
-
-  return full ? full.split("\n").slice(0, 200).join("\n") : null;
-}
-
-/** Fills `samples` (up to 3 entries) with the first 200 lines of each listed file. */
-async function sampleSourceFiles(
-  reposApi: ReposApi,
-  ref: SampledRepoRef,
-  entries: RepoFileEntry[],
-  samples: Record<string, string>,
-): Promise<void> {
-  for (const entry of entries) {
-    if (Object.keys(samples).length >= 3) {
-      break;
-    }
-
-    const head = await fetchSampleHead(reposApi, ref, entry.path);
-
-    if (head) {
-      samples[entry.path] = head;
-    }
+/** Extracts file content from a GitHub `getContent` response, or null for a dir/empty file. */
+function fileContentIfPresent(content: GetContentResult): string | null {
+  if (Array.isArray(content)) {
+    return null;
   }
+
+  return content.type === "file" && content.content
+    ? decodeContent(content.content)
+    : null;
 }
 
-/** The files in one directory, or none. */
-async function listFilesIn(
-  reposApi: ReposApi,
-  target: SampledRepoRef,
-  dir: string,
-): Promise<RepoFileEntry[]> {
-  const content = await getContentOrNull(reposApi, target, dir);
-
-  return Array.isArray(content)
-    ? content.filter((entry) => entry.type === "file")
-    : [];
+/** Decodes base64-encoded file content returned by the GitHub API. */
+function decodeContent(encoded: string): string {
+  return Buffer.from(encoded, "base64").toString("utf-8");
 }
 
 async function fetchSamples(
@@ -187,21 +162,46 @@ async function fetchSamples(
   return samples;
 }
 
-/** Fetches repo context (tree, key files, source samples) for onboarding agents to understand tech stack. */
-export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
-  const [owner, repo] = fullName.split("/");
+/** The files in one directory, or none. */
+async function listFilesIn(
+  reposApi: ReposApi,
+  target: SampledRepoRef,
+  dir: string,
+): Promise<RepoFileEntry[]> {
+  const content = await getContentOrNull(reposApi, target, dir);
 
-  enforceTrue(
-    !(!owner || !repo),
-    Error,
-    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
-  );
+  return Array.isArray(content)
+    ? content.filter((entry) => entry.type === "file")
+    : [];
+}
 
-  const { rest } = await getOctokit();
-  const reposApi = rest.repos;
-  const tree = await fetchTopLevelTree(reposApi, owner, repo, fullName);
-  const files = await fetchKeyFiles(reposApi, owner, repo, fullName);
-  const samples = await fetchSamples(reposApi, owner, repo, fullName);
+/** Fills `samples` (up to 3 entries) with the first 200 lines of each listed file. */
+async function sampleSourceFiles(
+  reposApi: ReposApi,
+  ref: SampledRepoRef,
+  entries: RepoFileEntry[],
+  samples: Record<string, string>,
+): Promise<void> {
+  for (const entry of entries) {
+    if (Object.keys(samples).length >= 3) {
+      break;
+    }
 
-  return { tree, files, samples };
+    const head = await fetchSampleHead(reposApi, ref, entry.path);
+
+    if (head) {
+      samples[entry.path] = head;
+    }
+  }
+}
+
+/** 200 lines is enough to read a repo's style, which is all a sample is for. */
+async function fetchSampleHead(
+  reposApi: ReposApi,
+  ref: SampledRepoRef,
+  path: string,
+): Promise<string | null> {
+  const full = await fetchOptionalFile(reposApi, ref, path);
+
+  return full ? full.split("\n").slice(0, 200).join("\n") : null;
 }

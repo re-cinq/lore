@@ -56,90 +56,63 @@ export interface CatalogCursor {
   snapshot?: boolean;
 }
 
-async function resolveCursor(
-  deps: CatalogEventsDeps,
-  agent: ClusterAgent,
-  ack: string | undefined,
-): Promise<string | null | undefined> {
-  if (ack !== undefined) {
-    await deps.agents.advanceCatalogCursor(agent.id, ack);
-  }
-
-  return ack ?? agent.catalogCursor;
-}
-
-function hasCursor(cursor: string | null | undefined): cursor is string {
-  return cursor !== null && cursor !== undefined;
-}
-
-/** Every catalog entry the snapshot names, each resolved to the definition a cluster renders. */
-function snapshotEntries(
-  deps: CatalogEventsDeps,
-  entries: readonly { name: string; projectId: string | null }[],
-): Promise<Array<z.infer<typeof CatalogEntrySchema>>> {
-  return Promise.all(
-    entries.map(async (entry) => ({
-      name: entry.name,
-      project_id: entry.projectId,
-      definition: await deps.resolveEntry(entry.name, entry.projectId),
-    })),
-  );
-}
-
-async function buildSnapshotResponse(
-  deps: CatalogEventsDeps,
-  cursor: string | null | undefined,
-): Promise<{ code: 200; body: z.infer<typeof CatalogEventsResponse> }> {
-  const snap = await deps.events.snapshot();
-  const entries = await snapshotEntries(deps, snap.entries);
-
+export function clusterAgentCatalogEventsRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
   return {
-    code: 200,
-    body: {
-      mode: "snapshot" as const,
-      // A FORCED snapshot hands back the agent's OWN stored cursor, not the max: acking past a delete-while-down event would leak its CR pair forever.
-      cursor: cursor ?? snap.cursor,
-      entries,
-    },
+    method: "GET",
+    path: "/api/cluster-agents/{id}/catalog-events",
+    options: zodResponse(
+      {
+        auth: false,
+      },
+      CatalogEventsResponse,
+      {
+        name: "ClusterAgentCatalogEvents",
+        description:
+          "The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete",
+      },
+    ),
+    handler: withPool(getPool, serveCatalogEvents),
   };
 }
 
-// Two rapid saves of one entry collapse: re-resolved once per (name, project_id).
-async function dedupedEntries(
-  deps: CatalogEventsDeps,
-  events: readonly CatalogEvent[],
-): Promise<Array<z.infer<typeof CatalogEntrySchema>>> {
-  const seen = new Set<string>();
-  const entries: Array<z.infer<typeof CatalogEntrySchema>> = [];
+/** The catalog changes a cluster-agent has not applied yet, from its cursor — the pull side of catalog sync, since nothing is pushed to a cluster. */
+async function serveCatalogEvents(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const result = await handleCatalogEvents(
+    catalogEventsDeps(pool),
+    extractBearer(request.headers.authorization),
+    request.params.id,
+    requestedCursor(request),
+  );
 
-  for (const event of events) {
-    const key = `${event.name} ${event.projectId ?? ""}`;
-
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    entries.push({
-      name: event.name,
-      project_id: event.projectId,
-      definition: await deps.resolveEntry(event.name, event.projectId),
-    });
-  }
-
-  return entries;
+  return h.response(result.body).code(result.code);
 }
 
-async function buildTailResponse(
-  deps: CatalogEventsDeps,
-  cursor: string,
-): Promise<{ code: 200; body: z.infer<typeof CatalogEventsResponse> }> {
-  const events = await deps.events.listSince(cursor, TAIL_BATCH);
-  const entries = await dedupedEntries(deps, events);
-  const last = events.at(-1);
+/** The live repositories the route reads through, with catalog entries resolved against the YAML fallback. */
+function catalogEventsDeps(pool: Pool): CatalogEventsDeps {
+  const yaml = new AgentDefsYaml();
 
   return {
-    code: 200,
-    body: { mode: "tail" as const, cursor: last?.id ?? cursor, entries },
+    agents: new PgClusterAgents(pool),
+    events: new PgCatalogEvents(pool),
+    resolveEntry: (name, projectId) =>
+      resolveCatalogEntry(pool, yaml, name, projectId),
+  };
+}
+
+/** A non-numeric `ack` is dropped rather than refused: an unparseable cursor must never advance one. */
+function requestedCursor(request: Request): CatalogCursor {
+  const ackRaw = request.query.ack;
+
+  return {
+    ack:
+      typeof ackRaw === "string" && /^\d+$/.test(ackRaw) ? ackRaw : undefined,
+    snapshot: request.query.snapshot === "1",
   };
 }
 
@@ -166,62 +139,89 @@ export async function handleCatalogEvents(
   return buildTailResponse(deps, cursor);
 }
 
-/** The live repositories the route reads through, with catalog entries resolved against the YAML fallback. */
-function catalogEventsDeps(pool: Pool): CatalogEventsDeps {
-  const yaml = new AgentDefsYaml();
+async function resolveCursor(
+  deps: CatalogEventsDeps,
+  agent: ClusterAgent,
+  ack: string | undefined,
+): Promise<string | null | undefined> {
+  if (ack !== undefined) {
+    await deps.agents.advanceCatalogCursor(agent.id, ack);
+  }
+
+  return ack ?? agent.catalogCursor;
+}
+
+function hasCursor(cursor: string | null | undefined): cursor is string {
+  return cursor !== null && cursor !== undefined;
+}
+
+async function buildSnapshotResponse(
+  deps: CatalogEventsDeps,
+  cursor: string | null | undefined,
+): Promise<{ code: 200; body: z.infer<typeof CatalogEventsResponse> }> {
+  const snap = await deps.events.snapshot();
+  const entries = await snapshotEntries(deps, snap.entries);
 
   return {
-    agents: new PgClusterAgents(pool),
-    events: new PgCatalogEvents(pool),
-    resolveEntry: (name, projectId) =>
-      resolveCatalogEntry(pool, yaml, name, projectId),
+    code: 200,
+    body: {
+      mode: "snapshot" as const,
+      // A FORCED snapshot hands back the agent's OWN stored cursor, not the max: acking past a delete-while-down event would leak its CR pair forever.
+      cursor: cursor ?? snap.cursor,
+      entries,
+    },
   };
 }
 
-/** A non-numeric `ack` is dropped rather than refused: an unparseable cursor must never advance one. */
-function requestedCursor(request: Request): CatalogCursor {
-  const ackRaw = request.query.ack;
-
-  return {
-    ack:
-      typeof ackRaw === "string" && /^\d+$/.test(ackRaw) ? ackRaw : undefined,
-    snapshot: request.query.snapshot === "1",
-  };
-}
-
-/** The catalog changes a cluster-agent has not applied yet, from its cursor — the pull side of catalog sync, since nothing is pushed to a cluster. */
-async function serveCatalogEvents(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const result = await handleCatalogEvents(
-    catalogEventsDeps(pool),
-    extractBearer(request.headers.authorization),
-    request.params.id,
-    requestedCursor(request),
+/** Every catalog entry the snapshot names, each resolved to the definition a cluster renders. */
+function snapshotEntries(
+  deps: CatalogEventsDeps,
+  entries: readonly { name: string; projectId: string | null }[],
+): Promise<Array<z.infer<typeof CatalogEntrySchema>>> {
+  return Promise.all(
+    entries.map(async (entry) => ({
+      name: entry.name,
+      project_id: entry.projectId,
+      definition: await deps.resolveEntry(entry.name, entry.projectId),
+    })),
   );
-
-  return h.response(result.body).code(result.code);
 }
 
-export function clusterAgentCatalogEventsRoute(
-  getPool: () => Pool | null,
-): ServerRoute {
+async function buildTailResponse(
+  deps: CatalogEventsDeps,
+  cursor: string,
+): Promise<{ code: 200; body: z.infer<typeof CatalogEventsResponse> }> {
+  const events = await deps.events.listSince(cursor, TAIL_BATCH);
+  const entries = await dedupedEntries(deps, events);
+  const last = events.at(-1);
+
   return {
-    method: "GET",
-    path: "/api/cluster-agents/{id}/catalog-events",
-    options: zodResponse(
-      {
-        auth: false,
-      },
-      CatalogEventsResponse,
-      {
-        name: "ClusterAgentCatalogEvents",
-        description:
-          "The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete",
-      },
-    ),
-    handler: withPool(getPool, serveCatalogEvents),
+    code: 200,
+    body: { mode: "tail" as const, cursor: last?.id ?? cursor, entries },
   };
+}
+
+// Two rapid saves of one entry collapse: re-resolved once per (name, project_id).
+async function dedupedEntries(
+  deps: CatalogEventsDeps,
+  events: readonly CatalogEvent[],
+): Promise<Array<z.infer<typeof CatalogEntrySchema>>> {
+  const seen = new Set<string>();
+  const entries: Array<z.infer<typeof CatalogEntrySchema>> = [];
+
+  for (const event of events) {
+    const key = `${event.name} ${event.projectId ?? ""}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    entries.push({
+      name: event.name,
+      project_id: event.projectId,
+      definition: await deps.resolveEntry(event.name, event.projectId),
+    });
+  }
+
+  return entries;
 }

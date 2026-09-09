@@ -20,10 +20,6 @@ import { classifyWebhook } from "../../../work/webhook/webhook-status.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 
-function canonicalUrl(): string {
-  return process.env.LORE_WEBHOOK_URL || "";
-}
-
 const repoOf = (request: { params: Record<string, string> }) =>
   `${request.params.owner}/${request.params.repo}`;
 
@@ -50,36 +46,6 @@ const HOST_NOT_CONFIGURED = {
   canonicalUrl: "",
   reason: "webhook_host_not_configured",
 };
-
-// 403 = App lacks Webhooks permission; surface as unknown for graceful UI fallback.
-function webhookReadFailure(err: unknown, url: string) {
-  const reason =
-    (err as { status?: number }).status === 403
-      ? "app_no_webhook_permission"
-      : "read_failed";
-
-  return { state: "unknown", canonicalUrl: url, reason };
-}
-
-/** Whether this deployment's webhook plumbing is configured, without revealing the secret it would verify against. */
-async function serveWebhookStatus(
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const url = canonicalUrl();
-
-  if (!url) {
-    return h.response(HOST_NOT_CONFIGURED);
-  }
-
-  try {
-    return h.response(
-      classifyWebhook(await listRepoWebhooks(repoOf(request)), url),
-    );
-  } catch (err) {
-    return h.response(webhookReadFailure(err, url));
-  }
-}
 
 export function webhookStatusRoute(): ServerRoute {
   return {
@@ -129,6 +95,48 @@ const ENSURE_SKIP_STATUS: Partial<
   },
 };
 
+export function webhookEnsureRoute(): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/repos/{owner}/{repo}/webhook/ensure",
+    options: zodResponse(bearerScope("write"), WebhookStatusSchema, {
+      name: "RepoWebhookEnsured",
+      description: "The webhook's state after ensuring it",
+    }),
+    handler: async (request, h) => {
+      const repo = repoOf(request);
+      // Shared with onboarding: ensureLoreWebhook reads LORE_WEBHOOK_URL/SECRET.
+      const result = await ensureLoreWebhook(repo);
+
+      if (!result.ok) {
+        return ensureSkipResponse(h, result);
+      }
+
+      return freshWebhookStatus(h, repo);
+    },
+  };
+}
+
+/** Whether this deployment's webhook plumbing is configured, without revealing the secret it would verify against. */
+async function serveWebhookStatus(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const url = canonicalUrl();
+
+  if (!url) {
+    return h.response(HOST_NOT_CONFIGURED);
+  }
+
+  try {
+    return h.response(
+      classifyWebhook(await listRepoWebhooks(repoOf(request)), url),
+    );
+  } catch (err) {
+    return h.response(webhookReadFailure(err, url));
+  }
+}
+
 // A named skip reason maps to its status; any other (e.g. `ensure_failed`) falls back to 500 + detail.
 function ensureSkipResponse(
   h: ResponseToolkit,
@@ -155,24 +163,16 @@ async function freshWebhookStatus(h: ResponseToolkit, repo: string) {
   }
 }
 
-export function webhookEnsureRoute(): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/repos/{owner}/{repo}/webhook/ensure",
-    options: zodResponse(bearerScope("write"), WebhookStatusSchema, {
-      name: "RepoWebhookEnsured",
-      description: "The webhook's state after ensuring it",
-    }),
-    handler: async (request, h) => {
-      const repo = repoOf(request);
-      // Shared with onboarding: ensureLoreWebhook reads LORE_WEBHOOK_URL/SECRET.
-      const result = await ensureLoreWebhook(repo);
+// 403 = App lacks Webhooks permission; surface as unknown for graceful UI fallback.
+function webhookReadFailure(err: unknown, url: string) {
+  const reason =
+    (err as { status?: number }).status === 403
+      ? "app_no_webhook_permission"
+      : "read_failed";
 
-      if (!result.ok) {
-        return ensureSkipResponse(h, result);
-      }
+  return { state: "unknown", canonicalUrl: url, reason };
+}
 
-      return freshWebhookStatus(h, repo);
-    },
-  };
+function canonicalUrl(): string {
+  return process.env.LORE_WEBHOOK_URL || "";
 }

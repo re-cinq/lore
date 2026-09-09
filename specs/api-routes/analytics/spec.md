@@ -64,7 +64,7 @@ credentials; this route runs them and the tool renders the result.
 ## Dependencies & side effects
 
 - Read-only: `pipeline.llm_calls`, `pipeline.tasks`. No writes, no fan-out.
-- `pipelineAnalytics` ([queries](../../../apps/lore-api/src/work/analytics/analytics-queries.ts#L27)).
+- `pipelineAnalytics` ([queries](../../../apps/lore-api/src/work/analytics/analytics-queries.ts#L38)).
 
 ## Acceptance Criteria
 

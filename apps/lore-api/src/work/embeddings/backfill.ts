@@ -57,14 +57,28 @@ const MEMORY_TARGETS: Target[] = [
   },
 ];
 
-function chunkTarget(schema: string, where: BackfillWhere): Target {
-  return {
-    table: `${schema}.chunks`,
-    textColumn: "content",
-    condition:
-      where === "missing" ? "embedding IS NULL" : STALE_LINKS_CONDITION,
-    markOnEmbed: where === "stale_links",
-  };
+export async function backfillEmbeddings(
+  pool: Pool,
+  embed: EmbedFn,
+  options: BackfillOptions,
+): Promise<BackfillResult> {
+  const targets = await targetsFor(pool, options);
+  const tally: Tally = { embedded: 0, failed: 0, stopped: false };
+
+  for (const target of targets) {
+    const budget = options.limit - tally.embedded;
+
+    if (tally.stopped || budget <= 0) {
+      break;
+    }
+    const done = await embedTarget(pool, embed, target, budget);
+
+    tally.embedded += done.embedded;
+    tally.failed += done.failed;
+    tally.stopped = done.stopped;
+  }
+
+  return { ...tally, remaining: await countPending(pool, targets) };
 }
 
 async function targetsFor(
@@ -75,6 +89,39 @@ async function targetsFor(
   const chunks = schemas.map((s) => chunkTarget(s, where));
 
   return where === "missing" ? [...chunks, ...MEMORY_TARGETS] : chunks;
+}
+
+function chunkTarget(schema: string, where: BackfillWhere): Target {
+  return {
+    table: `${schema}.chunks`,
+    textColumn: "content",
+    condition:
+      where === "missing" ? "embedding IS NULL" : STALE_LINKS_CONDITION,
+    markOnEmbed: where === "stale_links",
+  };
+}
+
+async function embedTarget(
+  pool: Pool,
+  embed: EmbedFn,
+  target: Target,
+  budget: number,
+): Promise<Tally> {
+  let embedded = 0;
+
+  for (const row of await pendingRows(pool, target, budget)) {
+    const embedding = await embed(
+      stripCoverageLinks(row.text).substring(0, 8000),
+    );
+
+    if (!embedding) {
+      return { embedded, failed: 1, stopped: true };
+    }
+    await storeEmbedding(pool, target, row.id, embedding);
+    embedded += 1;
+  }
+
+  return { embedded, failed: 0, stopped: false };
 }
 
 async function pendingRows(
@@ -107,29 +154,6 @@ async function storeEmbedding(
   );
 }
 
-async function embedTarget(
-  pool: Pool,
-  embed: EmbedFn,
-  target: Target,
-  budget: number,
-): Promise<Tally> {
-  let embedded = 0;
-
-  for (const row of await pendingRows(pool, target, budget)) {
-    const embedding = await embed(
-      stripCoverageLinks(row.text).substring(0, 8000),
-    );
-
-    if (!embedding) {
-      return { embedded, failed: 1, stopped: true };
-    }
-    await storeEmbedding(pool, target, row.id, embedding);
-    embedded += 1;
-  }
-
-  return { embedded, failed: 0, stopped: false };
-}
-
 async function countPending(pool: Pool, targets: Target[]): Promise<number> {
   const counts = await Promise.all(
     targets.map(async (target) => {
@@ -142,28 +166,4 @@ async function countPending(pool: Pool, targets: Target[]): Promise<number> {
   );
 
   return counts.reduce((sum, n) => sum + n, 0);
-}
-
-export async function backfillEmbeddings(
-  pool: Pool,
-  embed: EmbedFn,
-  options: BackfillOptions,
-): Promise<BackfillResult> {
-  const targets = await targetsFor(pool, options);
-  const tally: Tally = { embedded: 0, failed: 0, stopped: false };
-
-  for (const target of targets) {
-    const budget = options.limit - tally.embedded;
-
-    if (tally.stopped || budget <= 0) {
-      break;
-    }
-    const done = await embedTarget(pool, embed, target, budget);
-
-    tally.embedded += done.embedded;
-    tally.failed += done.failed;
-    tally.stopped = done.stopped;
-  }
-
-  return { ...tally, remaining: await countPending(pool, targets) };
 }

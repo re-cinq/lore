@@ -44,6 +44,25 @@ const PrStatusSchema = z.object({
   ]),
 });
 
+export function prStatusRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/pr-status",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(PrStatusQuery) },
+      },
+      PrStatusSchema,
+      {
+        name: "PrStatus",
+        description: "Checks, reviews and the computed state of a PR",
+      },
+    ),
+    handler: (request, h) => servePrStatus(request, h),
+  };
+}
+
 /** Checks, reviews and the computed state of one PR — the same inputs auto-merge decides on, so a human sees what the machine sees. A 424 rather than a 500 when GitHub is unconfigured: nothing failed, the dependency is simply absent. */
 async function servePrStatus(
   request: Request,
@@ -68,23 +87,4 @@ async function servePrStatus(
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
-}
-
-export function prStatusRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/pr-status",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(PrStatusQuery) },
-      },
-      PrStatusSchema,
-      {
-        name: "PrStatus",
-        description: "Checks, reviews and the computed state of a PR",
-      },
-    ),
-    handler: (request, h) => servePrStatus(request, h),
-  };
 }

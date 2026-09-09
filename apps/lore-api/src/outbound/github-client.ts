@@ -117,24 +117,36 @@ type RawReview = {
   submitted_at?: string;
 };
 
-async function ghFetch(
-  token: string,
-  path: string,
-): Promise<Record<string, unknown>> {
-  const res = await fetch(`https://api.github.com${path}`, {
-    signal: AbortSignal.timeout(15_000),
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
+export async function fetchPrStatus(
+  repo: string,
+  prNumber: number,
+): Promise<Record<string, unknown> | null> {
+  const token = await getGitHubToken();
 
-  if (!res.ok) {
-    throw new Error(`GitHub API ${path}: ${res.status} ${res.statusText}`);
+  if (!token) {
+    return null;
   }
 
-  return res.json();
+  const { pr, checks, reviewList } = await readPr(token, repo, prNumber);
+
+  return toPrStatus(pr, checks, reviewList);
+}
+
+// Fetch live PR state via raw REST; returns null if GitHub not configured
+/** The PR and its two verdicts. Reviews are fetched alongside the PR and their failure swallowed — a PR nobody has reviewed yet is the normal case, and it must not cost the checks. The check runs need the head SHA, so they follow rather than join the pair. */
+async function readPr(token: string, repo: string, prNumber: number) {
+  const [pr, rawReviews] = await Promise.all([
+    ghFetch(token, `/repos/${repo}/pulls/${prNumber}`),
+    ghFetch(token, `/repos/${repo}/pulls/${prNumber}/reviews`).catch(() => []),
+  ]);
+
+  return {
+    pr,
+    checks: normalizeChecks(
+      await fetchCheckRuns(token, repo, (pr.head as { sha: string }).sha),
+    ),
+    reviewList: normalizeReviews(rawReviews),
+  };
 }
 
 // Check-runs are best-effort: any failure (missing sha, network) yields no checks.
@@ -175,36 +187,24 @@ function normalizeReviews(reviews: unknown): PrReview[] {
   }));
 }
 
-// Fetch live PR state via raw REST; returns null if GitHub not configured
-/** The PR and its two verdicts. Reviews are fetched alongside the PR and their failure swallowed — a PR nobody has reviewed yet is the normal case, and it must not cost the checks. The check runs need the head SHA, so they follow rather than join the pair. */
-async function readPr(token: string, repo: string, prNumber: number) {
-  const [pr, rawReviews] = await Promise.all([
-    ghFetch(token, `/repos/${repo}/pulls/${prNumber}`),
-    ghFetch(token, `/repos/${repo}/pulls/${prNumber}/reviews`).catch(() => []),
-  ]);
+async function ghFetch(
+  token: string,
+  path: string,
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`https://api.github.com${path}`, {
+    signal: AbortSignal.timeout(15_000),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
 
-  return {
-    pr,
-    checks: normalizeChecks(
-      await fetchCheckRuns(token, repo, (pr.head as { sha: string }).sha),
-    ),
-    reviewList: normalizeReviews(rawReviews),
-  };
-}
-
-export async function fetchPrStatus(
-  repo: string,
-  prNumber: number,
-): Promise<Record<string, unknown> | null> {
-  const token = await getGitHubToken();
-
-  if (!token) {
-    return null;
+  if (!res.ok) {
+    throw new Error(`GitHub API ${path}: ${res.status} ${res.statusText}`);
   }
 
-  const { pr, checks, reviewList } = await readPr(token, repo, prNumber);
-
-  return toPrStatus(pr, checks, reviewList);
+  return res.json();
 }
 
 /** The wire shape the UI badge reads; the field names are GitHub's own, so they stay snake_case. */
@@ -244,12 +244,6 @@ function anyCheckFailed(checks: PrCheck[]): boolean {
   );
 }
 
-function everyCheckSettled(checks: PrCheck[]): boolean {
-  return checks.every(
-    (c) => c.conclusion === "success" || c.conclusion === "skipped",
-  );
-}
-
 function anyReviewState(reviews: PrReview[], state: string): boolean {
   return reviews.some((r) => r.state === state);
 }
@@ -257,6 +251,12 @@ function anyReviewState(reviews: PrReview[], state: string): boolean {
 // "approved" requires ALL checks concluded (not running)
 function isApproved(checks: PrCheck[], reviews: PrReview[]): boolean {
   return anyReviewState(reviews, "APPROVED") && everyCheckSettled(checks);
+}
+
+function everyCheckSettled(checks: PrCheck[]): boolean {
+  return checks.every(
+    (c) => c.conclusion === "success" || c.conclusion === "skipped",
+  );
 }
 
 interface PrStatusInput {

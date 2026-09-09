@@ -77,22 +77,6 @@ const VALID_TOKEN_SCOPES: TokenScope[] = [
   "admin",
 ];
 
-function isTokenScope(scope: string): scope is TokenScope {
-  return VALID_TOKEN_SCOPES.includes(scope as TokenScope);
-}
-
-function resolveScopes(scopes: string[] | undefined): TokenScope[] {
-  return (scopes || ["read"]).filter(isTokenScope);
-}
-
-function expiryIso(expiresInDays: number | undefined): string | null {
-  if (!expiresInDays) {
-    return null;
-  }
-
-  return new Date(Date.now() + expiresInDays * 86400000).toISOString();
-}
-
 /** GET lists, POST writes (separate shapes); wildcard 405 fallback (validation skipped). */
 /** The listing NEVER serves the hash — it is the only stored form of a token, and serving it would make the store as good as the token itself. */
 const LIST_OPTIONS = zodResponse(
@@ -115,17 +99,6 @@ const WRITE_OPTIONS = zodResponse(bearerScope("admin"), TokenWriteSchema, {
   errors: [400],
 });
 
-// Fallback only — a concrete verb above always wins in hapi.
-function tokensMethodNotAllowedRoute(): ServerRoute {
-  return {
-    method: "*",
-    path: "/api/tokens",
-    options: bearerScope("admin"),
-    handler: (_request: Request, h: ResponseToolkit) =>
-      h.response({ error: "method not allowed" }).code(405),
-  };
-}
-
 export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   return [
     {
@@ -144,6 +117,17 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   ];
 }
 
+async function listTokens(
+  pool: Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+) {
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const query = request.query as unknown as TokensQuery;
+
+  return h.response(await fetchTokenPage(pool, query));
+}
+
 // One page of active tokens (never returns the actual token) plus the full count.
 async function fetchTokenPage(pool: Pool, { limit, offset }: TokensQuery) {
   const { rows } = await pool.query(
@@ -159,15 +143,34 @@ async function fetchTokenPage(pool: Pool, { limit, offset }: TokensQuery) {
   return { tokens: rows, total: countRows[0].total, limit, offset };
 }
 
-async function listTokens(
+async function writeToken(
   pool: Pool | null,
   request: Request,
   h: ResponseToolkit,
 ) {
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-  const query = request.query as unknown as TokensQuery;
 
-  return h.response(await fetchTokenPage(pool, query));
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
+    const body = (request.payload ?? {}) as TokensPostBody;
+
+    if (isRevoke(body)) {
+      return revokeToken(pool, h, body.token_id);
+    }
+
+    return await createToken(pool, h, body);
+  } catch (err) {
+    // Guard refusals carry their status; shape only unexpected failures.
+    rethrowBoom(err);
+
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
+function isRevoke(body: TokensPostBody): body is TokensPostBody & {
+  token_id: string;
+} {
+  return body.action === "revoke" && Boolean(body.token_id);
 }
 
 async function revokeToken(pool: Pool, h: ResponseToolkit, tokenId: string) {
@@ -203,32 +206,29 @@ async function createToken(
     .code(201);
 }
 
-function isRevoke(body: TokensPostBody): body is TokensPostBody & {
-  token_id: string;
-} {
-  return body.action === "revoke" && Boolean(body.token_id);
+function resolveScopes(scopes: string[] | undefined): TokenScope[] {
+  return (scopes || ["read"]).filter(isTokenScope);
 }
 
-async function writeToken(
-  pool: Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-) {
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+function isTokenScope(scope: string): scope is TokenScope {
+  return VALID_TOKEN_SCOPES.includes(scope as TokenScope);
+}
 
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
-    const body = (request.payload ?? {}) as TokensPostBody;
-
-    if (isRevoke(body)) {
-      return revokeToken(pool, h, body.token_id);
-    }
-
-    return await createToken(pool, h, body);
-  } catch (err) {
-    // Guard refusals carry their status; shape only unexpected failures.
-    rethrowBoom(err);
-
-    return h.response({ error: errorMessage(err) }).code(500);
+function expiryIso(expiresInDays: number | undefined): string | null {
+  if (!expiresInDays) {
+    return null;
   }
+
+  return new Date(Date.now() + expiresInDays * 86400000).toISOString();
+}
+
+// Fallback only — a concrete verb above always wins in hapi.
+function tokensMethodNotAllowedRoute(): ServerRoute {
+  return {
+    method: "*",
+    path: "/api/tokens",
+    options: bearerScope("admin"),
+    handler: (_request: Request, h: ResponseToolkit) =>
+      h.response({ error: "method not allowed" }).code(405),
+  };
 }

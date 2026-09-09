@@ -41,72 +41,25 @@ export interface ClaimDeps {
 /** Every way a claim ends without work being handed over. */
 type ClaimRefusal = ClusterAgentRefusal | { code: 204 };
 
-/** The handler core, injectable for tests: authenticate, match, claim. */
-/** Who is asking, and whether they may claim at all. A PAUSED agent gets the same 204 as "nothing queued" — it needs no new client behaviour, just its existing idle backoff — and the check lives here because pausing is a fact about the registry, not about the queue. */
-async function authorizeClaimant(
-  deps: ClaimDeps,
-  bearer: string | undefined,
-  agentId: string,
-): Promise<{ agent: ClusterAgent } | ClaimRefusal> {
-  const auth = await authenticateClusterAgent(deps.agents, bearer, agentId);
-
-  if ("code" in auth) {
-    return auth;
-  }
-
-  return mayClaim(auth.agent) ? auth : { code: 204 };
-}
-
-/** What a claiming agent is handed. The `spec` rides ALONG with the ids: the claim armed it, and re-deriving it in the cluster would let a re-dispatch build something different from what was claimed. */
-function claimBody(
-  claimed: NonNullable<
-    Awaited<ReturnType<ClaimDeps["runs"]["claimNextStationRun"]>>
-  >,
-): z.infer<typeof ClaimResponse> {
+export function clusterAgentClaimRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
   return {
-    station_run_id: claimed.stationRunId,
-    node_row_id: claimed.nodeRowId,
-    assembly_run_id: claimed.assemblyRunId,
-    node_id: claimed.nodeId,
-    iteration: claimed.iteration,
-    agent_cr_name: claimed.agentCrName,
-    spec: claimed.dispatchSpec,
+    method: "POST",
+    path: "/api/cluster-agents/{id}/claim",
+    options: zodResponse(
+      {
+        auth: false,
+      },
+      ClaimResponse,
+      {
+        name: "ClusterAgentClaim",
+        description:
+          "The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable",
+      },
+    ),
+    handler: withPool(getPool, serveClaim),
   };
-}
-
-/** The next queued run for this agent's tags, or the 204 that tells it to keep polling. */
-async function claimNextRun(
-  deps: ClaimDeps,
-  agent: ClusterAgent,
-): Promise<{ code: 200; body: z.infer<typeof ClaimResponse> } | { code: 204 }> {
-  const claimed = await deps.runs.claimNextStationRun({
-    clusterAgentId: agent.id,
-    tags: agent.tags,
-  });
-
-  if (!claimed) {
-    return { code: 204 };
-  }
-
-  return { code: 200, body: claimBody(claimed) };
-}
-
-export async function handleClaim(
-  deps: ClaimDeps,
-  bearer: string | undefined,
-  agentId: string,
-): Promise<
-  | { code: 200; body: z.infer<typeof ClaimResponse> }
-  | { code: 204 }
-  | { code: 401 | 403 | 503; body: { error: string } }
-> {
-  const authorized = await authorizeClaimant(deps, bearer, agentId);
-
-  if ("code" in authorized) {
-    return authorized;
-  }
-
-  return claimNextRun(deps, authorized.agent);
 }
 
 /** A cluster-agent asking for work. Dispatch is PULL-only, so this is the one path by which a run reaches any cluster — including the platform's own. */
@@ -128,23 +81,70 @@ async function serveClaim(
   return h.response(result.body).code(result.code);
 }
 
-export function clusterAgentClaimRoute(
-  getPool: () => Pool | null,
-): ServerRoute {
+export async function handleClaim(
+  deps: ClaimDeps,
+  bearer: string | undefined,
+  agentId: string,
+): Promise<
+  | { code: 200; body: z.infer<typeof ClaimResponse> }
+  | { code: 204 }
+  | { code: 401 | 403 | 503; body: { error: string } }
+> {
+  const authorized = await authorizeClaimant(deps, bearer, agentId);
+
+  if ("code" in authorized) {
+    return authorized;
+  }
+
+  return claimNextRun(deps, authorized.agent);
+}
+
+/** The handler core, injectable for tests: authenticate, match, claim. */
+/** Who is asking, and whether they may claim at all. A PAUSED agent gets the same 204 as "nothing queued" — it needs no new client behaviour, just its existing idle backoff — and the check lives here because pausing is a fact about the registry, not about the queue. */
+async function authorizeClaimant(
+  deps: ClaimDeps,
+  bearer: string | undefined,
+  agentId: string,
+): Promise<{ agent: ClusterAgent } | ClaimRefusal> {
+  const auth = await authenticateClusterAgent(deps.agents, bearer, agentId);
+
+  if ("code" in auth) {
+    return auth;
+  }
+
+  return mayClaim(auth.agent) ? auth : { code: 204 };
+}
+
+/** The next queued run for this agent's tags, or the 204 that tells it to keep polling. */
+async function claimNextRun(
+  deps: ClaimDeps,
+  agent: ClusterAgent,
+): Promise<{ code: 200; body: z.infer<typeof ClaimResponse> } | { code: 204 }> {
+  const claimed = await deps.runs.claimNextStationRun({
+    clusterAgentId: agent.id,
+    tags: agent.tags,
+  });
+
+  if (!claimed) {
+    return { code: 204 };
+  }
+
+  return { code: 200, body: claimBody(claimed) };
+}
+
+/** What a claiming agent is handed. The `spec` rides ALONG with the ids: the claim armed it, and re-deriving it in the cluster would let a re-dispatch build something different from what was claimed. */
+function claimBody(
+  claimed: NonNullable<
+    Awaited<ReturnType<ClaimDeps["runs"]["claimNextStationRun"]>>
+  >,
+): z.infer<typeof ClaimResponse> {
   return {
-    method: "POST",
-    path: "/api/cluster-agents/{id}/claim",
-    options: zodResponse(
-      {
-        auth: false,
-      },
-      ClaimResponse,
-      {
-        name: "ClusterAgentClaim",
-        description:
-          "The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable",
-      },
-    ),
-    handler: withPool(getPool, serveClaim),
+    station_run_id: claimed.stationRunId,
+    node_row_id: claimed.nodeRowId,
+    assembly_run_id: claimed.assemblyRunId,
+    node_id: claimed.nodeId,
+    iteration: claimed.iteration,
+    agent_cr_name: claimed.agentCrName,
+    spec: claimed.dispatchSpec,
   };
 }

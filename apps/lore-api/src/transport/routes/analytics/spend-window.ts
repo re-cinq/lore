@@ -49,7 +49,40 @@ const defaultDeps = (): SpendWindowDeps => ({
   now: () => new Date(),
 });
 
+export function spendWindowRoute(
+  getPool: () => Pool | null,
+  deps: SpendWindowDeps = defaultDeps(),
+): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/analytics/spend-window",
+    options: zodResponse(bearerScope("read"), SpendWindowSchema, {
+      name: "SpendWindow",
+      description:
+        "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, and the estimated Kubernetes compute cost",
+      errors: [400],
+    }),
+    handler: withPool(getPool, (pool, request, h) =>
+      serveSpendWindow(pool, deps, request, h),
+    ),
+  };
+}
+
 /** Spend over one window, from the billing export where there is one and the per-call estimate otherwise — the estimate is labelled, so a reader knows which they are looking at. */
+async function serveSpendWindow(
+  pool: Pool,
+  deps: SpendWindowDeps,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const win = resolveWindow(
+    request.query as Record<string, string | undefined>,
+    deps,
+  );
+
+  return h.response(await spendWindowBody(pool, win, deps)).code(200);
+}
+
 /** The window to report on, as INCLUSIVE day bounds — `[from 00:00, to + 1 day)`. A bad range is the caller's error (400), not a server failure, which is why the parse is caught here rather than left to the error shaper. */
 function resolveWindow(
   q: Record<string, string | undefined>,
@@ -72,20 +105,6 @@ function resolveWindow(
   };
 }
 
-async function serveSpendWindow(
-  pool: Pool,
-  deps: SpendWindowDeps,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const win = resolveWindow(
-    request.query as Record<string, string | undefined>,
-    deps,
-  );
-
-  return h.response(await spendWindowBody(pool, win, deps)).code(200);
-}
-
 async function spendWindowBody(
   pool: Pool,
   win: SpendWindow,
@@ -97,24 +116,5 @@ async function spendWindowBody(
     billed: await readAnthropicSpend(pool, win),
     gcp: await readGcpSpend(pool, win),
     compute: await readComputeSpend(pool, win, deps),
-  };
-}
-
-export function spendWindowRoute(
-  getPool: () => Pool | null,
-  deps: SpendWindowDeps = defaultDeps(),
-): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/analytics/spend-window",
-    options: zodResponse(bearerScope("read"), SpendWindowSchema, {
-      name: "SpendWindow",
-      description:
-        "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, and the estimated Kubernetes compute cost",
-      errors: [400],
-    }),
-    handler: withPool(getPool, (pool, request, h) =>
-      serveSpendWindow(pool, deps, request, h),
-    ),
   };
 }
