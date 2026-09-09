@@ -69,9 +69,9 @@ Run observability is delivered over Server-Sent Events at
 `GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
 semantics keyed on a row-id cursor. ([validated by `run-stream.test.ts:60`](apps/lore-api/src/transport/routes/assembly-lines/run-stream.test.ts#L60), [`run-stream-session.test.ts:150`](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L150), [`run-stream-session.test.ts:229`](apps/lore-api/src/work/run-stream/run-stream-session.test.ts#L229))
 
-The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([validated by `run-notify-hub.test.ts:73`](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L73)) A
+The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([validated by `run-notify-hub.test.ts:73`](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L74)) A
 subscriber registers against an assembly-line id; the ingest path publishes each
-projected row to matching subscribers after the write commits. ([validated by `run-notify-hub.test.ts:156`](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L156))
+projected row to matching subscribers after the write commits. ([validated by `run-notify-hub.test.ts:156`](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L157))
 
 Reconnection is lossless by construction rather than by buffering: the browser
 resends `Last-Event-ID`, and the server replays from the database before
@@ -308,7 +308,7 @@ frame contract is a generated type, and the drift guard is deleted.
 - lore-api holds one dedicated `LISTEN` client per process, outside the query
   pool, opened on the first subscriber; a lost connection reconnects with capped
   backoff and then tells every subscriber to resync, because notifications
-  during the gap are gone by design. ([reconnects after the connection errors and tells every subscriber to resync](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L180), [backs off and retries when the connection attempt itself fails](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L201))
+  during the gap are gone by design. ([reconnects after the connection errors and tells every subscriber to resync](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L181), [backs off and retries when the connection attempt itself fails](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L202))
 - The "no `node_status` event type" rejection under Alternatives is reversed on
   narrower grounds than it was made: the table is still the only source of node
   truth, and the frame is that table's row pushed to the page rather than a
@@ -316,7 +316,7 @@ frame contract is a generated type, and the drift guard is deleted.
 - The `replicaCount: 1` coupling this ADR admitted no longer applies to this
   feature: each lore-api replica holds its own `LISTEN` and serves its own
   subscribers from the same table, and polling stays the rule for every other
-  live view. ([opens one LISTEN connection on the first subscriber and dispatches its notifications](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L156))
+  live view. ([opens one LISTEN connection on the first subscriber and dispatches its notifications](apps/lore-api/src/work/run-stream/run-notify-hub.test.ts#L157))
 
 ### Consequences
 

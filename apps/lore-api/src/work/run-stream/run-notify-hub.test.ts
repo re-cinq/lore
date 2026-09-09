@@ -32,9 +32,10 @@ describe("parseNotification", () => {
     });
   });
 
-  it("returns null for an unknown kind and for a body that is not JSON", () => {
+  it("returns null for an unknown kind, a body that is not JSON, and a JSON null", () => {
     expect(parseNotification('{"kind":"weather"}')).toBeNull();
     expect(parseNotification("not json")).toBeNull();
+    expect(parseNotification("null")).toBeNull();
   });
 });
 
