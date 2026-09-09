@@ -91,14 +91,7 @@ resource "google_service_account_iam_member" "ui_wi" {
 
 resource "google_service_account" "lore_agent" {
   account_id   = "lore-agent"
-  display_name = "Lore Floor — batch ingest, Vertex embeddings, job logs"
-}
-
-# Vertex AI — generate text-embedding-005 embeddings during ingest.
-resource "google_project_iam_member" "lore_agent_aiplatform" {
-  project = var.project_id
-  role    = "roles/aiplatform.user"
-  member  = "serviceAccount:${google_service_account.lore_agent.email}"
+  display_name = "Lore Floor — job logs"
 }
 
 # GCS task-log bucket — admin (create + overwrite for live log updates).

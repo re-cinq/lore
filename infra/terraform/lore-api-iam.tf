@@ -31,5 +31,5 @@ resource "google_project_iam_member" "lore_api_aiplatform" {
 resource "google_service_account_iam_member" "lore_api_workload_identity" {
   service_account_id = google_service_account.lore_api.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[${kubernetes_namespace.lore_api.metadata[0].name}/lore-api]"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[lore-api/lore-api]"
 }
