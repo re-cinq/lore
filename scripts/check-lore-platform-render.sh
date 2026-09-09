@@ -42,8 +42,12 @@ require "# Source: lore-platform/charts/lore-api/"
 require "# Source: lore-platform/charts/lore-ui/"
 require "# Source: lore-platform/charts/lore-db-helm/"
 require "# Source: lore-platform/charts/ai-agents/"
-# The ui-helm pre-install/pre-upgrade migrations hook must survive.
+# The ui-helm pre-install/pre-upgrade migrations hook must survive, and it
+# must always resolve inside helm's 5m deadline — a hook still InProgress at
+# the deadline wedged every later umbrella deploy (#1650).
 require "# Source: lore-platform/charts/lore-ui/templates/migrate-job.yaml"
+require "activeDeadlineSeconds: 270"
+require "backoffLimit: 0"
 
 if [ "$fail" -ne 0 ]; then
 	echo "lore-platform umbrella render check FAILED" >&2

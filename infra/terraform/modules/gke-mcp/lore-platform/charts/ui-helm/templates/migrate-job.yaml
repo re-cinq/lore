@@ -15,7 +15,16 @@ metadata:
     "helm.sh/hook-weight": "0"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
-  backoffLimit: 2
+  # No pod retry and a deadline under helm's own 5m: a migration failure is
+  # deterministic (each file runs in one transaction, and the DB-wait loop
+  # below already covers an unreachable database), so retrying it three times
+  # only spent helm's deadline and turned the real psql error into
+  # "context deadline exceeded" — which marked the release failed with the hook
+  # still InProgress, and every later deploy of ANY service died on the same
+  # hook (#1650, 2026-08-29). A hook that always resolves inside the deadline
+  # fails the one deploy that carries the bad migration, with its log readable.
+  backoffLimit: 0
+  activeDeadlineSeconds: 270
   template:
     metadata:
       labels:
@@ -61,6 +70,11 @@ spec:
               done
               echo "[migrate] done"
           env:
+            # A DDL statement queued behind a long transaction would otherwise
+            # wait past the Job deadline and report nothing; a lock wait that
+            # long is the wedge, so it fails fast and names the lock.
+            - name: PGOPTIONS
+              value: "-c lock_timeout=60s"
             - name: PGHOST
               value: {{ .Values.env.LORE_DB_HOST | quote }}
             - name: PGPORT
