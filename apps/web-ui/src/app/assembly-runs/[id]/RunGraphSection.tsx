@@ -40,6 +40,8 @@ interface RunGraphSectionProps {
   graph: Parameters<typeof RunGraphView>[0]["graph"];
   definition: AssemblyLineDefinition | null;
   onSelectNode: (nodeId: string) => void;
+  selectedNodeId: string | null;
+  nodeMeta: Readonly<Record<string, string>>;
   hasRunData: boolean;
   showOutcomes: boolean;
   onToggleOutcomes: () => void;
@@ -72,6 +74,8 @@ export function RunGraphSection(props: RunGraphSectionProps) {
         graph={props.graph}
         definition={props.definition}
         onSelectNode={props.onSelectNode}
+        selectedNodeId={props.selectedNodeId}
+        nodeMeta={props.nodeMeta}
       />
       <OutcomesToggle
         show={props.hasRunData}

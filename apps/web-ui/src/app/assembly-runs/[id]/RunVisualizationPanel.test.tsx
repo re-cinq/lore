@@ -301,7 +301,7 @@ describe("heatmap wiring and the live clock", () => {
     await settle();
 
     expect(container.querySelectorAll("[data-path]")).toHaveLength(1);
-    expect(screen.getByText("src/a.ts")).toBeInTheDocument();
+    expect(screen.getAllByText("src/a.ts").length).toBeGreaterThan(0);
 
     await act(async () => {
       FakeEventSource.instances[0].emit("agent_event", {
@@ -520,10 +520,8 @@ describe("node inspector", () => {
     );
   }
 
-  it("shows the select-a-node hint until a node is selected, then the inspector", async () => {
-    stubHistory([
-      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
-    ]);
+  it("shows the select-a-node hint while every node is idle, and opens the inspector on a click", async () => {
+    stubHistory([]);
     useFakeEventSource();
 
     renderPanel("running");
@@ -531,12 +529,84 @@ describe("node inspector", () => {
 
     expect(screen.getByText(HINT)).toBeInTheDocument();
 
-    await selectNode("implement");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^implement/ }));
+    });
 
     expect(screen.queryByText(HINT)).not.toBeInTheDocument();
     expect(
       screen.getByRole("region", { name: "implement inspector" }),
     ).toBeInTheDocument();
+  });
+
+  it("opens the running node's inspector without a click, and rings it in the graph", async () => {
+    stubHistory([
+      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
+    ]);
+    useFakeEventSource();
+
+    const { container } = renderPanel("running");
+
+    await settle();
+
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "implement inspector" }),
+    ).toBeInTheDocument();
+    expect(
+      container
+        .querySelector('[data-node="implement"]')
+        ?.getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("keeps the clicked node selected when another node starts running", async () => {
+    stubHistory([
+      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
+    ]);
+    useFakeEventSource();
+
+    renderPanel("running");
+    await settle();
+    await selectNode("validate");
+
+    await act(async () => {
+      FakeEventSource.instances[0].emit("agent_event", {
+        type: "agent_event",
+        event: eventRow({ id: "2", nodeId: "implement", eventType: "init" }),
+      });
+    });
+
+    expect(
+      screen.getByRole("region", { name: "validate inspector" }),
+    ).toBeInTheDocument();
+  });
+
+  it("draws the model and duration line inside a visited node", async () => {
+    stubHistory([
+      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
+    ]);
+    useFakeEventSource();
+
+    const { container } = render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        definition={definition}
+        nodes={[walkRow({ outcome: "success", durationSeconds: 192 })]}
+        repo="re-cinq/lore"
+        reason={null}
+        nodeModels={{
+          implement: { model: "claude-sonnet-4-6", source: "recipe" },
+        }}
+      />,
+    );
+
+    await settle();
+
+    expect(
+      container.querySelector('[data-node="implement"] [data-meta]'),
+    ).toHaveTextContent("Sonnet 4.6 · 3m 12s");
   });
 
   it("shows the selected node's pod logs inside the inspector, one panel per attempt", async () => {

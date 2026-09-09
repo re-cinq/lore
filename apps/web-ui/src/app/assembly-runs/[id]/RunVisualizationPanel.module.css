@@ -12,35 +12,58 @@
 .chip {
   border-radius: 999px;
   padding: 0.1rem 0.6rem;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   border: 1px solid transparent;
 }
 
 .live {
-  color: var(--tone-ok-fg, #14663f);
-  background: var(--tone-ok-bg, #e6f6ed);
-  border-color: var(--tone-ok-border, #b7e2c8);
+  color: var(--success);
+  background: var(--success-bg);
+  border-color: var(--success);
 }
 
 .connecting,
 .reconnecting {
-  color: var(--tone-running-fg, #7a5200);
-  background: var(--tone-running-bg, #fff5da);
-  border-color: var(--tone-running-border, #f0dca6);
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning);
 }
 
 .offline {
-  color: var(--tone-muted-fg, #5b6672);
-  background: var(--tone-muted-bg, #f0f2f5);
-  border-color: var(--tone-muted-border, #d8dde3);
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  border-color: var(--border);
 }
 
 /* Degraded but advancing: the history-poll fallback, not a dead stream. */
 .polling {
-  color: var(--tone-running-fg, #7a5200);
-  background: var(--tone-running-bg, #fff5da);
-  border-color: var(--tone-running-border, #f0dca6);
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning);
+}
+
+/* Graph left, inspector right and always in view; one column on a narrow screen. */
+.workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 28rem);
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (max-width: 64rem) {
+  .workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.graphColumn {
+  min-width: 0;
+}
+.sidebar {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  min-width: 0;
 }
 
 .inspector {

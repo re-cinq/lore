@@ -8,6 +8,7 @@ import {
   resultVisual,
   type NodeStatusVisual,
 } from "@/lib/run-node-status";
+import NodeMetaLine from "./NodeMetaLine";
 import NodeOutcomeList from "./NodeOutcomeList";
 import NodePlainLabel from "./NodePlainLabel";
 import NodeRunBadge from "./NodeRunBadge";
@@ -22,6 +23,10 @@ export interface GraphNodeProps {
   mode: GraphMode;
   height: number;
   isTerminal: boolean;
+  /** The node the inspector shows; drawn with a ring so the graph says which one. */
+  selected?: boolean;
+  /** Run mode facts under the verdict (model · duration · visits); empty draws nothing. */
+  meta?: string;
   onSelect?: (nodeId: string) => void;
 }
 
@@ -156,6 +161,32 @@ function PlainNodeBody({ title, node, isTerminal }: NodeBodyProps) {
   );
 }
 
+/** The node's tone class plus the selection ring. */
+function nodeClassName(
+  badge: NodeBodyProps["badge"],
+  selected: boolean,
+): string {
+  return classes(
+    styles.node,
+    badge ? styles[badge.tone] : undefined,
+    selected ? styles.selected : undefined,
+  );
+}
+
+/** How the group answers a click or a key, and whether it is the pressed one; a non-interactive node claims neither. */
+function interactionAttrs(
+  interaction: ReturnType<typeof nodeInteraction>,
+  selected: boolean,
+) {
+  return {
+    role: interaction.role,
+    "aria-pressed": interaction.role === "button" ? selected : undefined,
+    tabIndex: interaction.tabIndex,
+    onClick: interaction.onClick,
+    onKeyDown: interaction.onKeyDown,
+  };
+}
+
 /** The group's own attributes. The tone lands on `data-tone` as well as in the class so a test can assert what a node is SAYING without going through the stylesheet, and the aria-label carries the outcome in words for a reader who cannot see the colour. */
 function groupProps(
   {
@@ -165,16 +196,15 @@ function groupProps(
     isTerminal,
   }: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">,
   interaction: ReturnType<typeof nodeInteraction>,
+  selected: boolean,
 ) {
   return {
-    className: classes(styles.node, badge ? styles[badge.tone] : undefined),
+    className: nodeClassName(badge, selected),
     "data-node": node.id,
     "data-tone": badge?.tone ?? "idle",
-    role: interaction.role,
+    "data-selected": selected || undefined,
     "aria-label": nodeAriaLabel(node.id, badge, outcomes, isTerminal),
-    tabIndex: interaction.tabIndex,
-    onClick: interaction.onClick,
-    onKeyDown: interaction.onKeyDown,
+    ...interactionAttrs(interaction, selected),
   };
 }
 
@@ -211,9 +241,14 @@ export default function GraphNode(props: GraphNodeProps) {
   const body = { node, badge, outcomes, isTerminal, top, leftEdge };
 
   return (
-    <g {...groupProps(body, interaction)}>
+    <g {...groupProps(body, interaction, props.selected === true)}>
       <NodeBox leftEdge={leftEdge} top={top} height={height} />
       <NodeBody {...body} title={titleCase(node.id)} />
+      <NodeMetaLine
+        meta={badge ? (props.meta ?? "") : ""}
+        leftEdge={leftEdge}
+        centerY={node.y}
+      />
     </g>
   );
 }

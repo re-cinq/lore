@@ -1,15 +1,19 @@
 "use client";
 
 // The live-run container: owns every piece of mutable state and IO here so the sections below stay pure functions of props (DDAU / lore/no-io-in-view).
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
+import type { NodeModel } from "@/lib/node-models";
+import { autoSelectNodeId, effectiveSelection } from "@/lib/run-auto-select";
 import {
   reduceRunEvent,
   initialRunState,
   withVisitRows,
   type RunLiveState,
 } from "@/lib/run-event-reducer";
+import { formatNodeMeta, nodeBadgeMeta } from "@/lib/run-node-badge";
+import { latestRowByNode } from "@/lib/run-replay-view";
 import type { RunStreamEvent, RunStreamFrame } from "@/lib/run-stream-types";
 import styles from "./RunVisualizationPanel.module.css";
 import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
@@ -19,8 +23,10 @@ import {
   useRunGraph,
   useSelectedNode,
 } from "./run-visualization-hooks";
-import { RunDetailSection } from "./RunVisualizationSections";
+import FileHeatmapView from "./FileHeatmapView";
+import { NodeInspectorPanel } from "./NodeInspectorPanel";
 import { RunGraphSection } from "./RunGraphSection";
+import { RunWorkbenchLayout } from "./RunWorkbenchLayout";
 
 export interface RunVisualizationPanelProps {
   runId: string;
@@ -31,6 +37,8 @@ export interface RunVisualizationPanelProps {
   reason: string | null;
   // nodeId → agents-editor href for each agent node the catalog holds; resolved server-side, the panel only renders what it is handed.
   agentEditHrefs?: Record<string, string>;
+  /** nodeId → the model an agent node runs on, resolved server-side against the catalog. */
+  nodeModels?: Record<string, NodeModel>;
   /** The page's fold for the stream's state families; the panel owns the socket, the page owns run/node/task state. */
   onFrame?: (frame: RunStreamFrame) => void;
 }
@@ -67,7 +75,7 @@ interface RunFacts {
 interface NodeAndGraphView {
   selectedNodeId: string | null;
   showOutcomes: boolean;
-  nodeStates: ReturnType<typeof initialRunState>["nodeStates"];
+  nodeStates: RunLiveState["nodeStates"];
 }
 
 /** The selected node resolves FIRST: the graph needs its taken edges to decide which paths to draw, so the two cannot be swapped or run independently. */
@@ -133,25 +141,125 @@ function useRunSources(
   return { state, chipState };
 }
 
-function useRunVisualization(input: RunVisualizationInput) {
+/** The node the inspector shows: the viewer's click while it names a node the graph has, else the automatic choice (running → failed → last finished). */
+function useSelection(
+  run: RunFacts,
+  state: RunLiveState,
+  userPick: string | null,
+  latestRows: Map<string, AssemblyRunNode>,
+): string | null {
+  return useMemo(() => {
+    const known = new Set([
+      ...(run.definition?.nodes ?? []).map((node) => node.id),
+      ...Object.keys(state.nodeStates),
+    ]);
+    const auto = autoSelectNodeId(run.definition, state.nodeStates, latestRows);
+
+    return effectiveSelection(userPick, auto, known);
+  }, [run.definition, state.nodeStates, userPick, latestRows]);
+}
+
+/** What every node's facts line is read from. */
+interface MetaSources {
+  state: RunLiveState;
+  latestRows: Map<string, AssemblyRunNode>;
+  models: RunVisualizationPanelProps["nodeModels"];
+  now: string;
+}
+
+/** One node's facts line: model · duration · visits, as the graph draws it. */
+function metaLineFor(id: string, sources: MetaSources): string {
+  const { state, latestRows, models, now } = sources;
+
+  return formatNodeMeta(
+    nodeBadgeMeta({
+      row: latestRows.get(id),
+      state: state.nodeStates[id],
+      model: models?.[id],
+      now,
+    }),
+  );
+}
+
+/** The facts line for every node the run knows. */
+function useNodeMeta(
+  state: RunLiveState,
+  latestRows: Map<string, AssemblyRunNode>,
+  nodeModels: RunVisualizationPanelProps["nodeModels"],
+  now: string,
+): Record<string, string> {
+  return useMemo(() => {
+    const ids = new Set([
+      ...Object.keys(state.nodeStates),
+      ...latestRows.keys(),
+    ]);
+
+    const sources = { state, latestRows, models: nodeModels, now };
+
+    return Object.fromEntries(
+      [...ids].map((id) => [id, metaLineFor(id, sources)]),
+    );
+  }, [state, latestRows, nodeModels, now]);
+}
+
+/** The run's state and the node in focus: the reducer, the rows, the click-or-automatic selection. */
+function useRunFocus(input: RunVisualizationInput) {
   const { runId, runStatus, definition, nodes, reason, onFrame } = input;
   const runIsLive = !isTerminalRunStatus(runStatus);
   const run: RunFacts = { nodes, definition, runStatus, runIsLive, reason };
   const toggles = useViewToggles();
-  const { state, chipState } = useRunSources(run, runId, onFrame);
+  const sources = useRunSources(run, runId, onFrame);
+  const latestRows = useLatestRows(nodes);
+  const selectedNodeId = useSelection(
+    run,
+    sources.state,
+    toggles.selectedNodeId,
+    latestRows,
+  );
+
+  return { run, toggles, sources, latestRows, selectedNodeId };
+}
+
+/** The ticking clock and the facts line it feeds. */
+function useNodeMetaLine(
+  focus: ReturnType<typeof useRunFocus>,
+  nodeModels: RunVisualizationPanelProps["nodeModels"],
+) {
+  const now = useNowTicker(focus.run.runIsLive);
+  const nodeMeta = useNodeMeta(
+    focus.sources.state,
+    focus.latestRows,
+    nodeModels,
+    now,
+  );
+
+  return { now, nodeMeta };
+}
+
+function useRunVisualization(
+  input: RunVisualizationInput,
+  nodeModels: RunVisualizationPanelProps["nodeModels"],
+) {
+  const focus = useRunFocus(input);
+  const { run, toggles, sources, selectedNodeId } = focus;
   const nodeAndGraph = useNodeAndGraph(run, {
-    selectedNodeId: toggles.selectedNodeId,
+    selectedNodeId,
     showOutcomes: toggles.showOutcomes,
-    nodeStates: state.nodeStates,
+    nodeStates: sources.state.nodeStates,
   });
 
   return {
     ...toggles,
     ...nodeAndGraph,
-    now: useNowTicker(runIsLive),
-    state,
-    chipState,
+    ...sources,
+    ...useNodeMetaLine(focus, nodeModels),
+    selectedNodeId,
   };
+}
+
+/** Newest row per node, memoized on the rows themselves so the selection and the facts line share one map. */
+function useLatestRows(nodes: readonly AssemblyRunNode[]) {
+  return useMemo(() => latestRowByNode(nodes), [nodes]);
 }
 
 type RunView = ReturnType<typeof useRunVisualization>;
@@ -168,6 +276,8 @@ function RunGraph({ view, definition }: RunGraphProps) {
       graph={view.graph.visibleGraph}
       definition={definition}
       onSelectNode={view.setSelectedNodeId}
+      selectedNodeId={view.selectedNodeId}
+      nodeMeta={view.nodeMeta}
       hasRunData={view.graph.hasRunData}
       showOutcomes={view.showOutcomes}
       onToggleOutcomes={() => view.setShowOutcomes((shown) => !shown)}
@@ -178,11 +288,11 @@ function RunGraph({ view, definition }: RunGraphProps) {
 /** Takes the run's own props as `page` rather than threading eight arguments: none of them is derived from the run, they are what the route already knew. */
 type RunDetailPage = Pick<
   RunVisualizationPanelProps,
-  "runId" | "repo" | "reason" | "definition" | "agentEditHrefs"
+  "runId" | "repo" | "reason" | "definition" | "agentEditHrefs" | "nodeModels"
 >;
 
-/** The inspector's plain values — the page's own facts and the view's derivations, flattened into one bundle because the section reads them as a flat prop list. */
-function detailProps(view: RunView, page: RunDetailPage) {
+/** The inspector's plain values — the page's own facts and the view's derivations, flattened into one bundle because the panel reads them as a flat prop list. */
+function inspectorProps(view: RunView, page: RunDetailPage) {
   return {
     selectedNodeId: view.selectedNodeId,
     runId: page.runId,
@@ -195,33 +305,36 @@ function detailProps(view: RunView, page: RunDetailPage) {
     nodeInputs: view.node.nodeInputs,
     retrySource: view.graph.retrySource,
     agentEditHrefs: page.agentEditHrefs,
-    showAllFiles: view.showAllFiles,
-    toggleShowAllFiles: view.toggleShowAllFiles,
+    nodeModels: page.nodeModels,
+    selectedState: view.node.selected,
+    visibleNodeCount: visibleNodeCount(view),
   };
 }
 
-function RunDetail({ view, page }: { view: RunView; page: RunDetailPage }) {
+function visibleNodeCount(view: RunView): number {
   const { visibleGraph } = view.graph;
 
-  return (
-    <RunDetailSection
-      {...detailProps(view, page)}
-      selectedState={view.node.selected}
-      visibleNodeCount={visibleGraph.nodes.length}
-      fileTouches={view.state.fileTouches}
-    />
-  );
+  return visibleGraph.nodes.length;
 }
 
 export default function RunVisualizationPanel(
   props: RunVisualizationPanelProps,
 ) {
-  const view = useRunVisualization(props);
+  const view = useRunVisualization(props, props.nodeModels);
 
   return (
     <section className={styles.panel}>
-      <RunGraph view={view} definition={props.definition} />
-      <RunDetail view={view} page={props} />
+      <RunWorkbenchLayout
+        graph={<RunGraph view={view} definition={props.definition} />}
+        inspector={<NodeInspectorPanel {...inspectorProps(view, props)} />}
+        below={
+          <FileHeatmapView
+            touches={view.state.fileTouches}
+            showAll={view.showAllFiles}
+            onToggleShowAll={view.toggleShowAllFiles}
+          />
+        }
+      />
     </section>
   );
 }

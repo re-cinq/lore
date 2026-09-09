@@ -1,11 +1,11 @@
 "use client";
 
-// The detail half of RunVisualizationPanel: the selected node's inspector and the file heatmap. Prop-driven, no state or IO of its own (DDAU).
+// The inspector beside the graph (run-viz FR4.14): everything about the selected node — detail card, brief, pod logs, transcript — or the hint to pick one. Prop-driven, no state or IO of its own (DDAU).
 import Link from "next/link";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
-import { initialRunState, type NodeRunState } from "@/lib/run-event-reducer";
-import FileHeatmapView from "./FileHeatmapView";
+import type { NodeRunState } from "@/lib/run-event-reducer";
+import type { NodeModel } from "@/lib/node-models";
 import FullTranscriptPanel from "./FullTranscriptPanel";
 import NodeLogPanel from "./NodeLogPanel";
 import NodeInputCard from "./NodeInputCard";
@@ -38,6 +38,7 @@ interface NodeInspectorProps {
   inputs: Parameters<typeof NodeInputCard>[0]["inputs"];
   retrySource: { nodeId: string; iteration: number } | null;
   agentEditHref?: string;
+  model: NodeModel | null;
 }
 
 type RetrySource = { nodeId: string; iteration: number };
@@ -131,6 +132,7 @@ function NodeInspector(props: NodeInspectorProps) {
         reason={props.reason}
         repo={props.repo}
         attempts={props.attempts}
+        model={props.model}
         actions={nodeActions(runId, retrySource, agentEditHref)}
       />
       <NodeInputCard inputs={props.inputs} />
@@ -153,6 +155,7 @@ interface SelectedNodeSectionProps {
   nodeInputs: Parameters<typeof NodeInputCard>[0]["inputs"];
   retrySource: { nodeId: string; iteration: number } | null;
   agentEditHrefs?: Record<string, string>;
+  nodeModels?: Record<string, NodeModel>;
   visibleNodeCount: number;
 }
 
@@ -174,10 +177,13 @@ function inspectorPropsFor(
     inputs: props.nodeInputs,
     retrySource: props.retrySource,
     agentEditHref: props.agentEditHrefs?.[nodeId],
+    model: props.nodeModels?.[nodeId] ?? null,
   };
 }
 
-export function SelectedNodeSection(props: SelectedNodeSectionProps) {
+export type NodeInspectorPanelProps = SelectedNodeSectionProps;
+
+export function NodeInspectorPanel(props: NodeInspectorPanelProps) {
   const { selectedNodeId, runId } = props;
 
   if (selectedNodeId === null) {
@@ -189,28 +195,6 @@ export function SelectedNodeSection(props: SelectedNodeSectionProps) {
       <NodeInspector {...inspectorPropsFor(props, selectedNodeId)} />
       {/* Keyed on the run so a run change resets the loaded transcript by construction, not by a flag someone has to remember to clear. */}
       <FullTranscriptPanel key={runId} runId={runId} nodeId={selectedNodeId} />
-    </>
-  );
-}
-
-type RunDetailSectionProps = SelectedNodeSectionProps & {
-  fileTouches: ReturnType<typeof initialRunState>["fileTouches"];
-  showAllFiles: boolean;
-  toggleShowAllFiles: () => void;
-};
-
-/** Everything below the graph: the selected node's inspector and the file heatmap. */
-export function RunDetailSection(props: RunDetailSectionProps) {
-  const { fileTouches, showAllFiles, toggleShowAllFiles, ...inspector } = props;
-
-  return (
-    <>
-      <SelectedNodeSection {...inspector} />
-      <FileHeatmapView
-        touches={fileTouches}
-        showAll={showAllFiles}
-        onToggleShowAll={toggleShowAllFiles}
-      />
     </>
   );
 }

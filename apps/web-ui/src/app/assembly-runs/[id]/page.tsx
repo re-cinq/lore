@@ -9,6 +9,7 @@ import {
 import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import { definitionForRun } from "@/lib/run-graph-definition";
 import { agentEditHrefs } from "@/lib/agent-edit-href";
+import { resolveNodeModels } from "@/lib/node-models";
 import { listAgents } from "@/lib/agents-api";
 import RunLiveShell from "./RunLiveShell";
 
@@ -53,13 +54,15 @@ async function resolveRunView(
   const nodes = await fetchAssemblyRunNodes(id);
   const { events, llmCalls } = await resolveTaskContext(run.taskId);
   const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
+  const agents = await listAgents(run.repo);
 
   return {
     nodes,
     events,
     llmCalls,
     definition,
-    editHrefs: agentEditHrefs(definition, await listAgents(run.repo), run.repo),
+    editHrefs: agentEditHrefs(definition, agents, run.repo),
+    nodeModels: resolveNodeModels(definition, agents),
   };
 }
 
@@ -78,6 +81,7 @@ function RunPage({ run, view }: RunPageProps) {
       taskEvents={view.events}
       llmCalls={view.llmCalls}
       agentEditHrefs={view.editHrefs}
+      nodeModels={view.nodeModels}
     />
   );
 }

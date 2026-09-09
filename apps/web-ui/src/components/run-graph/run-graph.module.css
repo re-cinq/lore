@@ -98,6 +98,18 @@
 .node[tabindex]:hover .box {
   stroke: var(--info);
   stroke-width: 2;
+  fill: var(--bg-hover);
+}
+/* The node the inspector shows: a heavier ring, so the graph and the panel beside it agree at a glance. */
+.selected .box {
+  stroke: var(--info);
+  stroke-width: 3;
+  filter: drop-shadow(0 0 0 3px var(--info-bg));
+}
+.nodeMeta {
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
 }
 .nodeId {
   fill: var(--text);

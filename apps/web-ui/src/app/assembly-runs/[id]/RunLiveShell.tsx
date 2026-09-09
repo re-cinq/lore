@@ -11,6 +11,7 @@ import {
 } from "@/lib/run-live-reducer";
 import type { TaskRuntimeEvent, TaskRuntimeLlmCall } from "@/lib/task-runtime";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
+import type { NodeModel } from "@/lib/node-models";
 import { Alert } from "@/components/Alert";
 import AssemblyRunView from "./AssemblyRunView";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
@@ -25,6 +26,7 @@ export interface RunLiveShellProps {
   taskEvents: readonly TaskRuntimeEvent[];
   llmCalls: readonly TaskRuntimeLlmCall[];
   agentEditHrefs?: Record<string, string>;
+  nodeModels?: Record<string, NodeModel>;
 }
 
 function TaskLessRunAlert() {
@@ -79,6 +81,7 @@ function panelProps({ props, run, live, applyFrame }: LiveSectionsProps) {
     repo: run.repo,
     reason: run.reason,
     agentEditHrefs: props.agentEditHrefs,
+    nodeModels: props.nodeModels,
     onFrame: applyFrame,
   };
 }

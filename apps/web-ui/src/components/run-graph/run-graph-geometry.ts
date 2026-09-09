@@ -25,6 +25,8 @@ export function fitNodeLabel(text: string, max = NODE_LABEL_CHARS): string {
 }
 
 const BASE_NODE_HEIGHT = 48;
+// One more text line under the verdict for the model · duration · visits facts.
+const META_LINE_HEIGHT = 16;
 const OUTCOME_TOP = 14;
 const PADDING = 28;
 const MIN_VIEW_WIDTH = 480;
@@ -47,10 +49,10 @@ export function fitView(box: Box): FittedView {
   };
 }
 
-// Uniform node height: taller in definition mode so a source node's outcome list fits; run/bare definition nodes stay the base height.
-export function nodeHeightFor(graph: VisibleGraph): number {
+// Uniform node height: taller in definition mode so a source node's outcome list fits, and in run mode when the nodes carry a facts line; bare nodes stay the base height.
+export function nodeHeightFor(graph: VisibleGraph, withMeta = false): number {
   if (graph.mode !== "definition") {
-    return BASE_NODE_HEIGHT;
+    return withMeta ? BASE_NODE_HEIGHT + META_LINE_HEIGHT : BASE_NODE_HEIGHT;
   }
 
   const rows = Math.max(0, ...graph.nodes.map((node) => node.outcomes.length));
