@@ -1292,7 +1292,7 @@ SKIP LOCKED` incrementing attempts (oldest-first, flipping to
 ### NFR-2: Reliability & Freshness
 
 - `lore_assemble_context` warns when repo context is stale (>7 days since
-  last ingest) or missing (first-run welcome with suggested actions). ([validated by `context-freshness.test.ts:9`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L9), [`context-freshness.test.ts:15`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L15), [`context-freshness.test.ts:21`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L21), [`context-freshness.test.ts:25`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L25), [`context-freshness.test.ts:31`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L31))
+  last ingest) or missing (first-run welcome with suggested actions). ([validated by `context-freshness.test.ts:9`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L35), [`context-freshness.test.ts:15`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L41), [`context-freshness.test.ts:21`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L47), [`context-freshness.test.ts:25`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L51), [`context-freshness.test.ts:31`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L57))
 - When the MCP server is unreachable, Claude Code MUST fall back to
   the last-synced local copy of CLAUDE.md files and ADRs in
   `~/.re-cinq/lore` and display a one-time warning to the developer

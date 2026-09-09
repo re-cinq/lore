@@ -1081,6 +1081,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/chunks/prune": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/chunks/prune */
+    post: operations["post_api_repos_owner_repo_chunks_prune"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/chunks/{kind}": {
     parameters: {
       query?: never;
@@ -2411,6 +2428,11 @@ export interface components {
         ingested_at: string | null;
         rank?: number;
       }[];
+    };
+    ChunkPruneResult: {
+      schema: string;
+      deleted_paths: string[];
+      deleted_chunks: number;
     };
     ChunkTypeList: {
       types: string[];
@@ -6220,6 +6242,41 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_chunks_prune: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          present_paths: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description The chunk schema swept, the indexed paths that were absent from the posted tree or refused by the classifier, and how many chunks went with them */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChunkPruneResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

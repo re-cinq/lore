@@ -9,7 +9,6 @@ import {
   fetchers,
   fitItemsToBudget,
   hybridChunkItems,
-  extractKeyTerms,
   dropSeen,
   formatCouplingItems,
   fetchCouplingSource,
@@ -112,33 +111,6 @@ describe("fetchCouplingSource", () => {
 
     expect(res.status).toBe("ok");
     expect(res.sources[0].text).toContain("must do X");
-  });
-});
-
-describe("extractKeyTerms", () => {
-  it("keeps distinctive terms and drops stopwords + short words", () => {
-    const terms = extractKeyTerms(
-      "add the UI controls for per-repo settings and parseSettingsForm",
-    );
-
-    expect(terms).toContain("controls");
-    expect(terms).toContain("settings");
-    expect(terms).toContain("parseSettingsForm");
-    expect(terms).not.toContain("the");
-    expect(terms).not.toContain("and");
-    expect(terms).not.toContain("ui");
-  });
-
-  it("de-duplicates and caps the number of terms", () => {
-    const terms = extractKeyTerms("settings settings settings", 12);
-
-    expect(terms).toEqual(["settings"]);
-    expect(
-      extractKeyTerms(
-        Array.from({ length: 40 }, (_, i) => `term${i}`).join(" "),
-        12,
-      ).length,
-    ).toBe(12);
   });
 });
 

@@ -136,6 +136,23 @@ A non-404 GitHub failure is caught per-file and reported as an `error` result ra
 
 The returned `ingested`/`deleted`/`errors` counts tally the per-file outcomes of a mixed batch. ([validated by `tallies ingested, deleted, and error counts across a mixed batch`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L309))
 
+### POST /api/repos/{owner}/{repo}/chunks/prune — the orphan sweep
+
+The nightly reindex that reconciled the store against the tree retired in
+#1880, and until v5 of the ingest workflow a rename posted only its new path,
+so a moved file's old chunks stayed searchable beside the live ones (two of the
+"Relevant Code" hits measured on 2026-09-09 were #1817's pre-rename paths).
+The sweep is on demand and the tree is posted, so the store never guesses:
+`scripts/infra/prune-orphan-chunks.sh` sends `git ls-files`.
+
+A chunk path is pruned when the posted tree does not contain it, or when today's classifier refuses it — a generated file indexed before the exclusion existed. ([validated by `plans deletion of apps/lore-api/src/api/routes/features/features.test.ts when it is indexed but absent from the tree`](libs/shared/src/domain/chunk-prune.test.ts#L6), [`chunk-prune.test.ts:19`](libs/shared/src/domain/chunk-prune.test.ts#L19), [`chunk-prune.test.ts:25`](libs/shared/src/domain/chunk-prune.test.ts#L25))
+
+The route (`write` scope, body `{ present_paths }`) resolves the repo's chunk schema, deletes the planned paths there in one statement, and answers `{ schema, deleted_paths, deleted_chunks }`; a tree that plans nothing issues no DELETE. ([validated by `prunes re-cinq/lore against the 2 posted present paths and returns what was deleted`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L41), [`prune-orphans.test.ts:35`](apps/lore-api/src/work/chunks/prune-orphans.test.ts#L35), [`prune-orphans.test.ts:75`](apps/lore-api/src/work/chunks/prune-orphans.test.ts#L75))
+
+The body cap is 10MB, above hapi's 1MB default: a large tree truncated at the default would have posted a partial list and deleted the rest. ([validated by `accepts a 3MB present_paths body, above the 1MB server default, so a large tree is not truncated into a mass delete`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L61))
+
+An empty `present_paths` is refused with 400 before the store is touched: "nothing is present" would otherwise read as "delete everything". ([validated by `refuses an empty present_paths with 400 before touching the store, so an empty tree can never wipe a repo`](apps/lore-api/src/transport/routes/repos/chunks-prune.test.ts#L74))
+
 ## Out of Scope
 
 - The chunking/embedding/persistence engine internals (`ingestFiles`).

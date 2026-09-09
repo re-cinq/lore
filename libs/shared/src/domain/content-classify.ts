@@ -4,6 +4,9 @@ export type ContentType = "doc" | "adr" | "spec" | "code";
 
 const BINARY_RE =
   /\.(png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|pdf|zip|tar|gz|lock)$/i;
+// Build output and generated artifacts: thousands of lines nobody authored, which keyword-match everything (a 30k-line openapi typings file ranked first for a graph-schema question on 2026-09-09).
+const GENERATED_RE =
+  /(\.d\.ts|\.min\.(?:js|css)|-lock\.(?:json|ya?ml)|\.generated\.[a-z]+|(?:^|\/)openapi\.json)$|(?:^|\/)(?:dist|build|node_modules|coverage)\//;
 const CODE_RE =
   /\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp|css|scss|sass|less)$/;
 
@@ -39,6 +42,7 @@ const CLASSIFY_RULES: ClassifyRule[] = [
     type: null,
   },
   { test: (path) => BINARY_RE.test(path), type: null },
+  { test: (path) => GENERATED_RE.test(path), type: null },
   { test: isDocFile, type: "doc" },
   // Extension wins over directory: a source file is code wherever it lives.
   { test: (path) => CODE_RE.test(path), type: "code" },

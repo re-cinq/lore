@@ -5,7 +5,11 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import { getHealthStatus } from "@re-cinq/lore-server-core/platform/db.js";
+import {
+  getHealthStatus,
+  embeddingHealth,
+  embedderDegraded,
+} from "@re-cinq/lore-server-core/platform/db.js";
 import { validateClientToken } from "../../http/auth.js";
 
 const TASK_STATS_SQL = `SELECT count(*) FILTER (WHERE created_at > current_date)::int as today, count(*) FILTER (WHERE status = 'pending')::int as pending FROM pipeline.tasks`;
@@ -20,13 +24,16 @@ function bearerToken(
   return header?.replace("Bearer ", "");
 }
 
+// `degraded` stays 200: the pod serves, but every hybrid source is ranking keyword-only. The 403 outage of 2026-08-13 → 09-09 ran four weeks because nothing but a log line said so.
 function healthResponseStatus({ connected }: { connected: boolean }): {
-  status: "ok" | "error";
+  status: "ok" | "degraded" | "error";
   code: number;
 } {
-  const status = connected || !process.env.LORE_DB_HOST ? "ok" : "error";
+  if (!connected && process.env.LORE_DB_HOST) {
+    return { status: "error", code: 503 };
+  }
 
-  return { status, code: status === "error" ? 503 : 200 };
+  return { status: embedderDegraded() ? "degraded" : "ok", code: 200 };
 }
 
 async function fetchTaskStats(
@@ -42,6 +49,28 @@ async function fetchTaskStats(
   }
 }
 
+type DbHealth = Awaited<ReturnType<typeof getHealthStatus>>;
+
+async function isReaderAuthed(
+  pool: Pool | null,
+  request: Request,
+): Promise<boolean> {
+  const bearer = bearerToken(request.headers.authorization);
+
+  return bearer ? validateClientToken(pool, bearer, "read") : false;
+}
+
+async function fullHealth(
+  pool: Pool | null,
+  health: DbHealth,
+  status: string,
+): Promise<Record<string, unknown>> {
+  const tasks =
+    health.connected && pool ? await fetchTaskStats(pool) : ZERO_TASKS;
+
+  return { status, database: health, embeddings: embeddingHealth(), tasks };
+}
+
 /** Liveness plus, for a reader-scoped caller, the task counters. */
 async function serveHealthz(
   getPool: () => Pool | null,
@@ -51,19 +80,11 @@ async function serveHealthz(
   const pool = getPool();
   const health = await getHealthStatus();
   const { status, code } = healthResponseStatus(health);
-  const bearer = bearerToken(request.headers.authorization);
-  const isAuthed = bearer
-    ? await validateClientToken(pool, bearer, "read")
-    : false;
+  const body = (await isReaderAuthed(pool, request))
+    ? await fullHealth(pool, health, status)
+    : { status };
 
-  if (!isAuthed) {
-    return h.response({ status }).code(code);
-  }
-
-  const tasks =
-    health.connected && pool ? await fetchTaskStats(pool) : ZERO_TASKS;
-
-  return h.response({ status, database: health, tasks }).code(code);
+  return h.response(body).code(code);
 }
 
 /** GET /healthz — liveness + readiness probe; auth optional for stats. */

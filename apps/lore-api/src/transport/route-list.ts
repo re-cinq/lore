@@ -90,6 +90,7 @@ import { impactRoute } from "./routes/impact/impact.js";
 import { impactBaseRoute } from "./routes/impact/impact-base.js";
 import { traceRoute } from "./routes/trace/trace.js";
 import { chunksRoute } from "./routes/repos/chunks.js";
+import { chunksPruneRoute } from "./routes/repos/chunks-prune.js";
 import { stationDataRoutes } from "./routes/repos/station-data.js";
 import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
@@ -187,6 +188,8 @@ function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
     ingestDeltaRoute(getPool),
     eventPayloadRoute(getPool),
     embedRoute(),
+    // The sweep is a write of knowledge (rows leave the store), not a graph read.
+    chunksPruneRoute(getPool),
   ];
 }
 

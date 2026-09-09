@@ -18,6 +18,8 @@ export interface AssemblyTrace {
   sections: TraceSection[];
   budget: { total: number; used: number; leftover: number };
   freshness: { state: string; message: string };
+  /** True when the embedder had failed enough in a row that every hybrid source ranked keyword-only. */
+  embedderDegraded: boolean;
   timingsMs: { total: number; perSource: Record<string, number> };
 }
 
@@ -30,6 +32,7 @@ export interface DebugTraceInput {
   traceSections: TraceSection[];
   sections: { header: string; tokens: number; truncated: boolean }[];
   freshness: FreshnessInfo;
+  embedderDegraded: boolean;
   startedAt: number;
   timings: Record<string, number>;
 }
@@ -53,9 +56,11 @@ function budgetTrace(
   return { total: minTokens, used, leftover: Math.max(0, minTokens - used) };
 }
 
-export function buildAssemblyTrace(input: DebugTraceInput): AssemblyTrace {
-  const { freshness } = input;
+function freshnessTrace(freshness: FreshnessInfo): AssemblyTrace["freshness"] {
+  return { state: freshness.state, message: freshness.warning.trim() };
+}
 
+export function buildAssemblyTrace(input: DebugTraceInput): AssemblyTrace {
   return {
     query: input.query,
     template: input.templateName,
@@ -64,10 +69,8 @@ export function buildAssemblyTrace(input: DebugTraceInput): AssemblyTrace {
     templateSections: templateSectionsTrace(input.template),
     sections: input.traceSections,
     budget: budgetTrace(input.minTokens, input.sections),
-    freshness: {
-      state: freshness.state,
-      message: freshness.warning.trim(),
-    },
+    freshness: freshnessTrace(input.freshness),
+    embedderDegraded: input.embedderDegraded,
     timingsMs: {
       total: Date.now() - input.startedAt,
       perSource: input.timings,
