@@ -250,7 +250,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 - **FR9.2 — A failing job answers with a status and nothing else.** The
   courier's only channel is an HTTP status, and a job's error can carry
   connection strings and hostnames; the detail is logged where operators look
-  and never returned. ([validated by `stations.test.ts:107`](apps/stations/src/transport/routes/stations.test.ts#L107))
+  and never returned. ([validated by `stations.test.ts:107`](apps/stations/src/transport/routes/stations.test.ts#L107), [`stations.test.ts:110`](apps/stations/src/transport/routes/stations.test.ts#L110))
 - **FR9.4 — Importance decay follows the same route.** Scoring memories against
   the half-life model and evicting past the per-agent cap is scoring plus
   database writes, so it runs in lore-api. Behaviour is carried over unchanged:
