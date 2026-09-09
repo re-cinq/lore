@@ -223,6 +223,7 @@ export {
   dropIngestExcluded,
   type ContentType,
 } from "./domain/content-classify.js";
+export { planChunkPrune } from "./domain/chunk-prune.js";
 export { TEST_COMMAND_SETUP_PROMPT } from "./lib/test-command-setup-prompt.js";
 export { LORE_TESTS_INSTRUCTION } from "./lib/lore-tests-instruction.js";
 

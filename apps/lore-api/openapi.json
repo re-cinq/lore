@@ -3638,6 +3638,90 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/chunks/prune": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_chunks_prune",
+        "summary": "POST /api/repos/{owner}/{repo}/chunks/prune",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The chunk schema swept, the indexed paths that were absent from the posted tree or refused by the classifier, and how many chunks went with them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkPruneResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "present_paths": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": ["present_paths"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/chunks/{kind}": {
       "get": {
         "operationId": "get_api_repos_owner_repo_chunks_kind",
@@ -9061,6 +9145,25 @@
           }
         },
         "required": ["chunks"],
+        "additionalProperties": false
+      },
+      "ChunkPruneResult": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "type": "string"
+          },
+          "deleted_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deleted_chunks": {
+            "type": "number"
+          }
+        },
+        "required": ["schema", "deleted_paths", "deleted_chunks"],
         "additionalProperties": false
       },
       "ChunkTypeList": {
