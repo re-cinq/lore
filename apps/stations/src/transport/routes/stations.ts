@@ -2,9 +2,11 @@
 
 import type { StationRegistry } from "../../domain/station.js";
 import type { Lifecycle, ServerRoute } from "@hapi/hapi";
+import Boom from "@hapi/boom";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
+import { errorMessage } from "@re-cinq/lore-shared";
 
 export interface StationsRouteDeps {
   /** A thunk: the registry closes over a pool that does not exist at route-build time. */
@@ -47,7 +49,10 @@ function runStationHandler(
     running.add(name);
 
     try {
-      return h.response({ summary: await station() }).code(200);
+      return h.response({ job: name, summary: await station() }).code(200);
+    } catch (err) {
+      request.log(["error", "station"], errorMessage(err));
+      throw Boom.internal();
     } finally {
       running.delete(name);
     }

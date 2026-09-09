@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Hapi from "@hapi/hapi";
+import Boom from "@hapi/boom";
 import { stationsRoute } from "./stations.js";
 import type { StationRegistry } from "../../domain/station.js";
 
@@ -30,7 +31,10 @@ describe("POST /api/stations/{name}", () => {
     const res = await run("approval-check");
 
     expect(res.statusCode).toBe(200);
-    expect(res.result).toEqual({ summary: "Checked 3 tasks, 1 approved" });
+    expect(res.result).toEqual({
+      job: "approval-check",
+      summary: "Checked 3 tasks, 1 approved",
+    });
   });
 
   it("refuses a name no station answers to, rather than 500-ing on undefined", async () => {
@@ -92,5 +96,35 @@ describe("POST /api/stations/{name}", () => {
 
     expect((await run("boom")).statusCode).toBe(500);
     expect((await run("boom")).statusCode).toBe(500);
+  });
+
+  it("includes the station name as 'job' in the 200 body, so a courier or operator can confirm which station ran", async () => {
+    const res = await run("approval-check");
+
+    expect({ status: res.statusCode, body: res.result }).toMatchObject({
+      status: 200,
+      body: { job: "approval-check", summary: "Checked 3 tasks, 1 approved" },
+    });
+  });
+
+  it("does not expose the job's failure reason in the response body — a Boom error from a station must not reach the courier", async () => {
+    registry = new Map([
+      [
+        "db-job",
+        async () => {
+          throw new Boom.Boom(
+            "postgresql://user:secret@db.internal:5432/lore",
+            { statusCode: 503 },
+          );
+        },
+      ],
+    ]);
+
+    const res = await run("db-job");
+
+    expect({
+      status: res.statusCode,
+      bodyContainsSecret: JSON.stringify(res.result ?? {}).includes("secret"),
+    }).toEqual({ status: 500, bodyContainsSecret: false });
   });
 });
