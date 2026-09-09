@@ -137,6 +137,34 @@ describe("stationNodeOutcome", () => {
     });
   });
 
+  it("does not lift a non-string dod verdict from unvalidated JSON", () => {
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "changes_requested",
+        extras: { "Lore-Dod-Blocked": 12 },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status).failureDetail).toBe(
+      undefined,
+    );
+  });
+
+  it("does not lift an empty dod verdict", () => {
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "changes_requested",
+        extras: { "Lore-Dod-Blocked": "" },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status).failureDetail).toBe(
+      undefined,
+    );
+  });
+
   it("does not lift a stray definition-of-done verdict on a successful outcome", () => {
     const status: AgentNodeStatus = {
       phase: "Succeeded",

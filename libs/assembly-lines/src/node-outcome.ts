@@ -146,12 +146,16 @@ function withValidationFailureDetail(stationResult: NodeResult): NodeResult {
 }
 
 // The definition-of-done step's one-line verdict rides extras too; lift it into failureDetail so the terminal hook can quote it on the issue (implementation-loop FR8) — nothing later reads failureDetail off a changes_requested row, so it cannot leak into a prompt.
+function isDodVerdict(verdict: unknown): verdict is string {
+  return typeof verdict === "string" && verdict.length > 0;
+}
+
 function withDodBlockedDetail(stationResult: NodeResult): NodeResult {
   const verdict = stationResult.extras?.["Lore-Dod-Blocked"];
   const lifts =
     stationResult.outcome === "changes_requested" &&
     !stationResult.failureDetail &&
-    verdict;
+    isDodVerdict(verdict);
 
   return lifts ? { ...stationResult, failureDetail: verdict } : stationResult;
 }

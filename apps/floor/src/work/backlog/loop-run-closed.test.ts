@@ -125,6 +125,42 @@ describe("handleLoopRunClosed", () => {
     expect(comments[0]?.body).toContain("fails today");
   });
 
+  it("does not ask for a rewrite when the definition of done crashed rather than declined the ticket", async () => {
+    const { d, comments } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "failed" },
+      { nodeId: "retrospective", iteration: 1, outcome: "success" },
+    ]);
+
+    await handleLoopRunClosed(run(), "completed", undefined, d);
+
+    expect(comments[0]?.body).not.toContain("fails today");
+  });
+
+  it("does not mistake an agent node merely named after the review type for the review node", async () => {
+    const graphWithoutAReviewType = {
+      ...graph,
+      nodes: graph.nodes.map((n) =>
+        n.id === "await-pr" ? { ...n, id: "pr_review", type: "agent" } : n,
+      ),
+    };
+    const { d, comments } = deps([
+      { nodeId: "dod", iteration: 1, outcome: "success" },
+      { nodeId: "implement", iteration: 1, outcome: "success" },
+      { nodeId: "pr_review", iteration: 1, outcome: "failed" },
+      { nodeId: "retrospective", iteration: 1, outcome: "success" },
+    ]);
+
+    await handleLoopRunClosed(
+      run({ graph: graphWithoutAReviewType }),
+      "completed",
+      undefined,
+      d,
+    );
+
+    expect(comments[0]?.body).toContain("the `pr_review` step reported");
+    expect(comments[0]?.body).not.toContain("review threads");
+  });
+
   it("blocks a ticket whose round reported it was stuck", async () => {
     const { d, labeled, comments } = deps([
       { nodeId: "dod", iteration: 1, outcome: "success" },

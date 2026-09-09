@@ -83,11 +83,14 @@ interface ParkVerdict {
 
 /** Node ids of a given type in the run's graph, falling back to the conventional id when the run carries no graph. */
 function nodeIdsOfType(run: ClosedLoopRun, type: string): Set<string> {
-  const ids = (run.graph?.nodes ?? [])
-    .filter((n) => n.type === type)
-    .map((n) => n.id);
+  const graph = run.graph;
 
-  return new Set(ids.length > 0 ? ids : [type]);
+  if (!graph) {
+    return new Set([type]);
+  }
+  const nodesOfType = graph.nodes.filter((n) => n.type === type);
+
+  return new Set(nodesOfType.map((n) => n.id));
 }
 
 /** The visit that routed into the run's last retrospective — the row written just before it. A blocked ticket is whichever node ended there on anything but success: the review node's two verdicts, the definition-of-done park, a stuck round, a repair that gave up. Null when the walk never reached a retrospective (an errored run is judged by its outcome instead). */
@@ -151,6 +154,10 @@ async function parkedVisit(
   return routed && routed.outcome !== "success" ? routed : null;
 }
 
+function declined(routed: StationVisit): boolean {
+  return routed.nodeId === "dod" && routed.outcome === "changes_requested";
+}
+
 async function parkVerdict(
   run: ClosedLoopRun,
   outcome: string,
@@ -166,10 +173,7 @@ async function parkVerdict(
   const routed = await parkedVisit(run, deps);
 
   return routed
-    ? {
-        why: describeParked(run, routed),
-        askForRewrite: routed.nodeId === "dod",
-      }
+    ? { why: describeParked(run, routed), askForRewrite: declined(routed) }
     : null;
 }
 
