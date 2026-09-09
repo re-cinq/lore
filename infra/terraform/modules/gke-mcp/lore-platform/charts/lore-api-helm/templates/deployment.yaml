@@ -19,6 +19,7 @@ spec:
         # without this a ConfigMap update leaves running pods on the old file.
         checksum/task-types: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
+      serviceAccountName: lore-api
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
