@@ -81,14 +81,14 @@ describe("lore_search_context file-based fallback over real .md files on a temp 
     );
   });
 
-  it("returns a no-results message when nothing matches", async () => {
+  it("says the offline scan is not the corpus when the local files match nothing", async () => {
     const result = await searchContext({
       query: "nonexistent-term-xyz",
       limit: 8,
     });
 
     expect(result.content[0].text).toEqual(
-      'No results found for "nonexistent-term-xyz".',
+      'No results found for "nonexistent-term-xyz". This was a substring scan of local .md files under CONTEXT_PATH, not the ingested corpus — set LORE_API_URL to search it.',
     );
   });
 
