@@ -1,7 +1,12 @@
 // The Kubernetes half of pod-log reading, moved out of the Floor. `podLog` takes the tail at the source and returns a bounded string; the pure orchestration around it stays on the Floor.
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import type { V1Container, V1Pod } from "@kubernetes/client-node";
+import type {
+  CoreV1Api,
+  V1Container,
+  V1ContainerStatus,
+  V1Pod,
+} from "@kubernetes/client-node";
 import {
   agentsNamespace,
   type AgentPodInfo,
@@ -74,6 +79,20 @@ export function podSelectorForJob(jobName: string): string {
   return `job-name=${jobName}`;
 }
 
+/** The init container that ended the pod, if one did. A pod whose init fails never starts `agent`, so asking for the default container answers `BadRequest: container "agent" is waiting to start` — and the one line saying WHY the run died (a checkout of a branch that is gone, an unreachable skills registry) is unreadable from every Lore surface. That is how a deterministic failure got reported as retryable `infra` ("re-running is the right response") and was re-run for ten days. */
+export function failedInitContainer(pod: V1Pod): string | undefined {
+  const failed = (pod.status?.initContainerStatuses ?? []).find(endedBadly);
+
+  return failed?.name;
+}
+
+/** An init container that ran and did not exit 0. One still running has no `terminated` and is not it. */
+function endedBadly(status: V1ContainerStatus): boolean {
+  const terminated = status.state?.terminated;
+
+  return terminated !== undefined && terminated.exitCode !== 0;
+}
+
 function agentPodInfoOf(agent: AgentCr): AgentPodInfo {
   return {
     phase: agent.status?.phase ?? null,
@@ -82,6 +101,9 @@ function agentPodInfoOf(agent: AgentCr): AgentPodInfo {
 }
 
 export class KubePodLogs implements PodLogSource {
+  // Injected like KubeAgentApi's, so the log-container choice is testable without an apiserver — without a seam here the only test that could exist would talk to the live cluster.
+  constructor(private readonly api: () => CoreV1Api = coreApi) {}
+
   private namespace(): string {
     return agentsNamespace();
   }
@@ -108,7 +130,7 @@ export class KubePodLogs implements PodLogSource {
   }
 
   async podsForJob(jobName: string): Promise<PodSummary[]> {
-    const api = coreApi();
+    const api = this.api();
     const res = await api.listNamespacedPod({
       namespace: this.namespace(),
       labelSelector: podSelectorForJob(jobName),
@@ -123,7 +145,7 @@ export class KubePodLogs implements PodLogSource {
   }
 
   async listRunning(): Promise<RunningPodInfo[]> {
-    const api = coreApi();
+    const api = this.api();
     const res = await api.listNamespacedPod({ namespace: this.namespace() });
 
     const { items: pods } = res;
@@ -131,13 +153,19 @@ export class KubePodLogs implements PodLogSource {
     return pods.filter(isLiveRunningPod).map(toRunningPodInfo);
   }
 
+  // Reads whichever container actually ran: a failed init container when there is one, the default (`agent`) otherwise. Which one that is, is a fact about the pod, so it is decided here rather than asked of every caller.
   async podLog(podName: string, tailLines?: number): Promise<string> {
-    const api = coreApi();
+    const api = this.api();
+    const pod = await api.readNamespacedPod({
+      name: podName,
+      namespace: this.namespace(),
+    });
 
     return api.readNamespacedPodLog({
       name: podName,
       namespace: this.namespace(),
       tailLines,
+      container: failedInitContainer(pod),
     });
   }
 }

@@ -100,6 +100,43 @@ list (or directly, since a single-run task redirects there). The
 parsing/rendering layer below survives unchanged; it was always shared
 with the run page.
 
+## Amendment (2026-09-09, the init container's failure)
+
+1. A pod whose init container terminated non-zero names that container as
+   the one holding the failure; one that exited 0, one still running, and
+   a pod with no init containers name none, so an ordinary run is still
+   read from the default container.
+   ([validated by names the init container that exited 1](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L40), [`kube-pod-logs.test.ts:46`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L46), [`kube-pod-logs.test.ts:50`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L50), [`kube-pod-logs.test.ts:54`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L54))
+
+2. `podLog` returns the failed init container's log when there is one and
+   the default container's otherwise, so the init failure reaches every
+   caller of the port without any of them asking for it.
+   ([validated by returns the init container's log when init failed](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L70), [`kube-pod-logs.test.ts:78`](apps/cluster-agent/src/outbound/kube-pod-logs.test.ts#L78))
+
+### Why the cause was invisible
+
+A run pod that dies in its **init** container never starts `agent`, and
+until now that made the cause unreadable from every Lore surface at once.
+Asking Kubernetes for a pod's logs without naming a container asks for the
+default one — `agent` — which answers `BadRequest: container "agent" ... is
+waiting to start: PodInitializing`, so this page, `lore_get_task_logs` and
+the cluster-agent `/logs` route all returned nothing for exactly the runs
+that most needed explaining. The Agent CR is no better: the agent wrote no
+output, so the CR carries only the Job-level
+`BackoffLimitExceeded: Job has reached the specified backoff limit`, which
+`classifyError` reads as `infra` — *"The pod died rather than the work
+failing… Re-running is the right response."* A deterministic failure
+(`git checkout` of a branch that no longer exists; an unreachable
+`skills_source`) was therefore reported as retryable flakiness and re-run
+for ten days, with the one line naming its cause sitting in an init log
+nothing would read.
+
+Which container holds the failure is a fact about the pod, so it is decided
+at the source rather than asked of every caller. `KubePodLogs` takes its
+`CoreV1Api` as a constructor argument for this, matching `KubeAgentApi`: it
+had no seam at all, so the class went untested and the first test written
+against it reached the live apiserver.
+
 ## Acceptance Criteria
 
 1. A running task's live output is one click from the task page: the
