@@ -17,6 +17,12 @@ const graph: RunGraph = {
       station_inherited: true,
     },
     {
+      id: "await-ci",
+      type: "ci_check",
+      station: "ci-check",
+      station_inherited: true,
+    },
+    {
       id: "await-pr",
       type: "pr_review",
       station: "pr-review",
@@ -26,8 +32,30 @@ const graph: RunGraph = {
   edges: [],
 };
 
+const redCheck = {
+  name: "lint",
+  status: "completed",
+  conclusion: "failure",
+  output: { title: "3 problems", summary: "no-unused-vars" },
+};
+
+const pendingCheck = {
+  name: "test",
+  status: "in_progress",
+  conclusion: null,
+};
+
+const parkedAtCi = [
+  { nodeId: "implement", iteration: 1, outcome: "success" },
+  { nodeId: "await-ci", iteration: 1, outcome: null },
+];
+
 function deps(overrides: Partial<PrReadyCheckDeps> = {}) {
-  const reported: Array<{ target: ParkedTarget; outcome: string }> = [];
+  const reported: Array<{
+    target: ParkedTarget;
+    outcome: string;
+    args?: Record<string, unknown>;
+  }> = [];
   const base: PrReadyCheckDeps = {
     listOpenLoopRuns: async () => [
       {
@@ -42,13 +70,21 @@ function deps(overrides: Partial<PrReadyCheckDeps> = {}) {
       { nodeId: "implement", iteration: 1, outcome: "success" },
       { nodeId: "await-pr", iteration: 1, outcome: null },
     ],
-    getPrHeadSha: async () => "deadbeef",
+    listPrCommits: async () => [
+      {
+        sha: "deadbeef",
+        message: "feat: a round",
+        date: "2026-09-09T10:00:00Z",
+      },
+    ],
     hasCiHistory: async () => true,
-    ciConclusion: async () => "success",
+    listChecks: async () => [
+      { name: "test", status: "completed", conclusion: "success" },
+    ],
     listReviewThreads: async () => [],
     countOpenReviewRuns: async () => 0,
-    report: async (target, outcome) => {
-      reported.push({ target, outcome });
+    report: async (target, outcome, args) => {
+      reported.push({ target, outcome, ...(args ? { args } : {}) });
     },
   };
 
@@ -65,13 +101,14 @@ describe("prReadyCheckSweep", () => {
       {
         target: { lineId: "run-1", nodeId: "await-pr", iteration: 1 },
         outcome: "success",
+        args: {},
       },
     ]);
     expect(summary).toBe("checked 1, resumed 1, blocked 0, waiting 0");
   });
 
   it("resumes with changes_requested when CI is red", async () => {
-    const d = deps({ ciConclusion: async () => "failure" });
+    const d = deps({ listChecks: async () => [redCheck] });
 
     await prReadyCheckSweep(d.deps);
 
@@ -79,12 +116,19 @@ describe("prReadyCheckSweep", () => {
       {
         target: { lineId: "run-1", nodeId: "await-pr", iteration: 1 },
         outcome: "changes_requested",
+        args: {
+          reason: "ci_red",
+          ci_feedback_sha: "deadbeef",
+          ci_failed_checks: "lint",
+          ci_failure_summary:
+            "### lint (failure)\n\n3 problems\n\nno-unused-vars",
+        },
       },
     ]);
   });
 
   it("reports nothing while CI is pending", async () => {
-    const d = deps({ ciConclusion: async () => "pending" });
+    const d = deps({ listChecks: async () => [pendingCheck] });
 
     const summary = await prReadyCheckSweep(d.deps);
 
@@ -94,7 +138,7 @@ describe("prReadyCheckSweep", () => {
 
   it("reports nothing when a CI-running repo has no checks yet for the head sha", async () => {
     const d = deps({
-      ciConclusion: async () => "none",
+      listChecks: async () => [],
       hasCiHistory: async () => true,
     });
 
@@ -106,7 +150,7 @@ describe("prReadyCheckSweep", () => {
 
   it("resumes a repo that runs no checks at all, so it cannot wedge its loop", async () => {
     const d = deps({
-      ciConclusion: async () => "none",
+      listChecks: async () => [],
       hasCiHistory: async () => false,
     });
 
@@ -177,10 +221,16 @@ describe("prReadyCheckSweep", () => {
           graph,
         },
       ],
-      getPrHeadSha: async (_repo, number) => {
+      listPrCommits: async (_repo, number) => {
         enforceTrue(number !== 1, Error, "boom");
 
-        return "cafebabe";
+        return [
+          {
+            sha: "cafebabe",
+            message: "feat: ok",
+            date: "2026-09-09T10:00:00Z",
+          },
+        ];
       },
     });
 
@@ -190,6 +240,7 @@ describe("prReadyCheckSweep", () => {
       {
         target: { lineId: "run-ok", nodeId: "await-pr", iteration: 1 },
         outcome: "success",
+        args: {},
       },
     ]);
     expect(summary).toBe(
@@ -197,12 +248,113 @@ describe("prReadyCheckSweep", () => {
     );
   });
 
-  it("skips a parked run whose PR has no head sha yet, without erroring the sweep", async () => {
-    const d = deps({ getPrHeadSha: async () => null });
+  it("counts a parked run with no judgeable commit as waiting, not as an error", async () => {
+    const d = deps({ listPrCommits: async () => [] });
 
     const summary = await prReadyCheckSweep(d.deps);
 
     expect(d.reported).toEqual([]);
-    expect(summary).toBe("checked 1, resumed 0, blocked 0, waiting 0");
+    expect(summary).toBe("checked 1, resumed 0, blocked 0, waiting 1");
+  });
+
+  it("resumes an await-ci park with success when the judged sha is green", async () => {
+    const d = deps({ listStationRuns: async () => parkedAtCi });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toEqual([
+      {
+        target: { lineId: "run-1", nodeId: "await-ci", iteration: 1 },
+        outcome: "success",
+        args: {},
+      },
+    ]);
+  });
+
+  it("sends a red round back with the failed check names and the sha they were read from", async () => {
+    const d = deps({
+      listStationRuns: async () => parkedAtCi,
+      listChecks: async () => [redCheck],
+    });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toEqual([
+      {
+        target: { lineId: "run-1", nodeId: "await-ci", iteration: 1 },
+        outcome: "changes_requested",
+        args: {
+          reason: "ci_red",
+          ci_feedback_sha: "deadbeef",
+          ci_failed_checks: "lint",
+          ci_failure_summary:
+            "### lint (failure)\n\n3 problems\n\nno-unused-vars",
+        },
+      },
+    ]);
+  });
+
+  it("fails an await-ci park whose red sha was already reported, rather than looping on it", async () => {
+    const d = deps({
+      listOpenLoopRuns: async () => [
+        {
+          id: "run-1",
+          repo: "acme/widgets",
+          status: "running",
+          args: { pr_number: 12, ci_feedback_sha: "deadbeef" },
+          graph,
+        },
+      ],
+      listStationRuns: async () => parkedAtCi,
+      listChecks: async () => [redCheck],
+    });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported[0]).toMatchObject({
+      outcome: "failed",
+      args: { reason: "ci_red_unchanged" },
+    });
+  });
+
+  it("ignores Lore's own check when judging a round, so a draft never waits on its review", async () => {
+    const d = deps({
+      listStationRuns: async () => parkedAtCi,
+      listChecks: async () => [
+        { name: "test", status: "completed", conclusion: "success" },
+        { name: "lore/code-review", status: "in_progress", conclusion: null },
+      ],
+    });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toMatchObject([{ outcome: "success" }]);
+  });
+
+  it("waits on an await-ci park whose head moved to a commit CI skipped", async () => {
+    const d = deps({
+      listStationRuns: async () => parkedAtCi,
+      listPrCommits: async () => [
+        {
+          sha: "deadbeef",
+          message: "feat: a round",
+          date: "2026-09-09T10:00:00Z",
+        },
+        {
+          sha: "f0rmatted",
+          message: "style: prettier [skip ci]",
+          date: "2026-09-09T10:05:00Z",
+        },
+      ],
+      listChecks: async (_repo, ref) =>
+        ref === "deadbeef"
+          ? [{ name: "test", status: "in_progress", conclusion: null }]
+          : [],
+    });
+
+    const summary = await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toEqual([]);
+    expect(summary).toBe("checked 1, resumed 0, blocked 0, waiting 1");
   });
 });

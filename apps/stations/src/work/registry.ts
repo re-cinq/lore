@@ -16,6 +16,7 @@ import { ingest } from "./ingest/manifest.js";
 import { issues } from "./issues/manifest.js";
 import { featureReview } from "./feature-review/manifest.js";
 import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
+import { ciCheck } from "./ci-check/manifest.js";
 import { prReadyCheck } from "./pr-ready-check/manifest.js";
 import { prReview } from "./pr-review/manifest.js";
 import { escalationStep } from "./escalation-step/manifest.js";
@@ -25,6 +26,7 @@ export const STATION_NAMES = [
   "anthropic-cost-sync",
   "approval-check",
   "backfill-scan",
+  "ci-check",
   "comment-triage",
   "detect",
   "escalation-step",
@@ -48,6 +50,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "anthropic-cost-sync": anthropicCostSync,
   "approval-check": approvalCheck,
   "backfill-scan": backfillScan,
+  "ci-check": ciCheck,
   "comment-triage": commentTriage,
   detect,
   "escalation-step": escalationStep,

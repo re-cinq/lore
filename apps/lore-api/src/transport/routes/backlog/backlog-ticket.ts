@@ -79,6 +79,9 @@ function latestVisitByNode(
   return latest;
 }
 
+/** Node types whose open row means "parked", not "working": a person, or a build, owns the next move. Mirrors HUMAN_STATION_TYPES, which lore-api does not depend on. */
+const WAITING_NODE_TYPES = new Set(["pr_review", "ci_check"]);
+
 /** absent = pending, open = running/waiting for a human station. */
 function nodeState(
   node: { id: string; type: string },
@@ -91,7 +94,7 @@ function nodeState(
   if (visit.outcome === null) {
     return {
       node_id: node.id,
-      state: node.type === "pr_review" ? "waiting" : "running",
+      state: WAITING_NODE_TYPES.has(node.type) ? "waiting" : "running",
     };
   }
 
