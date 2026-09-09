@@ -31,15 +31,6 @@ const MEMORY_DERIVED_READS = [
   "lore_assemble_context",
 ];
 
-export function registerMemoryTools(server: McpServer) {
-  registerWriteMemoryTool(server);
-  registerReadMemoryTool(server);
-  registerDeleteMemoryTool(server);
-  registerListMemoriesTool(server);
-  registerSearchMemoryTool(server);
-  registerGraphEpisodeTools(server);
-}
-
 // A memory addressed by key. `agent_id` is optional everywhere: absent means "this agent", resolved once at the edge.
 interface KeyedMemoryArgs {
   key: string;
@@ -50,6 +41,36 @@ interface WriteMemoryArgs extends KeyedMemoryArgs {
   value: string;
   ttl?: number;
   extract_facts?: boolean;
+}
+
+/** What these tools resolve to. `textResult` returns a one-element tuple and the proxy interpreter returns an array; naming the wider shape lets both flow out of one function. */
+type ToolText = { content: Array<{ type: "text"; text: string }> };
+
+interface SearchMemoryArgs {
+  query: string;
+  agent_id?: string;
+  pool?: string;
+  limit: number;
+  include_invalidated?: boolean;
+  graph_augment?: boolean;
+}
+
+export function registerMemoryTools(server: McpServer) {
+  registerWriteMemoryTool(server);
+  registerReadMemoryTool(server);
+  registerDeleteMemoryTool(server);
+  registerListMemoriesTool(server);
+  registerSearchMemoryTool(server);
+  registerGraphEpisodeTools(server);
+}
+
+function registerWriteMemoryTool(server: McpServer) {
+  server.tool(
+    "lore_write_memory",
+    `Stores one curated key/value memory (versioned, repo-scoped when a repo is detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.`,
+    WRITE_MEMORY_INPUT,
+    writeMemoryHandler,
+  );
 }
 
 // Writes through the API, falling back to the file store ONLY when LORE_API_URL is unset — true offline mode. A configured API that refused is reported, not quietly written to disk, or the two stores would diverge.
@@ -84,27 +105,38 @@ function writeProxyArgs(args: WriteMemoryArgs) {
   };
 }
 
-function registerWriteMemoryTool(server: McpServer) {
+function registerReadMemoryTool(server: McpServer) {
   server.tool(
-    "lore_write_memory",
-    `Stores one curated key/value memory (versioned, repo-scoped when a repo is detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.`,
-    WRITE_MEMORY_INPUT,
-    writeMemoryHandler,
+    "lore_read_memory",
+    `Fetches one memory by its exact key and returns the stored row as JSON (latest version by default, or full history/specific version on request). Use only when you already know the precise key. Instead: lore_search_memory when searching by meaning; lore_list_memories to enumerate keys.`,
+    READ_MEMORY_INPUT,
+    async (args) => {
+      try {
+        return await readMemory(args);
+      } catch (err) {
+        return textResult(`Error reading memory: ${errorMessage(err)}`);
+      }
+    },
   );
 }
 
-function resolveVersionParam(
-  version: string | undefined,
-): "all" | number | undefined {
-  if (version === "all") {
-    return "all";
-  }
+/** The exact-key read. A miss is reported as a miss rather than an error — asking for a key that is not there is an ordinary answer. */
+async function readMemory(args: {
+  key: string;
+  agent_id?: string;
+  version?: string;
+}) {
+  const { key, agent_id, version } = args;
 
-  return version ? Number(version) : undefined;
+  return cachedMemoryRead(
+    {
+      tool: "lore_read_memory",
+      op: "read",
+      args: { key, agent_id: agent_id || resolveAgentId(), version },
+    },
+    () => readMemoryFromFile(key, agent_id, version),
+  );
 }
-
-/** What these tools resolve to. `textResult` returns a one-element tuple and the proxy interpreter returns an array; naming the wider shape lets both flow out of one function. */
-type ToolText = { content: Array<{ type: "text"; text: string }> };
 
 /** Every memory read answers the same way: the cached proxy first, the server's own answer when it has one, and the local `~/.lore/memory` store when it does not. That fallback is why these tools still answer on a laptop with no API configured. */
 async function cachedMemoryRead(
@@ -142,36 +174,22 @@ function readMemoryFromFile(
     : textResult(`Memory "${key}" not found.`);
 }
 
-/** The exact-key read. A miss is reported as a miss rather than an error — asking for a key that is not there is an ordinary answer. */
-async function readMemory(args: {
-  key: string;
-  agent_id?: string;
-  version?: string;
-}) {
-  const { key, agent_id, version } = args;
+function resolveVersionParam(
+  version: string | undefined,
+): "all" | number | undefined {
+  if (version === "all") {
+    return "all";
+  }
 
-  return cachedMemoryRead(
-    {
-      tool: "lore_read_memory",
-      op: "read",
-      args: { key, agent_id: agent_id || resolveAgentId(), version },
-    },
-    () => readMemoryFromFile(key, agent_id, version),
-  );
+  return version ? Number(version) : undefined;
 }
 
-function registerReadMemoryTool(server: McpServer) {
+function registerDeleteMemoryTool(server: McpServer) {
   server.tool(
-    "lore_read_memory",
-    `Fetches one memory by its exact key and returns the stored row as JSON (latest version by default, or full history/specific version on request). Use only when you already know the precise key. Instead: lore_search_memory when searching by meaning; lore_list_memories to enumerate keys.`,
-    READ_MEMORY_INPUT,
-    async (args) => {
-      try {
-        return await readMemory(args);
-      } catch (err) {
-        return textResult(`Error reading memory: ${errorMessage(err)}`);
-      }
-    },
+    "lore_delete_memory",
+    `Soft-deletes a memory by key (hides it from read/list/search; version history is retained) and returns {key, deleted: true}. Scope is agent_id, not repo. Use to retire a stale or mistaken memory. Instead: lore_cancel_local_task to stop a local background task; lore_cancel_task to cancel a pipeline task — those are unrelated.`,
+    DELETE_MEMORY_INPUT,
+    deleteMemoryHandler,
   );
 }
 
@@ -194,13 +212,36 @@ async function deleteMemoryHandler({ key, agent_id }: KeyedMemoryArgs) {
   }
 }
 
-function registerDeleteMemoryTool(server: McpServer) {
+function registerListMemoriesTool(server: McpServer) {
   server.tool(
-    "lore_delete_memory",
-    `Soft-deletes a memory by key (hides it from read/list/search; version history is retained) and returns {key, deleted: true}. Scope is agent_id, not repo. Use to retire a stale or mistaken memory. Instead: lore_cancel_local_task to stop a local background task; lore_cancel_task to cancel a pipeline task — those are unrelated.`,
-    DELETE_MEMORY_INPUT,
-    deleteMemoryHandler,
+    "lore_list_memories",
+    `Lists memory keys for the current repo (newest-first, paginated), returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Scope: detected repo wins; falls back to agent_id; then org-wide. Excludes expired and soft-deleted entries. Use to browse existing keys without ranking. Instead: lore_search_memory to find memories by meaning; lore_read_memory to fetch one specific value.`,
+    LIST_MEMORIES_INPUT,
+    ({ agent_id, limit, offset }) =>
+      listMemoriesHandler({ agent_id, limit, offset }),
   );
+}
+
+// The detected repo scopes the listing; without one it falls back to the agent, then org-wide.
+async function listMemoriesHandler({
+  agent_id,
+  limit,
+  offset,
+}: {
+  agent_id?: string;
+  limit: number;
+  offset: number;
+}) {
+  const repo = detectCurrentRepo() || undefined;
+
+  try {
+    return await cachedMemoryRead(
+      listReadSpec(agent_id, limit, offset, repo),
+      () => listFromFile(agent_id, limit, offset),
+    );
+  } catch (err) {
+    return textResult(`Error listing memories: ${errorMessage(err)}`);
+  }
 }
 
 // The cache key for one listing. `repo` appears twice on purpose: once as a proxied argument and once as the cache scope, so a listing cached for one repo is never served to another.
@@ -229,35 +270,30 @@ function listFromFile(
   );
 }
 
-// The detected repo scopes the listing; without one it falls back to the agent, then org-wide.
-async function listMemoriesHandler({
-  agent_id,
-  limit,
-  offset,
-}: {
-  agent_id?: string;
-  limit: number;
-  offset: number;
-}) {
-  const repo = detectCurrentRepo() || undefined;
-
-  try {
-    return await cachedMemoryRead(
-      listReadSpec(agent_id, limit, offset, repo),
-      () => listFromFile(agent_id, limit, offset),
-    );
-  } catch (err) {
-    return textResult(`Error listing memories: ${errorMessage(err)}`);
-  }
+function registerSearchMemoryTool(server: McpServer) {
+  server.tool(
+    "lore_search_memory",
+    `Semantic (vector + keyword) search across org-wide memories and extracted facts; returns a relevance-ranked array of {key, value, score, agent_id, source, id?, confidence?} (source: memory|fact|episode|graph). Use to find past learnings, decisions, corrections, and facts when you do NOT have an exact key. Instead: lore_read_memory for exact-key lookup; lore_list_memories to enumerate keys; lore_search_context for raw repo document passages (conventions, ADRs, .md text); lore_query_graph to traverse entity relationships; lore_assemble_context for the token-budgeted startup bundle (the mandatory first call).`,
+    SEARCH_MEMORY_INPUT,
+    async (args) => {
+      try {
+        return await searchMemory(args);
+      } catch (err) {
+        return textResult(`Error searching memories: ${errorMessage(err)}`);
+      }
+    },
+  );
 }
 
-function registerListMemoriesTool(server: McpServer) {
-  server.tool(
-    "lore_list_memories",
-    `Lists memory keys for the current repo (newest-first, paginated), returning {memories: [{key, agent_id, repo, version, created_at, ttl_seconds, has_facts}], total}. Scope: detected repo wins; falls back to agent_id; then org-wide. Excludes expired and soft-deleted entries. Use to browse existing keys without ranking. Instead: lore_search_memory to find memories by meaning; lore_read_memory to fetch one specific value.`,
-    LIST_MEMORIES_INPUT,
-    ({ agent_id, limit, offset }) =>
-      listMemoriesHandler({ agent_id, limit, offset }),
+async function searchMemory(args: SearchMemoryArgs): Promise<ToolText> {
+  const { query, agent_id, limit } = args;
+
+  return cachedMemoryRead(
+    { tool: "lore_search_memory", op: "search", args: searchProxyArgs(args) },
+    () =>
+      textResult(
+        JSON.stringify(searchMemoryFile(query, agent_id, limit), null, 2),
+      ),
   );
 }
 
@@ -273,41 +309,4 @@ function searchProxyArgs(args: SearchMemoryArgs) {
     include_invalidated: args.include_invalidated,
     graph_augment: args.graph_augment,
   };
-}
-
-/** Semantic search, or substring matching when it falls back — the file store holds no embeddings, so a laptop with no API gets a strictly weaker answer rather than none. */
-interface SearchMemoryArgs {
-  query: string;
-  agent_id?: string;
-  pool?: string;
-  limit: number;
-  include_invalidated?: boolean;
-  graph_augment?: boolean;
-}
-
-async function searchMemory(args: SearchMemoryArgs): Promise<ToolText> {
-  const { query, agent_id, limit } = args;
-
-  return cachedMemoryRead(
-    { tool: "lore_search_memory", op: "search", args: searchProxyArgs(args) },
-    () =>
-      textResult(
-        JSON.stringify(searchMemoryFile(query, agent_id, limit), null, 2),
-      ),
-  );
-}
-
-function registerSearchMemoryTool(server: McpServer) {
-  server.tool(
-    "lore_search_memory",
-    `Semantic (vector + keyword) search across org-wide memories and extracted facts; returns a relevance-ranked array of {key, value, score, agent_id, source, id?, confidence?} (source: memory|fact|episode|graph). Use to find past learnings, decisions, corrections, and facts when you do NOT have an exact key. Instead: lore_read_memory for exact-key lookup; lore_list_memories to enumerate keys; lore_search_context for raw repo document passages (conventions, ADRs, .md text); lore_query_graph to traverse entity relationships; lore_assemble_context for the token-budgeted startup bundle (the mandatory first call).`,
-    SEARCH_MEMORY_INPUT,
-    async (args) => {
-      try {
-        return await searchMemory(args);
-      } catch (err) {
-        return textResult(`Error searching memories: ${errorMessage(err)}`);
-      }
-    },
-  );
 }

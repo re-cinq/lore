@@ -29,39 +29,6 @@ interface CreateTaskArgs {
   context?: unknown;
 }
 
-function resolveTaskRepo(targetRepo: string | undefined): string | undefined {
-  return targetRepo || detectCurrentRepo() || undefined;
-}
-
-// The task as the API names its fields — `task_type` and `target_repo` rather than the tool's own vocabulary.
-function taskBody(args: CreateTaskArgs, resolvedRepo: string | undefined) {
-  return {
-    description: args.description,
-    task_type: args.task_type,
-    target_repo: resolvedRepo,
-    priority: args.priority,
-    group_id: args.group_id,
-    context: args.context,
-  };
-}
-
-async function postTask(
-  apiUrl: string,
-  apiToken: string,
-  args: CreateTaskArgs,
-  resolvedRepo: string | undefined,
-): Promise<Response> {
-  return await fetch(`${apiUrl}/api/task`, {
-    signal: AbortSignal.timeout(30_000),
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(taskBody(args, resolvedRepo)),
-  });
-}
-
 // Every read a new task makes stale. Listed rather than cleared wholesale: a task creation says nothing about memories or the graph, and dropping those caches would cost round trips for no reason.
 const TASK_DERIVED_READS = [
   "lore_list_pipeline_tasks",
@@ -69,42 +36,18 @@ const TASK_DERIVED_READS = [
   "lore_get_pipeline_status",
 ];
 
-// What happens next, which is the one thing a caller cannot read off the returned id.
-function pickupHint(priority: string | undefined): string {
-  return priority === "immediate"
-    ? "The GKE agent will pick this up within 30 seconds."
-    : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
+export function registerPipelineLifecycleTools(server: McpServer) {
+  registerCreatePipelineTaskTool(server);
+  registerGetPipelineStatusTool(server);
+  registerGetPrStatusTool(server);
 }
 
-/** The uuid plus what to do next — the pickup hint differs by priority, which is the one thing a caller cannot read off the id. */
-async function createdResult(
-  res: Response,
-  args: CreateTaskArgs,
-  resolvedRepo: string | undefined,
-) {
-  const result = (await res.json()) as {
-    task_id?: string;
-    task_type?: string;
-  };
-
-  invalidateCache(TASK_DERIVED_READS);
-  const pickup = pickupHint(args.priority);
-
-  return textResult(
-    `Task created: ${result.task_id}\nType: ${result.task_type || args.task_type}\nPriority: ${args.priority}\nRepo: ${resolvedRepo || "default"}\n\n${pickup}`,
-  );
-}
-
-async function refusalResult(res: Response) {
-  if (isAuthDenied(res.status)) {
-    return deniedError("creating a pipeline task", res.statusText);
-  }
-  const err = (await res.json().catch(() => ({ error: res.statusText }))) as {
-    error?: string;
-  };
-
-  return textResult(
-    `Remote task creation failed: ${err.error || res.statusText}`,
+function registerCreatePipelineTaskTool(server: McpServer) {
+  server.tool(
+    "lore_create_pipeline_task",
+    "Enqueues a new server-side pipeline task and returns its UUID and a pickup hint. priority=normal lands in the backlog; priority=immediate the GKE agent picks up within ~30s. This tool only enqueues — it never runs anything on your machine. Instead: lore_run_task_locally to start a new ad-hoc task in a local worktree NOW; lore_claim_and_run_locally to run an existing backlog task locally; lore_sync_tasks to materialize a tasks.md checklist as spec-tasks (not this tool).",
+    CREATE_PIPELINE_TASK_INPUT,
+    async (args) => await createPipelineTask(args as CreateTaskArgs),
   );
 }
 
@@ -134,12 +77,94 @@ async function createPipelineTask(args: CreateTaskArgs) {
   }
 }
 
-function registerCreatePipelineTaskTool(server: McpServer) {
+function resolveTaskRepo(targetRepo: string | undefined): string | undefined {
+  return targetRepo || detectCurrentRepo() || undefined;
+}
+
+async function postTask(
+  apiUrl: string,
+  apiToken: string,
+  args: CreateTaskArgs,
+  resolvedRepo: string | undefined,
+): Promise<Response> {
+  return await fetch(`${apiUrl}/api/task`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(taskBody(args, resolvedRepo)),
+  });
+}
+
+// The task as the API names its fields — `task_type` and `target_repo` rather than the tool's own vocabulary.
+function taskBody(args: CreateTaskArgs, resolvedRepo: string | undefined) {
+  return {
+    description: args.description,
+    task_type: args.task_type,
+    target_repo: resolvedRepo,
+    priority: args.priority,
+    group_id: args.group_id,
+    context: args.context,
+  };
+}
+
+/** The uuid plus what to do next — the pickup hint differs by priority, which is the one thing a caller cannot read off the id. */
+async function createdResult(
+  res: Response,
+  args: CreateTaskArgs,
+  resolvedRepo: string | undefined,
+) {
+  const result = (await res.json()) as {
+    task_id?: string;
+    task_type?: string;
+  };
+
+  invalidateCache(TASK_DERIVED_READS);
+  const pickup = pickupHint(args.priority);
+
+  return textResult(
+    `Task created: ${result.task_id}\nType: ${result.task_type || args.task_type}\nPriority: ${args.priority}\nRepo: ${resolvedRepo || "default"}\n\n${pickup}`,
+  );
+}
+
+// What happens next, which is the one thing a caller cannot read off the returned id.
+function pickupHint(priority: string | undefined): string {
+  return priority === "immediate"
+    ? "The GKE agent will pick this up within 30 seconds."
+    : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
+}
+
+async function refusalResult(res: Response) {
+  if (isAuthDenied(res.status)) {
+    return deniedError("creating a pipeline task", res.statusText);
+  }
+  const err = (await res.json().catch(() => ({ error: res.statusText }))) as {
+    error?: string;
+  };
+
+  return textResult(
+    `Remote task creation failed: ${err.error || res.statusText}`,
+  );
+}
+
+function registerGetPipelineStatusTool(server: McpServer) {
   server.tool(
-    "lore_create_pipeline_task",
-    "Enqueues a new server-side pipeline task and returns its UUID and a pickup hint. priority=normal lands in the backlog; priority=immediate the GKE agent picks up within ~30s. This tool only enqueues — it never runs anything on your machine. Instead: lore_run_task_locally to start a new ad-hoc task in a local worktree NOW; lore_claim_and_run_locally to run an existing backlog task locally; lore_sync_tasks to materialize a tasks.md checklist as spec-tasks (not this tool).",
-    CREATE_PIPELINE_TASK_INPUT,
-    async (args) => await createPipelineTask(args as CreateTaskArgs),
+    "lore_get_pipeline_status",
+    "Returns one pipeline task's full record (status + ordered event timeline) as JSON, by UUID. Instead: lore_list_pipeline_tasks for a multi-task listing; lore_get_pr_status for the live GitHub PR/CI verdict; lore_get_task_logs for the execution transcript; lore_list_task_group for a group rollup.",
+    {
+      task_id: z.string(),
+    },
+    async ({ task_id }) => {
+      try {
+        return await fetchPipelineStatusText(task_id);
+      } catch (err) {
+        return textResult(
+          `Error getting pipeline status: ${errorMessage(err)}`,
+        );
+      }
+    },
   );
 }
 
@@ -177,22 +202,12 @@ async function statusResponse(res: Response) {
   return textResult(JSON.stringify(await res.json(), null, 2));
 }
 
-function registerGetPipelineStatusTool(server: McpServer) {
+function registerGetPrStatusTool(server: McpServer) {
   server.tool(
-    "lore_get_pipeline_status",
-    "Returns one pipeline task's full record (status + ordered event timeline) as JSON, by UUID. Instead: lore_list_pipeline_tasks for a multi-task listing; lore_get_pr_status for the live GitHub PR/CI verdict; lore_get_task_logs for the execution transcript; lore_list_task_group for a group rollup.",
-    {
-      task_id: z.string(),
-    },
-    async ({ task_id }) => {
-      try {
-        return await fetchPipelineStatusText(task_id);
-      } catch (err) {
-        return textResult(
-          `Error getting pipeline status: ${errorMessage(err)}`,
-        );
-      }
-    },
+    "lore_get_pr_status",
+    "Fetches live PR state from GitHub and returns a derived computed_status (merged | closed | draft | checks-failing | changes-requested | approved | open) plus CI checks and reviews. Use this for the real-time PR/CI/review verdict. Instead: lore_get_pipeline_status for the Lore task's stored status and event timeline.",
+    GET_PR_STATUS_INPUT,
+    prStatusHandler,
   );
 }
 
@@ -234,19 +249,4 @@ function prStatusRefusal(
   return textResult(
     `Could not fetch PR status from the Lore API: ${proxied.detail}`,
   );
-}
-
-function registerGetPrStatusTool(server: McpServer) {
-  server.tool(
-    "lore_get_pr_status",
-    "Fetches live PR state from GitHub and returns a derived computed_status (merged | closed | draft | checks-failing | changes-requested | approved | open) plus CI checks and reviews. Use this for the real-time PR/CI/review verdict. Instead: lore_get_pipeline_status for the Lore task's stored status and event timeline.",
-    GET_PR_STATUS_INPUT,
-    prStatusHandler,
-  );
-}
-
-export function registerPipelineLifecycleTools(server: McpServer) {
-  registerCreatePipelineTaskTool(server);
-  registerGetPipelineStatusTool(server);
-  registerGetPrStatusTool(server);
 }

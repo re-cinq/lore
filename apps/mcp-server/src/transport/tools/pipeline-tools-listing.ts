@@ -12,22 +12,26 @@ import {
   LIST_TASK_GROUP_INPUT,
 } from "./pipeline-tools-schemas.js";
 
-/** `limit` is capped here rather than trusted from the caller — an agent asking for everything would otherwise pull the whole table through the MCP transport. */
-function taskListingParams(args: {
-  status?: string;
-  limit: number;
-  offset: number;
-}): URLSearchParams {
-  const params = new URLSearchParams({
-    limit: String(Math.min(args.limit, 100)),
-    offset: String(args.offset),
-  });
+export function registerPipelineListingTools(server: McpServer) {
+  registerListPipelineTasksTool(server);
+  registerCancelTaskTool(server);
+  registerRetryTaskTool(server);
+  registerListTaskGroupTool(server);
+}
 
-  if (args.status) {
-    params.set("status", args.status);
-  }
-
-  return params;
+function registerListPipelineTasksTool(server: McpServer) {
+  server.tool(
+    "lore_list_pipeline_tasks",
+    "Lists pipeline tasks newest-first as JSON, optionally filtered by status. General browse view across all tasks and statuses. Instead: lore_list_pending_tasks for unclaimed work to grab locally; lore_ready_tasks for dependency-ready spec-tasks in one repo; lore_list_task_group for one feature's group; lore_list_local_tasks for tasks running on your machine.",
+    LIST_PIPELINE_TASKS_INPUT,
+    async (args) => {
+      try {
+        return await listPipelineTasks(args);
+      } catch (err) {
+        return textResult(`Error listing pipeline tasks: ${errorMessage(err)}`);
+      }
+    },
+  );
 }
 
 /** The general task listing. */
@@ -54,19 +58,22 @@ async function listPipelineTasks(args: {
     : textResult(`Remote error: ${res.statusText}`);
 }
 
-function registerListPipelineTasksTool(server: McpServer) {
-  server.tool(
-    "lore_list_pipeline_tasks",
-    "Lists pipeline tasks newest-first as JSON, optionally filtered by status. General browse view across all tasks and statuses. Instead: lore_list_pending_tasks for unclaimed work to grab locally; lore_ready_tasks for dependency-ready spec-tasks in one repo; lore_list_task_group for one feature's group; lore_list_local_tasks for tasks running on your machine.",
-    LIST_PIPELINE_TASKS_INPUT,
-    async (args) => {
-      try {
-        return await listPipelineTasks(args);
-      } catch (err) {
-        return textResult(`Error listing pipeline tasks: ${errorMessage(err)}`);
-      }
-    },
-  );
+/** `limit` is capped here rather than trusted from the caller — an agent asking for everything would otherwise pull the whole table through the MCP transport. */
+function taskListingParams(args: {
+  status?: string;
+  limit: number;
+  offset: number;
+}): URLSearchParams {
+  const params = new URLSearchParams({
+    limit: String(Math.min(args.limit, 100)),
+    offset: String(args.offset),
+  });
+
+  if (args.status) {
+    params.set("status", args.status);
+  }
+
+  return params;
 }
 
 function registerCancelTaskTool(server: McpServer) {
@@ -104,13 +111,13 @@ function registerRetryTaskTool(server: McpServer) {
   );
 }
 
-/** An empty group is a real answer, not an error — a feature can be registered before any of its tasks are. */
-function renderTaskGroup(groupId: string, body: unknown): string {
-  const group = body as TaskGroupResponse;
-
-  return group.total === 0
-    ? `No tasks found for group ${groupId}`
-    : `Group ${groupId}: ${group.completed}/${group.total} completed\n\n${JSON.stringify(group.tasks, null, 2)}`;
+function registerListTaskGroupTool(server: McpServer) {
+  server.tool(
+    "lore_list_task_group",
+    "Lists every task in one task_group_id with a completed/total rollup — the view for a single multi-repo feature's progress. Instead: lore_list_pipeline_tasks for an unscoped newest-first listing of all tasks.",
+    LIST_TASK_GROUP_INPUT,
+    ({ group_id }) => listTaskGroup(group_id),
+  );
 }
 
 function listTaskGroup(groupId: string) {
@@ -125,18 +132,11 @@ function listTaskGroup(groupId: string) {
   );
 }
 
-function registerListTaskGroupTool(server: McpServer) {
-  server.tool(
-    "lore_list_task_group",
-    "Lists every task in one task_group_id with a completed/total rollup — the view for a single multi-repo feature's progress. Instead: lore_list_pipeline_tasks for an unscoped newest-first listing of all tasks.",
-    LIST_TASK_GROUP_INPUT,
-    ({ group_id }) => listTaskGroup(group_id),
-  );
-}
+/** An empty group is a real answer, not an error — a feature can be registered before any of its tasks are. */
+function renderTaskGroup(groupId: string, body: unknown): string {
+  const group = body as TaskGroupResponse;
 
-export function registerPipelineListingTools(server: McpServer) {
-  registerListPipelineTasksTool(server);
-  registerCancelTaskTool(server);
-  registerRetryTaskTool(server);
-  registerListTaskGroupTool(server);
+  return group.total === 0
+    ? `No tasks found for group ${groupId}`
+    : `Group ${groupId}: ${group.completed}/${group.total} completed\n\n${JSON.stringify(group.tasks, null, 2)}`;
 }

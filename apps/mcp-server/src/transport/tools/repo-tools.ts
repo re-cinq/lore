@@ -38,113 +38,22 @@ const INGEST_FILES_INPUT = {
     ),
 };
 
+type ToolTextResult = ReturnType<typeof textResult>;
+
+interface IngestCredentials {
+  apiUrl: string;
+  apiToken: string;
+}
+
+interface IngestOutcome {
+  ingested: boolean;
+  message: string;
+}
+
 export function registerRepoTools(server: McpServer) {
   registerListReposTool(server);
   registerOnboardRepoTool(server);
   registerIngestFilesTool(server);
-}
-
-type ToolTextResult = ReturnType<typeof textResult>;
-
-// Maps a failed ProxyResult to the MCP text result callers surface — the same three reasons every proxying tool handles.
-function proxyFailure(
-  toolName: string,
-  unconfiguredText: string,
-  proxied: Extract<ProxyResult, { ok: false }>,
-): ToolTextResult {
-  if (proxied.reason === "not_configured") {
-    return textResult(unconfiguredText);
-  }
-
-  if (proxied.reason === "denied") {
-    return deniedError(toolName, proxied.detail);
-  }
-
-  return unreachableError(toolName, proxied.detail);
-}
-
-// One /api/repos page: repos plus the running total, computed against how many repos are banked so far.
-function repoPage(
-  body: string,
-  bankedSoFar: number,
-): { repos: unknown[]; total: number } {
-  const parsed = JSON.parse(body) as { repos?: unknown[]; total?: number };
-  const repos = Array.isArray(parsed.repos) ? parsed.repos : [];
-  const total =
-    typeof parsed.total === "number"
-      ? parsed.total
-      : bankedSoFar + repos.length;
-
-  return { repos, total };
-}
-
-async function fetchRepoPage(
-  offset: number,
-  pageSize: number,
-  bankedSoFar: number,
-): Promise<
-  { page: { repos: unknown[]; total: number } } | { failure: ToolTextResult }
-> {
-  const proxied = await proxyGetApi(
-    `/api/repos?limit=${pageSize}&offset=${offset}`,
-  );
-
-  if (!proxied.ok) {
-    return {
-      failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied),
-    };
-  }
-
-  return { page: repoPage(proxied.body, bankedSoFar) };
-}
-
-/** Walks every page. The API caps one response at 100, so an org with more repos than that would silently see only the first page; `total` ends the walk even when a page comes back exactly full. */
-async function walkRepoPages(): Promise<
-  { repos: unknown[]; total: number } | { failure: ToolTextResult }
-> {
-  const pageSize = 100;
-  const repos: unknown[] = [];
-
-  for (let offset = 0; ; offset += pageSize) {
-    const fetched = await fetchRepoPage(offset, pageSize, repos.length);
-
-    if ("failure" in fetched) {
-      return fetched;
-    }
-    const { page } = fetched;
-
-    repos.push(...page.repos);
-
-    if (page.repos.length < pageSize || repos.length >= page.total) {
-      return { repos, total: page.total };
-    }
-  }
-}
-
-/** Ingests now rather than waiting for the nightly pass, then drops the assemble cache for that repo — a freshly merged ADR that the next bundle does not contain is the whole reason somebody reaches for this tool. */
-async function ingestFiles(files: string[], repo?: string) {
-  const resolvedRepo = repo || detectCurrentRepo();
-
-  if (!resolvedRepo) {
-    return textResult(
-      "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
-    );
-  }
-  const credentials = ingestCredentials();
-
-  if (!credentials) {
-    return textResult(
-      "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
-    );
-  }
-  const commit = await resolveCommitSha(resolvedRepo);
-  const outcome = await postIngest(credentials, files, resolvedRepo, commit);
-
-  if (outcome.ingested) {
-    invalidateCache(["lore_assemble_context"], resolvedRepo);
-  }
-
-  return textResult(outcome.message);
 }
 
 function registerListReposTool(server: McpServer) {
@@ -171,19 +80,88 @@ function registerListReposTool(server: McpServer) {
   );
 }
 
-// A 409 is the guard refusing a duplicate, not an outage — return the body verbatim so the caller keeps `blocked`/`task_id` to poll or pass reonboard.
-function onboardFailure(
-  proxied: Extract<ProxyResult, { ok: false }>,
-): ToolTextResult {
-  if (
-    proxied.reason === "unreachable" &&
-    proxied.status === 409 &&
-    proxied.body
-  ) {
-    return textResult(proxied.body);
+/** Walks every page. The API caps one response at 100, so an org with more repos than that would silently see only the first page; `total` ends the walk even when a page comes back exactly full. */
+async function walkRepoPages(): Promise<
+  { repos: unknown[]; total: number } | { failure: ToolTextResult }
+> {
+  const pageSize = 100;
+  const repos: unknown[] = [];
+
+  for (let offset = 0; ; offset += pageSize) {
+    const fetched = await fetchRepoPage(offset, pageSize, repos.length);
+
+    if ("failure" in fetched) {
+      return fetched;
+    }
+    const { page } = fetched;
+
+    repos.push(...page.repos);
+
+    if (page.repos.length < pageSize || repos.length >= page.total) {
+      return { repos, total: page.total };
+    }
+  }
+}
+
+async function fetchRepoPage(
+  offset: number,
+  pageSize: number,
+  bankedSoFar: number,
+): Promise<
+  { page: { repos: unknown[]; total: number } } | { failure: ToolTextResult }
+> {
+  const proxied = await proxyGetApi(
+    `/api/repos?limit=${pageSize}&offset=${offset}`,
+  );
+
+  if (!proxied.ok) {
+    return {
+      failure: proxyFailure("lore_list_repos", NOT_CONFIGURED, proxied),
+    };
   }
 
-  return proxyFailure("lore_onboard_repo", NOT_CONFIGURED, proxied);
+  return { page: repoPage(proxied.body, bankedSoFar) };
+}
+
+// One /api/repos page: repos plus the running total, computed against how many repos are banked so far.
+function repoPage(
+  body: string,
+  bankedSoFar: number,
+): { repos: unknown[]; total: number } {
+  const parsed = JSON.parse(body) as { repos?: unknown[]; total?: number };
+  const repos = Array.isArray(parsed.repos) ? parsed.repos : [];
+  const total =
+    typeof parsed.total === "number"
+      ? parsed.total
+      : bankedSoFar + repos.length;
+
+  return { repos, total };
+}
+
+// Maps a failed ProxyResult to the MCP text result callers surface — the same three reasons every proxying tool handles.
+function proxyFailure(
+  toolName: string,
+  unconfiguredText: string,
+  proxied: Extract<ProxyResult, { ok: false }>,
+): ToolTextResult {
+  if (proxied.reason === "not_configured") {
+    return textResult(unconfiguredText);
+  }
+
+  if (proxied.reason === "denied") {
+    return deniedError(toolName, proxied.detail);
+  }
+
+  return unreachableError(toolName, proxied.detail);
+}
+
+function registerOnboardRepoTool(server: McpServer) {
+  server.tool(
+    "lore_onboard_repo",
+    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status }. Refuses (HTTP 409) when the repo is already onboarded, still has its onboarding PR open, or already has an onboard task in flight — pass reonboard to regenerate missing scaffolding for an onboarded repo. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
+    ONBOARD_REPO_INPUT,
+    onboardRepo,
+  );
 }
 
 async function onboardRepo({
@@ -201,18 +179,60 @@ async function onboardRepo({
   return proxied.ok ? textResult(proxied.body) : onboardFailure(proxied);
 }
 
-function registerOnboardRepoTool(server: McpServer) {
+// A 409 is the guard refusing a duplicate, not an outage — return the body verbatim so the caller keeps `blocked`/`task_id` to poll or pass reonboard.
+function onboardFailure(
+  proxied: Extract<ProxyResult, { ok: false }>,
+): ToolTextResult {
+  if (
+    proxied.reason === "unreachable" &&
+    proxied.status === 409 &&
+    proxied.body
+  ) {
+    return textResult(proxied.body);
+  }
+
+  return proxyFailure("lore_onboard_repo", NOT_CONFIGURED, proxied);
+}
+
+function registerIngestFilesTool(server: McpServer) {
   server.tool(
-    "lore_onboard_repo",
-    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status }. Refuses (HTTP 409) when the repo is already onboarded, still has its onboarding PR open, or already has an onboard task in flight — pass reonboard to regenerate missing scaffolding for an onboarded repo. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
-    ONBOARD_REPO_INPUT,
-    onboardRepo,
+    "lore_ingest_files",
+    `Fetches specific repo files from GitHub, embeds them, and writes them into Lore's context store immediately so they are searchable without waiting for nightly ingestion. Returns "Ingested N files into Lore for <repo>. M errors." Use after merging a new ADR or updated CLAUDE.md to make it searchable now. Instead: to onboard a new repo use lore_onboard_repo; to search existing content use lore_search_context or lore_assemble_context.`,
+    INGEST_FILES_INPUT,
+    async ({ files, repo }) => {
+      try {
+        return await ingestFiles(files, repo);
+      } catch (err) {
+        return textResult(`Error: ${errorMessage(err)}`);
+      }
+    },
   );
 }
 
-interface IngestCredentials {
-  apiUrl: string;
-  apiToken: string;
+/** Ingests now rather than waiting for the nightly pass, then drops the assemble cache for that repo — a freshly merged ADR that the next bundle does not contain is the whole reason somebody reaches for this tool. */
+async function ingestFiles(files: string[], repo?: string) {
+  const resolvedRepo = repo || detectCurrentRepo();
+
+  if (!resolvedRepo) {
+    return textResult(
+      "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
+    );
+  }
+  const credentials = ingestCredentials();
+
+  if (!credentials) {
+    return textResult(
+      "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
+    );
+  }
+  const commit = await resolveCommitSha(resolvedRepo);
+  const outcome = await postIngest(credentials, files, resolvedRepo, commit);
+
+  if (outcome.ingested) {
+    invalidateCache(["lore_assemble_context"], resolvedRepo);
+  }
+
+  return textResult(outcome.message);
 }
 
 function ingestCredentials(): IngestCredentials | null {
@@ -244,33 +264,6 @@ async function resolveCommitSha(resolvedRepo: string): Promise<string> {
   }
 }
 
-interface IngestOutcome {
-  ingested: boolean;
-  message: string;
-}
-
-// An error body is not guaranteed to be JSON, so the status text is the fallback explanation.
-async function ingestFailure(res: Response): Promise<IngestOutcome> {
-  const err = await res.json().catch(() => ({ error: res.statusText }));
-
-  return {
-    ingested: false,
-    message: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
-  };
-}
-
-async function ingestSuccess(
-  res: Response,
-  resolvedRepo: string,
-): Promise<IngestOutcome> {
-  const result = (await res.json()) as { ingested?: number; errors?: number };
-
-  return {
-    ingested: true,
-    message: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
-  };
-}
-
 async function postIngest(
   credentials: IngestCredentials,
   files: string[],
@@ -290,17 +283,24 @@ async function postIngest(
   return res.ok ? ingestSuccess(res, resolvedRepo) : ingestFailure(res);
 }
 
-function registerIngestFilesTool(server: McpServer) {
-  server.tool(
-    "lore_ingest_files",
-    `Fetches specific repo files from GitHub, embeds them, and writes them into Lore's context store immediately so they are searchable without waiting for nightly ingestion. Returns "Ingested N files into Lore for <repo>. M errors." Use after merging a new ADR or updated CLAUDE.md to make it searchable now. Instead: to onboard a new repo use lore_onboard_repo; to search existing content use lore_search_context or lore_assemble_context.`,
-    INGEST_FILES_INPUT,
-    async ({ files, repo }) => {
-      try {
-        return await ingestFiles(files, repo);
-      } catch (err) {
-        return textResult(`Error: ${errorMessage(err)}`);
-      }
-    },
-  );
+async function ingestSuccess(
+  res: Response,
+  resolvedRepo: string,
+): Promise<IngestOutcome> {
+  const result = (await res.json()) as { ingested?: number; errors?: number };
+
+  return {
+    ingested: true,
+    message: `Ingested ${result.ingested || 0} files into Lore for ${resolvedRepo}. ${result.errors || 0} errors.`,
+  };
+}
+
+// An error body is not guaranteed to be JSON, so the status text is the fallback explanation.
+async function ingestFailure(res: Response): Promise<IngestOutcome> {
+  const err = await res.json().catch(() => ({ error: res.statusText }));
+
+  return {
+    ingested: false,
+    message: `Ingestion failed: ${(err as { error?: string }).error || res.statusText}`,
+  };
 }

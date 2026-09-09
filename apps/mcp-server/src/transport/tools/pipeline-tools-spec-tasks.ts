@@ -15,13 +15,20 @@ import {
   CLAIM_TASK_INPUT,
 } from "./pipeline-tools-schemas.js";
 
-/** Reports parsing nothing as its own outcome, not as a sync of zero: an unparsed tasks.md is a markdown problem the caller can fix, while "synced 0" reads as the file being empty. */
-function syncSummary(body: unknown, repo: string, specSlug: string): string {
-  const sync = body as SyncTasksResponse;
+export function registerSpecTaskTools(server: McpServer) {
+  registerSyncTasksTool(server);
+  registerReadyTasksTool(server);
+  registerClaimTaskTool(server);
+  registerCompleteTaskTool(server);
+}
 
-  return sync.parsed === 0
-    ? "No tasks found in the provided markdown."
-    : `Synced ${sync.synced} tasks (${sync.created} new) for ${repo} / ${specSlug}.`;
+function registerSyncTasksTool(server: McpServer) {
+  server.tool(
+    "lore_sync_tasks",
+    "Parses a speckit tasks.md and idempotently upserts each checklist item as a spec-task row; returns a 'Synced N tasks (M new)' summary. Run once per spec before any claiming — this is the start of spec-driven multi-agent work. This tool does NOT claim, run, or evaluate readiness. After syncing: lore_ready_tasks to find workable items; lore_claim_task to lock one; lore_complete_task to finish it.",
+    SYNC_TASKS_INPUT,
+    syncTasksHandler,
+  );
 }
 
 // Materialises a spec's checklist as task rows. Idempotent, so running it again after editing tasks.md upserts rather than duplicating — which is what makes it safe to run once per spec, every time.
@@ -45,12 +52,21 @@ async function syncTasksHandler(args: {
   });
 }
 
-function registerSyncTasksTool(server: McpServer) {
+/** Reports parsing nothing as its own outcome, not as a sync of zero: an unparsed tasks.md is a markdown problem the caller can fix, while "synced 0" reads as the file being empty. */
+function syncSummary(body: unknown, repo: string, specSlug: string): string {
+  const sync = body as SyncTasksResponse;
+
+  return sync.parsed === 0
+    ? "No tasks found in the provided markdown."
+    : `Synced ${sync.synced} tasks (${sync.created} new) for ${repo} / ${specSlug}.`;
+}
+
+function registerReadyTasksTool(server: McpServer) {
   server.tool(
-    "lore_sync_tasks",
-    "Parses a speckit tasks.md and idempotently upserts each checklist item as a spec-task row; returns a 'Synced N tasks (M new)' summary. Run once per spec before any claiming — this is the start of spec-driven multi-agent work. This tool does NOT claim, run, or evaluate readiness. After syncing: lore_ready_tasks to find workable items; lore_claim_task to lock one; lore_complete_task to finish it.",
-    SYNC_TASKS_INPUT,
-    syncTasksHandler,
+    "lore_ready_tasks",
+    "Lists spec-tasks that are 'pending' AND whose every dependency has completed — the items you can start right now. Spec-tasks must first be materialized with lore_sync_tasks; after picking one, lock it with lore_claim_task. Instead: lore_list_pipeline_tasks for a general status-filtered listing; lore_list_pending_tasks for unclaimed tasks across repos to run locally.",
+    READY_TASKS_INPUT,
+    readyTasksHandler,
   );
 }
 
@@ -86,12 +102,12 @@ function renderReadyTasks(body: unknown): string {
   return `## Ready tasks\n\n${lines.join("\n")}`;
 }
 
-function registerReadyTasksTool(server: McpServer) {
+function registerClaimTaskTool(server: McpServer) {
   server.tool(
-    "lore_ready_tasks",
-    "Lists spec-tasks that are 'pending' AND whose every dependency has completed — the items you can start right now. Spec-tasks must first be materialized with lore_sync_tasks; after picking one, lock it with lore_claim_task. Instead: lore_list_pipeline_tasks for a general status-filtered listing; lore_list_pending_tasks for unclaimed tasks across repos to run locally.",
-    READY_TASKS_INPUT,
-    readyTasksHandler,
+    "lore_claim_task",
+    "Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one agent owns it. Use right before starting a task surfaced by lore_ready_tasks. Instead: lore_complete_task to mark it done afterward; lore_skip_task to dismiss a local notification without a server claim.",
+    CLAIM_TASK_INPUT,
+    claimTaskHandler,
   );
 }
 
@@ -117,12 +133,14 @@ function claimTaskHandler({
   });
 }
 
-function registerClaimTaskTool(server: McpServer) {
+function registerCompleteTaskTool(server: McpServer) {
   server.tool(
-    "lore_claim_task",
-    "Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one agent owns it. Use right before starting a task surfaced by lore_ready_tasks. Instead: lore_complete_task to mark it done afterward; lore_skip_task to dismiss a local notification without a server claim.",
-    CLAIM_TASK_INPUT,
-    claimTaskHandler,
+    "lore_complete_task",
+    "Marks a claimed ('running') spec-task as 'completed' and returns which dependents are now unblocked. Only 'running' tasks can be completed. Instead: lore_ready_tasks to pick the next item; lore_skip_task to dismiss a local notification; lore_cancel_task to cancel rather than complete.",
+    {
+      task_id: z.string(),
+    },
+    completeTaskHandler,
   );
 }
 
@@ -152,22 +170,4 @@ function renderCompletion(body: unknown, task_id: string): string {
   return unblocked.length > 0
     ? `Task ${task_id} completed.\n\nNewly unblocked tasks:\n${list}`
     : `Task ${task_id} completed.`;
-}
-
-function registerCompleteTaskTool(server: McpServer) {
-  server.tool(
-    "lore_complete_task",
-    "Marks a claimed ('running') spec-task as 'completed' and returns which dependents are now unblocked. Only 'running' tasks can be completed. Instead: lore_ready_tasks to pick the next item; lore_skip_task to dismiss a local notification; lore_cancel_task to cancel rather than complete.",
-    {
-      task_id: z.string(),
-    },
-    completeTaskHandler,
-  );
-}
-
-export function registerSpecTaskTools(server: McpServer) {
-  registerSyncTasksTool(server);
-  registerReadyTasksTool(server);
-  registerClaimTaskTool(server);
-  registerCompleteTaskTool(server);
 }

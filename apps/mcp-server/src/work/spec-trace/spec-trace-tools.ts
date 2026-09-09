@@ -19,10 +19,6 @@ const NO_MANIFEST = "No test-command manifest declared for this repo.";
 const NO_LIST_COMMAND =
   "This test-command manifest entry has no 'list' command; it runs whole and cannot enumerate tests.";
 
-function resolveCwd(manifest: TestCommandManifest, cwd: string): string {
-  return join(cwd, manifest.cwd || ".");
-}
-
 export function stripPathPrefix(file: string, prefix: string): string {
   if (prefix && file.startsWith(prefix)) {
     return file.slice(prefix.length);
@@ -63,14 +59,6 @@ import {
 
 export { runTestsList, runTestsRun, parseCommandJson };
 
-// These tools answer with a plain string, so an unmet precondition IS the return value rather than a thrown error.
-function testInterfaceRefusal(
-  env: NodeJS.ProcessEnv,
-  manifest: TestCommandManifest | null,
-): string | null {
-  return executionRefusal(env) ?? (manifest ? null : NO_MANIFEST);
-}
-
 export async function listTestsTool(
   env: NodeJS.ProcessEnv,
   manifest: TestCommandManifest | null,
@@ -94,6 +82,18 @@ export async function listTestsTool(
   return JSON.stringify(
     stripDescriptorPaths(descriptors, manifest.path_prefix_strip),
   );
+}
+
+function resolveCwd(manifest: TestCommandManifest, cwd: string): string {
+  return join(cwd, manifest.cwd || ".");
+}
+
+// These tools answer with a plain string, so an unmet precondition IS the return value rather than a thrown error.
+function testInterfaceRefusal(
+  env: NodeJS.ProcessEnv,
+  manifest: TestCommandManifest | null,
+): string | null {
+  return executionRefusal(env) ?? (manifest ? null : NO_MANIFEST);
 }
 
 export async function runTestTool(
