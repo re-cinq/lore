@@ -78,6 +78,7 @@ export async function getIssueNumber(
   return {
     issue_number: task.issue_number ?? null,
     target_repo: task.target_repo,
+    // eslint-disable-next-line re-lint/no-duplicate-code -- this linkPrToIssue closes the Issue after commenting, which the task-helpers copy deliberately does not; merging them is a behaviour decision for two handlers, not a de-duplication
   };
 }
 

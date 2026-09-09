@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { parseAgentLog, type LogEntry } from "@/lib/agent-log-entries";
 import CollapsibleCard from "@/components/CollapsibleCard";
 import LogEntriesView from "@/components/LogEntriesView";
-import LogFormatToggle from "@/components/LogFormatToggle";
+import { LogFormatToggleRow } from "@/components/LogFormatToggle";
 import {
   nodeLogsUrl,
   shouldPollNode,
@@ -71,13 +71,11 @@ function LogToggleRow({
   setShowRaw,
 }: Pick<NodeLogBodyProps, "showRaw" | "setShowRaw">) {
   return (
-    <div className={styles.toggleRow}>
-      <LogFormatToggle
-        raw={showRaw}
-        onFormatted={() => setShowRaw(false)}
-        onRaw={() => setShowRaw(true)}
-      />
-    </div>
+    <LogFormatToggleRow
+      className={styles.toggleRow}
+      showRaw={showRaw}
+      setShowRaw={setShowRaw}
+    />
   );
 }
 

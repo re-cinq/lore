@@ -31,6 +31,7 @@ export type TaskTypeRecipe = Partial<TaskTypeConfig>;
 export const StationConfigSchema = z.object({
   /** The argv the exec vendor spawns; the rendered station_input is appended. */
   command: z.array(z.string()),
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the task-types.yaml recipe schema; the field names it shares with the agent_definitions model belong to two different contracts, one hand-written on disk and one read back from a column
   timeout_minutes: z.number(),
   /** Plain env for the station pod (e.g. def-ingest's LORE_DGRAPH_HTTP). */
   env: z.record(z.string(), z.string()).optional(),

@@ -11,6 +11,7 @@ export const FeatureStatusSchema = z.enum([
   "pr-open",
   "implemented",
   "split",
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the stored feature model, mirrored on purpose by lore-api's wire schema; the mirror is guarded by npm run typecheck:drift, which is strictly stronger than this token match
 ]);
 
 export const FeatureSchema = z.object({

@@ -19,6 +19,7 @@ type AgentRunTurnDbRow = Omit<
 const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_line_id, station_run_id, node_id,
          iteration, event_type, envelope, created_at`;
 
+// eslint-disable-next-line re-lint/no-duplicate-code -- the turns row mapper, naming agent_run_turns' own columns — which is what a per-table mapper is for, even where the events mapper reads alike
 function toRow(row: AgentRunTurnDbRow): AgentRunTurnRow {
   return {
     id: String(row.id),

@@ -1,10 +1,6 @@
 "use client";
-import { useActionState } from "react";
 import HelpPopover from "@/components/HelpPopover";
-import SaveResultBanner, {
-  INITIAL_SAVE_STATE,
-  type SaveState,
-} from "./SaveResultBanner";
+import SettingsFormShell, { type SaveAction } from "./SettingsFormShell";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { components } from "@/lib/api/schema";
 import styles from "./page.module.css";
@@ -18,43 +14,29 @@ export interface SettingsViewProps {
   team: string;
   settings: RepoSettingsShape;
   allRepos: { full_name: string }[];
-  saveAction: (prev: SaveState, formData: FormData) => Promise<SaveState>;
+  saveAction: SaveAction;
 }
 
-/** Names the page and what it covers, so a reader knows before scrolling which settings live here and which live on a sibling tab. */
-function SettingsHeader() {
-  return (
-    <>
-      <div className={styles.titleRow}>
-        <h2 className={styles.title}>Settings</h2>
-        <SettingsHelp />
-      </div>
-      <p className={`meta ${styles.lede}`}>
-        Per-repo general configuration: routing, trust, and cross-repo context.
-      </p>
-    </>
-  );
-}
+/** Says what this tab covers, so a reader knows before scrolling which settings live here and which live on a sibling tab. */
+const SETTINGS_LEDE =
+  "Per-repo general configuration: routing, trust, and cross-repo context.";
 
 export default function SettingsView(props: SettingsViewProps) {
   const { fullName, team, settings, allRepos, saveAction } = props;
-  const [state, formAction] = useActionState(saveAction, INITIAL_SAVE_STATE);
   const selectedRepos = settings.cross_repo_repos ?? [];
 
   return (
-    <div>
-      <SettingsHeader />
-
-      <SaveResultBanner state={state} />
-
-      <form action={formAction} className={`task-form ${styles.form}`}>
-        <input type="hidden" name="full_name" value={fullName} />
-
-        <GeneralFields team={team} settings={settings} />
-        <CrossRepoField allRepos={allRepos} selectedRepos={selectedRepos} />
-        <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
-      </form>
-    </div>
+    <SettingsFormShell
+      fullName={fullName}
+      saveAction={saveAction}
+      title="Settings"
+      help={<SettingsHelp />}
+      lede={SETTINGS_LEDE}
+    >
+      <GeneralFields team={team} settings={settings} />
+      <CrossRepoField allRepos={allRepos} selectedRepos={selectedRepos} />
+      <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
+    </SettingsFormShell>
   );
 }
 

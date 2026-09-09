@@ -26,6 +26,7 @@ export class PgKnowledge implements KnowledgePort {
     return queryLiveGraph(this.pool, { entity: term, repo });
   }
 
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the SQL knowledge adapter; all it shares with the in-memory double is the port's method run, and no-forwarding-class rules out the base class that would declare it once
   queryTrace(): Promise<string> {
     return Promise.resolve(TRACE_NOT_DEPLOYED_MESSAGE);
   }

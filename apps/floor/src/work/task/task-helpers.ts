@@ -29,6 +29,7 @@ export function insertEvent(
   toStatus: string,
   metadata: Record<string, unknown> = {},
 ): Promise<void> {
+  // eslint-disable-next-line re-lint/no-duplicate-code -- this linkPrToIssue comments on the Issue and leaves it OPEN; the agent-watcher copy also closes it, so folding the two together decides that difference for both handlers rather than removing a duplicate
   return taskStore().recordEvent(taskId, fromStatus, toStatus, metadata);
 }
 
