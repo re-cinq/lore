@@ -26,8 +26,8 @@ const isCoordinationSkip = (run: AssemblyRun): boolean =>
   run.status === "finished" && run.outcome === "lease_held";
 
 // A coordination skip did no work — it deferred to a run already holding the branch — so it stays hidden unless asked for.
-const visibleRunsIn = (runs: AssemblyRun[], showSkips: boolean) =>
-  showSkips ? runs : runs.filter((r) => !isCoordinationSkip(r));
+const withoutCoordinationSkips = (runs: AssemblyRun[]) =>
+  runs.filter((r) => !isCoordinationSkip(r));
 
 export interface AssemblyRunsTableProps {
   runs: AssemblyRun[];
@@ -49,7 +49,9 @@ export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
   return (
     <table className={styles.table}>
       <RunsTableHead />
-      <TableBody visibleRuns={visibleRunsIn(runs, showSkips)} />
+      <TableBody
+        visibleRuns={showSkips ? runs : withoutCoordinationSkips(runs)}
+      />
       <SkipToggleFooter
         skipCount={skipCount}
         showSkips={showSkips}

@@ -195,7 +195,7 @@ export default function SpecGraphD3({
 
     update(
       c,
-      prep.restoredFromStorage,
+      prep,
       (fn) => {
         filterRef.current = fn;
       },

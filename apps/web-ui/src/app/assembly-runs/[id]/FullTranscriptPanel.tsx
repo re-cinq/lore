@@ -132,7 +132,7 @@ function useDisposedRef() {
 }
 
 /** Walks the transcript ONCE per open. A failure re-arms the gate, so closing and reopening retries instead of pinning the error until a page reload. */
-function useTranscriptData(runId: string, open: boolean) {
+function useTranscriptData(runId: string, { open }: { open: boolean }) {
   const [turns, setTurns] = useState<AgentRunTurn[] | null>(null);
   const [capped, setCapped] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,7 +158,7 @@ function useTranscriptData(runId: string, open: boolean) {
 function useTranscriptWalk(runId: string) {
   const [open, setOpen] = useState(true);
   const [showRaw, setShowRaw] = useState(false);
-  const { turns, capped, error } = useTranscriptData(runId, open);
+  const { turns, capped, error } = useTranscriptData(runId, { open });
 
   return { open, setOpen, turns, capped, error, showRaw, setShowRaw };
 }
@@ -269,7 +269,7 @@ function TranscriptBody({ walk, segments, nodeId }: TranscriptBodyProps) {
       <TranscriptToggleRow
         show={showList}
         showRaw={showRaw}
-        onChange={walk.setShowRaw}
+        setShowRaw={walk.setShowRaw}
       />
       <TranscriptNotices
         error={error}

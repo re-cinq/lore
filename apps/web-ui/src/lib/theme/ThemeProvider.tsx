@@ -36,8 +36,11 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
-function systemPrefersDark(): boolean {
-  return typeof window !== "undefined" && window.matchMedia(DARK_QUERY).matches;
+function systemScheme(): ResolvedScheme {
+  const dark =
+    typeof window !== "undefined" && window.matchMedia(DARK_QUERY).matches;
+
+  return dark ? "dark" : "light";
 }
 
 function applyToDom(family: ThemeFamily, resolved: ResolvedScheme): void {
@@ -65,7 +68,7 @@ function usePersisted<T extends string>(
 /** Keeps the document in step with the choice. The second effect exists only for `auto`: the OS can change scheme while the page is open, and nothing re-renders when it does, so the media query has to push the change to the DOM itself. */
 function useThemeDom(family: ThemeFamily, scheme: ColorSchemePref): void {
   useEffect(() => {
-    applyToDom(family, resolveColorScheme(scheme, systemPrefersDark()));
+    applyToDom(family, resolveColorScheme(scheme, systemScheme()));
   }, [family, scheme]);
 
   useEffect(() => {
@@ -104,7 +107,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setScheme = usePersisted(setSchemeState, SCHEME_KEY);
 
   useThemeDom(family, scheme);
-  const resolvedScheme = resolveColorScheme(scheme, systemPrefersDark());
+  const resolvedScheme = resolveColorScheme(scheme, systemScheme());
 
   return (
     <ThemeContext.Provider

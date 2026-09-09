@@ -81,7 +81,7 @@ function Probe({
   active: boolean;
   label: string;
 }) {
-  const { live } = useCoordinatedRefresh(refresh, active);
+  const { live } = useCoordinatedRefresh(refresh, { active });
 
   return <span data-testid={`live-${label}`}>{String(live)}</span>;
 }

@@ -15,11 +15,6 @@ export interface FocusState {
   setSearchTerm: (term: string) => void;
 }
 
-/** Search wins over focus: while a query is active, everything not matching fades regardless of what is focused, because the reader is asking a different question. */
-function searchOpacity(matches: boolean, full: number): number {
-  return matches ? full : FADED;
-}
-
 /** A node's opacity by focus level. With no focus set everything is fully visible; a node the focus walk never reached is faded rather than hidden, so the graph keeps its shape. */
 function levelOpacity(
   focusLevels: Map<string, number> | null,
@@ -66,14 +61,17 @@ function createMatcher(
   };
 }
 
+/** Search wins over focus: while a query is active, everything not matching fades regardless of what is focused, because the reader is asking a different question. */
 function nodeOpacityOf(
   vars: FocusVars,
   matchesSearch: SearchMatcher,
   id: string,
 ): number {
-  return vars.searchTerm.trim()
-    ? searchOpacity(matchesSearch(id), 1)
-    : levelOpacity(vars.focusLevels, id);
+  if (!vars.searchTerm.trim()) {
+    return levelOpacity(vars.focusLevels, id);
+  }
+
+  return matchesSearch(id) ? 1 : FADED;
 }
 
 function edgeOpacityOf(
@@ -82,9 +80,11 @@ function edgeOpacityOf(
   sourceId: string,
   targetId: string,
 ): number {
-  return vars.searchTerm.trim()
-    ? searchOpacity(matchesSearch(sourceId) && matchesSearch(targetId), 0.5)
-    : edgeLevelOpacity(vars.focusLevels, sourceId, targetId);
+  if (!vars.searchTerm.trim()) {
+    return edgeLevelOpacity(vars.focusLevels, sourceId, targetId);
+  }
+
+  return matchesSearch(sourceId) && matchesSearch(targetId) ? 0.5 : FADED;
 }
 
 export function createFocusState(

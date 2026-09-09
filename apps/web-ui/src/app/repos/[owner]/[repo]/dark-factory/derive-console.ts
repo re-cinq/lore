@@ -49,21 +49,15 @@ export interface DarkFactoryConsoleModel {
   decisions: DecisionItem[];
 }
 
-function deriveActivation(
-  repoEnabled: boolean,
-): Pick<Activation, "state" | "reason"> {
-  if (!repoEnabled) {
-    return {
-      state: "disabled",
-      reason: "Repo opted out — dark_factory.enabled is false.",
-    };
-  }
+const DISABLED_ACTIVATION: Pick<Activation, "state" | "reason"> = {
+  state: "disabled",
+  reason: "Repo opted out — dark_factory.enabled is false.",
+};
 
-  return {
-    state: "active",
-    reason: "Repo enabled — tasks run on the agent-cr subsystem.",
-  };
-}
+const ACTIVE_ACTIVATION: Pick<Activation, "state" | "reason"> = {
+  state: "active",
+  reason: "Repo enabled — tasks run on the agent-cr subsystem.",
+};
 
 type AuditPayload = ConsoleAuditEvent["payload"];
 
@@ -123,7 +117,7 @@ export function deriveDarkFactoryConsole(
 ): DarkFactoryConsoleModel {
   return {
     activation: {
-      ...deriveActivation(input.resolved.enabled),
+      ...(input.resolved.enabled ? ACTIVE_ACTIVATION : DISABLED_ACTIVATION),
       repoEnabled: input.resolved.enabled,
     },
     config: input.resolved,

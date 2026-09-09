@@ -8,10 +8,10 @@ export const DEFAULT_SCHEME: ColorSchemePref = "auto";
 
 export function resolveColorScheme(
   pref: ColorSchemePref,
-  systemPrefersDark: boolean,
+  systemScheme: ResolvedScheme,
 ): ResolvedScheme {
   if (pref === "auto") {
-    return systemPrefersDark ? "dark" : "light";
+    return systemScheme;
   }
 
   return pref;

@@ -622,7 +622,7 @@ nothing matches is a trick that loses the cluster's real tags.
   button takes the agent id as a BOUND parameter of the server action, never
   an inline closure over it: the view is a server component, and React
   refuses to serialize a plain function to a client component — which took
-  the whole page down the first time (fixed the same day). ([validated by `ClusterAgentsView.test.tsx:34`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L34), [validated by `PauseClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L7), [`PauseClusterButton.test.tsx:16`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L16), [`actions.test.ts:23`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L23), [`actions.test.ts:32`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L32))
+  the whole page down the first time (fixed the same day). ([validated by `ClusterAgentsView.test.tsx:34`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L34), [validated by `PauseClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L7), [`PauseClusterButton.test.tsx:16`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L16), [`actions.test.ts:23`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L23), [`actions.test.ts:34`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L34))
 
 ## FR10 — Restarting a cluster
 
@@ -651,7 +651,7 @@ it a Kubernetes client, which ADR-024 deliberately withholds.
   the same way the Pause button is (never an inline closure over a server
   component's prop). A restart kills whatever the process is mid-way through,
   unlike Pause, so the button asks for a second click before it fires and a
-  Cancel backs out without restarting. ([validated by `ClusterAgentsView.test.tsx:170`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L166), [`RestartClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L7), [`RestartClusterButton.test.tsx:19`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L19), [`RestartClusterButton.test.tsx:29`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L29), [`actions.test.ts:44`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L44), [`actions.test.ts:53`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L53))
+  Cancel backs out without restarting. ([validated by `ClusterAgentsView.test.tsx:170`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L166), [`RestartClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L7), [`RestartClusterButton.test.tsx:19`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L19), [`RestartClusterButton.test.tsx:29`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L29), [`actions.test.ts:48`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L48), [`actions.test.ts:57`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L57))
 
 ## Data Model
 

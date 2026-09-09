@@ -28,7 +28,7 @@ type Refresh = () => void | Promise<void>;
 
 interface TaskRefreshContextValue {
   register: (id: string, refresh: Refresh) => () => void;
-  setActive: (id: string, active: boolean) => void;
+  setActive: (id: string, next: Membership) => void;
   live: boolean;
 }
 
@@ -42,7 +42,7 @@ const TaskRefreshContext = createContext<TaskRefreshContextValue>({
 /** Registers a panel's refresh callback; keeps latest closure via ref. */
 export function useCoordinatedRefresh(
   refresh: Refresh,
-  active: boolean,
+  { active }: Membership,
 ): { live: boolean } {
   const { register, setActive, live } = useContext(TaskRefreshContext);
   const id = useId();
@@ -55,7 +55,7 @@ export function useCoordinatedRefresh(
   useEffect(() => register(id, () => refreshRef.current()), [register, id]);
 
   useEffect(() => {
-    setActive(id, active);
+    setActive(id, { active });
   }, [setActive, id, active]);
 
   return { live };
@@ -114,16 +114,14 @@ function useStreamCallbacks(options: StreamCallbackOptions) {
 }
 
 /** Stream or poll. `EventSource` is probed rather than assumed: it is absent under SSR and in the test environment, and a page that assumed it would never fall back to polling there. */
-function pickDriver(
-  liveRunId: string | null,
-  streamUnavailable: boolean,
-  anyPanelActive: boolean,
-) {
+function pickDriver(input: {
+  liveRunId: string | null;
+  streamUnavailable: boolean;
+  anyPanelActive: boolean;
+}) {
   return resolveRefreshDriver({
-    liveRunId,
+    ...input,
     eventSourceAvailable: typeof EventSource !== "undefined",
-    streamUnavailable,
-    anyPanelActive,
   });
 }
 
@@ -216,7 +214,7 @@ function useRefreshDriver({ taskId, taskStatus, runs }: RefreshDriverOptions) {
   const { liveRunId, streamUnavailable, connection } = state;
   const { register, setActive, refreshAll, anyPanelActive } =
     usePanelRegistry();
-  const driver = pickDriver(liveRunId, streamUnavailable, anyPanelActive);
+  const driver = pickDriver({ liveRunId, streamUnavailable, anyPanelActive });
   const onEvent = useCoalescedRefresh(refreshAll, state.setAfterId);
 
   useDriverSubscriptions({
@@ -236,6 +234,7 @@ import {
   usePanelRegistry,
   useCoalescedRefresh,
   useRefreshTicker,
+  type Membership,
 } from "./refresh-mechanics";
 
 /** The context the panels read: who to call on a tick, and whether the page is genuinely live. */

@@ -21,8 +21,11 @@ function rowStatus(outcome: string | null): NodeRunStatus {
 }
 
 /** The run's final token: failed/completed/null. */
-function runResult(anyFailed: boolean, finished: boolean): string | null {
-  if (anyFailed) {
+function runResult(
+  latest: ReadonlyMap<string, AssemblyRunNode>,
+  { finished }: { finished: boolean },
+): string | null {
+  if (anyRowFailed(latest)) {
     return "failed";
   }
 
@@ -33,7 +36,7 @@ function runResult(anyFailed: boolean, finished: boolean): string | null {
 export function walkRunData(
   definition: AssemblyLineDefinition | null,
   rows: readonly AssemblyRunNode[],
-  finished: boolean,
+  { finished }: { finished: boolean },
 ): RunData {
   const latest = latestRowByNode(rows);
 
@@ -41,7 +44,7 @@ export function walkRunData(
     executed: new Set(latest.keys()),
     ...nodeOutcomes(latest),
     taken: takenEdgeKeys(definition, rows),
-    result: runResult(anyRowFailed(latest), finished),
+    result: runResult(latest, { finished }),
   };
 }
 

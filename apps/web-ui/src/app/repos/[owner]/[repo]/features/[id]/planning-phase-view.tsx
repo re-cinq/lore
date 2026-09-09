@@ -17,13 +17,13 @@ function isFeatureSettled(
 /** Whether the line is doing round or spec work, and whether the running card should read "spec". `finalizing` bridges only until the first poll shows the line moving; a line that ends without a PR must give the controls back. */
 function runningPhase(
   phase: ReturnType<typeof featurePhaseOf>,
-  finalizing: boolean,
-  runStatus: string,
+  line: { finalizing: boolean; runStatus: string },
 ) {
   return {
     working: phase.kind === "planning" || phase.kind === "writing-spec",
     showSpec:
-      phase.kind === "writing-spec" || (finalizing && runStatus === "running"),
+      phase.kind === "writing-spec" ||
+      (line.finalizing && line.runStatus === "running"),
   };
 }
 
@@ -72,11 +72,10 @@ function PhaseRunningCard(props: PhaseInput & { showSpec: boolean }) {
 /** Same card as a planning round: same line, and the author has no decision to make while it runs. Returns null when the line wants nothing said and the author's analysis view takes over. */
 function runningPhaseCard(props: PhaseInput): ReactNode {
   const { phase, poll, finalizing } = props;
-  const { working, showSpec } = runningPhase(
-    phase,
+  const { working, showSpec } = runningPhase(phase, {
     finalizing,
-    poll.run?.status ?? "running",
-  );
+    runStatus: poll.run?.status ?? "running",
+  });
 
   if (!working && !showSpec) {
     return null;

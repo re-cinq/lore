@@ -230,7 +230,7 @@ function useNodeMetaLine(
   focus: ReturnType<typeof useRunFocus>,
   nodeModels: RunVisualizationPanelProps["nodeModels"],
 ) {
-  const now = useNowTicker(focus.run.runIsLive);
+  const now = useNowTicker({ live: focus.run.runIsLive });
   const nodeMeta = useNodeMeta(
     focus.sources.state,
     focus.latestRows,

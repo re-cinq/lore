@@ -24,10 +24,11 @@ function dismissListeners(
 
 /** Listeners are attached only while open, so a page full of closed popovers costs nothing. */
 function useDismissOnOutside(
-  open: boolean,
-  ref: React.RefObject<HTMLSpanElement | null>,
+  popover: { open: boolean; ref: React.RefObject<HTMLSpanElement | null> },
   close: () => void,
 ): void {
+  const { open, ref } = popover;
+
   useEffect(() => {
     if (!open) {
       return;
@@ -93,7 +94,7 @@ export default function HelpPopover({
   const ref = useRef<HTMLSpanElement>(null);
   const toggle = () => setOpen((o) => !o);
 
-  useDismissOnOutside(open, ref, () => setOpen(false));
+  useDismissOnOutside({ open, ref }, () => setOpen(false));
 
   return (
     <span className={styles.wrap} ref={ref}>

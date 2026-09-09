@@ -95,11 +95,12 @@ function startPolling(target: PollTarget): () => void {
 
 /** Degraded path for a live run without a stream: polls from the reducer's cursor, kept in a ref so a poll result never restarts the interval. */
 export function useHistoryPoll(
-  active: boolean,
-  runId: string,
-  lastEventId: string,
-  dispatch: (event: RunStreamEvent) => void,
+  input: Omit<PollTarget, "lastEventIdRef"> & {
+    active: boolean;
+    lastEventId: string;
+  },
 ): void {
+  const { active, runId, lastEventId, dispatch } = input;
   const lastEventIdRef = useRef(lastEventId);
 
   useEffect(() => {

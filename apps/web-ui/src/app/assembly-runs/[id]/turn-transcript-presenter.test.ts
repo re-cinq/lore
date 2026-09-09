@@ -132,22 +132,22 @@ describe("envelopePretty", () => {
 
 describe("nextTurnsCursor with the Floor's hasMore flag", () => {
   it("continues from the last id of a short page when hasMore is true", () => {
-    expect(nextTurnsCursor([turn("1", "implement")], true)).toBe("1");
+    expect(nextTurnsCursor([turn("1", "implement")], { hasMore: true })).toBe(
+      "1",
+    );
   });
 
   it("stops paging on a full page when hasMore is false", () => {
-    expect(nextTurnsCursor(fullPage(), false)).toBeNull();
+    expect(nextTurnsCursor(fullPage(), { hasMore: false })).toBeNull();
   });
 
   it("stops paging when hasMore is true but no row carries a string id", () => {
-    expect(nextTurnsCursor([{ id: 7 }, {}], true)).toBeNull();
+    expect(nextTurnsCursor([{ id: 7 }, {}], { hasMore: true })).toBeNull();
   });
 
   it("falls back to the short-page rule when the response carries no flag", () => {
-    expect(nextTurnsCursor([turn("1", "implement")], undefined)).toBeNull();
-    expect(nextTurnsCursor(fullPage(), undefined)).toBe(
-      String(TURNS_PAGE_LIMIT),
-    );
+    expect(nextTurnsCursor([turn("1", "implement")], {})).toBeNull();
+    expect(nextTurnsCursor(fullPage(), {})).toBe(String(TURNS_PAGE_LIMIT));
   });
 
   it("bounds one walk to 20 pages", () => {
@@ -174,13 +174,13 @@ describe("parseHasMore", () => {
 
 describe("serverReportsMore", () => {
   it("trusts the flag over page length in both directions", () => {
-    expect(serverReportsMore([{}], true)).toBe(true);
-    expect(serverReportsMore(fullPage(), false)).toBe(false);
+    expect(serverReportsMore([{}], { hasMore: true })).toBe(true);
+    expect(serverReportsMore(fullPage(), { hasMore: false })).toBe(false);
   });
 
   it("falls back to page-length inference without a flag", () => {
-    expect(serverReportsMore(fullPage(), undefined)).toBe(true);
-    expect(serverReportsMore([{}], undefined)).toBe(false);
+    expect(serverReportsMore(fullPage(), {})).toBe(true);
+    expect(serverReportsMore([{}], {})).toBe(false);
   });
 });
 

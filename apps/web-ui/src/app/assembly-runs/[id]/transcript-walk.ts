@@ -48,18 +48,18 @@ function collectTurns(rows: unknown[], into: AgentRunTurn[]): void {
 
 /** Where the walk goes after a page: the next cursor, or the `hitCap` value that ends it. */
 function walkStep(
-  rows: unknown[],
-  hasMoreFlag: boolean | undefined,
-  collectedCount: number,
-  pages: number,
+  page: { rows: unknown[]; hasMoreFlag: boolean | undefined },
+  progress: { collectedCount: number; pages: number },
 ): { cursor: string } | { hitCap: boolean } {
-  const next = nextTurnsCursor(rows, hasMoreFlag);
+  const { rows } = page;
+  const hasMore = page.hasMoreFlag;
+  const next = nextTurnsCursor(rows, { hasMore });
 
   if (next === null) {
-    return { hitCap: serverReportsMore(rows, hasMoreFlag) };
+    return { hitCap: serverReportsMore(rows, { hasMore }) };
   }
 
-  if (exceededWalkBudget(collectedCount, pages)) {
+  if (exceededWalkBudget(progress.collectedCount, progress.pages)) {
     return { hitCap: true };
   }
 
@@ -73,14 +73,14 @@ export async function walkAllTurns(runId: string, isDisposed: () => boolean) {
   let pages = 0;
 
   for (;;) {
-    const { rows, hasMoreFlag } = await fetchTurnsPage(runId, cursor);
+    const page = await fetchTurnsPage(runId, cursor);
 
     if (isDisposed()) {
       return { turns: collected, hitCap: false };
     }
     pages += 1;
-    collectTurns(rows, collected);
-    const step = walkStep(rows, hasMoreFlag, collected.length, pages);
+    collectTurns(page.rows, collected);
+    const step = walkStep(page, { collectedCount: collected.length, pages });
 
     if ("hitCap" in step) {
       return { turns: collected, hitCap: step.hitCap };

@@ -16,7 +16,7 @@ import {
 } from "./run-visualization-selectors";
 
 /** A running node's duration is `now` minus its start — without a clock a stalled node would look identical to a live one. Ticks once a second while the run is live. */
-export function useNowTicker(live: boolean): string {
+export function useNowTicker({ live }: { live: boolean }): string {
   const [now, setNow] = useState(() => new Date().toISOString());
 
   useEffect(() => {
@@ -45,13 +45,14 @@ interface RunGraphInput {
 }
 
 /** The graph as drawn. A run with no rows yet passes `null` run data on purpose — the definition alone renders as the plain shape of the line, rather than as every node wrongly reporting "not started". */
-function useVisibleGraph(
-  definition: AssemblyLineDefinition | null,
-  hasRunData: boolean,
-  runData: RunData,
-  showOutcomes: boolean,
-) {
-  const graphMode = computeGraphMode(hasRunData, showOutcomes);
+function useVisibleGraph(input: {
+  definition: AssemblyLineDefinition | null;
+  hasRunData: boolean;
+  runData: RunData;
+  showOutcomes: boolean;
+}) {
+  const { definition, hasRunData, runData } = input;
+  const graphMode = computeGraphMode(input);
 
   return useMemo(
     () =>
@@ -62,10 +63,10 @@ function useVisibleGraph(
 
 /** Fork source for "retry this node", or null to hide the button — a live run, an unvisited node, the entry node, or a prefix that cannot be named (see retry-resume.ts). */
 function useRetrySource(
-  nodes: readonly AssemblyRunNode[],
-  runIsLive: boolean,
-  selectedNodeId: string | null,
+  input: Pick<RunGraphInput, "nodes" | "runIsLive" | "selectedNodeId">,
 ) {
+  const { nodes, runIsLive, selectedNodeId } = input;
+
   return useMemo(
     () =>
       runIsLive || selectedNodeId === null
@@ -95,18 +96,14 @@ export function useRunGraph(input: RunGraphInput) {
   const { nodes, definition, nodeStates, showOutcomes } = input;
   const hasRunData = computeHasRunData(nodes.length, nodeStates);
   const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
-  const retrySource = useRetrySource(
-    nodes,
-    input.runIsLive,
-    input.selectedNodeId,
-  );
+  const retrySource = useRetrySource(input);
   const runData = useRunData({ ...input, latestRows });
-  const visibleGraph = useVisibleGraph(
+  const visibleGraph = useVisibleGraph({
     definition,
     hasRunData,
     runData,
     showOutcomes,
-  );
+  });
 
   return { hasRunData, visibleGraph, retrySource, latestRows };
 }

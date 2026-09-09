@@ -37,7 +37,7 @@ describe("ClusterAgentsView", () => {
     render(
       <ClusterAgentsView
         installInfo={null}
-        togglePaused={async (id, paused) => {
+        togglePaused={async (id, { paused }) => {
           calls.push([id, paused]);
         }}
         restart={async () => {}}

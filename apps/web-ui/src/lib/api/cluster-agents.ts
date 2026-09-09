@@ -20,7 +20,7 @@ export type ClusterAgentPause = components["schemas"]["ClusterAgentPause"];
 /** Takes a cluster out of rotation (or back in) — a paused agent keeps heartbeating and finishes what it holds, only passed over for new work. */
 export function setClusterAgentPaused(
   id: string,
-  paused: boolean,
+  { paused }: { paused: boolean },
 ): Promise<ApiResult<ClusterAgentPause>> {
   return apiFetch("lore-api", `/api/cluster-agents/${id}/paused`, {
     method: "PUT",

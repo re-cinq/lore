@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { listAgents, saveAgent } from "@/lib/agents-api";
+import { listAgents, updateAgent } from "@/lib/agents-api";
 import {
   parseAgentForm,
   saveResultToState,
@@ -57,7 +57,7 @@ function EditBody({ fullName, agentName, agent, action }: EditBodyProps) {
   );
 }
 
-/** Saves the edit, redirecting to the list on success. `isUpdate` is true, which upserts the repo's PROJECT row — an org definition forks into a repo-owned one on its first edit rather than being modified for everyone. */
+/** Saves the edit, redirecting to the list on success. The update write upserts the repo's PROJECT row — an org definition forks into a repo-owned one on its first edit rather than being modified for everyone. */
 async function saveEdit(
   fullName: string,
   formData: FormData,
@@ -67,7 +67,7 @@ async function saveEdit(
   if (!parsedName) {
     return { error: "name required" };
   }
-  const saved = await saveAgent(fullName, def, true, approvalPr);
+  const saved = await updateAgent(fullName, def, approvalPr);
 
   if (saved.status === "ok") {
     redirect(`/repos/${fullName}/agents`);

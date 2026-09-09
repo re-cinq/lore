@@ -57,18 +57,32 @@ function stubFetch(...responses: Response[]) {
   return fetchMock;
 }
 
-function toggle(container: HTMLElement, open: boolean) {
+function detailsOf(container: HTMLElement): HTMLDetailsElement {
   const details = container.querySelector("details");
 
   if (!details) {
     throw new Error("panel not rendered");
   }
-  details.open = open;
+
+  return details;
+}
+
+function openDetails(container: HTMLElement) {
+  const details = detailsOf(container);
+
+  details.open = true;
+  fireEvent(details, new Event("toggle"));
+}
+
+function closeDetails(container: HTMLElement) {
+  const details = detailsOf(container);
+
+  details.open = false;
   fireEvent(details, new Event("toggle"));
 }
 
 async function openPanel(container: HTMLElement) {
-  toggle(container, true);
+  openDetails(container);
 
   for (let i = 0; i < 12; i++) {
     await act(async () => {
@@ -196,7 +210,7 @@ describe("FullTranscriptPanel", () => {
     );
 
     await openPanel(container);
-    toggle(container, false);
+    closeDetails(container);
     await openPanel(container);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -238,7 +252,7 @@ describe("FullTranscriptPanel", () => {
     await openPanel(container);
     expect(await screen.findByText(/Failed to load turns/)).toBeTruthy();
 
-    toggle(container, false);
+    closeDetails(container);
     await openPanel(container);
 
     expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
@@ -258,7 +272,7 @@ describe("FullTranscriptPanel", () => {
     await openPanel(container);
     expect(await screen.findByText(/Failed to load turns/)).toBeTruthy();
 
-    toggle(container, false);
+    closeDetails(container);
     await openPanel(container);
 
     expect(screen.queryByText(/Failed to load turns/)).toBeNull();
@@ -266,12 +280,15 @@ describe("FullTranscriptPanel", () => {
   });
 });
 
-function turnsPageResponse(turns: unknown[], hasMore: boolean) {
+function turnsPageResponse(
+  turns: unknown[],
+  { hasMore }: { hasMore: boolean },
+) {
   return new Response(JSON.stringify({ turns, hasMore }), { status: 200 });
 }
 
 async function openPanelLong(container: HTMLElement) {
-  toggle(container, true);
+  openDetails(container);
 
   for (let i = 0; i < 100; i++) {
     await act(async () => {
@@ -285,9 +302,9 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
     const fetchMock = stubFetch(
       turnsPageResponse(
         [wireTurn("1", "implement"), wireTurn("2", "implement")],
-        true,
+        { hasMore: true },
       ),
-      turnsPageResponse([wireTurn("3", "implement")], false),
+      turnsPageResponse([wireTurn("3", "implement")], { hasMore: false }),
     );
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
@@ -302,7 +319,7 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
 
   it("stops walking on a full page when the Floor reports no more", async () => {
     const fetchMock = stubFetch(
-      turnsPageResponse(fullPage(1, "implement"), false),
+      turnsPageResponse(fullPage(1, "implement"), { hasMore: false }),
     );
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
@@ -315,7 +332,7 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
 
   it("stops paging when the Floor reports more but the page carries no usable cursor, and says so", async () => {
     const fetchMock = stubFetch(
-      turnsPageResponse([{ id: 7 }, {}] as unknown[], true),
+      turnsPageResponse([{ id: 7 }, {}] as unknown[], { hasMore: true }),
     );
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
@@ -331,7 +348,9 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
 
   it("stops a drifted walk at the page bound and shows the cap notice", async () => {
     const responses = Array.from({ length: MAX_WALK_PAGES + 5 }, (_, i) =>
-      turnsPageResponse([wireTurn(String(i + 1), "implement")], true),
+      turnsPageResponse([wireTurn(String(i + 1), "implement")], {
+        hasMore: true,
+      }),
     );
     const fetchMock = stubFetch(...responses);
     const { container } = render(
@@ -347,7 +366,7 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
   });
 
   it("shows the cap notice when the Floor reports more over an empty page", async () => {
-    const fetchMock = stubFetch(turnsPageResponse([], true));
+    const fetchMock = stubFetch(turnsPageResponse([], { hasMore: true }));
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
     );

@@ -80,12 +80,12 @@ describe("useHistoryPoll", () => {
     const dispatch = vi.fn();
 
     renderHook(() =>
-      useHistoryPoll(
-        true,
-        "run-1",
-        "4",
-        dispatch as (e: RunStreamEvent) => void,
-      ),
+      useHistoryPoll({
+        active: true,
+        runId: "run-1",
+        lastEventId: "4",
+        dispatch: dispatch as (e: RunStreamEvent) => void,
+      }),
     );
 
     await act(async () => {
@@ -100,7 +100,14 @@ describe("useHistoryPoll", () => {
     const fetchStub = stubFetch([row("5")]);
     const dispatch = vi.fn();
 
-    renderHook(() => useHistoryPoll(false, "run-1", "4", dispatch));
+    renderHook(() =>
+      useHistoryPoll({
+        active: false,
+        runId: "run-1",
+        lastEventId: "4",
+        dispatch,
+      }),
+    );
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(30000);

@@ -11,10 +11,11 @@ export function participated(state: NodeRunState): boolean {
 
 /** A run reports failed the moment any node did, and completed only once it is terminal with none — an unfinished run has no result yet. */
 export function runResult(
-  anyFailed: boolean,
+  rows: readonly AssemblyRunNode[],
   runStatus: string,
 ): RunData["result"] {
-  if (anyFailed) {
+  // Mirrors the Floor's lineOutcomeFromVisits: any failed node outcome fails the run result, even on a `finished` terminal.
+  if (rows.some((row) => (row.outcome ?? "").includes("failed"))) {
     return "failed";
   }
 
@@ -38,10 +39,13 @@ export function computeHasRunData(
 }
 
 /** "run" shows only the executed path; toggling to outcomes (or having nothing executed yet) falls back to "definition". */
-export function computeGraphMode(
-  hasRunData: boolean,
-  showOutcomes: boolean,
-): "run" | "definition" {
+export function computeGraphMode({
+  hasRunData,
+  showOutcomes,
+}: {
+  hasRunData: boolean;
+  showOutcomes: boolean;
+}): "run" | "definition" {
   return hasRunData && !showOutcomes ? "run" : "definition";
 }
 
@@ -59,8 +63,6 @@ export function buildRunData(input: BuildRunDataInput): RunData {
   const entries = Object.entries(nodeStates);
   // Verdict is the walk row's recorded outcome (must come from rows, not reducer state — replayed events never carry the verdict).
   const rows = [...latestRows.values()];
-  // Mirrors the Floor's lineOutcomeFromVisits: any failed node outcome fails the run result, even on a `finished` terminal.
-  const anyFailed = rows.some((n) => (n.outcome ?? "").includes("failed"));
 
   return {
     executed: new Set([
@@ -70,6 +72,6 @@ export function buildRunData(input: BuildRunDataInput): RunData {
     verdicts: Object.fromEntries(rows.map((n) => [n.nodeId, n.outcome])),
     statuses: Object.fromEntries(entries.map(([id, s]) => [id, s.status])),
     taken: takenEdges,
-    result: runResult(anyFailed, runStatus),
+    result: runResult(rows, runStatus),
   };
 }

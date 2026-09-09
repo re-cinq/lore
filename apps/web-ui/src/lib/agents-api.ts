@@ -169,10 +169,10 @@ async function writeDefinition(req: WriteRequest): Promise<AgentSaveResult> {
   return mapWriteResponse(res);
 }
 
-export async function saveAgent(
+async function writeAgent(
   repo: string,
   def: Partial<AgentDefinition> & { name: string },
-  isUpdate: boolean,
+  target: { name: string | undefined; method: "POST" | "PUT" },
   approvalPr?: string,
 ): Promise<AgentSaveResult> {
   const c = cfg();
@@ -182,11 +182,29 @@ export async function saveAgent(
   }
 
   return writeDefinition({
-    url: agentUrl(c.apiUrl, repo, isUpdate ? def.name : undefined),
-    method: isUpdate ? "PUT" : "POST",
+    url: agentUrl(c.apiUrl, repo, target.name),
+    method: target.method,
     headers: writeHeaders(c.token, approvalPr),
     body: JSON.stringify(def),
   });
+}
+
+/** POSTs to the collection, so a name that already has a repo row is rejected by the API rather than silently overwritten. */
+export function createAgent(
+  repo: string,
+  def: Partial<AgentDefinition> & { name: string },
+  approvalPr?: string,
+): Promise<AgentSaveResult> {
+  return writeAgent(repo, def, { name: undefined, method: "POST" }, approvalPr);
+}
+
+/** PUTs to the named resource, which upserts the repo's PROJECT row — an org definition forks into a repo-owned one on its first edit. */
+export function updateAgent(
+  repo: string,
+  def: Partial<AgentDefinition> & { name: string },
+  approvalPr?: string,
+): Promise<AgentSaveResult> {
+  return writeAgent(repo, def, { name: def.name, method: "PUT" }, approvalPr);
 }
 
 /** Global /agents editor's write — API refuses a non-empty image here (repo-scoped two-key ceremony), surfacing as a plain error. */

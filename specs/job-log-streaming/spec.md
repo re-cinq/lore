@@ -196,7 +196,7 @@ The user prompt renders as collapsed details prefixed `user:`. ([validated by `L
 
 Raw entries render verbatim; assistant text and thinking render with their own classes. ([validated by `LogEntriesView.test.tsx:175`](apps/web-ui/src/components/LogEntriesView.test.tsx#L183), [validated by `LogEntriesView.test.tsx:187`](apps/web-ui/src/components/LogEntriesView.test.tsx#L195))
 
-The Raw/Formatted toggle marks the active option via aria-pressed and reports changes through onChange. ([validated by `LogFormatToggle.test.tsx:7`](apps/web-ui/src/components/LogFormatToggle.test.tsx#L7), [validated by `LogFormatToggle.test.tsx:28`](apps/web-ui/src/components/LogFormatToggle.test.tsx#L28))
+The Raw/Formatted toggle marks the active option via aria-pressed and reports changes through onChange. ([validated by `LogFormatToggle.test.tsx:9`](apps/web-ui/src/components/LogFormatToggle.test.tsx#L9), [validated by `LogFormatToggle.test.tsx:30`](apps/web-ui/src/components/LogFormatToggle.test.tsx#L30))
 
 #### Viewer integration
 

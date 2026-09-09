@@ -54,7 +54,9 @@ export function FeatureAssemblyLine({
   }
 
   const runData = run
-    ? walkRunData(definition, run.nodes, isTerminalRunStatus(run.status))
+    ? walkRunData(definition, run.nodes, {
+        finished: isTerminalRunStatus(run.status),
+      })
     : null;
 
   return (
