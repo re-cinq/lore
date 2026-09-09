@@ -107,7 +107,6 @@ function renderPanel(runStatus: string) {
     <RunVisualizationPanel
       runId="run-1"
       runStatus={runStatus}
-      startedAt={null}
       definition={definition}
       nodes={[]}
       repo="re-cinq/lore"
@@ -283,8 +282,8 @@ describe("live events", () => {
   });
 });
 
-describe("heatmap and timeline wiring", () => {
-  it("grows the file heatmap as tool call events stream in and mounts the timeline", async () => {
+describe("heatmap wiring and the live clock", () => {
+  it("grows the file heatmap as tool call events stream in", async () => {
     stubHistory([
       eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
       eventRow({
@@ -303,7 +302,6 @@ describe("heatmap and timeline wiring", () => {
 
     expect(container.querySelectorAll("[data-path]")).toHaveLength(1);
     expect(screen.getByText("src/a.ts")).toBeInTheDocument();
-    expect(container.querySelectorAll("[data-tone]").length).toBeGreaterThan(0);
 
     await act(async () => {
       FakeEventSource.instances[0].emit(
@@ -321,7 +319,7 @@ describe("heatmap and timeline wiring", () => {
     expect(container.querySelectorAll("[data-path]")).toHaveLength(2);
   });
 
-  it("ticks a live run's clock forward on an interval so a stalled timeline advances", () => {
+  it("ticks a live run's clock forward on an interval so a running node's duration advances", () => {
     vi.useFakeTimers();
     const spy = vi.spyOn(globalThis, "setInterval");
 
@@ -352,102 +350,6 @@ describe("heatmap and timeline wiring", () => {
   });
 });
 
-describe("replay scrubber", () => {
-  const runLoop = [
-    eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
-    eventRow({ id: "2", nodeId: "implement", eventType: "result" }),
-    eventRow({ id: "3", nodeId: "validate", eventType: "init" }),
-    eventRow({ id: "4", nodeId: "validate", eventType: "result" }),
-  ];
-
-  const nodeStatus = (container: HTMLElement, nodeId: string) =>
-    container.querySelector(`[data-node="${nodeId}"]`)?.textContent ?? "";
-
-  async function scrubTo(cursor: number) {
-    await act(async () => {
-      fireEvent.change(screen.getByRole("slider"), {
-        target: { value: String(cursor) },
-      });
-    });
-  }
-
-  it("shows the scrubber for a finished run with persisted events", async () => {
-    stubHistory([eventRow({ id: "1", eventType: "init" })]);
-    useFakeEventSource();
-
-    renderPanel("finished");
-    await settle();
-
-    expect(screen.getByRole("slider")).toBeInTheDocument();
-  });
-
-  it("hides the scrubber for a running run", async () => {
-    stubHistory([eventRow({ id: "1", eventType: "init" })]);
-    useFakeEventSource();
-
-    renderPanel("running");
-    await settle();
-
-    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
-  });
-
-  it("hides the scrubber for a finished run with no persisted events", async () => {
-    stubHistory([]);
-    useFakeEventSource();
-
-    renderPanel("finished");
-    await settle();
-
-    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
-  });
-
-  it("seeking to mid-run shows the running node and pends the ones ahead", async () => {
-    stubHistory(runLoop);
-    useFakeEventSource();
-
-    const { container } = renderPanel("finished");
-
-    await settle();
-    await scrubTo(1);
-
-    expect(nodeStatus(container, "implement")).toContain("Running");
-    expect(nodeStatus(container, "validate")).toContain("Pending");
-  });
-
-  it("moves the scrubber to the event a timeline tick seeks to", async () => {
-    stubHistory(runLoop);
-    useFakeEventSource();
-
-    renderPanel("finished");
-    await settle();
-
-    await act(async () => {
-      fireEvent.click(screen.getByTitle("validate init"));
-    });
-
-    expect(screen.getByRole("slider")).toHaveValue("3");
-  });
-
-  it("clears the replay cursor and restores the final state on back to live", async () => {
-    stubHistory(runLoop);
-    useFakeEventSource();
-
-    const { container } = renderPanel("finished");
-
-    await settle();
-    await scrubTo(1);
-
-    expect(nodeStatus(container, "validate")).toContain("Pending");
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /back to live/i }));
-    });
-
-    expect(nodeStatus(container, "implement")).toContain("Succeeded");
-    expect(nodeStatus(container, "validate")).toContain("Completed");
-  });
-});
-
 describe("run-graph verdict on a finished run (regression)", () => {
   const nodeTone = (container: HTMLElement, id: string) =>
     container.querySelector(`[data-node="${id}"]`)?.getAttribute("data-tone");
@@ -470,7 +372,6 @@ describe("run-graph verdict on a finished run (regression)", () => {
       <RunVisualizationPanel
         runId="run-1"
         runStatus="finished"
-        startedAt={null}
         definition={codeReviewDefinition}
         nodes={[
           {
@@ -502,135 +403,6 @@ describe("run-graph verdict on a finished run (regression)", () => {
     expect(nodeTone(container, "done")).toBe("err");
     expect(nodeText(container, "done")).toContain("Failed");
     expect(nodeText(container, "review")).not.toContain("Succeeded");
-  });
-});
-
-describe("replay rewinds the run graph (regression)", () => {
-  const reviewNodes = [
-    {
-      nodeId: "review",
-      iteration: 1,
-      outcome: "failed",
-      agentCrName: null,
-      commitSha: null,
-      durationSeconds: 184,
-    },
-    {
-      nodeId: "done",
-      iteration: 1,
-      outcome: "success",
-      agentCrName: null,
-      commitSha: null,
-      durationSeconds: 1,
-    },
-  ];
-  const reviewHistory = [
-    eventRow({ id: "1", nodeId: "review", eventType: "init" }),
-    eventRow({
-      id: "2",
-      nodeId: "review",
-      eventType: "result",
-      isError: false,
-    }),
-    eventRow({ id: "3", nodeId: "done", eventType: "init" }),
-    eventRow({ id: "4", nodeId: "done", eventType: "result", isError: false }),
-  ];
-
-  function renderReviewRun() {
-    return render(
-      <RunVisualizationPanel
-        runId="run-1"
-        runStatus="finished"
-        startedAt={null}
-        definition={codeReviewDefinition}
-        nodes={reviewNodes}
-        repo="re-cinq/lore"
-        reason={'node "review" failed'}
-      />,
-    );
-  }
-
-  async function scrubTo(cursor: number) {
-    await act(async () => {
-      fireEvent.change(screen.getByRole("slider"), {
-        target: { value: String(cursor) },
-      });
-    });
-  }
-
-  const nodeText = (container: HTMLElement, id: string) =>
-    container.querySelector(`[data-node="${id}"]`)?.textContent ?? "";
-
-  it("shows pending nodes, no verdict badges and no taken path at cursor zero", async () => {
-    stubHistory(reviewHistory);
-    useFakeEventSource();
-
-    const { container } = renderReviewRun();
-
-    await settle();
-    await scrubTo(0);
-
-    expect(nodeText(container, "review")).toContain("Pending");
-    expect(nodeText(container, "done")).toContain("Pending");
-    expect(container.querySelectorAll('[data-taken="true"]')).toHaveLength(0);
-  });
-
-  it("holds the recorded verdict back while the node is still running at the cursor", async () => {
-    stubHistory(reviewHistory);
-    useFakeEventSource();
-
-    const { container } = renderReviewRun();
-
-    await settle();
-    await scrubTo(1);
-
-    expect(nodeText(container, "review")).toContain("Running");
-    expect(nodeText(container, "review")).not.toContain("Failed");
-    expect(nodeText(container, "done")).toContain("Pending");
-  });
-
-  it("shows the walk row's failed verdict, not the clean pod exit, once the result replays", async () => {
-    stubHistory(reviewHistory);
-    useFakeEventSource();
-
-    const { container } = renderReviewRun();
-
-    await settle();
-    await scrubTo(2);
-
-    expect(nodeText(container, "review")).toContain("Failed");
-    expect(nodeText(container, "review")).not.toContain("Succeeded");
-    expect(
-      container
-        .querySelector('[data-node="review"]')
-        ?.getAttribute("data-tone"),
-    ).toBe("err");
-  });
-
-  it("renders the max cursor identically to back to live", async () => {
-    stubHistory(reviewHistory);
-    useFakeEventSource();
-
-    const { container } = renderReviewRun();
-
-    await settle();
-    await scrubTo(reviewHistory.length);
-
-    const atMax = {
-      review: nodeText(container, "review"),
-      done: nodeText(container, "done"),
-    };
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /back to live/i }));
-    });
-
-    expect(atMax.review).toContain("Failed");
-    expect(atMax.done).toContain("Failed");
-    expect(atMax).toEqual({
-      review: nodeText(container, "review"),
-      done: nodeText(container, "done"),
-    });
   });
 });
 
@@ -740,7 +512,6 @@ describe("node inspector", () => {
       <RunVisualizationPanel
         runId="run-1"
         runStatus="running"
-        startedAt={null}
         definition={definition}
         nodes={nodes}
         repo="re-cinq/lore"
@@ -812,7 +583,6 @@ describe("node inspector", () => {
       <RunVisualizationPanel
         runId="run-1"
         runStatus="running"
-        startedAt={null}
         definition={null}
         nodes={[]}
         repo="re-cinq/lore"
@@ -858,7 +628,6 @@ describe("a node's input opens its transcript", () => {
       <RunVisualizationPanel
         runId="run-1"
         runStatus="running"
-        startedAt={null}
         definition={definition}
         nodes={withInput({
           description: "implement the spec",
@@ -884,7 +653,6 @@ describe("a node's input opens its transcript", () => {
       <RunVisualizationPanel
         runId="run-1"
         runStatus="running"
-        startedAt={null}
         definition={definition}
         nodes={withInput({
           description: "implement the spec",
@@ -910,7 +678,6 @@ describe("a node's input opens its transcript", () => {
       <RunVisualizationPanel
         runId="run-1"
         runStatus="running"
-        startedAt={null}
         definition={definition}
         nodes={withInput(null)}
         repo="re-cinq/lore"
@@ -942,7 +709,6 @@ describe("retry from node", () => {
       <RunVisualizationPanel
         runId="run-1"
         runStatus={runStatus}
-        startedAt={null}
         definition={definition}
         nodes={nodes}
         repo="re-cinq/lore"
@@ -1070,7 +836,6 @@ describe("agent edit link", () => {
       <RunVisualizationPanel
         runId="run-1"
         runStatus="running"
-        startedAt={null}
         definition={definition}
         nodes={nodes}
         repo="re-cinq/lore"

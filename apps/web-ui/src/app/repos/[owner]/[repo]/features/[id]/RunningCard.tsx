@@ -114,7 +114,6 @@ function RunGraph({ run }: { run: FeatureRunPayload | null | undefined }) {
     <RunVisualizationPanel
       runId={run.id}
       runStatus={run.status}
-      startedAt={run.startedAt}
       definition={run.definition}
       nodes={run.nodes}
       repo={run.repo}

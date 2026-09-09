@@ -114,7 +114,6 @@ function RunVisualization({ run, view }: RunPageProps) {
     <RunVisualizationPanel
       runId={run.id}
       runStatus={run.status}
-      startedAt={run.startedAt}
       definition={view.definition}
       nodes={view.nodes}
       repo={run.repo}

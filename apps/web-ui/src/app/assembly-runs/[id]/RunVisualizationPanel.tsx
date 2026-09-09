@@ -11,18 +11,15 @@ import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
 import { useRunStream } from "./use-run-history";
 import {
   useNowTicker,
-  useReplay,
   useRunGraph,
   useSelectedNode,
 } from "./run-visualization-hooks";
-import { resolveOnSeek } from "./run-visualization-selectors";
 import { RunDetailSection } from "./RunVisualizationSections";
-import { RunGraphSection, type ReplaySlotProps } from "./RunGraphSection";
+import { RunGraphSection } from "./RunGraphSection";
 
 export interface RunVisualizationPanelProps {
   runId: string;
   runStatus: string;
-  startedAt: string | null;
   definition: AssemblyLineDefinition | null;
   nodes: readonly AssemblyRunNode[];
   repo: string;
@@ -31,9 +28,8 @@ export interface RunVisualizationPanelProps {
   agentEditHrefs?: Record<string, string>;
 }
 
-/** What the viewer has selected or expanded. None of it is derived from the run, so it survives every live event and every replay seek. */
+/** What the viewer has selected or expanded. None of it is derived from the run, so it survives every live event. */
 function useViewToggles() {
-  const [replayCursor, setReplayCursor] = useState<number | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showAllFiles, setShowAllFiles] = useState(false);
   const [showOutcomes, setShowOutcomes] = useState(false);
@@ -43,8 +39,6 @@ function useViewToggles() {
   );
 
   return {
-    replayCursor,
-    setReplayCursor,
     selectedNodeId,
     setSelectedNodeId,
     showAllFiles,
@@ -52,52 +46,6 @@ function useViewToggles() {
     showOutcomes,
     setShowOutcomes,
   };
-}
-
-interface ReplayableStreamInput {
-  run: Parameters<typeof useReplay>[0] extends infer R
-    ? Omit<
-        R,
-        "historyEvents" | "liveState" | "replayCursor" | "setReplayCursor"
-      >
-    : never;
-  runId: string;
-  liveState: ReturnType<typeof reduceRunEvent>;
-  dispatch: (event: RunStreamEvent) => void;
-  replayCursor: number | null;
-  setReplayCursor: (cursor: number | null) => void;
-}
-
-/** The events themselves: history folded in, then the live stream or its polling fallback. */
-function useLiveEvents(input: ReplayableStreamInput) {
-  const { run, runId, liveState, dispatch } = input;
-  const onEvent = useCallback(
-    (event: RunStreamEvent) => dispatch(event),
-    [dispatch],
-  );
-
-  return useRunStream({
-    runId,
-    runStatus: run.runStatus,
-    runIsLive: run.runIsLive,
-    lastEventId: liveState.lastEventId ?? "0",
-    dispatch: onEvent,
-  });
-}
-
-/** The live stream and the replay that reads back over it. They are one hook because replay consumes exactly what the stream accumulated — splitting them would let a component subscribe without being able to scrub. */
-function useReplayableStream(input: ReplayableStreamInput) {
-  const { run, liveState, replayCursor, setReplayCursor } = input;
-  const { historyEvents, chipState } = useLiveEvents(input);
-  const replay = useReplay({
-    ...run,
-    historyEvents,
-    liveState,
-    replayCursor,
-    setReplayCursor,
-  });
-
-  return { historyEvents, chipState, replay };
 }
 
 /** The five run facts every derivation reads; named once so each hook's own parameters are only what it adds. */
@@ -112,8 +60,7 @@ interface RunFacts {
 interface NodeAndGraphView {
   selectedNodeId: string | null;
   showOutcomes: boolean;
-  replayActive: boolean;
-  nodeStates: ReturnType<typeof useReplay>["displayState"]["nodeStates"];
+  nodeStates: ReturnType<typeof initialRunState>["nodeStates"];
 }
 
 /** The selected node resolves FIRST: the graph needs its taken edges to decide which paths to draw, so the two cannot be swapped or run independently. */
@@ -127,7 +74,6 @@ function useNodeAndGraph(run: RunFacts, view: NodeAndGraphView) {
     ...run,
     selectedNodeId: view.selectedNodeId,
     showOutcomes: view.showOutcomes,
-    replayActive: view.replayActive,
     nodeStates: view.nodeStates,
     takenEdges: node.takenEdges,
   });
@@ -135,54 +81,29 @@ function useNodeAndGraph(run: RunFacts, view: NodeAndGraphView) {
   return { node, graph };
 }
 
-/** Composes the view's state. The ORDER is the content: replay resolves first because the selected node is read out of the displayed state, and the graph is built from both — each step consumes the previous one's output, so they cannot be reordered or run in parallel. */
 type RunVisualizationInput = Pick<
   RunVisualizationPanelProps,
   "runId" | "runStatus" | "definition" | "nodes" | "reason"
 >;
 
-/** Where the run's events come from: the reducer that holds them, and the stream/replay pair that feeds it. Seeded from the visit ROWS so a run opened long after the fact renders immediately, then folded forward by whatever the stream delivers. */
-function useRunSources(
-  run: RunFacts,
-  runId: string,
-  toggles: ReturnType<typeof useViewToggles>,
-) {
+/** Where the run's events come from: the reducer that holds them and the stream (or its polling fallback) that feeds it. Seeded from the visit ROWS so a run opened long after the fact renders immediately, then folded forward by whatever the stream delivers. */
+function useRunSources(run: RunFacts, runId: string) {
   const [state, dispatch] = useReducer(reduceRunEvent, undefined, () =>
     initialRunState(run.definition, run.nodes),
   );
-  const { historyEvents, chipState, replay } = useReplayableStream({
-    run,
+  const onEvent = useCallback(
+    (event: RunStreamEvent) => dispatch(event),
+    [dispatch],
+  );
+  const { chipState } = useRunStream({
     runId,
-    liveState: state,
-    dispatch,
-    replayCursor: toggles.replayCursor,
-    setReplayCursor: toggles.setReplayCursor,
+    runStatus: run.runStatus,
+    runIsLive: run.runIsLive,
+    lastEventId: state.lastEventId ?? "0",
+    dispatch: onEvent,
   });
 
-  return { state, historyEvents, chipState, replay };
-}
-
-/** The replay hook's own output, flattened onto the view. Kept whole under `replay` as well: the panel passes the handlers straight to the scrubber, while the individual fields are what the surrounding chrome reads. */
-function replayView(replay: ReturnType<typeof useReplay>) {
-  return {
-    replay,
-    displayState: replay.displayState,
-    scrubberVisible: replay.scrubberVisible,
-    replayPosition: replay.replayPosition,
-  };
-}
-
-/** What the node/graph derivation reads off the toggles and the replay it follows. */
-function nodeGraphView(
-  toggles: ReturnType<typeof useViewToggles>,
-  replay: ReturnType<typeof useReplay>,
-): NodeAndGraphView {
-  return {
-    selectedNodeId: toggles.selectedNodeId,
-    showOutcomes: toggles.showOutcomes,
-    replayActive: replay.replayActive,
-    nodeStates: replay.displayState.nodeStates,
-  };
+  return { state, chipState };
 }
 
 function useRunVisualization(input: RunVisualizationInput) {
@@ -190,18 +111,19 @@ function useRunVisualization(input: RunVisualizationInput) {
   const runIsLive = !isTerminalRunStatus(runStatus);
   const run: RunFacts = { nodes, definition, runStatus, runIsLive, reason };
   const toggles = useViewToggles();
-  const sources = useRunSources(run, runId, toggles);
-  const { historyEvents, chipState, replay } = sources;
-  const nodeAndGraph = useNodeAndGraph(run, nodeGraphView(toggles, replay));
+  const { state, chipState } = useRunSources(run, runId);
+  const nodeAndGraph = useNodeAndGraph(run, {
+    selectedNodeId: toggles.selectedNodeId,
+    showOutcomes: toggles.showOutcomes,
+    nodeStates: state.nodeStates,
+  });
 
   return {
     ...toggles,
-    ...replayView(replay),
     ...nodeAndGraph,
     now: useNowTicker(runIsLive),
-    state: sources.state,
+    state,
     chipState,
-    historyEvents,
   };
 }
 
@@ -210,18 +132,6 @@ type RunView = ReturnType<typeof useRunVisualization>;
 interface RunGraphProps {
   view: RunView;
   definition: RunVisualizationPanelProps["definition"];
-}
-
-/** Everything the scrubber needs, read off the view in one place. */
-function graphReplayProps(view: RunView): ReplaySlotProps {
-  return {
-    show: view.scrubberVisible,
-    historyEventCount: view.historyEvents.length,
-    cursor: view.replayCursor,
-    position: view.replayPosition,
-    onCursorChange: view.replay.onCursorChange,
-    onBackToLive: view.replay.onBackToLive,
-  };
 }
 
 function RunGraph({ view, definition }: RunGraphProps) {
@@ -234,7 +144,6 @@ function RunGraph({ view, definition }: RunGraphProps) {
       hasRunData={view.graph.hasRunData}
       showOutcomes={view.showOutcomes}
       onToggleOutcomes={() => view.setShowOutcomes((shown) => !shown)}
-      replay={graphReplayProps(view)}
     />
   );
 }
@@ -242,7 +151,7 @@ function RunGraph({ view, definition }: RunGraphProps) {
 /** Takes the run's own props as `page` rather than threading eight arguments: none of them is derived from the run, they are what the route already knew. */
 type RunDetailPage = Pick<
   RunVisualizationPanelProps,
-  "runId" | "repo" | "reason" | "definition" | "agentEditHrefs" | "startedAt"
+  "runId" | "repo" | "reason" | "definition" | "agentEditHrefs"
 >;
 
 /** The inspector's plain values — the page's own facts and the view's derivations, flattened into one bundle because the section reads them as a flat prop list. */
@@ -259,8 +168,6 @@ function detailProps(view: RunView, page: RunDetailPage) {
     nodeInputs: view.node.nodeInputs,
     retrySource: view.graph.retrySource,
     agentEditHrefs: page.agentEditHrefs,
-    startedAt: page.startedAt,
-    now: view.now,
     showAllFiles: view.showAllFiles,
     toggleShowAllFiles: view.toggleShowAllFiles,
   };
@@ -274,9 +181,7 @@ function RunDetail({ view, page }: { view: RunView; page: RunDetailPage }) {
       {...detailProps(view, page)}
       selectedState={view.node.selected}
       visibleNodeCount={visibleGraph.nodes.length}
-      timeline={view.displayState.timeline}
-      fileTouches={view.displayState.fileTouches}
-      onSeek={resolveOnSeek(view.scrubberVisible, view.replay.onSeek)}
+      fileTouches={view.state.fileTouches}
     />
   );
 }

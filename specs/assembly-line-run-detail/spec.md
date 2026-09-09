@@ -15,7 +15,7 @@ The `/assembly-runs/[id]` page is the main window into what the platform is doin
 
 The current page under `apps/web-ui/src/app/assembly-runs/[id]/` has seven view components and two levels of information that do not compose:
 
-**Line-level** (about the whole run): `RunGraphView`, `RunTimelineView`, `ReplayScrubberView`, `FileHeatmapView`, `AssemblyRunView` (header + static step list)
+**Line-level** (about the whole run): `RunGraphView`, `RunTimelineView`, `ReplayScrubberView`, `FileHeatmapView`, `AssemblyRunView` (header + static step list). *(Amended 2026-09-09: `RunTimelineView` and `ReplayScrubberView` were retired — `specs/assembly-line-run-viz` Retired Requirements.)*
 
 **Node-level** (about one execution pod): `RunNodeDetail`, `NodeTranscriptView`, `NodePodLogs`
 
@@ -42,8 +42,7 @@ The three imported components from `apps/web-ui/src/app/tasks/[id]/` (`EventTime
 ## FR3 — Line-level views remain at line level
 
 - `RunGraphView` is always visible at the top of the visualization section, before any node detail.
-- `ReplayScrubberView` and the "Back to live" control remain at line level (below the graph), because the scrubber controls the replay cursor for the whole run.
-- `RunTimelineView` remains at line level as the coarse lifecycle overview.
+- *(Amended 2026-09-09)* The replay scrubber, its "Back to live" control and the run Timeline card were retired; the graph and the per-node transcript are the whole-run overview.
 - `FileHeatmapView` remains at line level. It tallies file touches across all nodes, not just the selected one, and its value is answering "what did this run touch?" not "what did this node touch?".
 
 ## FR4 — Task accounting stays at page bottom, visually grouped

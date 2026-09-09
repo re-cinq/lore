@@ -1,6 +1,6 @@
 "use client";
 
-// The detail half of RunVisualizationPanel: the selected node's inspector, timeline, and file heatmap. Prop-driven, no state or IO of its own (DDAU).
+// The detail half of RunVisualizationPanel: the selected node's inspector and the file heatmap. Prop-driven, no state or IO of its own (DDAU).
 import Link from "next/link";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
@@ -10,7 +10,6 @@ import FullTranscriptPanel from "./FullTranscriptPanel";
 import NodeLogPanel from "./NodeLogPanel";
 import NodeInputCard from "./NodeInputCard";
 import RunNodeDetail from "./RunNodeDetail";
-import RunTimelineView from "./RunTimelineView";
 import { RerunNodeButton } from "./RerunNodeButton";
 import styles from "./RunVisualizationPanel.module.css";
 
@@ -195,29 +194,18 @@ export function SelectedNodeSection(props: SelectedNodeSectionProps) {
 }
 
 type RunDetailSectionProps = SelectedNodeSectionProps & {
-  timeline: ReturnType<typeof initialRunState>["timeline"];
   fileTouches: ReturnType<typeof initialRunState>["fileTouches"];
-  startedAt: string | null;
-  now: string;
-  onSeek: ((id: string) => void) | undefined;
   showAllFiles: boolean;
   toggleShowAllFiles: () => void;
 };
 
-/** Everything below the graph: the selected node's inspector, the timeline, and the file heatmap. */
+/** Everything below the graph: the selected node's inspector and the file heatmap. */
 export function RunDetailSection(props: RunDetailSectionProps) {
-  const { timeline, startedAt, now, onSeek, ...rest } = props;
-  const { fileTouches, showAllFiles, toggleShowAllFiles, ...inspector } = rest;
+  const { fileTouches, showAllFiles, toggleShowAllFiles, ...inspector } = props;
 
   return (
     <>
       <SelectedNodeSection {...inspector} />
-      <RunTimelineView
-        ticks={timeline}
-        runStartedAt={startedAt}
-        now={now}
-        onSeek={onSeek}
-      />
       <FileHeatmapView
         touches={fileTouches}
         showAll={showAllFiles}

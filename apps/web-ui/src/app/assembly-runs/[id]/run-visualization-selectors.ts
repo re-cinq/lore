@@ -1,6 +1,6 @@
 // Pure derivations for RunVisualizationPanel: no JSX, no hooks — just "given this state, what should the panel show".
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
-import type { NodeRunState, initialRunState } from "@/lib/run-event-reducer";
+import type { NodeRunState } from "@/lib/run-event-reducer";
 import type { RunData } from "@/lib/graph-view-model";
 import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
 
@@ -29,23 +29,6 @@ export function pickSelectedState(
   return selectedNodeId === null ? null : nodeStates[selectedNodeId];
 }
 
-/** Which of the two reducer states (live vs. scrubbed-back-in-time) the panel currently shows. */
-export function pickDisplayState(
-  runIsLive: boolean,
-  state: ReturnType<typeof initialRunState>,
-  replayState: ReturnType<typeof initialRunState>,
-) {
-  return runIsLive ? state : replayState;
-}
-
-/** The scrubber only makes sense once a run is over and actually has history to scrub through. */
-export function computeScrubberVisible(
-  runStatus: string,
-  historyEventCount: number,
-): boolean {
-  return isTerminalRunStatus(runStatus) && historyEventCount > 0;
-}
-
 /** True once the walk has visited something worth showing — either persisted rows or a live-but-idle stream. */
 export function computeHasRunData(
   nodeCount: number,
@@ -60,25 +43,6 @@ export function computeGraphMode(
   showOutcomes: boolean,
 ): "run" | "definition" {
   return hasRunData && !showOutcomes ? "run" : "definition";
-}
-
-/** Mid-scrub only — the cursor sits strictly before the history's end, so the slider's right end stays byte-identical to Back to live. */
-export function computeReplayActive(
-  runIsLive: boolean,
-  replayCursor: number | null,
-  historyEventCount: number,
-): boolean {
-  return (
-    !runIsLive && replayCursor !== null && replayCursor < historyEventCount
-  );
-}
-
-/** Only wire onSeek through once the scrubber is actually visible — an invisible scrubber has nothing to seek. */
-export function resolveOnSeek(
-  scrubberVisible: boolean,
-  onSeek: (id: string) => void,
-): ((id: string) => void) | undefined {
-  return scrubberVisible ? onSeek : undefined;
 }
 
 export interface BuildRunDataInput {

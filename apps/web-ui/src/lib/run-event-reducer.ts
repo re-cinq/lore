@@ -2,7 +2,7 @@
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyRunNode } from "./assembly-runs";
-import type { AgentRunEventType, RunStreamEvent } from "./run-stream-types";
+import type { RunStreamEvent } from "./run-stream-types";
 import { touchKind, type TouchCounts } from "./file-heatmap";
 
 /** Per-node rendered-transcript ceiling (spec FR4.5). */
@@ -19,20 +19,11 @@ export interface NodeRunState {
   droppedCount: number;
 }
 
-export interface TimelineEntry {
-  id: string;
-  nodeId: string;
-  iteration: number | null;
-  eventType: AgentRunEventType;
-  createdAt: string;
-}
-
 export interface RunLiveState {
   /** The newest applied event id — the SSE `Last-Event-ID` cursor. */
   lastEventId: string | null;
   nodeStates: Record<string, NodeRunState>;
   fileTouches: Record<string, TouchCounts>;
-  timeline: TimelineEntry[];
 }
 
 // Shared sentinel: frozen deeply to prevent corruption of every idle node; shallow freeze would still allow transcript.push().
@@ -98,7 +89,6 @@ export function initialRunState(
     lastEventId: null,
     nodeStates,
     fileTouches: {},
-    timeline: [],
   };
 }
 
@@ -164,32 +154,6 @@ function isNewer(id: string, cursor: string | null): boolean {
   return id.length === cursor.length ? id > cursor : id.length > cursor.length;
 }
 
-function isLifecycleEvent(event: RunStreamEvent): boolean {
-  return event.eventType === "init" || event.eventType === "result";
-}
-
-/** Appends `event` to the timeline when it's a lifecycle event; otherwise returns `timeline` unchanged. */
-function appendTimeline(
-  timeline: TimelineEntry[],
-  event: RunStreamEvent,
-  nodeId: string,
-): TimelineEntry[] {
-  if (!isLifecycleEvent(event)) {
-    return timeline;
-  }
-
-  return [
-    ...timeline,
-    {
-      id: event.id,
-      nodeId,
-      iteration: event.iteration,
-      eventType: event.eventType,
-      createdAt: event.createdAt,
-    },
-  ];
-}
-
 /** Apply one event; returns state unchanged (by identity) for id at/behind cursor (SSE reconnect replay = no-op). */
 export function reduceRunEvent(
   state: RunLiveState,
@@ -206,7 +170,7 @@ export function reduceRunEvent(
   return applyNodeEvent(state, event, event.nodeId);
 }
 
-/** The node-scoped fold, plus the run-wide file-touch and timeline accumulators. */
+/** The node-scoped fold, plus the run-wide file-touch accumulator. */
 function applyNodeEvent(
   state: RunLiveState,
   event: RunStreamEvent,
@@ -220,7 +184,6 @@ function applyNodeEvent(
       event.filePaths,
       event.toolName,
     ),
-    timeline: appendTimeline(state.timeline, event, nodeId),
   };
 }
 
