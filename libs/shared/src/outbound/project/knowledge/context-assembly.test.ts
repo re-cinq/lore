@@ -163,6 +163,21 @@ describe("fitItemsToBudget per-document cap", () => {
       (kept as Array<{ source_path: string }>).map((i) => i.source_path),
     ).toEqual(["big.md"]);
   });
+
+  it("keeps 2 of 3 documents and drops the third when it would be cut to 40 tokens", () => {
+    const sources = [
+      source(480, "a.md"),
+      source(480, "b.md"),
+      source(200, "c.md"),
+    ];
+
+    const { kept, truncated } = fitItemsToBudget(sources as never, 1000);
+
+    expect(
+      (kept as Array<{ source_path: string }>).map((i) => i.source_path),
+    ).toEqual(["a.md", "b.md"]);
+    expect(truncated).toBe(true);
+  });
 });
 
 function fakePool(...results: Array<{ rows: any[] }>): {
@@ -220,6 +235,53 @@ describe("hybridChunkItems", () => {
       content_type: "code",
     });
     expect(sources[0].text).toContain("parseSettingsForm");
+  });
+
+  it("keyword-only SQL filters with search_tsv @@ websearch_to_tsquery so non-matching chunks are not returned", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+    const { pool, calls } = fakePool({ rows: [] });
+
+    await hybridChunkItems(pool, "settings form parser", "re-cinq/lore", {
+      contentTypes: ["code"],
+      limit: 6,
+    });
+
+    expect(calls[1].text).toContain(
+      "search_tsv @@ websearch_to_tsquery('english', $2)",
+    );
+  });
+
+  it("carries the chunk content_hash onto the item so twins across paths can collapse", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+    const { pool, calls } = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          {
+            content: "export const TRACE_IMPACT_WORKFLOW_CONTENT = 1",
+            file_path: "libs/shared/src/work/trace-impact-workflow.ts",
+            content_type: "code",
+            score: 0.4,
+            content_hash: "abc123",
+          },
+        ],
+      },
+    );
+
+    const sources = await hybridChunkItems(
+      pool,
+      "trace impact",
+      "re-cinq/lore",
+      {
+        contentTypes: ["code"],
+        limit: 6,
+      },
+    );
+
+    expect(calls[1].text).toContain(
+      "metadata->>'content_hash' AS content_hash",
+    );
+    expect(sources[0]).toMatchObject({ content_hash: "abc123" });
   });
 
   it("returns a Conventions item of 10 tokens for a chunk whose 120-char link group was stripped", async () => {

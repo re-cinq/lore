@@ -8,6 +8,7 @@ export interface SourceItem {
   repo?: string;
   score?: number;
   ingested_at?: string;
+  content_hash?: string;
 }
 
 export interface SerializedSection {
@@ -32,24 +33,40 @@ export function escapeXmlAttr(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Collapse items sharing source_path to one (highest-scoring, then most recently ingested); no path → never merged. */
+/** Collapse items sharing source_path to one (highest-scoring, then most recently ingested), then items sharing a content_hash — a file and its copied twin at another path are one document; no path → never merged. */
 export function dedupeItems(sources: SourceItem[]): SourceItem[] {
-  const byPath = new Map<string, SourceItem>();
-  const passthrough: SourceItem[] = [];
+  const passthrough = sources.filter((it) => !it.source_path);
+  const byPath = collapseBy(
+    sources.filter((it) => it.source_path),
+    (it) => it.source_path,
+  );
+
+  return [...collapseBy(byPath, (it) => it.content_hash), ...passthrough];
+}
+
+/** One item per key, the better one winning; items without a key pass through in place. */
+function collapseBy(
+  sources: SourceItem[],
+  keyOf: (it: SourceItem) => string | undefined,
+): SourceItem[] {
+  const byKey = new Map<string, SourceItem>();
+  const unkeyed: SourceItem[] = [];
 
   for (const it of sources) {
-    if (!it.source_path) {
-      passthrough.push(it);
+    const key = keyOf(it);
+
+    if (!key) {
+      unkeyed.push(it);
       continue;
     }
-    const existing = byPath.get(it.source_path);
+    const existing = byKey.get(key);
 
     if (!existing || isBetter(it, existing)) {
-      byPath.set(it.source_path, it);
+      byKey.set(key, it);
     }
   }
 
-  return [...byPath.values(), ...passthrough];
+  return [...byKey.values(), ...unkeyed];
 }
 
 function isBetter(candidate: SourceItem, current: SourceItem): boolean {
