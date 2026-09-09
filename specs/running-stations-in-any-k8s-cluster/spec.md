@@ -425,13 +425,13 @@ A satellite must report outcomes without holding the bus-wide credential.
   satellite's reporter RESOLVES that token per call rather than capturing it:
   a re-registration rotates it, and a captured value would 401 every report
   from then on — which is what the watch did silently until the credential
-  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:40`](apps/event-router/src/transport/server-auth.test.ts#L40), [`event-reporter-http.test.ts:65`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L65), [`event-reporter-http.test.ts:93`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L93), [validated by uses LORE_INGEST_TOKEN captured at boot on a central cluster, not read per call](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L22), [validated by returns the agentToken thunk unchanged on a satellite, so rotations are still picked up](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L32), [validated by does not pick up LORE_INGEST_TOKEN that appears in the env after the satellite's token is selected](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L41))
+  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:40`](apps/event-router/src/transport/server-auth.test.ts#L40), [`event-reporter-http.test.ts:65`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L65), [`event-reporter-http.test.ts:93`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L93), [validated by falls back to LORE_INGEST_TOKEN during the boot window before the per-agent token is available](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L5), [validated by returns the agentToken thunk unchanged on a satellite, so rotations are still picked up](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L14), [validated by does not pick up LORE_INGEST_TOKEN that appears in the env after the satellite's token is selected](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L23))
 - The central cluster-agent likewise prefers its per-agent token once
   registration has completed; `LORE_INGEST_TOKEN` is the boot-window
   fallback only — used while the first registration is still in flight,
   before `agentToken` is available. This gives the same revocation surface
   for both deployments and removes `LORE_INGEST_TOKEN` as a separate
-  reporting credential path. ([validated by switches to the per-agent token on a central cluster once registration completes](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L52))
+  reporting credential path. ([validated by switches to the per-agent token on a central cluster once registration completes](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L32))
 - A report the router REFUSES (401/403) re-registers before it retries, via
   the same single-flight re-registration the claim and heartbeat loops share
   *(2026-08-28)*: the token rotates whenever another instance of this

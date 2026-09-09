@@ -1,14 +1,4 @@
-/**
- * Selects the reporter credential, always preferring the per-agent token once
- * registration has completed.
- *
- * Central cluster (LORE_INGEST_TOKEN present): captures the value at boot as
- * the boot-window fallback. After registration the per-agent token takes over;
- * LORE_INGEST_TOKEN is returned only while getAgentToken() is still undefined.
- *
- * Satellite cluster (LORE_INGEST_TOKEN absent): returns the per-agent token
- * thunk directly, so re-registration rotations are picked up per call.
- */
+/** The reporter credential, always preferring the per-agent token once registration completes: a central cluster captures LORE_INGEST_TOKEN at boot and returns it only while the per-agent token is still undefined, and a satellite returns the thunk directly so re-registration rotations are picked up per call. */
 
 export function selectReporterToken(
   env: NodeJS.ProcessEnv,
