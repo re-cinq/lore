@@ -27,17 +27,6 @@ export function parseTags(raw: string | undefined): string[] {
     .filter((tag) => tag.length > 0);
 }
 
-// Which of the three are unset. Named ALL at once rather than failing on the first: a deployment missing two variables should learn both from one boot, not from two.
-function missingVars(env: NodeJS.ProcessEnv): string[] {
-  return [
-    env.LORE_API_URL ? "" : "LORE_API_URL",
-    env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN
-      ? ""
-      : "LORE_CLUSTER_AGENT_REGISTRATION_TOKEN",
-    env.LORE_CLUSTER_AGENT_NAME ? "" : "LORE_CLUSTER_AGENT_NAME",
-  ].filter((variable) => variable !== "");
-}
-
 // The registration triple, or a refusal to boot — since dispatch flipped push→pull (FR3), an unregistered cluster-agent claims nothing and its queue goes silently quiet.
 export function registrationConfig(env: NodeJS.ProcessEnv): RegistrationConfig {
   const apiUrl = env.LORE_API_URL;
@@ -56,6 +45,17 @@ export function registrationConfig(env: NodeJS.ProcessEnv): RegistrationConfig {
     name,
     tags: parseTags(env.LORE_CLUSTER_AGENT_TAGS),
   };
+}
+
+// Which of the three are unset. Named ALL at once rather than failing on the first: a deployment missing two variables should learn both from one boot, not from two.
+function missingVars(env: NodeJS.ProcessEnv): string[] {
+  return [
+    env.LORE_API_URL ? "" : "LORE_API_URL",
+    env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN
+      ? ""
+      : "LORE_CLUSTER_AGENT_REGISTRATION_TOKEN",
+    env.LORE_CLUSTER_AGENT_NAME ? "" : "LORE_CLUSTER_AGENT_NAME",
+  ].filter((variable) => variable !== "");
 }
 
 export interface RegisterDeps {
@@ -83,6 +83,29 @@ export async function registerOnce(
   }
 }
 
+/** One attempt, which may throw — `registerOnce` is the wrapper that promises it never does. Null means retry. */
+async function attemptRegistration(
+  deps: RegisterDeps,
+): Promise<ClusterAgentIdentity | null> {
+  const { config, store } = deps;
+  const fetchFn = deps.fetchFn ?? fetch;
+  const current = await store.load();
+  const res = await fetchFn(`${config.apiUrl}/api/cluster-agents/register`, {
+    method: "POST",
+    headers: registrationHeaders(config),
+    body: JSON.stringify(registerRequestBody(config, current)),
+    signal: AbortSignal.timeout(REGISTER_TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    logRegistrationRefusal(config.name, res.status);
+
+    return null;
+  }
+
+  return acceptRegistration(res, deps);
+}
+
 function registerRequestBody(
   config: RegistrationConfig,
   current: ClusterAgentIdentity | null,
@@ -104,27 +127,6 @@ function logRegistrationRefusal(name: string, status: number): void {
   console.warn(
     `[cluster-agent] registration of ${name} refused (HTTP ${status})${reason}`,
   );
-}
-
-function parseIdentityBody(
-  body: Partial<ClusterAgentIdentity>,
-): ClusterAgentIdentity {
-  enforceTrue(
-    typeof body.id === "string" && typeof body.token === "string",
-    Error,
-    "registration answered 200 without an {id, token} body",
-  );
-
-  return { id: body.id, token: body.token };
-}
-
-// Persists the new identity and republishes the run pods' credential. Both first registration and every rotation land here, so the pods' credential never outlives the token it was minted from.
-async function adoptIdentity(
-  identity: ClusterAgentIdentity,
-  deps: RegisterDeps,
-): Promise<void> {
-  await deps.store.save(identity);
-  await deps.publishTelemetryCredential?.(identity);
 }
 
 // The SHARED registration token, not this cluster's own — that is what registration is for, and the per-agent token only exists once it returns.
@@ -151,27 +153,25 @@ async function acceptRegistration(
   return identity;
 }
 
-/** One attempt, which may throw — `registerOnce` is the wrapper that promises it never does. Null means retry. */
-async function attemptRegistration(
+function parseIdentityBody(
+  body: Partial<ClusterAgentIdentity>,
+): ClusterAgentIdentity {
+  enforceTrue(
+    typeof body.id === "string" && typeof body.token === "string",
+    Error,
+    "registration answered 200 without an {id, token} body",
+  );
+
+  return { id: body.id, token: body.token };
+}
+
+// Persists the new identity and republishes the run pods' credential. Both first registration and every rotation land here, so the pods' credential never outlives the token it was minted from.
+async function adoptIdentity(
+  identity: ClusterAgentIdentity,
   deps: RegisterDeps,
-): Promise<ClusterAgentIdentity | null> {
-  const { config, store } = deps;
-  const fetchFn = deps.fetchFn ?? fetch;
-  const current = await store.load();
-  const res = await fetchFn(`${config.apiUrl}/api/cluster-agents/register`, {
-    method: "POST",
-    headers: registrationHeaders(config),
-    body: JSON.stringify(registerRequestBody(config, current)),
-    signal: AbortSignal.timeout(REGISTER_TIMEOUT_MS),
-  });
-
-  if (!res.ok) {
-    logRegistrationRefusal(config.name, res.status);
-
-    return null;
-  }
-
-  return acceptRegistration(res, deps);
+): Promise<void> {
+  await deps.store.save(identity);
+  await deps.publishTelemetryCredential?.(identity);
 }
 
 /** Retry registration on the 30s→5m schedule until it succeeds. Never throws or gives up — an unreachable API on boot must not crash the process. */

@@ -46,12 +46,37 @@ export type PruneOutcome =
   | { kind: "nothing" }
   | { kind: "error"; message: string };
 
-// One kind of delete, bound to its port. Called THROUGH the port rather than passed as a bare method reference, since an unbound call loses `this`.
-function deleter(
-  deps: PruneDeps,
-  method: "deleteAgent" | "deleteStation" | "deleteDefinition",
-): (name: string) => Promise<void> {
-  return (name) => deps.cluster[method](name);
+/** One sweep. Never throws — every failure shape is an outcome the loop logs. */
+export async function pruneOnce(deps: PruneDeps): Promise<PruneOutcome> {
+  try {
+    const deleted = await applyPlan(await plannedPrune(deps), deps);
+
+    if (deleted.agents + deleted.stations + deleted.definitions === 0) {
+      return { kind: "nothing" };
+    }
+
+    return { kind: "swept", ...deleted };
+  } catch (err) {
+    return { kind: "error", message: errorMessage(err) };
+  }
+}
+
+// What this tick would remove. All three lists are read together — they are independent, and the orphan test needs every one of them before it can say which recipes nothing references any more.
+async function plannedPrune(deps: PruneDeps) {
+  const [agents, stations, definitions] = await Promise.all([
+    deps.cluster.listAgents(),
+    deps.cluster.listStations(),
+    deps.cluster.listDefinitions(),
+  ]);
+
+  return decidePrune({
+    agents,
+    stations,
+    definitions,
+    now: deps.now?.() ?? new Date(),
+    ttlMs: deps.ttlMs,
+    maxPerTick: deps.maxPerTick ?? DEFAULT_MAX_PER_TICK,
+  });
 }
 
 /** Agents FIRST, then their clones: a clone deleted while its CR still stands would leave a run describing a missing recipe. Every delete goes THROUGH the port rather than as a bare method reference, since an unbound call loses `this`. */
@@ -74,6 +99,14 @@ async function applyPlan(
   };
 }
 
+// One kind of delete, bound to its port. Called THROUGH the port rather than passed as a bare method reference, since an unbound call loses `this`.
+function deleter(
+  deps: PruneDeps,
+  method: "deleteAgent" | "deleteStation" | "deleteDefinition",
+): (name: string) => Promise<void> {
+  return (name) => deps.cluster[method](name);
+}
+
 // Deletes a definition, then reclaims the satellite-local GH_TOKEN_* secret key that provisioning wrote into agent-secrets. The Floor's cleanupPerTaskToken only reaches the central cluster-agent; this is the satellite path. Failure to delete the key is skipped — a missing secret key is not a reason to leave the definition entry alive or block the sweep.
 function definitionDeleter(deps: PruneDeps): (name: string) => Promise<void> {
   return async (name) => {
@@ -89,39 +122,6 @@ function definitionDeleter(deps: PruneDeps): (name: string) => Promise<void> {
       }
     }
   };
-}
-
-// What this tick would remove. All three lists are read together — they are independent, and the orphan test needs every one of them before it can say which recipes nothing references any more.
-async function plannedPrune(deps: PruneDeps) {
-  const [agents, stations, definitions] = await Promise.all([
-    deps.cluster.listAgents(),
-    deps.cluster.listStations(),
-    deps.cluster.listDefinitions(),
-  ]);
-
-  return decidePrune({
-    agents,
-    stations,
-    definitions,
-    now: deps.now?.() ?? new Date(),
-    ttlMs: deps.ttlMs,
-    maxPerTick: deps.maxPerTick ?? DEFAULT_MAX_PER_TICK,
-  });
-}
-
-/** One sweep. Never throws — every failure shape is an outcome the loop logs. */
-export async function pruneOnce(deps: PruneDeps): Promise<PruneOutcome> {
-  try {
-    const deleted = await applyPlan(await plannedPrune(deps), deps);
-
-    if (deleted.agents + deleted.stations + deleted.definitions === 0) {
-      return { kind: "nothing" };
-    }
-
-    return { kind: "swept", ...deleted };
-  } catch (err) {
-    return { kind: "error", message: errorMessage(err) };
-  }
 }
 
 /** Delete each, counting what went. One failure is skipped rather than abandoning the sweep — a wedged finalizer must not keep the rest of the backlog cached. */

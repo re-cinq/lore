@@ -13,30 +13,18 @@ import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "../domain/crd.js";
 import { coreApi, customObjectsApi } from "./kube-clients.js";
 import { isMissing } from "../lib/k8s-errors.js";
 
-// The AGENT container's requests are the cost driver — init containers finish before the bill starts and this stack runs no sidecars.
-function agentContainer(pod: V1Pod): V1Container | undefined {
-  const containers = pod.spec?.containers ?? [];
-
-  return (
-    containers.find((container) => container.name === "agent") ?? containers[0]
-  );
-}
-
-// Only Lore's own labels + the Job-controller label are surfaced; everything else on the pod is noise.
-function podLabels(pod: V1Pod): Record<string, string> {
-  const labels: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(pod.metadata?.labels ?? {})) {
-    if (key.startsWith("lore.re-cinq.com/") || key === "job-name") {
-      labels[key] = value;
-    }
-  }
-
-  return labels;
-}
-
 function isLiveRunningPod(pod: V1Pod): boolean {
   return pod.status?.phase === "Running" || pod.status?.phase === "Pending";
+}
+
+function toRunningPodInfo(pod: V1Pod): RunningPodInfo {
+  return {
+    name: podName(pod),
+    phase: podPhase(pod),
+    startedAt: podStartedAt(pod),
+    requests: agentRequests(agentContainer(pod)),
+    labels: podLabels(pod),
+  };
 }
 
 function podName(pod: V1Pod): string {
@@ -59,14 +47,26 @@ function agentRequests(
   return { ...(agent?.resources?.requests ?? {}) } as Record<string, string>;
 }
 
-function toRunningPodInfo(pod: V1Pod): RunningPodInfo {
-  return {
-    name: podName(pod),
-    phase: podPhase(pod),
-    startedAt: podStartedAt(pod),
-    requests: agentRequests(agentContainer(pod)),
-    labels: podLabels(pod),
-  };
+// The AGENT container's requests are the cost driver — init containers finish before the bill starts and this stack runs no sidecars.
+function agentContainer(pod: V1Pod): V1Container | undefined {
+  const containers = pod.spec?.containers ?? [];
+
+  return (
+    containers.find((container) => container.name === "agent") ?? containers[0]
+  );
+}
+
+// Only Lore's own labels + the Job-controller label are surfaced; everything else on the pod is noise.
+function podLabels(pod: V1Pod): Record<string, string> {
+  const labels: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(pod.metadata?.labels ?? {})) {
+    if (key.startsWith("lore.re-cinq.com/") || key === "job-name") {
+      labels[key] = value;
+    }
+  }
+
+  return labels;
 }
 
 /** Pods belonging to a Job, by the label the Job controller stamps. */
