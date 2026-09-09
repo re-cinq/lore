@@ -123,8 +123,12 @@ function useBurstWindow(
     lastRefreshAtRef.current = Date.now();
 
     return () => {
-      if (trailingTimerRef.current !== null) {
-        clearTimeout(trailingTimerRef.current);
+      // Reading current AT cleanup is the point: whatever refresh is owed when the page goes away is the one to drop.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const pending = trailingTimerRef.current;
+
+      if (pending !== null) {
+        clearTimeout(pending);
       }
     };
   }, [lastRefreshAtRef, trailingTimerRef]);
@@ -271,23 +275,34 @@ function useDiscoveryRefs(
 }
 
 export function useRefreshTicker(options: RefreshTickerOptions): void {
+  const refs = useDiscoveryRefs(options);
+
+  useTickerEffect(options, refs);
+}
+
+/** A null interval means no ticker at all, so the effect returns before starting one. */
+function useTickerEffect(
+  options: RefreshTickerOptions,
+  refs: ReturnType<typeof useDiscoveryRefs>,
+) {
   const { intervalMs, taskId, refreshAll, onLiveRunFound } = options;
-  const { discoveryActiveRef, liveRunIdRef } = useDiscoveryRefs(options);
+  const { discoveryActiveRef, liveRunIdRef } = refs;
+  const ticker = { taskId, refreshAll, discoveryActiveRef, liveRunIdRef };
 
   useEffect(() => {
-    if (intervalMs === null) {
-      return;
-    }
-
-    return startTicker({
-      intervalMs,
-      taskId,
-      refreshAll,
-      discoveryActiveRef,
-      liveRunIdRef,
-      onLiveRunFound,
-    });
-  }, [intervalMs, taskId, refreshAll, onLiveRunFound]);
+    return intervalMs === null
+      ? undefined
+      : startTicker({ ...ticker, intervalMs, onLiveRunFound });
+    // ticker is rebuilt each render from the values listed here, so it adds nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    intervalMs,
+    taskId,
+    refreshAll,
+    onLiveRunFound,
+    discoveryActiveRef,
+    liveRunIdRef,
+  ]);
 }
 
 /** The task's runs, reduced to the one that is live — or null when none is. */
