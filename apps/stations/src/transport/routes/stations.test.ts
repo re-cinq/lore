@@ -31,7 +31,10 @@ describe("POST /api/stations/{name}", () => {
     const res = await run("approval-check");
 
     expect(res.statusCode).toBe(200);
-    expect(res.result).toEqual({ job: "approval-check", summary: "Checked 3 tasks, 1 approved" });
+    expect(res.result).toEqual({
+      job: "approval-check",
+      summary: "Checked 3 tasks, 1 approved",
+    });
   });
 
   it("refuses a name no station answers to, rather than 500-ing on undefined", async () => {
