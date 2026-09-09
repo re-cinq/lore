@@ -393,13 +393,25 @@ pull, so recovery splits by who holds the claim:
   "nothing references it" is briefly true of a task mid-dispatch, and a builtin
   `def-*` recipe is catalog rather than litter and is never a candidate.
   ([validated by [deletes a pt-* clone once no surviving CR references it](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L76), [keeps a clone a surviving CR still references](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L90), [never touches a builtin def-* recipe, whatever its age](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L107), [keeps a young orphan clone, so a task mid-dispatch does not lose its recipe](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L119), [reports nothing to do for an empty cluster](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L128))
+- When the sweep deletes an orphaned `pt-*` definition it also deletes the
+  corresponding `GH_TOKEN_*` key from `agent-secrets`. For a satellite the
+  Floor's `DELETE /api/cluster/per-task-tokens/{taskId}` call targets the
+  central cluster-agent only and never reaches the satellite, so the prune loop
+  is the sole reclaim path — without it the key accumulates indefinitely.
+  ([validated by [deletes the per-task token key from agent-secrets when pruning an orphaned definition](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L107)])
+- The sweep runs hourly and keeps three days, both overridable by the
+  environment; a retention of zero or one that does not parse is ignored in
+  favour of the default, because reading it literally would delete every
+  record of every run the moment the variable is fat-fingered — the opposite
+  of what a retention window is for.
+  ([validated by [sweeps hourly unless the environment says otherwise](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L157), [`prune-loop.test.ts:169`](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L164), [`prune-loop.test.ts:176`](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L171))
 - The sweep never throws: a cluster it cannot reach, or one object wedged by a
   finalizer, is an outcome it logs and carries on from — a single stuck object
   must not keep the rest of a 40MiB backlog in the cache. It runs in the
   cluster-agent rather than the Floor, because the Floor cannot reach a
   satellite's cluster at all: a Floor-side reaper would tidy central and leave
   every satellite to grow until its controller died.
-  ([validated by [deletes what the plan names and reports the counts](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L47), [reports nothing when the cluster is already tidy](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L64), [skips one object it cannot delete and still sweeps the rest](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L72), [answers with an outcome, never a throw, when the cluster is unreachable](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L88), [logs a sweep and a failure, and stops when the latch closes](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L107); implemented by [`prune-loop.ts`](apps/cluster-agent/src/work/reap/prune-loop.ts))
+  ([validated by [deletes what the plan names and reports the counts](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L48), [reports nothing when the cluster is already tidy](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L65), [skips one object it cannot delete and still sweeps the rest](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L73), [answers with an outcome, never a throw, when the cluster is unreachable](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L89), [logs a sweep and a failure, and stops when the latch closes](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L137); implemented by [`prune-loop.ts`](apps/cluster-agent/src/work/reap/prune-loop.ts))
 - The sweep calls the cluster through its port rather than handing over bare
   method references: an unbound `deleteAgent` loses its receiver, the live
   adapter's first act is `this.remove(...)`, and the resulting throw is
