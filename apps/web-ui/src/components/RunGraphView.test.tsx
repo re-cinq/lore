@@ -266,3 +266,50 @@ describe("RunGraphView current state", () => {
     expect(takenOf("push->review")).toBe("false");
   });
 });
+
+describe("RunGraphView selection and facts line", () => {
+  const liveRun = runData({
+    executed: new Set(["review"]),
+    statuses: { review: "running" },
+  });
+
+  it("presses the selected node and rings it, leaving the others unpressed", () => {
+    const { container } = render(
+      <RunGraphView
+        graph={deriveVisibleGraph(codeReviewDefinition, liveRun, "run")}
+        definition={codeReviewDefinition}
+        onSelectNode={() => {}}
+        selectedNodeId="review"
+      />,
+    );
+
+    expect(nodeEl(container, "review").getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect(nodeEl(container, "review").hasAttribute("data-selected")).toBe(
+      true,
+    );
+    expect(nodeEl(container, "done").getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+  });
+
+  it("draws a node's facts line in run mode and none in definition mode", () => {
+    const meta = { review: "Sonnet 4.6 · 3m 12s" };
+    const live = render(
+      <RunGraphView
+        graph={deriveVisibleGraph(codeReviewDefinition, liveRun, "run")}
+        definition={codeReviewDefinition}
+        nodeMeta={meta}
+      />,
+    );
+
+    expect(live.container.querySelector("[data-meta]")).toHaveTextContent(
+      "Sonnet 4.6 · 3m 12s",
+    );
+
+    const shape = renderGraph(codeReviewDefinition, null, "definition");
+
+    expect(shape.container.querySelector("[data-meta]")).toBeNull();
+  });
+});

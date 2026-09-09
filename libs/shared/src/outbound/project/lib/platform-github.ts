@@ -24,6 +24,7 @@ import type {
   CiConclusion,
   CheckRun,
   ReviewThread,
+  PullFileChange,
 } from "../pulls/pull-requests-port.js";
 import { defaultBranch as fetchDefaultBranch } from "./platform-github-support.js";
 import * as issues from "./platform-github-issues.js";
@@ -233,6 +234,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   async listFiles(repo: string, number: number): Promise<string[]> {
     return pullsRead.listFiles(await this.octo(), repo, number);
+  }
+
+  async listFileChanges(
+    repo: string,
+    number: number,
+  ): Promise<PullFileChange[]> {
+    return pullsRead.listFileChanges(await this.octo(), repo, number);
   }
 
   // ── PullRequestsPort: reviews/comments/CI ───────────────────────────

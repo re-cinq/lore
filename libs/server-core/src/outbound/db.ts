@@ -2,11 +2,15 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /** PostgreSQL + pgvector search using Reciprocal Rank Fusion (RRF) for vector + keyword. */
 
 import type { Pool } from "pg";
-import { getQueryEmbedding } from "@re-cinq/lore-shared";
+import {
+  getQueryEmbedding,
+  embeddingHealth,
+  embedderDegraded,
+} from "@re-cinq/lore-shared";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 
 // Re-exported from shared embedding-service singleton for back-compat.
-export { getQueryEmbedding };
+export { getQueryEmbedding, embeddingHealth, embedderDegraded };
 
 let pool: Pool | null = null;
 

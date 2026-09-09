@@ -198,6 +198,28 @@ describe("ingestFiles", () => {
     expect(octokit.rest.repos.getContent).toHaveBeenCalledTimes(1);
   });
 
+  it("embeds 'FR1 Every phase ends with a commit.' without its '([validated by …])' link group", async () => {
+    const octokit = queuedOctokit([
+      () => ({
+        data: fileEntry(
+          "## FR\n\n- FR1 Every phase ends with a commit. ([validated by `a.test.ts:6`](libs/a.test.ts#L6), [`b.test.ts:17`](libs/b.test.ts#L17))",
+        ),
+      }),
+    ]);
+
+    vi.mocked(getOctokit).mockResolvedValue(
+      octokit as unknown as Awaited<ReturnType<typeof getOctokit>>,
+    );
+
+    const { pool } = fakePool();
+
+    await ingestFiles(pool, ["specs/x/spec.md"], "o/r", "abc1234");
+
+    expect(vi.mocked(getQueryEmbedding).mock.calls.map((c) => c[0])).toEqual([
+      "## FR\n\n- FR1 Every phase ends with a commit.",
+    ]);
+  });
+
   it("falls back to HEAD when the commit is unknown to the repo", async () => {
     const octokit = queuedOctokit([
       () => {

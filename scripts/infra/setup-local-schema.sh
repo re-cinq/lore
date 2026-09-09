@@ -118,7 +118,7 @@ BEGIN
         author        TEXT,
         ingested_at   TIMESTAMPTZ DEFAULT NOW(),
         metadata      JSONB,
-        search_tsv    TSVECTOR GENERATED ALWAYS AS (to_tsvector(''english'', content)) STORED
+        search_tsv    TSVECTOR GENERATED ALWAYS AS (to_tsvector(''english'', regexp_replace(content, ''\(\s*\[(validated|implemented) by [^]]*\]\([^)[:space:]]*\)(\s*(,|;\s*implemented by)\s*\[[^]]*\]\([^)[:space:]]*\))*\s*\)'', '' '', ''g''))) STORED
       )', s);
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I_chunks_embedding_idx ON %I.chunks USING hnsw (embedding vector_cosine_ops)', s, s);
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I_chunks_search_idx ON %I.chunks USING GIN (search_tsv)', s, s);

@@ -21,6 +21,10 @@ export interface RunGraphViewProps {
   /** Source definition — supplies layout entry/exit and the graph name. */
   definition: AssemblyLineDefinition | null;
   onSelectNode?: (nodeId: string) => void;
+  /** The node the inspector shows, drawn with a ring. */
+  selectedNodeId?: string | null;
+  /** Run mode facts per node id (model · duration · visits); a node with none draws no line. */
+  nodeMeta?: Readonly<Record<string, string>>;
   // Section heading; `null` renders none, for a caller that titles the section itself.
   heading?: string | null;
 }
@@ -42,8 +46,9 @@ function graphLookups(graph: RunGraphViewProps["graph"]) {
 function layoutRunGraph(
   graph: RunGraphViewProps["graph"],
   definition: RunGraphViewProps["definition"],
+  withMeta: boolean,
 ) {
-  const nodeHeight = nodeHeightFor(graph);
+  const nodeHeight = nodeHeightFor(graph, withMeta);
   const layout = layoutAssemblyLine(toLayoutDefinition(graph, definition), {
     nodeWidth: NODE_WIDTH,
     nodeHeight,
@@ -88,10 +93,13 @@ interface LaidGraphProps {
   laid: ReturnType<typeof layoutRunGraph>;
   mode: RunGraphViewProps["graph"]["mode"];
   onSelectNode: RunGraphViewProps["onSelectNode"];
+  selectedNodeId: RunGraphViewProps["selectedNodeId"];
+  nodeMeta: RunGraphViewProps["nodeMeta"];
 }
 
 /** Every node in the layout. A node nothing leaves is TERMINAL, which the plain label renders differently — the end of a line should read as an end rather than as a step still waiting for a successor. */
-function GraphNodes({ laid, mode, onSelectNode }: LaidGraphProps) {
+function GraphNodes(props: LaidGraphProps) {
+  const { laid, mode, onSelectNode, selectedNodeId, nodeMeta } = props;
   const { nodes } = laid.layout;
 
   return nodes.map((node) => (
@@ -102,13 +110,16 @@ function GraphNodes({ laid, mode, onSelectNode }: LaidGraphProps) {
       mode={mode}
       height={laid.nodeHeight}
       isTerminal={!laid.nodesWithOutgoing.has(node.id)}
+      selected={node.id === selectedNodeId}
+      meta={nodeMeta?.[node.id]}
       onSelect={onSelectNode}
     />
   ));
 }
 
 /** The graph itself. A node nothing leaves is TERMINAL, which the plain label renders differently. `role="img"` with a `<title>`: the drawing is one picture to a screen reader, not a stack of unlabelled shapes, and the mode belongs in that label because the same nodes mean different things in definition and run mode. */
-function GraphSvg({ laid, mode, onSelectNode }: LaidGraphProps) {
+function GraphSvg(props: LaidGraphProps) {
+  const { laid, mode } = props;
   const { layout, view, titleId, edgeByPair } = laid;
 
   return (
@@ -124,7 +135,7 @@ function GraphSvg({ laid, mode, onSelectNode }: LaidGraphProps) {
 
       <GraphEdges edges={layout.edges} edgeByPair={edgeByPair} />
 
-      <GraphNodes laid={laid} mode={mode} onSelectNode={onSelectNode} />
+      <GraphNodes {...props} />
     </svg>
   );
 }
@@ -136,8 +147,19 @@ function EmptyGraph() {
 }
 
 // The mode-selected workflow graph. Pure render of a VisibleGraph.
+/** A facts line is drawn only in run mode, and only when some node has one to draw. */
+function hasMetaLine(
+  graph: RunGraphViewProps["graph"],
+  nodeMeta: RunGraphViewProps["nodeMeta"],
+): boolean {
+  return (
+    graph.mode === "run" &&
+    graph.nodes.some((node) => (nodeMeta?.[node.id] ?? "") !== "")
+  );
+}
+
 export default function RunGraphView(props: RunGraphViewProps) {
-  const { graph, definition, onSelectNode, heading = "Graph" } = props;
+  const { graph, definition, heading = "Graph", nodeMeta } = props;
 
   if (graph.nodes.length === 0) {
     return <EmptyGraph />;
@@ -147,9 +169,11 @@ export default function RunGraphView(props: RunGraphViewProps) {
     <section className={styles.panel}>
       {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
       <GraphSvg
-        laid={layoutRunGraph(graph, definition)}
+        laid={layoutRunGraph(graph, definition, hasMetaLine(graph, nodeMeta))}
         mode={graph.mode}
-        onSelectNode={onSelectNode}
+        onSelectNode={props.onSelectNode}
+        selectedNodeId={props.selectedNodeId}
+        nodeMeta={nodeMeta}
       />
     </section>
   );

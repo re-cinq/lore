@@ -880,6 +880,57 @@
         ]
       }
     },
+    "/api/assembly-runs/{id}/dod": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_dod",
+        "summary": "GET /api/assembly-runs/{id}/dod",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The run's Definition of Done with each acceptance test matched against the branch's latest CI report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DodProgress"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/assembly-runs/{id}/nodes": {
       "get": {
         "operationId": "get_api_assembly-runs_id_nodes",
@@ -907,6 +958,57 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/assembly-runs/{id}/stream": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_stream",
+        "summary": "GET /api/assembly-runs/{id}/stream",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Server-Sent Events: one `event:` per frame type, `data:` the frame; only agent_event frames carry an `id:` (the Last-Event-ID cursor)",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStreamFrame"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2140,6 +2242,78 @@
                   }
                 },
                 "required": ["files", "repo"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ingest/reembed": {
+      "post": {
+        "operationId": "post_api_ingest_reembed",
+        "summary": "POST /api/ingest/reembed",
+        "tags": ["Ingestion"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One batch of the embedding backfill: rows embedded, the first failure if the embedder returned nothing, and how many rows still wait",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReembedResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "schema": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*$"
+                  },
+                  "limit": {
+                    "default": 100,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500
+                  },
+                  "where": {
+                    "default": "missing",
+                    "type": "string",
+                    "enum": ["missing", "stale_links"]
+                  }
+                },
                 "additionalProperties": false
               }
             }
@@ -3636,6 +3810,90 @@
             }
           }
         ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/chunks/prune": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_chunks_prune",
+        "summary": "POST /api/repos/{owner}/{repo}/chunks/prune",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The chunk schema swept, the indexed paths that were absent from the posted tree or refused by the classifier, and how many chunks went with them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkPruneResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "present_paths": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": ["present_paths"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/repos/{owner}/{repo}/chunks/{kind}": {
@@ -5652,6 +5910,76 @@
             }
           }
         }
+      }
+    },
+    "/api/repos/{owner}/{repo}/pulls/{number}/files": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_pulls_number_files",
+        "summary": "GET /api/repos/{owner}/{repo}/pulls/{number}/files",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Every changed file on a PR with its unified patch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PullFiles"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/repos/{owner}/{repo}/sessions": {
@@ -9063,6 +9391,25 @@
         "required": ["chunks"],
         "additionalProperties": false
       },
+      "ChunkPruneResult": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "type": "string"
+          },
+          "deleted_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deleted_chunks": {
+            "type": "number"
+          }
+        },
+        "required": ["schema", "deleted_paths", "deleted_chunks"],
+        "additionalProperties": false
+      },
       "ChunkTypeList": {
         "type": "object",
         "properties": {
@@ -9674,6 +10021,102 @@
           }
         },
         "required": ["ok", "applied", "ceremony"],
+        "additionalProperties": false
+      },
+      "DodProgress": {
+        "type": "object",
+        "properties": {
+          "present": {
+            "type": "boolean"
+          },
+          "ticketClaim": {
+            "type": "string"
+          },
+          "strategy": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          },
+          "acceptanceTests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "behaviour": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "unknown"]
+                },
+                "matchedId": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": ["path", "name", "behaviour", "status", "matchedId"],
+              "additionalProperties": false
+            }
+          },
+          "facets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "done": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["text", "done"],
+              "additionalProperties": false
+            }
+          },
+          "outOfScope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "passed": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "report": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "commit": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "receivedAt": {
+                    "type": "string"
+                  }
+                },
+                "required": ["commit", "branch", "receivedAt"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["present"],
         "additionalProperties": false
       },
       "DriftTaskList": {
@@ -12861,6 +13304,47 @@
         ],
         "additionalProperties": false
       },
+      "PullFiles": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "filename": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "additions": {
+                  "type": "number"
+                },
+                "deletions": {
+                  "type": "number"
+                },
+                "patch": {
+                  "type": ["string", "null"]
+                },
+                "previousFilename": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "filename",
+                "status",
+                "additions",
+                "deletions",
+                "patch"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["files"],
+        "additionalProperties": false
+      },
       "PullOpened": {
         "type": "object",
         "properties": {
@@ -12905,6 +13389,25 @@
           "labels",
           "url"
         ],
+        "additionalProperties": false
+      },
+      "ReembedResult": {
+        "type": "object",
+        "properties": {
+          "embedded": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          },
+          "remaining": {
+            "type": "number"
+          },
+          "stopped": {
+            "type": "boolean"
+          }
+        },
+        "required": ["embedded", "failed", "remaining", "stopped"],
         "additionalProperties": false
       },
       "Repo": {
@@ -13208,13 +13711,12 @@
                   },
                   "additionalProperties": {}
                 },
-                "status": {
-                  "type": "string",
-                  "enum": ["pending", "processing", "done", "failed", "dead"]
-                },
                 "captured_at": {
                   "type": "string",
                   "format": "date-time"
+                },
+                "status": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -13222,8 +13724,8 @@
                 "event_name",
                 "source",
                 "params",
-                "status",
-                "captured_at"
+                "captured_at",
+                "status"
               ],
               "additionalProperties": false
             }
@@ -13793,6 +14295,377 @@
         },
         "required": ["iteration"],
         "additionalProperties": false
+      },
+      "RunStreamFrame": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "agent_event"
+              },
+              "event": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "taskId": {
+                    "type": "string"
+                  },
+                  "agentCrName": {
+                    "type": ["string", "null"]
+                  },
+                  "assemblyLineId": {
+                    "type": ["string", "null"]
+                  },
+                  "stationRunId": {
+                    "type": ["string", "null"]
+                  },
+                  "nodeId": {
+                    "type": ["string", "null"]
+                  },
+                  "iteration": {
+                    "type": ["number", "null"]
+                  },
+                  "eventType": {
+                    "type": "string",
+                    "enum": [
+                      "init",
+                      "message",
+                      "thinking",
+                      "tool_call",
+                      "tool_result",
+                      "result",
+                      "hook"
+                    ]
+                  },
+                  "toolName": {
+                    "type": ["string", "null"]
+                  },
+                  "toolUseId": {
+                    "type": ["string", "null"]
+                  },
+                  "isError": {
+                    "type": "boolean"
+                  },
+                  "filePaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "summary": {
+                    "type": ["string", "null"]
+                  },
+                  "payload": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "id",
+                  "taskId",
+                  "agentCrName",
+                  "assemblyLineId",
+                  "stationRunId",
+                  "nodeId",
+                  "iteration",
+                  "eventType",
+                  "toolName",
+                  "toolUseId",
+                  "isError",
+                  "filePaths",
+                  "summary",
+                  "payload",
+                  "createdAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["type", "event"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "node_status"
+              },
+              "node": {
+                "type": "object",
+                "properties": {
+                  "node_id": {
+                    "type": "string"
+                  },
+                  "iteration": {
+                    "type": "number"
+                  },
+                  "outcome": {
+                    "type": ["string", "null"]
+                  },
+                  "agent_cr_name": {
+                    "type": ["string", "null"]
+                  },
+                  "station_run_id": {
+                    "type": ["string", "null"]
+                  },
+                  "input": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "description": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": ["string", "null"]
+                          },
+                          "params": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "repo": {
+                            "type": "string"
+                          },
+                          "ref": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "description",
+                          "prompt",
+                          "params",
+                          "repo",
+                          "ref"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "commit_sha": {
+                    "type": ["string", "null"]
+                  },
+                  "started_at": {
+                    "type": "string"
+                  },
+                  "finished_at": {
+                    "type": ["string", "null"]
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "claimed_at": {
+                    "type": ["string", "null"]
+                  }
+                },
+                "required": [
+                  "node_id",
+                  "iteration",
+                  "outcome",
+                  "agent_cr_name",
+                  "station_run_id",
+                  "input",
+                  "commit_sha",
+                  "started_at",
+                  "finished_at",
+                  "status",
+                  "claimed_at"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["type", "node"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "run_status"
+              },
+              "run": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "type": ["string", "null"]
+                  },
+                  "reason": {
+                    "type": ["string", "null"]
+                  },
+                  "started_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "finished_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "outcome",
+                  "reason",
+                  "started_at",
+                  "finished_at"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["type", "run"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "task_event"
+              },
+              "event": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "task_id": {
+                    "type": "string"
+                  },
+                  "from_status": {
+                    "type": ["string", "null"]
+                  },
+                  "to_status": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "id",
+                  "task_id",
+                  "from_status",
+                  "to_status",
+                  "metadata",
+                  "created_at"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["type", "event"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "ci_check"
+              },
+              "check": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string"
+                  },
+                  "pr_number": {
+                    "type": "number"
+                  },
+                  "observed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "status": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": ["repo", "pr_number", "observed_at", "status"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["type", "check"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "catchup_complete"
+              },
+              "last_id": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "last_id"],
+            "additionalProperties": false
+          }
+        ]
       },
       "SessionSummaryResult": {
         "anyOf": [
@@ -14622,6 +15495,12 @@
                 },
                 "finished_at": {
                   "type": ["string", "null"]
+                },
+                "status": {
+                  "type": "string"
+                },
+                "claimed_at": {
+                  "type": ["string", "null"]
                 }
               },
               "required": [
@@ -14633,7 +15512,9 @@
                 "input",
                 "commit_sha",
                 "started_at",
-                "finished_at"
+                "finished_at",
+                "status",
+                "claimed_at"
               ],
               "additionalProperties": false
             }

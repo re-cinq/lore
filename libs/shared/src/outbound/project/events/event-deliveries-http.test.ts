@@ -5,7 +5,7 @@ import {
   OrphanBody,
   SubscribeBody,
 } from "./event-deliveries-wire.js";
-import { FailBody } from "./event-queue-wire.js";
+import { FailBody } from "./event-deliveries-wire.js";
 
 interface SentCall {
   path: string;

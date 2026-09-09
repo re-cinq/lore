@@ -3,6 +3,7 @@ import type {
   AssemblyLineDefinition,
   DefinitionNode,
 } from "./assembly-line-definition";
+import { recipeNameFor } from "./recipe-ref";
 
 export interface AgentDefRef {
   name: string;
@@ -14,14 +15,10 @@ function hrefForAgentNode(
   defs: readonly AgentDefRef[],
   repo: string,
 ): [string, string] | null {
-  if (node.type !== "agent") {
-    return null;
-  }
-
-  const recipe = node.prompt_ref ?? node.id;
+  const recipe = recipeNameFor(node);
   const def = defs.find((d) => d.name === recipe);
 
-  if (!def) {
+  if (recipe === null || !def) {
     return null;
   }
 

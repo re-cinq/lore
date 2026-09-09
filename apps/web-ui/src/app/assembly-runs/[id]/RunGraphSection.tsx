@@ -1,8 +1,7 @@
 "use client";
 
-// The graph half of RunVisualizationPanel: connection chip, the graph itself, the definition/run toggle, and the replay scrubber. Prop-driven, no state or IO of its own (DDAU).
+// The graph half of RunVisualizationPanel: connection chip, the graph itself, and the definition/run toggle. Prop-driven, no state or IO of its own (DDAU).
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
-import ReplayScrubberView from "./ReplayScrubberView";
 import RunGraphView from "@/components/RunGraphView";
 import styles from "./RunVisualizationPanel.module.css";
 import { connectionLabel } from "@/lib/run-stream-presenter";
@@ -35,78 +34,17 @@ export function OutcomesToggle({
   );
 }
 
-interface ReplayControlsProps {
-  eventCount: number;
-  cursor: number;
-  position: { label: string; timestamp: string | null };
-  onCursorChange: (cursor: number) => void;
-  onBackToLive: () => void;
-}
-
-function BackToLiveButton({ onBackToLive }: { onBackToLive: () => void }) {
-  return (
-    <button type="button" className={styles.backToLive} onClick={onBackToLive}>
-      Back to live
-    </button>
-  );
-}
-
-/** Scrub back through a finished run's events, and the way back to its end. */
-function ReplayControls(props: ReplayControlsProps) {
-  const { eventCount, cursor, position, onBackToLive } = props;
-
-  return (
-    <div className={styles.replayControls}>
-      <ReplayScrubberView
-        eventCount={eventCount}
-        cursor={cursor}
-        label={position.label}
-        timestamp={position.timestamp}
-        onCursorChange={props.onCursorChange}
-      />
-      <BackToLiveButton onBackToLive={onBackToLive} />
-    </div>
-  );
-}
-
-export interface ReplaySlotProps {
-  show: boolean;
-  historyEventCount: number;
-  cursor: number | null;
-  position: { label: string; timestamp: string | null };
-  onCursorChange: (cursor: number) => void;
-  onBackToLive: () => void;
-}
-
-/** The replay scrubber, shown only once a finished run has history to scrub through. */
-export function ReplayControlsSlot(props: ReplaySlotProps) {
-  const { show, historyEventCount, cursor } = props;
-
-  if (!show) {
-    return null;
-  }
-
-  return (
-    <ReplayControls
-      eventCount={historyEventCount}
-      cursor={cursor ?? historyEventCount}
-      position={props.position}
-      onCursorChange={props.onCursorChange}
-      onBackToLive={props.onBackToLive}
-    />
-  );
-}
-
-/** The run as a picture: the connection chip, the graph itself, the definition/run toggle, and the scrubber for a finished run. */
+/** The run as a picture: the connection chip, the graph itself, and the definition/run toggle. */
 interface RunGraphSectionProps {
   chipState: Parameters<typeof connectionLabel>[0];
   graph: Parameters<typeof RunGraphView>[0]["graph"];
   definition: AssemblyLineDefinition | null;
   onSelectNode: (nodeId: string) => void;
+  selectedNodeId: string | null;
+  nodeMeta: Readonly<Record<string, string>>;
   hasRunData: boolean;
   showOutcomes: boolean;
   onToggleOutcomes: () => void;
-  replay: ReplaySlotProps;
 }
 
 interface ConnectionChipProps {
@@ -129,8 +67,6 @@ function ConnectionChip({ state }: ConnectionChipProps) {
 }
 
 export function RunGraphSection(props: RunGraphSectionProps) {
-  const { replay } = props;
-
   return (
     <>
       <ConnectionChip state={props.chipState} />
@@ -138,13 +74,14 @@ export function RunGraphSection(props: RunGraphSectionProps) {
         graph={props.graph}
         definition={props.definition}
         onSelectNode={props.onSelectNode}
+        selectedNodeId={props.selectedNodeId}
+        nodeMeta={props.nodeMeta}
       />
       <OutcomesToggle
         show={props.hasRunData}
         showOutcomes={props.showOutcomes}
         onToggle={props.onToggleOutcomes}
       />
-      <ReplayControlsSlot {...replay} />
     </>
   );
 }

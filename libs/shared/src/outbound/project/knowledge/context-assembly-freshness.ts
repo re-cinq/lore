@@ -1,6 +1,22 @@
 import type { PgPool } from "../../memory-store.js";
+import {
+  embedderDegraded,
+  type EmbeddingHealth,
+} from "../../embeddings/embedding-service.js";
 
-/** Repo ingest freshness: the warning banner shown when a repo's context is stale or was never ingested. */
+/** Repo ingest freshness: the warning banner shown when a repo's context is stale or was never ingested — and, beside it, whether the embedder is answering, because a bundle ranked keyword-only is a different bundle and the reader should know. */
+
+export function embeddingWarning(health: EmbeddingHealth): string {
+  if (!embedderDegraded(health)) {
+    return "";
+  }
+  const last =
+    health.lastStatus === null
+      ? "no call reached it"
+      : `HTTP ${health.lastStatus}`;
+
+  return `> ⚠ **Embeddings unavailable** — ranking is keyword-only (the embedder failed ${health.consecutiveFailures} times in a row, last: ${last}). Semantic matches and memory search are missing from this bundle.\n\n`;
+}
 
 const STALE_AGE_MS = 7 * 86400000;
 

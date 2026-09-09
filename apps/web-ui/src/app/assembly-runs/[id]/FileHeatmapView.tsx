@@ -20,6 +20,10 @@ export interface FileHeatmapViewProps {
   touches: Record<string, TouchCounts>;
   showAll: boolean;
   onToggleShowAll: () => void;
+  /** When given, each bar is a button that opens that file's diff (FR8.6). */
+  onOpenFile?: (path: string) => void;
+  /** The file whose diff is open, so its bar reads as pressed. */
+  activePath?: string | null;
 }
 
 interface HeatmapBarsProps extends FileHeatmapViewProps {
@@ -46,9 +50,9 @@ function BarFill({ touch }: { touch: FileTouch }) {
   );
 }
 
-function Bar({ touch }: { touch: FileTouch }) {
+function BarContent({ touch }: { touch: FileTouch }) {
   return (
-    <li className={styles.row} data-path={touch.path}>
+    <>
       <span className={styles.path} title={stripWorkspacePrefix(touch.path)}>
         {truncateMiddle(stripWorkspacePrefix(touch.path), PATH_MAX)}
       </span>
@@ -59,6 +63,43 @@ function Bar({ touch }: { touch: FileTouch }) {
         <span className={styles.readCount}>{touch.reads} read</span>
         <span className={styles.writeCount}>{touch.writes} write</span>
       </span>
+    </>
+  );
+}
+
+interface BarProps {
+  touch: FileTouch;
+  onOpenFile?: (path: string) => void;
+  active: boolean;
+}
+
+function BarButton({ touch, onOpenFile, active }: Required<BarProps>) {
+  return (
+    <button
+      type="button"
+      className={`${styles.row} ${styles.rowButton}`}
+      data-path={touch.path}
+      aria-pressed={active}
+      onClick={() => onOpenFile(touch.path)}
+    >
+      <BarContent touch={touch} />
+    </button>
+  );
+}
+
+/** A plain row, or — when the heatmap can open diffs — a button carrying the same `data-path`. */
+function Bar({ touch, onOpenFile, active }: BarProps) {
+  if (!onOpenFile) {
+    return (
+      <li className={styles.row} data-path={touch.path}>
+        <BarContent touch={touch} />
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <BarButton touch={touch} onOpenFile={onOpenFile} active={active} />
     </li>
   );
 }
@@ -76,13 +117,18 @@ function ShowMoreToggle({
 }
 
 function HeatmapBars(props: HeatmapBarsProps) {
-  const { ranked, showAll, hidden } = props;
+  const { ranked, showAll, hidden, onOpenFile, activePath } = props;
 
   return (
     <div className={styles.heatmap}>
       <ol className={styles.rows}>
         {ranked.map((touch) => (
-          <Bar key={touch.path} touch={touch} />
+          <Bar
+            key={touch.path}
+            touch={touch}
+            onOpenFile={onOpenFile}
+            active={touch.path === activePath}
+          />
         ))}
       </ol>
       {showAll || hidden > 0 ? <ShowMoreToggle {...props} /> : null}

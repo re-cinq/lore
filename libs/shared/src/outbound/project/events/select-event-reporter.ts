@@ -2,16 +2,12 @@
 
 import { internalToken } from "../../../lib/internal-token.js";
 import { HttpEventReporter } from "./event-reporter-http.js";
-import { HttpEventQueue } from "./event-queue-http.js";
 import { HttpEventDeliveries } from "./event-deliveries-http.js";
 import { EventProxy } from "./event-proxy.js";
 import { EventSink, UnconfiguredSink } from "./event-sink.js";
 import type { Sink } from "./event-input-port.js";
 import type { EventDeliveriesPort } from "./event-deliveries-port.js";
-import type {
-  EventQueueRepository,
-  EventReporter,
-} from "./event-queue-port.js";
+import type { EventReporter } from "./event-reporter-port.js";
 
 export interface SelectReporterDeps {
   /** Pool-backed reporter to fall back to; a THUNK because eager resolution forced lore-api to demand a database even in tests with their own injected one. */
@@ -74,31 +70,6 @@ export function selectEventProxy(deps: SelectProxyDeps): EventProxy {
     retry: deps.retry ?? (routed ? DEFAULT_RETRY : { attempts: 1, delayMs: 0 }),
     onUnauthorized: deps.onUnauthorized,
   });
-}
-
-export interface SelectQueueDeps {
-  /** The pool-backed queue to fall back to — normally `pipeline().eventQueue`. */
-  local: () => EventQueueRepository;
-  env?: NodeJS.ProcessEnv;
-  log?: (message: string) => void;
-}
-
-/** Resolve the whole queue for a DRAINER, same way as {@link selectEventReporter} — separate because a producer gets `insert` only, and just the draining process asks for this. */
-export function selectEventQueue(deps: SelectQueueDeps): EventQueueRepository {
-  const env = deps.env ?? process.env;
-  const log = deps.log ?? console.log;
-  const url = env.EVENT_ROUTER_URL;
-
-  if (!url) {
-    log(
-      "[events] EVENT_ROUTER_URL unset — draining pipeline.events directly (local mode)",
-    );
-
-    return deps.local();
-  }
-  log(`[events] draining through the event-router at ${url}`);
-
-  return new HttpEventQueue(url, internalToken(env));
 }
 
 export interface SelectDeliveriesDeps {

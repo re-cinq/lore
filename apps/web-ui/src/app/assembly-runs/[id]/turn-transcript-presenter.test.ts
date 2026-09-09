@@ -9,8 +9,6 @@ import {
   parseHasMore,
   serverReportsMore,
   turnsForNode,
-  turnHeading,
-  envelopePretty,
   conversationEntries,
   clockTime,
 } from "./turn-transcript-presenter";
@@ -107,26 +105,6 @@ describe("turnsForNode", () => {
     ];
 
     expect(turnsForNode(turns, "implement")).toEqual([turn("1", "implement")]);
-  });
-});
-
-describe("turnHeading", () => {
-  it("labels a turn by its raw event kind", () => {
-    expect(turnHeading(turn("1", "implement"))).toBe("assistant");
-  });
-
-  it("labels a kind-less turn as unknown", () => {
-    expect(turnHeading({ ...turn("1", "implement"), eventType: null })).toBe(
-      "unknown",
-    );
-  });
-});
-
-describe("envelopePretty", () => {
-  it("renders the untruncated envelope as indented JSON", () => {
-    expect(envelopePretty(turn("7", "implement"))).toBe(
-      JSON.stringify({ event: { type: "assistant", id: "7" } }, null, 2),
-    );
   });
 });
 

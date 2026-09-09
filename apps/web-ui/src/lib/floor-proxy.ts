@@ -31,12 +31,12 @@ export async function proxyJson(upstream: Response) {
 export function floorPagedJsonRoute(upstream: string, errorContext: string) {
   return assemblyRunProxyRoute(
     errorContext,
-    async ({ id, req, floorUrl, token }) => {
+    async ({ id, req, upstreamUrl, token }) => {
       const query = forwardedPagingQuery(new URL(req.url).searchParams);
 
       return proxyJson(
         await fetch(
-          `${floorUrl}/api/${upstream}/${encodeURIComponent(id)}${query}`,
+          `${upstreamUrl}/api/${upstream}/${encodeURIComponent(id)}${query}`,
           { headers: { Authorization: `Bearer ${token}` }, signal: req.signal },
         ),
       );

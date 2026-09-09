@@ -15,8 +15,8 @@ set -euo pipefail
 # this script is not a one-line pg_dump. It holds work in flight, and both Floor queues
 # claim on status alone — no repo filter, no owning-instance filter:
 #
-#     pipeline.events: WHERE status IN ('pending','failed') AND next_attempt_at <= now()
-#     pipeline.tasks:  WHERE status = 'pending'
+#     pipeline.event_deliveries: WHERE status IN ('pending','failed') AND next_attempt_at <= now()
+#     pipeline.tasks:            WHERE status = 'pending'
 #
 # A laptop Floor restored from prod would therefore claim PRODUCTION webhook events and
 # pending tasks and act on them for real: dispatch agents, open issues and PRs, and run
@@ -190,7 +190,7 @@ fi
 if [ "$WITH_PIPELINE" -eq 1 ]; then
   docker exec -i -e PGPASSWORD=lore lore-postgres \
     psql -h 127.0.0.1 -U postgres -d lore -v ON_ERROR_STOP=1 <<'SQL'
-UPDATE pipeline.events
+UPDATE pipeline.event_deliveries
    SET status = 'done', handled_at = now()
  WHERE status IN ('pending', 'failed', 'processing');
 UPDATE pipeline.tasks
@@ -198,7 +198,7 @@ UPDATE pipeline.tasks
  WHERE status IN ('pending', 'queued', 'running');
 DELETE FROM pipeline.task_leases;
 SQL
-  log "Quiesced pipeline.events + pipeline.tasks and cleared leases — nothing is claimable"
+  log "Quiesced pipeline.event_deliveries + pipeline.tasks and cleared leases — nothing is claimable"
 fi
 
 log "Restored into the local Postgres (db=lore user=postgres)."

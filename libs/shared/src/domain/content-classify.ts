@@ -1,9 +1,15 @@
 /** Canonical content-type classifier (single source for ingest + reindex); source by extension first, dir rules only for non-code. */
 
-export type ContentType = "doc" | "adr" | "spec" | "code";
+import { isTestFile } from "./test-paths.js";
+
+// `test` is code the coverage machinery wants (link resolution, backfill candidates) and the assembled bundle mostly does not: a test file keyword-matches every symbol it exercises, so it outranked the source for questions about the source.
+export type ContentType = "doc" | "adr" | "spec" | "code" | "test";
 
 const BINARY_RE =
   /\.(png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|pdf|zip|tar|gz|lock)$/i;
+// Build output and generated artifacts: thousands of lines nobody authored, which keyword-match everything (a 30k-line openapi typings file ranked first for a graph-schema question on 2026-09-09).
+const GENERATED_RE =
+  /(\.d\.ts|\.min\.(?:js|css)|-lock\.(?:json|ya?ml)|\.generated\.[a-z]+|(?:^|\/)openapi\.json)$|(?:^|\/)(?:dist|build|node_modules|coverage)\//;
 const CODE_RE =
   /\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp|css|scss|sass|less)$/;
 
@@ -39,8 +45,10 @@ const CLASSIFY_RULES: ClassifyRule[] = [
     type: null,
   },
   { test: (path) => BINARY_RE.test(path), type: null },
+  { test: (path) => GENERATED_RE.test(path), type: null },
   { test: isDocFile, type: "doc" },
-  // Extension wins over directory: a source file is code wherever it lives.
+  // Extension wins over directory: a source file is code wherever it lives — a test-named one is `test`.
+  { test: (path) => CODE_RE.test(path) && isTestFile(path), type: "test" },
   { test: (path) => CODE_RE.test(path), type: "code" },
   { test: (path) => /(?:^|\/)adrs\//.test(path), type: "adr" },
   { test: isSpecPath, type: "spec" },

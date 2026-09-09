@@ -9,7 +9,6 @@ import {
   fetchers,
   fitItemsToBudget,
   hybridChunkItems,
-  extractKeyTerms,
   dropSeen,
   formatCouplingItems,
   fetchCouplingSource,
@@ -115,33 +114,6 @@ describe("fetchCouplingSource", () => {
   });
 });
 
-describe("extractKeyTerms", () => {
-  it("keeps distinctive terms and drops stopwords + short words", () => {
-    const terms = extractKeyTerms(
-      "add the UI controls for per-repo settings and parseSettingsForm",
-    );
-
-    expect(terms).toContain("controls");
-    expect(terms).toContain("settings");
-    expect(terms).toContain("parseSettingsForm");
-    expect(terms).not.toContain("the");
-    expect(terms).not.toContain("and");
-    expect(terms).not.toContain("ui");
-  });
-
-  it("de-duplicates and caps the number of terms", () => {
-    const terms = extractKeyTerms("settings settings settings", 12);
-
-    expect(terms).toEqual(["settings"]);
-    expect(
-      extractKeyTerms(
-        Array.from({ length: 40 }, (_, i) => `term${i}`).join(" "),
-        12,
-      ).length,
-    ).toBe(12);
-  });
-});
-
 describe("dropSeen (cross-section dedup)", () => {
   const it_ = (path: string) => ({ text: path, tokens: 1, source_path: path });
 
@@ -156,6 +128,20 @@ describe("dropSeen (cross-section dedup)", () => {
     expect(
       (second as Array<{ source_path: string }>).map((i) => i.source_path),
     ).toEqual(["c"]);
+  });
+
+  it("drops a twin at copy/a.ts sharing content_hash abc123 with the a.ts an earlier section emitted", () => {
+    const seen = new Set<string>();
+    const twinOf = (path: string) => ({
+      text: "same body",
+      tokens: 1,
+      source_path: path,
+      content_hash: "abc123",
+    });
+
+    dropSeen([twinOf("a.ts")] as never, seen);
+
+    expect(dropSeen([twinOf("copy/a.ts")] as never, seen)).toEqual([]);
   });
 });
 
@@ -190,6 +176,21 @@ describe("fitItemsToBudget per-document cap", () => {
     expect(
       (kept as Array<{ source_path: string }>).map((i) => i.source_path),
     ).toEqual(["big.md"]);
+  });
+
+  it("keeps 2 of 3 documents and drops the third when it would be cut to 40 tokens", () => {
+    const sources = [
+      source(480, "a.md"),
+      source(480, "b.md"),
+      source(200, "c.md"),
+    ];
+
+    const { kept, truncated } = fitItemsToBudget(sources as never, 1000);
+
+    expect(
+      (kept as Array<{ source_path: string }>).map((i) => i.source_path),
+    ).toEqual(["a.md", "b.md"]);
+    expect(truncated).toBe(true);
   });
 });
 
@@ -248,6 +249,103 @@ describe("hybridChunkItems", () => {
       content_type: "code",
     });
     expect(sources[0].text).toContain("parseSettingsForm");
+  });
+
+  it("keyword-only SQL filters with search_tsv @@ websearch_to_tsquery so non-matching chunks are not returned", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+    const { pool, calls } = fakePool({ rows: [] });
+
+    await hybridChunkItems(pool, "settings form parser", "re-cinq/lore", {
+      contentTypes: ["code"],
+      limit: 6,
+    });
+
+    expect(calls[1].text).toContain(
+      "search_tsv @@ websearch_to_tsquery('english', $2)",
+    );
+  });
+
+  it("carries the chunk content_hash onto the item so twins across paths can collapse", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+    const { pool, calls } = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          {
+            content: "export const TRACE_IMPACT_WORKFLOW_CONTENT = 1",
+            file_path: "libs/shared/src/work/trace-impact-workflow.ts",
+            content_type: "code",
+            score: 0.4,
+            content_hash: "abc123",
+          },
+        ],
+      },
+    );
+
+    const sources = await hybridChunkItems(
+      pool,
+      "trace impact",
+      "re-cinq/lore",
+      {
+        contentTypes: ["code"],
+        limit: 6,
+      },
+    );
+
+    expect(calls[1].text).toContain(
+      "metadata->>'content_hash' AS content_hash",
+    );
+    expect(sources[0]).toMatchObject({ content_hash: "abc123" });
+  });
+
+  it("returns a Conventions item of 10 tokens for a chunk whose 120-char link group was stripped", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+    const links =
+      "([validated by `a.test.ts:6`](libs/shared/src/lib/a.test.ts#L6), [`b.test.ts:17`](libs/shared/src/lib/b.test.ts#L17))";
+    const { pool } = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          {
+            content: `- FR1 Every phase ends with a commit. ${links}`,
+            file_path: "specs/x/spec.md",
+            content_type: "spec",
+            score: 0.4,
+          },
+        ],
+      },
+    );
+
+    const sources = await hybridChunkItems(
+      pool,
+      "commit phase",
+      "re-cinq/lore",
+      {
+        contentTypes: ["doc", "spec"],
+        limit: 5,
+      },
+    );
+
+    expect(sources[0]).toMatchObject({
+      text: "- FR1 Every phase ends with a commit.",
+      tokens: 10,
+    });
+  });
+
+  it("queries content_type ['code'] for 'split the api port' and ['code','test'] for 'flaky test in chunker'", async () => {
+    const typesFor = async (query: string) => {
+      vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+      const { pool, calls } = fakePool({ rows: [] });
+
+      await fetchers.code(pool, query, "re-cinq/lore");
+
+      return calls[1].params?.[2];
+    };
+
+    expect({
+      port: await typesFor("split the api port"),
+      flaky: await typesFor("flaky test in chunker"),
+    }).toEqual({ port: ["code"], flaky: ["code", "test"] });
   });
 
   it("reads from the repo's provisioned team schema instead of org_shared", async () => {

@@ -122,6 +122,24 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     );
   });
 
+  it("repairs a build the rounds stopped moving instead of ending the run, and returns it to the wait", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "dod", { outcome: "success" });
+    await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+    await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
+    await h.resume(id, "await-ci", "failed", {
+      args: { reason: "ci_red_unchanged", ci_failed_checks: "lint" },
+    });
+
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-repair-build`);
+
+    await h.completeAgentNode(id, "repair-build", { outcome: "success" });
+
+    expect(h.visits().at(-1)).toEqual(["await-ci", null]);
+  });
+
   it("sends a red build to fix-ci and back to the wait, without blocking the ticket", async () => {
     const h = loopHarness();
     const id = await parkedOnPr(h);

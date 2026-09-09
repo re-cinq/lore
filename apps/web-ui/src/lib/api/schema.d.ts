@@ -243,6 +243,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/dod": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/dod */
+    get: operations["get_api_assembly-runs_id_dod"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/nodes": {
     parameters: {
       query?: never;
@@ -252,6 +269,23 @@ export interface paths {
     };
     /** GET /api/assembly-runs/{id}/nodes */
     get: operations["get_api_assembly-runs_id_nodes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/assembly-runs/{id}/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/stream */
+    get: operations["get_api_assembly-runs_id_stream"];
     put?: never;
     post?: never;
     delete?: never;
@@ -685,6 +719,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/ingest/reembed": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/ingest/reembed */
+    post: operations["post_api_ingest_reembed"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/job-run-logs": {
     parameters: {
       query?: never;
@@ -1041,6 +1092,23 @@ export interface paths {
     get: operations["get_api_repos_owner_repo_chunk-summary"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/chunks/prune": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/chunks/prune */
+    post: operations["post_api_repos_owner_repo_chunks_prune"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1436,6 +1504,23 @@ export interface paths {
     put?: never;
     /** POST /api/repos/{owner}/{repo}/pulls */
     post: operations["post_api_repos_owner_repo_pulls"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/pulls/{number}/files": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/pulls/{number}/files */
+    get: operations["get_api_repos_owner_repo_pulls_number_files"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -2361,6 +2446,11 @@ export interface components {
         rank?: number;
       }[];
     };
+    ChunkPruneResult: {
+      schema: string;
+      deleted_paths: string[];
+      deleted_chunks: number;
+    };
     ChunkTypeList: {
       types: string[];
     };
@@ -2529,6 +2619,32 @@ export interface components {
         pr_ref?: string;
         approver?: string;
       };
+    };
+    DodProgress: {
+      present: boolean;
+      ticketClaim?: string;
+      strategy?: string;
+      why?: string;
+      acceptanceTests?: {
+        path: string;
+        name: string;
+        behaviour: string;
+        /** @enum {string} */
+        status: "pass" | "fail" | "unknown";
+        matchedId: string | null;
+      }[];
+      facets?: {
+        text: string;
+        done: boolean;
+      }[];
+      outOfScope?: string[];
+      passed?: number;
+      total?: number;
+      report?: {
+        commit: string;
+        branch: string;
+        receivedAt: string;
+      } | null;
     };
     DriftTaskList: {
       tasks: {
@@ -3381,6 +3497,16 @@ export interface components {
         | "approved"
         | "open";
     };
+    PullFiles: {
+      files: {
+        filename: string;
+        status: string;
+        additions: number;
+        deletions: number;
+        patch: string | null;
+        previousFilename?: string;
+      }[];
+    };
     PullOpened: {
       repo: string;
       number: number;
@@ -3392,6 +3518,12 @@ export interface components {
       url: string;
       author?: string;
       draft?: boolean;
+    };
+    ReembedResult: {
+      embedded: number;
+      failed: number;
+      remaining: number;
+      stopped: boolean;
     };
     Repo: {
       id: string;
@@ -3491,10 +3623,9 @@ export interface components {
         params: {
           [key: string]: unknown;
         };
-        /** @enum {string} */
-        status: "pending" | "processing" | "done" | "failed" | "dead";
         /** Format: date-time */
         captured_at: string;
+        status: string;
       }[];
     };
     RepoIssueCreated: {
@@ -3665,6 +3796,109 @@ export interface components {
       assembly_run_id?: string;
       assembly_line_id?: string;
     };
+    RunStreamFrame:
+      | {
+          /** @constant */
+          type: "agent_event";
+          event: {
+            id: string;
+            taskId: string;
+            agentCrName: string | null;
+            assemblyLineId: string | null;
+            stationRunId: string | null;
+            nodeId: string | null;
+            iteration: number | null;
+            /** @enum {string} */
+            eventType:
+              | "init"
+              | "message"
+              | "thinking"
+              | "tool_call"
+              | "tool_result"
+              | "result"
+              | "hook";
+            toolName: string | null;
+            toolUseId: string | null;
+            isError: boolean;
+            filePaths: string[];
+            summary: string | null;
+            payload: {
+              [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+          };
+        }
+      | {
+          /** @constant */
+          type: "node_status";
+          node: {
+            node_id: string;
+            iteration: number;
+            outcome: string | null;
+            agent_cr_name: string | null;
+            station_run_id: string | null;
+            input: {
+              description: string;
+              prompt: string | null;
+              params: {
+                [key: string]: string;
+              } | null;
+              repo: string;
+              ref: string;
+            } | null;
+            commit_sha: string | null;
+            started_at: string;
+            finished_at: string | null;
+            status: string;
+            claimed_at: string | null;
+          };
+        }
+      | {
+          /** @constant */
+          type: "run_status";
+          run: {
+            id: string;
+            status: string;
+            outcome: string | null;
+            reason: string | null;
+            started_at: string | null;
+            finished_at: string | null;
+          };
+        }
+      | {
+          /** @constant */
+          type: "task_event";
+          event: {
+            id: string;
+            task_id: string;
+            from_status: string | null;
+            to_status: string;
+            metadata: {
+              [key: string]: unknown;
+            } | null;
+            /** Format: date-time */
+            created_at: string;
+          };
+        }
+      | {
+          /** @constant */
+          type: "ci_check";
+          check: {
+            repo: string;
+            pr_number: number;
+            /** Format: date-time */
+            observed_at: string;
+            status: {
+              [key: string]: unknown;
+            };
+          };
+        }
+      | {
+          /** @constant */
+          type: "catchup_complete";
+          last_id: string;
+        };
     SessionSummaryResult:
       | {
           /** @constant */
@@ -3882,6 +4116,8 @@ export interface components {
         commit_sha: string | null;
         started_at: string;
         finished_at: string | null;
+        status: string;
+        claimed_at: string | null;
       }[];
     };
     StationTaskCreated: {
@@ -4558,6 +4794,33 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "get_api_assembly-runs_id_dod": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The run's Definition of Done with each acceptance test matched against the branch's latest CI report */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DodProgress"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_assembly-runs_id_nodes": {
     parameters: {
       query?: never;
@@ -4580,6 +4843,33 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Server-Sent Events: one `event:` per frame type, `data:` the frame; only agent_event frames carry an `id:` (the Last-Event-ID cursor) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": components["schemas"]["RunStreamFrame"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -5259,6 +5549,45 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IngestResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_ingest_reembed: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          schema?: string;
+          /** @default 100 */
+          limit?: number;
+          /**
+           * @default missing
+           * @enum {string}
+           */
+          where?: "missing" | "stale_links";
+        };
+      };
+    };
+    responses: {
+      /** @description One batch of the embedding backfill: rows embedded, the first failure if the embedder returned nothing, and how many rows still wait */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReembedResult"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -5974,6 +6303,41 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_chunks_prune: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          present_paths: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description The chunk schema swept, the indexed paths that were absent from the posted tree or refused by the classifier, and how many chunks went with them */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChunkPruneResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -6863,6 +7227,36 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_pulls_number_files: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        number: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every changed file on a PR with its unified patch */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PullFiles"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

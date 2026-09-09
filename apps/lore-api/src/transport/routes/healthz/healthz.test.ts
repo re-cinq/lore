@@ -11,9 +11,22 @@ vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({
   getHealthStatus: vi.fn(),
   isDbAvailable: vi.fn(),
   getQueryEmbedding: vi.fn(),
+  embeddingHealth: vi.fn(),
+  embedderDegraded: vi.fn(),
 }));
 
-import { getHealthStatus } from "@re-cinq/lore-server-core/platform/db.js";
+import {
+  getHealthStatus,
+  embeddingHealth,
+  embedderDegraded,
+} from "@re-cinq/lore-server-core/platform/db.js";
+
+const HEALTHY_EMBEDDER = {
+  lastOkAt: "2026-09-09T10:00:00.000Z",
+  lastFailureAt: null,
+  lastStatus: null,
+  consecutiveFailures: 0,
+};
 
 const originalEnv = { ...process.env };
 const inject = (pool: unknown, headers?: Record<string, string>) =>
@@ -29,6 +42,8 @@ describe("GET /healthz", () => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
     delete process.env.LORE_DB_HOST;
     vi.mocked(getHealthStatus).mockResolvedValue({ connected: true } as any);
+    vi.mocked(embeddingHealth).mockReturnValue(HEALTHY_EMBEDDER);
+    vi.mocked(embedderDegraded).mockReturnValue(false); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
   });
   afterEach(() => {
     process.env = { ...originalEnv };
@@ -68,6 +83,31 @@ describe("GET /healthz", () => {
       status: "ok",
       database: { connected: true },
       tasks: { processed_today: 3, pending: 2 },
+    });
+  });
+
+  it("returns status degraded with the embeddings block when the embedder has 3 consecutive failures", async () => {
+    const pool = makePool();
+    const failing = {
+      lastOkAt: null,
+      lastFailureAt: "2026-09-09T10:05:00.000Z",
+      lastStatus: 403,
+      consecutiveFailures: 3,
+    };
+
+    pool.query.mockResolvedValue({ rows: [{ today: 0, pending: 0 }] });
+    vi.mocked(embeddingHealth).mockReturnValue(failing);
+    vi.mocked(embedderDegraded).mockReturnValue(true); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+    const res = await inject(pool, AUTH);
+
+    expect({ code: res.statusCode, body: res.result }).toEqual({
+      code: 200,
+      body: {
+        status: "degraded",
+        database: { connected: true },
+        embeddings: failing,
+        tasks: { processed_today: 0, pending: 0 },
+      },
     });
   });
 
