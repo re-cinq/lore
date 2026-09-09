@@ -68,22 +68,28 @@ export function TranscriptEmpty({
   );
 }
 
+interface TranscriptToggleRowProps {
+  show: boolean;
+  showRaw: boolean;
+  setShowRaw: (raw: boolean) => void;
+}
+
 export function TranscriptToggleRow({
   show,
   showRaw,
-  onChange,
-}: {
-  show: boolean;
-  showRaw: boolean;
-  onChange: (raw: boolean) => void;
-}) {
+  setShowRaw,
+}: TranscriptToggleRowProps) {
   if (!show) {
     return null;
   }
 
   return (
     <div className={styles.toggleRow}>
-      <LogFormatToggle raw={showRaw} onChange={onChange} />
+      <LogFormatToggle
+        raw={showRaw}
+        onFormatted={() => setShowRaw(false)}
+        onRaw={() => setShowRaw(true)}
+      />
     </div>
   );
 }

@@ -245,7 +245,9 @@ export function ScopeNote({
     return null;
   }
 
-  return <p className={styles.formNote}>{scopeNote(orgScope, inherited)}</p>;
+  return (
+    <p className={styles.formNote}>{scopeNote({ orgScope, inherited })}</p>
+  );
 }
 
 export function FormActions({

@@ -247,11 +247,9 @@ function startPolling(target: PollTarget): () => void {
 
 /** Degraded path for a live run without a stream: polls from the reducer's cursor, kept in a ref so a poll result never restarts the interval. */
 export function useHistoryPoll(
-  active: boolean,
-  runId: string,
-  lastEventId: string,
-  dispatch: (event: RunStreamEvent) => void,
+  input: TransportTarget & { active: boolean },
 ): void {
+  const { active, runId, lastEventId, dispatch } = input;
   const lastEventIdRef = useRef(lastEventId);
 
   useEffect(() => {
@@ -315,7 +313,7 @@ function useTransports(
       history.setStreamUnavailable,
     ),
   });
-  useHistoryPoll(enabled.poll, runId, lastEventId, dispatch);
+  useHistoryPoll({ active: enabled.poll, runId, lastEventId, dispatch });
 }
 
 /** How events reach the panel: the one-off history fold, then either the live SSE stream or — when a browser or a server cannot hold one open — a poll from the reducer's own cursor. The caller never learns which; both dispatch the same events. */
@@ -330,16 +328,14 @@ export interface RunStreamInput {
 /** What the panel reads: the persisted events, and the chip that says how they are arriving. */
 function runStreamWiring(
   history: RunHistory,
-  mode: ReturnType<typeof resolveStreamMode>,
-  fallbackPollActive: boolean,
+  chip: {
+    mode: ReturnType<typeof resolveStreamMode>;
+    fallbackPollActive: boolean;
+  },
 ): RunStreamWiring {
   return {
     historyEvents: history.historyEvents,
-    chipState: resolveChipState({
-      mode,
-      connection: history.connection,
-      fallbackPollActive,
-    }),
+    chipState: resolveChipState({ ...chip, connection: history.connection }),
   };
 }
 
@@ -362,5 +358,5 @@ export function useRunStream(input: RunStreamInput): RunStreamWiring {
     history,
   );
 
-  return runStreamWiring(history, mode, fallbackPollActive);
+  return runStreamWiring(history, { mode, fallbackPollActive });
 }

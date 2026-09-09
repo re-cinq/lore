@@ -7,11 +7,11 @@ import { enforceOk } from "@/lib/api/result";
 /** Flip repo's backlog loop; repo identity from server via bound parameter, never browser. */
 export async function toggleImplementationLoopAction(
   fullName: string,
-  enabled: boolean,
+  { enabled }: { enabled: boolean },
 ): Promise<void> {
   enforceOk(
     "toggle implementation loop",
-    await setImplementationLoopEnabled(fullName, enabled),
+    await setImplementationLoopEnabled(fullName, { enabled }),
   );
   const [owner, repo] = fullName.split("/");
 

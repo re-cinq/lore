@@ -43,11 +43,8 @@ const KIND_LABEL: Record<AgentKind, string> = {
 };
 
 // Task agents are ephemeral audit rows, so they stay behind the toggle until asked for.
-function visibleAgents(
-  agents: AgentRow[],
-  showTaskAgents: boolean,
-): AgentRow[] {
-  return showTaskAgents ? agents : agents.filter((a) => a.kind === "local");
+function localAgents(agents: AgentRow[]): AgentRow[] {
+  return agents.filter((a) => a.kind === "local");
 }
 
 // The Why column exists only when some agent has a reason to show.
@@ -55,12 +52,14 @@ function hasReasonColumn(agents: AgentRow[]): boolean {
   return agents.some((a) => a.reason != null || a.reason_type != null);
 }
 
-function agentColumns(hasWhy: boolean): string[] {
+type WhyColumn = Pick<AgentRowsProps, "hasWhy">;
+
+function agentColumns(cols: WhyColumn): string[] {
   return [
     "Agent",
     "Type",
     "Created by",
-    ...(hasWhy ? ["Why"] : []),
+    ...(cols.hasWhy ? ["Why"] : []),
     "Tasks",
     "Cost",
     "Memories",
@@ -68,16 +67,15 @@ function agentColumns(hasWhy: boolean): string[] {
   ];
 }
 
+/** The collapsed half of the audit toggle; the expanded half is a fixed word. */
+function auditToggleLabel(taskAgentCount: number): string {
+  return `Show task agents (audit) — ${taskAgentCount} hidden`;
+}
+
 interface TaskAgentsToggleProps {
   taskAgentCount: number;
   showTaskAgents: boolean;
   onToggle: () => void;
-}
-
-function toggleLabel(taskAgentCount: number, showTaskAgents: boolean): string {
-  return showTaskAgents
-    ? "Hide task agents"
-    : `Show task agents (audit) — ${taskAgentCount} hidden`;
 }
 
 function TaskAgentsToggle({
@@ -96,14 +94,14 @@ function TaskAgentsToggle({
       aria-pressed={showTaskAgents}
       onClick={onToggle}
     >
-      {toggleLabel(taskAgentCount, showTaskAgents)}
+      {showTaskAgents ? "Hide task agents" : auditToggleLabel(taskAgentCount)}
     </button>
   );
 }
 
 /** The "why" cell, present only when some agent HAS a reason — a column of dashes says less than no column. */
-function whyCells(a: AgentRow, hasWhy: boolean): ReactNode[] {
-  if (!hasWhy) {
+function whyCells(a: AgentRow, cols: WhyColumn): ReactNode[] {
+  if (!cols.hasWhy) {
     return [];
   }
 
@@ -116,7 +114,7 @@ function whyCells(a: AgentRow, hasWhy: boolean): ReactNode[] {
 }
 
 // One agent's row, in column order.
-function agentCells(a: AgentRow, hasWhy: boolean): ReactNode[] {
+function agentCells(a: AgentRow, cols: WhyColumn): ReactNode[] {
   return [
     <AgentLink agentId={a.agent_id} key="agent" />,
     <span className="badge" key="kind">
@@ -125,7 +123,7 @@ function agentCells(a: AgentRow, hasWhy: boolean): ReactNode[] {
     <span className="meta" key="by">
       {displayCreatedBy(a.created_by)}
     </span>,
-    ...whyCells(a, hasWhy),
+    ...whyCells(a, cols),
     a.task_count,
     formatCost(a.cost_usd),
     a.memory_count,
@@ -144,7 +142,7 @@ interface AgentRowsProps {
 function AgentRows({ agents, hasWhy }: AgentRowsProps) {
   return (
     <DataTable
-      columns={agentColumns(hasWhy)}
+      columns={agentColumns({ hasWhy })}
       rows={agents}
       rowKey={(a, index) => a.agent_id ?? `unattributed-${index}`}
       empty={
@@ -153,7 +151,7 @@ function AgentRows({ agents, hasWhy }: AgentRowsProps) {
           description="Agents appear as developers use the Lore MCP server. Per-task run agents stay behind the audit toggle."
         />
       }
-      cells={(a) => agentCells(a, hasWhy)}
+      cells={(a) => agentCells(a, { hasWhy })}
     />
   );
 }
@@ -163,7 +161,7 @@ export default function AgentsTable(props: AgentsTableProps) {
   const { agents, intro, title = "Agents", embedded = false } = props;
   const [showTaskAgents, setShowTaskAgents] = useState(false);
   const taskAgentCount = agents.filter((a) => a.kind === "task").length;
-  const visible = visibleAgents(agents, showTaskAgents);
+  const visible = showTaskAgents ? agents : localAgents(agents);
   const hasWhy = hasReasonColumn(agents);
 
   return (

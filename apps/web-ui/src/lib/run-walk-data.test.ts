@@ -36,7 +36,7 @@ describe("walkRunData", () => {
     const walk = walkRunData(
       definition,
       [row({ outcome: "success" }), row({ nodeId: "write" })],
-      false,
+      { finished: false },
     );
 
     expect(walk.statuses).toEqual({ analyze: "succeeded", write: "running" });
@@ -50,14 +50,16 @@ describe("walkRunData", () => {
         row({ outcome: "changes_requested", iteration: 1 }),
         row({ outcome: "success", iteration: 2 }),
       ],
-      false,
+      { finished: false },
     );
 
     expect(walk.verdicts.analyze).toBe("success");
   });
 
   it("marks the edge a closed row's outcome routed along as taken", () => {
-    const walk = walkRunData(definition, [row({ outcome: "success" })], false);
+    const walk = walkRunData(definition, [row({ outcome: "success" })], {
+      finished: false,
+    });
 
     expect([...walk.taken]).toEqual(["analyze-write-success"]);
   });
@@ -65,10 +67,16 @@ describe("walkRunData", () => {
   it("results completed on a finished run and failed on any failed outcome", () => {
     const rows = [row({ outcome: "success" })];
 
-    expect(walkRunData(definition, rows, true).result).toBe("completed");
-    expect(walkRunData(definition, rows, false).result).toBeNull();
+    expect(walkRunData(definition, rows, { finished: true }).result).toBe(
+      "completed",
+    );
     expect(
-      walkRunData(definition, [row({ outcome: "write-failed" })], true).result,
+      walkRunData(definition, rows, { finished: false }).result,
+    ).toBeNull();
+    expect(
+      walkRunData(definition, [row({ outcome: "write-failed" })], {
+        finished: true,
+      }).result,
     ).toBe("failed");
   });
 });

@@ -23,12 +23,11 @@ import {
   computeHasRunData,
   computeReplayActive,
   computeScrubberVisible,
-  pickDisplayState,
   pickSelectedState,
 } from "./run-visualization-selectors";
 
 /** The timeline's right edge is `now` — without a clock a stalled node's last tick would look identical to a live one. Ticks once a second while the run is live. */
-export function useNowTicker(live: boolean): string {
+export function useNowTicker({ live }: { live: boolean }): string {
   const [now, setNow] = useState(() => new Date().toISOString());
 
   useEffect(() => {
@@ -58,13 +57,14 @@ interface RunGraphInput {
 }
 
 /** The graph as drawn. A run with no rows yet passes `null` run data on purpose — the definition alone renders as the plain shape of the line, rather than as every node wrongly reporting "not started". */
-function useVisibleGraph(
-  definition: AssemblyLineDefinition | null,
-  hasRunData: boolean,
-  runData: RunData,
-  showOutcomes: boolean,
-) {
-  const graphMode = computeGraphMode(hasRunData, showOutcomes);
+function useVisibleGraph(input: {
+  definition: AssemblyLineDefinition | null;
+  hasRunData: boolean;
+  runData: RunData;
+  showOutcomes: boolean;
+}) {
+  const { definition, hasRunData, runData } = input;
+  const graphMode = computeGraphMode(input);
 
   return useMemo(
     () =>
@@ -75,10 +75,10 @@ function useVisibleGraph(
 
 /** Fork source for "retry this node", or null to hide the button — a live run, an unvisited node, the entry node, or a prefix that cannot be named (see retry-resume.ts). */
 function useRetrySource(
-  nodes: readonly AssemblyRunNode[],
-  runIsLive: boolean,
-  selectedNodeId: string | null,
+  input: Pick<RunGraphInput, "nodes" | "runIsLive" | "selectedNodeId">,
 ) {
+  const { nodes, runIsLive, selectedNodeId } = input;
+
   return useMemo(
     () =>
       runIsLive || selectedNodeId === null
@@ -131,18 +131,14 @@ export function useRunGraph(input: RunGraphInput) {
   const { nodes, definition, nodeStates, showOutcomes } = input;
   const hasRunData = computeHasRunData(nodes.length, nodeStates);
   const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
-  const retrySource = useRetrySource(
-    nodes,
-    input.runIsLive,
-    input.selectedNodeId,
-  );
+  const retrySource = useRetrySource(input);
   const runData = useRunData({ ...input, latestRows });
-  const visibleGraph = useVisibleGraph(
+  const visibleGraph = useVisibleGraph({
     definition,
     hasRunData,
     runData,
     showOutcomes,
-  );
+  });
 
   return { hasRunData, visibleGraph, retrySource, latestRows };
 }
@@ -177,22 +173,24 @@ function useSeek(
 
 /** What the scrubber itself shows. A null cursor means "follow the end", so it reads as the full history length rather than as position zero. */
 function scrubberView(
-  runStatus: string,
-  historyEvents: RunStreamEvent[],
-  replayCursor: number | null,
-  runIsLive: boolean,
+  input: Pick<
+    ReplayInput,
+    "runStatus" | "historyEvents" | "replayCursor" | "runIsLive"
+  >,
 ) {
+  const { runStatus, historyEvents, replayCursor, runIsLive } = input;
+
   return {
     scrubberVisible: computeScrubberVisible(runStatus, historyEvents.length),
     replayPosition: scrubberPositionLabel(
       historyEvents,
       replayCursor ?? historyEvents.length,
     ),
-    replayActive: computeReplayActive(
+    replayActive: computeReplayActive({
       runIsLive,
       replayCursor,
-      historyEvents.length,
-    ),
+      historyEventCount: historyEvents.length,
+    }),
   };
 }
 
@@ -212,13 +210,13 @@ function useReplayState(input: ReplayInput) {
 }
 
 export function useReplay(input: ReplayInput) {
-  const { runIsLive, runStatus, historyEvents } = input;
-  const { liveState, replayCursor, setReplayCursor } = input;
+  const { runIsLive, historyEvents } = input;
+  const { liveState, setReplayCursor } = input;
   const replayState = useReplayState(input);
 
   return {
-    displayState: pickDisplayState(runIsLive, liveState, replayState),
-    ...scrubberView(runStatus, historyEvents, replayCursor, runIsLive),
+    displayState: runIsLive ? liveState : replayState,
+    ...scrubberView(input),
     onCursorChange: setReplayCursor,
     onBackToLive: () => setReplayCursor(null),
     onSeek: useSeek(historyEvents, setReplayCursor),

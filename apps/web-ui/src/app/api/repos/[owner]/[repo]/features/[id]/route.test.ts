@@ -51,14 +51,14 @@ describe("GET feature poll authorization", () => {
 
   it("rejects a caller who cannot see the repo", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
-    userCanAccessRepo.mockResolvedValue(false);
+    userCanAccessRepo.mockResolvedValue(false); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
 
     expect((await GET(req, { params })).status).toBe(403);
   });
 
   it("reads nothing at all for an unauthorized caller, before the 404-probe lookup", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
-    userCanAccessRepo.mockResolvedValue(false);
+    userCanAccessRepo.mockResolvedValue(false); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
 
     await GET(req, { params });
 
@@ -67,7 +67,7 @@ describe("GET feature poll authorization", () => {
 
   it("checks access against the repo named in the path", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
-    userCanAccessRepo.mockResolvedValue(true);
+    userCanAccessRepo.mockResolvedValue(true); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
 
     await GET(req, { params });
 
@@ -76,7 +76,7 @@ describe("GET feature poll authorization", () => {
 
   it("proceeds to the feature lookup for an authorized caller", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
-    userCanAccessRepo.mockResolvedValue(true);
+    userCanAccessRepo.mockResolvedValue(true); // eslint-disable-line re-lint/no-flag-params -- stubs the access answer the route reads, not a behaviour the callee selects
 
     expect((await GET(req, { params })).status).toBe(404);
     expect(getFeatureStatus).toHaveBeenCalled();

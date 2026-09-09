@@ -6,10 +6,10 @@ import { FAMILY_KEY, SCHEME_KEY } from "./theme-core";
 
 type MediaListener = (e: { matches: boolean }) => void;
 
-function installMatchMedia(dark: boolean) {
+function installMatchMedia(scheme: "dark" | "light") {
   const listeners = new Set<MediaListener>();
   const mql = {
-    matches: dark,
+    matches: scheme === "dark",
     media: "(prefers-color-scheme: dark)",
     onchange: null,
     addEventListener: vi.fn((_: string, cb: MediaListener) =>
@@ -33,8 +33,8 @@ function installMatchMedia(dark: boolean) {
   return {
     matchMedia,
     mql,
-    setMatches(next: boolean) {
-      mql.matches = next;
+    setSystemScheme(next: "dark" | "light") {
+      mql.matches = next === "dark";
     },
     emit() {
       listeners.forEach((cb) => cb({ matches: mql.matches }));
@@ -82,7 +82,7 @@ afterEach(() => {
 
 describe("ThemeProvider seeding", () => {
   it("seeds family from window.__loreFamily when present", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
     window.__loreFamily = "retro";
     document.documentElement.setAttribute("data-theme-family", "elegant");
 
@@ -96,7 +96,7 @@ describe("ThemeProvider seeding", () => {
   });
 
   it("seeds family from the data-theme-family attribute when window global absent", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
     document.documentElement.setAttribute("data-theme-family", "retro");
 
     render(
@@ -109,7 +109,7 @@ describe("ThemeProvider seeding", () => {
   });
 
   it("falls back to the default elegant family when neither source is set", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
 
     render(
       <ThemeProvider>
@@ -121,7 +121,7 @@ describe("ThemeProvider seeding", () => {
   });
 
   it("seeds scheme from localStorage", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
     localStorage.setItem(SCHEME_KEY, "dark");
 
     render(
@@ -134,7 +134,7 @@ describe("ThemeProvider seeding", () => {
   });
 
   it("falls back to the default auto scheme when localStorage holds garbage", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
     localStorage.setItem(SCHEME_KEY, "sepia");
 
     render(
@@ -149,7 +149,7 @@ describe("ThemeProvider seeding", () => {
 
 describe("ThemeProvider DOM application", () => {
   it("writes both data attributes and the window global on mount", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
     window.__loreFamily = "retro";
     localStorage.setItem(SCHEME_KEY, "light");
 
@@ -165,7 +165,7 @@ describe("ThemeProvider DOM application", () => {
   });
 
   it("resolves auto scheme to dark when the OS prefers dark", () => {
-    installMatchMedia(true);
+    installMatchMedia("dark");
     localStorage.setItem(SCHEME_KEY, "auto");
 
     render(
@@ -179,7 +179,7 @@ describe("ThemeProvider DOM application", () => {
   });
 
   it("resolves auto scheme to light when the OS prefers light", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
     localStorage.setItem(SCHEME_KEY, "auto");
 
     render(
@@ -193,7 +193,7 @@ describe("ThemeProvider DOM application", () => {
   });
 
   it("honors an explicit dark scheme even when the OS prefers light", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
     localStorage.setItem(SCHEME_KEY, "dark");
 
     render(
@@ -209,7 +209,7 @@ describe("ThemeProvider DOM application", () => {
 
 describe("ThemeProvider setters", () => {
   it("updates the family state, DOM attribute, and localStorage on setFamily", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
 
     render(
       <ThemeProvider>
@@ -227,7 +227,7 @@ describe("ThemeProvider setters", () => {
   });
 
   it("updates the scheme state, DOM attribute, and localStorage on setScheme", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
 
     render(
       <ThemeProvider>
@@ -247,7 +247,7 @@ describe("ThemeProvider setters", () => {
 
 describe("ThemeProvider OS-auto media listener", () => {
   it("does not subscribe to media changes when the scheme is not auto", () => {
-    const media = installMatchMedia(false);
+    const media = installMatchMedia("light");
 
     localStorage.setItem(SCHEME_KEY, "light");
 
@@ -262,7 +262,7 @@ describe("ThemeProvider OS-auto media listener", () => {
   });
 
   it("subscribes while auto and reapplies dark when the OS flips to dark", () => {
-    const media = installMatchMedia(false);
+    const media = installMatchMedia("light");
 
     localStorage.setItem(SCHEME_KEY, "auto");
 
@@ -279,7 +279,7 @@ describe("ThemeProvider OS-auto media listener", () => {
     expect(schemeAttr()).toBe("light");
 
     act(() => {
-      media.setMatches(true);
+      media.setSystemScheme("dark");
       media.emit();
     });
 
@@ -287,7 +287,7 @@ describe("ThemeProvider OS-auto media listener", () => {
   });
 
   it("reapplies light through the listener when the OS flips back to light", () => {
-    const media = installMatchMedia(true);
+    const media = installMatchMedia("dark");
 
     localStorage.setItem(SCHEME_KEY, "auto");
 
@@ -300,7 +300,7 @@ describe("ThemeProvider OS-auto media listener", () => {
     expect(schemeAttr()).toBe("dark");
 
     act(() => {
-      media.setMatches(false);
+      media.setSystemScheme("light");
       media.emit();
     });
 
@@ -308,7 +308,7 @@ describe("ThemeProvider OS-auto media listener", () => {
   });
 
   it("removes the media change listener on unmount", () => {
-    const media = installMatchMedia(false);
+    const media = installMatchMedia("light");
 
     localStorage.setItem(SCHEME_KEY, "auto");
 
@@ -330,7 +330,7 @@ describe("ThemeProvider OS-auto media listener", () => {
   });
 
   it("tears down the old listener and re-subscribes when switching away from then back to auto", () => {
-    const media = installMatchMedia(false);
+    const media = installMatchMedia("light");
 
     localStorage.setItem(SCHEME_KEY, "auto");
 
@@ -356,7 +356,7 @@ describe("ThemeProvider OS-auto media listener", () => {
 
 describe("useTheme outside a provider", () => {
   it("throws a descriptive error when used without a ThemeProvider", () => {
-    installMatchMedia(false);
+    installMatchMedia("light");
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => render(<Consumer />)).toThrow(

@@ -54,7 +54,7 @@ function useInfiniteEvents(props: InfiniteEventsProps) {
   useEffect(() => {
     const node = sentinel.current;
 
-    if (!node || !canStartObserving(node, more, loading, failed)) {
+    if (!node || !canStartObserving(state)) {
       return;
     }
 
@@ -79,12 +79,9 @@ function initialPagerState({
 }
 
 function canStartObserving(
-  node: HTMLTableRowElement | null,
-  more: boolean,
-  loading: boolean,
-  failed: boolean,
+  pager: Pick<PagerState, "more" | "loading" | "failed">,
 ): boolean {
-  return !!node && more && !loading && !failed;
+  return pager.more && !pager.loading && !pager.failed;
 }
 
 /** Watches one row and fires once. The observer disconnects itself before `onHit` runs, so a slow load cannot be started twice for the same row; the effect that called this arms a fresh observer when the next page is wanted. Returns the effect's cleanup. */

@@ -3,20 +3,31 @@ import { type PodResources } from "@/lib/agents-form";
 
 const KNOWN_IDS = KNOWN_MODELS.map((m) => m.id);
 
-export function scopeNote(orgScope: boolean, inherited: boolean): string {
-  if (orgScope) {
+export function scopeNote(scope: {
+  orgScope: boolean;
+  inherited: boolean;
+}): string {
+  if (scope.orgScope) {
     return "This is the organisation default. Saving updates it for every repo without its own override.";
   }
 
-  if (inherited) {
+  if (scope.inherited) {
     return "These values are inherited from the organisation default. Saving creates a project agent for this repo; later edits update it.";
   }
 
   return "This is a project agent for this repo, overriding the organisation default.";
 }
 
-function resolveStartCustom(agent: AgentDefinition | null): boolean {
-  return !!agent?.model && !KNOWN_IDS.includes(agent.model);
+/** A custom model fills the free-text field and selects the custom option; a known one leaves the field empty and selects itself. */
+function resolveModelFields(agent: AgentDefinition | null) {
+  const model = agent?.model ?? "";
+  const startCustom = !!model && !KNOWN_IDS.includes(model);
+
+  return {
+    startCustom,
+    customModel: startCustom ? model : "",
+    initialSelection: startCustom ? "__custom__" : model,
+  };
 }
 
 function resolveNameAndMode(agent: AgentDefinition | null) {
@@ -33,32 +44,14 @@ function resolveReviewAndTimeout(agent: AgentDefinition | null) {
   };
 }
 
-function resolvePrompt(agent: AgentDefinition | null, isNew: boolean): string {
-  return isNew ? "" : (agent?.prompt ?? "");
-}
-
 function resolvePromptPlaceholder(agent: AgentDefinition | null): string {
   return agent?.prompt ?? "(inherit base prompt)";
 }
 
-function resolveCustomModel(
-  agent: AgentDefinition | null,
-  startCustom: boolean,
-): string {
-  return startCustom ? (agent?.model ?? "") : "";
-}
-
-function resolveInitialSelection(
-  agent: AgentDefinition | null,
-  startCustom: boolean,
-): string {
-  return startCustom ? "__custom__" : (agent?.model ?? "");
-}
-
 /** An org row carries no project_id; editing one forks a project agent rather than changing the org default in place. */
 function resolveInherited(
-  isNew: boolean,
   agent: AgentDefinition | null,
+  { isNew }: { isNew: boolean },
 ): boolean {
   return !isNew && (agent?.project_id == null || agent.project_id === "");
 }
@@ -69,8 +62,10 @@ function resolvePodResources(agent: AgentDefinition | null): PodResources {
 }
 
 /** Every field's starting value, resolved once. A blank field means "inherit the layer below", so the stored value becomes the PLACEHOLDER and the input itself stays empty — prefilling would silently promote an inherited value into an override on the next save. */
-export function agentFormValues(agent: AgentDefinition | null, isNew: boolean) {
-  const startCustom = resolveStartCustom(agent);
+export function agentFormValues(
+  agent: AgentDefinition | null,
+  { isNew }: { isNew: boolean },
+) {
   const { name, executionMode } = resolveNameAndMode(agent);
   const { reviewRequired, timeoutMinutes } = resolveReviewAndTimeout(agent);
 
@@ -79,12 +74,10 @@ export function agentFormValues(agent: AgentDefinition | null, isNew: boolean) {
     executionMode,
     reviewRequired,
     timeoutMinutes,
-    prompt: resolvePrompt(agent, isNew),
+    prompt: isNew ? "" : (agent?.prompt ?? ""),
     promptPlaceholder: resolvePromptPlaceholder(agent),
-    startCustom,
-    customModel: resolveCustomModel(agent, startCustom),
-    initialSelection: resolveInitialSelection(agent, startCustom),
-    inherited: resolveInherited(isNew, agent),
+    ...resolveModelFields(agent),
+    inherited: resolveInherited(agent, { isNew }),
     podResources: resolvePodResources(agent),
   };
 }

@@ -42,7 +42,7 @@ function lastStringId(page: readonly unknown[]): string | null {
 // Floor's `hasMore` is authoritative when present; absent (deploy skew, #1310 fallback), falls back to the short-page rule.
 export function nextTurnsCursor(
   page: readonly unknown[],
-  hasMore?: boolean,
+  { hasMore }: { hasMore?: boolean } = {},
 ): string | null {
   if (hasMore === false) {
     return null;
@@ -63,7 +63,7 @@ export function parseHasMore(body: { hasMore?: unknown }): boolean | undefined {
 // Whether the server reports rows past this page (Floor's flag, else length inference); alone decides the cap notice — a stop while true is a silent truncation.
 export function serverReportsMore(
   page: readonly unknown[],
-  hasMore?: boolean,
+  { hasMore }: { hasMore?: boolean } = {},
 ): boolean {
   return hasMore ?? page.length >= TURNS_PAGE_LIMIT;
 }

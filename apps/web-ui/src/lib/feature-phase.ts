@@ -140,10 +140,6 @@ function roundSettledFailed(
   return task?.status === "failed" || latest?.status === "failed";
 }
 
-function unusableRound(ready: boolean, taskActive: boolean): boolean {
-  return !ready && !taskActive;
-}
-
 function isRoundPlanning(
   latest: FeaturePhaseInput["latestIteration"],
 ): boolean {
@@ -161,7 +157,7 @@ function phaseFromRound(input: FeaturePhaseInput): FeaturePhase {
     return { kind: "failed" };
   }
 
-  if (unusableRound(isRoundReady(latest), isTaskActive(task))) {
+  if (!isRoundReady(latest) && !isTaskActive(task)) {
     return { kind: "failed" };
   }
 

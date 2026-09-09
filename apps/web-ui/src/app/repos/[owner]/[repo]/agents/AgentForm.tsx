@@ -19,7 +19,7 @@ export type AgentFormAction = (
   fd: FormData,
 ) => Promise<AgentFormState>;
 
-/** Agent create/edit form; org editing forks to project agent (upserts via saveAgent). */
+/** Agent create/edit form; org editing forks to project agent (upserts via updateAgent). */
 interface AgentFormProps {
   repo: string;
   agent: AgentDefinition | null;
@@ -113,7 +113,8 @@ function ExecutionFields({
 export default function AgentForm(props: AgentFormProps) {
   const { repo, agent, isNew, defaultImage, orgScope = false } = props;
   const [state, formAction] = useActionState(props.action, {});
-  const values = { ...agentFormValues(agent, isNew), repo, isNew, orgScope };
+  const formValues = agentFormValues(agent, { isNew });
+  const values = { ...formValues, repo, isNew, orgScope };
   const [model, setModel] = useState(values.initialSelection);
 
   return (

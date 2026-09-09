@@ -96,14 +96,13 @@ function mockupTitle(mockup: GapMockup, index: number): string {
 }
 
 function frameHeight(
-  isMermaid: boolean,
-  mermaidSvg: string | null,
-  mockup: GapMockup,
+  frame: Pick<MockupFrameProps, "isMermaid" | "mermaidSvg" | "mockup">,
 ): number {
+  const { isMermaid, mermaidSvg } = frame;
   const fromMermaid =
     isMermaid && mermaidSvg ? mermaidFrameHeight(mermaidSvg) : null;
 
-  return fromMermaid ?? mockupHeight(mockup);
+  return fromMermaid ?? mockupHeight(frame.mockup);
 }
 
 interface MockupFrameProps {
@@ -135,7 +134,7 @@ function MockupFrame(props: MockupFrameProps) {
       sandbox=""
       srcDoc={mockupFrameSrcdoc(clean, stylesheet)}
       title={mockupTitle(mockup, index)}
-      height={frameHeight(isMermaid, mermaidSvg, mockup)}
+      height={frameHeight(props)}
       style={FRAME_STYLE}
     />
   );

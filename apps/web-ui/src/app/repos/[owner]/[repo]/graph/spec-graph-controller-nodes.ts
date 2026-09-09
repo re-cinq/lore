@@ -1,6 +1,7 @@
 import * as d3 from "d3";
 import { settleTicks, countCrossings } from "@/lib/graph-layout";
 import type { GraphController } from "./spec-graph-controller-types";
+import type { PreparedGraphLayout } from "./spec-graph-data-prep";
 import { drawState } from "./spec-graph-controller-types";
 import {
   idOf,
@@ -113,9 +114,9 @@ export function measureCrossings(c: GraphController): void {
 // Pre-warm fresh layouts headless, start at alpha 0 for settled positions on first paint.
 function prewarmIfFresh(
   c: GraphController,
-  restoredFromStorage: boolean,
+  layout: Pick<PreparedGraphLayout, "restoredFromStorage">,
 ): void {
-  if (restoredFromStorage) {
+  if (layout.restoredFromStorage) {
     return;
   }
   const warm = settleTicks(c.nodes.length);
@@ -269,7 +270,7 @@ function rebuildIndexes(
 
 export function update(
   c: GraphController,
-  restoredFromStorage: boolean,
+  layout: Pick<PreparedGraphLayout, "restoredFromStorage">,
   bindFilter: (fn: (q: string) => void) => void,
   coverageTint: (t: number) => string,
 ): void {
@@ -279,7 +280,7 @@ export function update(
   c.linkForce.links(c.links);
   joinNodeGroups(c, coverageTint);
   rebuildIndexes(c, bindFilter);
-  prewarmIfFresh(c, restoredFromStorage);
+  prewarmIfFresh(c, layout);
   sim.alpha(0).restart();
 
   highlightOrDraw(c);

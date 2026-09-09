@@ -22,22 +22,20 @@ function ToggleOption({ label, pressed, onSelect }: ToggleOptionProps) {
 
 interface LogFormatToggleProps {
   raw: boolean;
-  onChange: (raw: boolean) => void;
+  onFormatted: () => void;
+  onRaw: () => void;
 }
 
 /** Raw/Formatted segmented control for the log viewers. Stateless (DDAU). */
 export default function LogFormatToggle({
   raw,
-  onChange,
+  onFormatted,
+  onRaw,
 }: LogFormatToggleProps) {
   return (
     <span className={styles.group}>
-      <ToggleOption
-        label="Formatted"
-        pressed={!raw}
-        onSelect={() => onChange(false)}
-      />
-      <ToggleOption label="Raw" pressed={raw} onSelect={() => onChange(true)} />
+      <ToggleOption label="Formatted" pressed={!raw} onSelect={onFormatted} />
+      <ToggleOption label="Raw" pressed={raw} onSelect={onRaw} />
     </span>
   );
 }
