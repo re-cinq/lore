@@ -7,23 +7,6 @@ import {
   type QueryTraceArgs,
 } from "@re-cinq/lore-server-core/features/spec-trace/query-trace.js";
 
-/** Reads one spec's coverage, the call graph around a symbol, or the tests covering a source span. */
-function queryTrace(args: QueryTraceArgs): Promise<string> {
-  return runQueryTrace(args, {
-    proxyGet: traceGet(args),
-    detectRepo: detectCurrentRepo,
-  });
-}
-
-// A spec read is stable between CI reprojections; an overlay and a failure list both change under the caller mid-run, so those reads go uncached.
-function traceGet(args: QueryTraceArgs) {
-  return isLiveRead(args) ? proxyGetApi : cachedTraceGet(args.repo);
-}
-
-function isLiveRead(args: QueryTraceArgs): boolean {
-  return Boolean(args.tests_covering || args.failures_touching);
-}
-
 const QUERY_TRACE_INPUT = {
   spec: z
     .string()
@@ -94,6 +77,24 @@ export function registerSpecTraceTools(server: McpServer) {
     QUERY_TRACE_INPUT,
     async (args) => textResult(await queryTrace(args)),
   );
+}
+
+/** Reads one spec's coverage, the call graph around a symbol, or the tests covering a source span. */
+function queryTrace(args: QueryTraceArgs): Promise<string> {
+  return runQueryTrace(args, {
+    proxyGet: traceGet(args),
+    detectRepo: detectCurrentRepo,
+  });
+}
+
+function traceGet(args: QueryTraceArgs) {
+  return isLiveRead(args) ? proxyGetApi : cachedTraceGet(args.repo);
+}
+
+// A spec read is stable between CI reprojections; an overlay and a failure list both change under the caller mid-run, so those reads go uncached.
+
+function isLiveRead(args: QueryTraceArgs): boolean {
+  return Boolean(args.tests_covering || args.failures_touching);
 }
 
 /** Cached for 10 minutes and keyed on the PATH alone, deliberately: the graph is reprojected by CI on push, so within a working session the same spec gives the same answer. */
