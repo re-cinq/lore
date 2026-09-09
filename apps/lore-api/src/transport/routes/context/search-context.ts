@@ -85,7 +85,8 @@ function toWire(result: SearchResult) {
 
   return {
     content: result.content,
-    score: result.rrf_score,
+    // pg returns numeric as a STRING. Passed through, the wire says `score: "0.0163…"` while the schema promises a number, and the adapter's renderer calls .toFixed on it and throws.
+    score: Number(result.rrf_score),
     source_path: typeof filePath === "string" ? filePath : null,
   };
 }
