@@ -1,6 +1,6 @@
 // When a spec PR merges, resumes the line waiting for it. Replaces decideDecomposeKick, whose task-type predicate silently stopped matching once the owning task became feature-planning — no feature on the merged line was ever decomposed (specs/6-dark-factory FR6.32). Nothing here mints anything; the line parks on a `merged` wait node after push, and merging is that node's outcome.
 
-import type { EventReporter } from "../events/event-queue-port.js";
+import type { EventReporter } from "../events/event-reporter-port.js";
 import type { AssemblyRunsPort } from "./assembly-runs-port.js";
 import type { RunGraph } from "../../../domain/run-graph.js";
 import {

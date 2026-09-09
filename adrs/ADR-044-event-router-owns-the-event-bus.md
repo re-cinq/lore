@@ -139,30 +139,41 @@ carries a `dedupeKey`, which is what makes repeating one safe.
 
 ### The router serves the drain loop
 
-The Floor drains a queue it neither owns nor writes to. Six endpoints, matching
-exactly the calls the loop and its reaper make — and no endpoint here writes an
-event, because producing and draining are different privileges even when one
-process happens to do both.
+The Floor drains a queue it neither owns nor writes to. The drain endpoints
+match exactly the calls the loop and its reaper make — and no endpoint here
+writes an event, because producing and draining are different privileges even
+when one process happens to do both.
 
-- A claim hands the caller a batch. ([validated by hands a claimed batch to the caller that asked for it](apps/event-router/src/transport/routes/event-queue.test.ts#L27))
+*(Amended 2026-09-09: the drained row is a `pipeline.event_deliveries` row,
+one per subscriber, never `pipeline.events` itself. The original per-event
+claim surface — `/api/events/claim|ack|fail|dead|reap|prune`, its
+`EventQueueRepository` port and the `status`/`attempts`/`claimed_at`/
+`next_attempt_at`/`handled_at`/`error` columns on `pipeline.events` — was
+deleted once the delivery table took over. The columns had outlived their
+last writer: every event ever captured sat at the default `pending`, and on
+2026-09-09 a query grouping on that column reported a week of history as a
+104,000-row undrained backlog. `pipeline.events` now records only WHAT was
+captured; whether it was handled is a question for its deliveries.)*
+
+- A claim hands the subscriber a batch of its own deliveries. ([validated by registers a subscription and claims back the event it asked for](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L46))
 - The atomicity is unchanged: `FOR UPDATE SKIP LOCKED` is still one statement,
   now on the router's side of the call, so two drainers claiming at once still
-  receive disjoint batches. ([validated by claims nothing twice, so two drainers cannot run the same event](apps/event-router/src/transport/routes/event-queue.test.ts#L45))
+  receive disjoint batches. ([validated by hands out a delivery once, then not again while it is in flight](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L116))
 - A busy serial family can be held back at claim time, so its waiting rows stay
   `pending` rather than being parked in `processing` and reaped as presumed
-  dead. ([validated by holds back an excluded event name](apps/event-router/src/transport/routes/event-queue.test.ts#L65))
-- An acked event is not handed out again. ([validated by marks a claimed event done](apps/event-router/src/transport/routes/event-queue.test.ts#L81))
-- A failed event returns for another attempt after its backoff. ([validated by fails a claimed event back for another attempt after its backoff](apps/event-router/src/transport/routes/event-queue.test.ts#L95))
-- Dead-lettering is its own endpoint, not a flag on failure: whether an event
+  dead. ([validated by holds back an excluded name, and leaves it claimable once it is not](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L139))
+- An acked delivery is not handed out again. ([validated by acks a delivery so it is not handed out again](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L70))
+- A failed delivery returns for another attempt after its backoff. ([validated by fails a delivery back for another attempt after its backoff](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L83))
+- Dead-lettering is its own endpoint, not a flag on failure: whether a delivery
   has run out of attempts is the DRAINER's judgement, and folding the two
   together would move that decision to a service that does not know the retry
-  budget. ([validated by dead-letters an event that has run out of attempts](apps/event-router/src/transport/routes/event-queue.test.ts#L110))
-- The reaper recovers rows a crashed claimer left in flight, and prunes handled
-  ones. ([validated by reaps rows a crashed claimer left in flight](apps/event-router/src/transport/routes/event-queue.test.ts#L125), [`event-queue.test.ts:141`](apps/event-router/src/transport/routes/event-queue.test.ts#L141))
-- Draining requires the same token reporting does. ([validated by refuses to hand out a batch to a caller with no token](apps/event-router/src/transport/routes/event-queue.test.ts#L153), [`event-queue.test.ts:163`](apps/event-router/src/transport/routes/event-queue.test.ts#L163))
+  budget. ([validated by dead-letters a delivery that has run out of attempts](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L96))
+- The reaper recovers deliveries a crashed claimer left in flight, and prunes
+  handled ones. ([validated by reaps a delivery its claimer never finished](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L107), [`event-deliveries.contract.test.ts:295`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L295))
+- Draining requires the same token reporting does. ([validated by refuses every delivery route to a caller with no token](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L126))
 - The client and the routes are two halves of one contract written apart, so
   they are exercised against each other rather than each against its own idea
-  of the other. ([validated by reports an event and claims it back](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L46), [`event-queue-roundtrip.test.ts:54`](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L54), [`event-queue-roundtrip.test.ts:63`](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L63), [`event-queue-roundtrip.test.ts:72`](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L72), [`event-queue-roundtrip.test.ts:81`](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L81), [`event-queue-roundtrip.test.ts:90`](apps/event-router/src/transport/routes/event-queue-roundtrip.test.ts#L90))
+  of the other. ([validated by carries the declared timeout across the wire onto the delivery](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L59), [`event-deliveries-roundtrip.test.ts:118`](apps/event-router/src/transport/routes/event-deliveries-roundtrip.test.ts#L118))
 
 ### Every other producer reports through the router
 

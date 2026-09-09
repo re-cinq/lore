@@ -3623,10 +3623,9 @@ export interface components {
         params: {
           [key: string]: unknown;
         };
-        /** @enum {string} */
-        status: "pending" | "processing" | "done" | "failed" | "dead";
         /** Format: date-time */
         captured_at: string;
+        status: string;
       }[];
     };
     RepoIssueCreated: {

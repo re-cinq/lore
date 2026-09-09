@@ -828,7 +828,11 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   `GET /api/repos/{owner}/{repo}/activity-counts` (7-day tasks,
   auto-merges and escalations). A count the database cannot answer is
   NULL, never zero: an unmigrated cluster must not render as "nothing
-  happened", and no dashboard figure may take its page down. ([validated by `activity.test.ts:31`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L31), [`activity.test.ts:35`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L35), [`activity.test.ts:49`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L49), [`activity.test.ts:60`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L60), [`activity.test.ts:70`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L70), [`activity.test.ts:83`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L83), [`activity.test.ts:94`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L94), [`activity.test.ts:98`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L98), [`activity.test.ts:112`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L112), [`activity.test.ts:125`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L125), [`activity.test.ts:135`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L135), [`activity.test.ts:148`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L148))
+  happened", and no dashboard figure may take its page down. ([validated by `activity.test.ts:31`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L31), [`activity.test.ts:35`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L35), [`activity.test.ts:49`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L49), [`activity.test.ts:60`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L60), [`activity.test.ts:70`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L70), [`activity.test.ts:83`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L83), [`activity.test.ts:111`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L111), [`activity.test.ts:115`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L115), [`activity.test.ts:129`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L129), [`activity.test.ts:142`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L142), [`activity.test.ts:152`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L152), [`activity.test.ts:165`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L165))
+- The `status` an event shows on the repo page is the Floor's DELIVERY of
+  it, read from `pipeline.event_deliveries`, and an event no subscriber
+  ever received reads `undelivered` — `pipeline.events` itself carries no
+  status (ADR-044 amendment 2026-09-09). ([validated by `activity.test.ts:94`](apps/lore-api/src/transport/routes/analytics/activity.test.ts#L94))
 
 - FR-19.21: lore-api serves the memory browse reads under the `read`
   scope — `GET /api/graph-browse` (counts, type breakdown, entity list,
@@ -1110,13 +1114,11 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
 - FR-20.4: The task-list surface returns the repo's pending tasks as
   typed `Task` wrappers and reflects the new status after `cancel()`.
   ([validated by `task-list.test.ts:114`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L109), [`task-list.test.ts:126`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L126))
-- FR-20.5: The `EventQueue` port claims runnable rows with `FOR UPDATE
-SKIP LOCKED` incrementing attempts (oldest-first, flipping to
-  processing), collapses a redelivery sharing a dedupe key, truncates the
-  error and applies the backoff on `markFailed` (a failed row becomes
-  claimable only after the backoff elapses), resets timed-out processing
-  rows to failed on `reapStuck`, and prunes handled/terminal rows past
-  the window — returning affected-row counts. ([validated by `event-queue.test.ts:8`](libs/shared/src/outbound/project/events/event-queue.test.ts#L8), [`event-queue.test.ts:33`](libs/shared/src/outbound/project/events/event-queue.test.ts#L33), [`event-queue.test.ts:42`](libs/shared/src/outbound/project/events/event-queue.test.ts#L42), [`event-queue.test.ts:49`](libs/shared/src/outbound/project/events/event-queue.test.ts#L49), [`event-queue.test.ts:61`](libs/shared/src/outbound/project/events/event-queue.test.ts#L61), [`event-queue.test.ts:80`](libs/shared/src/outbound/project/events/event-queue.test.ts#L80), [`event-queue.test.ts:118`](libs/shared/src/outbound/project/events/event-queue.test.ts#L118), [`event-queue.test.ts:133`](libs/shared/src/outbound/project/events/event-queue.test.ts#L133), [`event-queue.test.ts:155`](libs/shared/src/outbound/project/events/event-queue.test.ts#L155))
+- FR-20.5: The `EventReporter` port is the produce side of `pipeline.events`
+  and nothing more: `insert` writes through the shared idempotent statement
+  and collapses a redelivery sharing a dedupe key. Claiming, acking,
+  failing with backoff, reaping and pruning happen on the subscriber's own
+  `pipeline.event_deliveries` row (ADR-044), never on the event. ([validated by `event-reporter.test.ts:9`](libs/shared/src/outbound/project/events/event-reporter.test.ts#L9), [`event-reporter.test.ts:26`](libs/shared/src/outbound/project/events/event-reporter.test.ts#L26), [`event-reporter.test.ts:55`](libs/shared/src/outbound/project/events/event-reporter.test.ts#L55), [`event-deliveries.contract.test.ts:116`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L116), [`event-deliveries.contract.test.ts:152`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L152), [`event-deliveries.contract.test.ts:203`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L203), [`event-deliveries.contract.test.ts:295`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L295))
 - FR-20.6: The `Chunks` knowledge-store port checks schema existence via
   `information_schema`, counts/inserts/deletes chunks within an
   interpolated (injection-rejecting) schema, sets the caller-formatted

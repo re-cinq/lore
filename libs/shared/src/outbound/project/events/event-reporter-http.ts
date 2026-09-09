@@ -1,14 +1,14 @@
 // Event reporting over HTTP: pool-less producers in unreachable locations; errors NOT swallowed.
 
 import type { EventInsert } from "../../events.js";
-import type { EventQueueRepository } from "./event-queue-port.js";
+import type { EventReporter } from "./event-reporter-port.js";
 import { bearerJsonHeaders } from "../lib/http-auth.js";
 
 /** Timeout long enough for router load, short enough to release wedged producers. */
 const TIMEOUT_MS = 15_000;
 
-/** Producer half of EventQueueRepository over HTTP; HttpEventQueue extends for drainer. */
-export class HttpEventReporter implements Pick<EventQueueRepository, "insert"> {
+/** EventReporter over HTTP; HttpEventDeliveries extends it so a drainer does not duplicate insert. */
+export class HttpEventReporter implements EventReporter {
   /** Token may be function for rotating credentials (satellite cluster-agent, FR5). */
   constructor(
     private readonly baseUrl: string,
