@@ -148,13 +148,14 @@ describe("the implementation-tdd recipe", () => {
     }
   });
 
-  it("tells no delivering recipe to run the repository's format step, because CI runs it on the pull request", () => {
+  it("tells every delivering recipe to fix and format the files it changed, scoped, before committing", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
 
-      expect(prompt, name).not.toContain("OWN format/fix step");
+      expect(prompt, name).toContain("fix/format step OVER THE");
+      expect(prompt, name).toContain("not the whole repo");
     }
   });
 
