@@ -33,7 +33,9 @@ fi
 running_image=$(kubectl -n "$NS" get "deployment/${DEPLOY}" \
   -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
 run_url="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID:-unknown}"
-title="Deploy failed: ${SUBCHART} is not running ${TAG}"
+# Tag-free on purpose: the title is the dedupe key across later failures of
+# the same service, each of which carries a new tag (the body names it).
+title="Deploy failed: ${SUBCHART} is running an older image than main"
 body=$(
   cat <<EOF
 The \`${SUBCHART}\` deploy of \`${TAG}\` failed, so \`${DEPLOY}\` (namespace \`${NS}\`) keeps serving its previous image while \`main\` already carries the new code.

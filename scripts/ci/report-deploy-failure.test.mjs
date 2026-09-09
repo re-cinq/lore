@@ -72,9 +72,14 @@ test("files a new deploy-failed issue naming the requested tag and the running i
 
   assert.match(
     calls,
-    /gh issue create --repo re-cinq\/lore --title Deploy failed: lore-floor is not running abc1234 --label deploy-failed --body/,
+    /gh issue create --repo re-cinq\/lore --title Deploy failed: lore-floor is running an older image than main --label deploy-failed --body/,
   );
   assert.match(calls, /ghcr\.io\/re-cinq\/lore-floor:old1234/);
+  assert.match(calls, /requested tag \| `abc1234`/);
+  assert.match(
+    calls,
+    /gh issue list --repo re-cinq\/lore --state open --label deploy-failed --search "Deploy failed: lore-floor is running an older image than main" in:title/,
+  );
   assert.match(
     calls,
     /https:\/\/github\.com\/re-cinq\/lore\/actions\/runs\/42/,
