@@ -292,6 +292,17 @@ describe("parseAgentLog", () => {
     expect(parseAgentLog(redacted)).toEqual([]);
   });
 
+  it("keeps a turn whose block type names an Object prototype member as a raw entry", () => {
+    const prototypeName = JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "constructor", text: "hi" }] },
+    });
+
+    expect(parseAgentLog(prototypeName)).toEqual([
+      { kind: "raw", text: prototypeName },
+    ]);
+  });
+
   it("keeps a turn whose content block is of an unknown type as a raw entry", () => {
     const unknownBlock = JSON.stringify({
       type: "assistant",

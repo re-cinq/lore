@@ -174,23 +174,23 @@ function toolResultBlockEntry(block: Record<string, unknown>): LogEntry {
   };
 }
 
-const ENTRY_BY_BLOCK_TYPE: Record<
+// A Map because the key is the agent's own `block.type`: an object literal answers `constructor` off Object.prototype, so an unknown block type would read as a known one and be called.
+const ENTRY_BY_BLOCK_TYPE = new Map<
   string,
-  | ((block: Record<string, unknown>, role: unknown) => LogEntry | null)
-  | undefined
-> = {
-  thinking: (block) => thinkingBlockEntry(block),
-  text: (block, role) => textBlockEntry(block, role),
-  tool_use: (block) => toolUseBlockEntry(block),
-  tool_result: (block) => toolResultBlockEntry(block),
-};
+  (block: Record<string, unknown>, role: unknown) => LogEntry | null
+>([
+  ["thinking", (block) => thinkingBlockEntry(block)],
+  ["text", (block, role) => textBlockEntry(block, role)],
+  ["tool_use", (block) => toolUseBlockEntry(block)],
+  ["tool_result", (block) => toolResultBlockEntry(block)],
+]);
 
 function blockEntry(block: unknown, role: unknown): LogEntry | null {
   if (!isRecord(block)) {
     return null;
   }
 
-  const entry = ENTRY_BY_BLOCK_TYPE[String(block.type)];
+  const entry = ENTRY_BY_BLOCK_TYPE.get(String(block.type));
 
   return entry ? entry(block, role) : null;
 }
@@ -220,9 +220,7 @@ function everyBlockKnown(blocks: readonly unknown[]): boolean {
   return (
     blocks.length > 0 &&
     blocks.every(
-      (block) =>
-        isRecord(block) &&
-        ENTRY_BY_BLOCK_TYPE[String(block.type)] !== undefined,
+      (block) => isRecord(block) && ENTRY_BY_BLOCK_TYPE.has(String(block.type)),
     )
   );
 }
