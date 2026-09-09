@@ -47,4 +47,26 @@ describe("mapCiTests", () => {
       error: "missing commit",
     });
   });
+
+  it("carries the assembly run id into the event payload so the ingest can pick an overlay", () => {
+    const mapped = mapCiTests({
+      repo: "o/r",
+      commit: "abc",
+      branch: "lore/impl/issue-9",
+      assemblyRunId: "run-42",
+    });
+
+    expect(mapped).toMatchObject({
+      ok: true,
+      events: [
+        {
+          params: {
+            repo: "o/r",
+            kind: "test-report",
+            payload: { assemblyRunId: "run-42", branch: "lore/impl/issue-9" },
+          },
+        },
+      ],
+    });
+  });
 });
