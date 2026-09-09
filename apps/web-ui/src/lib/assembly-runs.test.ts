@@ -101,6 +101,8 @@ describe("toAssemblyRunNode", () => {
       commit_sha: "deadbeef",
       started_at: "2026-07-14T10:00:05Z",
       finished_at: "2026-07-14T10:01:05Z",
+      status: "running",
+      claimed_at: null,
     };
 
     expect(toAssemblyRunNode(row)).toEqual({
@@ -127,6 +129,8 @@ describe("toAssemblyRunNode", () => {
         commit_sha: null,
         started_at: "2026-07-14T10:00:05Z",
         finished_at: null,
+        status: "running",
+        claimed_at: null,
       }).durationSeconds,
     ).toBeNull();
   });

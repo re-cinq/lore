@@ -1,0 +1,161 @@
+/* The transcript as a terminal block — every size and colour is a theme token, so it sits with the rest of the app in each family. */
+
+.hint {
+  margin: 0;
+  padding: 0 0.6rem 0.35rem;
+  font-size: var(--fs-xs);
+}
+
+.toggleRow {
+  padding: 0 0.6rem 0.35rem;
+}
+
+.placeholder {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+}
+
+.error {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  font-size: var(--fs-xs);
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.notice {
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  font-size: var(--fs-xs);
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-top: 1px solid var(--warning);
+}
+
+/* Raw mode: one envelope per turn, folded. */
+.turns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.turn {
+  padding: 0.35rem 0.6rem;
+  border-top: 1px solid var(--border);
+}
+.turnSummary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--text-muted);
+}
+.kind {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent);
+}
+.iteration {
+  border-radius: 999px;
+  padding: 0 0.4rem;
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+}
+.envelope {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem;
+  max-height: 24rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+}
+
+/* Conversation mode: the terminal. */
+.terminal {
+  list-style: none;
+  margin: 0.25rem 0.6rem 0.6rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+}
+.row,
+.segmentRow {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.1rem 0;
+}
+.segmentRow {
+  margin-top: 0.6rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--border);
+}
+.segmentRow:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.time {
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  white-space: nowrap;
+}
+.body {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.segmentLabel {
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: var(--fs-2xs);
+}
+.tool {
+  color: var(--accent);
+}
+.toolError {
+  color: var(--danger);
+}
+.resultPeek {
+  color: var(--text-muted);
+}
+.thinking,
+.system,
+.dim {
+  color: var(--text-muted);
+}
+.thinking {
+  font-style: italic;
+}
+.summary {
+  cursor: pointer;
+}
+.resultBody {
+  margin: 0.3rem 0 0.5rem 1rem;
+  padding: 0.4rem 0.5rem;
+  max-height: 24rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text);
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+}

@@ -1,32 +1,19 @@
+import type { components } from "./api/schema";
 import { num, record, str } from "./json-field";
 
-// Mirrors AgentRunEventRow (isolated build + drift detection); createdAt divergence is structural (revisit per #1419).
-export type AgentRunEventType =
-  | "init"
-  | "message"
-  | "thinking"
-  | "tool_call"
-  | "tool_result"
-  | "result"
-  | "hook";
+/** The one multiplexed run stream's frame, as lore-api publishes it (ADR-037 amendment 2026-09): generated from the OpenAPI contract, so there is no hand mirror to drift. */
+export type RunStreamFrame = components["schemas"]["RunStreamFrame"];
 
-export interface RunStreamEvent {
-  id: string;
-  taskId: string;
-  agentCrName: string | null;
-  assemblyLineId: string | null;
-  stationRunId: string | null;
-  nodeId: string | null;
-  iteration: number | null;
-  eventType: AgentRunEventType;
-  toolName: string | null;
-  toolUseId: string | null;
-  isError: boolean;
-  filePaths: string[];
-  summary: string | null;
-  payload: Record<string, unknown>;
-  createdAt: string;
-}
+export type AgentEventFrame = Extract<RunStreamFrame, { type: "agent_event" }>;
+export type NodeStatusFrame = Extract<RunStreamFrame, { type: "node_status" }>;
+export type RunStatusFrame = Extract<RunStreamFrame, { type: "run_status" }>;
+export type TaskEventFrame = Extract<RunStreamFrame, { type: "task_event" }>;
+export type CiCheckFrame = Extract<RunStreamFrame, { type: "ci_check" }>;
+
+/** One projected agent event — the `agent_event` frame's payload, and the shape the history endpoint pages. */
+export type RunStreamEvent = AgentEventFrame["event"];
+
+export type AgentRunEventType = RunStreamEvent["eventType"];
 
 const EVENT_TYPES: ReadonlySet<string> = new Set<AgentRunEventType>([
   "init",
@@ -36,6 +23,16 @@ const EVENT_TYPES: ReadonlySet<string> = new Set<AgentRunEventType>([
   "tool_result",
   "result",
   "hook",
+]);
+
+/** The frame types the reducers know; anything else is dropped for forward-compatibility. */
+const FRAME_TYPES: ReadonlySet<string> = new Set<RunStreamFrame["type"]>([
+  "agent_event",
+  "node_status",
+  "run_status",
+  "task_event",
+  "ci_check",
+  "catchup_complete",
 ]);
 
 function isEventType(value: string | null): value is AgentRunEventType {
@@ -91,4 +88,55 @@ function optionalEventFields(
     summary: str(body.summary),
     payload: record(body.payload),
   };
+}
+
+/** The key each state family must carry to be applicable; a frame missing it is dropped rather than applied half-formed. */
+const FRAME_KEYS: Record<
+  Exclude<RunStreamFrame["type"], "agent_event">,
+  [string, string]
+> = {
+  node_status: ["node", "node_id"],
+  run_status: ["run", "id"],
+  task_event: ["event", "id"],
+  ci_check: ["check", "repo"],
+  catchup_complete: ["last_id", ""],
+};
+
+function hasKey(
+  body: Record<string, unknown>,
+  [member, field]: [string, string],
+): boolean {
+  if (field === "") {
+    return str(body[member]) !== null;
+  }
+
+  return str(record(body[member])[field]) !== null;
+}
+
+/** Parse one SSE frame's data. An agent event is validated field by field (it feeds the reducer's fold); the state families are checked for their key and otherwise trusted, since they are re-sent whole on every reconnect. */
+export function parseRunStreamFrame(raw: string): RunStreamFrame | null {
+  try {
+    return classifyFrame(record(JSON.parse(raw)));
+  } catch {
+    return null;
+  }
+}
+
+function classifyFrame(body: Record<string, unknown>): RunStreamFrame | null {
+  const type = str(body.type);
+
+  if (type === null || !FRAME_TYPES.has(type)) {
+    return null;
+  }
+
+  if (type === "agent_event") {
+    const event = parseRunStreamRow(body.event);
+
+    return event === null ? null : { type, event };
+  }
+  const kind = type as keyof typeof FRAME_KEYS;
+
+  return hasKey(body, FRAME_KEYS[kind])
+    ? (body as unknown as RunStreamFrame)
+    : null;
 }

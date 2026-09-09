@@ -14,7 +14,7 @@
 .terminal {
   background: var(--bg);
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   line-height: 1.5;
   padding: 16px;

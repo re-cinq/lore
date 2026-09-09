@@ -100,6 +100,16 @@ export interface PullStats {
   created_at: string;
 }
 
+/** One changed file on a PR: what GitHub's files listing knows about it, patch included (null for binaries and files past GitHub's diff cap). */
+export interface PullFileChange {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch: string | null;
+  previousFilename?: string;
+}
+
 /** Everything a pull request needs at creation beyond its branch. */
 export interface PullDraft {
   title: string;
@@ -159,6 +169,8 @@ export interface PullRequestsPort {
   ciConclusion(repo: string, ref: string): Promise<CiConclusion>;
   /** Every changed filename on a PR, paginated so auto-merge's path gate can't silently truncate a large PR at one API page. */
   listFiles(repo: string, number: number): Promise<string[]>;
+  /** Every changed file with status, line counts and unified patch — the same paginated read as listFiles, kept whole. */
+  listFileChanges(repo: string, number: number): Promise<PullFileChange[]>;
   /** Every check run for a ref, paginated raw — the gate predicate (stricter than ciConclusion) stays in the caller. */
   listChecks(repo: string, ref: string): Promise<CheckRun[]>;
   /** Every review thread on a PR — GraphQL, since resolution has no REST read. */

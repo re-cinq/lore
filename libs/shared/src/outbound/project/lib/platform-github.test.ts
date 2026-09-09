@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PlatformGitHub } from "./platform-github.js";
 
+interface FakeFile {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string;
+  previous_filename?: string;
+}
+
 const state: {
-  files: Array<{ filename: string }>;
+  files: FakeFile[];
   checkRuns: Array<{
     name: string;
     status: string;
@@ -183,11 +192,59 @@ describe("PlatformGitHub paginated reads + helpers", () => {
   it("listFiles returns every changed filename (paginated past one page)", async () => {
     state.files = Array.from({ length: 31 }, (_, i) => ({
       filename: `src/f${i}.ts`,
+      status: "modified",
+      additions: 1,
+      deletions: 0,
     }));
     const files = await gh().listFiles("re-cinq/lore", 7);
 
     expect(files).toHaveLength(31);
     expect(files).toContain("src/f30.ts");
+  });
+
+  it("listFileChanges returns status, additions, deletions and patch per file across pages", async () => {
+    state.files = [
+      ...Array.from({ length: 30 }, (_, i) => ({
+        filename: `src/f${i}.ts`,
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: `@@ -1 +1 @@\n-old${i}\n+new${i}`,
+      })),
+      {
+        filename: "src/renamed.ts",
+        status: "renamed",
+        additions: 0,
+        deletions: 0,
+        previous_filename: "src/original.ts",
+      },
+      { filename: "logo.png", status: "added", additions: 0, deletions: 0 },
+    ];
+    const changes = await gh().listFileChanges("re-cinq/lore", 7);
+
+    expect(changes).toHaveLength(32);
+    expect(changes[29]).toEqual({
+      filename: "src/f29.ts",
+      status: "modified",
+      additions: 1,
+      deletions: 0,
+      patch: "@@ -1 +1 @@\n-old29\n+new29",
+    });
+    expect(changes[30]).toEqual({
+      filename: "src/renamed.ts",
+      status: "renamed",
+      additions: 0,
+      deletions: 0,
+      patch: null,
+      previousFilename: "src/original.ts",
+    });
+    expect(changes[31]).toEqual({
+      filename: "logo.png",
+      status: "added",
+      additions: 0,
+      deletions: 0,
+      patch: null,
+    });
   });
 
   it("listChecks maps each run to name/status/conclusion", async () => {

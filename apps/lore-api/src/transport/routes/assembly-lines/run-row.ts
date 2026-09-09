@@ -2,7 +2,10 @@
 
 import type { Pool } from "pg";
 import { z } from "zod";
-import { StationRunInputSchema } from "@re-cinq/lore-shared/models/station-run.js";
+import {
+  StationRunRowSchema,
+  toStationRunRow,
+} from "../../../work/assembly-runs/station-run-row.js";
 import type { AssemblyRunSummary } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 
 /** Postgres "relation does not exist". */
@@ -52,19 +55,7 @@ export const RunRowSchema = z.object({
 
 export const RunListSchema = z.object({ runs: z.array(RunRowSchema) });
 
-/** One `pipeline.station_runs` row as the run page reads it. */
-export const StationRunRowSchema = z.object({
-  node_id: z.string(),
-  iteration: z.number(),
-  outcome: z.string().nullable(),
-  agent_cr_name: z.string().nullable(),
-  station_run_id: z.string().nullable(),
-  // What the visit was dispatched with; null for visits predating the column means "not captured", not "no input".
-  input: StationRunInputSchema.nullable(),
-  commit_sha: z.string().nullable(),
-  started_at: z.string(),
-  finished_at: z.string().nullable(),
-});
+export { StationRunRowSchema, toStationRunRow };
 
 export const StationRunListSchema = z.object({
   nodes: z.array(StationRunRowSchema),

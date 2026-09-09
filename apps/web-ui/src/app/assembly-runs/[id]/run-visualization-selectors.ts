@@ -30,14 +30,6 @@ export function pickSelectedState(
   return selectedNodeId === null ? null : nodeStates[selectedNodeId];
 }
 
-/** The scrubber only makes sense once a run is over and actually has history to scrub through. */
-export function computeScrubberVisible(
-  runStatus: string,
-  historyEventCount: number,
-): boolean {
-  return isTerminalRunStatus(runStatus) && historyEventCount > 0;
-}
-
 /** True once the walk has visited something worth showing — either persisted rows or a live-but-idle stream. */
 export function computeHasRunData(
   nodeCount: number,
@@ -55,29 +47,6 @@ export function computeGraphMode({
   showOutcomes: boolean;
 }): "run" | "definition" {
   return hasRunData && !showOutcomes ? "run" : "definition";
-}
-
-/** Mid-scrub only — the cursor sits strictly before the history's end, so the slider's right end stays byte-identical to Back to live. */
-export function computeReplayActive({
-  runIsLive,
-  replayCursor,
-  historyEventCount,
-}: {
-  runIsLive: boolean;
-  replayCursor: number | null;
-  historyEventCount: number;
-}): boolean {
-  return (
-    !runIsLive && replayCursor !== null && replayCursor < historyEventCount
-  );
-}
-
-/** Only wire onSeek through once the scrubber is actually visible — an invisible scrubber has nothing to seek. */
-export function resolveOnSeek(
-  onSeek: (id: string) => void,
-  { scrubberVisible }: { scrubberVisible: boolean },
-): ((id: string) => void) | undefined {
-  return scrubberVisible ? onSeek : undefined;
 }
 
 export interface BuildRunDataInput {

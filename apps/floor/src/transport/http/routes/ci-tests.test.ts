@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { InMemoryTestReports } from "@re-cinq/lore-shared/project/test-reports/test-reports-memory.js";
 import { buildServer } from "../server.js";
 import { insertEventList } from "../../../outbound/event-store.js";
 
@@ -19,8 +20,8 @@ afterEach(() => {
   process.env.LORE_INGEST_TOKEN = ORIG;
 });
 
-const authed = (payload: string) =>
-  buildServer({ getJobStatus: () => ({}) }).inject({
+const authed = (payload: string, testReports = new InMemoryTestReports()) =>
+  buildServer({ getJobStatus: () => ({}), testReports }).inject({
     method: "POST",
     url: "/api/webhook/ci-tests",
     headers: { authorization: "Bearer right-token" },
@@ -61,6 +62,59 @@ describe("POST /api/webhook/ci-tests", () => {
       ],
       "ci-tests",
     ]);
+  });
+
+  it("keeps the posted report as the branch's latest, keyed by test id", async () => {
+    process.env.LORE_INGEST_TOKEN = "right-token";
+    const testReports = new InMemoryTestReports();
+
+    await authed(
+      JSON.stringify({
+        repo: "re-cinq/lore",
+        commit: "abc123",
+        branch: "lore/ticket-7",
+        tests: [
+          {
+            id: "a.test.ts::adds",
+            name: "adds",
+            file: "a.test.ts",
+            startLine: 4,
+            endLine: 9,
+            suite: ["math"],
+          },
+        ],
+        results: [{ id: "a.test.ts::adds", passed: false }],
+      }),
+      testReports,
+    );
+
+    expect(
+      await testReports.latestForBranch("re-cinq/lore", "lore/ticket-7"),
+    ).toMatchObject({
+      commit: "abc123",
+      tests: [
+        {
+          id: "a.test.ts::adds",
+          name: "adds",
+          file: "a.test.ts",
+          startLine: 4,
+          suite: ["math"],
+        },
+      ],
+      outcomes: { "a.test.ts::adds": false },
+    });
+  });
+
+  it("stores no report for a body that names no branch", async () => {
+    process.env.LORE_INGEST_TOKEN = "right-token";
+    const testReports = new InMemoryTestReports();
+    const res = await authed(
+      JSON.stringify({ repo: "re-cinq/lore", commit: "abc123" }),
+      testReports,
+    );
+
+    expect(res.statusCode).toBe(202);
+    expect(testReports.rows).toEqual([]);
   });
 
   it("returns 503 when the ingest token is not configured", async () => {
