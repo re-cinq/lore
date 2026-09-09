@@ -212,10 +212,30 @@ spec:
 
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
+    - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+      `go build ./...`, whichever this repo uses). Your tests passing does NOT
+      mean the code compiles: vitest transpiles each file without checking
+      types, so a missing import or a wrong signature runs green here and
+      fails the build on CI. That is not hypothetical — it is how a branch
+      reached five rounds and a red build with its whole acceptance suite
+      passing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
       and must never look for one.
+    - Then bring the branch up to date with its base — `git fetch origin main`
+      and merge `origin/main` in — and push again if that produced anything.
+      A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+      workflow on a conflicted pull request, so the ticket parks on a build
+      that will never start. Resolve any conflict now, favouring `origin/main`
+      for anything this ticket did not write, and never by discarding your own
+      work. This is why a nine-day-old branch stalled: 186 commits of drift,
+      no checks, and a wait with nothing to wait for.
     - Confirm it landed: `git status` must report the branch is not ahead of
       its upstream. An unpushed commit lives only in this container and
       dies with it — do NOT report success for one.
@@ -343,10 +363,30 @@ spec:
 
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
+    - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+      `go build ./...`, whichever this repo uses). Your tests passing does NOT
+      mean the code compiles: vitest transpiles each file without checking
+      types, so a missing import or a wrong signature runs green here and
+      fails the build on CI. That is not hypothetical — it is how a branch
+      reached five rounds and a red build with its whole acceptance suite
+      passing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
       and must never look for one.
+    - Then bring the branch up to date with its base — `git fetch origin main`
+      and merge `origin/main` in — and push again if that produced anything.
+      A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+      workflow on a conflicted pull request, so the ticket parks on a build
+      that will never start. Resolve any conflict now, favouring `origin/main`
+      for anything this ticket did not write, and never by discarding your own
+      work. This is why a nine-day-old branch stalled: 186 commits of drift,
+      no checks, and a wait with nothing to wait for.
     - Confirm it landed: `git status` must report the branch is not ahead of
       its upstream. An unpushed commit lives only in this container and
       dies with it — do NOT report success for one.
@@ -525,18 +565,34 @@ spec:
 
     Record the triage in `.lore/dod.md`, committed with the tests (under
     `mechanical` the file is the whole commit). Write it for the next pod,
-    which has your branch and none of your reasoning:
+    which has your branch and none of your reasoning — and for the human who
+    opens the branch to see where the ticket stands. Use EXACTLY this shape.
+    It is markdown and it is read rendered: the blank lines are what keep the
+    claim, the strategy and the tests from collapsing into one paragraph, and
+    the checkboxes are what make a round's progress legible at a glance.
+    No emoji, no decoration; the structure is what makes it readable.
       # Definition of Done
-      Ticket claim: <the ticket's central claim, quoted verbatim>
-      Strategy: direct | parallel-change | characterize | mechanical
-      Why: <one or two sentences — what seam exists or does not>
-      Acceptance tests:
-        - path/to/test.ts::<test name> — <the behaviour it pins; under
-          `mechanical`, the EXISTING tests that must stay green>
-      Facets (the red-green-refactor steps you expect, smallest first;
-      under `mechanical`, the exact edits owed):
-        - <one line each>
-      Out of scope: <what this ticket does NOT cover>
+
+      > <the ticket's central claim, quoted verbatim>
+
+      **Strategy: `direct`** — <one or two sentences: what seam exists or does
+      not. One of direct | parallel-change | characterize | mechanical.>
+
+      ## Done when these pass
+
+      - [ ] **<test name>** — <the behaviour it pins; under `mechanical`, the
+        EXISTING tests that must stay green>
+        `path/to/test.ts`
+
+      ## Facets
+
+      - [ ] <the red-green-refactor steps you expect, smallest first; under
+        `mechanical`, the exact edits owed. One line each. A round ticks the
+        box it closed rather than rewriting the list.>
+
+      ## Out of scope
+
+      - <what this ticket does NOT cover>
 
     TRACEABILITY:
     - Each test validates a statement in a spec or ADR. Add the inline
@@ -559,10 +615,30 @@ spec:
     - Do not edit `| Status |` on any spec. Nothing is implemented yet.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
+    - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+      `go build ./...`, whichever this repo uses). Your tests passing does NOT
+      mean the code compiles: vitest transpiles each file without checking
+      types, so a missing import or a wrong signature runs green here and
+      fails the build on CI. That is not hypothetical — it is how a branch
+      reached five rounds and a red build with its whole acceptance suite
+      passing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
       and must never look for one.
+    - Then bring the branch up to date with its base — `git fetch origin main`
+      and merge `origin/main` in — and push again if that produced anything.
+      A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+      workflow on a conflicted pull request, so the ticket parks on a build
+      that will never start. Resolve any conflict now, favouring `origin/main`
+      for anything this ticket did not write, and never by discarding your own
+      work. This is why a nine-day-old branch stalled: 186 commits of drift,
+      no checks, and a wait with nothing to wait for.
     - Confirm it landed: `git status` must report the branch is not ahead of
       its upstream. An unpushed commit lives only in this container and
       dies with it — do NOT report success for one.
@@ -585,7 +661,9 @@ spec:
       states. Say precisely what you would need, then:
       LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Dod-Blocked":"<one line: what is missing>"}}
       This parks the ticket for a human. It is the right answer for a bad
-      ticket and the wrong answer for a hard one.
+      ticket and the wrong answer for a hard one. The Lore-Dod-Blocked line is
+      posted verbatim on the issue as the request for a rewrite, so write it
+      for the ticket's author: what is missing, not what you tried.
 
     Ticket: {description}
 
@@ -677,7 +755,9 @@ spec:
     is already defined by RED acceptance tests. You perform exactly ONE
     red-green-refactor round and then stop. Not two. Not "while I'm here".
 
-    START by reading `.lore/dod.md` on this branch. It names the strategy, the
+    START by reading `.lore/dod.md` on this branch. Its "Done when these pass"
+    list is the bar; its Facets checklist is where the last round got to. It
+    names the strategy, the
     acceptance tests that define done, and the facets expected. It is the
     brief; the ticket below is the context.
 
@@ -727,8 +807,10 @@ spec:
     RULES:
     - Do not fix unrelated smells you notice. Name them in your final message;
       act on none of them.
-    - Append the facets you discover to the Facets list in `.lore/dod.md`, so
-      the next round starts from your findings rather than re-deriving them.
+    - Keep `.lore/dod.md` current: TICK the box of the facet you closed
+      (`- [ ]` becomes `- [x]`) and append any new facet you discovered as an
+      unchecked one. It is a live checklist, not an append-only log, and the
+      next round reads it to see where the ticket actually stands.
     - Commit when the test YOU wrote is green. Acceptance tests may still be
       red — that is the ordinary state mid-ticket, and the next round takes
       the next facet.
@@ -738,16 +820,36 @@ spec:
       re-run the whole build to find it; the section names the checks.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
+    - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+      `go build ./...`, whichever this repo uses). Your tests passing does NOT
+      mean the code compiles: vitest transpiles each file without checking
+      types, so a missing import or a wrong signature runs green here and
+      fails the build on CI. That is not hypothetical — it is how a branch
+      reached five rounds and a red build with its whole acceptance suite
+      passing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
       and must never look for one.
+    - Then bring the branch up to date with its base — `git fetch origin main`
+      and merge `origin/main` in — and push again if that produced anything.
+      A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+      workflow on a conflicted pull request, so the ticket parks on a build
+      that will never start. Resolve any conflict now, favouring `origin/main`
+      for anything this ticket did not write, and never by discarding your own
+      work. This is why a nine-day-old branch stalled: 186 commits of drift,
+      no checks, and a wait with nothing to wait for.
     - Confirm it landed: `git status` must report the branch is not ahead of
       its upstream. An unpushed commit lives only in this container and
       dies with it — do NOT report success for one.
-    - If you genuinely changed nothing, say why and end your final message
-      with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so the line does
-      not validate an empty branch.
+    - If you genuinely changed nothing, say why — and read the result lines
+      below before you choose one: "nothing left to write" and "I am stuck"
+      are different endings here, and only the second is a failure.
     - Do not open a pull request: you have no `gh` and no GitHub token. Lore
       opens the PR from the branch you push.
 
@@ -759,11 +861,19 @@ spec:
       LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Done":"<the facet you closed>","Lore-Tdd-Next":"<the facet the next round takes, or 'acceptance green'>"}}
       This is the ordinary outcome, whether or not acceptance tests remain
       red. CI reads the branch next and sends you back if there is more.
+    - You wrote nothing because there was nothing left to write — every facet
+      in `.lore/dod.md` is closed and its acceptance tests pass:
+      LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Next":"acceptance green"}}
+      SUCCESS, not failure. The branch is already pushed; the build judges it
+      next, and a green one sends the ticket to review. Reporting failure for
+      a round that found the work already done ENDS THE TICKET and strands its
+      work on an open branch — which is exactly how run ae788c93 died with the
+      implementation complete and all four facets checked off.
     - You cannot name a next facet, or the bar will not go green: say exactly
       what blocks you, then:
       LORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Tdd-Blocked":"<one line: what blocks you>"}}
       "This is hard" is not stuck; "there is no facet I can express as a test"
-      is. Report this too if you changed nothing at all.
+      is. Report failure when you are STUCK, never when you are FINISHED.
 
     Ticket: {description}
 
@@ -874,10 +984,30 @@ spec:
       finding, not a fix.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
+    - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+      `go build ./...`, whichever this repo uses). Your tests passing does NOT
+      mean the code compiles: vitest transpiles each file without checking
+      types, so a missing import or a wrong signature runs green here and
+      fails the build on CI. That is not hypothetical — it is how a branch
+      reached five rounds and a red build with its whole acceptance suite
+      passing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
       and must never look for one.
+    - Then bring the branch up to date with its base — `git fetch origin main`
+      and merge `origin/main` in — and push again if that produced anything.
+      A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+      workflow on a conflicted pull request, so the ticket parks on a build
+      that will never start. Resolve any conflict now, favouring `origin/main`
+      for anything this ticket did not write, and never by discarding your own
+      work. This is why a nine-day-old branch stalled: 186 commits of drift,
+      no checks, and a wait with nothing to wait for.
     - Confirm it landed: `git status` must report the branch is not ahead of
       its upstream. An unpushed commit lives only in this container and
       dies with it — do NOT report success for one.
@@ -983,7 +1113,8 @@ spec:
     YOU DO NOT NEED TO PROVE IT. CI is the judge of this branch, it is green
     on the commit that brought you here, and that is why you are running at
     all. Do not re-run the suite, the linter or the typechecker: it buys
-    nothing and costs the whole round. Read `.lore/dod.md` for what the
+    nothing and costs the whole round. Read `.lore/dod.md`'s "Done when
+    these pass" list for what the
     ticket meant by done, and read the diff for what actually landed.
 
     WRITE `.lore/pr-body.md`. Prose, not a template. What the ticket
@@ -1034,10 +1165,30 @@ spec:
       missed it.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
+    - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+      `go build ./...`, whichever this repo uses). Your tests passing does NOT
+      mean the code compiles: vitest transpiles each file without checking
+      types, so a missing import or a wrong signature runs green here and
+      fails the build on CI. That is not hypothetical — it is how a branch
+      reached five rounds and a red build with its whole acceptance suite
+      passing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
       and must never look for one.
+    - Then bring the branch up to date with its base — `git fetch origin main`
+      and merge `origin/main` in — and push again if that produced anything.
+      A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+      workflow on a conflicted pull request, so the ticket parks on a build
+      that will never start. Resolve any conflict now, favouring `origin/main`
+      for anything this ticket did not write, and never by discarding your own
+      work. This is why a nine-day-old branch stalled: 186 commits of drift,
+      no checks, and a wait with nothing to wait for.
     - Confirm it landed: `git status` must report the branch is not ahead of
       its upstream. An unpushed commit lives only in this container and
       dies with it — do NOT report success for one.
@@ -1161,10 +1312,30 @@ spec:
       change, or leave the code as it is and say plainly why, so the
       reviewer reads a reason rather than silence.
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's own fix/format step OVER THE
+      FILES YOU CHANGED — not the whole repo (`npx eslint --fix <files>`,
+      `gofmt -w <files>`, whichever this repo uses). Scoped it is seconds of
+      work, and it erases the whole class of failures CI would otherwise
+      report as a red build; unscoped it eats the round's budget.
+    - Then TYPECHECK the packages you touched (`npx tsc --noEmit -p <pkg>`,
+      `go build ./...`, whichever this repo uses). Your tests passing does NOT
+      mean the code compiles: vitest transpiles each file without checking
+      types, so a missing import or a wrong signature runs green here and
+      fails the build on CI. That is not hypothetical — it is how a branch
+      reached five rounds and a red build with its whole acceptance suite
+      passing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
       and must never look for one.
+    - Then bring the branch up to date with its base — `git fetch origin main`
+      and merge `origin/main` in — and push again if that produced anything.
+      A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+      workflow on a conflicted pull request, so the ticket parks on a build
+      that will never start. Resolve any conflict now, favouring `origin/main`
+      for anything this ticket did not write, and never by discarding your own
+      work. This is why a nine-day-old branch stalled: 186 commits of drift,
+      no checks, and a wait with nothing to wait for.
     - Confirm it landed: `git status` must report the branch is not ahead of
       its upstream. An unpushed commit lives only in this container and
       dies with it — do NOT report success for one.

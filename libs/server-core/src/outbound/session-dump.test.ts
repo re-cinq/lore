@@ -23,9 +23,9 @@ interface DumpedSession {
 
 describe("session-tracker dump + ring buffer", () => {
   it("writes tracked calls into the dumped json log", () => {
-    trackToolCall("dump_probe_alpha", 120, true);
-    trackToolCall("dump_probe_beta", 80, false);
-    trackToolCall("dump_probe_alpha", 200, true);
+    trackToolCall({ tool: "dump_probe_alpha", durationMs: 120, success: true });
+    trackToolCall({ tool: "dump_probe_beta", durationMs: 80, success: false });
+    trackToolCall({ tool: "dump_probe_alpha", durationMs: 200, success: true });
 
     const target = join(tmpdir(), `lore-session-dump-${process.pid}.json`);
 
@@ -46,7 +46,7 @@ describe("session-tracker dump + ring buffer", () => {
 
   it("caps the ring buffer at 500 entries dropping the oldest", () => {
     for (let i = 0; i < 600; i++) {
-      trackToolCall(`ring_${i}`, 1, true);
+      trackToolCall({ tool: `ring_${i}`, durationMs: 1, success: true });
     }
 
     const log = getSessionLog();

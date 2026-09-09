@@ -124,6 +124,7 @@ export class PgTaskQueue implements TaskQueueRepository {
       [String(thresholdHours)],
     );
 
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the SQL half of the same TaskQueueRepository port: Maps in the double, queries here, and only the signatures both must satisfy are what the token match sees
     return rows as StaleTask[];
   }
 

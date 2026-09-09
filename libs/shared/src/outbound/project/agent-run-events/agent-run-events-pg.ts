@@ -25,6 +25,7 @@ const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_line_id, station_ru
          iteration, event_type, tool_name, tool_use_id, is_error,
          file_paths, summary, payload, created_at`;
 
+// eslint-disable-next-line re-lint/no-duplicate-code -- the events row mapper; the turns adapter maps its own columns with the same shape, and one merged mapper would put two tables' column lists in a single function
 function toRow(row: AgentRunEventDbRow): AgentRunEventRow {
   return {
     id: String(row.id),

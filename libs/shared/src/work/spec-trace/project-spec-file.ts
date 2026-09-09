@@ -84,13 +84,8 @@ export interface ProjectionOptions {
 async function isSpecUnchanged(
   dgraph: DgraphClientPort,
   specXid: string,
-  force: boolean,
   contentHash: string,
 ): Promise<boolean> {
-  if (force) {
-    return false;
-  }
-
   return (await readSpecContentHash(dgraph, specXid)) === contentHash;
 }
 
@@ -228,7 +223,7 @@ export async function projectSpecFile(
 
   const specXid = `${repo}|${filePath}`;
 
-  if (await isSpecUnchanged(dgraph, specXid, force, contentHash)) {
+  if (!force && (await isSpecUnchanged(dgraph, specXid, contentHash))) {
     return { projected: false };
   }
 

@@ -21,7 +21,7 @@ export interface ClusterAgentsViewProps {
   /** Null when the install hand-out could not be fetched (the panel hides). */
   installInfo: ClusterInstallInfo | null;
   /** Takes cluster in/out of rotation; container binds agent id. */
-  togglePaused: (id: string, paused: boolean) => Promise<void>;
+  togglePaused: (id: string, next: { paused: boolean }) => Promise<void>;
   /** Bounces the central cluster-agent. The container binds the agent id. */
   restart: (id: string) => Promise<void>;
 }

@@ -81,7 +81,7 @@ function Probe({
   active: boolean;
   label: string;
 }) {
-  const { live } = useCoordinatedRefresh(refresh, active);
+  const { live } = useCoordinatedRefresh(refresh, { active });
 
   return <span data-testid={`live-${label}`}>{String(live)}</span>;
 }
@@ -277,7 +277,10 @@ describe("stream lifecycle", () => {
     expect(view.getByTestId("live-a").textContent).toBe("false");
 
     await act(async () => {
-      FakeEventSource.instances[0].emit("catchup-complete", { lastId: "0" });
+      FakeEventSource.instances[0].emit("catchup_complete", {
+        type: "catchup_complete",
+        last_id: "0",
+      });
     });
 
     expect(view.getByTestId("live-a").textContent).toBe("true");
@@ -299,7 +302,10 @@ describe("event-triggered refreshes", () => {
       const source = FakeEventSource.instances[0];
 
       for (let i = 1; i <= 5; i++) {
-        source.emit("agent-event", streamEvent(String(i)));
+        source.emit("agent_event", {
+          type: "agent_event",
+          event: streamEvent(String(i)),
+        });
       }
     });
 
@@ -318,14 +324,23 @@ describe("event-triggered refreshes", () => {
 
     await advance(3_000);
     await act(async () => {
-      FakeEventSource.instances[0].emit("agent-event", streamEvent("1"));
+      FakeEventSource.instances[0].emit("agent_event", {
+        type: "agent_event",
+        event: streamEvent("1"),
+      });
     });
     expect(refresh).toHaveBeenCalledTimes(1);
 
     await advance(1_000);
     await act(async () => {
-      FakeEventSource.instances[0].emit("agent-event", streamEvent("2"));
-      FakeEventSource.instances[0].emit("agent-event", streamEvent("3"));
+      FakeEventSource.instances[0].emit("agent_event", {
+        type: "agent_event",
+        event: streamEvent("2"),
+      });
+      FakeEventSource.instances[0].emit("agent_event", {
+        type: "agent_event",
+        event: streamEvent("3"),
+      });
     });
     expect(refresh).toHaveBeenCalledTimes(1);
 
@@ -344,7 +359,10 @@ describe("event-triggered refreshes", () => {
     await flush();
 
     await act(async () => {
-      FakeEventSource.instances[0].emit("catchup-complete", { lastId: "0" });
+      FakeEventSource.instances[0].emit("catchup_complete", {
+        type: "catchup_complete",
+        last_id: "0",
+      });
     });
 
     await advance(COORDINATED_POLL_MS);

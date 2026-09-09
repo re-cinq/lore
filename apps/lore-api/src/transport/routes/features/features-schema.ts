@@ -11,6 +11,7 @@ export const FeatureStatusSchema = z.enum([
   "implemented",
 ]);
 
+// eslint-disable-next-line re-lint/no-duplicate-code -- the features wire contract deliberately mirrors the shared feature model, because web-ui builds in isolation; npm run typecheck:drift holds the mirror to its source and compares types rather than tokens
 export const IterationStatusSchema = z.enum(["running", "ready", "failed"]);
 
 export const FeatureSchema = z.object({

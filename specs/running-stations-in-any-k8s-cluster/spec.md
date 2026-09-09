@@ -393,13 +393,25 @@ pull, so recovery splits by who holds the claim:
   "nothing references it" is briefly true of a task mid-dispatch, and a builtin
   `def-*` recipe is catalog rather than litter and is never a candidate.
   ([validated by [deletes a pt-* clone once no surviving CR references it](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L76), [keeps a clone a surviving CR still references](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L90), [never touches a builtin def-* recipe, whatever its age](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L107), [keeps a young orphan clone, so a task mid-dispatch does not lose its recipe](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L119), [reports nothing to do for an empty cluster](apps/cluster-agent/src/work/reap/decide-prune.test.ts#L128))
+- When the sweep deletes an orphaned `pt-*` definition it also deletes the
+  corresponding `GH_TOKEN_*` key from `agent-secrets`. For a satellite the
+  Floor's `DELETE /api/cluster/per-task-tokens/{taskId}` call targets the
+  central cluster-agent only and never reaches the satellite, so the prune loop
+  is the sole reclaim path — without it the key accumulates indefinitely.
+  ([validated by [deletes the per-task token key from agent-secrets when pruning an orphaned definition](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L107)])
+- The sweep runs hourly and keeps three days, both overridable by the
+  environment; a retention of zero or one that does not parse is ignored in
+  favour of the default, because reading it literally would delete every
+  record of every run the moment the variable is fat-fingered — the opposite
+  of what a retention window is for.
+  ([validated by [sweeps hourly unless the environment says otherwise](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L157), [`prune-loop.test.ts:169`](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L164), [`prune-loop.test.ts:176`](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L171))
 - The sweep never throws: a cluster it cannot reach, or one object wedged by a
   finalizer, is an outcome it logs and carries on from — a single stuck object
   must not keep the rest of a 40MiB backlog in the cache. It runs in the
   cluster-agent rather than the Floor, because the Floor cannot reach a
   satellite's cluster at all: a Floor-side reaper would tidy central and leave
   every satellite to grow until its controller died.
-  ([validated by [deletes what the plan names and reports the counts](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L47), [reports nothing when the cluster is already tidy](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L64), [skips one object it cannot delete and still sweeps the rest](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L72), [answers with an outcome, never a throw, when the cluster is unreachable](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L88), [logs a sweep and a failure, and stops when the latch closes](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L107); implemented by [`prune-loop.ts`](apps/cluster-agent/src/work/reap/prune-loop.ts))
+  ([validated by [deletes what the plan names and reports the counts](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L48), [reports nothing when the cluster is already tidy](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L65), [skips one object it cannot delete and still sweeps the rest](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L73), [answers with an outcome, never a throw, when the cluster is unreachable](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L89), [logs a sweep and a failure, and stops when the latch closes](apps/cluster-agent/src/work/reap/prune-loop.test.ts#L137); implemented by [`prune-loop.ts`](apps/cluster-agent/src/work/reap/prune-loop.ts))
 - The sweep calls the cluster through its port rather than handing over bare
   method references: an unbound `deleteAgent` loses its receiver, the live
   adapter's first act is `this.remove(...)`, and the resulting throw is
@@ -425,7 +437,13 @@ A satellite must report outcomes without holding the bus-wide credential.
   satellite's reporter RESOLVES that token per call rather than capturing it:
   a re-registration rotates it, and a captured value would 401 every report
   from then on — which is what the watch did silently until the credential
-  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:40`](apps/event-router/src/transport/server-auth.test.ts#L40), [`event-reporter-http.test.ts:65`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L65), [`event-reporter-http.test.ts:93`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L93))
+  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:40`](apps/event-router/src/transport/server-auth.test.ts#L40), [`event-reporter-http.test.ts:65`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L65), [`event-reporter-http.test.ts:93`](libs/shared/src/outbound/project/events/event-reporter-http.test.ts#L93), [validated by falls back to LORE_INGEST_TOKEN during the boot window before the per-agent token is available](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L5), [validated by returns the agentToken thunk unchanged on a satellite, so rotations are still picked up](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L14), [validated by does not pick up LORE_INGEST_TOKEN that appears in the env after the satellite's token is selected](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L23))
+- The central cluster-agent likewise prefers its per-agent token once
+  registration has completed; `LORE_INGEST_TOKEN` is the boot-window
+  fallback only — used while the first registration is still in flight,
+  before `agentToken` is available. This gives the same revocation surface
+  for both deployments and removes `LORE_INGEST_TOKEN` as a separate
+  reporting credential path. ([validated by switches to the per-agent token on a central cluster once registration completes](apps/cluster-agent/src/events/claim/select-reporter-token.test.ts#L32))
 - A report the router REFUSES (401/403) re-registers before it retries, via
   the same single-flight re-registration the claim and heartbeat loops share
   *(2026-08-28)*: the token rotates whenever another instance of this
@@ -622,7 +640,7 @@ nothing matches is a trick that loses the cluster's real tags.
   button takes the agent id as a BOUND parameter of the server action, never
   an inline closure over it: the view is a server component, and React
   refuses to serialize a plain function to a client component — which took
-  the whole page down the first time (fixed the same day). ([validated by `ClusterAgentsView.test.tsx:34`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L34), [validated by `PauseClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L7), [`PauseClusterButton.test.tsx:16`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L16), [`actions.test.ts:23`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L23), [`actions.test.ts:32`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L32))
+  the whole page down the first time (fixed the same day). ([validated by `ClusterAgentsView.test.tsx:34`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L34), [validated by `PauseClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L7), [`PauseClusterButton.test.tsx:16`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L16), [`actions.test.ts:23`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L23), [`actions.test.ts:34`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L34))
 
 ## FR10 — Restarting a cluster
 
@@ -651,7 +669,7 @@ it a Kubernetes client, which ADR-024 deliberately withholds.
   the same way the Pause button is (never an inline closure over a server
   component's prop). A restart kills whatever the process is mid-way through,
   unlike Pause, so the button asks for a second click before it fires and a
-  Cancel backs out without restarting. ([validated by `ClusterAgentsView.test.tsx:170`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L166), [`RestartClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L7), [`RestartClusterButton.test.tsx:19`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L19), [`RestartClusterButton.test.tsx:29`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L29), [`actions.test.ts:44`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L44), [`actions.test.ts:53`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L53))
+  Cancel backs out without restarting. ([validated by `ClusterAgentsView.test.tsx:170`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L166), [`RestartClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L7), [`RestartClusterButton.test.tsx:19`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L19), [`RestartClusterButton.test.tsx:29`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L29), [`actions.test.ts:48`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L48), [`actions.test.ts:57`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L57))
 
 ## Data Model
 

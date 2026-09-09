@@ -12,15 +12,16 @@ export interface LeafDrawDeps {
   ctx: CanvasRenderingContext2D;
   colors: CanvasColors;
   aggHidden: Set<string>;
+  /** At aggregated zoom the ring stands in for its leaves, so a hidden leaf is not drawn. */
+  collapsing: boolean;
 }
 
 function shouldSkipLeaf(
   deps: LeafDrawDeps,
   n: SimNode,
-  collapsing: boolean,
   state: CanvasDrawState,
 ): boolean {
-  if (!isLeafCanvas(n.type) || (collapsing && deps.aggHidden.has(n.id))) {
+  if (!isLeafCanvas(n.type) || (deps.collapsing && deps.aggHidden.has(n.id))) {
     return true;
   }
 
@@ -46,12 +47,11 @@ function drawLeafNode(
 export function drawLeafNodes(
   deps: LeafDrawDeps,
   state: CanvasDrawState,
-  collapsing: boolean,
 ): void {
   deps.ctx.lineWidth = 1.5 / state.transform.k;
 
   for (const n of state.nodes) {
-    if (!shouldSkipLeaf(deps, n, collapsing, state)) {
+    if (!shouldSkipLeaf(deps, n, state)) {
       drawLeafNode(deps, n, state);
     }
   }

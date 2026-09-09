@@ -12,6 +12,9 @@ export type Edge = Browse["edges"][number];
 export type Stats = Browse["stats"];
 export type EntityTypeCount = Browse["entity_types"][number];
 
+const TYPE_BADGE = "op-badge";
+const TYPE_BADGE_ACTIVE = "op-badge op-search";
+
 export interface GraphViewProps {
   /** The selected entity name, or undefined when none is being explored. */
   entity?: string;
@@ -87,7 +90,7 @@ function TypeFilters({ entityTypes, type }: TypeFiltersProps) {
 
   return (
     <div className={styles.filterRow}>
-      <a href="/graph" className={typeBadgeClass(!type)}>
+      <a href="/graph" className={type ? TYPE_BADGE : TYPE_BADGE_ACTIVE}>
         all
       </a>
       {entityTypes.map((t) => (
@@ -101,10 +104,6 @@ function TypeFilters({ entityTypes, type }: TypeFiltersProps) {
   );
 }
 
-function typeBadgeClass(active: boolean): string {
-  return active ? "op-badge op-search" : "op-badge";
-}
-
 interface TypeFilterLinkProps {
   entityType: EntityTypeCount;
   active: boolean;
@@ -114,7 +113,7 @@ function TypeFilterLink({ entityType, active }: TypeFilterLinkProps) {
   return (
     <a
       href={`/graph?type=${entityType.entity_type}`}
-      className={typeBadgeClass(active)}
+      className={active ? TYPE_BADGE_ACTIVE : TYPE_BADGE}
     >
       {entityType.entity_type} ({entityType.cnt})
     </a>

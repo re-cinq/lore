@@ -26,6 +26,8 @@ const run = (over: Partial<AssemblyRun> = {}): AssemblyRun => ({
   durationSeconds: 715,
   prUrl: null,
   prNumber: null,
+  issueUrl: null,
+  issueNumber: null,
   createdBy: "bogdan",
   costUsd: 0.25,
   ...over,

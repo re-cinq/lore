@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { handleLoopRunClosed } from "../backlog/loop-run-closed.js";
-import { createLineHarness } from "./line-acceptance-harness.js";
+import {
+  createLineHarness,
+  resultEnvelope,
+} from "./line-acceptance-harness.js";
 
 const short = (id: string) => id.substring(0, 12);
 
@@ -122,6 +125,24 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     );
   });
 
+  it("repairs a build the rounds stopped moving instead of ending the run, and returns it to the wait", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "dod", { outcome: "success" });
+    await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+    await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
+    await h.resume(id, "await-ci", "failed", {
+      args: { reason: "ci_red_unchanged", ci_failed_checks: "lint" },
+    });
+
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-repair-build`);
+
+    await h.completeAgentNode(id, "repair-build", { outcome: "success" });
+
+    expect(h.visits().at(-1)).toEqual(["await-ci", null]);
+  });
+
   it("sends a red build to fix-ci and back to the wait, without blocking the ticket", async () => {
     const h = loopHarness();
     const id = await parkedOnPr(h);
@@ -162,6 +183,29 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
     expect(h.comments).toEqual([
       { issue: 77, body: expect.stringContaining("parking this ticket") },
+    ]);
+    expect(h.ticks).toEqual(["re-cinq/lore"]);
+  });
+
+  it("parks a ticket the definition of done declines, quoting its one-line verdict on the issue (run a3e80a26)", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "dod", {
+      output: resultEnvelope(
+        'LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Dod-Blocked":"the ticket asks for a decision, not a behaviour"}}',
+      ),
+    });
+    await retrospectiveReported(h, id);
+
+    expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
+    expect(h.comments).toEqual([
+      {
+        issue: 77,
+        body: expect.stringContaining(
+          "the ticket asks for a decision, not a behaviour",
+        ),
+      },
     ]);
     expect(h.ticks).toEqual(["re-cinq/lore"]);
   });

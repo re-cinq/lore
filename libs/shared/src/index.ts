@@ -75,10 +75,7 @@ export {
   stripCommentsAndWhitespace,
   sectionIsEmpty,
 } from "./work/pr-section-check.js";
-export {
-  getQueryEmbedding,
-  buildVertexUrl,
-} from "./outbound/embeddings/embedding-service.js";
+export * from "./outbound/embeddings/embedding-service.js";
 export { resolveAgentId } from "./outbound/agent-id.js";
 export * from "./work/index-spec-trace.js";
 export { mapWithLimit } from "./lib/concurrency/map-with-limit.js";
@@ -141,6 +138,7 @@ export {
   type CreateIssueMode,
   type NotifyChannel,
 } from "./domain/dark-factory-settings.js";
+export * from "./domain/dod/index.js";
 export type {
   PipelineTask,
   TaskStatus,
@@ -223,6 +221,8 @@ export {
   dropIngestExcluded,
   type ContentType,
 } from "./domain/content-classify.js";
+export { planChunkPrune } from "./domain/chunk-prune.js";
+export { stripCoverageLinks } from "./domain/spec-link-strip.js";
 export { TEST_COMMAND_SETUP_PROMPT } from "./lib/test-command-setup-prompt.js";
 export { LORE_TESTS_INSTRUCTION } from "./lib/lore-tests-instruction.js";
 

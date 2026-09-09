@@ -5,7 +5,7 @@ import { useTransition } from "react";
 export interface PauseClusterButtonProps {
   paused: boolean;
   /** The bound server action — the agent id is applied server-side. */
-  toggle: (paused: boolean) => Promise<void>;
+  toggle: (next: { paused: boolean }) => Promise<void>;
 }
 
 /** Cluster pause switch: client useTransition with bound server action (FR9). */
@@ -19,7 +19,7 @@ export default function PauseClusterButton({
     <button
       className="button"
       disabled={pending}
-      onClick={() => startTransition(() => toggle(!paused))}
+      onClick={() => startTransition(() => toggle({ paused: !paused }))}
     >
       {paused ? "Resume" : "Pause"}
     </button>

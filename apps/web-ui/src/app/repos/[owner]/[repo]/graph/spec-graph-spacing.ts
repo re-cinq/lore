@@ -53,20 +53,29 @@ function nodeIsSpacingFixed(
   return expanded.has(n.id) || ringPinned.has(n.id) || nodeIsPinned(n);
 }
 
-function resolveSafePosition(
+/** An anchor is kept clear of the other anchors as well as of the rings. */
+function anchorSafePosition(
   n: SimNode,
-  isAnchor: boolean,
-  anchors: Anchor[],
-  discs: Disc[],
+  spacing: SpacingContext,
 ): { x: number; y: number } {
-  return isAnchor
-    ? resolveSpacing(
-        { id: n.id, x: n.x ?? 0, y: n.y ?? 0 },
-        anchors,
-        discs,
-        ANCHOR_SEPARATION,
-      )
-    : resolveExclusion({ x: n.x ?? 0, y: n.y ?? 0 }, discs, RING_CLEARANCE);
+  return resolveSpacing(
+    { id: n.id, x: n.x ?? 0, y: n.y ?? 0 },
+    spacing.anchors,
+    spacing.discs,
+    ANCHOR_SEPARATION,
+  );
+}
+
+/** Everyone else only has to stay off the rings. */
+function ringClearPosition(
+  n: SimNode,
+  spacing: SpacingContext,
+): { x: number; y: number } {
+  return resolveExclusion(
+    { x: n.x ?? 0, y: n.y ?? 0 },
+    spacing.discs,
+    RING_CLEARANCE,
+  );
 }
 
 interface SpacingContext {
@@ -81,12 +90,9 @@ function relaxNodeSpacing(n: SimNode, spacing: SpacingContext): void {
   if (nodeIsSpacingFixed(n, spacing.expanded, spacing.ringPinned)) {
     return;
   }
-  const safe = resolveSafePosition(
-    n,
-    nodeIsAnchorType(n),
-    spacing.anchors,
-    spacing.discs,
-  );
+  const safe = nodeIsAnchorType(n)
+    ? anchorSafePosition(n, spacing)
+    : ringClearPosition(n, spacing);
 
   if (safe.x === n.x && safe.y === n.y) {
     return;

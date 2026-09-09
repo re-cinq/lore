@@ -23,7 +23,6 @@ import {
   parseAgentSink,
   type AgentFileEvent,
 } from "../../../work/agent/agent-events.js";
-import { agentEventBus } from "../../../work/agent/agent-event-bus.js";
 import { MAX_RUN_TURNS_PER_BATCH } from "../../../work/agent/agent-run-turns.js";
 import { rawBody } from "../raw-body.js";
 import type {
@@ -34,14 +33,12 @@ import type {
 // Above this body size, run-viz + turn transcript are skipped (cost accounting still recorded) to keep a pathological report from OOM-ing the single (replicaCount: 1) Floor replica — the pod's stdout in Cloud Logging is the sole remaining copy of an oversized stream (#1109).
 const MAX_VIZ_BODY_BYTES = 8 * 1024 * 1024;
 
-// Persist the per-tool-call run-viz projection and fan it out (#876); publish strictly AFTER insert resolves so a live subscriber never sees an id `listSince` can't replay on reconnect — the SSE catch-up's correctness argument. Skip-not-fail: a viz persistence failure must never 500 the cost sink.
+// Persist the per-tool-call run-viz projection (#876); the live fan-out is Postgres NOTIFY from the insert's own trigger (migration 0070), so a subscriber learns of a row only once `listSince` can replay it. Skip-not-fail: a viz persistence failure must never 500 the cost sink.
 async function recordRunEvents(
   rows: readonly AgentRunEventInsert[],
 ): Promise<number> {
   try {
     const inserted = await pipeline().agentRunEvents.insertBatch(rows);
-
-    agentEventBus().publish(inserted);
 
     return inserted.length;
   } catch (err) {

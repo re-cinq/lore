@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { saveAgent } from "@/lib/agents-api";
+import { createAgent } from "@/lib/agents-api";
 import {
   parseAgentForm,
   saveResultToState,
@@ -10,7 +10,7 @@ import {
 import { DEFAULT_EXECUTION_IMAGE } from "@/lib/dark-factory-resolve";
 import AgentForm from "../AgentForm";
 
-/** Creates the definition, redirecting to the list on success. `isUpdate` is false, so a name that already exists is rejected by the API rather than silently overwriting the definition behind it. */
+/** Creates the definition, redirecting to the list on success. The create write means a name that already exists is rejected by the API rather than silently overwriting the definition behind it. */
 async function createDefinition(
   fullName: string,
   formData: FormData,
@@ -20,7 +20,7 @@ async function createDefinition(
   if (!name) {
     return { error: "name required" };
   }
-  const saved = await saveAgent(fullName, def, false, approvalPr);
+  const saved = await createAgent(fullName, def, approvalPr);
 
   if (saved.status === "ok") {
     redirect(`/repos/${fullName}/agents`);

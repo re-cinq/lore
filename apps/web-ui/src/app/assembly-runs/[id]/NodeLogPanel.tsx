@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { parseAgentLog, type LogEntry } from "@/lib/agent-log-entries";
 import CollapsibleCard from "@/components/CollapsibleCard";
 import LogEntriesView from "@/components/LogEntriesView";
-import LogFormatToggle from "@/components/LogFormatToggle";
+import { LogFormatToggleRow } from "@/components/LogFormatToggle";
 import {
   nodeLogsUrl,
   shouldPollNode,
@@ -24,14 +24,13 @@ export interface NodeLogPanelProps {
 
 function logContent(
   resp: NodeLogsResponse | null,
-  showRaw: boolean,
-  entries: LogEntry[],
+  view: { showRaw: boolean; entries: LogEntry[] },
 ): ReactNode {
   if (!resp?.logs) {
     return "(no output yet)";
   }
 
-  return showRaw ? resp.logs : <LogEntriesView entries={entries} />;
+  return view.showRaw ? resp.logs : <LogEntriesView entries={view.entries} />;
 }
 
 interface NodeLogBodyProps {
@@ -39,7 +38,7 @@ interface NodeLogBodyProps {
   error: string | null;
   resp: NodeLogsResponse | null;
   showRaw: boolean;
-  onShowRawChange: (raw: boolean) => void;
+  setShowRaw: (raw: boolean) => void;
   entries: LogEntry[];
   bottomRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -49,11 +48,9 @@ function LogPlaceholder({ children }: { children: ReactNode }) {
 }
 
 /** What to show INSTEAD of logs, or null when there are logs to show. A closed card renders nothing at all — not even a placeholder — because the fetch has not been asked for yet, and "Loading…" under a collapsed header would claim work nobody started. */
-function logNotice(
-  open: boolean,
-  error: string | null,
-  resp: NodeLogsResponse | null,
-) {
+function logNotice(notice: Pick<NodeLogBodyProps, "open" | "error" | "resp">) {
+  const { open, error, resp } = notice;
+
   if (error) {
     return <p className={styles.error}>Failed to load logs: {error}</p>;
   }
@@ -71,12 +68,14 @@ function logNotice(
 
 function LogToggleRow({
   showRaw,
-  onShowRawChange,
-}: Pick<NodeLogBodyProps, "showRaw" | "onShowRawChange">) {
+  setShowRaw,
+}: Pick<NodeLogBodyProps, "showRaw" | "setShowRaw">) {
   return (
-    <div className={styles.toggleRow}>
-      <LogFormatToggle raw={showRaw} onChange={onShowRawChange} />
-    </div>
+    <LogFormatToggleRow
+      className={styles.toggleRow}
+      showRaw={showRaw}
+      setShowRaw={setShowRaw}
+    />
   );
 }
 
@@ -85,10 +84,10 @@ function LogTerminal({
   showRaw,
   entries,
   bottomRef,
-}: Omit<NodeLogBodyProps, "open" | "error" | "onShowRawChange">) {
+}: Omit<NodeLogBodyProps, "open" | "error" | "setShowRaw">) {
   return (
     <div className={styles.terminal}>
-      {logContent(resp, showRaw, entries)}
+      {logContent(resp, { showRaw, entries })}
       <div ref={bottomRef} />
     </div>
   );
@@ -96,11 +95,11 @@ function LogTerminal({
 
 /** Everything below the collapsible header: error, unavailable notice, format toggle, and the log body itself. */
 function NodeLogBody(props: NodeLogBodyProps) {
-  const { open, error, resp } = props;
+  const { error, resp } = props;
 
   // Null from logNotice means "a closed card shows nothing", NOT "show the logs" — so the fall-through is keyed on the response being available, not on the notice being absent.
   if (error !== null || resp === null || !resp.available) {
-    return logNotice(open, error, resp);
+    return logNotice(props);
   }
 
   return (
@@ -228,7 +227,7 @@ function nodeLogBodyProps(
     error: logs.error,
     resp: logs.resp,
     showRaw: logs.showRaw,
-    onShowRawChange: logs.setShowRaw,
+    setShowRaw: logs.setShowRaw,
     entries: logs.entries,
     bottomRef: logs.tailRef,
   };

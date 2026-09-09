@@ -1,11 +1,11 @@
 "use client";
 
 // Both readers fold rows through the SAME reducer the live stream feeds, so a run looks identical however its events arrived.
-import { useCallback, useEffect, useRef, useState } from "react";
-import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
+import { useCallback, useEffect, useState } from "react";
+import type { RunStreamEvent, RunStreamFrame } from "@/lib/run-stream-types";
+
+type HistoryDispatch = (event: RunStreamEvent) => void;
 import {
-  HISTORY_POLL_MS,
-  historyUrl,
   nextPageCursor,
   resolveChipState,
   resolveStreamMode,
@@ -13,30 +13,13 @@ import {
   type ConnectionState,
 } from "@/lib/run-stream-presenter";
 import { useRunEventStream } from "./useRunEventStream";
+import {
+  dispatchParsedRows,
+  fetchPage,
+  useHistoryPoll,
+} from "./use-history-poll";
 
-interface HistoryPage {
-  events?: unknown[];
-}
-
-const HISTORY_TIMEOUT_MS = 15_000;
-
-type HistoryDispatch = (event: RunStreamEvent) => void;
-
-async function fetchPage(
-  runId: string,
-  cursor: string,
-): Promise<{ ok: boolean; rows: unknown[] }> {
-  const res = await fetch(historyUrl(runId, cursor), {
-    signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
-  });
-
-  if (!res.ok) {
-    return { ok: false, rows: [] };
-  }
-  const body = (await res.json()) as HistoryPage;
-
-  return { ok: true, rows: Array.isArray(body.events) ? body.events : [] };
-}
+export { useHistoryPoll };
 
 /** Rows that carry a string id — the only ones that can advance the page cursor. */
 function identifiedRows(rows: unknown[]): { id: string }[] {
@@ -46,27 +29,8 @@ function identifiedRows(rows: unknown[]): { id: string }[] {
   );
 }
 
-/** Parses each row and dispatches the ones that classify, returning them in order. */
-function dispatchParsedRows(
-  rows: unknown[],
-  dispatch: (event: RunStreamEvent) => void,
-): RunStreamEvent[] {
-  const parsedRows: RunStreamEvent[] = [];
-
-  for (const row of rows) {
-    const parsed = parseRunStreamRow(row);
-
-    if (parsed !== null) {
-      dispatch(parsed);
-      parsedRows.push(parsed);
-    }
-  }
-
-  return parsedRows;
-}
-
 export interface RunHistory {
-  /** Ordered persisted events, retained only to drive the replay scrubber on a terminal run; a live run never scrubs. */
+  /** Ordered persisted events, as folded. */
   historyEvents: RunStreamEvent[];
   /** The run whose history finished loading — compared to runId (not a boolean) so a stale "loaded" gate is impossible by construction. */
   historyLoadedFor: string | null;
@@ -198,77 +162,7 @@ export function useRunHistory(runId: string, dispatch: HistoryDispatch) {
   };
 }
 
-interface PollTarget {
-  runId: string;
-  lastEventIdRef: { current: string };
-  dispatch: (event: RunStreamEvent) => void;
-}
-
-/** One poll tick. Skipped while a previous request is still out, so a slow backend cannot stack requests faster than it answers them; a failed tick is swallowed because the next one retries and the chip already reads "Polling". */
-async function pollOnce(
-  state: { inFlight: boolean },
-  cancelled: () => boolean,
-  { runId, lastEventIdRef, dispatch }: PollTarget,
-): Promise<void> {
-  if (state.inFlight) {
-    return;
-  }
-
-  state.inFlight = true;
-
-  try {
-    const page = await fetchPage(runId, lastEventIdRef.current);
-
-    if (cancelled() || !page.ok) {
-      return;
-    }
-    dispatchParsedRows(page.rows, dispatch);
-  } catch {
-    // The next tick retries; the chip already reads Polling.
-  } finally {
-    state.inFlight = false;
-  }
-}
-
-/** Starts the poll interval and returns its disposer. The `cancelled` flag is separate from `clearInterval`: a request already in flight when the effect tears down still resolves, and dispatching its rows into an unmounted reducer is the classic late-write bug. */
-function startPolling(target: PollTarget): () => void {
-  let cancelled = false;
-  const state = { inFlight: false };
-  const id = setInterval(
-    () => void pollOnce(state, () => cancelled, target),
-    HISTORY_POLL_MS,
-  );
-
-  return () => {
-    cancelled = true;
-    clearInterval(id);
-  };
-}
-
-/** Degraded path for a live run without a stream: polls from the reducer's cursor, kept in a ref so a poll result never restarts the interval. */
-export function useHistoryPoll(
-  active: boolean,
-  runId: string,
-  lastEventId: string,
-  dispatch: (event: RunStreamEvent) => void,
-): void {
-  const lastEventIdRef = useRef(lastEventId);
-
-  useEffect(() => {
-    lastEventIdRef.current = lastEventId;
-  }, [lastEventId]);
-
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-
-    return startPolling({ runId, lastEventIdRef, dispatch });
-  }, [active, runId, dispatch]);
-}
-
 export interface RunStreamWiring {
-  /** Ordered persisted events; the replay scrubber's source on a terminal run. */
   historyEvents: RunStreamEvent[];
   /** What the connection chip should read right now. */
   chipState: ChipState;
@@ -295,6 +189,25 @@ interface TransportTarget {
   runId: string;
   lastEventId: string;
   dispatch: RunStreamInput["dispatch"];
+  onFrame: RunStreamInput["onFrame"];
+}
+
+/** Splits the one stream by family: agent events fold into the event reducer, everything else is the page's state to apply. */
+function useFrameRouter(
+  dispatch: RunStreamInput["dispatch"],
+  onFrame: RunStreamInput["onFrame"],
+): (frame: RunStreamFrame) => void {
+  return useCallback(
+    (frame: RunStreamFrame) => {
+      if (frame.type === "agent_event") {
+        dispatch(frame.event);
+
+        return;
+      }
+      onFrame?.(frame);
+    },
+    [dispatch, onFrame],
+  );
 }
 
 /** Arms both transports; each is inert unless its own flag says otherwise. Both are always CALLED — hooks cannot be conditional — so the choice is expressed as an `enabled` flag rather than as a branch. */
@@ -303,19 +216,19 @@ function useTransports(
   enabled: { live: boolean; poll: boolean },
   history: RunHistory,
 ): void {
-  const { runId, lastEventId, dispatch } = target;
+  const { runId, lastEventId, dispatch, onFrame } = target;
 
   useRunEventStream({
     runId,
     afterId: lastEventId,
     enabled: enabled.live,
-    onEvent: dispatch,
+    onFrame: useFrameRouter(dispatch, onFrame),
     onConnectionChange: useStreamHandoff(
       history.setConnection,
       history.setStreamUnavailable,
     ),
   });
-  useHistoryPoll(enabled.poll, runId, lastEventId, dispatch);
+  useHistoryPoll({ active: enabled.poll, runId, lastEventId, dispatch });
 }
 
 /** How events reach the panel: the one-off history fold, then either the live SSE stream or — when a browser or a server cannot hold one open — a poll from the reducer's own cursor. The caller never learns which; both dispatch the same events. */
@@ -325,26 +238,26 @@ export interface RunStreamInput {
   runIsLive: boolean;
   lastEventId: string;
   dispatch: (event: RunStreamEvent) => void;
+  /** Receives every non-agent frame (node status, run status, task events, CI); absent when the caller only folds agent events. */
+  onFrame?: (frame: RunStreamFrame) => void;
 }
 
 /** What the panel reads: the persisted events, and the chip that says how they are arriving. */
 function runStreamWiring(
   history: RunHistory,
-  mode: ReturnType<typeof resolveStreamMode>,
-  fallbackPollActive: boolean,
+  chip: {
+    mode: ReturnType<typeof resolveStreamMode>;
+    fallbackPollActive: boolean;
+  },
 ): RunStreamWiring {
   return {
     historyEvents: history.historyEvents,
-    chipState: resolveChipState({
-      mode,
-      connection: history.connection,
-      fallbackPollActive,
-    }),
+    chipState: resolveChipState({ ...chip, connection: history.connection }),
   };
 }
 
 export function useRunStream(input: RunStreamInput): RunStreamWiring {
-  const { runId, runStatus, runIsLive, lastEventId, dispatch } = input;
+  const { runId, runStatus, runIsLive, lastEventId, dispatch, onFrame } = input;
   const history = useRunHistory(runId, dispatch);
   const mode = resolveStreamMode({
     runStatus,
@@ -357,10 +270,10 @@ export function useRunStream(input: RunStreamInput): RunStreamWiring {
     runIsLive && mode === "history-only" && historyReady;
 
   useTransports(
-    { runId, lastEventId, dispatch },
+    { runId, lastEventId, dispatch, onFrame },
     { live: mode === "live" && historyReady, poll: fallbackPollActive },
     history,
   );
 
-  return runStreamWiring(history, mode, fallbackPollActive);
+  return runStreamWiring(history, { mode, fallbackPollActive });
 }

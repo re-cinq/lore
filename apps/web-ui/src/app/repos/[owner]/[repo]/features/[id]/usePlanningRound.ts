@@ -67,7 +67,10 @@ function useRoundStatus(poll: PollData) {
     poll.feature.current_iteration,
   );
 
-  useRefreshWhenRoundLands(latestReady, latestIterationOrNull);
+  useRefreshWhenRoundLands({
+    latestReady,
+    iteration: latestIterationOrNull,
+  });
 
   return { latest, phase, latestReady, failed, iteration, latestCreatedAt };
 }
@@ -81,7 +84,10 @@ export function usePlanningRound(props: PlanningRoundInput) {
   const rounds = rewindOptions(feature.iterations);
   const submits = useRoundSubmits(draft, props, fetchLatest);
 
-  useRefreshWhenPlanningEnds(draft.finalizing, poll.feature.status);
+  useRefreshWhenPlanningEnds({
+    finalizing: draft.finalizing,
+    featureStatus: poll.feature.status,
+  });
 
   return {
     ...draft,
@@ -119,11 +125,9 @@ function latestRoundMeta(latest: LatestIteration, featureIteration: number) {
 
 /** The round whose analysis to show: the latest one when it produced a result, otherwise the most recent that did — a failed refine must not hide the analysis before it. */
 function resolveGap(
-  latestReady: boolean,
-  latest: LatestIteration,
-  poll: PollData,
+  state: Pick<AnalysisState, "poll" | "latest" | "latestReady">,
 ) {
-  const source = latestReady ? latest : poll.lastReady;
+  const source = state.latestReady ? state.latest : state.poll.lastReady;
 
   return source?.gap_result ?? null;
 }
@@ -142,12 +146,12 @@ interface AnalysisState {
 }
 
 export function analysisProps(state: AnalysisState) {
-  const { poll, latest, latestReady } = state;
+  const { poll, latest } = state;
 
   return {
     iteration: state.iteration,
     failed: state.failed,
-    gap: resolveGap(latestReady, latest, poll),
+    gap: resolveGap(state),
     failureReason: poll.task?.failure_reason,
     answers: latest?.user_answers,
     run: poll.run,
@@ -230,10 +234,11 @@ function useRoundSubmits(
 }
 
 /** The draft spec renders from the SERVER's copy, so a landed round shows pre-round data until this refreshes it — once per iteration, since refresh() re-renders the parent. */
-function useRefreshWhenRoundLands(
-  latestReady: boolean,
-  iteration: number | null,
-): void {
+function useRefreshWhenRoundLands(round: {
+  latestReady: boolean;
+  iteration: number | null;
+}): void {
+  const { latestReady, iteration } = round;
   const router = useRouter();
   /** Iteration whose completion already triggered a server refresh. */
   const refreshedFor = useRef<number | null>(null);
@@ -249,10 +254,11 @@ function useRefreshWhenRoundLands(
 }
 
 /** Finalize runs async with no intermediate status, so this watches the running poll's payload rather than adding a second interval of its own. */
-function useRefreshWhenPlanningEnds(
-  finalizing: boolean,
-  featureStatus: Parameters<typeof isPlanningActive>[0],
-): void {
+function useRefreshWhenPlanningEnds(planning: {
+  finalizing: boolean;
+  featureStatus: Parameters<typeof isPlanningActive>[0];
+}): void {
+  const { finalizing, featureStatus } = planning;
   const router = useRouter();
 
   useEffect(() => {

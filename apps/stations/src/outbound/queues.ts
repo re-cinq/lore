@@ -15,7 +15,7 @@ import { selectEventDeliveries } from "@re-cinq/lore-shared/project/events/selec
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
 import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
-import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
+import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-port.js";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 
 let pipelineSingleton: PipelineRepositories | undefined;
@@ -62,7 +62,7 @@ export const usage = (): PgUsage => (usageSingleton ??= new PgUsage(getPool()));
 
 export const eventProxy = (): EventProxy =>
   (eventProxySingleton ??= selectEventProxy({
-    local: () => pipelineRepositories().eventQueue,
+    local: () => pipelineRepositories().eventReporter,
   }));
 
 // The reporting half of that hub: `insert`, synchronous and throwing; a producer with nobody to return a status to uses `eventProxy().emit` instead.

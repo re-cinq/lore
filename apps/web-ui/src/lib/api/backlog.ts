@@ -19,7 +19,7 @@ export function getImplementationLoop(
 
 export function setImplementationLoopEnabled(
   repo: string,
-  enabled: boolean,
+  { enabled }: { enabled: boolean },
 ): Promise<ApiResult<ImplementationLoopToggle>> {
   return apiFetch("lore-api", path(repo), {
     method: "PUT",

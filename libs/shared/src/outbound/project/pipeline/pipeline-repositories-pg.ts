@@ -1,7 +1,7 @@
 // Postgres adapters; kept out of package barrel (subpath-only) to avoid pulling pg into light runtimes; takes pool arg, memoizes nothing.
 
 import { PgTaskQueue } from "../tasks/task-queue-pg.js";
-import { PgEventQueue } from "../events/event-queue-pg.js";
+import { PgEventReporter } from "../events/event-reporter-pg.js";
 import { PgAssemblyRuns } from "../assembly-runs/assembly-runs-pg.js";
 import { PgJobRuns } from "../job-runs/job-runs-pg.js";
 import { PgAudit } from "../audit/audit-pg.js";
@@ -16,7 +16,7 @@ import type { PipelineRepositories } from "./pipeline-repositories.js";
 export function createPipelineRepositories(pool: PgPool): PipelineRepositories {
   return {
     taskQueue: new PgTaskQueue(pool),
-    eventQueue: new PgEventQueue(pool),
+    eventReporter: new PgEventReporter(pool),
     assemblyRuns: new PgAssemblyRuns(pool),
     jobRuns: new PgJobRuns(pool),
     audit: new PgAudit(pool),

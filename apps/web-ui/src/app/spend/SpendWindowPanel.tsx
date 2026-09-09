@@ -8,7 +8,6 @@ import {
   type SpendPreset,
 } from "./spend-window-presets";
 import SpendView, { type SpendWindow } from "./SpendView";
-import type { RecordTopUpState } from "./actions";
 import styles from "./SpendView.module.css";
 
 function describeFetchError(err: unknown): string {
@@ -26,14 +25,7 @@ const PRESETS: Array<{ key: SpendPreset; label: string }> = [
   { key: "mtd", label: "Month to date" },
 ];
 
-export default function SpendWindowPanel({
-  recordAction,
-}: {
-  recordAction?: (
-    prev: RecordTopUpState | null,
-    formData: FormData,
-  ) => Promise<RecordTopUpState>;
-}) {
+export default function SpendWindowPanel() {
   const [interval, setInterval] = useState(() => presetInterval("7d"));
   const { spend, error } = useSpendWindow(interval);
 
@@ -41,9 +33,7 @@ export default function SpendWindowPanel({
     <section aria-label="Spend for the selected interval">
       <IntervalPicker interval={interval} onChange={setInterval} />
       {error !== null && <p className="meta">{error}</p>}
-      {spend !== null && (
-        <SpendView spend={spend} recordAction={recordAction} />
-      )}
+      {spend !== null && <SpendView spend={spend} />}
     </section>
   );
 }

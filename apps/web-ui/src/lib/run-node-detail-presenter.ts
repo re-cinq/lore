@@ -162,18 +162,21 @@ function resolveVisual(
 
 function resolveStatusLabel(
   visual: { tone: NodeStatusTone; label: string },
-  terminal: boolean,
+  { terminal }: { terminal: boolean },
 ): string {
   return visual.tone === "idle" && terminal ? "Terminal" : visual.label;
 }
 
-function resolveOutcomeLabel(running: boolean, outcome: string | null): string {
+function resolveOutcomeLabel(
+  outcome: string | null,
+  { running }: { running: boolean },
+): string {
   return running ? "in progress" : (outcome ?? "—");
 }
 
 function resolveDurationLabel(
-  running: boolean,
   durationSeconds: number | null,
+  { running }: { running: boolean },
 ): string {
   return running ? "running" : formatDuration(durationSeconds);
 }
@@ -249,7 +252,7 @@ export function describeNode(input: NodeDetailInput): NodeDetail {
 
   return {
     tone: visual.tone,
-    statusLabel: resolveStatusLabel(visual, terminal),
+    statusLabel: resolveStatusLabel(visual, { terminal }),
     why: whyText(input, nodeType, {
       tone: visual.tone,
       terminal,
@@ -258,7 +261,7 @@ export function describeNode(input: NodeDetailInput): NodeDetail {
     failures: resolveFailures(visual.tone, input.state),
     files: uniqueFiles(input.state),
     nodeType: nodeType ?? null,
-    ...nodeFacts(input, row, visual.tone === "running"),
+    ...nodeFacts(input, row, { running: visual.tone === "running" }),
   };
 }
 
@@ -271,15 +274,15 @@ type NodeFacts = Omit<
 function nodeFacts(
   input: NodeDetailInput,
   row: RowFacts,
-  running: boolean,
+  run: { running: boolean },
 ): NodeFacts {
   const state = stateFacts(input.state);
 
   return {
     eventCount: state.eventCount,
     droppedCount: state.droppedCount,
-    outcomeLabel: resolveOutcomeLabel(running, row.outcome),
-    durationLabel: resolveDurationLabel(running, row.durationSeconds),
+    outcomeLabel: resolveOutcomeLabel(row.outcome, run),
+    durationLabel: resolveDurationLabel(row.durationSeconds, run),
     iteration: resolveIteration(row, state),
     agentCrName: row.agentCrName,
     commitSha: row.commitSha,

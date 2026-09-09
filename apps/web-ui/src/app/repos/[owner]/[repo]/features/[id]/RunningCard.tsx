@@ -85,16 +85,17 @@ function TokenCount({ tokens }: { tokens: RunTokens | null | undefined }) {
   );
 }
 
-function statusText(spec: boolean, iteration: number): string {
-  return spec
-    ? "Writing the spec — deciding which specs change, then writing them…"
-    : `Analyzing your feature against the project… (round ${iteration})`;
-}
+const SPEC_STATUS_TEXT =
+  "Writing the spec — deciding which specs change, then writing them…";
 
-function refreshHint(spec: boolean): string {
-  return spec
-    ? "The spec PR opens when this finishes. This refreshes automatically."
-    : "The planning agent is running. This refreshes automatically.";
+const SPEC_REFRESH_HINT =
+  "The spec PR opens when this finishes. This refreshes automatically.";
+
+const ROUND_REFRESH_HINT =
+  "The planning agent is running. This refreshes automatically.";
+
+function roundStatusText(iteration: number): string {
+  return `Analyzing your feature against the project… (round ${iteration})`;
 }
 
 function effectiveBudget(
@@ -114,7 +115,6 @@ function RunGraph({ run }: { run: FeatureRunPayload | null | undefined }) {
     <RunVisualizationPanel
       runId={run.id}
       runStatus={run.status}
-      startedAt={run.startedAt}
       definition={run.definition}
       nodes={run.nodes}
       repo={run.repo}
@@ -150,7 +150,7 @@ function RunningStatusLine(props: StatusLineProps) {
 
   return (
     <p className={styles.status}>
-      {statusText(spec, iteration)}
+      {spec ? SPEC_STATUS_TEXT : roundStatusText(iteration)}
       <span className="planning-dots" aria-hidden="true">
         <span />
         <span />
@@ -177,7 +177,7 @@ export default function RunningCard(props: RunningCardProps) {
         budget={budget}
         tokens={run?.tokens}
       />
-      <Alert>{refreshHint(spec)}</Alert>
+      <Alert>{spec ? SPEC_REFRESH_HINT : ROUND_REFRESH_HINT}</Alert>
       <RunGraph run={run} />
       {liveOutput && <pre className={styles.output}>{liveOutput}</pre>}
     </div>

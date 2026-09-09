@@ -8,6 +8,7 @@ import {
   mkItem,
   toScore,
   addUniqueGraphLines,
+  extractKeyTerms,
 } from "./context-assembly-items.js";
 import type {
   ChunkSearchHit,
@@ -17,11 +18,9 @@ import type { SourceFetcher } from "./context-assembly-fetchers-types.js";
 
 /** Social/environmental context sources: the live knowledge graph, cross-repo transfer, and production incidents. */
 
-function longQueryWords(query: string): string[] {
-  return query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w) => w.length > 3);
+/** The three most distinctive words of the query, lower-cased for the entity match — the first three long words were filler ("catalog sync bug: saving") more often than entities. */
+function graphEntityCandidates(query: string): string[] {
+  return extractKeyTerms(query, 3).map((term) => term.toLowerCase());
 }
 
 async function fetchGraph(
@@ -33,7 +32,7 @@ async function fetchGraph(
     const seen = new Set<string>();
     const sources: SourceItem[] = [];
 
-    for (const word of longQueryWords(query).slice(0, 3)) {
+    for (const word of graphEntityCandidates(query)) {
       const graphResults = await queryLiveGraph(pool, { entity: word, repo });
 
       addUniqueGraphLines(graphResults, seen, sources);

@@ -29,6 +29,88 @@ const factKeywordQuery = (c: Call) => /FROM memory\.facts f/.test(c.sql);
 const edgesQuery = (c: Call) => /FROM memory\.edges/.test(c.sql);
 
 describe("searchMemories", () => {
+  it("searches memories and facts for 'split OR port OR lore-api' with websearch_to_tsquery ranked by ts_rank, not ILIKE by created_at", async () => {
+    const pool = scriptedPool();
+
+    await searchMemories(pool, "split the port for lore-api");
+
+    const keywordCalls = pool.calls.filter((c) =>
+      /websearch_to_tsquery\('english', \$1\)/.test(c.sql),
+    );
+
+    expect(
+      keywordCalls.map((c) => ({
+        terms: c.params[0],
+        ranked: /ORDER BY ts_rank\(/.test(c.sql),
+        legacy: /ILIKE|created_at DESC/.test(c.sql),
+      })),
+    ).toEqual([
+      { terms: "split OR port OR lore-api", ranked: true, legacy: false },
+      { terms: "split OR port OR lore-api", ranked: true, legacy: false },
+    ]);
+  });
+
+  it("runs only the fact legs with $4 = ['episode'] and never the memories table when sources is ['episode'], returning the 2 episode rows", async () => {
+    const row = (id: string, rank: number) => ({
+      id,
+      key: id,
+      value: `about ${id}`,
+      agent_id: "a1",
+      source: "episode",
+      kw_rank: String(rank),
+    });
+    const pool = scriptedPool((sql) =>
+      factKeywordQuery({ sql, params: [] }) ? [row("e1", 1), row("e2", 2)] : [],
+    );
+
+    const results = await searchMemories(pool, "deploy", {
+      limit: 5,
+      sources: ["episode"],
+    });
+
+    expect({
+      memoriesQueried: pool.calls.some((c) =>
+        /FROM memory\.memories m/.test(c.sql),
+      ),
+      factCalls: pool.calls.filter(factKeywordQuery).map((c) => ({
+        gated: /= ANY\(\$4::text\[\]\)/.test(c.sql),
+        sources: c.params[3],
+      })),
+      hits: results.map((r) => [r.key, r.source]),
+    }).toEqual({
+      memoriesQueried: false,
+      factCalls: [{ gated: true, sources: ["episode"] }],
+      hits: [
+        ["e1", "episode"],
+        ["e2", "episode"],
+      ],
+    });
+  });
+
+  it("audits an org-wide search against actorId agent-7 rather than the literal anonymous", async () => {
+    const pool = scriptedPool();
+
+    await searchMemories(pool, "deploy", { actorId: "agent-7" });
+
+    const audit = pool.calls.find((c) =>
+      /INSERT INTO memory\.audit_log/.test(c.sql),
+    );
+
+    expect(audit?.params[0]).toBe("agent-7");
+  });
+
+  it("keeps the search org-wide when actorId is given, so attribution does not narrow the scope", async () => {
+    const pool = scriptedPool();
+
+    await searchMemories(pool, "deploy", { actorId: "agent-7" });
+
+    const memoriesCall = pool.calls.find((c) =>
+      /FROM memory\.memories m/.test(c.sql),
+    );
+
+    expect(memoriesCall?.params[1]).toBeNull();
+  });
+
   it("passes $3 = true and the ($3::boolean OR f.valid_to IS NULL) gate when include_invalidated is true", async () => {
     const pool = scriptedPool();
 
@@ -53,7 +135,10 @@ describe("searchMemories", () => {
 
   it("issues the memory.edges augmentation query and returns a graph result when graph_augment is true", async () => {
     const pool = scriptedPool((sql) => {
-      if (/FROM memory\.memories m/.test(sql) && /ILIKE/.test(sql)) {
+      if (
+        /FROM memory\.memories m/.test(sql) &&
+        /websearch_to_tsquery/.test(sql)
+      ) {
         return [
           {
             id: "m1",
@@ -95,7 +180,7 @@ describe("searchMemories", () => {
 
   it("issues no memory.edges augmentation query when graph_augment is false", async () => {
     const pool = scriptedPool((sql) =>
-      /FROM memory\.memories m/.test(sql) && /ILIKE/.test(sql)
+      /FROM memory\.memories m/.test(sql) && /websearch_to_tsquery/.test(sql)
         ? [
             {
               id: "m1",

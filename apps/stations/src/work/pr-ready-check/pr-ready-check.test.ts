@@ -78,6 +78,7 @@ function deps(overrides: Partial<PrReadyCheckDeps> = {}) {
       },
     ],
     hasCiHistory: async () => true,
+    prMergeable: async () => true,
     listChecks: async () => [
       { name: "test", status: "completed", conclusion: "success" },
     ],
@@ -329,6 +330,22 @@ describe("prReadyCheckSweep", () => {
     await prReadyCheckSweep(d.deps);
 
     expect(d.reported).toMatchObject([{ outcome: "success" }]);
+  });
+
+  it("sends a conflicted pull request back to a round instead of waiting on a build GitHub will never run", async () => {
+    const d = deps({
+      listStationRuns: async () => parkedAtCi,
+      prMergeable: async () => false,
+      listChecks: async () => [],
+    });
+
+    await prReadyCheckSweep(d.deps);
+
+    expect(d.reported[0]).toMatchObject({
+      target: { nodeId: "await-ci" },
+      outcome: "changes_requested",
+      args: { reason: "pr_conflicting" },
+    });
   });
 
   it("waits on an await-ci park whose head moved to a commit CI skipped", async () => {

@@ -67,11 +67,10 @@ function recordText(
 function recordCheckbox(
   into: Record<string, unknown>,
   key: string,
-  value: boolean | undefined,
-  stored: boolean,
+  field: { value: boolean | undefined; stored: boolean },
 ): void {
-  if (value !== undefined && value !== stored) {
-    into[key] = value;
+  if (field.value !== undefined && field.value !== field.stored) {
+    into[key] = field.value;
   }
 }
 
@@ -82,12 +81,10 @@ function recordDarkFactoryScalars(
   formData: FormData,
   df: DarkFactorySettings,
 ): void {
-  recordCheckbox(
-    changes,
-    "enabled",
-    checkbox(formData, "df_enabled"),
-    df.enabled ?? false,
-  );
+  recordCheckbox(changes, "enabled", {
+    value: checkbox(formData, "df_enabled"),
+    stored: df.enabled ?? false,
+  });
   recordText(
     changes,
     "create_issue",
@@ -168,18 +165,14 @@ function recordAutoMergeGates(
   formData: FormData,
   am: AutoMergeSettings,
 ): void {
-  recordCheckbox(
-    changes,
-    "require_green_ci",
-    checkbox(formData, "df_am_green_ci"),
-    am.require_green_ci ?? true,
-  );
-  recordCheckbox(
-    changes,
-    "require_bot_approval",
-    checkbox(formData, "df_am_bot_approval"),
-    am.require_bot_approval ?? true,
-  );
+  recordCheckbox(changes, "require_green_ci", {
+    value: checkbox(formData, "df_am_green_ci"),
+    stored: am.require_green_ci ?? true,
+  });
+  recordCheckbox(changes, "require_bot_approval", {
+    value: checkbox(formData, "df_am_bot_approval"),
+    stored: am.require_bot_approval ?? true,
+  });
 }
 
 function autoMergeChanges(

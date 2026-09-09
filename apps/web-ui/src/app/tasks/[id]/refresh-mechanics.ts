@@ -1,6 +1,6 @@
 // When the task page refreshes; the context panels register with lives in TaskRefreshProvider.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RunStreamEvent } from "@/lib/run-stream-types";
 import {
   eventRefreshDelayMs,
@@ -11,6 +11,11 @@ import {
 
 type Refresh = () => void | Promise<void>;
 
+/** Whether a panel is worth ticking, named so the caller reads as a registration rather than a bare flag. */
+export interface Membership {
+  active: boolean;
+}
+
 /** Which panel ids are worth ticking, as both state and a ref. The ref exists so the tick callback can read the current set without being rebuilt — and therefore without restarting the interval — every time a panel comes or goes. */
 function useActiveIds() {
   const [activeIds, setActiveIds] = useState<ReadonlySet<string>>(new Set());
@@ -20,8 +25,8 @@ function useActiveIds() {
     activeIdsRef.current = activeIds;
   }, [activeIds]);
 
-  const setActive = useCallback((id: string, active: boolean) => {
-    setActiveIds((prev) => withMember(prev, id, active));
+  const setActive = useCallback((id: string, { active }: Membership) => {
+    setActiveIds((prev) => (active ? withId(prev, id) : withoutId(prev, id)));
   }, []);
 
   return { activeIds, activeIdsRef, setActive };
@@ -30,7 +35,7 @@ function useActiveIds() {
 /** Registering hands back the deregistration, so an unmounted panel cannot be ticked. */
 function useRegister(
   registryRef: { current: Map<string, Refresh> },
-  setActive: (id: string, active: boolean) => void,
+  setActive: (id: string, next: Membership) => void,
 ) {
   return useCallback(
     (id: string, refresh: Refresh) => {
@@ -38,7 +43,7 @@ function useRegister(
 
       return () => {
         registryRef.current.delete(id);
-        setActive(id, false);
+        setActive(id, { active: false });
       };
     },
     [registryRef, setActive],
@@ -64,24 +69,25 @@ export function usePanelRegistry() {
   };
 }
 
-/** Returns the same set when nothing changes, so a no-op toggle cannot re-render every panel. */
-export function withMember(
+/** Returns the same set when the id is already there, so a no-op toggle cannot re-render every panel. */
+export function withId(
   set: ReadonlySet<string>,
   id: string,
-  member: boolean,
 ): ReadonlySet<string> {
-  if (set.has(id) === member) {
+  return set.has(id) ? set : new Set(set).add(id);
+}
+
+/** Returns the same set when the id is already gone, for the same reason. */
+export function withoutId(
+  set: ReadonlySet<string>,
+  id: string,
+): ReadonlySet<string> {
+  if (!set.has(id)) {
     return set;
   }
   const next = new Set(set);
 
-  if (member) {
-    next.add(id);
-  }
-
-  if (!member) {
-    next.delete(id);
-  }
+  next.delete(id);
 
   return next;
 }
@@ -117,8 +123,12 @@ function useBurstWindow(
     lastRefreshAtRef.current = Date.now();
 
     return () => {
-      if (trailingTimerRef.current !== null) {
-        clearTimeout(trailingTimerRef.current);
+      // Reading current AT cleanup is the point: whatever refresh is owed when the page goes away is the one to drop.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const pending = trailingTimerRef.current;
+
+      if (pending !== null) {
+        clearTimeout(pending);
       }
     };
   }, [lastRefreshAtRef, trailingTimerRef]);
@@ -203,24 +213,24 @@ export function runDiscovery(
   };
 }
 
-interface TickerOptions {
+interface TickerSchedule {
   intervalMs: number;
   taskId: string;
   refreshAll: () => void;
-  discoveryActiveRef: { current: boolean };
-  liveRunIdRef: { current: string | null };
   onLiveRunFound: (runId: string | null) => void;
 }
 
+/** Discovery state read through refs, so toggling either one does not restart the interval mid-cycle. */
+interface DiscoveryRefs {
+  discoveryActiveRef: { current: boolean };
+  liveRunIdRef: { current: string | null };
+}
+
 /** The interval itself, and how to stop it. Discovery is read from a ref rather than taken as a value so that turning it on or off does not tear down and restart the interval mid-cycle. */
-function startTicker({
-  intervalMs,
-  taskId,
-  refreshAll,
-  discoveryActiveRef,
-  liveRunIdRef,
-  onLiveRunFound,
-}: TickerOptions) {
+function startTicker(
+  { intervalMs, taskId, refreshAll, onLiveRunFound }: TickerSchedule,
+  { discoveryActiveRef, liveRunIdRef }: DiscoveryRefs,
+) {
   const discovery = runDiscovery(taskId, liveRunIdRef, onLiveRunFound);
   const handle = setInterval(() => {
     refreshAll();
@@ -249,7 +259,10 @@ interface RefreshTickerOptions {
 }
 
 /** Discovery inputs held as refs, so toggling either one does not tear down and restart the interval mid-cycle. */
-function useDiscoveryRefs(discoveryActive: boolean, liveRunId: string | null) {
+function useDiscoveryRefs(
+  discovery: Pick<RefreshTickerOptions, "discoveryActive" | "liveRunId">,
+) {
+  const { discoveryActive, liveRunId } = discovery;
   const discoveryActiveRef = useRef(discoveryActive);
   const liveRunIdRef = useRef(liveRunId);
 
@@ -258,30 +271,28 @@ function useDiscoveryRefs(discoveryActive: boolean, liveRunId: string | null) {
     liveRunIdRef.current = liveRunId;
   }, [discoveryActive, liveRunId]);
 
-  return { discoveryActiveRef, liveRunIdRef };
+  // Both refs are stable, so this object is built once and the ticker effect takes it as one dependency.
+  return useMemo(
+    () => ({ discoveryActiveRef, liveRunIdRef }),
+    [discoveryActiveRef, liveRunIdRef],
+  );
 }
 
 export function useRefreshTicker(options: RefreshTickerOptions): void {
+  const refs = useDiscoveryRefs(options);
+
+  useTickerEffect(options, refs);
+}
+
+/** A null interval means no ticker at all, so the effect returns before starting one. */
+function useTickerEffect(options: RefreshTickerOptions, refs: DiscoveryRefs) {
   const { intervalMs, taskId, refreshAll, onLiveRunFound } = options;
-  const { discoveryActiveRef, liveRunIdRef } = useDiscoveryRefs(
-    options.discoveryActive,
-    options.liveRunId,
-  );
 
   useEffect(() => {
-    if (intervalMs === null) {
-      return;
-    }
-
-    return startTicker({
-      intervalMs,
-      taskId,
-      refreshAll,
-      discoveryActiveRef,
-      liveRunIdRef,
-      onLiveRunFound,
-    });
-  }, [intervalMs, taskId, refreshAll, onLiveRunFound]);
+    return intervalMs === null
+      ? undefined
+      : startTicker({ intervalMs, taskId, refreshAll, onLiveRunFound }, refs);
+  }, [intervalMs, taskId, refreshAll, onLiveRunFound, refs]);
 }
 
 /** The task's runs, reduced to the one that is live — or null when none is. */

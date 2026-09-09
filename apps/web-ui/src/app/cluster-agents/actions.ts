@@ -10,9 +10,9 @@ import { enforceOk } from "@/lib/api/result";
 /** Cluster in/out of rotation; identity bound server-side (browser never chooses). */
 export async function toggleClusterPausedAction(
   id: string,
-  paused: boolean,
+  { paused }: { paused: boolean },
 ): Promise<void> {
-  enforceOk("pause cluster agent", await setClusterAgentPaused(id, paused));
+  enforceOk("pause cluster agent", await setClusterAgentPaused(id, { paused }));
   revalidatePath("/cluster-agents");
 }
 

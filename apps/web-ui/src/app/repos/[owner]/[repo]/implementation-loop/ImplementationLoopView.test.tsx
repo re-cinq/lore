@@ -192,7 +192,7 @@ describe("ImplementationLoopView", () => {
 
     fireEvent.click(getByText("Disable loop"));
 
-    expect(toggle).toHaveBeenCalledWith(false);
+    expect(toggle).toHaveBeenCalledWith({ enabled: false });
   });
 
   it("lists recently addressed tickets with their state", () => {

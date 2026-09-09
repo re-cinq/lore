@@ -148,13 +148,14 @@ describe("the implementation-tdd recipe", () => {
     }
   });
 
-  it("tells no delivering recipe to run the repository's format step, because CI runs it on the pull request", () => {
+  it("tells every delivering recipe to fix and format the files it changed, scoped, before committing", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
 
-      expect(prompt, name).not.toContain("OWN format/fix step");
+      expect(prompt, name).toContain("fix/format step OVER THE");
+      expect(prompt, name).toContain("not the whole repo");
     }
   });
 
@@ -174,14 +175,50 @@ describe("the implementation-tdd recipe", () => {
     ).toContain("run ONLY that");
   });
 
-  it("tells every implementing recipe to report failure when it delivered nothing", () => {
+  it("tells every delivering recipe to typecheck what it touched, since passing tests do not mean it compiles", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
 
+      expect(prompt, name).toContain("TYPECHECK the packages you touched");
+      expect(prompt, name).toContain("does NOT\n  mean the code compiles");
+    }
+  });
+
+  it("tells every delivering recipe to bring its branch up to date with the base before it stops", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+
+    for (const name of DELIVERING_PROMPT_REFS) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
+      expect(prompt, name).toContain(
+        "bring the branch up to date with its base",
+      );
+      expect(prompt, name).toContain("NO CI AT ALL");
+    }
+  });
+
+  it("tells every implementing recipe but tdd-round to report failure when it delivered nothing", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const oneShot = DELIVERING_PROMPT_REFS.filter((n) => n !== "tdd-round");
+
+    for (const name of oneShot) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
       expect(prompt, name).toContain('LORE_NODE_RESULT: {"outcome":"failed"}');
     }
+  });
+
+  it("lets a round that found the work already done report success, since failure would strand the branch", () => {
+    const round = parseTaskTypesFile(COMMITTED).taskTypes["tdd-round"];
+
+    expect(round?.prompt_template).toContain(
+      'LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Tdd-Next":"acceptance green"}}',
+    );
+    expect(round?.prompt_template).toContain(
+      "Report failure when you are STUCK, never when you are FINISHED",
+    );
   });
 
   it("holds the DoD to the ticket's own claim — scope fidelity, not reinterpretation (bowman-ui #11, #1745)", () => {
@@ -203,6 +240,35 @@ describe("the implementation-tdd recipe", () => {
     expect(dod).toContain("own source text");
     expect(dod).toContain("compute the value");
     expect(round).toContain("own source text");
+  });
+
+  it("asks the definition of done to open with the ticket claim as a blockquote", () => {
+    expect(
+      parseTaskTypesFile(COMMITTED).taskTypes["acceptance-dod"]
+        ?.prompt_template,
+    ).toContain("> <the ticket's central claim, quoted verbatim>");
+  });
+
+  it("tells the definition-of-done step its verdict is posted on the issue", () => {
+    expect(
+      parseTaskTypesFile(COMMITTED).taskTypes["acceptance-dod"]
+        ?.prompt_template,
+    ).toContain("posted verbatim on the issue");
+  });
+
+  it("asks the definition of done for task-list checkboxes, so a round's progress renders", () => {
+    const dod =
+      parseTaskTypesFile(COMMITTED).taskTypes["acceptance-dod"]
+        ?.prompt_template ?? "";
+
+    expect(dod).toContain("## Done when these pass");
+    expect(dod).toContain("- [ ] **<test name>**");
+  });
+
+  it("tells a round to tick the facet it closed rather than append to a log", () => {
+    expect(
+      parseTaskTypesFile(COMMITTED).taskTypes["tdd-round"]?.prompt_template,
+    ).toContain("`- [ ]` becomes `- [x]`");
   });
 
   it("offers a mechanical strategy so a trivial ticket owes no new permanent test (#1744)", () => {

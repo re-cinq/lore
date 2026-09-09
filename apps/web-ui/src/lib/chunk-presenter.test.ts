@@ -13,6 +13,17 @@ describe("chunkHeader", () => {
     ).toEqual("function foo · L10–42");
   });
 
+  it("builds a test chunk's header the same way: 'call it · L5–9'", () => {
+    expect(
+      chunkHeader("test", {
+        symbol_type: "call",
+        symbol_name: "it",
+        start_line: 5,
+        end_line: 9,
+      }),
+    ).toEqual("call it · L5–9");
+  });
+
   it("omits the line range when only the symbol is present", () => {
     expect(
       chunkHeader("code", { symbol_type: "class", symbol_name: "Foo" }),

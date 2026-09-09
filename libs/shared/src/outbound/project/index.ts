@@ -34,6 +34,7 @@ export type {
   MergeMethod,
   ReviewThread,
   ReviewThreadComment,
+  PullFileChange,
 } from "./pulls/pull-requests-port.js";
 export { PullRequests } from "./pulls/pull-requests.js";
 export { findThreadForComment } from "./pulls/review-threads.js";
@@ -71,6 +72,15 @@ export type {
   AgentRunEventNodeRef,
   AgentRunEventType,
 } from "./agent-run-events/agent-run-events-port.js";
+
+export type {
+  TestReportsRepository,
+  TestReportRow,
+  NewTestReport,
+  ReportedTest,
+} from "./test-reports/test-reports-port.js";
+
+export type { TaskEventsRepository } from "./task-events/task-events-port.js";
 
 export { compareTurnIdAscending } from "./agent-run-turns/agent-run-turns-port.js";
 export type {

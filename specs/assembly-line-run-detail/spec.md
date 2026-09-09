@@ -1,13 +1,13 @@
 # Feature Specification: Assembly Line Run Detail — Information Hierarchy
 
-| Field     | Value                                                              |
-|-----------|--------------------------------------------------------------------|
-| Feature   | Assembly Line Run Detail — Information Hierarchy                   |
-| Branch    | `lore/feature-planning/what-s-wrong-assembly-lines-id-3a7a7bd2`   |
-| Status    | In Progress                                                        |
-| Created   | 2026-08-13                                                         |
-| Owner     | Platform Engineering                                               |
-| Builds on | [specs/assembly-line-run-viz](../assembly-line-run-viz/spec.md)    |
+| Field     | Value                                                           |
+| --------- | --------------------------------------------------------------- |
+| Feature   | Assembly Line Run Detail — Information Hierarchy                |
+| Branch    | `lore/feature-planning/what-s-wrong-assembly-lines-id-3a7a7bd2` |
+| Status    | In Progress                                                     |
+| Created   | 2026-08-13                                                      |
+| Owner     | Platform Engineering                                            |
+| Builds on | [specs/assembly-line-run-viz](../assembly-line-run-viz/spec.md) |
 
 The `/assembly-runs/[id]` page is the main window into what the platform is doing in the background, but its components were added incrementally and never reconciled into a hierarchy. This refactor imposes two levels — line and node — so a developer can navigate to a node's detail without already knowing where to click.
 
@@ -15,7 +15,7 @@ The `/assembly-runs/[id]` page is the main window into what the platform is doin
 
 The current page under `apps/web-ui/src/app/assembly-runs/[id]/` has seven view components and two levels of information that do not compose:
 
-**Line-level** (about the whole run): `RunGraphView`, `RunTimelineView`, `ReplayScrubberView`, `FileHeatmapView`, `AssemblyRunView` (header + static step list)
+**Line-level** (about the whole run): `RunGraphView`, `RunTimelineView`, `ReplayScrubberView`, `FileHeatmapView`, `AssemblyRunView` (header + static step list). _(Amended 2026-09-09: `RunTimelineView` and `ReplayScrubberView` were retired — `specs/assembly-line-run-viz` Retired Requirements.)_
 
 **Node-level** (about one execution pod): `RunNodeDetail`, `NodeTranscriptView`, `NodePodLogs`
 
@@ -28,6 +28,8 @@ The three imported components from `apps/web-ui/src/app/tasks/[id]/` (`EventTime
 ## FR1 — The static step list is deleted
 
 - `AssemblyRunView` renders only the metadata facts table (definition name, status, repo, branch, outcome, reason, duration, task link, PR link). The `<ol>` step list produced by `stepViews()` is removed.
+- _(Amended 2026-09-09)_ The facts table is framed as a `spec-card`, the same surface every other detail page gives its summary block — the header facts were the one card-shaped block on this page still rendering as bare markup. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L93))
+- _(Amended 2026-09-09)_ The backing task's GitHub Issue is the last fact in the card, under the PR link: a run with an issue links it as `#<number>`, a run without one omits the row entirely, the same shape the PR fact already has. The issue rides the run-row enrichment's existing task join (`issue_url`/`issue_number`), not a second read. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L99), [omitted when absent](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunView.test.tsx#L108), [carried by the row mapper](apps/web-ui/src/lib/assembly-runs.test.ts#L49), [and by the enrichment query](apps/lore-api/src/integration-tests/assembly-run-enrichment.test.ts#L106))
 - The interactive `RunGraphView` is the sole visual answer to "what did this run do and in what order." The two are not duplicated.
 - Any tests that cover only the step list rendering are deleted with it.
 
@@ -42,24 +44,23 @@ The three imported components from `apps/web-ui/src/app/tasks/[id]/` (`EventTime
 ## FR3 — Line-level views remain at line level
 
 - `RunGraphView` is always visible at the top of the visualization section, before any node detail.
-- `ReplayScrubberView` and the "Back to live" control remain at line level (below the graph), because the scrubber controls the replay cursor for the whole run.
-- `RunTimelineView` remains at line level as the coarse lifecycle overview.
+- _(Amended 2026-09-09)_ The replay scrubber, its "Back to live" control and the run Timeline card were retired; the graph and the per-node transcript are the whole-run overview.
 - `FileHeatmapView` remains at line level. It tallies file touches across all nodes, not just the selected one, and its value is answering "what did this run touch?" not "what did this node touch?".
 
 ## FR4 — Task accounting stays at page bottom, visually grouped
 
 - When `run.taskId` is present, `EventTimeline` and `LlmCallsTable` (imported from `apps/web-ui/src/app/tasks/[id]/`) remain on the page, grouped under a "Task accounting" heading below the visualization panel.
-- When `run.taskId` is absent, the "Task accounting" section is omitted and the existing explanatory paragraph ("This run has no backing task…") is removed with it. A run without a task is not a degraded state that requires explanation — it is a normal case for detection lines. *Amended 2026-09-02:* the note stays for now, but renders through the shared secondary `Alert` atom (`specs/web-ui-theming`) instead of a bare `className="meta"` paragraph.
+- When `run.taskId` is absent, the "Task accounting" section is omitted and the existing explanatory paragraph ("This run has no backing task…") is removed with it. A run without a task is not a degraded state that requires explanation — it is a normal case for detection lines. _Amended 2026-09-02:_ the note stays for now, but renders through the shared secondary `Alert` atom (`specs/web-ui-theming`) instead of a bare `className="meta"` paragraph.
 
 ## FR5 — No new components; redundant paths are deleted
 
 - The refactor moves and resizes existing components. It does not introduce new component files.
 - `NodePodLogs.tsx` prop signature changes (FR2) but its rendering logic is unchanged.
 - `AssemblyRunView.tsx` loses the step list and `stepViews()` helper. The component is not deleted — its header rendering is still server-rendered above the visualization panel.
-- `TriggerReviewButton` placement is unchanged (below the header, gated on `code-review` definition and PR number). *Amended 2026-09-02:* the gate moved out of `page.tsx` into `AssemblyRunOptions`, the component that decides which actions a run offers from the run itself.
-  - A `code-review` run with a PR number renders the trigger-review button. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L30))
-  - A run of another definition renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L38))
-  - A `code-review` run without a PR number renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L48))
+- `TriggerReviewButton` placement is unchanged (below the header, gated on `code-review` definition and PR number). _Amended 2026-09-02:_ the gate moved out of `page.tsx` into `AssemblyRunOptions`, the component that decides which actions a run offers from the run itself.
+  - A `code-review` run with a PR number renders the trigger-review button. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L32))
+  - A run of another definition renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L40))
+  - A `code-review` run without a PR number renders no options. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L50))
 
 ## Alternatives Rejected
 

@@ -113,7 +113,7 @@ function successResponse(success?: {
     ? {
         [String(success.meta.status)]: {
           description: success.meta.description,
-          content: { "application/json": { schema: success.ref } },
+          content: { [success.meta.contentType]: { schema: success.ref } },
         },
       }
     : {

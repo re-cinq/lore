@@ -21,6 +21,7 @@ import {
   RunListSchema,
   RunRowSchema,
   StationRunListSchema,
+  toStationRunRow,
   toRunRow,
   toRunRowWithGraph,
   TokenUsageSchema,
@@ -163,25 +164,6 @@ function listRunsRoute(
   };
 }
 
-type StationRunVisit = Awaited<
-  ReturnType<AssemblyRunsPort["listStationRuns"]>
->[number];
-
-/** One station visit as the timeline draws it. */
-function stationRunRow(visit: StationRunVisit) {
-  return {
-    node_id: visit.nodeId,
-    station_run_id: visit.stationRunId,
-    iteration: visit.iteration,
-    outcome: visit.outcome,
-    agent_cr_name: visit.agentCrName,
-    input: visit.input,
-    commit_sha: visit.commitSha,
-    started_at: visit.startedAt.toISOString(),
-    finished_at: visit.finishedAt?.toISOString() ?? null,
-  };
-}
-
 /** The run's station visits in VISIT order, not node order — a line that loops visits the same node more than once, and the sequence is what the timeline draws. */
 async function serveRunNodes(
   pool: Pool,
@@ -192,7 +174,7 @@ async function serveRunNodes(
   try {
     const visits = await portFor(pool).listStationRuns(request.params.id);
 
-    return h.response({ nodes: visits.map(stationRunRow) });
+    return h.response({ nodes: visits.map(toStationRunRow) });
   } catch (err) {
     if (missingTable(err)) {
       return h.response({ nodes: [] });

@@ -42,7 +42,7 @@ function lastStringId(page: readonly unknown[]): string | null {
 // Floor's `hasMore` is authoritative when present; absent (deploy skew, #1310 fallback), falls back to the short-page rule.
 export function nextTurnsCursor(
   page: readonly unknown[],
-  hasMore?: boolean,
+  { hasMore }: { hasMore?: boolean } = {},
 ): string | null {
   if (hasMore === false) {
     return null;
@@ -63,7 +63,7 @@ export function parseHasMore(body: { hasMore?: unknown }): boolean | undefined {
 // Whether the server reports rows past this page (Floor's flag, else length inference); alone decides the cap notice — a stop while true is a silent truncation.
 export function serverReportsMore(
   page: readonly unknown[],
-  hasMore?: boolean,
+  { hasMore }: { hasMore?: boolean } = {},
 ): boolean {
   return hasMore ?? page.length >= TURNS_PAGE_LIMIT;
 }
@@ -73,15 +73,6 @@ export function turnsForNode(
   nodeId: string,
 ): AgentRunTurn[] {
   return turns.filter((turn) => turn.nodeId === nodeId);
-}
-
-// The raw stream-json kind, unnarrowed — a kind never seen still shows.
-export function turnHeading(turn: AgentRunTurn): string {
-  return turn.eventType ?? "unknown";
-}
-
-export function envelopePretty(turn: AgentRunTurn): string {
-  return JSON.stringify(turn.envelope, null, 2);
 }
 
 // One classified entry from one turn, carrying that turn's stored timestamp — the per-message clock the formatted conversation renders.

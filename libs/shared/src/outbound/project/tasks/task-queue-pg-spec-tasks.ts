@@ -122,6 +122,7 @@ export class PgSpecTaskQueries {
     if (!task) {
       return { completed: false, unblocked: [] };
     }
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the SQL spec-task DAG claim; reading like the in-memory double is the double doing its job, and only one of the two can hold the transaction
     await this.markCompleted(id);
 
     const specTaskId = specTaskIdOf(task);

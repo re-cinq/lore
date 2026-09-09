@@ -3,6 +3,7 @@
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
 import { resolveAgentId } from "../../agent-id.js";
 import { diversify, rrfMerge } from "../../../domain/memory-ranking.js";
+import { keyTermsQuery } from "../../../domain/key-terms.js";
 import type { PgPool } from "../../memory-store.js";
 import {
   vectorSearchMemories,
@@ -33,6 +34,10 @@ export interface MemorySearchOptions {
   limit?: number;
   includeInvalidated?: boolean;
   graphAugment?: boolean;
+  /** Who is searching, for the audit trail. Distinct from `agentId`, which narrows WHAT is searched: an org-wide search still has an author, and recording the scope instead left every one of them logged as "anonymous". */
+  actorId?: string;
+  /** Keep only these kinds of hit. The legs that cannot produce a requested kind are not run, and the fact legs filter in SQL under their LIMIT, so asking for 5 episodes yields the 5 best episodes rather than whatever episodes survived a mixed top-20. */
+  sources?: MemorySearchResult["source"][];
 }
 
 /** Resolves pool name to pool_id when provided. */
@@ -48,6 +53,16 @@ interface SearchScope {
   agent: string | null;
   poolId: string | null;
   includeInvalidated: boolean;
+  sources: MemorySearchResult["source"][] | null;
+}
+
+function wantsKind(
+  scope: SearchScope,
+  ...kinds: MemorySearchResult["source"][]
+): boolean {
+  return (
+    scope.sources === null || kinds.some((k) => scope.sources?.includes(k))
+  );
 }
 
 /** Attempts a query embedding from Vertex AI; unavailable embedding yields no vector hits (keyword search still runs). */
@@ -64,25 +79,30 @@ async function vectorSearchBoth(
   const embeddingStr = `[${embedding.join(",")}]`;
 
   return Promise.all([
-    vectorSearchMemories(pool, embeddingStr, scope.agent, scope.poolId),
-    vectorSearchFacts(
-      pool,
-      embeddingStr,
-      scope.agent,
-      scope.includeInvalidated,
-    ),
+    wantsKind(scope, "memory")
+      ? vectorSearchMemories(pool, embeddingStr, scope.agent, scope.poolId)
+      : [],
+    wantsKind(scope, "fact", "episode")
+      ? vectorSearchFacts(pool, embeddingStr, scope)
+      : [],
   ]);
 }
 
-/** Keyword search always runs (fallback when embedding unavailable). */
+/** Keyword search always runs (fallback when embedding unavailable), on the query's distinctive terms rather than the sentence. */
 async function keywordSearchBoth(
   pool: PgPool,
   query: string,
   scope: SearchScope,
 ): Promise<[RankedRow[], RankedRow[]]> {
+  const terms = keyTermsQuery(query);
+
   return Promise.all([
-    keywordSearchMemories(pool, query, scope.agent, scope.poolId),
-    keywordSearchFacts(pool, query, scope.agent, scope.includeInvalidated),
+    wantsKind(scope, "memory")
+      ? keywordSearchMemories(pool, terms, scope.agent, scope.poolId)
+      : [],
+    wantsKind(scope, "fact", "episode")
+      ? keywordSearchFacts(pool, terms, scope)
+      : [],
   ]);
 }
 
@@ -95,10 +115,12 @@ function poolNotFound(
 
 interface ResolvedSearchOptions {
   agentId?: string;
+  actorId?: string;
   poolName?: string;
   limit: number;
   includeInvalidated: boolean;
   graphAugmentEnabled: boolean;
+  sources?: MemorySearchResult["source"][];
 }
 
 function resolveSearchOptions(
@@ -106,25 +128,13 @@ function resolveSearchOptions(
 ): ResolvedSearchOptions {
   return {
     agentId: options.agentId,
+    actorId: options.actorId,
     poolName: options.poolName,
     limit: options.limit ?? 10,
     includeInvalidated: options.includeInvalidated ?? false,
     graphAugmentEnabled: options.graphAugment ?? false,
+    sources: options.sources,
   };
-}
-
-/** Graph augmentation: enrich results with 1-hop graph neighbors, when enabled and there's anything to augment. */
-async function applyGraphAugment(
-  pool: PgPool,
-  results: MemorySearchResult[],
-  limit: number,
-  enabled: boolean,
-): Promise<MemorySearchResult[]> {
-  if (!enabled || results.length === 0) {
-    return results;
-  }
-
-  return augmentWithGraphNeighbors(pool, results, limit);
 }
 
 /** The four search legs merged into one ranked list. Reciprocal rank fusion is what lets a vector hit and a keyword hit be compared at all — the legs score on incompatible scales, but their RANKS are commensurable. Diversification then caps how much of the result one session can occupy, so a single chatty run cannot crowd out everything else. */
@@ -132,31 +142,34 @@ async function rankedHits(
   pool: PgPool,
   query: string,
   scope: SearchScope,
-  limit: number,
+  { limit }: ResolvedSearchOptions,
 ): Promise<MemorySearchResult[]> {
   const [[vectorMemories, vectorFacts], [keywordMemories, keywordFacts]] =
     await Promise.all([
       vectorSearchBoth(pool, query, scope),
       keywordSearchBoth(pool, query, scope),
     ]);
+  const merged = rrfMerge([
+    vectorMemories,
+    vectorFacts,
+    keywordMemories,
+    keywordFacts,
+  ]);
 
-  return diversify(
-    rrfMerge([vectorMemories, vectorFacts, keywordMemories, keywordFacts]),
-    limit,
-  );
+  return diversify(merged, limit);
 }
 
 /** The search scope, or null when a named pool was requested that does not exist. */
 async function resolveScope(
   pool: PgPool,
   agent: string | null,
-  { poolName, includeInvalidated }: ResolvedSearchOptions,
+  { poolName, includeInvalidated, sources }: ResolvedSearchOptions,
 ): Promise<SearchScope | null> {
   const poolId = await resolvePoolId(pool, poolName);
 
   return poolNotFound(poolName, poolId)
     ? null
-    : { agent, poolId, includeInvalidated };
+    : { agent, poolId, includeInvalidated, sources: sources ?? null };
 }
 
 /** The ranked legs, optionally widened by 1-hop graph neighbors. */
@@ -164,11 +177,14 @@ async function scopedResults(
   pool: PgPool,
   query: string,
   scope: SearchScope,
-  { limit, graphAugmentEnabled }: ResolvedSearchOptions,
+  options: ResolvedSearchOptions,
 ): Promise<MemorySearchResult[]> {
-  const ranked = await rankedHits(pool, query, scope, limit);
+  const ranked = await rankedHits(pool, query, scope, options);
 
-  return applyGraphAugment(pool, ranked, limit, graphAugmentEnabled);
+  // Graph augmentation widens the list with 1-hop neighbours; nothing ranked means nothing to widen.
+  return options.graphAugmentEnabled && ranked.length > 0
+    ? augmentWithGraphNeighbors(pool, ranked, options.limit)
+    : ranked;
 }
 
 /** Strengthen what was retrieved, audit the search, and hand the results back unchanged. */
@@ -184,6 +200,16 @@ async function finishSearch(
   return results;
 }
 
+/** Two ids, told apart: `agent` is whose memories are searched and decides the scope, `actor` is who ran the search and is what the audit records. They differ whenever one agent reads another's pool. */
+function searchIdentities(resolved: ResolvedSearchOptions): {
+  agent: string | null;
+  actor: string | null;
+} {
+  const agent = resolved.agentId ? resolveAgentId(resolved.agentId) : null;
+
+  return { agent, actor: resolved.actorId ?? agent };
+}
+
 export async function searchMemories(
   pool: PgPool,
   query: string,
@@ -192,19 +218,19 @@ export async function searchMemories(
   const resolved = resolveSearchOptions(options);
   // Captures the clock BEFORE the work it times; moving it down would shorten the reported latency.
   const searchStartTime = Date.now();
-  const agent = resolved.agentId ? resolveAgentId(resolved.agentId) : null;
+  const { agent, actor } = searchIdentities(resolved);
   const scope = await resolveScope(pool, agent, resolved);
 
   if (!scope) {
     // Pool does not exist — return empty
-    await auditLog(pool, { agentId: agent, query, resultCount: 0 });
+    await auditLog(pool, { agentId: actor, query, resultCount: 0 });
 
     return [];
   }
   const results = await scopedResults(pool, query, scope, resolved);
 
   return finishSearch(pool, results, {
-    agentId: agent,
+    agentId: actor,
     query,
     latencyMs: Date.now() - searchStartTime,
   });

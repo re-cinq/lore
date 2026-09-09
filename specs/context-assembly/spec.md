@@ -142,41 +142,57 @@ The tool retrieves from all available sources:
 - FR-2.4: **Facts** — including episode-derived facts
   (from `lore_search_memory` fact search).
 - FR-2.5: **Graph** — related entities and relationships
-  (from `lore_query_graph` logic, 1-hop).
+  (from `lore_query_graph` logic, 1-hop). The entities looked up are the
+  query's three most distinctive terms, not its first three long words —
+  "catalog sync bug: saving" is four long words and no entity. ([validated by `queries the graph for 'settings' and 'lore-api' from 'Add the new settings update for lore-api', not for 'update'`](libs/shared/src/outbound/project/knowledge/context-assembly-fetchers.test.ts#L65))
+- FR-2.5a: **Episodes** — the Recent Episodes section asks memory search for
+  episodes as such (`sources: ["episode"]`) rather than filtering them out of
+  a mixed top-5, which memories and facts outranked often enough that the
+  section came back empty on every call. ([validated by `asks the fact legs for episodes only, never the memories table, and returns the 2 episode rows`](libs/shared/src/outbound/project/knowledge/context-assembly-fetchers.test.ts#L37))
 - FR-2.6: Each source is retrieved in parallel.
 - FR-2.7: **Hybrid relevance ranking.** The local `repo`, `code`, and `adrs`
   sources rank by a Reciprocal-Rank-Fusion of a pgvector cosine leg and a BM25
   (`ts_rank`) leg — the same hybrid that powers `search_context` — so a
   natural-language query surfaces semantically-relevant chunks, not just keyword
   overlap. Degrades to keyword-only (`ts_rank`/`websearch_to_tsquery`) when no
-  query embedding is available. ([validated by `context-assembly.test.ts:189`](libs/server-core/src/work/context/context-assembly.test.ts#L189), [`uses a vector+keyword RRF query when an embedding is available`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L279))
+  query embedding is available — and that fallback returns only chunks the
+  query matches (`search_tsv @@`), never unmatched chunks ranked by recency: a
+  zero `ts_rank` is a score, not a NULL, so without the filter a query matching
+  nothing returned the newest chunks of the type, the same three for every
+  question, for the four weeks the vector leg was down (2026-08-13 → 09-09). ([validated by `context-assembly.test.ts:189`](libs/server-core/src/work/context/context-assembly.test.ts#L189), [`uses a vector+keyword RRF query when an embedding is available`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L418), [`keyword-only SQL filters with search_tsv @@ websearch_to_tsquery so non-matching chunks are not returned`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L295))
 - FR-2.8: **No cross-section duplication.** The `repo`/Conventions source pulls
   only `doc`/`spec` (never `adr`, which is its own section), and chunks sharing a
-  `file_path` are de-duplicated, keeping the highest-scoring copy. ([validated by `context-assembly.test.ts:216`](libs/server-core/src/work/context/context-assembly.test.ts#L216), [`context-assembly-format.test.ts:23`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L23), [`context-assembly-format.test.ts:35`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L35))
+  `file_path` — or a `content_hash`, a file and its copied twin at another path
+  being one document — are de-duplicated, keeping the highest-scoring copy; the
+  hash rides on every hit for that purpose. ([validated by `context-assembly.test.ts:216`](libs/server-core/src/work/context/context-assembly.test.ts#L216), [`context-assembly-format.test.ts:23`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L23), [`context-assembly-format.test.ts:62`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L62), [`keeps a path-less item at rank 2 between two keyed survivors instead of moving it last`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L68), [`collapses trace-impact-workflow.ts and its twin sharing content_hash abc123 to one item`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L35), [`carries the chunk content_hash onto the item so twins across paths can collapse`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L309))
 - FR-2.9: **Code retrieval.** A dedicated `code` source retrieves
   `content_type='code'` chunks via the same hybrid ranking, so implementation and
   review tasks receive the actual source files they edit (previously code was
-  never retrieved — the `repo` source excluded it). ([validated by `context-assembly.test.ts:243`](libs/server-core/src/work/context/context-assembly.test.ts#L243), [`context-assembly.test.ts:216`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L216))
+  never retrieved — the `repo` source excluded it). ([validated by `context-assembly.test.ts:243`](libs/server-core/src/work/context/context-assembly.test.ts#L243), [`context-assembly.test.ts:229`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L229), [`context-assembly.test.ts:376`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L376))
 - FR-2.10: **Keyword leg searches distinctive terms.** A paragraph-length query
   is reduced to its distinctive terms (stopwords + ≤2-char words dropped, capped)
-  for the keyword leg, so common filler words don't dominate ranking. ([validated by `context-assembly.test.ts:119`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L119), [`context-assembly.test.ts:132`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L132))
+  for the keyword leg, so common filler words don't dominate ranking. The
+  term extraction is one domain helper shared with memory search, so the two
+  keyword legs never disagree about what "distinctive" means. ([validated by `key-terms.test.ts:5`](libs/shared/src/domain/key-terms.test.ts#L5), [`key-terms.test.ts:18`](libs/shared/src/domain/key-terms.test.ts#L18))
 - FR-2.11: **Normalized relevance.** Item scores are rescaled so the top result
   is `1.00` and the rest are proportional fractions — raw RRF/`ts_rank` scores are
-  tiny (~0.02) and unreadable as a relevance signal. ([validated by `context-assembly.test.ts:351`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L349))
+  tiny (~0.02) and unreadable as a relevance signal. ([validated by `context-assembly.test.ts:488`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L488))
 - FR-2.12: **No cross-section duplication.** A document is emitted in its
   highest-priority section only — the same item never appears in two sections
-  (e.g. an episode in both Agent Memory and Recent Episodes). ([validated by `context-assembly.test.ts:148`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L148))
+  (e.g. an episode in both Agent Memory and Recent Episodes). Only a section
+  that is actually emitted claims its documents: one omitted for budget holds
+  nothing back from the sections after it. ([validated by `context-assembly.test.ts:161`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L161), [`context-assembly.test.ts:174`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L174), [`emits a document in Relevant Code when Conventions was omitted for budget`](libs/shared/src/outbound/project/knowledge/context-assembly-budget.test.ts#L21))
 - FR-2.13: **Repo-scoped graph.** The knowledge-graph source returns only
   entities scoped to the queried repo (no NULL-repo globals), so a task never sees
   another repo's entities.
 - FR-2.14: **Repo-bound assembly.** Every source read threads the queried repo —
   the `KnowledgeView` facade and the Pg engine both bind the repo — so a task
-  assembles only its own repo's context. ([validated by `assembles context scoped to the repo`](libs/shared/src/outbound/project/knowledge/knowledge.test.ts#L27), [`knowledge-pg.test.ts:104`](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L104))
+  assembles only its own repo's context. ([validated by `assembles context scoped to the repo`](libs/shared/src/outbound/project/knowledge/knowledge.test.ts#L27), [`knowledge-pg.test.ts:104`](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L111))
 - FR-2.15: **Team-schema resolution.** Repo-scoped chunk reads (`repo`, `code`,
   `adrs`, `rules`) resolve the repo's chunk schema — its provisioned team schema,
   else `org_shared` — before querying, matching where reindex actually wrote the
   repo's chunks; the `cross_repo` source instead UNIONs every provisioned chunk
-  schema plus `org_shared`, since linked repos may live in any team schema. ([validated by `reads from the repo's provisioned team schema instead of org_shared`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L253), [`retrieves chunks bound to the repo + content types (keyword path when no embedding)`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L216), [`cross_repo unions linked-repo matches across every provisioned chunk schema`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L304), [`cross_repo without linked repos searches other repos across all schemas`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L335), [`resolves the repo's team schema when it is provisioned`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L66))
+  schema plus `org_shared`, since linked repos may live in any team schema. ([validated by `reads from the repo's provisioned team schema instead of org_shared`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L392), [`retrieves chunks bound to the repo + content types (keyword path when no embedding)`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L258), [`cross_repo unions linked-repo matches across every provisioned chunk schema`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L443), [`cross_repo without linked repos searches other repos across all schemas`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L474), [`resolves the repo's team schema when it is provisioned`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L66))
 
 ### FR-3: Template System
 
@@ -211,7 +227,12 @@ The tool retrieves from all available sources:
 - FR-4.5: **Per-document cap.** When a section has more than one document,
   no single document may exceed half the section budget — so one mega-doc
   (e.g. CLAUDE.md) cannot crowd out several smaller, more-relevant chunks. A
-  lone document keeps the whole budget. ([validated by `context-assembly.test.ts:169`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L169), [`context-assembly.test.ts:185`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L185))
+  lone document keeps the whole budget. ([validated by `context-assembly.test.ts:196`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L196), [`context-assembly.test.ts:212`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L212))
+- FR-4.6: **Minimum document size.** A document that truncation would cut below
+  120 tokens is dropped rather than emitted — a one-line stub still costs its
+  `<document>` header and tells the reader nothing — and the section is marked
+  truncated. Packing continues only when the per-document cap, not the budget,
+  was what bound. ([validated by `keeps 2 of 3 documents and drops the third when it would be cut to 40 tokens`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L222))
 
 ### FR-5: Output Format
 
@@ -220,7 +241,7 @@ The tool retrieves from all available sources:
   per contributing chunk. Provenance lives in tag attributes (`source`, `type`,
   `relevance`, `tokens`, `truncated`); the chunk's own markdown is contained
   inside the tag, so document headings and YAML `---` fences cannot collide with
-  the structural skeleton. ([validated by `context-assembly-format.test.ts:69`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L69), [`context-assembly-format.test.ts:43`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L43), [`context-assembly.test.ts:151`](libs/server-core/src/work/context/context-assembly.test.ts#L151), [`context-assembly-format.test.ts:17`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L17))
+  the structural skeleton. ([validated by `context-assembly-format.test.ts:117`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L117), [`context-assembly-format.test.ts:91`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L91), [`context-assembly.test.ts:151`](libs/server-core/src/work/context/context-assembly.test.ts#L151), [`context-assembly-format.test.ts:17`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L17))
 - FR-5.2: Format:
   ```xml
   <context query="…" template="implementation" budget="8000">
@@ -233,7 +254,7 @@ The tool retrieves from all available sources:
   ```
 - FR-5.3: Empty sections are omitted from output.
 - FR-5.4: A truncated document carries `truncated="true"` rather than an inline
-  `...(truncated)` marker. ([validated by `context-assembly-format.test.ts:59`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L59))
+  `...(truncated)` marker. ([validated by `context-assembly-format.test.ts:107`](libs/shared/src/outbound/project/knowledge/context-assembly-format.test.ts#L107))
 
 ## Non-Functional Requirements
 
@@ -252,6 +273,14 @@ The tool retrieves from all available sources:
 - Audit log records each `lore_assemble_context` call with: query, template used,
   sources hit, total tokens returned. *(Audit-log persistence is tracked as
   follow-up — the in-memory trace lands first.)*
+- **Embedder health is a value, not a log line.** The embedding service keeps
+  `{ lastOkAt, lastFailureAt, lastStatus, consecutiveFailures }`: a refused
+  Vertex call records its HTTP status, a call that never reached Vertex (no
+  credential, no project, network) records `null`, and one success resets the
+  streak. Three failures in a row is *degraded*. A degraded embedder prepends a
+  keyword-only warning to the assembled block — the agent reading it should
+  know semantic matches and memory search are missing — and the debug trace
+  carries `embedderDegraded`. ([validated by `reports consecutiveFailures 2 and lastStatus 403 after two 403 responses`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L84), [`embedding-service.test.ts:98`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L98), [`embedding-service.test.ts:119`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L119), [`context-freshness.test.ts:7`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L7), [`context-freshness.test.ts:20`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L20))
 
 ## Scope Boundaries
 
@@ -277,6 +306,13 @@ The tool retrieves from all available sources:
 - Existing `get_context`, `get_adrs`, `lore_search_memory` logic
   (reused internally, not replaced).
 
+- FR-2.16: **Coverage links stripped.** The `([validated by …](…), …;
+  implemented by …)` groups that spec-test-coverage v3 appends to statements
+  are removed from every chunk before it is ranked into the bundle and before
+  it is embedded at ingest; the stored chunk keeps them for the coverage
+  validators. A heavily backfilled statement is mostly test paths — hundreds
+  of "test", "lib", "src" tokens that keyword-match every question and spend
+  the embedding window on bookkeeping. ([validated by `returns a Conventions item of 10 tokens for a chunk whose 120-char link group was stripped`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L342), [`spec-link-strip.test.ts:38`](libs/shared/src/domain/spec-link-strip.test.ts#L38), [`spec-link-strip.test.ts:46`](libs/shared/src/domain/spec-link-strip.test.ts#L46), [`spec-link-strip.test.ts:57`](libs/shared/src/domain/spec-link-strip.test.ts#L57), [`spec-link-strip.test.ts:65`](libs/shared/src/domain/spec-link-strip.test.ts#L65), [`ingest.test.ts:201`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L201), [`strips the same 4 fixtures the JS stripper strips, once read as a JS regex`](libs/shared/src/domain/spec-link-strip.test.ts#L74), [`is carried verbatim by migration 0070 and both baseline schema scripts`](libs/shared/src/domain/spec-link-strip.test.ts#L80))
 ## Success Criteria
 
 1. A single `lore_assemble_context` call replaces 3+ separate MCP

@@ -14,8 +14,13 @@ import {
 } from "./context-assembly-budget.js";
 import {
   computeFreshness,
+  embeddingWarning,
   resolveFreshness,
 } from "./context-assembly-freshness.js";
+import {
+  embeddingHealth,
+  embedderDegraded,
+} from "../../embeddings/embedding-service.js";
 import type {
   FetchStatus,
   FetchResult,
@@ -27,7 +32,13 @@ import {
   type DebugTraceInput,
 } from "./context-assembly-trace.js";
 
-export { loadTemplates, computeFreshness, fetchers, fetchCouplingSource };
+export {
+  loadTemplates,
+  computeFreshness,
+  embeddingWarning,
+  fetchers,
+  fetchCouplingSource,
+};
 export {
   fitItemsToBudget,
   extractKeyTerms,
@@ -72,7 +83,7 @@ async function fetchSectionSource(
   },
 ): Promise<FetchResult> {
   if (source === "coupling") {
-    return fetchCouplingSource(ctx.dgraph ?? null, ctx.repo);
+    return fetchCouplingSource(ctx.dgraph ?? null, ctx.repo, ctx.query);
   }
 
   if (fetcher) {
@@ -240,18 +251,35 @@ async function assembleSections(
   fetchOptions: Parameters<typeof fetchSections>[2],
 ) {
   // Freshness is read BEFORE the sections: it tells the caller its context may be out of date, which matters most when the assembly otherwise succeeded.
-  const freshness = await resolveFreshness(sources.pool, sources.repo);
+  const ingestFreshness = await resolveFreshness(sources.pool, sources.repo);
   const { serialized, traceSections } = allocateSections(
     await fetchSections(template, sources, fetchOptions),
     minTokens,
   );
+  const { freshness, degraded } = withEmbedderBanner(ingestFreshness);
   const result = composeAssembled(
     { query: sources.query, templateName, minTokens },
     serialized,
     freshness,
   );
 
-  return { result, traceSections, freshness };
+  return { result, traceSections, freshness, embedderDegraded: degraded };
+}
+
+/** The ingest banner plus, when the embedder is degraded, the keyword-only one. Read AFTER the sections: their embedding calls are what says whether the embedder is answering right now. */
+function withEmbedderBanner(ingestFreshness: {
+  state: string;
+  warning: string;
+}): { freshness: { state: string; warning: string }; degraded: boolean } {
+  const health = embeddingHealth();
+
+  return {
+    freshness: {
+      ...ingestFreshness,
+      warning: ingestFreshness.warning + embeddingWarning(health),
+    },
+    degraded: embedderDegraded(health),
+  };
 }
 
 /** One assembly's parameters, fixed before any source is read: which template, how big a budget, and the clock the timings are measured against. */
@@ -285,6 +313,7 @@ function traceInput(
     traceSections: assembled.traceSections,
     sections: assembled.result.sections,
     freshness: assembled.freshness,
+    embedderDegraded: assembled.embedderDegraded,
   };
 }
 

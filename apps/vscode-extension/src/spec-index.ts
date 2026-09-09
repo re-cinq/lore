@@ -42,19 +42,39 @@ export interface SpecSource {
   content: string;
 }
 
-function toTarget(ref: SpecLinkRef): LinkTarget {
-  return { label: ref.label, path: ref.path, line: ref.line };
+/** Parses local spec.md files into the implemented layer, cross-linking code and test lines per statement. */
+export function buildLocalIndex(specs: SpecSource[]): SpecCodeIndex {
+  const index: SpecCodeIndex = new Map();
+
+  for (const spec of specs) {
+    indexSpecStatements(index, spec);
+  }
+
+  return index;
 }
 
-function addEntry(index: SpecCodeIndex, path: string, entry: RangeEntry): void {
-  const existing = index.get(path);
+function indexSpecStatements(index: SpecCodeIndex, spec: SpecSource): void {
+  const lines = spec.content.split(/\r?\n/);
 
-  if (existing) {
-    existing.push(entry);
+  for (const statement of segmentStatements(spec.content)) {
+    const codeLinks = parseCodeLinksInStatement(statement.text);
+    const testLinks = parseTestLinksInStatement(statement.text);
 
-    return;
+    if (codeLinks.length === 0 && testLinks.length === 0) {
+      continue;
+    }
+
+    const entryBase = {
+      layer: "implemented" as const,
+      evidence: "human-linked" as const,
+      statementText: cleanStatementText(statement.text),
+      specPath: spec.path,
+      specLine: locateStatementLine(lines, [...codeLinks, ...testLinks]),
+    };
+
+    addImplementedEntries(index, codeLinks, entryBase, testLinks.map(toTarget));
+    addImplementedEntries(index, testLinks, entryBase, codeLinks.map(toTarget));
   }
-  index.set(path, [entry]);
 }
 
 /** Drop the trailing `([…](…))` link parenthetical so the hover shows prose. */
@@ -98,36 +118,41 @@ function addImplementedEntries(
   }
 }
 
-function indexSpecStatements(index: SpecCodeIndex, spec: SpecSource): void {
-  const lines = spec.content.split(/\r?\n/);
-
-  for (const statement of segmentStatements(spec.content)) {
-    const codeLinks = parseCodeLinksInStatement(statement.text);
-    const testLinks = parseTestLinksInStatement(statement.text);
-
-    if (codeLinks.length === 0 && testLinks.length === 0) {
-      continue;
-    }
-
-    const entryBase = {
-      layer: "implemented" as const,
-      evidence: "human-linked" as const,
-      statementText: cleanStatementText(statement.text),
-      specPath: spec.path,
-      specLine: locateStatementLine(lines, [...codeLinks, ...testLinks]),
-    };
-
-    addImplementedEntries(index, codeLinks, entryBase, testLinks.map(toTarget));
-    addImplementedEntries(index, testLinks, entryBase, codeLinks.map(toTarget));
-  }
+function toTarget(ref: SpecLinkRef): LinkTarget {
+  return { label: ref.label, path: ref.path, line: ref.line };
 }
 
-/** Parses local spec.md files into the implemented layer, cross-linking code and test lines per statement. */
-export function buildLocalIndex(specs: SpecSource[]): SpecCodeIndex {
-  const index: SpecCodeIndex = new Map();
+function addEntry(index: SpecCodeIndex, path: string, entry: RangeEntry): void {
+  const existing = index.get(path);
 
-  for (const spec of specs) {
-    indexSpecStatements(index, spec);
+  if (existing) {
+    existing.push(entry);
+
+    return;
+  }
+  index.set(path, [entry]);
+}
+
+/** Walks Statement → validated_by Test → covers File chains into the coverage layer. */
+export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
+  const index: SpecCodeIndex = new Map();
+  const nodeById = new Map<string, SpecGraphNode>(
+    graph.nodes.map((n) => [n.id, n]),
+  );
+  const statementByTest = buildStatementByTest(nodeById, graph.links);
+
+  for (const link of graph.links) {
+    if (link.kind !== "covers") {
+      continue;
+    }
+    const context = resolveCoverageContext(link, nodeById, statementByTest);
+
+    if (!context) {
+      continue;
+    }
+    const { test, file, stmt } = context;
+
+    addCoveredIntervals(index, file, stmt, relatedTestTarget(test));
   }
 
   return index;
@@ -181,31 +206,6 @@ function relatedTestTarget(test: SpecGraphNode): LinkTarget[] {
   return test.path
     ? [{ label: test.label, path: test.path, line: test.line ?? null }]
     : [];
-}
-
-/** Walks Statement → validated_by Test → covers File chains into the coverage layer. */
-export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
-  const index: SpecCodeIndex = new Map();
-  const nodeById = new Map<string, SpecGraphNode>(
-    graph.nodes.map((n) => [n.id, n]),
-  );
-  const statementByTest = buildStatementByTest(nodeById, graph.links);
-
-  for (const link of graph.links) {
-    if (link.kind !== "covers") {
-      continue;
-    }
-    const context = resolveCoverageContext(link, nodeById, statementByTest);
-
-    if (!context) {
-      continue;
-    }
-    const { test, file, stmt } = context;
-
-    addCoveredIntervals(index, file, stmt, relatedTestTarget(test));
-  }
-
-  return index;
 }
 
 /** One covered entry per interval the graph attributes to the statement. */

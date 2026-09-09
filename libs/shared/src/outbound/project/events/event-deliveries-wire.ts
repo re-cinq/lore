@@ -30,7 +30,28 @@ export const ReconcileBody = z.object({
   withinMinutes: z.number().int().positive(),
 });
 
+/** The dead-letter report's window — the third caller of this shape, kept separate for the same reason. */
+export const DeadLetterBody = z.object({
+  withinMinutes: z.number().int().positive(),
+});
+
 export type SubscribeBody = z.infer<typeof SubscribeBody>;
 export type ReconcileBody = z.infer<typeof ReconcileBody>;
 export type DeliveryClaimBody = z.infer<typeof DeliveryClaimBody>;
 export type OrphanBody = z.infer<typeof OrphanBody>;
+export type DeadLetterBody = z.infer<typeof DeadLetterBody>;
+
+export const FailBody = z.object({
+  error: z.string(),
+  backoffSeconds: z.number().int().nonnegative(),
+});
+
+export const DeadBody = z.object({ error: z.string() });
+
+export const PruneBody = z.object({
+  olderThanDays: z.number().int().nonnegative(),
+});
+
+export type FailBody = z.infer<typeof FailBody>;
+export type DeadBody = z.infer<typeof DeadBody>;
+export type PruneBody = z.infer<typeof PruneBody>;

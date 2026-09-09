@@ -86,6 +86,7 @@ export class PgFeatures implements FeaturesPort {
     return this.insertFeature(repo, input, input.parentFeatureId ?? null);
   }
 
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the SQL features adapter; the memory double declares the same methods by contract, and there is no shared home for a signature list that two adapters must each own
   createSplitChild(
     repo: string,
     parentId: string,

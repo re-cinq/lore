@@ -9,7 +9,11 @@ import type {
   FetchResult,
   TraceSection,
 } from "./context-assembly-types.js";
-import { dropSeen, fitItemsToBudget } from "./context-assembly-items.js";
+import {
+  dropSeen,
+  fitItemsToBudget,
+  seenKey,
+} from "./context-assembly-items.js";
 
 /** Allocating the token budget across sections by priority, and packing each section's deduped items into its share. */
 
@@ -198,14 +202,17 @@ interface SectionWeights {
   nonEmptyWeight: number;
 }
 
-/** One section's dedupe-then-fit pass, against what the sections before it already claimed. */
+/** One section's dedupe-then-fit pass, against what the sections before it already claimed. Reads `seenAcrossSections` without adding to it — a section that ends up omitted must not hold its documents back from the sections after it. */
 function fitOneSection(
   { section, res }: FetchedSection,
   seenAcrossSections: Set<string>,
   remaining: number,
   { minTokens, nonEmptyWeight }: SectionWeights,
 ): SectionFitOutcome {
-  const deduped = dropSeen(dedupeItems(res.sources), seenAcrossSections);
+  const deduped = dropSeen(
+    dedupeItems(res.sources),
+    new Set(seenAcrossSections),
+  );
   const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
   const fit = fitSection(deduped, res.status, section, {
     remaining,
@@ -233,9 +240,12 @@ function packSections(
   for (const entry of ordered) {
     const outcome = fitOneSection(entry, seen, remaining, weights);
 
-    if (outcome.fit.included) {
-      remaining -= outcome.fit.finalTokens;
-      serialized.push(buildSerializedSection(entry.section, outcome.fit));
+    const { fit } = outcome;
+
+    if (fit.included) {
+      remaining -= fit.finalTokens;
+      serialized.push(buildSerializedSection(entry.section, fit));
+      fit.keptItems.forEach((it) => seen.add(seenKey(it)));
     }
     traceSections.push(buildTraceSection(outcome));
   }

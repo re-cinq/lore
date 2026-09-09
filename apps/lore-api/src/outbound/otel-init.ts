@@ -16,6 +16,7 @@ export async function initOtel(): Promise<void> {
 }
 
 // Dynamic imports — these packages may not be installed in Phase 0
+// eslint-disable-next-line re-lint/no-duplicate-code -- lore-api's own OTel bootstrap, a deliberate second copy: the library both apps would share is also the MCP adapter's, and ADR-032 keeps the OpenTelemetry SDK out of that install
 async function buildCloudSdk(): Promise<NodeSDK> {
   const { TraceExporter } =
     await import("@google-cloud/opentelemetry-cloud-trace-exporter");

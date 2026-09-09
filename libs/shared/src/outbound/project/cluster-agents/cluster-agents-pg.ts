@@ -8,6 +8,7 @@ import {
 import type { PgPool } from "../../memory-store.js";
 import type {
   ClusterAgentsRepository,
+  PauseState,
   RegisterClusterAgentInput,
 } from "./cluster-agents-port.js";
 
@@ -85,13 +86,13 @@ export class PgClusterAgents implements ClusterAgentsRepository {
     );
   }
 
-  async setPaused(id: string, paused: boolean): Promise<ClusterAgent | null> {
+  async setPaused(id: string, state: PauseState): Promise<ClusterAgent | null> {
     const { rows } = await this.pool.query<DbRow>(
       `UPDATE ${CLUSTER_AGENT_TABLE}
           SET paused = $2
         WHERE id = $1
        RETURNING ${selectList(CLUSTER_AGENT_COLUMNS)}`,
-      [id, paused],
+      [id, state === "paused"],
     );
 
     return rows[0]

@@ -68,9 +68,26 @@ async function applyPlan(
     ),
     definitions: await deleteEach(
       plan.definitions,
-      deleter(deps, "deleteDefinition"),
+      definitionDeleter(deps),
       deps,
     ),
+  };
+}
+
+// Deletes a definition, then reclaims the satellite-local GH_TOKEN_* secret key that provisioning wrote into agent-secrets. The Floor's cleanupPerTaskToken only reaches the central cluster-agent; this is the satellite path. Failure to delete the key is skipped — a missing secret key is not a reason to leave the definition entry alive or block the sweep.
+function definitionDeleter(deps: PruneDeps): (name: string) => Promise<void> {
+  return async (name) => {
+    await deps.cluster.deleteDefinition(name);
+
+    if (name.startsWith("pt-")) {
+      try {
+        await deps.cluster.deleteSecretKey("GH_TOKEN_" + name.slice(3));
+      } catch (err) {
+        deps.log?.(
+          `[cluster-agent] could not delete secret key for ${name}: ${errorMessage(err)}`,
+        );
+      }
+    }
   };
 }
 

@@ -8,6 +8,7 @@ export interface SourceItem {
   repo?: string;
   score?: number;
   ingested_at?: string;
+  content_hash?: string;
 }
 
 export interface SerializedSection {
@@ -32,24 +33,35 @@ export function escapeXmlAttr(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Collapse items sharing source_path to one (highest-scoring, then most recently ingested); no path → never merged. */
+/** Collapse items sharing source_path to one (highest-scoring, then most recently ingested), then items sharing a content_hash — a file and its copied twin at another path are one document. Every survivor keeps its rank: the list arrives score-ordered and leaves that way. */
 export function dedupeItems(sources: SourceItem[]): SourceItem[] {
-  const byPath = new Map<string, SourceItem>();
-  const passthrough: SourceItem[] = [];
+  return collapseBy(
+    collapseBy(sources, (it) => it.source_path),
+    (it) => it.content_hash,
+  );
+}
+
+/** One item per key, the better one winning at its own position; items without a key pass through in place. */
+function collapseBy(
+  sources: SourceItem[],
+  keyOf: (it: SourceItem) => string | undefined,
+): SourceItem[] {
+  const winners = new Map<string, SourceItem>();
 
   for (const it of sources) {
-    if (!it.source_path) {
-      passthrough.push(it);
-      continue;
-    }
-    const existing = byPath.get(it.source_path);
+    const key = keyOf(it);
+    const current = key ? winners.get(key) : undefined;
 
-    if (!existing || isBetter(it, existing)) {
-      byPath.set(it.source_path, it);
+    if (key && (!current || isBetter(it, current))) {
+      winners.set(key, it);
     }
   }
 
-  return [...byPath.values(), ...passthrough];
+  return sources.filter((it) => {
+    const key = keyOf(it);
+
+    return !key || winners.get(key) === it;
+  });
 }
 
 function isBetter(candidate: SourceItem, current: SourceItem): boolean {
@@ -67,7 +79,10 @@ function isBetter(candidate: SourceItem, current: SourceItem): boolean {
   return ai > bi;
 }
 
-function documentAttrs(source: SourceItem, truncated: boolean): string[] {
+function documentAttrs(
+  source: SourceItem,
+  opts: { truncated?: boolean },
+): string[] {
   return [
     source.source_path ? `source="${escapeXmlAttr(source.source_path)}"` : "",
     source.content_type ? `type="${escapeXmlAttr(source.content_type)}"` : "",
@@ -76,7 +91,7 @@ function documentAttrs(source: SourceItem, truncated: boolean): string[] {
       ? `relevance="${source.score.toFixed(2)}"`
       : "",
     `tokens="${source.tokens}"`,
-    truncated ? 'truncated="true"' : "",
+    opts.truncated ? 'truncated="true"' : "",
   ];
 }
 
@@ -84,9 +99,7 @@ export function serializeDocument(
   source: SourceItem,
   opts: { truncated?: boolean } = {},
 ): string {
-  const attrs = documentAttrs(source, opts.truncated ?? false)
-    .filter(Boolean)
-    .join(" ");
+  const attrs = documentAttrs(source, opts).filter(Boolean).join(" ");
 
   return `<document ${attrs}>\n${source.text}\n</document>`;
 }

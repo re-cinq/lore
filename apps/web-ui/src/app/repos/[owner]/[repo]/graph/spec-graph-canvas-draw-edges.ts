@@ -10,6 +10,8 @@ export interface EdgeDrawDeps {
   colors: CanvasColors;
   aggHidden: Set<string>;
   bundleLine: d3.Line<[number, number]>;
+  /** At aggregated zoom the ring stands in for its leaves, so edges touching a hidden leaf are dropped. */
+  collapsing: boolean;
 }
 
 function pointOf(n: SimNode): { x: number; y: number } {
@@ -19,9 +21,8 @@ function pointOf(n: SimNode): { x: number; y: number } {
 // An edge into a ring-represented statement, or touching a collapsed leaf, never gets drawn.
 function shouldSkipEdge(
   l: SimLink,
-  collapsing: boolean,
+  deps: EdgeDrawDeps,
   ringPinned: Set<string>,
-  aggHidden: Set<string>,
 ): boolean {
   const sId = idOf(l.source as string | SimNode);
   const tId = idOf(l.target as string | SimNode);
@@ -30,7 +31,9 @@ function shouldSkipEdge(
     return true;
   }
 
-  return collapsing && (aggHidden.has(sId) || aggHidden.has(tId));
+  return (
+    deps.collapsing && (deps.aggHidden.has(sId) || deps.aggHidden.has(tId))
+  );
 }
 
 /** The control points a bundled edge bends through — its route up and back down the containment hierarchy. Control ids that no longer resolve are dropped rather than treated as the origin, which would drag the curve to the top-left corner. */
@@ -96,15 +99,11 @@ function strokeEdge(
   }
 }
 
-export function drawEdges(
-  deps: EdgeDrawDeps,
-  state: CanvasDrawState,
-  collapsing: boolean,
-): void {
+export function drawEdges(deps: EdgeDrawDeps, state: CanvasDrawState): void {
   deps.ctx.lineWidth = 1.3 / state.transform.k;
 
   for (const l of state.links) {
-    if (shouldSkipEdge(l, collapsing, state.ringPinned, deps.aggHidden)) {
+    if (shouldSkipEdge(l, deps, state.ringPinned)) {
       continue;
     }
     strokeEdge(

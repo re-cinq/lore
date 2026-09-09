@@ -5,6 +5,7 @@ import type { ColumnMap } from "../../lib/row.js";
 
 export const AgentRunTurnSchema = z.object({
   id: z.string(),
+  // eslint-disable-next-line re-lint/no-duplicate-code -- a model of pipeline.agent_run_turns, already diverged from the events model (task_id is nullable here); a table model exists to state its own table's columns
   taskId: z.string().nullable(),
   agentCrName: z.string().nullable(),
   assemblyLineId: z.string().nullable(),

@@ -10,7 +10,7 @@ import { proxyJson } from "@/lib/floor-proxy";
 
 /** One node's logs from the Floor. The 30s ceiling is deliberate: reading a pod's logs is a cluster round trip, and a reader waiting on a spinner is better served by an error than by a request that never returns. */
 function fetchNodeLogs(
-  floorUrl: string,
+  upstreamUrl: string,
   token: string,
   name: string,
   tail: string | null,
@@ -18,7 +18,7 @@ function fetchNodeLogs(
   const query = tail ? `?tail=${encodeURIComponent(tail)}` : "";
 
   return fetch(
-    `${floorUrl}/api/agent-logs/${encodeURIComponent(name)}${query}`,
+    `${upstreamUrl}/api/agent-logs/${encodeURIComponent(name)}${query}`,
     {
       signal: AbortSignal.timeout(30_000),
       headers: { Authorization: `Bearer ${token}` },
@@ -35,7 +35,7 @@ async function nodeLogsResponse(req: Request, id: string, name: string) {
     return auth;
   }
 
-  const { floorUrl, token } = auth;
+  const { upstreamUrl, token } = auth;
   const nodes = await fetchAssemblyRunNodes(id);
 
   if (!nodes.some((n) => n.agentCrName === name)) {
@@ -46,7 +46,7 @@ async function nodeLogsResponse(req: Request, id: string, name: string) {
   }
   const tail = new URL(req.url).searchParams.get("tail");
 
-  return proxyJson(await fetchNodeLogs(floorUrl, token, name, tail));
+  return proxyJson(await fetchNodeLogs(upstreamUrl, token, name, tail));
 }
 
 // Proxy for one node's live pod logs via the Floor's /api/agent-logs/{name} (UI SA has no cluster access); Floor 401/403 surface as 502.

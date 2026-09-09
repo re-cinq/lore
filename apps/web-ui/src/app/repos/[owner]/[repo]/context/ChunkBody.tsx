@@ -14,7 +14,13 @@ import readme from "../ReadmeBox.module.css";
 import styles from "./ChunkBody.module.css";
 
 /** Non-code types render as markdown prose (pull_request/rule/etc). */
-const CODE_TYPE = "code";
+// A test chunk is source too: fenced, highlighted, and linked by line range.
+const CODE_TYPES = new Set(["code", "test"]);
+
+type ChunkKind = "code" | "prose";
+
+const WRAPPER_CLASS = readme.readme;
+const PREVIEW_WRAPPER_CLASS = `${readme.readme} ${styles.previewBox}`;
 
 function codeFence(content: string, filePath: string): string {
   const fence = fenceFor(content);
@@ -23,33 +29,29 @@ function codeFence(content: string, filePath: string): string {
 }
 
 function markdownFor(
-  isCode: boolean,
+  kind: ChunkKind,
   content: string,
   filePath: string,
 ): string {
-  return isCode ? codeFence(content, filePath) : content;
+  return kind === "code" ? codeFence(content, filePath) : content;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rehypePluginsFor(isCode: boolean): any[] {
-  return isCode
+function rehypePluginsFor(kind: ChunkKind): any[] {
+  return kind === "code"
     ? [rehypeHighlight]
     : [rehypeRaw, [rehypeSanitize, markdownSanitizeSchema], rehypeHighlight];
 }
 
 function codeLineRange(
-  isCode: boolean,
+  kind: ChunkKind,
   metadata: ChunkMeta | undefined,
 ): { start?: number; end?: number } {
-  if (!isCode || !metadata) {
+  if (kind !== "code" || !metadata) {
     return {};
   }
 
   return { start: metadata.start_line, end: metadata.end_line };
-}
-
-function wrapperClass(preview: boolean): string {
-  return `${readme.readme}${preview ? ` ${styles.previewBox}` : ""}`;
 }
 
 interface ChunkHeaderProps {
@@ -100,16 +102,16 @@ function ghHrefFor({
   repo,
   branch,
   filePath,
-  isCode,
+  kind,
   metadata,
 }: {
   repo: string;
   branch: string;
   filePath: string;
-  isCode: boolean;
+  kind: ChunkKind;
   metadata?: ChunkMeta;
 }) {
-  return blobUrl(repo, branch, filePath, codeLineRange(isCode, metadata));
+  return blobUrl(repo, branch, filePath, codeLineRange(kind, metadata));
 }
 
 /** The chunk's body. Code arrives already fenced by `markdownFor`, so both content kinds go through the same markdown renderer and differ only in the plugins they carry. */
@@ -152,7 +154,7 @@ export default function ChunkBody(props: ChunkBodyProps) {
         markdown={view.markdown}
         rehypePlugins={view.rehypePlugins}
         components={view.components}
-        className={wrapperClass(props.preview ?? false)}
+        className={props.preview ? PREVIEW_WRAPPER_CLASS : WRAPPER_CLASS}
       />
     </div>
   );
@@ -167,13 +169,13 @@ function useChunkView({
   branch = "main",
   metadata,
 }: ChunkBodyProps) {
-  const isCode = contentType === CODE_TYPE;
+  const kind: ChunkKind = CODE_TYPES.has(contentType) ? "code" : "prose";
 
   return {
     components: useResolvedMarkdownLinks(repo, branch),
-    markdown: markdownFor(isCode, content, filePath),
-    rehypePlugins: rehypePluginsFor(isCode),
+    markdown: markdownFor(kind, content, filePath),
+    rehypePlugins: rehypePluginsFor(kind),
     headerLabel: chunkHeader(contentType, metadata),
-    ghHref: ghHrefFor({ repo, branch, filePath, isCode, metadata }),
+    ghHref: ghHrefFor({ repo, branch, filePath, kind, metadata }),
   };
 }

@@ -70,7 +70,7 @@ function LoopExplainer() {
 
 interface LoopHeaderProps {
   enabled: boolean;
-  toggle: (enabled: boolean) => Promise<void>;
+  toggle: (next: { enabled: boolean }) => Promise<void>;
 }
 
 /** What the loop is, and the one control that runs it. The button is disabled for the length of the transition so a double click cannot send two conflicting toggles. */
@@ -86,7 +86,7 @@ function LoopHeader({ enabled, toggle }: LoopHeaderProps) {
       <button
         className="button"
         disabled={pending}
-        onClick={() => startTransition(() => toggle(!enabled))}
+        onClick={() => startTransition(() => toggle({ enabled: !enabled }))}
       >
         {enabled ? "Disable loop" : "Enable loop"}
       </button>
@@ -136,7 +136,7 @@ function backlogStages(loop: ImplementationLoop): LoopSectionProps[] {
 
 interface LoopViewProps {
   loop: ImplementationLoop;
-  toggle: (enabled: boolean) => Promise<void>;
+  toggle: (next: { enabled: boolean }) => Promise<void>;
 }
 
 /** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */

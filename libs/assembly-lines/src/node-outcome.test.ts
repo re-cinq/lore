@@ -106,6 +106,79 @@ describe("stationNodeOutcome", () => {
     );
   });
 
+  it("lifts the definition-of-done verdict into the row so the terminal hook can quote it on the issue", () => {
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "changes_requested",
+        extras: { "Lore-Dod-Blocked": "asks for a decision, not a behaviour" },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status)).toEqual({
+      outcome: "changes_requested",
+      extras: { "Lore-Dod-Blocked": "asks for a decision, not a behaviour" },
+      failureDetail: "asks for a decision, not a behaviour",
+    });
+  });
+
+  it("leaves a changes_requested without a definition-of-done verdict untouched", () => {
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "changes_requested",
+        extras: { "Lore-Tdd-Next": "the next facet" },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status)).toEqual({
+      outcome: "changes_requested",
+      extras: { "Lore-Tdd-Next": "the next facet" },
+    });
+  });
+
+  it("does not lift a non-string dod verdict from unvalidated JSON", () => {
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "changes_requested",
+        extras: { "Lore-Dod-Blocked": 12 },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status).failureDetail).toBe(
+      undefined,
+    );
+  });
+
+  it("does not lift an empty dod verdict", () => {
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "changes_requested",
+        extras: { "Lore-Dod-Blocked": "" },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status).failureDetail).toBe(
+      undefined,
+    );
+  });
+
+  it("does not lift a stray definition-of-done verdict on a successful outcome", () => {
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "success",
+        extras: { "Lore-Dod-Blocked": "left over from a draft" },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status).failureDetail).toBe(
+      undefined,
+    );
+  });
+
   it("falls back to the review verdict, then success", () => {
     const agentNode: AssemblyLineNode = { id: "review", type: "agent" };
 

@@ -89,22 +89,6 @@ export function getRepoActivityCounts(repo: string): Promise<
   return apiFetch("lore-api", `/api/repos/${repo}/activity-counts`);
 }
 
-/** Records money added to the Anthropic account — the only way the balance moves up, since the Admin API reports usage/cost but no credit balance. */
-export function recordCreditEntry(entry: {
-  amount_usd: number;
-  effective_date?: string;
-  /** Omitted anchors the entry to the start of its day — the safe direction when the clock is unknown. */
-  effective_time?: string;
-  kind?: "opening" | "topup" | "correction";
-  note?: string;
-  recorded_by?: string;
-}): Promise<ApiResult<components["schemas"]["CreditEntryRecorded"]>> {
-  return apiFetch("lore-api", "/api/spend/credits", {
-    method: "POST",
-    body: entry,
-  });
-}
-
 /** The analytics screen's six reads in one call. */
 export function getAnalyticsOverview(): Promise<
   ApiResult<{

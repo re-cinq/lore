@@ -1,5 +1,4 @@
 // Every decision the live-run panel makes, as pure functions — the panel/EventSource hook are IO shells that open sockets and set state, never choose.
-import type { RunStreamEvent } from "@/lib/run-stream-types";
 
 /** Matches the Floor's DEFAULT_LIMIT (agent-events-history.ts). */
 export const HISTORY_PAGE_LIMIT = 1000;
@@ -54,36 +53,6 @@ export function nextPageCursor(page: readonly { id: string }[]): string | null {
   return page.length < HISTORY_PAGE_LIMIT
     ? null
     : (page[page.length - 1]?.id ?? null);
-}
-
-// The scrub cursor that INCLUDES the event with `id` (replayTo folds a slice length, so index i applies at cursor i+1); null when no event carries that id.
-export function cursorForEventId(
-  events: readonly RunStreamEvent[],
-  id: string,
-): number | null {
-  const index = events.findIndex((event) => event.id === id);
-
-  return index === -1 ? null : index + 1;
-}
-
-export interface ScrubberPosition {
-  label: string;
-  timestamp: string | null;
-}
-
-// Read-out for a scrub cursor: N of M events applied plus the last one's wall-clock time; clamped into [0, events.length] against off-range drags.
-export function scrubberPositionLabel(
-  events: readonly RunStreamEvent[],
-  cursor: number,
-): ScrubberPosition {
-  const total = events.length;
-  const clamped = Math.max(0, Math.min(cursor, total));
-  const last = clamped > 0 ? events[clamped - 1] : null;
-
-  return {
-    label: `event ${clamped} / ${total}`,
-    timestamp: last ? last.createdAt : null,
-  };
 }
 
 /** Exponential backoff, capped. Belt to the browser's own EventSource retry. */

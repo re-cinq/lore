@@ -56,7 +56,7 @@ export default function PRStatusPanel({ taskId, prUrl }: PRStatusPanelProps) {
   // Merged/closed and error are both terminal; prevent eternal re-fetch of deleted/rate-limited PRs
   const isTerminal = isTerminalPr(details);
 
-  useCoordinatedRefresh(fetchStatus, !isTerminal && !error);
+  useCoordinatedRefresh(fetchStatus, { active: !isTerminal && !error });
 
   return <PRStatusCard details={details} error={error} prUrl={prUrl} />;
 }

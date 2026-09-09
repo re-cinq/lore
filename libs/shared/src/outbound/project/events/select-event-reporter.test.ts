@@ -4,14 +4,14 @@ import {
   selectEventReporter,
 } from "./select-event-reporter.js";
 import { HttpEventReporter } from "./event-reporter-http.js";
-import { InMemoryEventQueue } from "./event-queue-memory.js";
+import { InMemoryEventReporter } from "./event-reporter-memory.js";
 
 const silent = (): void => {};
 
 describe("selectEventReporter", () => {
   it("reports over HTTP when EVENT_ROUTER_URL names a router", () => {
     const reporter = selectEventReporter({
-      local: () => new InMemoryEventQueue(),
+      local: () => new InMemoryEventReporter(),
       env: { EVENT_ROUTER_URL: "https://router.example" },
       log: silent,
     });
@@ -26,7 +26,7 @@ describe("selectEventReporter", () => {
       local: () => {
         resolved++;
 
-        return new InMemoryEventQueue();
+        return new InMemoryEventReporter();
       },
       env: { EVENT_ROUTER_URL: "https://router.example" },
       log: silent,
@@ -36,7 +36,7 @@ describe("selectEventReporter", () => {
   });
 
   it("falls back to the local queue when EVENT_ROUTER_URL is unset", () => {
-    const local = new InMemoryEventQueue();
+    const local = new InMemoryEventReporter();
 
     const reporter = selectEventReporter({
       local: () => local,
@@ -51,7 +51,7 @@ describe("selectEventReporter", () => {
     const lines: string[] = [];
 
     selectEventReporter({
-      local: () => new InMemoryEventQueue(),
+      local: () => new InMemoryEventReporter(),
       env: {},
       log: (m) => lines.push(m),
     });
@@ -64,7 +64,7 @@ describe("selectEventReporter", () => {
 
 describe("selectEventProxy", () => {
   it("inserts straight through to the local queue, so an ingress route still sees the failure", async () => {
-    const local = new InMemoryEventQueue();
+    const local = new InMemoryEventReporter();
 
     const proxy = selectEventProxy({
       local: () => local,
@@ -74,13 +74,13 @@ describe("selectEventProxy", () => {
 
     await proxy.insert({ eventName: "ci.tests.reported", source: "internal" });
 
-    expect((await local.claimBatch(10)).map((row) => row.event_name)).toEqual([
+    expect(local.rows.map((row) => row.event_name)).toEqual([
       "ci.tests.reported",
     ]);
   });
 
   it("queues an emitted message rather than delivering it inline", async () => {
-    const local = new InMemoryEventQueue();
+    const local = new InMemoryEventReporter();
 
     const proxy = selectEventProxy({
       local: () => local,
@@ -95,15 +95,15 @@ describe("selectEventProxy", () => {
 
     expect({
       depth: proxy.depth,
-      claimed: (await local.claimBatch(10)).length,
-    }).toEqual({ depth: 1, claimed: 0 });
+      captured: local.rows.length,
+    }).toEqual({ depth: 1, captured: 0 });
   });
 
   it("presents a token thunk per call, so a rotated per-agent credential is picked up", async () => {
     const seen: string[] = [];
     let current = "first-token";
     const proxy = selectEventProxy({
-      local: () => new InMemoryEventQueue(),
+      local: () => new InMemoryEventReporter(),
       token: () => current,
       env: { EVENT_ROUTER_URL: "https://router.example" },
       log: silent,
@@ -136,7 +136,7 @@ describe("selectEventProxy", () => {
       local: () => {
         resolved++;
 
-        return new InMemoryEventQueue();
+        return new InMemoryEventReporter();
       },
       env: { EVENT_ROUTER_URL: "https://router.example" },
       log: silent,
