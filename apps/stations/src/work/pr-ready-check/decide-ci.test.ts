@@ -14,6 +14,7 @@ const input = (over: Partial<Parameters<typeof decideCiReady>[0]> = {}) => ({
   hasCiHistory: true,
   judgedSha: "abc123",
   lastReportedSha: null,
+  mergeable: true,
   ...over,
 });
 
@@ -43,6 +44,65 @@ describe("decideCiReady", () => {
     expect(decideCiReady(input({ judgedSha: null }))).toEqual({
       kind: "wait",
       reason: "no_judgeable_sha",
+    });
+  });
+
+  it("sends a conflicting pull request back to a round, because GitHub runs no workflow on one", () => {
+    expect(
+      decideCiReady(input({ mergeable: false, checks: [] })),
+    ).toMatchObject({
+      kind: "blocked",
+      reason: "pr_conflicting",
+      outcome: "changes_requested",
+    });
+  });
+
+  it("ends the run when a conflict outlives the round sent to clear it, rather than spending the budget", () => {
+    expect(
+      decideCiReady(
+        input({
+          mergeable: false,
+          checks: [],
+          judgedSha: "abc123",
+          lastReportedSha: "abc123",
+        }),
+      ),
+    ).toMatchObject({
+      kind: "blocked",
+      reason: "pr_conflicting_unchanged",
+      outcome: "failed",
+    });
+  });
+
+  it("ends a conflict with no judgeable commit on the second look, rather than routing forever", () => {
+    const first = decideCiReady(
+      input({ mergeable: false, checks: [], judgedSha: null }),
+    );
+
+    expect(first).toMatchObject({
+      reason: "pr_conflicting",
+      outcome: "changes_requested",
+    });
+    expect(
+      decideCiReady(
+        input({
+          mergeable: false,
+          checks: [],
+          judgedSha: null,
+          lastReportedSha: (first as { feedback: { ci_feedback_sha: string } })
+            .feedback.ci_feedback_sha,
+        }),
+      ),
+    ).toMatchObject({
+      reason: "pr_conflicting_unchanged",
+      outcome: "failed",
+    });
+  });
+
+  it("waits rather than guessing while GitHub has not computed mergeability yet", () => {
+    expect(decideCiReady(input({ mergeable: null, checks: [] }))).toEqual({
+      kind: "wait",
+      reason: "ci_not_started",
     });
   });
 

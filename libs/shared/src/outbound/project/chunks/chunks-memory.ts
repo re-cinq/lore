@@ -28,6 +28,11 @@ function toSpecChunk(row: ChunkRow): SpecChunkWithIngest {
 }
 
 /** Mirrors the Pg adapter's spec-read ordering: file_path, chunk_index NULLS LAST, ingested_at. */
+/** Code and test rows alike — what link resolution and backfill candidate selection read; `codeSymbols` stays code-only. */
+function isSourceRow(row: ChunkRow): boolean {
+  return row.contentType === "code" || row.contentType === "test";
+}
+
 function specDocumentOrder(a: ChunkRow, b: ChunkRow): number {
   const pathDelta = a.filePath.localeCompare(b.filePath);
 
@@ -197,7 +202,7 @@ export class InMemoryChunks implements ChunksPort {
 
   async testChunkRanges(repo: string): Promise<TestChunkRange[]> {
     return this.forRepo(repo)
-      .filter((row) => row.contentType === "code")
+      .filter((row) => isSourceRow(row))
       .map((row) => ({
         filePath: row.filePath,
         startLine: (row.metadata.start_line as number | undefined) ?? null,
@@ -215,7 +220,7 @@ export class InMemoryChunks implements ChunksPort {
 
   async codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
     return this.forRepo(repo)
-      .filter((row) => row.contentType === "code")
+      .filter((row) => isSourceRow(row))
       .map((row) => ({
         filePath: row.filePath,
         content: row.content,

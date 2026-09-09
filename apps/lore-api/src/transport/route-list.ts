@@ -11,6 +11,7 @@ import { repoRecordRoute } from "./routes/repos/repo-record.js";
 import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
 import { prStatusRoute } from "./routes/repos/pr-status.js";
+import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { contextRoute } from "./routes/context/context.js";
 import { chunkBrowseRoutes } from "./routes/context/chunks-browse.js";
 import { graphRoute } from "./routes/graph/graph.js";
@@ -22,6 +23,8 @@ import { taskViewRoutes } from "./routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "./routes/assembly-lines/assembly-lines.js";
 import { startRunRoute } from "./routes/assembly-lines/start-run.js";
 import { runReadRoute } from "./routes/assembly-lines/run-read.js";
+import { runDodRoute } from "./routes/assembly-lines/run-dod.js";
+import { runStreamRoute } from "./routes/assembly-lines/run-stream.js";
 import { taskByPrRoute } from "./routes/tasks/task-by-pr.js";
 import {
   taskLogsGetRoute,
@@ -47,6 +50,7 @@ import { ingestStateRoute } from "./routes/ingest/ingest-state.js";
 import { ingestDeltaRoute } from "./routes/ingest/ingest-delta.js";
 import { eventPayloadRoute } from "./routes/ingest/event-payload.js";
 import { embedRoute } from "./routes/ingest/embed.js";
+import { reembedRoute } from "./routes/ingest/reembed.js";
 import { onboardRoute } from "./routes/repos/onboard.js";
 import { slackWebhookRoute } from "./routes/webhooks/webhook-slack.js";
 import { incidentWebhookRoute } from "./routes/webhooks/webhook-incident.js";
@@ -87,6 +91,7 @@ import { impactRoute } from "./routes/impact/impact.js";
 import { impactBaseRoute } from "./routes/impact/impact-base.js";
 import { traceRoute } from "./routes/trace/trace.js";
 import { chunksRoute } from "./routes/repos/chunks.js";
+import { chunksPruneRoute } from "./routes/repos/chunks-prune.js";
 import { stationDataRoutes } from "./routes/repos/station-data.js";
 import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
@@ -116,6 +121,7 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
     prStatusRoute(),
+    pullFilesRoute(),
     contextRoute(getPool),
     ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
@@ -140,6 +146,8 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
     ...assemblyLineRoutes(getPool),
     startRunRoute(),
     runReadRoute(getPool),
+    runDodRoute(getPool),
+    runStreamRoute(getPool),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),
@@ -181,6 +189,9 @@ function ingestRoutes(getPool: PoolGetter): ServerRoute[] {
     ingestDeltaRoute(getPool),
     eventPayloadRoute(getPool),
     embedRoute(),
+    // The sweep is a write of knowledge (rows leave the store), not a graph read.
+    chunksPruneRoute(getPool),
+    reembedRoute(getPool),
   ];
 }
 

@@ -22,7 +22,6 @@ afterEach(() => {
 
 describe("per-agent tokens stop at the reporting front door", () => {
   const drainSurfaces = [
-    { url: "/api/events/claim", payload: JSON.stringify({ limit: 1 }) },
     { url: "/api/deliveries/claim", payload: JSON.stringify({ limit: 1 }) },
     { url: "/api/deliveries/reap", payload: JSON.stringify({}) },
   ];

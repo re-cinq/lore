@@ -14,7 +14,7 @@ describe("createInMemoryPipelineRepositories", () => {
       repo: "re-cinq/lore",
       payload: { rule: "paths" },
     });
-    await pipeline.eventQueue.markDone("1");
+    await pipeline.eventReporter.insert({ eventName: "e", source: "cron" });
 
     expect({
       lastRun: await pipeline.jobRuns.lastRun("nightly-reindex"),

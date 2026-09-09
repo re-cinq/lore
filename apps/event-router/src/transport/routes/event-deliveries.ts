@@ -6,8 +6,9 @@ import {
   DeadBody,
   FailBody,
   PruneBody,
-} from "@re-cinq/lore-shared/project/events/event-queue-wire.js";
+} from "@re-cinq/lore-shared/project/events/event-deliveries-wire.js";
 import {
+  DeadLetterBody,
   DeliveryClaimBody,
   OrphanBody,
   ReconcileBody,
@@ -46,6 +47,7 @@ export function eventDeliveryRoutes(
     pruneRoute(deps),
     reconcileRoute(deps),
     orphanedRoute(deps),
+    deadLetteredRoute(deps),
   ];
 }
 
@@ -225,6 +227,27 @@ function orphanedRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
         .response({
           orphaned: await deps.deliveries().orphanedEvents(withinMinutes),
         })
+        .code(200);
+    },
+  };
+}
+
+/** The sibling of `orphaned` for the other silent failure: deliveries a handler ran out of retries on. */
+function deadLetteredRoute(deps: EventDeliveryRoutesDeps): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/deliveries/dead-lettered",
+    options: NO_BODY,
+    handler: async (request, h) => {
+      guard(deps, request.headers);
+      const { withinMinutes } = parseBody(
+        rawBody(request),
+        DeadLetterBody,
+        "dead-lettered",
+      );
+
+      return h
+        .response({ dead: await deps.deliveries().deadLettered(withinMinutes) })
         .code(200);
     },
   };

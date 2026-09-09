@@ -31,7 +31,7 @@ export function chunkHeader(
     return "";
   }
 
-  if (contentType === "code") {
+  if (contentType === "code" || contentType === "test") {
     const symbol = [metadata.symbol_type, metadata.symbol_name]
       .filter(Boolean)
       .join(" ");

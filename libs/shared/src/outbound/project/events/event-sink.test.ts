@@ -1,24 +1,24 @@
 import { describe, it, expect } from "vitest";
 import { EventSink, UnconfiguredSink } from "./event-sink.js";
-import { InMemoryEventQueue } from "./event-queue-memory.js";
+import { InMemoryEventReporter } from "./event-reporter-memory.js";
 
 describe("EventSink", () => {
   it("unwraps an event message into an insert on the reporter", async () => {
-    const queue = new InMemoryEventQueue();
+    const queue = new InMemoryEventReporter();
 
     await new EventSink(queue).deliver({
       kind: "event",
       event: { eventName: "kubernetes.agent.succeeded", source: "kubernetes" },
     });
 
-    expect((await queue.claimBatch(10)).map((row) => row.event_name)).toEqual([
+    expect(queue.rows.map((row) => row.event_name)).toEqual([
       "kubernetes.agent.succeeded",
     ]);
   });
 
   it("refuses a telemetry message, because routing by kind is the proxy's job", async () => {
     await expect(
-      new EventSink(new InMemoryEventQueue()).deliver({
+      new EventSink(new InMemoryEventReporter()).deliver({
         kind: "telemetry",
         body: "{}",
       }),

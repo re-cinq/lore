@@ -1,32 +1,21 @@
-// Derived-state hooks for RunVisualizationPanel: each takes the panel's raw state and memoizes one view of it (the ticking clock, the executed-path graph, the replay scrub, the selected node's detail).
-import { useCallback, useEffect, useMemo, useState } from "react";
+// Derived-state hooks for RunVisualizationPanel: each takes the panel's raw state and memoizes one view of it (the ticking clock, the executed-path graph, the selected node's detail).
+import { useEffect, useMemo, useState } from "react";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
-import {
-  initialRunState,
-  replayTo,
-  type NodeRunState,
-} from "@/lib/run-event-reducer";
+import type { NodeRunState } from "@/lib/run-event-reducer";
 import { takenEdgeKeys } from "@/lib/run-taken-edges";
-import { latestRowByNode, replayRunData } from "@/lib/run-replay-view";
+import { latestRowByNode } from "@/lib/run-replay-view";
 import { deriveVisibleGraph, type RunData } from "@/lib/graph-view-model";
-import type { RunStreamEvent } from "@/lib/run-stream-types";
 import { stepViews } from "@/lib/step-presenter";
 import { retryResumeSource } from "./retry-resume";
-import {
-  cursorForEventId,
-  scrubberPositionLabel,
-} from "@/lib/run-stream-presenter";
 import {
   buildRunData,
   computeGraphMode,
   computeHasRunData,
-  computeReplayActive,
-  computeScrubberVisible,
   pickSelectedState,
 } from "./run-visualization-selectors";
 
-/** The timeline's right edge is `now` — without a clock a stalled node's last tick would look identical to a live one. Ticks once a second while the run is live. */
+/** A running node's duration is `now` minus its start — without a clock a stalled node would look identical to a live one. Ticks once a second while the run is live. */
 export function useNowTicker({ live }: { live: boolean }): string {
   const [now, setNow] = useState(() => new Date().toISOString());
 
@@ -43,7 +32,7 @@ export function useNowTicker({ live }: { live: boolean }): string {
   return now;
 }
 
-/** The graph the page draws: which nodes ran, what each was told, and — while scrubbing — the replayed view instead, since a verdict must not show before the cursor reaches the event that produced it. */
+/** The graph the page draws: which nodes ran and what each was told. */
 interface RunGraphInput {
   nodes: readonly AssemblyRunNode[];
   definition: AssemblyLineDefinition | null;
@@ -51,7 +40,6 @@ interface RunGraphInput {
   runIsLive: boolean;
   selectedNodeId: string | null;
   showOutcomes: boolean;
-  replayActive: boolean;
   nodeStates: Readonly<Record<string, NodeRunState>>;
   takenEdges: RunData["taken"];
 }
@@ -90,16 +78,11 @@ function useRetrySource(
 
 type RunDataInput = Pick<
   RunGraphInput,
-  | "replayActive"
-  | "definition"
-  | "nodes"
-  | "nodeStates"
-  | "takenEdges"
-  | "runStatus"
+  "nodes" | "nodeStates" | "takenEdges" | "runStatus"
 > & { latestRows: ReturnType<typeof latestRowByNode> };
 
 /** The graph as the live rows describe it. */
-function useLiveRunData(input: RunDataInput): RunData {
+function useRunData(input: RunDataInput): RunData {
   const { nodes, nodeStates, latestRows, takenEdges, runStatus } = input;
 
   return useMemo<RunData>(
@@ -107,24 +90,6 @@ function useLiveRunData(input: RunDataInput): RunData {
       buildRunData({ nodes, nodeStates, latestRows, takenEdges, runStatus }),
     [nodes, nodeStates, latestRows, takenEdges, runStatus],
   );
-}
-
-/** The graph as the replay cursor describes it. */
-function useReplayedRunData(input: RunDataInput): RunData {
-  const { definition, nodes, nodeStates } = input;
-
-  return useMemo<RunData>(
-    () => replayRunData(definition, nodes, nodeStates),
-    [definition, nodes, nodeStates],
-  );
-}
-
-/** What the graph draws. While scrubbing, this is read from the REPLAYED state rather than the live rows: the two disagree by design, and the cursor's answer is the one on screen. */
-function useRunData(input: RunDataInput): RunData {
-  const live = useLiveRunData(input);
-  const replayed = useReplayedRunData(input);
-
-  return input.replayActive ? replayed : live;
 }
 
 export function useRunGraph(input: RunGraphInput) {
@@ -141,86 +106,6 @@ export function useRunGraph(input: RunGraphInput) {
   });
 
   return { hasRunData, visibleGraph, retrySource, latestRows };
-}
-
-/** Scrubbing a finished run. A terminal run renders state AS OF the cursor by folding history through the SAME reducer live mode uses, based on the all-idle state — never the visit-row seed, which would show verdicts the cursor has not reached. */
-interface ReplayInput {
-  runIsLive: boolean;
-  runStatus: string;
-  definition: AssemblyLineDefinition | null;
-  historyEvents: RunStreamEvent[];
-  liveState: ReturnType<typeof initialRunState>;
-  replayCursor: number | null;
-  setReplayCursor: (cursor: number | null) => void;
-}
-
-/** Seeks to the event with this id. An id the history does not hold leaves the cursor alone rather than resetting it — a stale link should not silently jump the scrubber to the start. */
-function useSeek(
-  historyEvents: RunStreamEvent[],
-  setReplayCursor: (cursor: number | null) => void,
-) {
-  return useCallback(
-    (id: string) => {
-      const cursor = cursorForEventId(historyEvents, id);
-
-      if (cursor !== null) {
-        setReplayCursor(cursor);
-      }
-    },
-    [historyEvents, setReplayCursor],
-  );
-}
-
-/** What the scrubber itself shows. A null cursor means "follow the end", so it reads as the full history length rather than as position zero. */
-function scrubberView(
-  input: Pick<
-    ReplayInput,
-    "runStatus" | "historyEvents" | "replayCursor" | "runIsLive"
-  >,
-) {
-  const { runStatus, historyEvents, replayCursor, runIsLive } = input;
-
-  return {
-    scrubberVisible: computeScrubberVisible(runStatus, historyEvents.length),
-    replayPosition: scrubberPositionLabel(
-      historyEvents,
-      replayCursor ?? historyEvents.length,
-    ),
-    replayActive: computeReplayActive({
-      runIsLive,
-      replayCursor,
-      historyEventCount: historyEvents.length,
-    }),
-  };
-}
-
-/** The run's state as of the cursor, folded from the all-idle state rather than the visit-row seed. */
-function useReplayState(input: ReplayInput) {
-  const { definition, historyEvents, replayCursor } = input;
-
-  return useMemo(
-    () =>
-      replayTo(
-        initialRunState(definition, []),
-        historyEvents,
-        replayCursor ?? historyEvents.length,
-      ),
-    [definition, historyEvents, replayCursor],
-  );
-}
-
-export function useReplay(input: ReplayInput) {
-  const { runIsLive, historyEvents } = input;
-  const { liveState, setReplayCursor } = input;
-  const replayState = useReplayState(input);
-
-  return {
-    displayState: runIsLive ? liveState : replayState,
-    ...scrubberView(input),
-    onCursorChange: setReplayCursor,
-    onBackToLive: () => setReplayCursor(null),
-    onSeek: useSeek(historyEvents, setReplayCursor),
-  };
 }
 
 interface SelectedNodeInput {

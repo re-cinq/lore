@@ -14,7 +14,6 @@ export default defineConfig({
         "src/work/agent/catalog-builders.ts",
         "src/work/agent/agent-events.ts",
         "src/work/agent/agent-run-events.ts",
-        "src/work/agent/agent-event-bus.ts",
         "src/work/assembly-run/floor-assembly-run.ts",
         "src/work/assembly-run/llm-dispatch-gate.ts",
         "src/work/assembly-run/assembly-run-station-backend.ts",

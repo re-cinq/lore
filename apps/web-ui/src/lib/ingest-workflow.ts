@@ -2,10 +2,10 @@
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
-export const LORE_INGEST_WORKFLOW_VERSION = 4;
+export const LORE_INGEST_WORKFLOW_VERSION = 5;
 
-// v4 hardening: fail loudly on misconfig/4xx, warn on 5xx/network (issue #1545).
-export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 4
+// v4 (#1545): fail loudly on misconfig/4xx, warn on 5xx/network; v5: `--no-renames`, so a moved file's old path is posted as a delete and its chunks do not outlive it.
+export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 5
 name: Lore Context Ingest
 
 on:
@@ -31,7 +31,9 @@ jobs:
       - name: Get changed files
         id: changes
         run: |
-          FILES=$(git diff --name-only HEAD~1 HEAD | jq -R -s -c 'split("\\n") | map(select(. != ""))')
+          # --no-renames: a moved file must arrive as its old path (a delete)
+          # plus its new path, or the old path's chunks outlive the file.
+          FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\\n") | map(select(. != ""))')
           echo "files=\${FILES}" >> "$GITHUB_OUTPUT"
 
       - name: Notify Lore to ingest

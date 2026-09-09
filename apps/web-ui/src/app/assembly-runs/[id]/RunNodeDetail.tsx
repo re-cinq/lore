@@ -9,6 +9,7 @@ import {
 import { describeNode, type NodeDetail } from "@/lib/run-node-detail-presenter";
 import type { NodeStatusTone } from "@/lib/run-node-status";
 import type { StepView } from "@/lib/step-presenter";
+import { modelShortLabel, type NodeModel } from "@/lib/node-models";
 import CollapsibleCard from "@/components/CollapsibleCard";
 import { StatusPill } from "@/components/StatusPill";
 import styles from "./RunNodeDetail.module.css";
@@ -33,6 +34,8 @@ export interface RunNodeDetailProps {
   attempts: StepView[];
   /** Header-row actions (the retry button), forwarded to the card's summary. */
   actions?: React.ReactNode;
+  /** The model this node runs on, with where the answer came from; absent for a node that runs no recipe. */
+  model?: NodeModel | null;
 }
 
 function Fact({
@@ -63,7 +66,7 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
     >
       <p className={`${styles.why} ${WHY_CLASS[detail.tone]}`}>{detail.why}</p>
       <ErroredSteps failures={detail.failures} />
-      <NodeFacts detail={detail} repo={props.repo} />
+      <NodeFacts detail={detail} repo={props.repo} model={props.model} />
       <AttemptHistory attempts={props.attempts} repo={props.repo} />
       <TouchedFiles files={detail.files} />
     </CollapsibleCard>
@@ -151,9 +154,30 @@ function CommitFact({ commitSha, repo }: CommitFactProps) {
   );
 }
 
-function NodeFacts({ detail, repo }: { detail: NodeDetail; repo: string }) {
+/** Which model the node runs on, and whether the catalog or the definition said so — a per-repo override changes the first without touching the second. */
+function ModelFact({ model }: { model: NodeModel | null | undefined }) {
+  if (!model) {
+    return null;
+  }
+
+  return (
+    <Fact label="Model">
+      {modelShortLabel(model.model)}{" "}
+      <span className={styles.attemptMeta}>({model.source})</span>
+    </Fact>
+  );
+}
+
+interface NodeFactsProps {
+  detail: NodeDetail;
+  repo: string;
+  model: NodeModel | null | undefined;
+}
+
+function NodeFacts({ detail, repo, model }: NodeFactsProps) {
   return (
     <dl className={styles.facts}>
+      <ModelFact model={model} />
       <Fact label="Attempt">{detail.iteration || "—"}</Fact>
       <Fact label="Duration">{detail.durationLabel}</Fact>
       <StartedAtFact startedAt={detail.startedAt} />

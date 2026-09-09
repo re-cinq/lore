@@ -110,16 +110,19 @@ export async function ciReportForRun(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
 ): Promise<ParkedReport | null> {
+  const prNumber = Number(run.args.pr_number) || 0;
   const judged = await judgeable(run, deps);
-  const [checks, hasCiHistory] = await Promise.all([
+  const [checks, hasCiHistory, mergeable] = await Promise.all([
     judged ? deps.listChecks(run.repo, judged.headSha) : [],
     deps.hasCiHistory(run.repo),
+    prNumber ? deps.prMergeable(run.repo, prNumber) : null,
   ]);
   const verdict = decideCiReady({
     checks: externalCheckRuns(checks),
     hasCiHistory,
     judgedSha: judged?.headSha ?? null,
     lastReportedSha: lastReportedSha(run.args),
+    mergeable,
   });
 
   return ciReport(verdict);

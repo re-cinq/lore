@@ -106,6 +106,9 @@ interface PackBudget {
   maxPerDocTokens?: number;
 }
 
+// Below this a truncated document is a one-line stub that still costs its header; the bundle is better off without it.
+export const MIN_DOC_TOKENS = 120;
+
 /** Pack one source into `state`; false when the budget is spent and packing must stop. */
 function packItem(
   state: PackState,
@@ -120,17 +123,35 @@ function packItem(
     return false;
   }
   const limit = Math.min(remaining, maxPerDocTokens ?? Infinity);
+  const whole = wouldBeStub(source, limit)
+    ? skip(state)
+    : keep(state, source, limit);
+
+  // Stop only when the BUDGET was the binding limit; a per-doc cap leaves room to keep packing.
+  return whole || limit < remaining;
+}
+
+/** Truncating this source to `limit` would leave a stub not worth its header. */
+function wouldBeStub(source: SourceItem, limit: number): boolean {
+  return source.tokens > limit && limit < MIN_DOC_TOKENS;
+}
+
+/** Leave the source out; the bundle records that something was cut. */
+function skip(state: PackState): false {
+  state.truncated = true;
+
+  return false;
+}
+
+/** Push the source, cut to `limit`; true when it fit whole. */
+function keep(state: PackState, source: SourceItem, limit: number): boolean {
   const fitted = fitOne(source, limit);
 
   state.kept.push(fitted);
   state.used += fitted.tokens;
+  state.truncated = state.truncated || fitted !== source;
 
-  if (fitted !== source) {
-    state.truncated = true;
-  }
-
-  // Stop only when the BUDGET was the binding limit; a per-doc cap leaves room to keep packing.
-  return fitted === source || limit < remaining;
+  return fitted === source;
 }
 
 /** Pack sources into a token budget: keep whole sources, truncate the overflow source, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
@@ -150,92 +171,14 @@ export function fitItemsToBudget(
   return { kept: state.kept, truncated: state.truncated };
 }
 
-// Common words dropped from the keyword leg so a paragraph-length query matches on its distinctive terms, not filler.
-const STOPWORDS = new Set([
-  "the",
-  "a",
-  "an",
-  "and",
-  "or",
-  "to",
-  "for",
-  "of",
-  "in",
-  "on",
-  "at",
-  "by",
-  "with",
-  "from",
-  "that",
-  "this",
-  "these",
-  "those",
-  "is",
-  "are",
-  "be",
-  "as",
-  "it",
-  "its",
-  "into",
-  "via",
-  "per",
-  "add",
-  "use",
-  "using",
-  "new",
-  "update",
-  "edit",
-  "change",
-  "make",
-  "set",
-  "get",
-  "also",
-  "should",
-  "would",
-  "can",
-  "will",
-  "not",
-  "but",
-  "so",
-  "if",
-  "when",
-  "then",
-  "than",
-  "they",
-  "their",
-  "you",
-  "your",
-  "we",
-  "our",
-]);
+export { extractKeyTerms } from "../../../domain/key-terms.js";
 
-/** Distinctive terms from a query: drop stopwords + ≤2-char words, de-dupe case-insensitively, preserve order, cap at `max`. */
-function isKeyTermCandidate(lower: string, seen: Set<string>): boolean {
-  return lower.length > 2 && !STOPWORDS.has(lower) && !seen.has(lower);
+/** The identity a document keeps across sections: its content hash (a file and its copied twin at another path are one document), else its path, else its text. */
+export function seenKey(it: SourceItem): string {
+  return it.content_hash || it.source_path || it.text;
 }
 
-export function extractKeyTerms(query: string, max = 12): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-
-  for (const raw of query.split(/[^A-Za-z0-9_.-]+/)) {
-    const lower = raw.toLowerCase();
-
-    if (!isKeyTermCandidate(lower, seen)) {
-      continue;
-    }
-    seen.add(lower);
-    out.push(raw);
-
-    if (out.length >= max) {
-      break;
-    }
-  }
-
-  return out;
-}
-
-/** Filter out sources already emitted in an earlier section (keyed by source path, else text) — keeps a document in its highest-priority section only. */
+/** Filter out sources already emitted in an earlier section — keeps a document in its highest-priority section only. Marks what it keeps as seen. */
 export function dropSeen(
   sources: SourceItem[],
   seen: Set<string>,
@@ -243,7 +186,7 @@ export function dropSeen(
   const kept: SourceItem[] = [];
 
   for (const it of sources) {
-    const key = it.source_path || it.text;
+    const key = seenKey(it);
 
     if (seen.has(key)) {
       continue;

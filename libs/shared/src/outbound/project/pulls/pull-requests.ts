@@ -13,6 +13,7 @@ import type {
   CiConclusion,
   CheckRun,
   ReviewThread,
+  PullFileChange,
 } from "./pull-requests-port.js";
 
 /** Canonical PR surface, repo-bound; thin facade over PullRequestsPort. */
@@ -115,6 +116,10 @@ export class PullRequests {
 
   listFiles(number: number): Promise<string[]> {
     return this.pulls.listFiles(this.repo, number);
+  }
+
+  listFileChanges(number: number): Promise<PullFileChange[]> {
+    return this.pulls.listFileChanges(this.repo, number);
   }
 
   listChecks(ref: string): Promise<CheckRun[]> {
