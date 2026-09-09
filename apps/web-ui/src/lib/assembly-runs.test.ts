@@ -25,6 +25,8 @@ const baseRow: AssemblyRunRow = {
   args_pr_number: null,
   pr_url: "https://github.com/re-cinq/lore/pull/42",
   task_pr_number: 42,
+  issue_url: null,
+  issue_number: null,
   created_by: "gedaiu",
   cost_usd: 0.1234,
 };
@@ -44,12 +46,27 @@ describe("toAssemblyRun", () => {
     });
   });
 
+  it("carries the backing task's issue onto the run", () => {
+    const run = toAssemblyRun({
+      ...baseRow,
+      issue_url: "https://github.com/re-cinq/lore/issues/41",
+      issue_number: 41,
+    });
+
+    expect(run).toMatchObject({
+      issueUrl: "https://github.com/re-cinq/lore/issues/41",
+      issueNumber: 41,
+    });
+  });
+
   it("builds a github pull link from args.pr_number for a code-review run without a task PR", () => {
     const run = toAssemblyRun({
       ...baseRow,
       task_id: null,
       pr_url: null,
       task_pr_number: null,
+      issue_url: null,
+      issue_number: null,
       created_by: null,
       cost_usd: null,
       args_pr_number: 7,
@@ -70,6 +87,8 @@ describe("toAssemblyRun", () => {
       task_id: null,
       pr_url: null,
       task_pr_number: null,
+      issue_url: null,
+      issue_number: null,
       created_by: null,
       cost_usd: null,
       args_pr_number: null,

@@ -2363,6 +2363,8 @@ export interface components {
       args_pr_number: number | null;
       pr_url: string | null;
       task_pr_number: number | null;
+      issue_url: string | null;
+      issue_number: number | null;
       created_by: string | null;
       cost_usd: number | null;
     };
@@ -2385,6 +2387,8 @@ export interface components {
         args_pr_number: number | null;
         pr_url: string | null;
         task_pr_number: number | null;
+        issue_url: string | null;
+        issue_number: number | null;
         created_by: string | null;
         cost_usd: number | null;
       }[];
