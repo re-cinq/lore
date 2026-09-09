@@ -16,7 +16,6 @@ import { Alert } from "@/components/Alert";
 import AssemblyRunView from "./AssemblyRunView";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import RunVisualizationPanel from "./RunVisualizationPanel";
-import EventTimeline from "@/app/tasks/[id]/EventTimeline";
 import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
 
 export interface RunLiveShellProps {
@@ -40,27 +39,17 @@ function TaskLessRunAlert() {
 
 interface TaskContextProps {
   taskId: string | null;
-  events: readonly TaskRuntimeEvent[];
   llmCalls: readonly TaskRuntimeLlmCall[];
   repo: string;
 }
 
-function TaskContextSection({
-  taskId,
-  events,
-  llmCalls,
-  repo,
-}: TaskContextProps) {
+/** The task's cost table; its status transitions now live inside the selected node's transcript. */
+function TaskContextSection({ taskId, llmCalls, repo }: TaskContextProps) {
   if (!taskId) {
     return <TaskLessRunAlert />;
   }
 
-  return (
-    <>
-      <EventTimeline events={[...events]} />
-      <LlmCallsTable llmCalls={[...llmCalls]} repo={repo} />
-    </>
-  );
+  return <LlmCallsTable llmCalls={[...llmCalls]} repo={repo} />;
 }
 
 /** The live-driven half below the header: the panel that owns the socket, and the task accounting fed by the same fold. */
@@ -82,19 +71,19 @@ function panelProps({ props, run, live, applyFrame }: LiveSectionsProps) {
     reason: run.reason,
     agentEditHrefs: props.agentEditHrefs,
     nodeModels: props.nodeModels,
+    taskEvents: live.taskEvents,
     onFrame: applyFrame,
   };
 }
 
 function LiveSections(sections: LiveSectionsProps) {
-  const { props, run, live } = sections;
+  const { props, run } = sections;
 
   return (
     <>
       <RunVisualizationPanel {...panelProps(sections)} />
       <TaskContextSection
         taskId={run.taskId}
-        events={live.taskEvents}
         llmCalls={props.llmCalls}
         repo={run.repo}
       />

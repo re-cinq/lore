@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeModel } from "@/lib/node-models";
+import type { TaskRuntimeEvent } from "@/lib/task-runtime";
 import { autoSelectNodeId, effectiveSelection } from "@/lib/run-auto-select";
 import {
   reduceRunEvent,
@@ -39,6 +40,8 @@ export interface RunVisualizationPanelProps {
   agentEditHrefs?: Record<string, string>;
   /** nodeId → the model an agent node runs on, resolved server-side against the catalog. */
   nodeModels?: Record<string, NodeModel>;
+  /** The task's status transitions, folded into the selected node's transcript. */
+  taskEvents?: readonly TaskRuntimeEvent[];
   /** The page's fold for the stream's state families; the panel owns the socket, the page owns run/node/task state. */
   onFrame?: (frame: RunStreamFrame) => void;
 }
@@ -288,7 +291,13 @@ function RunGraph({ view, definition }: RunGraphProps) {
 /** Takes the run's own props as `page` rather than threading eight arguments: none of them is derived from the run, they are what the route already knew. */
 type RunDetailPage = Pick<
   RunVisualizationPanelProps,
-  "runId" | "repo" | "reason" | "definition" | "agentEditHrefs" | "nodeModels"
+  | "runId"
+  | "repo"
+  | "reason"
+  | "definition"
+  | "agentEditHrefs"
+  | "nodeModels"
+  | "taskEvents"
 >;
 
 /** The inspector's plain values — the page's own facts and the view's derivations, flattened into one bundle because the panel reads them as a flat prop list. */
@@ -306,6 +315,7 @@ function inspectorProps(view: RunView, page: RunDetailPage) {
     retrySource: view.graph.retrySource,
     agentEditHrefs: page.agentEditHrefs,
     nodeModels: page.nodeModels,
+    taskEvents: page.taskEvents,
     selectedState: view.node.selected,
     visibleNodeCount: visibleNodeCount(view),
   };

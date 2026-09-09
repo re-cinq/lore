@@ -1,15 +1,15 @@
 # Feature Specification: Lore — Shared Context Infrastructure
 
-| Field             | Value                                      |
-|-------------------|--------------------------------------------|
-| Feature           | Lore Platform                              |
-| Branch            | 1-lore-platform                            |
-| Status            | Shipped                                    |
-| Created           | 2026-03-25                                 |
-| Updated           | 2026-04-20                                 |
-| Owner             | Platform Engineering                       |
-| Phase 0 Target    | 3-4 working days                           |
-| Full Stack Target | 6-8 weeks                                  |
+| Field             | Value                |
+| ----------------- | -------------------- |
+| Feature           | Lore Platform        |
+| Branch            | 1-lore-platform      |
+| Status            | Shipped              |
+| Created           | 2026-03-25           |
+| Updated           | 2026-04-20           |
+| Owner             | Platform Engineering |
+| Phase 0 Target    | 3-4 working days     |
+| Full Stack Target | 6-8 weeks            |
 
 Lore is shared context infrastructure for Claude Code: one install command
 gives every developer full organizational awareness — conventions, ADRs, team
@@ -84,6 +84,7 @@ system is performing.
 **Actor:** New Developer
 
 **Flow:**
+
 1. Developer runs a single install command.
 2. System clones the context repository, builds the MCP server,
    detects the developer's team, configures Claude Code settings,
@@ -93,6 +94,7 @@ system is performing.
    available work.
 
 **Acceptance Criteria:**
+
 - Installation completes in under 5 minutes on macOS and Linux.
 - Health check reports all green on a clean machine with standard
   prerequisites (Node.js, Python, Git).
@@ -105,6 +107,7 @@ system is performing.
 **Actor:** Active Developer
 
 **Flow:**
+
 1. Developer opens Claude Code.
 2. Context and task state sync automatically in the background.
 3. Developer asks what to work on.
@@ -112,6 +115,7 @@ system is performing.
 5. Developer claims a task and begins work.
 
 **Acceptance Criteria:**
+
 - Context sync completes silently without developer action.
 - Task list shows only unblocked work.
 - Claimed tasks are tracked automatically during the session.
@@ -123,6 +127,7 @@ system is performing.
 **Actor:** Active Developer
 
 **Flow:**
+
 1. Developer invokes the `/lore-feature` skill.
 2. System asks what they want to build (one question).
 3. System generates a project constitution from real ADRs and team
@@ -135,6 +140,7 @@ system is performing.
 7. Developer sees their tasks and begins implementation.
 
 **Acceptance Criteria:**
+
 - The full loop completes in under 30 minutes.
 - Developer speaks fewer than 10 words total — system does the work,
   developer confirms at decision points.
@@ -146,6 +152,7 @@ system is performing.
 **Actor:** Active Developer
 
 **Flow:**
+
 1. Developer invokes the `/lore-pr` skill.
 2. System reads the current task, spec file, changed files, and
    ADR references automatically.
@@ -155,6 +162,7 @@ system is performing.
 5. System reminds developer to mark the task as done.
 
 **Acceptance Criteria:**
+
 - PR description includes Why, Alternatives Rejected, ADR References,
   and Spec sections — all populated from existing context.
 - Developer does not write the description from scratch.
@@ -166,6 +174,7 @@ system is performing.
 **Actor:** Any Developer (via CI)
 
 **Flow:**
+
 1. Developer opens a PR that modifies context files (CLAUDE.md, ADRs,
    team conventions).
 2. CI runs context evaluation tests against the changes.
@@ -174,6 +183,7 @@ system is performing.
    CI fails the PR.
 
 **Acceptance Criteria:**
+
 - CI fails PRs that contradict active ADRs.
 - CI fails PRs with empty "Why" or "Alternatives Rejected" sections.
 - Warning-only mode for the first 2 weeks, hard fail after.
@@ -184,6 +194,7 @@ system is performing.
 **Actor:** Active Developer
 
 **Flow:**
+
 1. Developer asks Claude Code a question about a specific code
    pattern or decision.
 2. System performs hybrid search (vector + keyword) across the
@@ -192,6 +203,7 @@ system is performing.
    ranked by relevance.
 
 **Acceptance Criteria:**
+
 - Search returns relevant results in under 200ms (p99).
 - A query like "ChargeBuilder idempotency" returns both the code
   chunk (matched by vector similarity) and the PR that introduced
@@ -204,6 +216,7 @@ system is performing.
 **Actor:** Active Developer
 
 **Flow:**
+
 1. Developer identifies a well-defined task that will take more
    than 20 minutes (e.g., writing integration tests).
 2. Developer asks Claude Code to delegate it to the cluster via
@@ -216,6 +229,7 @@ system is performing.
    updated with task progress.
 
 **Acceptance Criteria:**
+
 - Task submission returns immediately with a tracking ID.
 - Agent nodes also get a **live, scoped** Lore MCP for the run's duration:
   the seeded agent recipe carries a `resources.mcp_servers` entry
@@ -257,6 +271,7 @@ system is performing.
 **Actor:** Platform Engineer (reviewer), System (initiator)
 
 **Flow:**
+
 1. Weekly job analyzes low-confidence context retrievals from the
    past week.
 2. System clusters gaps by topic similarity.
@@ -267,6 +282,7 @@ system is performing.
 5. Team reviews and merges or closes with feedback.
 
 **Acceptance Criteria:**
+
 - Gap detection identifies recurring low-confidence queries.
 - Drafted content is specific and actionable (not just "add
   information about X").
@@ -279,6 +295,7 @@ system is performing.
 **Actor:** Active Developer or Tech Lead
 
 **Flow:**
+
 1. Developer asks "why does the auth service work this way?"
 2. System queries the live knowledge graph to traverse relationships:
    code → PR → ADR → Spec, including entity relationships and
@@ -286,6 +303,7 @@ system is performing.
 3. System presents the chain of reasoning across sources.
 
 **Acceptance Criteria:**
+
 - `lore_query_graph` returns multi-hop traversal results that vector
   search alone cannot answer.
 - Graph entities carry typed relationships (OWNS, CALLS, IMPLEMENTS,
@@ -342,7 +360,7 @@ pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/s
   pipeline tasks with dependency relationships parsed from
   `[DEPENDS ON: ...]` annotations. ([validated by `tasks.test.ts:60`](libs/shared/src/domain/tasks.test.ts#L60))
 - FR-4.5: Concurrent task claiming uses `SELECT ... FOR UPDATE SKIP
-  LOCKED` — atomically prevents duplicate work without versioning
+LOCKED` — atomically prevents duplicate work without versioning
   overhead. A claim attempt on a taken task returns an immediate
   error; the developer or agent reads the ready list and picks
   another task. ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
@@ -355,7 +373,7 @@ pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:20`](libs/s
 - FR-4.8: `parseTasks` turns each `- [ ] Tnnn ...` markdown line into a task
   record — id, description, `completed` from the checkbox, `parallelizable` with a
   stripped description from a `[P]` marker, a `dependsOn` list from a `[DEPENDS ON: ...]`
-  marker, a plain-or-backtick file path from the trailing ` | ` suffix, and the phase
+  marker, a plain-or-backtick file path from the trailing `|` suffix, and the phase
   number carried from the preceding `## Phase N` header — defaulting phase to 0 and
   ignoring lines that are neither tasks nor phase headers. ([validated by `tasks.test.ts:25`](libs/shared/src/domain/tasks.test.ts#L25), [`tasks.test.ts:39`](libs/shared/src/domain/tasks.test.ts#L39), [`tasks.test.ts:46`](libs/shared/src/domain/tasks.test.ts#L46), [`tasks.test.ts:53`](libs/shared/src/domain/tasks.test.ts#L53), [`tasks.test.ts:69`](libs/shared/src/domain/tasks.test.ts#L69), [`tasks.test.ts:85`](libs/shared/src/domain/tasks.test.ts#L85), [`tasks.test.ts:101`](libs/shared/src/domain/tasks.test.ts#L101), [`tasks.test.ts:23`](libs/server-core/src/work/pipeline/tasks.test.ts#L23), [`tasks.test.ts:31`](libs/server-core/src/work/pipeline/tasks.test.ts#L31), [`tasks.test.ts:39`](libs/server-core/src/work/pipeline/tasks.test.ts#L39), [`tasks.test.ts:47`](libs/server-core/src/work/pipeline/tasks.test.ts#L47), [`tasks.test.ts:54`](libs/server-core/src/work/pipeline/tasks.test.ts#L54), [`tasks.test.ts:73`](libs/server-core/src/work/pipeline/tasks.test.ts#L73), [`tasks.test.ts:92`](libs/server-core/src/work/pipeline/tasks.test.ts#L92))
 - FR-4.9: `inferPhaseDependencies` derives dependency edges deterministically: a task
@@ -603,7 +621,7 @@ API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prom
 - FR-16.4: Each call computes a djb2 hash of the system + tools prefix
   and compares to the last call for the same `jobName`. Log line
   emits: `cache hit | first-call | break:system | break:tools |
-  break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:117`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L117), [`prompt-cache.test.ts:123`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L123))
+break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:117`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L117), [`prompt-cache.test.ts:123`](libs/shared/src/outbound/llm/prompt-cache.test.ts#L123))
 - FR-16.5: `response.usage.cache_creation_input_tokens` and
   `cache_read_input_tokens` feed cost accounting (1.25× writes,
   0.1× reads). ([validated by `anthropic-provider.test.ts:74`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L74), [`anthropic-provider.test.ts:101`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L101), [`anthropic-provider.test.ts:128`](libs/shared/src/outbound/llm/anthropic-provider.test.ts#L128))
@@ -688,11 +706,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
 - FR-19.5: When a failed task carries a failed-event with metadata, the
   view renders a "Failure" panel surfacing the error; absent that
   metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L252), [`TaskDetailView.test.tsx:268`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L268))
-- FR-19.6: The run detail page renders the task's event timeline: one
-  badge per status transition (sentence-cased to-status with a
-  from-status arrow), pretty-printed event metadata as JSON, and an
-  empty-state note when there are no events; the section is a collapsible
-  card titled Event Timeline. ([validated by `EventTimeline.test.tsx:26`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L26), [`EventTimeline.test.tsx:40`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L40), [`EventTimeline.test.tsx:48`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L48), [`EventTimeline.test.tsx:18`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L18))
+- FR-19.6: _(Restated 2026-09-09.)_ The run detail page renders the task's status transitions inside the selected node's transcript rather than as a separate Event Timeline card: each transition that fell inside that node's visits reads as a `· task From → To` system line in the conversation, with its metadata folded behind the line and the from-status omitted on the first transition; a run with no backing task shows the note that no status history is available. ([validated by `transcript-entries.test.ts:116`](apps/web-ui/src/lib/transcript-entries.test.ts#L116), [`transcript-entries.test.ts:141`](apps/web-ui/src/lib/transcript-entries.test.ts#L141), [`TranscriptView.test.tsx:56`](apps/web-ui/src/app/assembly-runs/[id]/TranscriptView.test.tsx#L56), [`RunLiveShell.test.tsx:146`](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L146))
 - FR-19.7: The run detail page renders the task's LLM-call table: one
   row per call with the model, `input / output` token counts, duration,
   and a status badge (red with the error text on failure), and an
@@ -986,13 +1000,13 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   drag the balance negative on money the account never spent.
   ([validated by [`spend-window.test.ts:148`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L148), [`spend-window.test.ts:478`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L478), [`spend-window.test.ts:492`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L492), [`spend-window.test.ts:427`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L427), [`SpendView.test.tsx:633`](apps/web-ui/src/app/spend/SpendView.test.tsx#L633), [`SpendView.test.tsx:703`](apps/web-ui/src/app/spend/SpendView.test.tsx#L703), [`SpendView.test.tsx:708`](apps/web-ui/src/app/spend/SpendView.test.tsx#L708), [`spend-window.test.ts:519`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L519)])
 
-- **FR-19f — Interval-scoped spend, with the Kubernetes half** *(added
-  2026-09-02)*. The spend page carries a date-interval selector — presets
+- **FR-19f — Interval-scoped spend, with the Kubernetes half** _(added
+  2026-09-02)_. The spend page carries a date-interval selector — presets
   (today / 7 days / 30 days / month-to-date) plus free date bounds — and
   `GET /api/analytics/spend-window?from&to` serves the WHOLE page for the
-  selected window *(merged 2026-09-03: the old month-to-date `/api/spend`
+  selected window _(merged 2026-09-03: the old month-to-date `/api/spend`
   sections became interval-scoped and moved into this response, and the
-  route was deleted)*: the metered LLM spend (realtime — the agent-events
+  route was deleted)_: the metered LLM spend (realtime — the agent-events
   sink writes cost rows within seconds of each model call) with its
   by-assembly-line, by-repo, by-model, by-kind, daily, by-task-type and
   by-cluster breakdowns, the interval-scoped Anthropic billed figures with
@@ -1014,7 +1028,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   truth.
   ([validated by windows the metered llm spend and prices pod-hours at the assumed profile](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L117), [prices each live pod from its ACTUAL requests](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L269), [`spend-window.test.ts:293`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L293), [caps a never-finished station-run row at 2 hours](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L313), [`spend-window.test.ts:326`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L326), [carries every interval-scoped breakdown the merged spend page renders](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L148), [`spend-window.test.ts:248`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L248), [`SpendView.test.tsx:211`](apps/web-ui/src/app/spend/SpendView.test.tsx#L211), [`SpendView.test.tsx:219`](apps/web-ui/src/app/spend/SpendView.test.tsx#L219), [`SpendView.test.tsx:284`](apps/web-ui/src/app/spend/SpendView.test.tsx#L284), [`compute-cost.test.ts:12`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L12), [`compute-cost.test.ts:25`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L25), [`compute-cost.test.ts:34`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L34), [`compute-cost.test.ts:40`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L40), [`compute-cost.test.ts:47`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L47), [`compute-cost.test.ts:56`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L56), [`compute-cost.test.ts:65`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L65), [`compute-cost.test.ts:75`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L75), [`compute-cost.test.ts:82`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L82), [`compute-cost.test.ts:89`](apps/lore-api/src/work/analytics/compute-cost.test.ts#L89), [lists the running pods with their requests](apps/cluster-agent/src/transport/routes/cluster.test.ts#L154), [fetches the default 7-day window and renders the whole spend view from it](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L99), [`SpendWindowPanel.test.tsx:129`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L129), [`SpendWindowPanel.test.tsx:144`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L144), [`SpendWindowPanel.test.tsx:155`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L155), [`SpendWindowPanel.test.tsx:171`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L171), [`SpendWindowPanel.test.tsx:192`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L192), [`spend-window-presets.test.ts:7`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L7), [`spend-window-presets.test.ts:14`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L14), [`spend-window-presets.test.ts:25`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L25), [`spend-window-presets.test.ts:34`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L34), [`SpendWindowPanel.test.tsx:208`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L208)])
 
-- **FR-19g — Whose invoice, and what a run costs** *(added 2026-09-03)*.
+- **FR-19g — Whose invoice, and what a run costs** _(added 2026-09-03)_.
   `pipeline.llm_calls` prices every model call Lore sees, whoever bills it, so
   the page separates them. Metered spend is reported per VENDOR (folded from
   the by-model rollup through the shared `modelVendor` classifier, dearest
@@ -1097,7 +1111,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   typed `Task` wrappers and reflects the new status after `cancel()`.
   ([validated by `task-list.test.ts:114`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L109), [`task-list.test.ts:126`](libs/shared/src/outbound/project/tasks/task-list.test.ts#L126))
 - FR-20.5: The `EventQueue` port claims runnable rows with `FOR UPDATE
-  SKIP LOCKED` incrementing attempts (oldest-first, flipping to
+SKIP LOCKED` incrementing attempts (oldest-first, flipping to
   processing), collapses a redelivery sharing a dedupe key, truncates the
   error and applies the backoff on `markFailed` (a failed row becomes
   claimable only after the backoff elapses), resets timed-out processing

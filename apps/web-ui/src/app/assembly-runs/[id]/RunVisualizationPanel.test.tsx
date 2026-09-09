@@ -197,10 +197,12 @@ describe("history fold", () => {
     renderPanel("running");
     await settle();
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[1][0])).toContain(
-      `after=${HISTORY_PAGE_LIMIT}`,
+    const historyCalls = fetchMock.mock.calls.filter((call) =>
+      String(call[0]).includes("/events"),
     );
+
+    expect(historyCalls).toHaveLength(2);
+    expect(String(historyCalls[1][0])).toContain(`after=${HISTORY_PAGE_LIMIT}`);
   });
 
   it("renders the graph and folded history when EventSource is undefined", async () => {

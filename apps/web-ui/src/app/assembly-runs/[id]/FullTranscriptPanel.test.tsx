@@ -78,13 +78,13 @@ async function openPanel(container: HTMLElement) {
 }
 
 describe("FullTranscriptPanel", () => {
-  it("renders collapsed and fetches nothing until opened", () => {
-    const fetchMock = stubFetch();
+  it("renders open and starts the walk on mount, before any click", () => {
+    const fetchMock = stubFetch(turnsResponse([]));
 
     render(<FullTranscriptPanel runId="run-1" nodeId="implement" />);
 
-    expect(screen.getByText("Full transcript")).toBeTruthy();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByText("Transcript")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("fetches the run's turns once opened and renders the assistant text, formatted", async () => {
@@ -433,5 +433,101 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
     expect(
       document.querySelector('time[datetime="2026-08-12T10:00:00.000Z"]'),
     ).toBeTruthy();
+  });
+});
+
+describe("FullTranscriptPanel as a terminal conversation", () => {
+  function toolTurn(id: string, block: Record<string, unknown>, role: string) {
+    return {
+      ...wireTurn(id, "implement"),
+      eventType: role,
+      envelope: {
+        source: { task: "task-1" },
+        event: { type: role, message: { role, content: [block] } },
+      },
+    };
+  }
+
+  it("folds a tool call and its result into one line the reader can open", async () => {
+    stubFetch(
+      turnsResponse([
+        toolTurn(
+          "1",
+          {
+            type: "tool_use",
+            id: "tu-1",
+            name: "Read",
+            input: { file_path: "src/a.ts" },
+          },
+          "assistant",
+        ),
+        toolTurn(
+          "2",
+          { type: "tool_result", tool_use_id: "tu-1", content: "the contents" },
+          "user",
+        ),
+      ]),
+    );
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+
+    const call = container.querySelector("details[data-tool-call]");
+
+    expect(call?.querySelector("summary")).toHaveTextContent("Read");
+    expect(call?.querySelector("pre")).toHaveTextContent("the contents");
+  });
+
+  it("folds a task transition inside the node's window into the conversation as a system line", async () => {
+    stubFetch(turnsResponse([wireTurn("1", "implement")]));
+    const { container } = render(
+      <FullTranscriptPanel
+        runId="run-1"
+        nodeId="implement"
+        rows={[
+          {
+            nodeId: "implement",
+            iteration: 1,
+            outcome: null,
+            agentCrName: null,
+            commitSha: null,
+            durationSeconds: null,
+            startedAt: "2026-08-12T09:59:00.000Z",
+          },
+        ]}
+        taskEvents={[
+          {
+            id: "7",
+            task_id: "task-1",
+            from_status: "running",
+            to_status: "pr_created",
+            metadata: null,
+            created_at: "2026-08-12T10:00:30.000Z",
+          },
+          {
+            id: "6",
+            task_id: "task-1",
+            from_status: "pending",
+            to_status: "running",
+            metadata: null,
+            created_at: "2026-08-12T09:00:00.000Z",
+          },
+        ]}
+      />,
+    );
+
+    await openPanel(container);
+    await screen.findByText(/full text of turn 1/);
+
+    const rows = [...container.querySelectorAll("[data-entry]")].map((row) =>
+      row.getAttribute("data-entry"),
+    );
+
+    expect(rows).toEqual(["segment", "turn", "task-event"]);
+    expect(container.querySelector("[data-task-event]")).toHaveTextContent(
+      "task Running → PR created",
+    );
   });
 });

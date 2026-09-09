@@ -4,7 +4,6 @@ import { render, screen, act } from "@testing-library/react";
 import RunLiveShell from "./RunLiveShell";
 import type { AssemblyRun } from "@/lib/assembly-runs";
 import { implementationDefinition } from "@/lib/definition-fixtures";
-import { formatEnumLabel } from "@/lib/enum-label";
 
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
@@ -144,8 +143,26 @@ describe("RunLiveShell", () => {
     ).toContain("Running");
   });
 
-  it("adds a task transition the stream reports to the event timeline", async () => {
-    renderShell();
+  it("adds a task transition the stream reports to the selected node's transcript", async () => {
+    const { container } = renderShell();
+
+    await settle();
+    await emit("node_status", {
+      type: "node_status",
+      node: {
+        node_id: "implement",
+        iteration: 1,
+        outcome: null,
+        agent_cr_name: "05fc-implement",
+        station_run_id: "sr-1",
+        input: null,
+        commit_sha: null,
+        started_at: "2026-09-09T10:00:10.000Z",
+        finished_at: null,
+        status: "running",
+        claimed_at: null,
+      },
+    });
     await settle();
     await emit("task_event", {
       type: "task_event",
@@ -158,7 +175,10 @@ describe("RunLiveShell", () => {
         created_at: "2026-09-09T10:04:00.000Z",
       },
     });
+    await settle();
 
-    expect(screen.getByText(formatEnumLabel("pr_created"))).toBeInTheDocument();
+    expect(container.querySelector("[data-task-event]")).toHaveTextContent(
+      "task Running → PR created",
+    );
   });
 });

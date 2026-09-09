@@ -6,6 +6,7 @@ import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
 import type { NodeModel } from "@/lib/node-models";
+import type { TaskRuntimeEvent } from "@/lib/task-runtime";
 import FullTranscriptPanel from "./FullTranscriptPanel";
 import NodeLogPanel from "./NodeLogPanel";
 import NodeInputCard from "./NodeInputCard";
@@ -156,6 +157,7 @@ interface SelectedNodeSectionProps {
   retrySource: { nodeId: string; iteration: number } | null;
   agentEditHrefs?: Record<string, string>;
   nodeModels?: Record<string, NodeModel>;
+  taskEvents?: readonly TaskRuntimeEvent[];
   visibleNodeCount: number;
 }
 
@@ -194,7 +196,13 @@ export function NodeInspectorPanel(props: NodeInspectorPanelProps) {
     <>
       <NodeInspector {...inspectorPropsFor(props, selectedNodeId)} />
       {/* Keyed on the run so a run change resets the loaded transcript by construction, not by a flag someone has to remember to clear. */}
-      <FullTranscriptPanel key={runId} runId={runId} nodeId={selectedNodeId} />
+      <FullTranscriptPanel
+        key={runId}
+        runId={runId}
+        nodeId={selectedNodeId}
+        taskEvents={props.taskEvents}
+        rows={props.selectedRows}
+      />
     </>
   );
 }
