@@ -115,7 +115,7 @@ describe("backfillEmbeddings", () => {
     expect({
       embeddedText: embed.mock.calls[0][0],
       selectsLinkCarriers: select.sql.includes(
-        "content ~ '\\(\\[validated by'",
+        "content ~ '\\(\\[(?:validated|implemented) by'",
       ),
       selectsUnmarked: select.sql.includes("embedded_stripped"),
       marks: update.sql.includes("embedded_stripped"),

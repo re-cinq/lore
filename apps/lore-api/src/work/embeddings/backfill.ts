@@ -40,7 +40,7 @@ interface PendingRow {
 }
 
 // The marker keeps a re-embedded link carrier out of the next batch — the links stay in `content`, so the content match alone would select it forever.
-const STALE_LINKS_CONDITION = `content ~ '\\(\\[validated by' AND COALESCE((metadata->>'embedded_stripped')::boolean, false) = false`;
+const STALE_LINKS_CONDITION = `content ~ '\\(\\[(?:validated|implemented) by' AND COALESCE((metadata->>'embedded_stripped')::boolean, false) = false`;
 
 const MEMORY_TARGETS: Target[] = [
   {
