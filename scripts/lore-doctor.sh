@@ -82,6 +82,18 @@ LORE_TOKEN="$(git config --global lore.ingest-token 2>/dev/null || true)"
 if [ -n "$LORE_API_URL" ] && [ -n "$LORE_TOKEN" ]; then
   printf '  \xe2\x9c\x93  %s\n' "Task delegation configured ($LORE_API_URL)"
   PASS=$((PASS + 1))
+
+  # 9. The embedder behind lore-api. Four weeks of Vertex 403s (2026-08-13 →
+  # 09-09) were visible only in pod logs; /healthz now carries the count, and a
+  # developer running doctor should see it before their bundles go keyword-only.
+  check_embeddings() {
+    command -v jq >/dev/null 2>&1 || return 0
+    curl -sf -m 10 -H "Authorization: Bearer $LORE_TOKEN" "$LORE_API_URL/healthz" \
+      | jq -e '.embeddings.consecutiveFailures == 0' >/dev/null
+  }
+  check "Embeddings healthy (lore-api can reach Vertex AI)" \
+    check_embeddings || \
+    echo "     Check: kubectl -n lore-api logs deploy/lore-api | grep '\\[embeddings\\]' — a 403 is the pod's Workload Identity"
 else
   printf '  \xe2\x97\x8b  %s\n' "Task delegation not configured (optional)"
   echo "     Set: git config --global lore.ingest-token <token>"

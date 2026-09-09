@@ -5,6 +5,9 @@ import {
   resolveVertexProject,
   resetVertexProjectCache,
   getQueryEmbedding,
+  embeddingHealth,
+  embedderDegraded,
+  resetEmbeddingHealth,
 } from "./embedding-service.js";
 
 const SAVED = { ...process.env };
@@ -49,6 +52,80 @@ describe("resolveVertexProject", () => {
       ),
     );
     expect(await resolveVertexProject()).toBe("proj-from-metadata");
+  });
+});
+
+describe("embeddingHealth", () => {
+  const vertexAnswering = (status: number) =>
+    vi.fn(async (url: string) => {
+      enforceTrue(
+        !url.includes("service-accounts/default/token"),
+        Error,
+        "no metadata",
+      );
+
+      return status === 200
+        ? ({
+            ok: true,
+            status,
+            json: async () => ({
+              predictions: [{ embeddings: { values: [0.1] } }],
+            }),
+          } as Response)
+        : ({ ok: false, status } as Response);
+    });
+
+  beforeEach(() => {
+    resetEmbeddingHealth();
+    process.env.GOOGLE_ACCESS_TOKEN = "tok";
+    process.env.GCP_PROJECT = "proj";
+  });
+
+  it("reports consecutiveFailures 2 and lastStatus 403 after two 403 responses", async () => {
+    vi.stubGlobal("fetch", vertexAnswering(403));
+
+    await getQueryEmbedding("a");
+    await getQueryEmbedding("b");
+
+    expect(embeddingHealth()).toEqual({
+      lastOkAt: null,
+      lastFailureAt: expect.any(String),
+      lastStatus: 403,
+      consecutiveFailures: 2,
+    });
+  });
+
+  it("is degraded after 3 failures and healthy again with consecutiveFailures 0 after one 200", async () => {
+    vi.stubGlobal("fetch", vertexAnswering(403));
+    await getQueryEmbedding("a");
+    await getQueryEmbedding("b");
+    await getQueryEmbedding("c");
+    const degradedAtThree = embedderDegraded();
+
+    vi.stubGlobal("fetch", vertexAnswering(200));
+    await getQueryEmbedding("d");
+
+    expect({ degradedAtThree, after: embeddingHealth() }).toEqual({
+      degradedAtThree: true,
+      after: {
+        lastOkAt: expect.any(String),
+        lastFailureAt: expect.any(String),
+        lastStatus: 403,
+        consecutiveFailures: 0,
+      },
+    });
+  });
+
+  it("counts a call that never reached Vertex (no credential) as a failure with lastStatus null", async () => {
+    delete process.env.GOOGLE_ACCESS_TOKEN;
+    vi.stubGlobal("fetch", vertexAnswering(200));
+
+    await getQueryEmbedding("a");
+
+    expect(embeddingHealth()).toMatchObject({
+      lastStatus: null,
+      consecutiveFailures: 1,
+    });
   });
 });
 
