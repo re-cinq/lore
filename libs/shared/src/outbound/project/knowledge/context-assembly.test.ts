@@ -332,6 +332,22 @@ describe("hybridChunkItems", () => {
     });
   });
 
+  it("queries content_type ['code'] for 'split the api port' and ['code','test'] for 'flaky test in chunker'", async () => {
+    const typesFor = async (query: string) => {
+      vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+      const { pool, calls } = fakePool({ rows: [] });
+
+      await fetchers.code(pool, query, "re-cinq/lore");
+
+      return calls[1].params?.[2];
+    };
+
+    expect({
+      port: await typesFor("split the api port"),
+      flaky: await typesFor("flaky test in chunker"),
+    }).toEqual({ port: ["code"], flaky: ["code", "test"] });
+  });
+
   it("reads from the repo's provisioned team schema instead of org_shared", async () => {
     vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
     const { pool, calls } = fakePool(

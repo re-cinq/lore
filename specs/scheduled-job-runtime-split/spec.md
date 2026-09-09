@@ -354,7 +354,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    (issue #979, FR-20.21 in `specs/1-lore-platform/spec.md`), now driven by the
    `internal.repo.team_changed` handler rather than a nightly pass: any rows a team-resolved repo
    still holds in `org_shared.chunks` move into its resolved schema, and a relocation targeting
-   `org_shared` itself is refused ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L548), [`chunks.test.ts:762`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L611), [`chunks.test.ts:773`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L622))
+   `org_shared` itself is refused ([validated by `chunks.test.ts:699`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L572), [`chunks.test.ts:762`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L635), [`chunks.test.ts:773`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L646))
 
 ## File Changes
 
