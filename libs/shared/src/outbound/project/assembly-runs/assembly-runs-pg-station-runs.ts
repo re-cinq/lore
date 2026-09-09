@@ -17,6 +17,26 @@ const ENSURE_SQL = `INSERT INTO pipeline.station_runs
        DO UPDATE SET input = COALESCE(pipeline.station_runs.input, EXCLUDED.input)
      RETURNING id, station_run_id, (xmax = 0) AS created`;
 
+export async function ensureStationRun(
+  pool: PgPool,
+  input: StationRunStartInput,
+): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
+  const { rows } = await pool.query<{
+    id: number | string;
+    station_run_id: string;
+    created: boolean;
+  }>(ENSURE_SQL, ensureParams(input));
+
+  enforceSingleUpsertRow(rows, input);
+  const row = rows[0];
+
+  return {
+    nodeRowId: String(row.id),
+    stationRunId: row.station_run_id,
+    created: row.created,
+  };
+}
+
 /** The upsert's bound values, in the order `ENSURE_SQL` declares them. Kept beside nothing else because the pairing is positional: a value inserted here without its placeholder binds silently into the wrong column. */
 function ensureParams(input: StationRunStartInput): unknown[] {
   return [
@@ -45,42 +65,6 @@ function enforceSingleUpsertRow(
   );
 }
 
-export async function ensureStationRun(
-  pool: PgPool,
-  input: StationRunStartInput,
-): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
-  const { rows } = await pool.query<{
-    id: number | string;
-    station_run_id: string;
-    created: boolean;
-  }>(ENSURE_SQL, ensureParams(input));
-
-  enforceSingleUpsertRow(rows, input);
-  const row = rows[0];
-
-  return {
-    nodeRowId: String(row.id),
-    stationRunId: row.station_run_id,
-    created: row.created,
-  };
-}
-
-function finishStationRunFailureFields(
-  failure: StationRunFailure | undefined,
-): {
-  failureClass: string | null;
-  failureDetail: string | null;
-} {
-  const empty = { failureClass: null, failureDetail: null };
-
-  return failure
-    ? {
-        failureClass: failure.failureClass ?? null,
-        failureDetail: failure.failureDetail ?? null,
-      }
-    : empty;
-}
-
 export async function finishStationRunOnce(
   pool: PgPool,
   nodeRowId: string,
@@ -101,6 +85,22 @@ export async function finishStationRunOnce(
   );
 
   return rows.length === 1;
+}
+
+function finishStationRunFailureFields(
+  failure: StationRunFailure | undefined,
+): {
+  failureClass: string | null;
+  failureDetail: string | null;
+} {
+  const empty = { failureClass: null, failureDetail: null };
+
+  return failure
+    ? {
+        failureClass: failure.failureClass ?? null,
+        failureDetail: failure.failureDetail ?? null,
+      }
+    : empty;
 }
 
 export async function enqueueStationRunDispatch(
@@ -133,6 +133,21 @@ const CLAIM_SQL = `WITH next AS (
      RETURNING sr.id, sr.station_run_id, sr.assembly_run_id, sr.node_id,
                sr.iteration, sr.agent_cr_name, sr.dispatch_spec`;
 
+export async function claimNextStationRun(
+  pool: PgPool,
+  claimant: {
+    clusterAgentId: string;
+    tags: string[];
+  },
+): Promise<ClaimedStationRun | null> {
+  const { rows } = await pool.query(CLAIM_SQL, [
+    claimant.clusterAgentId,
+    claimant.tags,
+  ]);
+
+  return rows[0] ? toClaimed(rows[0]) : null;
+}
+
 /** The claimed row in the caller's spelling. `id` is stringified because it is a bigint: it outgrows a JS number, and the cluster-agent round-trips it as an identifier rather than doing arithmetic on it. */
 function toClaimed(row: unknown): ClaimedStationRun {
   const r = row as {
@@ -154,21 +169,6 @@ function toClaimed(row: unknown): ClaimedStationRun {
     agentCrName: r.agent_cr_name,
     dispatchSpec: r.dispatch_spec,
   };
-}
-
-export async function claimNextStationRun(
-  pool: PgPool,
-  claimant: {
-    clusterAgentId: string;
-    tags: string[];
-  },
-): Promise<ClaimedStationRun | null> {
-  const { rows } = await pool.query(CLAIM_SQL, [
-    claimant.clusterAgentId,
-    claimant.tags,
-  ]);
-
-  return rows[0] ? toClaimed(rows[0]) : null;
 }
 
 export async function requeueStationRun(

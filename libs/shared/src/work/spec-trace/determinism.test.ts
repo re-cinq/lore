@@ -24,18 +24,6 @@ interface NodeRecord {
   fields: Record<string, unknown>;
 }
 
-function normalizeEdgeValue(value: unknown): unknown {
-  if (!Array.isArray(value)) {
-    return value;
-  }
-
-  return value
-    .map(
-      (target) => Object.values(target as Record<string, unknown>)[0] as string,
-    )
-    .sort();
-}
-
 function nodeRecordOf(
   group: string,
   node: Record<string, unknown>,
@@ -48,6 +36,18 @@ function nodeRecordOf(
   }
 
   return { key: `${group}|${node[xidKey] as string}`, fields };
+}
+
+function normalizeEdgeValue(value: unknown): unknown {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+
+  return value
+    .map(
+      (target) => Object.values(target as Record<string, unknown>)[0] as string,
+    )
+    .sort();
 }
 
 describe.skipIf(!reachable)("Spec Traceability Graph", () => {

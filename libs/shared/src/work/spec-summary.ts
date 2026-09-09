@@ -17,28 +17,6 @@ export function parseSpecTitle(content: string, filePath: string): string {
   return specFeatureSlug(filePath) ?? filePath;
 }
 
-function paragraphLines(block: string): string[] {
-  return block
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-/** True when a paragraph's first line is markdown structure (heading, table, blockquote, code fence, list) rather than prose. */
-function isMarkdownSyntaxLine(first: string): boolean {
-  if (first.startsWith("#") || first.startsWith("|") || first.startsWith(">")) {
-    return true;
-  }
-
-  return first.startsWith("```") || /^[-*]\s/.test(first);
-}
-
-function truncateWithEllipsis(text: string, maxLength: number): string {
-  return text.length > maxLength
-    ? text.slice(0, maxLength).trimEnd() + "…"
-    : text;
-}
-
 /** First real prose paragraph (skips headings, tables, blockquotes, code fences, lists), whitespace-collapsed and truncated to `maxLength` with an ellipsis. */
 export function extractSummary(content: string, maxLength = 280): string {
   const paragraphs = content.split(/\n\s*\n/);
@@ -62,22 +40,32 @@ export function extractSummary(content: string, maxLength = 280): string {
   return "";
 }
 
+function paragraphLines(block: string): string[] {
+  return block
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/** True when a paragraph's first line is markdown structure (heading, table, blockquote, code fence, list) rather than prose. */
+function isMarkdownSyntaxLine(first: string): boolean {
+  if (first.startsWith("#") || first.startsWith("|") || first.startsWith(">")) {
+    return true;
+  }
+
+  return first.startsWith("```") || /^[-*]\s/.test(first);
+}
+
+function truncateWithEllipsis(text: string, maxLength: number): string {
+  return text.length > maxLength
+    ? text.slice(0, maxLength).trimEnd() + "…"
+    : text;
+}
+
 type SpecChunk = Pick<Chunk, "content"> & {
   ingested_at: string | Date;
   chunk_index?: number | null;
 };
-
-/** Chunk-index order, legacy chunks without an index sorted last and broken by ingest time. */
-function byChunkIndexThenIngest(a: SpecChunk, b: SpecChunk): number {
-  const aIndex = a.chunk_index ?? Number.POSITIVE_INFINITY;
-  const bIndex = b.chunk_index ?? Number.POSITIVE_INFINITY;
-
-  if (aIndex !== bIndex) {
-    return aIndex < bIndex ? -1 : 1;
-  }
-
-  return new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime();
-}
 
 /** Joins a spec's chunks in `metadata.chunk_index` order (falling back to ingest order for legacy chunks, sorted last), de-duplicating identical content since re-ingests insert new rows rather than upserting. */
 export function reassembleSpec(chunks: SpecChunk[]): string {
@@ -94,6 +82,18 @@ export function reassembleSpec(chunks: SpecChunk[]): string {
   }
 
   return parts.join("\n\n");
+}
+
+/** Chunk-index order, legacy chunks without an index sorted last and broken by ingest time. */
+function byChunkIndexThenIngest(a: SpecChunk, b: SpecChunk): number {
+  const aIndex = a.chunk_index ?? Number.POSITIVE_INFINITY;
+  const bIndex = b.chunk_index ?? Number.POSITIVE_INFINITY;
+
+  if (aIndex !== bIndex) {
+    return aIndex < bIndex ? -1 : 1;
+  }
+
+  return new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime();
 }
 
 /** A spec is stored as several chunks, so every pass over a repo's chunks starts by putting each file's back together. */

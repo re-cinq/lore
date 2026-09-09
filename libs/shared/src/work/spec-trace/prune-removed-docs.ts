@@ -24,22 +24,6 @@ export type PruneSelection =
       inScopeDocCount: number;
     };
 
-/** The refusal per the proportional bad-tree-read fuse (>2 candidates AND >50% of in-scope docs), or null when the candidate set is trustworthy. */
-function badTreeReadRefusal(
-  candidates: string[],
-  inScopeDocs: string[],
-): PruneSelection | null {
-  if (candidates.length <= 2 || candidates.length * 2 <= inScopeDocs.length) {
-    return null;
-  }
-
-  return {
-    outcome: "refused-suspicious-tree",
-    candidateCount: candidates.length,
-    inScopeDocCount: inScopeDocs.length,
-  };
-}
-
 /** Whether the bad-tree-read fuse is armed for this run, or deliberately overridden. */
 export type PruneMode = "guarded" | "forced";
 
@@ -60,6 +44,22 @@ export function selectPruneCandidates(
     mode === "forced" ? null : badTreeReadRefusal(candidates, inScopeDocs);
 
   return refusal ?? { outcome: "ok", candidates };
+}
+
+/** The refusal per the proportional bad-tree-read fuse (>2 candidates AND >50% of in-scope docs), or null when the candidate set is trustworthy. */
+function badTreeReadRefusal(
+  candidates: string[],
+  inScopeDocs: string[],
+): PruneSelection | null {
+  if (candidates.length <= 2 || candidates.length * 2 <= inScopeDocs.length) {
+    return null;
+  }
+
+  return {
+    outcome: "refused-suspicious-tree",
+    candidateCount: candidates.length,
+    inScopeDocCount: inScopeDocs.length,
+  };
 }
 
 /** The `file_path` of every document of `docType` for a repo; `docType` is a trusted internal constant, safe to interpolate into query predicates. */
@@ -98,6 +98,28 @@ interface DoomedSpecSubtree {
   implementedUids: string[];
 }
 
+/** Deletes a Spec's whole subtree plus GC of link-target chunks and the owning Feature (only when ownerless); missing Spec is a no-op; anchor-deleted-last for crash resume. */
+export async function deleteSpecSubtree(
+  dgraph: DgraphClientPort,
+  repo: string,
+  filePath: string,
+): Promise<void> {
+  const doomed = await withTxn(dgraph, (txn) =>
+    querySpecSubtree(txn, repo, filePath),
+  );
+
+  if (!doomed) {
+    return;
+  }
+
+  await gcSpecLeavings(dgraph, doomed);
+
+  // An empty valid set makes the file-scoped Block sweep delete every Block.
+  await pruneOrphanBlocksByFile(dgraph, repo, filePath, new Set());
+
+  await withTxn(dgraph, (txn) => deleteSpecSubtreeTxn(txn, repo, filePath));
+}
+
 const SPEC_SUBTREE_QUERY = `query q($xid: string, $repo: string) {
   spec(func: eq(Spec.xid, $xid), first: 1) {
     uid
@@ -126,24 +148,26 @@ type QueriedSpec = { feature?: UidRef[] | UidRef } & {
   acs?: LinkedChild[];
 };
 
-/** Every node the spec owns outright: its statements and ACs, its sections, and the TraceLinks those children point at. */
-function subtreeChildUids(
-  children: LinkedChild[],
-  sections: UidRef[] | undefined,
-): string[] {
-  return [
-    ...children.map((child) => child.uid),
-    ...uids(sections),
-    ...children.flatMap((child) => uids(child.links)),
-  ];
-}
+/** Reads the Spec subtree slated for deletion (Spec/children/Repo-root/Feature/link-target uids); called both read-only (GC inputs) and inside the final mutating txn (fresh-uid staleness guard). Null if no such Spec. */
+async function querySpecSubtree(
+  txn: DgraphTxn,
+  repo: string,
+  filePath: string,
+): Promise<DoomedSpecSubtree | null> {
+  const res = await txn.queryWithVars(SPEC_SUBTREE_QUERY, {
+    $xid: `${repo}|${filePath}`,
+    $repo: repo,
+  });
+  const spec = firstOf(res.data.spec as QueriedSpec[] | undefined);
 
-/** Dedupe: TestChunks are file-scoped, so many statements/ACs point at the same chunk uid — without the Set a 40-statement spec fires ~40 redundant gcOrphanChunks txns. */
-function uniqueLinkTargets(
-  children: LinkedChild[],
-  edge: "validated" | "implemented",
-): string[] {
-  return [...new Set(children.flatMap((child) => uids(child[edge])))];
+  if (!spec) {
+    return null;
+  }
+  const rootUid = firstOf(
+    res.data.root as Array<Record<string, string>> | undefined,
+  )?.uid;
+
+  return buildDoomedSpecSubtree(spec, rootUid);
 }
 
 /** Assembles the doomed subtree from a raw query result's `spec`/`root` payloads. */
@@ -167,26 +191,24 @@ function buildDoomedSpecSubtree(
   };
 }
 
-/** Reads the Spec subtree slated for deletion (Spec/children/Repo-root/Feature/link-target uids); called both read-only (GC inputs) and inside the final mutating txn (fresh-uid staleness guard). Null if no such Spec. */
-async function querySpecSubtree(
-  txn: DgraphTxn,
-  repo: string,
-  filePath: string,
-): Promise<DoomedSpecSubtree | null> {
-  const res = await txn.queryWithVars(SPEC_SUBTREE_QUERY, {
-    $xid: `${repo}|${filePath}`,
-    $repo: repo,
-  });
-  const spec = firstOf(res.data.spec as QueriedSpec[] | undefined);
+/** Every node the spec owns outright: its statements and ACs, its sections, and the TraceLinks those children point at. */
+function subtreeChildUids(
+  children: LinkedChild[],
+  sections: UidRef[] | undefined,
+): string[] {
+  return [
+    ...children.map((child) => child.uid),
+    ...uids(sections),
+    ...children.flatMap((child) => uids(child.links)),
+  ];
+}
 
-  if (!spec) {
-    return null;
-  }
-  const rootUid = firstOf(
-    res.data.root as Array<Record<string, string>> | undefined,
-  )?.uid;
-
-  return buildDoomedSpecSubtree(spec, rootUid);
+/** Dedupe: TestChunks are file-scoped, so many statements/ACs point at the same chunk uid — without the Set a 40-statement spec fires ~40 redundant gcOrphanChunks txns. */
+function uniqueLinkTargets(
+  children: LinkedChild[],
+  edge: "validated" | "implemented",
+): string[] {
+  return [...new Set(children.flatMap((child) => uids(child[edge])))];
 }
 
 /** Collects what the spec's subtree was the last owner of. The ownership queries still see the doomed Statements and ACs alive, so their uids are excluded from the owner check — otherwise a chunk owned ONLY by this spec's children would look owned and survive as an orphan. The Feature goes too, but only once nothing else claims it. */
@@ -215,6 +237,46 @@ async function gcSpecLeavings(
 /** What {@link querySpecSubtree} returns when the spec exists. */
 type SpecSubtree = NonNullable<Awaited<ReturnType<typeof querySpecSubtree>>>;
 
+/** Deletes a Feature node once no Spec other than `excludedSpecUid` points at it — lets GC run while the doomed Spec (the resume anchor) still exists, and re-checking makes a resumed run converge. */
+async function gcFeatureIfOrphan(
+  dgraph: DgraphClientPort,
+  featureUid: string,
+  excludedSpecUid: string,
+): Promise<void> {
+  await withTxn(dgraph, async (txn) => {
+    const remaining = await remainingFeatureOwners(
+      txn,
+      featureUid,
+      excludedSpecUid,
+    );
+
+    if (remaining.length === 0) {
+      await txn.mutate({
+        deleteNquads: `<${featureUid}> * * .`,
+        commitNow: true,
+      });
+    }
+  });
+}
+
+/** The Specs still pointing at this Feature, ignoring the one being deleted. */
+async function remainingFeatureOwners(
+  txn: DgraphTxn,
+  featureUid: string,
+  excludedSpecUid: string,
+): Promise<UidRef[]> {
+  const res = await txn.queryWithVars(
+    `query q($uid: string) {
+        node(func: uid($uid)) { owners: ~Spec.feature { uid } }
+      }`,
+    { $uid: featureUid },
+  );
+  const nodes = (res.data.node ?? []) as Array<{ owners?: UidRef[] }>;
+  const owners = nodes[0]?.owners ?? [];
+
+  return owners.filter((owner) => owner.uid !== excludedSpecUid);
+}
+
 /** Re-queries inside the mutating txn so the delete acts on fresh uids, not the earlier read's snapshot (Dgraph only detects write-write conflicts). */
 async function deleteSpecSubtreeTxn(
   txn: DgraphTxn,
@@ -236,68 +298,6 @@ async function deleteSpecSubtreeTxn(
     deletes.push(`<${target.rootUid}> <Repo.specs> <${target.specUid}> .`);
   }
   await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
-}
-
-/** Deletes a Spec's whole subtree plus GC of link-target chunks and the owning Feature (only when ownerless); missing Spec is a no-op; anchor-deleted-last for crash resume. */
-export async function deleteSpecSubtree(
-  dgraph: DgraphClientPort,
-  repo: string,
-  filePath: string,
-): Promise<void> {
-  const doomed = await withTxn(dgraph, (txn) =>
-    querySpecSubtree(txn, repo, filePath),
-  );
-
-  if (!doomed) {
-    return;
-  }
-
-  await gcSpecLeavings(dgraph, doomed);
-
-  // An empty valid set makes the file-scoped Block sweep delete every Block.
-  await pruneOrphanBlocksByFile(dgraph, repo, filePath, new Set());
-
-  await withTxn(dgraph, (txn) => deleteSpecSubtreeTxn(txn, repo, filePath));
-}
-
-/** The Specs still pointing at this Feature, ignoring the one being deleted. */
-async function remainingFeatureOwners(
-  txn: DgraphTxn,
-  featureUid: string,
-  excludedSpecUid: string,
-): Promise<UidRef[]> {
-  const res = await txn.queryWithVars(
-    `query q($uid: string) {
-        node(func: uid($uid)) { owners: ~Spec.feature { uid } }
-      }`,
-    { $uid: featureUid },
-  );
-  const nodes = (res.data.node ?? []) as Array<{ owners?: UidRef[] }>;
-  const owners = nodes[0]?.owners ?? [];
-
-  return owners.filter((owner) => owner.uid !== excludedSpecUid);
-}
-
-/** Deletes a Feature node once no Spec other than `excludedSpecUid` points at it — lets GC run while the doomed Spec (the resume anchor) still exists, and re-checking makes a resumed run converge. */
-async function gcFeatureIfOrphan(
-  dgraph: DgraphClientPort,
-  featureUid: string,
-  excludedSpecUid: string,
-): Promise<void> {
-  await withTxn(dgraph, async (txn) => {
-    const remaining = await remainingFeatureOwners(
-      txn,
-      featureUid,
-      excludedSpecUid,
-    );
-
-    if (remaining.length === 0) {
-      await txn.mutate({
-        deleteNquads: `<${featureUid}> * * .`,
-        commitNow: true,
-      });
-    }
-  });
 }
 
 export { deleteAdrSubtree } from "./prune-adr-subtree.js";

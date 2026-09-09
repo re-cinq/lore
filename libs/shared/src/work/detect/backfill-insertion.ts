@@ -52,10 +52,20 @@ export interface InsertionResult {
   skipped: SkipReason[];
 }
 
-function renderLink(s: Suggestion): string {
-  const anchor = s.test_line ? `#L${s.test_line}` : "";
+// For each statement_ordinal, locates the matching text and appends a `(...)` parenthetical of `[label](path#Lline)` links (comma-separated when multiple); skips already-linked or not-found statements.
+export function proposeLinkInsertions(
+  content: string,
+  suggestions: Suggestion[],
+): InsertionResult {
+  if (suggestions.length === 0) {
+    return { newContent: content, diffPreview: "", applied: 0, skipped: [] };
+  }
 
-  return `[${s.label}](${s.test_file}${anchor})`;
+  const ordered = orderInsertions(groupByOrdinal(suggestions), content);
+  const { newContent, applied, skipped } = applyInsertions(ordered, content);
+  const diffPreview = applied > 0 ? buildUnifiedDiff(content, newContent) : "";
+
+  return { newContent, diffPreview, applied, skipped };
 }
 
 function groupByOrdinal(suggestions: Suggestion[]): Map<number, Suggestion[]> {
@@ -92,16 +102,46 @@ function orderInsertions(
     .sort((a, b) => b.idx - a.idx);
 }
 
+// Each insertion is applied to the content the previous one produced, which is why the entries arrive deepest-first.
+function applyInsertions(
+  ordered: OrderedInsertion[],
+  content: string,
+): { newContent: string; applied: number; skipped: SkipReason[] } {
+  const skipped: SkipReason[] = [];
+  let applied = 0;
+  let newContent = content;
+
+  for (const entry of ordered) {
+    const outcome = insertOne(entry, newContent);
+
+    if (outcome.kind === "skip") {
+      skipped.push(outcome.reason);
+      continue;
+    }
+    newContent = outcome.newContent;
+    applied += outcome.applied;
+  }
+
+  return { newContent, applied, skipped };
+}
+
+/** Tiny unified-diff renderer for the PR body. */
+function buildUnifiedDiff(before: string, after: string): string {
+  const beforeLines = before.split("\n");
+  const afterLines = after.split("\n");
+  const out: string[] = ["--- a/spec.md", "+++ b/spec.md"];
+  const maxLen = Math.max(beforeLines.length, afterLines.length);
+
+  for (let i = 0; i < maxLen; i++) {
+    out.push(...diffLine(beforeLines[i] || "", afterLines[i] || ""));
+  }
+
+  return out.join("\n");
+}
+
 type InsertionOutcome =
   | { kind: "skip"; reason: SkipReason }
   | { kind: "insert"; newContent: string; applied: number };
-
-function insertionSkip(
-  ord: number,
-  reason: SkipReason["reason"],
-): InsertionOutcome {
-  return { kind: "skip", reason: { statement_ordinal: ord, reason } };
-}
 
 function insertOne(entry: OrderedInsertion, content: string): InsertionOutcome {
   const { ord, list, text } = entry;
@@ -126,6 +166,19 @@ function insertOne(entry: OrderedInsertion, content: string): InsertionOutcome {
   };
 }
 
+function insertionSkip(
+  ord: number,
+  reason: SkipReason["reason"],
+): InsertionOutcome {
+  return { kind: "skip", reason: { statement_ordinal: ord, reason } };
+}
+
+function renderLink(s: Suggestion): string {
+  const anchor = s.test_line ? `#L${s.test_line}` : "";
+
+  return `[${s.label}](${s.test_file}${anchor})`;
+}
+
 function diffLine(before: string, after: string): string[] {
   if (before === after) {
     return [];
@@ -142,57 +195,4 @@ function diffLine(before: string, after: string): string[] {
   }
 
   return lines;
-}
-
-/** Tiny unified-diff renderer for the PR body. */
-function buildUnifiedDiff(before: string, after: string): string {
-  const beforeLines = before.split("\n");
-  const afterLines = after.split("\n");
-  const out: string[] = ["--- a/spec.md", "+++ b/spec.md"];
-  const maxLen = Math.max(beforeLines.length, afterLines.length);
-
-  for (let i = 0; i < maxLen; i++) {
-    out.push(...diffLine(beforeLines[i] || "", afterLines[i] || ""));
-  }
-
-  return out.join("\n");
-}
-
-// Each insertion is applied to the content the previous one produced, which is why the entries arrive deepest-first.
-function applyInsertions(
-  ordered: OrderedInsertion[],
-  content: string,
-): { newContent: string; applied: number; skipped: SkipReason[] } {
-  const skipped: SkipReason[] = [];
-  let applied = 0;
-  let newContent = content;
-
-  for (const entry of ordered) {
-    const outcome = insertOne(entry, newContent);
-
-    if (outcome.kind === "skip") {
-      skipped.push(outcome.reason);
-      continue;
-    }
-    newContent = outcome.newContent;
-    applied += outcome.applied;
-  }
-
-  return { newContent, applied, skipped };
-}
-
-// For each statement_ordinal, locates the matching text and appends a `(...)` parenthetical of `[label](path#Lline)` links (comma-separated when multiple); skips already-linked or not-found statements.
-export function proposeLinkInsertions(
-  content: string,
-  suggestions: Suggestion[],
-): InsertionResult {
-  if (suggestions.length === 0) {
-    return { newContent: content, diffPreview: "", applied: 0, skipped: [] };
-  }
-
-  const ordered = orderInsertions(groupByOrdinal(suggestions), content);
-  const { newContent, applied, skipped } = applyInsertions(ordered, content);
-  const diffPreview = applied > 0 ? buildUnifiedDiff(content, newContent) : "";
-
-  return { newContent, diffPreview, applied, skipped };
 }

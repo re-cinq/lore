@@ -43,18 +43,18 @@ interface GeminiCallMetrics {
   durationMs: number;
 }
 
+function textFromResponse(response: GeminiResponse): string {
+  const part = candidateParts(response)?.[0];
+
+  return part?.text ?? "";
+}
+
 function candidateParts(
   response: GeminiResponse,
 ): Array<{ text?: string }> | undefined {
   const candidate = response.candidates?.[0];
 
   return candidate?.content?.parts;
-}
-
-function textFromResponse(response: GeminiResponse): string {
-  const part = candidateParts(response)?.[0];
-
-  return part?.text ?? "";
 }
 
 function tokensFromResponse(response: GeminiResponse): {

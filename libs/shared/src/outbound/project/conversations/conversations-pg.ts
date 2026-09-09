@@ -36,10 +36,6 @@ const toRecord = (row: ConversationDbRow): ConversationRecord => ({
   createdAt: row.created_at.toISOString(),
 });
 
-function refParams(ref?: ExecutionRef): [string | null, number | null] {
-  return [ref?.assemblyLineId ?? null, ref?.iteration ?? null];
-}
-
 function latestForParams(
   thread: ConversationThread,
   opts: { exclude?: ExecutionRef; from?: ExecutionRef },
@@ -51,6 +47,10 @@ function latestForParams(
     ...refParams(opts.exclude),
     ...refParams(opts.from),
   ];
+}
+
+function refParams(ref?: ExecutionRef): [string | null, number | null] {
+  return [ref?.assemblyLineId ?? null, ref?.iteration ?? null];
 }
 
 const RESERVE_SQL = `INSERT INTO pipeline.agent_conversations

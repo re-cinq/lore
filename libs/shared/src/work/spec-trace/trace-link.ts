@@ -26,65 +26,29 @@ export interface UpsertTraceLinkArgs {
   evidence: EvidenceTier;
 }
 
-/** Tail = the xid with the leading `${repo}|` dropped (only the first segment). */
-function tailOf(xid: string, repo: string): string {
-  return xid.startsWith(`${repo}|`) ? xid.slice(repo.length + 1) : xid;
-}
-
-/** The tier this link should end up at. A link only ever climbs: an inline `([validated by …])` claim that has since been proven by an actual test run must not be demoted back to a claim by the next projection that re-reads the markdown. */
-async function raisedEvidence(
+export async function projectTraceLinks(
   dgraph: DgraphClientPort,
-  xid: string,
-  incoming: EvidenceTier,
-): Promise<EvidenceTier> {
-  const existing = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query q($x: string){ tl(func: eq(TraceLink.xid, $x)){ TraceLink.evidence } }`,
-      { $x: xid },
-    );
+  repo: string,
+  statementXid: string,
+): Promise<{ links: number }> {
+  const stmt = await readStatementEdges(dgraph, statementXid);
 
-    return firstOf(res.data.tl)?.["TraceLink.evidence"] as
-      EvidenceTier | undefined;
-  });
+  if (!stmt) {
+    return { links: 0 };
+  }
 
-  return existing ? (highestTier([existing, incoming]) ?? incoming) : incoming;
-}
+  const derivedLinks = await deriveLinks(dgraph, statementXid, stmt);
 
-/** Points the statement back at the reified link, so the edge is reachable from both ends. */
-async function attachTraceLink(
-  dgraph: DgraphClientPort,
-  statementUid: string,
-  traceLinkUid: string,
-): Promise<void> {
-  await withTxn(dgraph, (txn) =>
-    txn.mutate({
-      setJson: {
-        uid: statementUid,
-        "Statement.trace_links": [{ uid: traceLinkUid }],
-      },
-      commitNow: true,
-    }),
-  );
-}
+  for (const link of derivedLinks) {
+    await upsertTraceLink(dgraph, {
+      repo,
+      statementUid: stmt.uid,
+      statementXid,
+      ...link,
+    });
+  }
 
-/** Upsert TraceLink with deterministic xid; evidence only ever raises tier, never lowers. */
-export async function upsertTraceLink(
-  dgraph: DgraphClientPort,
-  args: UpsertTraceLinkArgs,
-): Promise<string> {
-  const xid = `${args.repo}|${tailOf(args.statementXid, args.repo)}|${tailOf(args.targetXid, args.repo)}|${args.kind}`;
-  const evidence = await raisedEvidence(dgraph, xid, args.evidence);
-  const traceLinkUid = await upsertByXid(dgraph, "TraceLink", xid, {
-    "TraceLink.repo": args.repo,
-    "TraceLink.statement": { uid: args.statementUid },
-    "TraceLink.target": { uid: args.targetUid },
-    "TraceLink.kind": args.kind,
-    "TraceLink.evidence": evidence,
-  });
-
-  await attachTraceLink(dgraph, args.statementUid, traceLinkUid);
-
-  return traceLinkUid;
+  return { links: derivedLinks.length };
 }
 
 interface StatementEdges {
@@ -119,6 +83,22 @@ interface DerivedLink {
   evidence: EvidenceTier;
 }
 
+/** A validated_by edge is EXECUTION-VERIFIED only when a run actually covered the statement; a human-written link that no test exercised stays human-linked, so the two never read as the same strength of claim. */
+async function deriveLinks(
+  dgraph: DgraphClientPort,
+  statementXid: string,
+  stmt: StatementEdges,
+): Promise<DerivedLink[]> {
+  const verdict = await verifyCoverageLink(dgraph, statementXid);
+  const validatedEvidence: EvidenceTier =
+    verdict === "execution-verified" ? "execution-verified" : "human-linked";
+
+  return [
+    ...validatedLinks(stmt, validatedEvidence),
+    ...implementedLinks(stmt),
+  ];
+}
+
 function validatedLinks(
   stmt: StatementEdges,
   evidence: EvidenceTier,
@@ -141,45 +121,58 @@ function implementedLinks(stmt: StatementEdges): DerivedLink[] {
   }));
 }
 
-/** A validated_by edge is EXECUTION-VERIFIED only when a run actually covered the statement; a human-written link that no test exercised stays human-linked, so the two never read as the same strength of claim. */
-async function deriveLinks(
+/** Upsert TraceLink with deterministic xid; evidence only ever raises tier, never lowers. */
+export async function upsertTraceLink(
   dgraph: DgraphClientPort,
-  statementXid: string,
-  stmt: StatementEdges,
-): Promise<DerivedLink[]> {
-  const verdict = await verifyCoverageLink(dgraph, statementXid);
-  const validatedEvidence: EvidenceTier =
-    verdict === "execution-verified" ? "execution-verified" : "human-linked";
+  args: UpsertTraceLinkArgs,
+): Promise<string> {
+  const xid = `${args.repo}|${tailOf(args.statementXid, args.repo)}|${tailOf(args.targetXid, args.repo)}|${args.kind}`;
+  const evidence = await raisedEvidence(dgraph, xid, args.evidence);
+  const traceLinkUid = await upsertByXid(dgraph, "TraceLink", xid, {
+    "TraceLink.repo": args.repo,
+    "TraceLink.statement": { uid: args.statementUid },
+    "TraceLink.target": { uid: args.targetUid },
+    "TraceLink.kind": args.kind,
+    "TraceLink.evidence": evidence,
+  });
 
-  return [
-    ...validatedLinks(stmt, validatedEvidence),
-    ...implementedLinks(stmt),
-  ];
+  await attachTraceLink(dgraph, args.statementUid, traceLinkUid);
+
+  return traceLinkUid;
 }
 
-export async function projectTraceLinks(
+/** Tail = the xid with the leading `${repo}|` dropped (only the first segment). */
+function tailOf(xid: string, repo: string): string {
+  return xid.startsWith(`${repo}|`) ? xid.slice(repo.length + 1) : xid;
+}
+
+/** The tier this link should end up at. A link only ever climbs: an inline `([validated by …])` claim that has since been proven by an actual test run must not be demoted back to a claim by the next projection that re-reads the markdown. */
+async function raisedEvidence(
   dgraph: DgraphClientPort,
-  repo: string,
-  statementXid: string,
-): Promise<{ links: number }> {
-  const stmt = await readStatementEdges(dgraph, statementXid);
+  xid: string,
+  incoming: EvidenceTier,
+): Promise<EvidenceTier> {
+  const existing = await withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(
+      `query q($x: string){ tl(func: eq(TraceLink.xid, $x)){ TraceLink.evidence } }`,
+      { $x: xid },
+    );
 
-  if (!stmt) {
-    return { links: 0 };
-  }
+    return firstOf(res.data.tl)?.["TraceLink.evidence"] as
+      EvidenceTier | undefined;
+  });
 
-  const derivedLinks = await deriveLinks(dgraph, statementXid, stmt);
+  return existing ? (highestTier([existing, incoming]) ?? incoming) : incoming;
+}
 
-  for (const link of derivedLinks) {
-    await upsertTraceLink(dgraph, {
-      repo,
-      statementUid: stmt.uid,
-      statementXid,
-      ...link,
-    });
-  }
-
-  return { links: derivedLinks.length };
+export function highestTier(tiers: EvidenceTier[]): EvidenceTier | undefined {
+  return tiers.reduce<EvidenceTier | undefined>(
+    (best, tier) =>
+      best === undefined || rankEvidence(tier) > rankEvidence(best)
+        ? tier
+        : best,
+    undefined,
+  );
 }
 
 const EVIDENCE_RANK: Record<EvidenceTier, number> = {
@@ -194,12 +187,19 @@ export function rankEvidence(tier: EvidenceTier): number {
   return EVIDENCE_RANK[tier];
 }
 
-export function highestTier(tiers: EvidenceTier[]): EvidenceTier | undefined {
-  return tiers.reduce<EvidenceTier | undefined>(
-    (best, tier) =>
-      best === undefined || rankEvidence(tier) > rankEvidence(best)
-        ? tier
-        : best,
-    undefined,
+/** Points the statement back at the reified link, so the edge is reachable from both ends. */
+async function attachTraceLink(
+  dgraph: DgraphClientPort,
+  statementUid: string,
+  traceLinkUid: string,
+): Promise<void> {
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({
+      setJson: {
+        uid: statementUid,
+        "Statement.trace_links": [{ uid: traceLinkUid }],
+      },
+      commitNow: true,
+    }),
   );
 }

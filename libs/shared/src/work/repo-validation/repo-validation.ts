@@ -34,69 +34,24 @@ export interface ValidationResult {
 
 // ── Execution ───────────────────────────────────────────────────────
 
-const MAX_OUTPUT_CHARS = 5000;
-
-function truncateOutput(output: string): string {
-  if (output.length <= MAX_OUTPUT_CHARS) {
-    return output;
+export async function runValidation(
+  repoRoot: string,
+  steps: ValidationStep[],
+  changedFiles?: string[],
+  exec: ValidationExec = localValidationExec,
+): Promise<ValidationResult> {
+  if (steps.length === 0) {
+    return { passed: true, steps: [] };
   }
 
-  return (
-    output.substring(output.length - MAX_OUTPUT_CHARS) + "\n...(truncated)"
-  );
-}
+  const results: StepResult[] = [];
 
-/** How a validation command is executed — default runs locally; the BYO sidecar (ADR-025) injects an exec that runs it in the repo's toolchain container over the relay. */
-export type ValidationExec = (
-  command: string,
-  opts: { cwd: string; timeoutMs?: number },
-) => Promise<{ output: string; passed: boolean }>;
-
-function execFailureOutput(err: unknown): string {
-  const e = err as { stdout?: string; stderr?: string; message?: string };
-  const combined = [e.stdout ?? "", e.stderr ?? ""].join("\n").trim();
-
-  return combined || e.message || "unknown error";
-}
-
-/** Default exec — runs the command locally via `execSync`. */
-export const localValidationExec: ValidationExec = async (
-  command,
-  { cwd, timeoutMs },
-) => {
-  try {
-    const output = execSync(command, {
-      cwd,
-      encoding: "utf-8",
-      timeout: timeoutMs,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, CI: "true", FORCE_COLOR: "0" },
-    });
-
-    return { output: output || "", passed: true };
-  } catch (err: unknown) {
-    return { output: execFailureOutput(err), passed: false };
-  }
-};
-
-/** Runs validation steps sequentially; does NOT bail on first failure — collects all errors. */
-// undefined = skip: the step's file filter matched none of the changed files
-function resolveStepCommand(
-  step: ValidationStep,
-  changedFiles: string[] | undefined,
-): string | undefined {
-  if (!changedFiles || changedFiles.length === 0) {
-    return step.command;
-  }
-  const relevantFiles = filterFilesByStep(step.name, changedFiles);
-
-  if (relevantFiles.length === 0) {
-    return undefined;
+  // Sequential, not parallel: the steps share one working tree, and two toolchains writing caches into it at once is how a green run turns red on the retry.
+  for (const step of steps) {
+    results.push(await runStep(step, { repoRoot, changedFiles, exec }));
   }
 
-  return step.scopedCommand
-    ? step.scopedCommand.replaceAll("{files}", quoteFiles(relevantFiles))
-    : scopeCommandToFiles(step.name, step.command, relevantFiles);
+  return { passed: results.every((r) => r.passed), steps: results };
 }
 
 /** One validation step. A step whose command matches none of the changed files is REPORTED as skipped rather than dropped: "eslint had nothing to check" and "eslint never ran" look identical in a bare pass, and only one of them is fine. */
@@ -104,15 +59,6 @@ interface StepDeps {
   repoRoot: string;
   changedFiles: string[] | undefined;
   exec: ValidationExec;
-}
-
-function skippedStepResult(name: string): StepResult {
-  return {
-    name,
-    passed: true,
-    output: "skipped (no matching files)",
-    durationMs: 0,
-  };
 }
 
 async function runStep(
@@ -138,24 +84,78 @@ async function runStep(
   };
 }
 
-export async function runValidation(
-  repoRoot: string,
-  steps: ValidationStep[],
-  changedFiles?: string[],
-  exec: ValidationExec = localValidationExec,
-): Promise<ValidationResult> {
-  if (steps.length === 0) {
-    return { passed: true, steps: [] };
+/** Runs validation steps sequentially; does NOT bail on first failure — collects all errors. */
+// undefined = skip: the step's file filter matched none of the changed files
+function resolveStepCommand(
+  step: ValidationStep,
+  changedFiles: string[] | undefined,
+): string | undefined {
+  if (!changedFiles || changedFiles.length === 0) {
+    return step.command;
+  }
+  const relevantFiles = filterFilesByStep(step.name, changedFiles);
+
+  if (relevantFiles.length === 0) {
+    return undefined;
   }
 
-  const results: StepResult[] = [];
+  return step.scopedCommand
+    ? step.scopedCommand.replaceAll("{files}", quoteFiles(relevantFiles))
+    : scopeCommandToFiles(step.name, step.command, relevantFiles);
+}
 
-  // Sequential, not parallel: the steps share one working tree, and two toolchains writing caches into it at once is how a green run turns red on the retry.
-  for (const step of steps) {
-    results.push(await runStep(step, { repoRoot, changedFiles, exec }));
+function skippedStepResult(name: string): StepResult {
+  return {
+    name,
+    passed: true,
+    output: "skipped (no matching files)",
+    durationMs: 0,
+  };
+}
+
+const MAX_OUTPUT_CHARS = 5000;
+
+function truncateOutput(output: string): string {
+  if (output.length <= MAX_OUTPUT_CHARS) {
+    return output;
   }
 
-  return { passed: results.every((r) => r.passed), steps: results };
+  return (
+    output.substring(output.length - MAX_OUTPUT_CHARS) + "\n...(truncated)"
+  );
+}
+
+/** How a validation command is executed — default runs locally; the BYO sidecar (ADR-025) injects an exec that runs it in the repo's toolchain container over the relay. */
+export type ValidationExec = (
+  command: string,
+  opts: { cwd: string; timeoutMs?: number },
+) => Promise<{ output: string; passed: boolean }>;
+
+/** Default exec — runs the command locally via `execSync`. */
+export const localValidationExec: ValidationExec = async (
+  command,
+  { cwd, timeoutMs },
+) => {
+  try {
+    const output = execSync(command, {
+      cwd,
+      encoding: "utf-8",
+      timeout: timeoutMs,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, CI: "true", FORCE_COLOR: "0" },
+    });
+
+    return { output: output || "", passed: true };
+  } catch (err: unknown) {
+    return { output: execFailureOutput(err), passed: false };
+  }
+};
+
+function execFailureOutput(err: unknown): string {
+  const e = err as { stdout?: string; stderr?: string; message?: string };
+  const combined = [e.stdout ?? "", e.stderr ?? ""].join("\n").trim();
+
+  return combined || e.message || "unknown error";
 }
 
 // ── File scoping helpers ────────────────────────────────────────────

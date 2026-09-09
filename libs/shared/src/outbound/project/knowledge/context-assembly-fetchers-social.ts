@@ -18,11 +18,6 @@ import type { SourceFetcher } from "./context-assembly-fetchers-types.js";
 
 /** Social/environmental context sources: the live knowledge graph, cross-repo transfer, and production incidents. */
 
-/** The three most distinctive words of the query, lower-cased for the entity match — the first three long words were filler ("catalog sync bug: saving") more often than entities. */
-function graphEntityCandidates(query: string): string[] {
-  return extractKeyTerms(query, 3).map((term) => term.toLowerCase());
-}
-
 async function fetchGraph(
   pool: PgPool,
   query: string,
@@ -42,6 +37,43 @@ async function fetchGraph(
   } catch {
     return { sources: [], status: "error" };
   }
+}
+
+/** The three most distinctive words of the query, lower-cased for the entity match — the first three long words were filler ("catalog sync bug: saving") more often than entities. */
+function graphEntityCandidates(query: string): string[] {
+  return extractKeyTerms(query, 3).map((term) => term.toLowerCase());
+}
+
+async function fetchCrossRepo(
+  pool: PgPool,
+  query: string,
+  repo: string,
+): Promise<FetchResult> {
+  const rows = await crossRepoChunks(pool, query, repo);
+
+  if (rows.length === 0) {
+    return { sources: [], status: "empty" };
+  }
+  const scored = onlyTransferable(rows);
+
+  if (scored.length === 0) {
+    return { sources: [], status: "empty" };
+  }
+
+  return { sources: scored.map(toCrossRepoItem), status: "ok" };
+}
+
+async function crossRepoChunks(
+  pool: PgPool,
+  query: string,
+  repo: string,
+): Promise<ChunkSearchHit[]> {
+  const [linkedRepos, schemas] = await Promise.all([
+    linkedReposFor(pool, repo),
+    listChunkSchemas(pool),
+  ]);
+
+  return searchCrossRepoChunks(pool, query, repo, { linkedRepos, schemas });
 }
 
 async function linkedReposFor(pool: PgPool, repo: string): Promise<string[]> {
@@ -96,36 +128,20 @@ function toCrossRepoItem(row: ChunkSearchHit): SourceItem {
   });
 }
 
-async function crossRepoChunks(
+async function fetchIncidents(
   pool: PgPool,
-  query: string,
-  repo: string,
-): Promise<ChunkSearchHit[]> {
-  const [linkedRepos, schemas] = await Promise.all([
-    linkedReposFor(pool, repo),
-    listChunkSchemas(pool),
-  ]);
-
-  return searchCrossRepoChunks(pool, query, repo, { linkedRepos, schemas });
-}
-
-async function fetchCrossRepo(
-  pool: PgPool,
-  query: string,
   repo: string,
 ): Promise<FetchResult> {
-  const rows = await crossRepoChunks(pool, query, repo);
+  const { rows } = await pool.query<{
+    settings: { incidents?: Incident[] } | null;
+  }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
+  const recent = recentIncidents(incidentsListFrom(rows[0]?.settings));
 
-  if (rows.length === 0) {
+  if (recent.length === 0) {
     return { sources: [], status: "empty" };
   }
-  const scored = onlyTransferable(rows);
 
-  if (scored.length === 0) {
-    return { sources: [], status: "empty" };
-  }
-
-  return { sources: scored.map(toCrossRepoItem), status: "ok" };
+  return { sources: recent.map(toIncidentItem), status: "ok" };
 }
 
 /** The repo's incidents array, or empty when settings carry none (malformed or absent alike). */
@@ -150,22 +166,6 @@ function toIncidentItem(incident: Incident): SourceItem {
     `- **${incident.severity || "unknown"}**: ${incident.title}${resolved} — ${incident.date}${link}`,
     { content_type: "incident" },
   );
-}
-
-async function fetchIncidents(
-  pool: PgPool,
-  repo: string,
-): Promise<FetchResult> {
-  const { rows } = await pool.query<{
-    settings: { incidents?: Incident[] } | null;
-  }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
-  const recent = recentIncidents(incidentsListFrom(rows[0]?.settings));
-
-  if (recent.length === 0) {
-    return { sources: [], status: "empty" };
-  }
-
-  return { sources: recent.map(toIncidentItem), status: "ok" };
 }
 
 export const socialFetchers: Record<string, SourceFetcher> = {

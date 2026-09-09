@@ -53,48 +53,6 @@ export interface TaskTypesFile {
   drift: string[];
 }
 
-/** The value if it is shaped like an entry at all, an empty entry otherwise. */
-const readable = (value: unknown): object =>
-  value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value
-    : {};
-
-function pushEntryDrift(
-  drift: string[],
-  entryLabel: string,
-  issues: Array<{ path: PropertyKey[]; message: string }>,
-): void {
-  for (const issue of issues) {
-    // `issue.path` is empty when the ENTRY itself is wrong (e.g. `general:` with no body parses as null).
-    const field = issue.path.length > 0 ? issue.path.join(".") : "<entry>";
-
-    drift.push(`${entryLabel}: ${field} — ${issue.message}`);
-  }
-}
-
-function readSection<T>(
-  section: string,
-  raw: unknown,
-  schema: z.ZodType<T>,
-  drift: string[],
-): Record<string, T> {
-  const entries =
-    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const out: Record<string, T> = {};
-
-  for (const [name, value] of Object.entries(entries)) {
-    const result = schema.safeParse(value);
-
-    if (!result.success) {
-      pushEntryDrift(drift, `${section}.${name}`, result.error.issues);
-    }
-    // Kept either way (dropping it is the stale-ConfigMap outage); an unreadable entry becomes EMPTY, not null, so consumer defaults still apply.
-    out[name] = (result.success ? result.data : readable(value)) as T;
-  }
-
-  return out;
-}
-
 /** Parse the YAML text into the two sections, reporting rather than raising. */
 export function parseTaskTypesFile(text: string): TaskTypesFile {
   const parsed = parse(text) as {
@@ -126,6 +84,48 @@ function readSections(
     ),
   };
 }
+
+function readSection<T>(
+  section: string,
+  raw: unknown,
+  schema: z.ZodType<T>,
+  drift: string[],
+): Record<string, T> {
+  const entries =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const out: Record<string, T> = {};
+
+  for (const [name, value] of Object.entries(entries)) {
+    const result = schema.safeParse(value);
+
+    if (!result.success) {
+      pushEntryDrift(drift, `${section}.${name}`, result.error.issues);
+    }
+    // Kept either way (dropping it is the stale-ConfigMap outage); an unreadable entry becomes EMPTY, not null, so consumer defaults still apply.
+    out[name] = (result.success ? result.data : readable(value)) as T;
+  }
+
+  return out;
+}
+
+function pushEntryDrift(
+  drift: string[],
+  entryLabel: string,
+  issues: Array<{ path: PropertyKey[]; message: string }>,
+): void {
+  for (const issue of issues) {
+    // `issue.path` is empty when the ENTRY itself is wrong (e.g. `general:` with no body parses as null).
+    const field = issue.path.length > 0 ? issue.path.join(".") : "<entry>";
+
+    drift.push(`${entryLabel}: ${field} — ${issue.message}`);
+  }
+}
+
+/** The value if it is shaped like an entry at all, an empty entry otherwise. */
+const readable = (value: unknown): object =>
+  value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
 
 /** Reports a mismatch between the file a process read and the schema its code carries — every reader must call this or silently reintroduce the #866 ConfigMap-lag risk. */
 export function warnOnDrift(tag: string, path: string, drift: string[]): void {

@@ -2,6 +2,33 @@
 
 import type { GapMockup, GapResult } from "./gap-result.js";
 
+/** Sanitize every mockup's markup across all sections plus the shared stylesheet; returns a copy. */
+export function sanitizeGapResult(gap: GapResult): GapResult {
+  const sections = gap.sections.map((s) =>
+    s.mockups
+      ? {
+          ...s,
+          mockups: s.mockups.map((m) => ({ ...m, markup: sanitizeMarkup(m) })),
+        }
+      : s,
+  );
+
+  return gap.mockup_stylesheet
+    ? {
+        ...gap,
+        sections,
+        mockup_stylesheet: sanitizeMockupCss(gap.mockup_stylesheet),
+      }
+    : { ...gap, sections };
+}
+
+/** Markup sanitisation by format — mermaid is source, not markup, so the SVG sanitizer must skip it. */
+function sanitizeMarkup(mockup: GapMockup): string {
+  return mockup.format === "mermaid"
+    ? mockup.markup
+    : sanitizeSvg(mockup.markup);
+}
+
 const SCRIPT_RE = /<script\b[^>]*>[\s\S]*?<\/script>/gi;
 const FOREIGN_OBJECT_RE = /<foreignObject\b[^>]*>[\s\S]*?<\/foreignObject>/gi;
 const EVENT_HANDLER_RE = /\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
@@ -27,31 +54,4 @@ const CSS_URL_RE = /url\s*\([^)]*\)/gi;
 /** Strips `@import` and `url()` — the only things in agent-authored CSS that reach outside the sandboxed, network-less mockup frame. */
 export function sanitizeMockupCss(css: string): string {
   return css.replace(CSS_IMPORT_RE, "").replace(CSS_URL_RE, "none");
-}
-
-/** Markup sanitisation by format — mermaid is source, not markup, so the SVG sanitizer must skip it. */
-function sanitizeMarkup(mockup: GapMockup): string {
-  return mockup.format === "mermaid"
-    ? mockup.markup
-    : sanitizeSvg(mockup.markup);
-}
-
-/** Sanitize every mockup's markup across all sections plus the shared stylesheet; returns a copy. */
-export function sanitizeGapResult(gap: GapResult): GapResult {
-  const sections = gap.sections.map((s) =>
-    s.mockups
-      ? {
-          ...s,
-          mockups: s.mockups.map((m) => ({ ...m, markup: sanitizeMarkup(m) })),
-        }
-      : s,
-  );
-
-  return gap.mockup_stylesheet
-    ? {
-        ...gap,
-        sections,
-        mockup_stylesheet: sanitizeMockupCss(gap.mockup_stylesheet),
-      }
-    : { ...gap, sections };
 }

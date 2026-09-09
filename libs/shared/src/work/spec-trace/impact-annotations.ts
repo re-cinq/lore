@@ -9,7 +9,15 @@ import type {
 } from "./impact-types.js";
 import { parseRanges } from "./line-range.js";
 
-const sectionLabel = (section?: string) => (section ? ` ${section}` : "");
+export function buildImpactAnnotations(
+  report: ImpactReport,
+  changed: ChangedRange[],
+): ImpactAnnotation[] {
+  return [
+    ...report.statements.map((stmt) => statementAnnotation(stmt, changed)),
+    ...report.orphaned.map((orphan) => orphanAnnotation(orphan)),
+  ];
+}
 
 function statementAnnotation(
   stmt: ImpactStatement,
@@ -30,6 +38,8 @@ function statementAnnotation(
   };
 }
 
+const sectionLabel = (section?: string) => (section ? ` ${section}` : "");
+
 function orphanAnnotation(orphan: OrphanStatement): ImpactAnnotation {
   const coveredByParts = orphan.wasCoveredBy.split(":");
   const path = coveredByParts.at(0) ?? "";
@@ -44,14 +54,4 @@ function orphanAnnotation(orphan: OrphanStatement): ImpactAnnotation {
     title: `Lore: coverage removed for ${orphan.specTitle}`,
     message: `ℹ Removes the only coverage for Spec "${orphan.specTitle}" — "${orphan.statementText}". No test now exercises it.`,
   };
-}
-
-export function buildImpactAnnotations(
-  report: ImpactReport,
-  changed: ChangedRange[],
-): ImpactAnnotation[] {
-  return [
-    ...report.statements.map((stmt) => statementAnnotation(stmt, changed)),
-    ...report.orphaned.map((orphan) => orphanAnnotation(orphan)),
-  ];
 }

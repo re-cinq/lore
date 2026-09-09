@@ -19,9 +19,30 @@ export interface LiveGraphFilter {
   includeInvalidated?: boolean;
 }
 
+export async function queryLiveGraph(
+  pool: PgPool,
+  filter: LiveGraphFilter = {},
+): Promise<LiveGraphResult[]> {
+  const { entity, relationType, repo, includeInvalidated = false } = filter;
+  const validFilter = includeInvalidated ? "" : "AND e.valid_to IS NULL";
+  const params = [emptyToNull(relationType), emptyToNull(repo)];
+
+  return entity
+    ? runGraphQuery(pool, entityGraphQuery(validFilter), [entity, ...params])
+    : runGraphQuery(pool, allGraphQuery(validFilter), params);
+}
+
 /** `value || null`, spelled as a call so it's not one more branch in the caller. */
 function emptyToNull(value: string | undefined): string | null {
   return value || null;
+}
+
+function entityGraphQuery(validFilter: string): string {
+  return `${edgesFrom("s", "t", "outgoing", validFilter)}
+     UNION ALL
+     ${edgesFrom("t", "s", "incoming", validFilter)}
+     ORDER BY valid_from DESC
+     LIMIT 50`;
 }
 
 /** One direction of the entity's edges: `near` is the side matched against the queried name, `far` the neighbor reported back. Both halves of the UNION are this same shape with the sides swapped — an edge is stored once, but the entity at either end wants to see it. */
@@ -46,14 +67,6 @@ function edgesFrom(
        AND ($3::text IS NULL OR ${near}.repo = $3)`;
 }
 
-function entityGraphQuery(validFilter: string): string {
-  return `${edgesFrom("s", "t", "outgoing", validFilter)}
-     UNION ALL
-     ${edgesFrom("t", "s", "incoming", validFilter)}
-     ORDER BY valid_from DESC
-     LIMIT 50`;
-}
-
 function allGraphQuery(validFilter: string): string {
   return `SELECT
      s.name as entity, s.entity_type,
@@ -70,19 +83,6 @@ function allGraphQuery(validFilter: string): string {
      AND ($2::text IS NULL OR s.repo = $2)
    ORDER BY e.created_at DESC
    LIMIT 50`;
-}
-
-export async function queryLiveGraph(
-  pool: PgPool,
-  filter: LiveGraphFilter = {},
-): Promise<LiveGraphResult[]> {
-  const { entity, relationType, repo, includeInvalidated = false } = filter;
-  const validFilter = includeInvalidated ? "" : "AND e.valid_to IS NULL";
-  const params = [emptyToNull(relationType), emptyToNull(repo)];
-
-  return entity
-    ? runGraphQuery(pool, entityGraphQuery(validFilter), [entity, ...params])
-    : runGraphQuery(pool, allGraphQuery(validFilter), params);
 }
 
 async function runGraphQuery(

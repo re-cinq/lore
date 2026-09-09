@@ -45,19 +45,6 @@ const EXTRACT_ASSERTIONS_TOOL_SCHEMA: Record<string, unknown> = {
   required: ["assertions"],
 };
 
-function extractAssertionsPrompt(
-  specContent: string,
-  filePath: string,
-): string {
-  return `Analyze this specification and extract testable assertions — concrete names of functions, classes, interfaces, types, or API endpoints that SHOULD exist in the codebase based on this spec.
-
-Only extract items that are explicitly named in the spec. Do not infer or guess.
-
-Spec file: ${filePath}
----
-${specContent.substring(0, ASSERTION_CONTENT_LIMIT)}`;
-}
-
 /** Extract symbols spec says should exist; used by spec-drift and spec-coverage-backfill. */
 export async function extractAssertions(
   specContent: string,
@@ -77,4 +64,17 @@ export async function extractAssertions(
   });
 
   return result.parsed.assertions || [];
+}
+
+function extractAssertionsPrompt(
+  specContent: string,
+  filePath: string,
+): string {
+  return `Analyze this specification and extract testable assertions — concrete names of functions, classes, interfaces, types, or API endpoints that SHOULD exist in the codebase based on this spec.
+
+Only extract items that are explicitly named in the spec. Do not infer or guess.
+
+Spec file: ${filePath}
+---
+${specContent.substring(0, ASSERTION_CONTENT_LIMIT)}`;
 }

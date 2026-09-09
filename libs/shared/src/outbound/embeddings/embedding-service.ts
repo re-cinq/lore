@@ -27,39 +27,86 @@ const HEALTHY: EmbeddingHealth = {
 
 let health: EmbeddingHealth = { ...HEALTHY };
 
-export function embeddingHealth(): EmbeddingHealth {
-  return { ...health };
-}
-
 export function embedderDegraded(
   current: EmbeddingHealth = embeddingHealth(),
 ): boolean {
   return current.consecutiveFailures >= EMBEDDER_DEGRADED_AFTER;
 }
 
-export function recordEmbeddingOutcome(outcome: EmbeddingOutcome): void {
-  const at = new Date().toISOString();
-
-  health = outcome.ok
-    ? { ...health, lastOkAt: at, consecutiveFailures: 0 }
-    : {
-        ...health,
-        lastFailureAt: at,
-        lastStatus: outcome.status,
-        consecutiveFailures: health.consecutiveFailures + 1,
-      };
+export function embeddingHealth(): EmbeddingHealth {
+  return { ...health };
 }
 
 export function resetEmbeddingHealth(): void {
   health = { ...HEALTHY };
 }
 
-export function buildVertexUrl(project: string, region: string): string {
-  return `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google/models/${VERTEX_MODEL}:predict`;
-}
-
 // Resolved at call time (env, then GKE metadata server) — resolving once at module load left it "" in agent/CronJob pods, producing a malformed URL instead of degrading to null.
 let cachedProject: string | null = null;
+
+export async function getQueryEmbedding(
+  query: string,
+): Promise<number[] | null> {
+  try {
+    const token = await resolveAccessToken();
+    const project = token ? await resolveProjectOrWarn() : "";
+
+    if (!token || !project) {
+      recordEmbeddingOutcome({ ok: false, status: null });
+
+      return null;
+    }
+
+    return await fetchVertexEmbedding(project, token, query);
+  } catch (err) {
+    console.error("[embeddings] Vertex AI embedding error:", err);
+    recordEmbeddingOutcome({ ok: false, status: null });
+
+    return null;
+  }
+}
+
+async function resolveAccessToken(): Promise<string> {
+  try {
+    const metaRes = await fetch(
+      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+      {
+        signal: AbortSignal.timeout(30_000),
+        headers: { "Metadata-Flavor": "Google" },
+      },
+    );
+    const metaJson = (await metaRes.json()) as { access_token: string };
+
+    return metaJson.access_token;
+  } catch {
+    return process.env.GOOGLE_ACCESS_TOKEN || "";
+  }
+}
+
+async function resolveProjectOrWarn(): Promise<string> {
+  const project = await resolveVertexProject();
+
+  if (!project) {
+    console.error(
+      "[embeddings] No GCP project resolved for Vertex AI (set GCP_PROJECT or run on GKE)",
+    );
+  }
+
+  return project;
+}
+
+export async function resolveVertexProject(): Promise<string> {
+  if (cachedProject !== null) {
+    return cachedProject;
+  }
+  const fromEnv = fromEnvProject();
+
+  if (fromEnv) {
+    return (cachedProject = fromEnv);
+  }
+
+  return (cachedProject = await fetchMetadataProject());
+}
 
 function fromEnvProject(): string {
   return process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "";
@@ -85,39 +132,9 @@ async function fetchMetadataProject(): Promise<string> {
   }
 }
 
-export async function resolveVertexProject(): Promise<string> {
-  if (cachedProject !== null) {
-    return cachedProject;
-  }
-  const fromEnv = fromEnvProject();
-
-  if (fromEnv) {
-    return (cachedProject = fromEnv);
-  }
-
-  return (cachedProject = await fetchMetadataProject());
-}
-
 /** Reset the process-cached project resolution — for tests. */
 export function resetVertexProjectCache(): void {
   cachedProject = null;
-}
-
-async function resolveAccessToken(): Promise<string> {
-  try {
-    const metaRes = await fetch(
-      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-      {
-        signal: AbortSignal.timeout(30_000),
-        headers: { "Metadata-Flavor": "Google" },
-      },
-    );
-    const metaJson = (await metaRes.json()) as { access_token: string };
-
-    return metaJson.access_token;
-  } catch {
-    return process.env.GOOGLE_ACCESS_TOKEN || "";
-  }
 }
 
 async function fetchVertexEmbedding(
@@ -143,6 +160,10 @@ async function fetchVertexEmbedding(
   return values;
 }
 
+export function buildVertexUrl(project: string, region: string): string {
+  return `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google/models/${VERTEX_MODEL}:predict`;
+}
+
 function embeddingRequestInit(token: string, query: string): RequestInit {
   return {
     method: "POST",
@@ -156,6 +177,19 @@ function embeddingRequestInit(token: string, query: string): RequestInit {
   };
 }
 
+export function recordEmbeddingOutcome(outcome: EmbeddingOutcome): void {
+  const at = new Date().toISOString();
+
+  health = outcome.ok
+    ? { ...health, lastOkAt: at, consecutiveFailures: 0 }
+    : {
+        ...health,
+        lastFailureAt: at,
+        lastStatus: outcome.status,
+        consecutiveFailures: health.consecutiveFailures + 1,
+      };
+}
+
 async function readEmbeddingValues(res: Response): Promise<number[]> {
   const json = (await res.json()) as {
     predictions: Array<{ embeddings: { values: number[] } }>;
@@ -164,38 +198,4 @@ async function readEmbeddingValues(res: Response): Promise<number[]> {
   const [prediction] = json.predictions;
 
   return prediction.embeddings.values;
-}
-
-export async function getQueryEmbedding(
-  query: string,
-): Promise<number[] | null> {
-  try {
-    const token = await resolveAccessToken();
-    const project = token ? await resolveProjectOrWarn() : "";
-
-    if (!token || !project) {
-      recordEmbeddingOutcome({ ok: false, status: null });
-
-      return null;
-    }
-
-    return await fetchVertexEmbedding(project, token, query);
-  } catch (err) {
-    console.error("[embeddings] Vertex AI embedding error:", err);
-    recordEmbeddingOutcome({ ok: false, status: null });
-
-    return null;
-  }
-}
-
-async function resolveProjectOrWarn(): Promise<string> {
-  const project = await resolveVertexProject();
-
-  if (!project) {
-    console.error(
-      "[embeddings] No GCP project resolved for Vertex AI (set GCP_PROJECT or run on GKE)",
-    );
-  }
-
-  return project;
 }

@@ -22,18 +22,6 @@ export {
 
 // ── Orchestration (per repo, via the Project facade) ────────────────
 
-function toLine(metadata: Record<string, unknown> | null): number | null {
-  const raw = metadata?.["start_line"];
-
-  if (typeof raw !== "string" && typeof raw !== "number") {
-    return null;
-  }
-
-  const line = typeof raw === "string" ? Number(raw) : raw;
-
-  return Number.isFinite(line) ? line : null;
-}
-
 export interface BackfillOptions {
   /** The repo this run covers (per-repo fan-out / manual single-repo run). */
   repoFilter: string;
@@ -41,94 +29,6 @@ export interface BackfillOptions {
   specPathFilter?: string;
   /** Data facade — projectFor(repo) on the Floor, createStationProject(env) in a pod. */
   project: Project;
-}
-
-function resolveSpecsToProcess(
-  specRows: SpecChunkWithEmbedding[],
-  specPathFilter: string | undefined,
-): SpecChunkWithEmbedding[] {
-  if (!specPathFilter) {
-    return specRows;
-  }
-
-  return specRows.filter((s) => s.filePath === specPathFilter);
-}
-
-interface BackfillOneSpecArgs {
-  project: Project;
-  repo: string;
-  specPath: string;
-  chunks: SpecChunkWithEmbedding[];
-  codeChunks: TestChunk[];
-}
-
-/** One spec's backfill plus the line that says what came of it; the log is here so the caller's catch stays about failure only. */
-async function backfillAndLog(
-  args: BackfillOneSpecArgs,
-): Promise<SpecBackfillSummary> {
-  const { project, repo, specPath, chunks, codeChunks } = args;
-  const summary = await runBackfillForSpec(
-    project,
-    repo,
-    { path: specPath, chunks },
-    codeChunks,
-  );
-
-  console.log(
-    `[job] spec-coverage-backfill: ${repo}:${specPath} — ${summary.suggestions} suggestions, ${summary.prUrl || "no PR"}`,
-  );
-
-  return summary;
-}
-
-async function backfillOneSpec(
-  args: BackfillOneSpecArgs,
-): Promise<SpecBackfillSummary | null> {
-  if (!isAssertionSource(args.specPath)) {
-    return null;
-  }
-
-  try {
-    return await backfillAndLog(args);
-  } catch (err) {
-    console.error(
-      `[job] spec-coverage-backfill: error on ${args.repo}:${args.specPath}:`,
-      err,
-    );
-
-    return null;
-  }
-}
-
-/** The specs this run may suggest links for. Chunks today's ingest policy would refuse are dropped: stale pre-exclusion debris must not receive suggested links, which would then be reviewed and merged into files nobody ingests any more (#1018). */
-async function specsToBackfill(
-  project: Project,
-  specPathFilter: BackfillOptions["specPathFilter"],
-) {
-  return resolveSpecsToProcess(
-    dropIngestExcluded(await project.chunks.specChunksForBackfill()),
-    specPathFilter,
-  );
-}
-
-/** Runs the backfill for each spec and tallies what came of it. A spec that produced nothing is NOT counted: "0 specs, 0 suggestions" and "40 specs, 0 suggestions" say different things about a repo, and only the second means the job looked and found nothing to suggest. */
-async function backfillEach(
-  byPath: Map<string, SpecChunkWithEmbedding[]>,
-  ctx: { project: Project; repo: string; codeChunks: TestChunk[] },
-): Promise<{ specs: number; suggestions: number; prs: number }> {
-  const tally = { specs: 0, suggestions: 0, prs: 0 };
-
-  for (const [specPath, chunks] of byPath) {
-    const summary = await backfillOneSpec({ ...ctx, specPath, chunks });
-
-    if (summary) {
-      tally.specs++;
-      tally.suggestions += summary.suggestions;
-      tally.prs += summary.prUrl ? 1 : 0;
-    }
-  }
-
-  return tally;
 }
 
 export async function specCoverageBackfillJob(
@@ -157,6 +57,28 @@ export async function specCoverageBackfillJob(
   return out;
 }
 
+/** The specs this run may suggest links for. Chunks today's ingest policy would refuse are dropped: stale pre-exclusion debris must not receive suggested links, which would then be reviewed and merged into files nobody ingests any more (#1018). */
+async function specsToBackfill(
+  project: Project,
+  specPathFilter: BackfillOptions["specPathFilter"],
+) {
+  return resolveSpecsToProcess(
+    dropIngestExcluded(await project.chunks.specChunksForBackfill()),
+    specPathFilter,
+  );
+}
+
+function resolveSpecsToProcess(
+  specRows: SpecChunkWithEmbedding[],
+  specPathFilter: string | undefined,
+): SpecChunkWithEmbedding[] {
+  if (!specPathFilter) {
+    return specRows;
+  }
+
+  return specRows.filter((s) => s.filePath === specPathFilter);
+}
+
 async function buildTestChunks(project: Project): Promise<TestChunk[]> {
   const rows = dropIngestExcluded(await project.chunks.codeChunksForBackfill());
 
@@ -172,9 +94,87 @@ async function buildTestChunks(project: Project): Promise<TestChunk[]> {
     .filter((c) => c.test_name.length > 0);
 }
 
+function toLine(metadata: Record<string, unknown> | null): number | null {
+  const raw = metadata?.["start_line"];
+
+  if (typeof raw !== "string" && typeof raw !== "number") {
+    return null;
+  }
+
+  const line = typeof raw === "string" ? Number(raw) : raw;
+
+  return Number.isFinite(line) ? line : null;
+}
+
+interface BackfillOneSpecArgs {
+  project: Project;
+  repo: string;
+  specPath: string;
+  chunks: SpecChunkWithEmbedding[];
+  codeChunks: TestChunk[];
+}
+
 interface SpecBackfillSummary {
   suggestions: number;
   prUrl: string | null;
+}
+
+/** Runs the backfill for each spec and tallies what came of it. A spec that produced nothing is NOT counted: "0 specs, 0 suggestions" and "40 specs, 0 suggestions" say different things about a repo, and only the second means the job looked and found nothing to suggest. */
+async function backfillEach(
+  byPath: Map<string, SpecChunkWithEmbedding[]>,
+  ctx: { project: Project; repo: string; codeChunks: TestChunk[] },
+): Promise<{ specs: number; suggestions: number; prs: number }> {
+  const tally = { specs: 0, suggestions: 0, prs: 0 };
+
+  for (const [specPath, chunks] of byPath) {
+    const summary = await backfillOneSpec({ ...ctx, specPath, chunks });
+
+    if (summary) {
+      tally.specs++;
+      tally.suggestions += summary.suggestions;
+      tally.prs += summary.prUrl ? 1 : 0;
+    }
+  }
+
+  return tally;
+}
+
+async function backfillOneSpec(
+  args: BackfillOneSpecArgs,
+): Promise<SpecBackfillSummary | null> {
+  if (!isAssertionSource(args.specPath)) {
+    return null;
+  }
+
+  try {
+    return await backfillAndLog(args);
+  } catch (err) {
+    console.error(
+      `[job] spec-coverage-backfill: error on ${args.repo}:${args.specPath}:`,
+      err,
+    );
+
+    return null;
+  }
+}
+
+/** One spec's backfill plus the line that says what came of it; the log is here so the caller's catch stays about failure only. */
+async function backfillAndLog(
+  args: BackfillOneSpecArgs,
+): Promise<SpecBackfillSummary> {
+  const { project, repo, specPath, chunks, codeChunks } = args;
+  const summary = await runBackfillForSpec(
+    project,
+    repo,
+    { path: specPath, chunks },
+    codeChunks,
+  );
+
+  console.log(
+    `[job] spec-coverage-backfill: ${repo}:${specPath} — ${summary.suggestions} suggestions, ${summary.prUrl || "no PR"}`,
+  );
+
+  return summary;
 }
 
 // Judge each candidate against the un-linked testable subset.
@@ -185,22 +185,6 @@ import {
   findBackfillCandidates,
   judgeAndCompose,
 } from "./spec-coverage-suggest.js";
-
-// Two gates before a PR: candidates must be FOUND, then each must survive the judge. A suggestion nobody vouched for costs a reviewer more than it saves.
-async function judgeSpec(
-  repo: string,
-  spec: { path: string; chunks: SpecChunkWithEmbedding[] },
-  codeChunks: TestChunk[],
-) {
-  const found = await findBackfillCandidates(
-    repo,
-    spec.path,
-    spec.chunks,
-    codeChunks,
-  );
-
-  return found ? judgeAndCompose(spec.path, found.content, found) : null;
-}
 
 async function runBackfillForSpec(
   project: Project,
@@ -219,4 +203,20 @@ async function runBackfillForSpec(
     suggestions: judged.applied,
     prUrl: await openBackfillPr({ project, repo, specPath, ...judged }),
   };
+}
+
+// Two gates before a PR: candidates must be FOUND, then each must survive the judge. A suggestion nobody vouched for costs a reviewer more than it saves.
+async function judgeSpec(
+  repo: string,
+  spec: { path: string; chunks: SpecChunkWithEmbedding[] },
+  codeChunks: TestChunk[],
+) {
+  const found = await findBackfillCandidates(
+    repo,
+    spec.path,
+    spec.chunks,
+    codeChunks,
+  );
+
+  return found ? judgeAndCompose(spec.path, found.content, found) : null;
 }

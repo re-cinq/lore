@@ -30,6 +30,18 @@ export interface EscalateInput {
   failingPhaseOutput?: string;
 }
 
+/** Renders the Issue body a human reads (branch, commit log, diagnostic, failing output, contributing refs) per FR3.8; pure — which surfaces it reaches is the escalation line's business. */
+export function renderEscalationBody(input: EscalateInput): string {
+  return [
+    ...header(input),
+    ...failingOutput(input.failingPhaseOutput),
+    ...contributingContext(input.contributingRefs),
+    ``,
+    `---`,
+    `*Issued by [Lore](https://github.com/re-cinq/lore). Inspect the branch to see partial work.*`,
+  ].join("\n");
+}
+
 /** Identity and diagnosis. The branch and its commit log are LINKED rather than described: the first thing a human does with an escalation is look at what the agent actually left behind. */
 function header(input: EscalateInput): string[] {
   return [
@@ -68,16 +80,4 @@ function contributingContext(
       (ref) => `- ${ref.type} \`${ref.id}\`${ref.text ? `: ${ref.text}` : ""}`,
     ),
   ];
-}
-
-/** Renders the Issue body a human reads (branch, commit log, diagnostic, failing output, contributing refs) per FR3.8; pure — which surfaces it reaches is the escalation line's business. */
-export function renderEscalationBody(input: EscalateInput): string {
-  return [
-    ...header(input),
-    ...failingOutput(input.failingPhaseOutput),
-    ...contributingContext(input.contributingRefs),
-    ``,
-    `---`,
-    `*Issued by [Lore](https://github.com/re-cinq/lore). Inspect the branch to see partial work.*`,
-  ].join("\n");
 }

@@ -15,31 +15,6 @@ import {
   type OpenRunRow,
 } from "./assembly-runs-pg-rows.js";
 
-/** Normalize the blueprint filter: absent → null, one name → a singleton list. */
-function blueprintNameList(
-  blueprintName: string | readonly string[] | undefined,
-): string[] | null {
-  if (blueprintName === undefined) {
-    return null;
-  }
-
-  if (typeof blueprintName === "string") {
-    return [blueprintName];
-  }
-
-  return [...blueprintName];
-}
-
-/** `value ?? null`, spelled as a call so a chain of optional filters isn't one branch per field. */
-function orNull<T>(value: T | null | undefined): T | null {
-  return value ?? null;
-}
-
-/** Clones a readonly filter list, or null when absent. */
-function toArrayOrNull<T>(value: readonly T[] | undefined): T[] | null {
-  return value ? [...value] : null;
-}
-
 export async function listOpen(pool: PgPool): Promise<AssemblyRunRecord[]> {
   const { rows } = await pool.query(
     `SELECT ${LINE_COLUMNS}
@@ -133,47 +108,6 @@ export async function getById(
   return toRecord(rows[0] as Parameters<typeof toRecord>[0]);
 }
 
-/** The one filtered read both list shapes run; NULL-guarded predicate per field (not concatenated clauses) so every param is bound and the plan is reusable. */
-/** Every filter as an `IS NULL OR` pair, so one statement serves every combination rather than building SQL per query. The cluster-agent filter is an EXISTS over open claims: a run "belongs to" an agent while that agent holds a visit of it, which is a fact about the visits, not the run. `id` breaks the ORDER BY tie — two runs started in the same millisecond would otherwise come back in an order Postgres may vary between calls, which reads as rows jumping around a paged list. */
-function listSql(columns: string): string {
-  return `SELECT ${columns}
-       FROM pipeline.assembly_runs
-      WHERE ($1::text   IS NULL OR repo = $1)
-        AND ($2::text[] IS NULL OR blueprint_name = ANY($2::text[]))
-        AND ($3::text[] IS NULL OR status = ANY($3::text[]))
-        AND ($4::uuid   IS NULL OR task_id = $4)
-        AND ($5::int    IS NULL OR (args->>'pr_number')::int = $5)
-        AND ($6::timestamptz IS NULL OR created_at >= $6)
-        AND ($8::text   IS NULL OR subject_key = $8)
-        AND ($9::uuid   IS NULL OR EXISTS (
-              SELECT 1 FROM pipeline.station_runs claims
-               WHERE claims.assembly_run_id = pipeline.assembly_runs.id
-                 AND claims.cluster_agent_id = $9
-                 AND claims.outcome IS NULL))
-      ORDER BY created_at DESC, id DESC
-      LIMIT $7`;
-}
-
-async function selectList(
-  pool: PgPool,
-  columns: string,
-  query: AssemblyRunQuery,
-): Promise<unknown[]> {
-  const { rows } = await pool.query(listSql(columns), [
-    orNull(query.repo),
-    blueprintNameList(query.blueprintName),
-    toArrayOrNull(query.status),
-    orNull(query.taskId),
-    orNull(query.prNumber),
-    orNull(query.createdAfter),
-    query.limit ?? 50,
-    orNull(query.subjectKey),
-    orNull(query.clusterAgentId),
-  ]);
-
-  return rows;
-}
-
 export async function list(
   pool: PgPool,
   query: AssemblyRunQuery,
@@ -198,6 +132,72 @@ export async function listSummaries(
 
     return summary;
   });
+}
+
+/** The one filtered read both list shapes run; NULL-guarded predicate per field (not concatenated clauses) so every param is bound and the plan is reusable. */
+async function selectList(
+  pool: PgPool,
+  columns: string,
+  query: AssemblyRunQuery,
+): Promise<unknown[]> {
+  const { rows } = await pool.query(listSql(columns), [
+    orNull(query.repo),
+    blueprintNameList(query.blueprintName),
+    toArrayOrNull(query.status),
+    orNull(query.taskId),
+    orNull(query.prNumber),
+    orNull(query.createdAfter),
+    query.limit ?? 50,
+    orNull(query.subjectKey),
+    orNull(query.clusterAgentId),
+  ]);
+
+  return rows;
+}
+
+/** Every filter as an `IS NULL OR` pair, so one statement serves every combination rather than building SQL per query. The cluster-agent filter is an EXISTS over open claims: a run "belongs to" an agent while that agent holds a visit of it, which is a fact about the visits, not the run. `id` breaks the ORDER BY tie — two runs started in the same millisecond would otherwise come back in an order Postgres may vary between calls, which reads as rows jumping around a paged list. */
+function listSql(columns: string): string {
+  return `SELECT ${columns}
+       FROM pipeline.assembly_runs
+      WHERE ($1::text   IS NULL OR repo = $1)
+        AND ($2::text[] IS NULL OR blueprint_name = ANY($2::text[]))
+        AND ($3::text[] IS NULL OR status = ANY($3::text[]))
+        AND ($4::uuid   IS NULL OR task_id = $4)
+        AND ($5::int    IS NULL OR (args->>'pr_number')::int = $5)
+        AND ($6::timestamptz IS NULL OR created_at >= $6)
+        AND ($8::text   IS NULL OR subject_key = $8)
+        AND ($9::uuid   IS NULL OR EXISTS (
+              SELECT 1 FROM pipeline.station_runs claims
+               WHERE claims.assembly_run_id = pipeline.assembly_runs.id
+                 AND claims.cluster_agent_id = $9
+                 AND claims.outcome IS NULL))
+      ORDER BY created_at DESC, id DESC
+      LIMIT $7`;
+}
+
+/** Normalize the blueprint filter: absent → null, one name → a singleton list. */
+function blueprintNameList(
+  blueprintName: string | readonly string[] | undefined,
+): string[] | null {
+  if (blueprintName === undefined) {
+    return null;
+  }
+
+  if (typeof blueprintName === "string") {
+    return [blueprintName];
+  }
+
+  return [...blueprintName];
+}
+
+/** `value ?? null`, spelled as a call so a chain of optional filters isn't one branch per field. */
+function orNull<T>(value: T | null | undefined): T | null {
+  return value ?? null;
+}
+
+/** Clones a readonly filter list, or null when absent. */
+function toArrayOrNull<T>(value: readonly T[] | undefined): T[] | null {
+  return value ? [...value] : null;
 }
 
 export async function listForTask(

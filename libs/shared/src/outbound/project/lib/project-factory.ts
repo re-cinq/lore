@@ -6,63 +6,26 @@ import type { LeasePool } from "../leases/lease-backends.js";
 import type { AssemblyRunsPort } from "../assembly-runs/assembly-runs-port.js";
 import { Project } from "./project.js";
 
-// Agent definitions port, three-way seam by environment: DB present -> PgAgentDefs, API only -> AgentDefsHttp, neither -> AgentDefsYaml.
-async function agentDefsForEnv(
-  env: NodeJS.ProcessEnv,
-  pgPool: PgPool,
-): Promise<unknown> {
-  if (env.LORE_DB_HOST) {
-    const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
-    const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
-
-    return new PgAgentDefs(pgPool, new AgentDefsYaml(undefined, env));
-  }
-
-  if (env.LORE_API_URL) {
-    const { AgentDefsHttp } = await import("../agents/agent-defs-http.js");
-
-    return new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN);
-  }
-  const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
-
-  return new AgentDefsYaml(undefined, env);
-}
-
-// Leases: Postgres in cluster mode (LORE_DB_HOST set), file-backed under ~/.lore/leases for the local runner — mirrors the agent's leaseBackendForEnv.
-async function leasesForEnv(
-  env: NodeJS.ProcessEnv,
-  pgPool: PgPool,
-  providers: ProjectProviders,
-): Promise<unknown> {
-  const { DbLeaseBackend, FileLeaseBackend } =
-    await import("../leases/lease-backends.js");
-
-  if (env.LORE_DB_HOST) {
-    // The real pg pool returns rowCount; PgPool's narrow type omits it.
-    return (
-      providers.pipeline?.leases ??
-      new DbLeaseBackend(pgPool as unknown as LeasePool)
-    );
-  }
-  const os = await import("node:os");
-  const path = await import("node:path");
-
-  return new FileLeaseBackend(path.join(os.homedir(), ".lore", "leases"));
-}
-
 /** Builds a Project from a repo fullName + two DB connections; Project owns port init (every adapter is constructed here via dynamic import so no heavy dep loads statically). Boot-time composition root, called once per repo. */
 export interface ProjectOptions {
   env?: NodeJS.ProcessEnv;
   providers?: ProjectProviders;
 }
 
-/** The org-wide pipeline bundle's adapter, when the caller already built one — else a fresh per-repo instance. */
-function fromPipelineOrDefault<K extends keyof PipelineRepositories>(
-  pipeline: ProjectProviders["pipeline"],
-  key: K,
-  fallback: PipelineRepositories[K],
-): PipelineRepositories[K] {
-  return pipeline?.[key] ?? fallback;
+export async function createProject(
+  fullName: string,
+  pgPool: PgPool,
+  dgraphClient: DgraphClientPort,
+  options: ProjectOptions = {},
+): Promise<Project> {
+  const { env, providers } = resolveProjectOptions(options);
+  const ports = new Map<string, unknown>();
+
+  await registerStoredPorts(ports, { pgPool, dgraphClient, providers });
+  await registerOutsidePorts(ports, { pgPool, env, providers });
+  ports.set("leases", await leasesForEnv(env, pgPool, providers));
+
+  return new Project(fullName, ports, env);
 }
 
 /** Normalizes the optional `{ env, providers }` bag callers pass, each field defaulted independently. */
@@ -133,13 +96,6 @@ interface OutsidePortDeps {
   providers: ReturnType<typeof resolveProjectOptions>["providers"];
 }
 
-/** One adapter answers both the read and the write side: fetching a PR and commenting on it go through the same installation token. */
-async function gitHubPort(env: NodeJS.ProcessEnv) {
-  const { PlatformGitHub } = await import("./platform-github.js");
-
-  return new PlatformGitHub(env);
-}
-
 /** The ports that reach OUTSIDE this process: GitHub, Slack, git, the test runner, the agent runner. Settings sits here rather than with the stores because it reads the repo through GitHub as well as the database. */
 async function registerOutsidePorts(
   ports: Map<string, unknown>,
@@ -161,6 +117,13 @@ async function registerOutsidePorts(
   ports.set("agentRunner", new agents.AgentRunner(env, runnerDeps));
 
   await registerLedgerPorts(ports, { pgPool, env, providers });
+}
+
+/** One adapter answers both the read and the write side: fetching a PR and commenting on it go through the same installation token. */
+async function gitHubPort(env: NodeJS.ProcessEnv) {
+  const { PlatformGitHub } = await import("./platform-github.js");
+
+  return new PlatformGitHub(env);
 }
 
 /** The adapters that reach outside the process, imported lazily for the same reason the stored ones are. */
@@ -204,20 +167,57 @@ function ledgerModules() {
   ]);
 }
 
-export async function createProject(
-  fullName: string,
+// Agent definitions port, three-way seam by environment: DB present -> PgAgentDefs, API only -> AgentDefsHttp, neither -> AgentDefsYaml.
+async function agentDefsForEnv(
+  env: NodeJS.ProcessEnv,
   pgPool: PgPool,
-  dgraphClient: DgraphClientPort,
-  options: ProjectOptions = {},
-): Promise<Project> {
-  const { env, providers } = resolveProjectOptions(options);
-  const ports = new Map<string, unknown>();
+): Promise<unknown> {
+  if (env.LORE_DB_HOST) {
+    const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
+    const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
 
-  await registerStoredPorts(ports, { pgPool, dgraphClient, providers });
-  await registerOutsidePorts(ports, { pgPool, env, providers });
-  ports.set("leases", await leasesForEnv(env, pgPool, providers));
+    return new PgAgentDefs(pgPool, new AgentDefsYaml(undefined, env));
+  }
 
-  return new Project(fullName, ports, env);
+  if (env.LORE_API_URL) {
+    const { AgentDefsHttp } = await import("../agents/agent-defs-http.js");
+
+    return new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN);
+  }
+  const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
+
+  return new AgentDefsYaml(undefined, env);
+}
+
+/** The org-wide pipeline bundle's adapter, when the caller already built one — else a fresh per-repo instance. */
+function fromPipelineOrDefault<K extends keyof PipelineRepositories>(
+  pipeline: ProjectProviders["pipeline"],
+  key: K,
+  fallback: PipelineRepositories[K],
+): PipelineRepositories[K] {
+  return pipeline?.[key] ?? fallback;
+}
+
+// Leases: Postgres in cluster mode (LORE_DB_HOST set), file-backed under ~/.lore/leases for the local runner — mirrors the agent's leaseBackendForEnv.
+async function leasesForEnv(
+  env: NodeJS.ProcessEnv,
+  pgPool: PgPool,
+  providers: ProjectProviders,
+): Promise<unknown> {
+  const { DbLeaseBackend, FileLeaseBackend } =
+    await import("../leases/lease-backends.js");
+
+  if (env.LORE_DB_HOST) {
+    // The real pg pool returns rowCount; PgPool's narrow type omits it.
+    return (
+      providers.pipeline?.leases ??
+      new DbLeaseBackend(pgPool as unknown as LeasePool)
+    );
+  }
+  const os = await import("node:os");
+  const path = await import("node:path");
+
+  return new FileLeaseBackend(path.join(os.homedir(), ".lore", "leases"));
 }
 
 let registeredProject: Project | null = null;

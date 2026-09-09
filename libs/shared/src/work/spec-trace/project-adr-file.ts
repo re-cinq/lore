@@ -16,6 +16,27 @@ import {
 import { adrNumberFromPath } from "./adr-refs.js";
 import { firstOf } from "./uid-refs.js";
 
+// ADRs are not embedded, so `embed` in the options is ignored; the shape matches IngestKindDef.project alongside projectSpecFile.
+export async function projectAdrFile(
+  document: SourceDocument,
+  dgraph: DgraphClientPort,
+  { force = false }: ProjectionOptions = {},
+): Promise<{ projected: boolean }> {
+  const { repo, filePath, content } = document;
+  const contentHash = sha256(content);
+  const xid = `${repo}|${filePath}`;
+
+  if (!force && (await readAdrContentHash(dgraph, xid)) === contentHash) {
+    return { projected: false };
+  }
+
+  await projectAdrNode(dgraph, repo, filePath, xid);
+  await projectAdrBlocks(dgraph, document);
+  await upsertByXid(dgraph, "ADR", xid, { "ADR.content_hash": contentHash });
+
+  return { projected: true };
+}
+
 function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
@@ -62,25 +83,4 @@ async function projectAdrBlocks(
   const validXids = await projectDocumentBlocks(dgraph, document);
 
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validXids);
-}
-
-// ADRs are not embedded, so `embed` in the options is ignored; the shape matches IngestKindDef.project alongside projectSpecFile.
-export async function projectAdrFile(
-  document: SourceDocument,
-  dgraph: DgraphClientPort,
-  { force = false }: ProjectionOptions = {},
-): Promise<{ projected: boolean }> {
-  const { repo, filePath, content } = document;
-  const contentHash = sha256(content);
-  const xid = `${repo}|${filePath}`;
-
-  if (!force && (await readAdrContentHash(dgraph, xid)) === contentHash) {
-    return { projected: false };
-  }
-
-  await projectAdrNode(dgraph, repo, filePath, xid);
-  await projectAdrBlocks(dgraph, document);
-  await upsertByXid(dgraph, "ADR", xid, { "ADR.content_hash": contentHash });
-
-  return { projected: true };
 }

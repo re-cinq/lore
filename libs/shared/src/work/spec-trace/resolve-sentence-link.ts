@@ -16,6 +16,25 @@ export interface SentenceMatch {
   nodeType: "Statement" | "AcceptanceCriterion";
 }
 
+export async function resolveSentenceLink(
+  dgraph: DgraphClientPort,
+  repo: string,
+  link: SentenceLink,
+): Promise<SentenceMatch[]> {
+  const specs = await readRepoSpecs(dgraph, repo);
+  const matched: SentenceMatch[] = [];
+
+  for (const spec of specs) {
+    if (!matchesNormalized(spec["Spec.title"] ?? "", link.spec)) {
+      continue;
+    }
+
+    matched.push(...matchesIn(spec, link.sentence));
+  }
+
+  return matched;
+}
+
 /** Every spec in the repo with its statements and acceptance criteria. One query rather than per-spec reads: a link names a spec by TITLE, so the match cannot be pushed into the query. */
 async function readRepoSpecs(
   dgraph: DgraphClientPort,
@@ -54,23 +73,4 @@ function matchesIn(spec: SpecRow, sentence: string): SentenceMatch[] {
         nodeType: "AcceptanceCriterion",
       })),
   ];
-}
-
-export async function resolveSentenceLink(
-  dgraph: DgraphClientPort,
-  repo: string,
-  link: SentenceLink,
-): Promise<SentenceMatch[]> {
-  const specs = await readRepoSpecs(dgraph, repo);
-  const matched: SentenceMatch[] = [];
-
-  for (const spec of specs) {
-    if (!matchesNormalized(spec["Spec.title"] ?? "", link.spec)) {
-      continue;
-    }
-
-    matched.push(...matchesIn(spec, link.sentence));
-  }
-
-  return matched;
 }

@@ -36,6 +36,26 @@ export interface TestFileLookup {
   fileLevel?: boolean;
 }
 
+export async function testFileImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  file: string,
+  lookup: TestFileLookup,
+): Promise<Array<ImpactStatement & { xid: string }>> {
+  const chunks = await withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(TEST_LINK_QUERY, {
+      $repo: repo,
+      $fp: file,
+    });
+
+    return (res.data.chunks ?? []) as GraphTestChunk[];
+  });
+
+  return chunks
+    .filter((chunk) => testChunkInScope(chunk, lookup))
+    .flatMap((chunk) => statementsForTestChunk(chunk, file));
+}
+
 /** Whether `chunk`'s span overlaps `ranges` (or the span is unknown/degraded to file-level, in which case it always matches). */
 function testChunkInScope(
   chunk: GraphTestChunk,
@@ -64,24 +84,4 @@ function statementsForTestChunk(
   return (chunk.stmts ?? []).map((stmt) =>
     toImpactStatement(stmt, file, [test], "test-link"),
   );
-}
-
-export async function testFileImpact(
-  dgraph: DgraphClientPort,
-  repo: string,
-  file: string,
-  lookup: TestFileLookup,
-): Promise<Array<ImpactStatement & { xid: string }>> {
-  const chunks = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(TEST_LINK_QUERY, {
-      $repo: repo,
-      $fp: file,
-    });
-
-    return (res.data.chunks ?? []) as GraphTestChunk[];
-  });
-
-  return chunks
-    .filter((chunk) => testChunkInScope(chunk, lookup))
-    .flatMap((chunk) => statementsForTestChunk(chunk, file));
 }

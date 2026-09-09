@@ -37,6 +37,24 @@ export interface DebugTraceInput {
   timings: Record<string, number>;
 }
 
+export function buildAssemblyTrace(input: DebugTraceInput): AssemblyTrace {
+  return {
+    query: input.query,
+    template: input.templateName,
+    effectiveBudget: input.minTokens,
+    crossRepo: !!input.crossRepo,
+    templateSections: templateSectionsTrace(input.template),
+    sections: input.traceSections,
+    budget: budgetTrace(input.minTokens, input.sections),
+    freshness: freshnessTrace(input.freshness),
+    embedderDegraded: input.embedderDegraded,
+    timingsMs: {
+      total: Date.now() - input.startedAt,
+      perSource: input.timings,
+    },
+  };
+}
+
 /** The template's own section list, before any of it was fetched — the trace shows what was ASKED for beside what came back. */
 function templateSectionsTrace(template: Template) {
   return template.sections.map((s) => ({
@@ -58,22 +76,4 @@ function budgetTrace(
 
 function freshnessTrace(freshness: FreshnessInfo): AssemblyTrace["freshness"] {
   return { state: freshness.state, message: freshness.warning.trim() };
-}
-
-export function buildAssemblyTrace(input: DebugTraceInput): AssemblyTrace {
-  return {
-    query: input.query,
-    template: input.templateName,
-    effectiveBudget: input.minTokens,
-    crossRepo: !!input.crossRepo,
-    templateSections: templateSectionsTrace(input.template),
-    sections: input.traceSections,
-    budget: budgetTrace(input.minTokens, input.sections),
-    freshness: freshnessTrace(input.freshness),
-    embedderDegraded: input.embedderDegraded,
-    timingsMs: {
-      total: Date.now() - input.startedAt,
-      perSource: input.timings,
-    },
-  };
 }

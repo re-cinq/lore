@@ -21,6 +21,46 @@ interface UpsertOutcome {
   version: number;
 }
 
+const INSERT_VERSION = `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
+     VALUES ($1, $2, $3, $4)`;
+
+export async function upsertMemoryWithVersion(
+  db: Pick<PgPool, "query">,
+  input: UpsertInput,
+): Promise<UpsertOutcome> {
+  const embedding = input.embedding ? `[${input.embedding.join(",")}]` : null;
+  const meta = { embedding, ttlSeconds: input.ttl || null };
+  const head = await findMemoryHead(db, input);
+  const { memoryId, version } = head
+    ? await bumpExistingMemory(db, head, input, meta)
+    : await insertNewMemory(db, input, meta);
+
+  await db.query(INSERT_VERSION, [memoryId, version, input.value, embedding]);
+
+  return { memoryId, version };
+}
+
+/** The live head version of this key, scoped by repo when the caller gave one and by agent otherwise. */
+async function findMemoryHead(
+  db: Pick<PgPool, "query">,
+  input: UpsertInput,
+): Promise<{ version: number; id: string } | undefined> {
+  const lookupField = input.repo ? "repo" : "agent_id";
+  const lookupValue = input.repo || input.agentId;
+  const { rows } = await db.query<{ version: number; id: string }>(
+    findHeadSql(lookupField),
+    [lookupValue, input.key],
+  );
+
+  return rows[0];
+}
+
+function findHeadSql(lookupField: string): string {
+  return `SELECT id, version FROM memory.memories
+     WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
+     ORDER BY version DESC LIMIT 1`;
+}
+
 const UPDATE_MEMORY_SQL = `UPDATE memory.memories
      SET value = $1, version = $2, embedding = $3,
          ttl_seconds = $4, expires_at = now() + make_interval(secs => $5),
@@ -71,44 +111,4 @@ async function insertNewMemory(
   const { rows } = result;
 
   return { memoryId: rows[0].id, version: 1 };
-}
-
-function findHeadSql(lookupField: string): string {
-  return `SELECT id, version FROM memory.memories
-     WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
-     ORDER BY version DESC LIMIT 1`;
-}
-
-/** The live head version of this key, scoped by repo when the caller gave one and by agent otherwise. */
-async function findMemoryHead(
-  db: Pick<PgPool, "query">,
-  input: UpsertInput,
-): Promise<{ version: number; id: string } | undefined> {
-  const lookupField = input.repo ? "repo" : "agent_id";
-  const lookupValue = input.repo || input.agentId;
-  const { rows } = await db.query<{ version: number; id: string }>(
-    findHeadSql(lookupField),
-    [lookupValue, input.key],
-  );
-
-  return rows[0];
-}
-
-const INSERT_VERSION = `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
-     VALUES ($1, $2, $3, $4)`;
-
-export async function upsertMemoryWithVersion(
-  db: Pick<PgPool, "query">,
-  input: UpsertInput,
-): Promise<UpsertOutcome> {
-  const embedding = input.embedding ? `[${input.embedding.join(",")}]` : null;
-  const meta = { embedding, ttlSeconds: input.ttl || null };
-  const head = await findMemoryHead(db, input);
-  const { memoryId, version } = head
-    ? await bumpExistingMemory(db, head, input, meta)
-    : await insertNewMemory(db, input, meta);
-
-  await db.query(INSERT_VERSION, [memoryId, version, input.value, embedding]);
-
-  return { memoryId, version };
 }

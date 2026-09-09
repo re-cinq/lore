@@ -7,10 +7,6 @@ import { OllamaProvider } from "./ollama-provider.js";
 import { GeminiProvider } from "./gemini-provider.js";
 import { CliProvider } from "./cli-provider.js";
 
-function resolveVendor(env: NodeJS.ProcessEnv): string {
-  return (env.LORE_LLM_PROVIDER || env.LORE_FACT_LLM || "claude").toLowerCase();
-}
-
 // No API key → fall back to the `claude` CLI (subscription, zero API spend).
 function claudeProvider(
   env: NodeJS.ProcessEnv,
@@ -53,4 +49,8 @@ export function selectProvider(
   const factory = PROVIDER_FACTORIES[vendor] ?? claudeProvider;
 
   return factory(env, opts);
+}
+
+function resolveVendor(env: NodeJS.ProcessEnv): string {
+  return (env.LORE_LLM_PROVIDER || env.LORE_FACT_LLM || "claude").toLowerCase();
 }

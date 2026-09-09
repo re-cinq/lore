@@ -4,30 +4,6 @@ import type { SourceItem } from "./context-assembly-format.js";
 
 /** Token estimation, item construction, and budget-packing helpers shared by every context-assembly source. */
 
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
-
-/** Truncate at a paragraph boundary; no inline marker — the `truncated="true"` document attribute carries that signal instead. */
-export function truncateText(text: string, maxTokens: number): string {
-  const maxChars = maxTokens * 4;
-
-  if (text.length <= maxChars) {
-    return text;
-  }
-  const cut = text.substring(0, maxChars);
-  const lastParagraph = cut.lastIndexOf("\n\n");
-
-  return lastParagraph > maxChars * 0.5 ? cut.substring(0, lastParagraph) : cut;
-}
-
-export function mkItem(
-  text: string,
-  extra: Partial<SourceItem> = {},
-): SourceItem {
-  return { text, tokens: estimateTokens(text), ...extra };
-}
-
 /** Append one graph item per relation line not already in `seen`. */
 export function addUniqueGraphLines(
   graphResults: Awaited<ReturnType<typeof queryLiveGraph>>,
@@ -43,6 +19,13 @@ export function addUniqueGraphLines(
     seen.add(line);
     sources.push(mkItem(line, { content_type: "graph" }));
   }
+}
+
+export function mkItem(
+  text: string,
+  extra: Partial<SourceItem> = {},
+): SourceItem {
+  return { text, tokens: estimateTokens(text), ...extra };
 }
 
 /** Split search-result ids into memory refs and fact refs (outcome feedback). */
@@ -85,16 +68,6 @@ export function toIso(value: unknown): string | undefined {
   }
 }
 
-/** The item as it will be kept — itself when it fits, otherwise a truncated copy. Returning the SAME object when nothing was cut is what lets the caller tell "kept whole" from "kept in part" without re-measuring. */
-function fitOne(source: SourceItem, limit: number): SourceItem {
-  if (source.tokens <= limit) {
-    return source;
-  }
-  const text = truncateText(source.text, limit);
-
-  return { ...source, text, tokens: estimateTokens(text) };
-}
-
 interface PackState {
   kept: SourceItem[];
   used: number;
@@ -108,6 +81,23 @@ interface PackBudget {
 
 // Below this a truncated document is a one-line stub that still costs its header; the bundle is better off without it.
 export const MIN_DOC_TOKENS = 120;
+
+/** Pack sources into a token budget: keep whole sources, truncate the overflow source, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
+export function fitItemsToBudget(
+  sources: SourceItem[],
+  budgetTokens: number,
+  maxPerDocTokens?: number,
+): { kept: SourceItem[]; truncated: boolean } {
+  const state: PackState = { kept: [], used: 0, truncated: false };
+
+  for (const source of sources) {
+    if (!packItem(state, source, { budgetTokens, maxPerDocTokens })) {
+      break;
+    }
+  }
+
+  return { kept: state.kept, truncated: state.truncated };
+}
 
 /** Pack one source into `state`; false when the budget is spent and packing must stop. */
 function packItem(
@@ -154,29 +144,34 @@ function keep(state: PackState, source: SourceItem, limit: number): boolean {
   return fitted === source;
 }
 
-/** Pack sources into a token budget: keep whole sources, truncate the overflow source, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
-export function fitItemsToBudget(
-  sources: SourceItem[],
-  budgetTokens: number,
-  maxPerDocTokens?: number,
-): { kept: SourceItem[]; truncated: boolean } {
-  const state: PackState = { kept: [], used: 0, truncated: false };
-
-  for (const source of sources) {
-    if (!packItem(state, source, { budgetTokens, maxPerDocTokens })) {
-      break;
-    }
+/** The item as it will be kept — itself when it fits, otherwise a truncated copy. Returning the SAME object when nothing was cut is what lets the caller tell "kept whole" from "kept in part" without re-measuring. */
+function fitOne(source: SourceItem, limit: number): SourceItem {
+  if (source.tokens <= limit) {
+    return source;
   }
+  const text = truncateText(source.text, limit);
 
-  return { kept: state.kept, truncated: state.truncated };
+  return { ...source, text, tokens: estimateTokens(text) };
+}
+
+/** Truncate at a paragraph boundary; no inline marker — the `truncated="true"` document attribute carries that signal instead. */
+export function truncateText(text: string, maxTokens: number): string {
+  const maxChars = maxTokens * 4;
+
+  if (text.length <= maxChars) {
+    return text;
+  }
+  const cut = text.substring(0, maxChars);
+  const lastParagraph = cut.lastIndexOf("\n\n");
+
+  return lastParagraph > maxChars * 0.5 ? cut.substring(0, lastParagraph) : cut;
+}
+
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
 }
 
 export { extractKeyTerms } from "../../../domain/key-terms.js";
-
-/** The identity a document keeps across sections: its content hash (a file and its copied twin at another path are one document), else its path, else its text. */
-export function seenKey(it: SourceItem): string {
-  return it.content_hash || it.source_path || it.text;
-}
 
 /** Filter out sources already emitted in an earlier section — keeps a document in its highest-priority section only. Marks what it keeps as seen. */
 export function dropSeen(
@@ -196,6 +191,11 @@ export function dropSeen(
   }
 
   return kept;
+}
+
+/** The identity a document keeps across sections: its content hash (a file and its copied twin at another path are one document), else its path, else its text. */
+export function seenKey(it: SourceItem): string {
+  return it.content_hash || it.source_path || it.text;
 }
 
 /** Rescale item scores so the top result is 1.0 — RRF/ts_rank raw scores are tiny (~0.02) and unreadable as relevance. No-op with no positive score. */

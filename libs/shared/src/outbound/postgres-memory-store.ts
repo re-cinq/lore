@@ -57,18 +57,6 @@ function listMemoriesSql(filter: string, params: unknown[]): string {
        LIMIT $${params.length - 1} OFFSET $${params.length}`;
 }
 
-async function beginIfClient(client: MemoryTxClient | null): Promise<void> {
-  if (client) {
-    await client.query("BEGIN");
-  }
-}
-
-async function commitIfClient(client: MemoryTxClient | null): Promise<void> {
-  if (client) {
-    await client.query("COMMIT");
-  }
-}
-
 // The memories row and its version row must land together (#1154): a connect()-capable pool runs the upsert in one transaction; a query-only pool stays sequential.
 async function upsertMemoryTransactionally(
   pool: PgPool,
@@ -90,6 +78,18 @@ async function upsertMemoryTransactionally(
     throw err;
   } finally {
     client?.release();
+  }
+}
+
+async function beginIfClient(client: MemoryTxClient | null): Promise<void> {
+  if (client) {
+    await client.query("BEGIN");
+  }
+}
+
+async function commitIfClient(client: MemoryTxClient | null): Promise<void> {
+  if (client) {
+    await client.query("COMMIT");
   }
 }
 

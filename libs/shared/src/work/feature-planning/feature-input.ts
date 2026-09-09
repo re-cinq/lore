@@ -48,8 +48,40 @@ export function enforceFeatureInput(
   return { title: t, prompt: p };
 }
 
+type SectionAnswerEntries = NonNullable<SectionAnswers["sections"]>;
+
+// Tolerantly normalizes an untrusted `user_answers` payload into {@link SectionAnswers} (or null) — a malformed payload weakens the round, never throws.
+export function parseSectionAnswers(raw: unknown): SectionAnswers | null {
+  if (!isPlainObject(raw)) {
+    return null;
+  }
+
+  const sections = normalizeSections(raw.sections);
+  const questions = normalizeQuestions(raw.questions);
+  const free_form = typeof raw.free_form === "string" ? raw.free_form : "";
+
+  if (isEmptyAnswers(sections, questions, free_form)) {
+    return null;
+  }
+
+  return { sections, questions, free_form };
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeSections(raw: unknown): SectionAnswerEntries {
+  const sections: SectionAnswerEntries = {};
+  const rawSections = isPlainObject(raw) ? raw : {};
+
+  for (const [key, section] of Object.entries(rawSections)) {
+    if (isPlainObject(section)) {
+      sections[key] = normalizeSectionEntry(section);
+    }
+  }
+
+  return sections;
 }
 
 function normalizeSectionEntry(section: Record<string, unknown>): {
@@ -70,21 +102,6 @@ function normalizeSectionEntry(section: Record<string, unknown>): {
   }
 
   return entry;
-}
-
-type SectionAnswerEntries = NonNullable<SectionAnswers["sections"]>;
-
-function normalizeSections(raw: unknown): SectionAnswerEntries {
-  const sections: SectionAnswerEntries = {};
-  const rawSections = isPlainObject(raw) ? raw : {};
-
-  for (const [key, section] of Object.entries(rawSections)) {
-    if (isPlainObject(section)) {
-      sections[key] = normalizeSectionEntry(section);
-    }
-  }
-
-  return sections;
 }
 
 function normalizeQuestions(raw: unknown): Record<string, string> {
@@ -110,21 +127,4 @@ function isEmptyAnswers(
     !Object.keys(questions).length &&
     !free_form
   );
-}
-
-// Tolerantly normalizes an untrusted `user_answers` payload into {@link SectionAnswers} (or null) — a malformed payload weakens the round, never throws.
-export function parseSectionAnswers(raw: unknown): SectionAnswers | null {
-  if (!isPlainObject(raw)) {
-    return null;
-  }
-
-  const sections = normalizeSections(raw.sections);
-  const questions = normalizeQuestions(raw.questions);
-  const free_form = typeof raw.free_form === "string" ? raw.free_form : "";
-
-  if (isEmptyAnswers(sections, questions, free_form)) {
-    return null;
-  }
-
-  return { sections, questions, free_form };
 }

@@ -45,19 +45,6 @@ export function toolsFor(req: LlmToolRequest): Anthropic.Tool[] {
   );
 }
 
-function resolveMaxTokens(req: { maxTokens?: number }): number {
-  return req.maxTokens || DEFAULT_MAX_TOKENS;
-}
-
-function systemParam(
-  systemPrompt: string | undefined,
-  jobName: string | undefined,
-): { system?: Anthropic.TextBlockParam[] } {
-  return systemPrompt
-    ? { system: buildCacheableSystem(systemPrompt, jobName) }
-    : {};
-}
-
 /** The shape every completion needs before the modality-specific extras are layered on. */
 interface PromptRequest {
   prompt: string;
@@ -76,6 +63,19 @@ export function completionParams(
     ...systemParam(req.systemPrompt, req.jobName),
     messages: [{ role: "user", content: req.prompt }],
   };
+}
+
+function resolveMaxTokens(req: { maxTokens?: number }): number {
+  return req.maxTokens || DEFAULT_MAX_TOKENS;
+}
+
+function systemParam(
+  systemPrompt: string | undefined,
+  jobName: string | undefined,
+): { system?: Anthropic.TextBlockParam[] } {
+  return systemPrompt
+    ? { system: buildCacheableSystem(systemPrompt, jobName) }
+    : {};
 }
 
 export function toolCallParams(

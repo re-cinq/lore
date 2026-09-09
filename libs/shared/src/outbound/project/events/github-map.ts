@@ -24,46 +24,6 @@ export const GITHUB_EVENT_NAMES: string[] = [
   "github.issues.labeled",
 ];
 
-function labelNames(labels: unknown): string[] {
-  return Array.isArray(labels)
-    ? (labels
-        .map((l: { name?: string } | null | undefined) => l?.name)
-        .filter(Boolean) as string[])
-    : [];
-}
-
-function commentAuthor(user?: { login?: string }): string {
-  return user?.login ?? "";
-}
-
-/** Comment identity the code-review reply handler needs — author drives the bot-loop guard; the payload is an untyped webhook body, so a malformed delivery falls back rather than throwing. */
-function commentParams(comment?: {
-  id?: number;
-  user?: { login?: string };
-  body?: string;
-}): {
-  comment_id: number;
-  comment_author: string;
-  comment_body: string;
-} {
-  const c = comment ?? {};
-
-  return {
-    comment_id: c.id ?? 0,
-    comment_author: commentAuthor(c.user),
-    comment_body: c.body ?? "",
-  };
-}
-
-/** The single-event shape every mapper below returns; the source is always `github` here. */
-function oneEvent(
-  eventName: string,
-  params: Record<string, unknown>,
-  key: string,
-): EventInput[] {
-  return [{ eventName, source: "github", params, dedupeKey: key }];
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub webhook payload; shape varies by event type and is navigated defensively below
 type GitHubPayload = any;
 
@@ -104,40 +64,6 @@ export function mapGitHubEvent(
   return mapper(payload, repo, githubDedupeKey(deliveryId));
 }
 
-function closedPrEvent(
-  pr: GitHubPayload,
-  prNumber: number,
-  repo: string,
-  key: string,
-): EventInput[] {
-  // Emit for merged AND unmerged: specPrMerge guards on `merged`, code-review's onClose finishes on any.
-  return oneEvent(
-    "github.pull_request.closed",
-    {
-      repo,
-      pr_number: prNumber,
-      merged: pr.merged === true,
-      branch: pr.head?.ref ?? "",
-      merge_commit_sha: pr.merge_commit_sha ?? null,
-      labels: labelNames(pr.labels),
-    },
-    key,
-  );
-}
-
-function reviewTriggerEvent(
-  action: string,
-  prNumber: number,
-  repo: string,
-  key: string,
-): EventInput[] {
-  return oneEvent(
-    `github.pull_request.${action}`,
-    { repo, pr_number: prNumber },
-    key,
-  );
-}
-
 function mapPullRequest(
   payload: GitHubPayload,
   repo: string,
@@ -161,27 +87,6 @@ function mapPullRequest(
   return [];
 }
 
-function reviewFields(review?: {
-  id?: number;
-  state?: string;
-  user?: { login?: string };
-  body?: string;
-}): {
-  review_id: number | null;
-  review_state: string;
-  review_author: string;
-  review_body: string;
-} {
-  const r = review ?? {};
-
-  return {
-    review_id: r.id ?? null,
-    review_state: r.state ?? "",
-    review_author: commentAuthor(r.user),
-    review_body: r.body ?? "",
-  };
-}
-
 function mapPullRequestReview(
   payload: GitHubPayload,
   repo: string,
@@ -200,14 +105,6 @@ function mapPullRequestReview(
     "github.pull_request_review.submitted",
     { repo, pr_number: prNumber, ...reviewFields(payload.review) },
     key,
-  );
-}
-
-function checkPullRequests(
-  payload: GitHubPayload,
-): Array<{ number?: number } | null | undefined> {
-  return (
-    payload.check_run?.pull_requests ?? payload.check_suite?.pull_requests ?? []
   );
 }
 
@@ -277,22 +174,6 @@ function mapReviewComment(
   );
 }
 
-function issueSummary(issue: GitHubPayload): {
-  number: number;
-  title: string;
-  body: string;
-  html_url: string;
-  labels: string[];
-} {
-  return {
-    number: issue.number,
-    title: issue.title ?? "",
-    body: issue.body ?? "",
-    html_url: issue.html_url ?? "",
-    labels: labelNames(issue.labels),
-  };
-}
-
 function mapIssueLabeled(
   payload: GitHubPayload,
   repo: string,
@@ -313,4 +194,123 @@ function mapIssueLabeled(
     { repo, label, issue: issueSummary(issue) },
     key,
   );
+}
+
+function closedPrEvent(
+  pr: GitHubPayload,
+  prNumber: number,
+  repo: string,
+  key: string,
+): EventInput[] {
+  // Emit for merged AND unmerged: specPrMerge guards on `merged`, code-review's onClose finishes on any.
+  return oneEvent(
+    "github.pull_request.closed",
+    {
+      repo,
+      pr_number: prNumber,
+      merged: pr.merged === true,
+      branch: pr.head?.ref ?? "",
+      merge_commit_sha: pr.merge_commit_sha ?? null,
+      labels: labelNames(pr.labels),
+    },
+    key,
+  );
+}
+
+function reviewTriggerEvent(
+  action: string,
+  prNumber: number,
+  repo: string,
+  key: string,
+): EventInput[] {
+  return oneEvent(
+    `github.pull_request.${action}`,
+    { repo, pr_number: prNumber },
+    key,
+  );
+}
+
+function reviewFields(review?: {
+  id?: number;
+  state?: string;
+  user?: { login?: string };
+  body?: string;
+}): {
+  review_id: number | null;
+  review_state: string;
+  review_author: string;
+  review_body: string;
+} {
+  const r = review ?? {};
+
+  return {
+    review_id: r.id ?? null,
+    review_state: r.state ?? "",
+    review_author: commentAuthor(r.user),
+    review_body: r.body ?? "",
+  };
+}
+
+function checkPullRequests(
+  payload: GitHubPayload,
+): Array<{ number?: number } | null | undefined> {
+  return (
+    payload.check_run?.pull_requests ?? payload.check_suite?.pull_requests ?? []
+  );
+}
+
+/** Comment identity the code-review reply handler needs — author drives the bot-loop guard; the payload is an untyped webhook body, so a malformed delivery falls back rather than throwing. */
+function commentParams(comment?: {
+  id?: number;
+  user?: { login?: string };
+  body?: string;
+}): {
+  comment_id: number;
+  comment_author: string;
+  comment_body: string;
+} {
+  const c = comment ?? {};
+
+  return {
+    comment_id: c.id ?? 0,
+    comment_author: commentAuthor(c.user),
+    comment_body: c.body ?? "",
+  };
+}
+
+function issueSummary(issue: GitHubPayload): {
+  number: number;
+  title: string;
+  body: string;
+  html_url: string;
+  labels: string[];
+} {
+  return {
+    number: issue.number,
+    title: issue.title ?? "",
+    body: issue.body ?? "",
+    html_url: issue.html_url ?? "",
+    labels: labelNames(issue.labels),
+  };
+}
+
+function commentAuthor(user?: { login?: string }): string {
+  return user?.login ?? "";
+}
+
+/** The single-event shape every mapper below returns; the source is always `github` here. */
+function oneEvent(
+  eventName: string,
+  params: Record<string, unknown>,
+  key: string,
+): EventInput[] {
+  return [{ eventName, source: "github", params, dedupeKey: key }];
+}
+
+function labelNames(labels: unknown): string[] {
+  return Array.isArray(labels)
+    ? (labels
+        .map((l: { name?: string } | null | undefined) => l?.name)
+        .filter(Boolean) as string[])
+    : [];
 }

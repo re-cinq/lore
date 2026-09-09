@@ -17,29 +17,6 @@ export interface SourceDocument {
 /** One source block as produced by {@link segmentBlocks}. */
 type DocumentBlock = ReturnType<typeof segmentBlocks>[number];
 
-/** The type-namespaced xid identifying one Block of a document by its ordinal. */
-function blockXid(repo: string, filePath: string, ordinal: number): string {
-  return `${repo}|${filePath}|block|${ordinal}`;
-}
-
-/** The Block node's own predicates; the `Block.spec` edge and `Block.level` are omitted rather than nulled when absent. */
-function blockFields(
-  repo: string,
-  filePath: string,
-  block: DocumentBlock,
-  specUid: string | undefined,
-): Record<string, unknown> {
-  return {
-    "Block.repo": repo,
-    "Block.file_path": filePath,
-    "Block.ordinal": block.ordinal,
-    "Block.kind": block.kind,
-    "Block.text": block.text,
-    ...(specUid !== undefined ? { "Block.spec": { uid: specUid } } : {}),
-    ...(block.level !== undefined ? { "Block.level": block.level } : {}),
-  };
-}
-
 /** Upserts one Block per source block of `content`, always setting `Block.file_path` (+ the `Block.spec` edge when `specUid` is given); returns the valid Block xids for the caller's pruning sweep. */
 export async function projectDocumentBlocks(
   dgraph: DgraphClientPort,
@@ -64,26 +41,27 @@ export async function projectDocumentBlocks(
   );
 }
 
-/** Every Block scoped to `(repo, filePath)`, as uid + xid pairs. */
-async function readFileBlocks(
-  dgraph: DgraphClientPort,
+/** The type-namespaced xid identifying one Block of a document by its ordinal. */
+function blockXid(repo: string, filePath: string, ordinal: number): string {
+  return `${repo}|${filePath}|block|${ordinal}`;
+}
+
+/** The Block node's own predicates; the `Block.spec` edge and `Block.level` are omitted rather than nulled when absent. */
+function blockFields(
   repo: string,
   filePath: string,
-): Promise<Array<{ uid: string; xid: string }>> {
-  return withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(
-      `query q($fp: string, $repo: string) {
-        blocks(func: eq(Block.file_path, $fp)) @filter(eq(Block.repo, $repo)) { uid Block.xid }
-      }`,
-      { $fp: filePath, $repo: repo },
-    );
-    const blocks = (res.data.blocks ?? []) as Array<{
-      uid: string;
-      "Block.xid": string;
-    }>;
-
-    return blocks.map((block) => ({ uid: block.uid, xid: block["Block.xid"] }));
-  });
+  block: DocumentBlock,
+  specUid: string | undefined,
+): Record<string, unknown> {
+  return {
+    "Block.repo": repo,
+    "Block.file_path": filePath,
+    "Block.ordinal": block.ordinal,
+    "Block.kind": block.kind,
+    "Block.text": block.text,
+    ...(specUid !== undefined ? { "Block.spec": { uid: specUid } } : {}),
+    ...(block.level !== undefined ? { "Block.level": block.level } : {}),
+  };
 }
 
 /** Deletes every Block scoped to `(filePath, repo)` not in `validXids` — the orphaned higher-ordinal blocks left when a shorter document re-projects over a longer one; the single authoritative sweep for every document layer (spec, ADR, …), needing no Spec parent since `Block.file_path` is set on every Block. */
@@ -107,5 +85,27 @@ export async function pruneOrphanBlocksByFile(
       deleteNquads: orphanUids.map((uid) => `<${uid}> * * .`).join("\n"),
       commitNow: true,
     });
+  });
+}
+
+/** Every Block scoped to `(repo, filePath)`, as uid + xid pairs. */
+async function readFileBlocks(
+  dgraph: DgraphClientPort,
+  repo: string,
+  filePath: string,
+): Promise<Array<{ uid: string; xid: string }>> {
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(
+      `query q($fp: string, $repo: string) {
+        blocks(func: eq(Block.file_path, $fp)) @filter(eq(Block.repo, $repo)) { uid Block.xid }
+      }`,
+      { $fp: filePath, $repo: repo },
+    );
+    const blocks = (res.data.blocks ?? []) as Array<{
+      uid: string;
+      "Block.xid": string;
+    }>;
+
+    return blocks.map((block) => ({ uid: block.uid, xid: block["Block.xid"] }));
   });
 }

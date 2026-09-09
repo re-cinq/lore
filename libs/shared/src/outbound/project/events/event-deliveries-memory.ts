@@ -50,30 +50,12 @@ function newDelivery(
   };
 }
 
-/** The store's claim order: earliest due first, ties broken by insertion id. */
-function byDueThenId(a: EventDeliveryRow, b: EventDeliveryRow): number {
-  if (a.next_attempt_at === b.next_attempt_at) {
-    return Number(a.id) - Number(b.id);
-  }
-
-  return a.next_attempt_at < b.next_attempt_at ? -1 : 1;
-}
-
 /** Claim window: one subscriber's due, unheld, unfinished deliveries. */
 interface ClaimWindow {
   subscriber: string;
   now: number;
   held: Set<string>;
   limit: number;
-}
-
-function isRunnable(d: EventDeliveryRow, window: ClaimWindow): boolean {
-  return (
-    d.subscriber === window.subscriber &&
-    !window.held.has(d.event_name) &&
-    (d.status === "pending" || d.status === "failed") &&
-    Date.parse(d.next_attempt_at) <= window.now
-  );
 }
 
 /** Due deliveries for one subscriber in claim order, capped at the limit. */
@@ -85,6 +67,24 @@ function runnableDeliveries(
     .filter((d) => isRunnable(d, window))
     .sort(byDueThenId)
     .slice(0, window.limit);
+}
+
+function isRunnable(d: EventDeliveryRow, window: ClaimWindow): boolean {
+  return (
+    d.subscriber === window.subscriber &&
+    !window.held.has(d.event_name) &&
+    (d.status === "pending" || d.status === "failed") &&
+    Date.parse(d.next_attempt_at) <= window.now
+  );
+}
+
+/** The store's claim order: earliest due first, ties broken by insertion id. */
+function byDueThenId(a: EventDeliveryRow, b: EventDeliveryRow): number {
+  if (a.next_attempt_at === b.next_attempt_at) {
+    return Number(a.id) - Number(b.id);
+  }
+
+  return a.next_attempt_at < b.next_attempt_at ? -1 : 1;
 }
 
 const handledAtMs = (d: EventDeliveryRow): number =>

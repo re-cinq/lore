@@ -14,27 +14,6 @@ const specTaskIdOf = (task: SeedTask): string | undefined =>
 const specSlugOf = (task: SeedTask): string | undefined =>
   task.context_bundle?.spec_slug as string | undefined;
 
-function isSatisfyingDependency(
-  dep: SeedTask,
-  task: SeedTask,
-  depId: string,
-): boolean {
-  const sameRepoAndSlug =
-    dep.target_repo === task.target_repo &&
-    specSlugOf(dep) === specSlugOf(task);
-  const isDone = dep.status === "completed" || dep.status === "merged";
-
-  return sameRepoAndSlug && specTaskIdOf(dep) === depId && isDone;
-}
-
-function dependencySatisfied(
-  specTasks: SeedTask[],
-  task: SeedTask,
-  depId: string,
-): boolean {
-  return specTasks.some((dep) => isSatisfyingDependency(dep, task, depId));
-}
-
 function isReadySpecTask(
   specTasks: SeedTask[],
   task: SeedTask,
@@ -46,6 +25,27 @@ function isReadySpecTask(
   const deps = (task.context_bundle?.depends_on as string[] | undefined) ?? [];
 
   return deps.every((depId) => dependencySatisfied(specTasks, task, depId));
+}
+
+function dependencySatisfied(
+  specTasks: SeedTask[],
+  task: SeedTask,
+  depId: string,
+): boolean {
+  return specTasks.some((dep) => isSatisfyingDependency(dep, task, depId));
+}
+
+function isSatisfyingDependency(
+  dep: SeedTask,
+  task: SeedTask,
+  depId: string,
+): boolean {
+  const sameRepoAndSlug =
+    dep.target_repo === task.target_repo &&
+    specSlugOf(dep) === specSlugOf(task);
+  const isDone = dep.status === "completed" || dep.status === "merged";
+
+  return sameRepoAndSlug && specTaskIdOf(dep) === depId && isDone;
 }
 
 function bySpecTaskId(a: SeedTask, b: SeedTask): number {

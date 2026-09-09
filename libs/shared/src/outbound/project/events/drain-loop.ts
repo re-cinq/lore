@@ -49,16 +49,96 @@ const SERIAL_FAMILIES: ReadonlySet<string> = new Set();
 /** Serial families with a handler in flight, shared across drain ticks. */
 const busyFamilies = new Set<string>();
 
-/** Give up on a delivery, out loud — dead-lettering used to write the row and say nothing, and the row itself is deleted by the hourly prune a week later. */
-async function deadLetter(
-  deps: LoopDeps,
-  ev: EventRow,
-  reason: string,
-): Promise<void> {
+/** A rejection here means the mark-op itself failed (e.g. DB down mid-drain); surface it rather than letting it vanish. */
+const logTransitionFailure = (ev: EventRow) => (reason: unknown) =>
   console.error(
-    `[events] dead-lettered ${ev.event_name} (delivery ${ev.id}, event ${ev.event_id}) after ${ev.attempts} attempt(s): ${reason}`,
+    `[events] drain: transition failed for ${ev.event_name} (${ev.id}):`,
+    reason,
   );
-  await deps.markDead(ev.id, reason);
+
+/** Wire the real store + start the 1s drain; STORE is passed in since both the Floor and the stations service drain their own deliveries. Returns the timer for shutdown/tests. */
+export function startEventLoop(
+  deps: LoopDeps,
+  intervalMs = 1000,
+): NodeJS.Timeout {
+  console.log("[events] drain loop started");
+
+  return setInterval(() => {
+    drainOnce(deps).catch((err) =>
+      console.error("[events] drain tick failed:", err),
+    );
+  }, intervalMs);
+}
+
+export async function drainOnce(deps: LoopDeps): Promise<number> {
+  const serialFamilies = deps.serialFamilies ?? SERIAL_FAMILIES;
+  const batch = await deps.claim(deps.batchSize ?? 20, [...busyFamilies]);
+
+  if (batch.length === 0) {
+    return 0;
+  }
+  const parallel = batch
+    .filter((ev) => !serialFamilies.has(ev.event_name))
+    .map((ev) => handleOne(ev, deps).catch(logTransitionFailure(ev)));
+
+  const serialByFamily = groupByFamily(
+    batch.filter((ev) => serialFamilies.has(ev.event_name)),
+  );
+  const serial = [...serialByFamily.entries()].map(([family, events]) =>
+    drainFamily(family, events, deps),
+  );
+
+  await Promise.all([...parallel, ...serial]);
+
+  return batch.length;
+}
+
+/** Buckets events by event_name, preserving arrival order within each family. */
+function groupByFamily(events: EventRow[]): Map<string, EventRow[]> {
+  const byFamily = new Map<string, EventRow[]>();
+
+  for (const ev of events) {
+    byFamily.set(ev.event_name, [...(byFamily.get(ev.event_name) ?? []), ev]);
+  }
+
+  return byFamily;
+}
+
+/** One serial family's events, strictly in order, with the family slot held for the duration. */
+async function drainFamily(
+  family: string,
+  events: EventRow[],
+  deps: LoopDeps,
+): Promise<void> {
+  const deadlineMs = deps.serialDeadlineMs ?? SERIAL_DEADLINE_MS;
+
+  busyFamilies.add(family);
+
+  try {
+    for (const ev of events) {
+      await handleSerial(ev, deps, deadlineMs);
+    }
+  } finally {
+    busyFamilies.delete(family);
+  }
+}
+
+/** One serial event, racing its handler against the slot-release deadline: a handler that never returns would otherwise keep its whole family unclaimable forever, and the reaper's retry is a better outcome than a permanently stalled queue. */
+async function handleSerial(
+  ev: EventRow,
+  deps: LoopDeps,
+  deadlineMs: number,
+): Promise<void> {
+  const outcome = await Promise.race([
+    handleOne(ev, deps).catch(logTransitionFailure(ev)),
+    releaseAfter(deadlineMs),
+  ]);
+
+  if (outcome === "deadline") {
+    console.error(
+      `[events] serial handler for ${ev.event_name} (${ev.id}) exceeded ${deadlineMs}ms — releasing the family slot to its reaped retry`,
+    );
+  }
 }
 
 export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
@@ -88,94 +168,14 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
   }
 }
 
-/** Buckets events by event_name, preserving arrival order within each family. */
-function groupByFamily(events: EventRow[]): Map<string, EventRow[]> {
-  const byFamily = new Map<string, EventRow[]>();
-
-  for (const ev of events) {
-    byFamily.set(ev.event_name, [...(byFamily.get(ev.event_name) ?? []), ev]);
-  }
-
-  return byFamily;
-}
-
-/** A rejection here means the mark-op itself failed (e.g. DB down mid-drain); surface it rather than letting it vanish. */
-const logTransitionFailure = (ev: EventRow) => (reason: unknown) =>
-  console.error(
-    `[events] drain: transition failed for ${ev.event_name} (${ev.id}):`,
-    reason,
-  );
-
-/** One serial event, racing its handler against the slot-release deadline: a handler that never returns would otherwise keep its whole family unclaimable forever, and the reaper's retry is a better outcome than a permanently stalled queue. */
-async function handleSerial(
+/** Give up on a delivery, out loud — dead-lettering used to write the row and say nothing, and the row itself is deleted by the hourly prune a week later. */
+async function deadLetter(
+  deps: LoopDeps,
   ev: EventRow,
-  deps: LoopDeps,
-  deadlineMs: number,
+  reason: string,
 ): Promise<void> {
-  const outcome = await Promise.race([
-    handleOne(ev, deps).catch(logTransitionFailure(ev)),
-    releaseAfter(deadlineMs),
-  ]);
-
-  if (outcome === "deadline") {
-    console.error(
-      `[events] serial handler for ${ev.event_name} (${ev.id}) exceeded ${deadlineMs}ms — releasing the family slot to its reaped retry`,
-    );
-  }
-}
-
-/** One serial family's events, strictly in order, with the family slot held for the duration. */
-async function drainFamily(
-  family: string,
-  events: EventRow[],
-  deps: LoopDeps,
-): Promise<void> {
-  const deadlineMs = deps.serialDeadlineMs ?? SERIAL_DEADLINE_MS;
-
-  busyFamilies.add(family);
-
-  try {
-    for (const ev of events) {
-      await handleSerial(ev, deps, deadlineMs);
-    }
-  } finally {
-    busyFamilies.delete(family);
-  }
-}
-
-export async function drainOnce(deps: LoopDeps): Promise<number> {
-  const serialFamilies = deps.serialFamilies ?? SERIAL_FAMILIES;
-  const batch = await deps.claim(deps.batchSize ?? 20, [...busyFamilies]);
-
-  if (batch.length === 0) {
-    return 0;
-  }
-  const parallel = batch
-    .filter((ev) => !serialFamilies.has(ev.event_name))
-    .map((ev) => handleOne(ev, deps).catch(logTransitionFailure(ev)));
-
-  const serialByFamily = groupByFamily(
-    batch.filter((ev) => serialFamilies.has(ev.event_name)),
+  console.error(
+    `[events] dead-lettered ${ev.event_name} (delivery ${ev.id}, event ${ev.event_id}) after ${ev.attempts} attempt(s): ${reason}`,
   );
-  const serial = [...serialByFamily.entries()].map(([family, events]) =>
-    drainFamily(family, events, deps),
-  );
-
-  await Promise.all([...parallel, ...serial]);
-
-  return batch.length;
-}
-
-/** Wire the real store + start the 1s drain; STORE is passed in since both the Floor and the stations service drain their own deliveries. Returns the timer for shutdown/tests. */
-export function startEventLoop(
-  deps: LoopDeps,
-  intervalMs = 1000,
-): NodeJS.Timeout {
-  console.log("[events] drain loop started");
-
-  return setInterval(() => {
-    drainOnce(deps).catch((err) =>
-      console.error("[events] drain tick failed:", err),
-    );
-  }, intervalMs);
+  await deps.markDead(ev.id, reason);
 }

@@ -24,27 +24,6 @@ interface SearchSqlRow {
   kw_rank?: string;
 }
 
-/** The rank column is named for how the row was found — `vec_rank` by embedding distance, `kw_rank` by text match — and exactly one of them is present on any given row. */
-function rankOf(row: SearchSqlRow): number {
-  return Number(row.vec_rank ?? row.kw_rank);
-}
-
-function toRankedRow(r: SearchSqlRow): RankedRow {
-  return {
-    id: r.id,
-    key: r.key,
-    value: r.value,
-    agent_id: r.agent_id,
-    source: r.source as RankedRow["source"],
-    rank: rankOf(r),
-  };
-}
-
-/** Facts additionally carry their confidence tier, which the caller uses to annotate results and to penalize stale entries. */
-function toFactRow(r: SearchSqlRow): RankedRow {
-  return { ...toRankedRow(r), confidence: r.confidence };
-}
-
 const VECTOR_MEMORIES_SQL = `
     SELECT m.id, m.key, m.value, m.agent_id, 'memory' as source,
            ROW_NUMBER() OVER (ORDER BY m.embedding <=> $1::vector) as vec_rank
@@ -175,4 +154,25 @@ export async function keywordSearchFacts(
   ]);
 
   return rows.map(toFactRow);
+}
+
+function toRankedRow(r: SearchSqlRow): RankedRow {
+  return {
+    id: r.id,
+    key: r.key,
+    value: r.value,
+    agent_id: r.agent_id,
+    source: r.source as RankedRow["source"],
+    rank: rankOf(r),
+  };
+}
+
+/** Facts additionally carry their confidence tier, which the caller uses to annotate results and to penalize stale entries. */
+function toFactRow(r: SearchSqlRow): RankedRow {
+  return { ...toRankedRow(r), confidence: r.confidence };
+}
+
+/** The rank column is named for how the row was found — `vec_rank` by embedding distance, `kw_rank` by text match — and exactly one of them is present on any given row. */
+function rankOf(row: SearchSqlRow): number {
+  return Number(row.vec_rank ?? row.kw_rank);
 }

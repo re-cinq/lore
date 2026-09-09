@@ -72,23 +72,10 @@ const loaded: Array<[string, ModelModule]> = await Promise.all(
   ),
 );
 
-function columnsKey(mod: ModelModule): string | undefined {
-  return Object.keys(mod).find((k) => k.endsWith("_COLUMNS"));
-}
-
 function columnsOf(mod: ModelModule): Record<string, string> | undefined {
   const key = columnsKey(mod);
 
   return key ? (mod[key] as Record<string, string>) : undefined;
-}
-
-export function schemaNameFor(columnsExport: string): string {
-  const pascal = columnsExport
-    .replace(/_COLUMNS$/, "")
-    .toLowerCase()
-    .replace(/(^|_)([a-z])/g, (_m, _sep, c: string) => c.toUpperCase());
-
-  return `${pascal}Schema`;
 }
 
 function shapeOf(mod: ModelModule): ZodRawShape | undefined {
@@ -99,6 +86,19 @@ function shapeOf(mod: ModelModule): ZodRawShape | undefined {
     : undefined;
 
   return schema?.shape;
+}
+
+function columnsKey(mod: ModelModule): string | undefined {
+  return Object.keys(mod).find((k) => k.endsWith("_COLUMNS"));
+}
+
+export function schemaNameFor(columnsExport: string): string {
+  const pascal = columnsExport
+    .replace(/_COLUMNS$/, "")
+    .toLowerCase()
+    .replace(/(^|_)([a-z])/g, (_m, _sep, c: string) => c.toUpperCase());
+
+  return `${pascal}Schema`;
 }
 
 const unreadable: string[] = [];

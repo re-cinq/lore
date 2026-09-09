@@ -25,6 +25,14 @@ afterEach(() => {
 const REPO = "octo/repo";
 let nextId = 0;
 
+function presenceRows(): ChunkRow[] {
+  return [
+    row({ contentType: "doc", filePath: "CLAUDE.md" }),
+    row({ contentType: "adr", filePath: "adrs/adr-1.md" }),
+    row({ contentType: "spec", filePath: "specs/spec.md" }),
+  ];
+}
+
 function row(overrides: Partial<ChunkRow>): ChunkRow {
   return {
     id: String(++nextId),
@@ -41,12 +49,29 @@ function row(overrides: Partial<ChunkRow>): ChunkRow {
   };
 }
 
-function presenceRows(): ChunkRow[] {
-  return [
-    row({ contentType: "doc", filePath: "CLAUDE.md" }),
-    row({ contentType: "adr", filePath: "adrs/adr-1.md" }),
-    row({ contentType: "spec", filePath: "specs/spec.md" }),
-  ];
+function buildProject(
+  rows: ChunkRow[],
+  options: { existingOpen?: number; onboarded?: boolean } = {},
+): { project: Project; created: CreateTaskInput[] } {
+  const { store, created } = taskStoreStub(options.existingOpen ?? 0);
+  const settings = new InMemorySettings([
+    {
+      full_name: REPO,
+      team: "platform",
+      onboarding_pr_merged: options.onboarded ?? true,
+    },
+  ]);
+  const chunks = new InMemoryChunks(rows, new Set(["org_shared", "platform"]));
+  const project = new Project(
+    REPO,
+    new Map<string, unknown>([
+      ["chunks", chunks],
+      ["settings", settings],
+      ["tasks", store],
+    ]),
+  );
+
+  return { project, created };
 }
 
 function taskStoreStub(existingOpen = 0): {
@@ -75,31 +100,6 @@ function taskStoreStub(existingOpen = 0): {
   } as unknown as TaskStorePort;
 
   return { store, created };
-}
-
-function buildProject(
-  rows: ChunkRow[],
-  options: { existingOpen?: number; onboarded?: boolean } = {},
-): { project: Project; created: CreateTaskInput[] } {
-  const { store, created } = taskStoreStub(options.existingOpen ?? 0);
-  const settings = new InMemorySettings([
-    {
-      full_name: REPO,
-      team: "platform",
-      onboarding_pr_merged: options.onboarded ?? true,
-    },
-  ]);
-  const chunks = new InMemoryChunks(rows, new Set(["org_shared", "platform"]));
-  const project = new Project(
-    REPO,
-    new Map<string, unknown>([
-      ["chunks", chunks],
-      ["settings", settings],
-      ["tasks", store],
-    ]),
-  );
-
-  return { project, created };
 }
 
 describe("gapDetectJob", () => {

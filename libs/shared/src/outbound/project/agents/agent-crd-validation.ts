@@ -56,15 +56,28 @@ export function secretKeysOf(opts: CatalogCrdOptions): Record<string, string> {
   };
 }
 
+/** Render contract: why this entry must NOT be applied here, or null when it may. Called before render so a bad row degrades to a refused entry (previous CR stays live) instead of an unbootable pod (2026-09-01 incident class); reasons are permanent for this (row, cluster) pair. */
+export function validateCatalogEntry(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+): string | null {
+  const name = catalogCrdName(def.name, def.project_id);
+  const keys = secretKeysOf(opts);
+  const nameError = invalidCrdName(name);
+
+  if (nameError) {
+    return nameError;
+  }
+
+  return def.execution_mode === "station"
+    ? validateStationEntry(def, keys)
+    : validateLlmEntry(def, keys);
+}
+
 function invalidCrdName(name: string): string | null {
   return !K8S_NAME.test(name) || name.length > 253
     ? `"${name}" is not a valid Kubernetes resource name`
     : null;
-}
-
-// Empty map = bare cluster rendering no secret refs on purpose; any configured key makes credential coverage checkable.
-function familiesCheckable(keys: Record<string, string>): boolean {
-  return Object.keys(keys).length > 0;
 }
 
 /** needs_model station calls Anthropic (stationSpec renders the key) — guards the silent-drop comment-triage failure. */
@@ -78,13 +91,6 @@ function validateStationEntry(
   return missingModelCredential
     ? `station ${def.name} needs a model but this cluster holds no anthropic credential`
     : null;
-}
-
-function missingModelCredentialMessage(
-  def: ResolvedAgentDefinition,
-  family: string,
-): string {
-  return `this cluster holds no credential for the "${family}" family (model "${def.model ?? "(default)"}") — configure modelSecretKeys and seed the key before pointing a recipe at it`;
 }
 
 function validateLlmEntry(
@@ -107,20 +113,14 @@ function validateLlmEntry(
     : null;
 }
 
-/** Render contract: why this entry must NOT be applied here, or null when it may. Called before render so a bad row degrades to a refused entry (previous CR stays live) instead of an unbootable pod (2026-09-01 incident class); reasons are permanent for this (row, cluster) pair. */
-export function validateCatalogEntry(
+// Empty map = bare cluster rendering no secret refs on purpose; any configured key makes credential coverage checkable.
+function familiesCheckable(keys: Record<string, string>): boolean {
+  return Object.keys(keys).length > 0;
+}
+
+function missingModelCredentialMessage(
   def: ResolvedAgentDefinition,
-  opts: CatalogCrdOptions,
-): string | null {
-  const name = catalogCrdName(def.name, def.project_id);
-  const keys = secretKeysOf(opts);
-  const nameError = invalidCrdName(name);
-
-  if (nameError) {
-    return nameError;
-  }
-
-  return def.execution_mode === "station"
-    ? validateStationEntry(def, keys)
-    : validateLlmEntry(def, keys);
+  family: string,
+): string {
+  return `this cluster holds no credential for the "${family}" family (model "${def.model ?? "(default)"}") — configure modelSecretKeys and seed the key before pointing a recipe at it`;
 }

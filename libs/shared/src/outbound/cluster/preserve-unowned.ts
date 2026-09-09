@@ -5,6 +5,26 @@ type LooseRecord = Record<string, unknown>;
 const rec = (v: unknown): LooseRecord =>
   typeof v === "object" && v !== null ? (v as LooseRecord) : {};
 
+// Carries fields the editor does NOT own (labels/annotations, spec.output/resources members) from the live object into the replace body — a plain replace stripped `output.watch` and `skills_source`/`secrets`, killing planning-result delivery platform-wide 2026-08-13 to 08-18 (#1301).
+export function preserveUnownedFields<T extends object>(
+  current: unknown,
+  desired: T,
+): T {
+  const cur = rec(current);
+  const des = rec(desired);
+  const merged: LooseRecord = {
+    ...des,
+    metadata: mergedMetadata(rec(cur.metadata), rec(des.metadata)),
+  };
+  const spec = mergedSpec(rec(cur.spec), rec(des.spec));
+
+  if (spec) {
+    merged.spec = spec;
+  }
+
+  return merged as T;
+}
+
 /** Labels and annotations MERGE rather than replace — a controller writing its own annotation onto the object must not lose it every time the editor saves. */
 function mergedMetadata(curMeta: LooseRecord, desMeta: LooseRecord) {
   return {
@@ -30,24 +50,4 @@ function mergedSpec(
   }
 
   return touched ? merged : null;
-}
-
-// Carries fields the editor does NOT own (labels/annotations, spec.output/resources members) from the live object into the replace body — a plain replace stripped `output.watch` and `skills_source`/`secrets`, killing planning-result delivery platform-wide 2026-08-13 to 08-18 (#1301).
-export function preserveUnownedFields<T extends object>(
-  current: unknown,
-  desired: T,
-): T {
-  const cur = rec(current);
-  const des = rec(desired);
-  const merged: LooseRecord = {
-    ...des,
-    metadata: mergedMetadata(rec(cur.metadata), rec(des.metadata)),
-  };
-  const spec = mergedSpec(rec(cur.spec), rec(des.spec));
-
-  if (spec) {
-    merged.spec = spec;
-  }
-
-  return merged as T;
 }

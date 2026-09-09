@@ -24,38 +24,25 @@ const PROTECT_SRC =
 
 const SCAN_SRC = `(?<file>${FILE_SRC})|(?<issue>${ISSUE_SRC})|(?<uuid>${UUID_SRC})`;
 
-function hrefFor(
-  match: string,
-  group: "file" | "issue" | "uuid",
-  ctx: RefContext,
-): string | undefined {
-  if (group === "file") {
-    const path = match.replace(/^\.\//, "");
+export function parseReferences(text: string, ctx: RefContext): Segment[] {
+  const out: Segment[] = [];
+  const re = new RegExp(PROTECT_SRC, "g");
+  let last = 0;
+  let m: RegExpExecArray | null;
 
-    return `https://github.com/${ctx.repo}/blob/${ctx.branch || "main"}/${path}`;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      out.push(...scanPlain(text.slice(last, m.index), ctx));
+    }
+    out.push({ text: m[0] });
+    last = m.index + m[0].length;
   }
 
-  if (group === "issue") {
-    return `https://github.com/${ctx.repo}/issues/${match.slice(1)}`;
+  if (last < text.length) {
+    out.push(...scanPlain(text.slice(last), ctx));
   }
 
-  return ctx.uiUrl
-    ? `${ctx.uiUrl.replace(/\/$/, "")}/assembly-runs/${match}`
-    : undefined;
-}
-
-function scanMatchGroup(
-  groups: RegExpExecArray["groups"],
-): "file" | "issue" | "uuid" {
-  if (groups?.file) {
-    return "file";
-  }
-
-  if (groups?.issue) {
-    return "issue";
-  }
-
-  return "uuid";
+  return out;
 }
 
 function scanPlain(text: string, ctx: RefContext): Segment[] {
@@ -82,25 +69,38 @@ function scanPlain(text: string, ctx: RefContext): Segment[] {
   return out;
 }
 
-export function parseReferences(text: string, ctx: RefContext): Segment[] {
-  const out: Segment[] = [];
-  const re = new RegExp(PROTECT_SRC, "g");
-  let last = 0;
-  let m: RegExpExecArray | null;
-
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) {
-      out.push(...scanPlain(text.slice(last, m.index), ctx));
-    }
-    out.push({ text: m[0] });
-    last = m.index + m[0].length;
+function scanMatchGroup(
+  groups: RegExpExecArray["groups"],
+): "file" | "issue" | "uuid" {
+  if (groups?.file) {
+    return "file";
   }
 
-  if (last < text.length) {
-    out.push(...scanPlain(text.slice(last), ctx));
+  if (groups?.issue) {
+    return "issue";
   }
 
-  return out;
+  return "uuid";
+}
+
+function hrefFor(
+  match: string,
+  group: "file" | "issue" | "uuid",
+  ctx: RefContext,
+): string | undefined {
+  if (group === "file") {
+    const path = match.replace(/^\.\//, "");
+
+    return `https://github.com/${ctx.repo}/blob/${ctx.branch || "main"}/${path}`;
+  }
+
+  if (group === "issue") {
+    return `https://github.com/${ctx.repo}/issues/${match.slice(1)}`;
+  }
+
+  return ctx.uiUrl
+    ? `${ctx.uiUrl.replace(/\/$/, "")}/assembly-runs/${match}`
+    : undefined;
 }
 
 export function linkifyMarkdown(text: string, ctx: RefContext): string {

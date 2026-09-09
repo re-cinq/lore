@@ -5,14 +5,6 @@ import type {
   AssemblyRunStartInput,
 } from "./assembly-runs-port.js";
 
-/** Fork's subjectKey prefers the caller's override, falling back to source's. */
-function inheritedSubjectKey(
-  input: AssemblyRunStartInput,
-  source: AssemblyRunRecord,
-): string | undefined {
-  return input.subjectKey ?? source.subjectKey ?? undefined;
-}
-
 /** Fork inherits branch/taskId/subject (+args unless overridden) from source — the subject rides along because a fork re-runs the same work and must hold its source's guard (legal only from a terminal run). */
 export function inheritFromSource(
   input: AssemblyRunStartInput,
@@ -29,6 +21,14 @@ export function inheritFromSource(
     subjectKey: inheritedSubjectKey(input, source),
     args: input.args ?? source.args,
   };
+}
+
+/** Fork's subjectKey prefers the caller's override, falling back to source's. */
+function inheritedSubjectKey(
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord,
+): string | undefined {
+  return input.subjectKey ?? source.subjectKey ?? undefined;
 }
 
 /** Extracted from newRow so its many `??` defaults don't inflate that function's complexity. */

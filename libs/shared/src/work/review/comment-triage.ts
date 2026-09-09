@@ -41,18 +41,6 @@ const TOOL_SCHEMA = {
   required: ["action", "reason"],
 } as const;
 
-function triageRequest(ctx: CommentContext) {
-  return {
-    prompt: buildPrompt(ctx),
-    systemPrompt: SYSTEM_PROMPT,
-    model: TRIAGE_MODEL,
-    jobName: "comment-triage",
-    toolName: "triage_comment",
-    toolDescription: "Classify the PR comment into a single Lore action.",
-    toolSchema: TOOL_SCHEMA,
-  };
-}
-
 /** Classify PR comment into follow-up action; model failures propagate (not swallowed). */
 export async function classifyComment(
   ctx: CommentContext,
@@ -66,6 +54,18 @@ export async function classifyComment(
     action: isAction(parsed.action) ? parsed.action : "ignore",
     reason: parsed.reason ?? "",
     usage,
+  };
+}
+
+function triageRequest(ctx: CommentContext) {
+  return {
+    prompt: buildPrompt(ctx),
+    systemPrompt: SYSTEM_PROMPT,
+    model: TRIAGE_MODEL,
+    jobName: "comment-triage",
+    toolName: "triage_comment",
+    toolDescription: "Classify the PR comment into a single Lore action.",
+    toolSchema: TOOL_SCHEMA,
   };
 }
 

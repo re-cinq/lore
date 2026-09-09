@@ -3,6 +3,43 @@
 import { enforceTrue } from "../lib/enforce.js";
 import type { PgPool } from "./memory-store-types.js";
 
+/** Throw when trust level forbids the task type; any other failure (missing row, read error) is non-fatal. */
+export async function enforceRepoTrustForTaskType(
+  pool: PgPool,
+  repo: string,
+  taskType: string,
+): Promise<void> {
+  try {
+    const trustLevel = await trustLevelForRepo(pool, repo);
+
+    enforceTrustAllowsTaskType(trustLevel, taskType, repo);
+  } catch (err) {
+    if (isTrustViolation(err)) {
+      throw err;
+    }
+    // Non-trust errors are non-fatal
+  }
+}
+
+async function trustLevelForRepo(
+  pool: PgPool,
+  repo: string,
+): Promise<string | undefined> {
+  const { rows: repoRows } = await pool.query(
+    `SELECT settings FROM lore.repos WHERE full_name = $1`,
+    [repo],
+  );
+
+  if (repoRows.length === 0) {
+    return undefined;
+  }
+  const settings = (repoRows[0].settings as {
+    trust?: { level?: string };
+  } | null) || { trust: undefined };
+
+  return settings.trust?.level;
+}
+
 /** Trust level → allowed task types (createTask gate reads lore.repos.settings.trust.level). */
 // Feature planning is allowed from the docs tier up (ADR-027 / specs/7-feature-planning) — analysis + a spec-doc PR only, no code.
 const FEATURE_PLANNING = ["feature-planning"];
@@ -54,45 +91,8 @@ export function enforceTrustAllowsTaskType(
   );
 }
 
-async function trustLevelForRepo(
-  pool: PgPool,
-  repo: string,
-): Promise<string | undefined> {
-  const { rows: repoRows } = await pool.query(
-    `SELECT settings FROM lore.repos WHERE full_name = $1`,
-    [repo],
-  );
-
-  if (repoRows.length === 0) {
-    return undefined;
-  }
-  const settings = (repoRows[0].settings as {
-    trust?: { level?: string };
-  } | null) || { trust: undefined };
-
-  return settings.trust?.level;
-}
-
 function isTrustViolation(err: unknown): err is Error {
   return (
     err instanceof Error && err.message.includes("not allowed at trust level")
   );
-}
-
-/** Throw when trust level forbids the task type; any other failure (missing row, read error) is non-fatal. */
-export async function enforceRepoTrustForTaskType(
-  pool: PgPool,
-  repo: string,
-  taskType: string,
-): Promise<void> {
-  try {
-    const trustLevel = await trustLevelForRepo(pool, repo);
-
-    enforceTrustAllowsTaskType(trustLevel, taskType, repo);
-  } catch (err) {
-    if (isTrustViolation(err)) {
-      throw err;
-    }
-    // Non-trust errors are non-fatal
-  }
 }

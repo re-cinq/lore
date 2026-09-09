@@ -25,32 +25,6 @@ export interface StatementDelta {
   addedTexts: string[];
 }
 
-/** Hex sha256 — must stay identical to the projector's, or every statement reads as changed. */
-function sha256(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
-}
-
-/** Diffs spec's head content against graph statements; filters ACs like the projector. */
-export function diffStatements(
-  content: string,
-  graphStatements: GraphStatementRef[],
-): StatementDelta {
-  const headStatements = segmentStatements(content).filter(
-    (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
-  );
-  const headByHash = new Map(
-    headStatements.map((segment) => [sha256(segment.text), segment.text]),
-  );
-  const knownHashes = new Set(graphStatements.map((s) => s.textHash));
-
-  return {
-    changed: graphStatements.filter((s) => !headByHash.has(s.textHash)),
-    addedTexts: [...headByHash]
-      .filter(([hash]) => !knownHashes.has(hash))
-      .map(([, text]) => text),
-  };
-}
-
 const SPEC_STATEMENTS_QUERY = `query q($repo: string, $fp: string) {
   specs(func: eq(Spec.file_path, $fp)) @filter(eq(Spec.repo, $repo)) {
     Spec.title
@@ -85,21 +59,30 @@ interface GraphSpecStatements {
 
 type GraphStatementRow = NonNullable<GraphSpecStatements["stmts"]>[number];
 
-function toGraphStatementRef(
-  stmt: GraphStatementRow,
-  specTitle: string,
-): GraphStatementRef {
+export interface SpecFileImpact {
+  statements: Array<ImpactStatement & { xid: string }>;
+  added: number;
+  changedWithoutTests: number;
+}
+
+export async function specFileImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  specPath: string,
+  content: string,
+): Promise<SpecFileImpact> {
+  const known = await readSpecStatements(dgraph, repo, specPath);
+  const delta = diffStatements(content, known);
+  const validated = delta.changed.filter((stmt) => stmt.tests.length);
+  const rewrites = rewritesFor(validated, delta.addedTexts);
+
   return {
-    xid: stmt["Statement.xid"] ?? "",
-    textHash: stmt["Statement.text_hash"] ?? "",
-    text: stmt["Statement.text"] ?? "",
-    specTitle,
-    section: stmt.section?.["Section.heading"],
-    tests: (stmt.tests ?? []).map((test) => ({
-      file: test["TestChunk.file_path"] ?? "",
-      name: test["TestChunk.test_name"] ?? "",
-      line: test["TestChunk.start_line"] ?? 0,
-    })),
+    added: delta.addedTexts.length,
+    // A changed statement with NO tests is counted, not listed: there is nothing to warn about breaking, but the count is what says the spec is drifting away from its coverage.
+    changedWithoutTests: delta.changed.length - validated.length,
+    statements: validated.map((stmt) =>
+      impactOf(stmt, specPath, rewrites.get(stmt.text) ?? undefined),
+    ),
   };
 }
 
@@ -125,6 +108,38 @@ export async function readSpecStatements(
   );
 }
 
+/** Diffs spec's head content against graph statements; filters ACs like the projector. */
+export function diffStatements(
+  content: string,
+  graphStatements: GraphStatementRef[],
+): StatementDelta {
+  const headStatements = segmentStatements(content).filter(
+    (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
+  );
+  const headByHash = new Map(
+    headStatements.map((segment) => [sha256(segment.text), segment.text]),
+  );
+  const knownHashes = new Set(graphStatements.map((s) => s.textHash));
+
+  return {
+    changed: graphStatements.filter((s) => !headByHash.has(s.textHash)),
+    addedTexts: [...headByHash]
+      .filter(([hash]) => !knownHashes.has(hash))
+      .map(([, text]) => text),
+  };
+}
+
+/** Recover rewrites to show before/after instead of non-existent text. */
+function rewritesFor(
+  validated: GraphStatementRef[],
+  addedTexts: string[],
+): Map<string, string | null> {
+  return pairRewrites(
+    validated.map((stmt) => stmt.text),
+    addedTexts,
+  );
+}
+
 /** Disturbed statements from a changed spec, as impact findings; only changed+validated statements are listed. */
 /** One changed statement as the impact report shows it. `rewrittenAs` carries the text that REPLACED it where a rewrite could be paired — showing "this statement is gone" beside an unrelated new one reads as a deletion, which is not what happened. */
 function impactOf(
@@ -147,40 +162,25 @@ function impactOf(
   };
 }
 
-export interface SpecFileImpact {
-  statements: Array<ImpactStatement & { xid: string }>;
-  added: number;
-  changedWithoutTests: number;
+/** Hex sha256 — must stay identical to the projector's, or every statement reads as changed. */
+function sha256(text: string): string {
+  return createHash("sha256").update(text).digest("hex");
 }
 
-/** Recover rewrites to show before/after instead of non-existent text. */
-function rewritesFor(
-  validated: GraphStatementRef[],
-  addedTexts: string[],
-): Map<string, string | null> {
-  return pairRewrites(
-    validated.map((stmt) => stmt.text),
-    addedTexts,
-  );
-}
-
-export async function specFileImpact(
-  dgraph: DgraphClientPort,
-  repo: string,
-  specPath: string,
-  content: string,
-): Promise<SpecFileImpact> {
-  const known = await readSpecStatements(dgraph, repo, specPath);
-  const delta = diffStatements(content, known);
-  const validated = delta.changed.filter((stmt) => stmt.tests.length);
-  const rewrites = rewritesFor(validated, delta.addedTexts);
-
+function toGraphStatementRef(
+  stmt: GraphStatementRow,
+  specTitle: string,
+): GraphStatementRef {
   return {
-    added: delta.addedTexts.length,
-    // A changed statement with NO tests is counted, not listed: there is nothing to warn about breaking, but the count is what says the spec is drifting away from its coverage.
-    changedWithoutTests: delta.changed.length - validated.length,
-    statements: validated.map((stmt) =>
-      impactOf(stmt, specPath, rewrites.get(stmt.text) ?? undefined),
-    ),
+    xid: stmt["Statement.xid"] ?? "",
+    textHash: stmt["Statement.text_hash"] ?? "",
+    text: stmt["Statement.text"] ?? "",
+    specTitle,
+    section: stmt.section?.["Section.heading"],
+    tests: (stmt.tests ?? []).map((test) => ({
+      file: test["TestChunk.file_path"] ?? "",
+      name: test["TestChunk.test_name"] ?? "",
+      line: test["TestChunk.start_line"] ?? 0,
+    })),
   };
 }

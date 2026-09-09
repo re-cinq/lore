@@ -8,6 +8,104 @@ import {
 } from "../../domain/spec-segment.js";
 import { Llm } from "../../outbound/llm/llm.js";
 
+interface LLMClassification {
+  ordinal: number;
+  testability: "testable" | "untestable";
+  category?: UntestableCategory;
+}
+
+interface ResolvedClassification {
+  testability: "testable" | "untestable";
+  category: UntestableCategory | null;
+}
+
+export async function classifyAllStatements(
+  specPath: string,
+  statements: Statement[],
+): Promise<Map<number, Classification>> {
+  const { classified, unclassified } = splitByHeuristic(statements);
+  const llm = await classifyLLM(specPath, unclassified);
+
+  for (const s of unclassified) {
+    classified.set(s.ordinal, resolveClassification(llm.get(s.ordinal)));
+  }
+
+  return classified;
+}
+
+/** The free pass: statements a SECTION match already settles, and the remainder the model has to look at. */
+function splitByHeuristic(statements: Statement[]): {
+  classified: Map<number, Classification>;
+  unclassified: Statement[];
+} {
+  const introOrdinals = buildIntroOrdinals(statements);
+  const classified = new Map<number, Classification>();
+  const unclassified: Statement[] = [];
+
+  for (const s of statements) {
+    const c = classifyByHeuristic(s, introOrdinals);
+
+    if (c.matchedBySection) {
+      classified.set(s.ordinal, c);
+      continue;
+    }
+    unclassified.push(s);
+  }
+
+  return { classified, unclassified };
+}
+
+const CLASSIFIER_BATCH_LIMIT = 60;
+
+async function classifyLLM(
+  specPath: string,
+  unclassified: Statement[],
+): Promise<Map<number, ResolvedClassification>> {
+  if (unclassified.length === 0) {
+    return new Map();
+  }
+
+  const batch = unclassified.slice(0, CLASSIFIER_BATCH_LIMIT);
+
+  try {
+    return classificationMap(await askClassifier(specPath, batch));
+  } catch (err) {
+    warnClassifierFailed(specPath, err);
+
+    return new Map();
+  }
+}
+
+/** A statement the model did not classify defaults to TESTABLE, and so does one it failed to answer for at all — the same bias the prompt asks for. `matchedBySection` is false because the heuristic did not decide this one; only a section match sets it. */
+function resolveClassification(
+  decision: ResolvedClassification | undefined,
+): Classification {
+  return decision && decision.testability === "untestable"
+    ? {
+        testability: "untestable",
+        category: decision.category,
+        matchedBySection: false,
+      }
+    : { testability: "testable", category: null, matchedBySection: false };
+}
+
+/** The model's answers keyed by ordinal; an answer the parser cannot key is dropped rather than guessed at. */
+function classificationMap(
+  answers: LLMClassification[],
+): Map<number, ResolvedClassification> {
+  const result = new Map<number, ResolvedClassification>();
+
+  for (const c of answers) {
+    const entry = classificationFromLLM(c);
+
+    if (entry) {
+      result.set(entry[0], entry[1]);
+    }
+  }
+
+  return result;
+}
+
 const CLASSIFIER_TOOL_SCHEMA = {
   type: "object",
   properties: {
@@ -39,17 +137,31 @@ const CLASSIFIER_TOOL_SCHEMA = {
   required: ["classifications"],
 };
 
-const CLASSIFIER_BATCH_LIMIT = 60;
+/** Asks the model, through a TOOL rather than free text: the schema is what makes an answer parseable per ordinal instead of prose somebody has to interpret. */
+async function askClassifier(
+  specPath: string,
+  batch: Statement[],
+): Promise<LLMClassification[]> {
+  const llm = await Llm.instance.completeWithTool<{
+    classifications?: LLMClassification[];
+  }>({
+    prompt: classifierPrompt(specPath, batch),
+    systemPrompt:
+      "You classify spec statements as testable requirements or narrative prose. Bias toward testable when unsure.",
+    toolName: "classify_statements",
+    toolDescription: "Classify each statement as testable or untestable",
+    toolSchema: CLASSIFIER_TOOL_SCHEMA,
+    jobName: "spec_coverage_backfill",
+  });
 
-interface LLMClassification {
-  ordinal: number;
-  testability: "testable" | "untestable";
-  category?: UntestableCategory;
+  return llm.parsed.classifications || [];
 }
 
-interface ResolvedClassification {
-  testability: "testable" | "untestable";
-  category: UntestableCategory | null;
+function warnClassifierFailed(specPath: string, err: unknown): void {
+  console.warn(
+    `[job] spec-coverage-backfill: LLM classifier failed for ${specPath}; defaulting to testable —`,
+    err,
+  );
 }
 
 function classificationFromLLM(
@@ -89,116 +201,4 @@ SPEC: ${specPath}
 
 STATEMENTS:
 ${formatted}`;
-}
-
-/** Asks the model, through a TOOL rather than free text: the schema is what makes an answer parseable per ordinal instead of prose somebody has to interpret. */
-async function askClassifier(
-  specPath: string,
-  batch: Statement[],
-): Promise<LLMClassification[]> {
-  const llm = await Llm.instance.completeWithTool<{
-    classifications?: LLMClassification[];
-  }>({
-    prompt: classifierPrompt(specPath, batch),
-    systemPrompt:
-      "You classify spec statements as testable requirements or narrative prose. Bias toward testable when unsure.",
-    toolName: "classify_statements",
-    toolDescription: "Classify each statement as testable or untestable",
-    toolSchema: CLASSIFIER_TOOL_SCHEMA,
-    jobName: "spec_coverage_backfill",
-  });
-
-  return llm.parsed.classifications || [];
-}
-
-/** The model's answers keyed by ordinal; an answer the parser cannot key is dropped rather than guessed at. */
-function classificationMap(
-  answers: LLMClassification[],
-): Map<number, ResolvedClassification> {
-  const result = new Map<number, ResolvedClassification>();
-
-  for (const c of answers) {
-    const entry = classificationFromLLM(c);
-
-    if (entry) {
-      result.set(entry[0], entry[1]);
-    }
-  }
-
-  return result;
-}
-
-function warnClassifierFailed(specPath: string, err: unknown): void {
-  console.warn(
-    `[job] spec-coverage-backfill: LLM classifier failed for ${specPath}; defaulting to testable —`,
-    err,
-  );
-}
-
-async function classifyLLM(
-  specPath: string,
-  unclassified: Statement[],
-): Promise<Map<number, ResolvedClassification>> {
-  if (unclassified.length === 0) {
-    return new Map();
-  }
-
-  const batch = unclassified.slice(0, CLASSIFIER_BATCH_LIMIT);
-
-  try {
-    return classificationMap(await askClassifier(specPath, batch));
-  } catch (err) {
-    warnClassifierFailed(specPath, err);
-
-    return new Map();
-  }
-}
-
-/** A statement the model did not classify defaults to TESTABLE, and so does one it failed to answer for at all — the same bias the prompt asks for. `matchedBySection` is false because the heuristic did not decide this one; only a section match sets it. */
-function resolveClassification(
-  decision: ResolvedClassification | undefined,
-): Classification {
-  return decision && decision.testability === "untestable"
-    ? {
-        testability: "untestable",
-        category: decision.category,
-        matchedBySection: false,
-      }
-    : { testability: "testable", category: null, matchedBySection: false };
-}
-
-/** The free pass: statements a SECTION match already settles, and the remainder the model has to look at. */
-function splitByHeuristic(statements: Statement[]): {
-  classified: Map<number, Classification>;
-  unclassified: Statement[];
-} {
-  const introOrdinals = buildIntroOrdinals(statements);
-  const classified = new Map<number, Classification>();
-  const unclassified: Statement[] = [];
-
-  for (const s of statements) {
-    const c = classifyByHeuristic(s, introOrdinals);
-
-    if (c.matchedBySection) {
-      classified.set(s.ordinal, c);
-      continue;
-    }
-    unclassified.push(s);
-  }
-
-  return { classified, unclassified };
-}
-
-export async function classifyAllStatements(
-  specPath: string,
-  statements: Statement[],
-): Promise<Map<number, Classification>> {
-  const { classified, unclassified } = splitByHeuristic(statements);
-  const llm = await classifyLLM(specPath, unclassified);
-
-  for (const s of unclassified) {
-    classified.set(s.ordinal, resolveClassification(llm.get(s.ordinal)));
-  }
-
-  return classified;
 }

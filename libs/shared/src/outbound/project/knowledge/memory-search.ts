@@ -45,14 +45,6 @@ export interface MemorySearchOptions {
   sources?: MemorySearchResult["source"][];
 }
 
-/** Resolves pool name to pool_id when provided. */
-async function resolvePoolId(
-  pool: PgPool,
-  poolName: string | undefined,
-): Promise<string | null> {
-  return poolName ? lookupPoolId(pool, poolName) : null;
-}
-
 /** The (agent, pool, invalidated-visibility) scope shared by every memory/fact search call. */
 interface SearchScope {
   agent: string | null;
@@ -61,13 +53,143 @@ interface SearchScope {
   sources: MemorySearchResult["source"][] | null;
 }
 
-function wantsKind(
-  scope: SearchScope,
-  ...kinds: MemorySearchResult["source"][]
-): boolean {
-  return (
-    scope.sources === null || kinds.some((k) => scope.sources?.includes(k))
+interface ResolvedSearchOptions {
+  agentId?: string;
+  actorId?: string;
+  poolName?: string;
+  limit: number;
+  includeInvalidated: boolean;
+  graphAugmentEnabled: boolean;
+  sources?: MemorySearchResult["source"][];
+}
+
+export async function searchMemories(
+  pool: PgPool,
+  query: string,
+  options: MemorySearchOptions = {},
+): Promise<MemorySearchResult[]> {
+  const resolved = resolveSearchOptions(options);
+  // Captures the clock BEFORE the work it times; moving it down would shorten the reported latency.
+  const searchStartTime = Date.now();
+  const { agent, actor } = searchIdentities(resolved);
+  const scope = await resolveScope(pool, agent, resolved);
+
+  if (!scope) {
+    // Pool does not exist — return empty
+    await auditLog(pool, { agentId: actor, query, resultCount: 0 });
+
+    return [];
+  }
+  const results = await scopedResults(pool, query, scope, resolved);
+
+  return finishSearch(pool, results, {
+    agentId: actor,
+    query,
+    latencyMs: Date.now() - searchStartTime,
+  });
+}
+
+function resolveSearchOptions(
+  options: MemorySearchOptions,
+): ResolvedSearchOptions {
+  return {
+    agentId: options.agentId,
+    actorId: options.actorId,
+    poolName: options.poolName,
+    limit: options.limit ?? 10,
+    includeInvalidated: options.includeInvalidated ?? false,
+    graphAugmentEnabled: options.graphAugment ?? false,
+    sources: options.sources,
+  };
+}
+
+/** Two ids, told apart: `agent` is whose memories are searched and decides the scope, `actor` is who ran the search and is what the audit records. They differ whenever one agent reads another's pool. */
+function searchIdentities(resolved: ResolvedSearchOptions): {
+  agent: string | null;
+  actor: string | null;
+} {
+  const agent = resolved.agentId ? resolveAgentId(resolved.agentId) : null;
+
+  return { agent, actor: resolved.actorId ?? agent };
+}
+
+/** The search scope, or null when a named pool was requested that does not exist. */
+async function resolveScope(
+  pool: PgPool,
+  agent: string | null,
+  { poolName, includeInvalidated, sources }: ResolvedSearchOptions,
+): Promise<SearchScope | null> {
+  const poolId = await resolvePoolId(pool, poolName);
+
+  return poolNotFound(poolName, poolId)
+    ? null
+    : { agent, poolId, includeInvalidated, sources: sources ?? null };
+}
+
+/** Resolves pool name to pool_id when provided. */
+async function resolvePoolId(
+  pool: PgPool,
+  poolName: string | undefined,
+): Promise<string | null> {
+  return poolName ? lookupPoolId(pool, poolName) : null;
+}
+
+/** The id of the named shared pool, or null when no such pool exists. */
+async function lookupPoolId(
+  pool: PgPool,
+  poolName: string,
+): Promise<string | null> {
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id FROM memory.shared_pools WHERE name = $1`,
+    [poolName],
   );
+
+  return rows.length === 0 ? null : rows[0].id;
+}
+
+function poolNotFound(
+  poolName: string | undefined,
+  poolId: string | null,
+): boolean {
+  return Boolean(poolName) && poolId === null;
+}
+
+/** The ranked legs, optionally widened by 1-hop graph neighbors. */
+async function scopedResults(
+  pool: PgPool,
+  query: string,
+  scope: SearchScope,
+  options: ResolvedSearchOptions,
+): Promise<MemorySearchResult[]> {
+  const ranked = await rankedHits(pool, query, scope, options);
+
+  // Graph augmentation widens the list with 1-hop neighbours; nothing ranked means nothing to widen.
+  return options.graphAugmentEnabled && ranked.length > 0
+    ? augmentWithGraphNeighbors(pool, ranked, options.limit)
+    : ranked;
+}
+
+/** The four search legs merged into one ranked list. Reciprocal rank fusion is what lets a vector hit and a keyword hit be compared at all — the legs score on incompatible scales, but their RANKS are commensurable. Diversification then caps how much of the result one session can occupy, so a single chatty run cannot crowd out everything else. */
+async function rankedHits(
+  pool: PgPool,
+  query: string,
+  scope: SearchScope,
+  { limit }: ResolvedSearchOptions,
+): Promise<MemorySearchResult[]> {
+  const [[vectorMemories, vectorFacts], [keywordMemories, keywordFacts]] =
+    await Promise.all([
+      vectorSearchBoth(pool, query, scope),
+      keywordSearchBoth(pool, query, scope),
+    ]);
+  const merged = rrfMerge([
+    vectorMemories,
+    vectorFacts,
+    keywordMemories,
+    keywordFacts,
+  ]);
+
+  // Confidence breaks ties before the cap, so a stale fact cannot occupy a slot it only narrowly earned; normalising last makes the surviving spread readable.
+  return normalizeMemoryScores(diversify(weightByConfidence(merged), limit));
 }
 
 /** Attempts a query embedding from Vertex AI; unavailable embedding yields no vector hits (keyword search still runs). */
@@ -111,86 +233,13 @@ async function keywordSearchBoth(
   ]);
 }
 
-function poolNotFound(
-  poolName: string | undefined,
-  poolId: string | null,
+function wantsKind(
+  scope: SearchScope,
+  ...kinds: MemorySearchResult["source"][]
 ): boolean {
-  return Boolean(poolName) && poolId === null;
-}
-
-interface ResolvedSearchOptions {
-  agentId?: string;
-  actorId?: string;
-  poolName?: string;
-  limit: number;
-  includeInvalidated: boolean;
-  graphAugmentEnabled: boolean;
-  sources?: MemorySearchResult["source"][];
-}
-
-function resolveSearchOptions(
-  options: MemorySearchOptions,
-): ResolvedSearchOptions {
-  return {
-    agentId: options.agentId,
-    actorId: options.actorId,
-    poolName: options.poolName,
-    limit: options.limit ?? 10,
-    includeInvalidated: options.includeInvalidated ?? false,
-    graphAugmentEnabled: options.graphAugment ?? false,
-    sources: options.sources,
-  };
-}
-
-/** The four search legs merged into one ranked list. Reciprocal rank fusion is what lets a vector hit and a keyword hit be compared at all — the legs score on incompatible scales, but their RANKS are commensurable. Diversification then caps how much of the result one session can occupy, so a single chatty run cannot crowd out everything else. */
-async function rankedHits(
-  pool: PgPool,
-  query: string,
-  scope: SearchScope,
-  { limit }: ResolvedSearchOptions,
-): Promise<MemorySearchResult[]> {
-  const [[vectorMemories, vectorFacts], [keywordMemories, keywordFacts]] =
-    await Promise.all([
-      vectorSearchBoth(pool, query, scope),
-      keywordSearchBoth(pool, query, scope),
-    ]);
-  const merged = rrfMerge([
-    vectorMemories,
-    vectorFacts,
-    keywordMemories,
-    keywordFacts,
-  ]);
-
-  // Confidence breaks ties before the cap, so a stale fact cannot occupy a slot it only narrowly earned; normalising last makes the surviving spread readable.
-  return normalizeMemoryScores(diversify(weightByConfidence(merged), limit));
-}
-
-/** The search scope, or null when a named pool was requested that does not exist. */
-async function resolveScope(
-  pool: PgPool,
-  agent: string | null,
-  { poolName, includeInvalidated, sources }: ResolvedSearchOptions,
-): Promise<SearchScope | null> {
-  const poolId = await resolvePoolId(pool, poolName);
-
-  return poolNotFound(poolName, poolId)
-    ? null
-    : { agent, poolId, includeInvalidated, sources: sources ?? null };
-}
-
-/** The ranked legs, optionally widened by 1-hop graph neighbors. */
-async function scopedResults(
-  pool: PgPool,
-  query: string,
-  scope: SearchScope,
-  options: ResolvedSearchOptions,
-): Promise<MemorySearchResult[]> {
-  const ranked = await rankedHits(pool, query, scope, options);
-
-  // Graph augmentation widens the list with 1-hop neighbours; nothing ranked means nothing to widen.
-  return options.graphAugmentEnabled && ranked.length > 0
-    ? augmentWithGraphNeighbors(pool, ranked, options.limit)
-    : ranked;
+  return (
+    scope.sources === null || kinds.some((k) => scope.sources?.includes(k))
+  );
 }
 
 /** Strengthen what was retrieved, audit the search, and hand the results back unchanged. */
@@ -204,42 +253,6 @@ async function finishSearch(
   await auditLog(pool, { ...audit, resultCount: results.length });
 
   return results;
-}
-
-/** Two ids, told apart: `agent` is whose memories are searched and decides the scope, `actor` is who ran the search and is what the audit records. They differ whenever one agent reads another's pool. */
-function searchIdentities(resolved: ResolvedSearchOptions): {
-  agent: string | null;
-  actor: string | null;
-} {
-  const agent = resolved.agentId ? resolveAgentId(resolved.agentId) : null;
-
-  return { agent, actor: resolved.actorId ?? agent };
-}
-
-export async function searchMemories(
-  pool: PgPool,
-  query: string,
-  options: MemorySearchOptions = {},
-): Promise<MemorySearchResult[]> {
-  const resolved = resolveSearchOptions(options);
-  // Captures the clock BEFORE the work it times; moving it down would shorten the reported latency.
-  const searchStartTime = Date.now();
-  const { agent, actor } = searchIdentities(resolved);
-  const scope = await resolveScope(pool, agent, resolved);
-
-  if (!scope) {
-    // Pool does not exist — return empty
-    await auditLog(pool, { agentId: actor, query, resultCount: 0 });
-
-    return [];
-  }
-  const results = await scopedResults(pool, query, scope, resolved);
-
-  return finishSearch(pool, results, {
-    agentId: actor,
-    query,
-    latencyMs: Date.now() - searchStartTime,
-  });
 }
 
 // ── Retrieval strengthening ─────────────────────────────────────────
@@ -259,13 +272,6 @@ const STRENGTHEN_MEMORIES_SQL = `UPDATE memory.memories
            half_life_days = LEAST(COALESCE(half_life_days, 60) + 2, 365)
        WHERE id = ANY($1)`;
 
-function idsOf(
-  results: MemorySearchResult[],
-  matches: (r: MemorySearchResult) => boolean,
-): string[] {
-  return results.flatMap((r) => (matches(r) && r.id ? [r.id] : []));
-}
-
 export async function strengthenRetrievals(
   pool: PgPool,
   results: MemorySearchResult[],
@@ -284,17 +290,11 @@ export async function strengthenRetrievals(
   ]);
 }
 
-/** The id of the named shared pool, or null when no such pool exists. */
-async function lookupPoolId(
-  pool: PgPool,
-  poolName: string,
-): Promise<string | null> {
-  const { rows } = await pool.query<{ id: string }>(
-    `SELECT id FROM memory.shared_pools WHERE name = $1`,
-    [poolName],
-  );
-
-  return rows.length === 0 ? null : rows[0].id;
+function idsOf(
+  results: MemorySearchResult[],
+  matches: (r: MemorySearchResult) => boolean,
+): string[] {
+  return results.flatMap((r) => (matches(r) && r.id ? [r.id] : []));
 }
 
 // ── Audit helper ────────────────────────────────────────────────────

@@ -30,29 +30,50 @@ export function catalogLookupName(spec: LoreTaskSpec): string {
   return spec.stationRef ?? spec.taskType;
 }
 
+/** Clone catalog AgentDef per-task: rename, label with task id, add repo with token-secret (for subsystem init); recipe preserved. */
+export function injectRepoToken(
+  catalog: AgentDefinition,
+  spec: LoreTaskSpec,
+  tokenKey: string,
+  name: string,
+): AgentDefinition {
+  const prompt = enforceRecipePrompt(catalog, spec);
+
+  return {
+    ...catalog,
+    metadata: {
+      name,
+      labels: taskLabels(catalog, spec.taskId),
+    },
+    spec: {
+      ...catalog.spec,
+      prompt,
+      resources: taskResources(catalog, spec, tokenKey),
+    },
+  };
+}
+
+// Subsystem rejects promptless AgentDef at admission (ai-agent-subsystem#155); fail here with task id known.
+function enforceRecipePrompt(
+  catalog: AgentDefinition,
+  spec: LoreTaskSpec,
+): string {
+  const prompt = catalog.spec?.prompt;
+
+  enforceTrue(
+    prompt,
+    Error,
+    `catalog recipe ${catalog.metadata?.name} has no prompt; task ${spec.taskId}`,
+  );
+
+  return prompt;
+}
+
 function taskLabels(
   catalog: AgentDefinition,
   taskId: string,
 ): Record<string, string> {
   return { ...catalog.metadata?.labels, [TASK_ID_LABEL]: taskId };
-}
-
-// Conversation is per-RUN (id-identified); rides per-task clone like repo token; catalog recipe cannot carry it.
-function conversationResource(
-  spec: LoreTaskSpec,
-): Pick<AgentResources, "conversation"> {
-  if (!spec.conversation) {
-    return {};
-  }
-
-  return {
-    conversation: {
-      source: spec.conversation.source,
-      id: spec.conversation.id,
-      pin: spec.conversation.pin,
-      headers_secret: spec.conversation.headersSecret,
-    },
-  };
 }
 
 function taskResources(
@@ -74,41 +95,20 @@ function taskResources(
   };
 }
 
-// Subsystem rejects promptless AgentDef at admission (ai-agent-subsystem#155); fail here with task id known.
-function enforceRecipePrompt(
-  catalog: AgentDefinition,
+// Conversation is per-RUN (id-identified); rides per-task clone like repo token; catalog recipe cannot carry it.
+function conversationResource(
   spec: LoreTaskSpec,
-): string {
-  const prompt = catalog.spec?.prompt;
-
-  enforceTrue(
-    prompt,
-    Error,
-    `catalog recipe ${catalog.metadata?.name} has no prompt; task ${spec.taskId}`,
-  );
-
-  return prompt;
-}
-
-/** Clone catalog AgentDef per-task: rename, label with task id, add repo with token-secret (for subsystem init); recipe preserved. */
-export function injectRepoToken(
-  catalog: AgentDefinition,
-  spec: LoreTaskSpec,
-  tokenKey: string,
-  name: string,
-): AgentDefinition {
-  const prompt = enforceRecipePrompt(catalog, spec);
+): Pick<AgentResources, "conversation"> {
+  if (!spec.conversation) {
+    return {};
+  }
 
   return {
-    ...catalog,
-    metadata: {
-      name,
-      labels: taskLabels(catalog, spec.taskId),
-    },
-    spec: {
-      ...catalog.spec,
-      prompt,
-      resources: taskResources(catalog, spec, tokenKey),
+    conversation: {
+      source: spec.conversation.source,
+      id: spec.conversation.id,
+      pin: spec.conversation.pin,
+      headers_secret: spec.conversation.headersSecret,
     },
   };
 }

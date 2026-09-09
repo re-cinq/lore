@@ -61,10 +61,6 @@ const split = (rows: AgentRow[]) => ({
   org: rows.find((r) => r.project_id === null) ?? null,
 });
 
-function withDefault<T>(value: T | undefined, fallback: T): T {
-  return value ?? fallback;
-}
-
 /** The seven defaulted columns shared by the org-default and per-repo upsert statements, in bind order. */
 function patchDefaults(patch: Partial<AgentDefinitionInput>): unknown[] {
   return [
@@ -76,6 +72,10 @@ function patchDefaults(patch: Partial<AgentDefinitionInput>): unknown[] {
     patch.review_required ?? false,
     withDefault(patch.config, null),
   ];
+}
+
+function withDefault<T>(value: T | undefined, fallback: T): T {
+  return value ?? fallback;
 }
 
 /** The nine create binds, in statement order. */
@@ -106,19 +106,6 @@ function groupByName(rows: AgentRow[]): Map<string, AgentRow[]> {
   return byName;
 }
 
-function resolveGroupedDefinition(
-  group: AgentRow[],
-  baseDef: AgentDefinition | null,
-): AgentDefinition | null {
-  const { project, org } = split(group);
-
-  return resolveAgentConfig(
-    project ? toDef(project) : null,
-    org ? toDef(org) : null,
-    baseDef,
-  );
-}
-
 /** Every name either layer knows about, resolved through the three-layer merge and sorted. */
 function mergeDefinitions(
   byName: Map<string, AgentRow[]>,
@@ -138,6 +125,19 @@ function mergeDefinitions(
     )
     .filter((d): d is AgentDefinition => d !== null)
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function resolveGroupedDefinition(
+  group: AgentRow[],
+  baseDef: AgentDefinition | null,
+): AgentDefinition | null {
+  const { project, org } = split(group);
+
+  return resolveAgentConfig(
+    project ? toDef(project) : null,
+    org ? toDef(org) : null,
+    baseDef,
+  );
 }
 
 // Effective definition for catalog entry by (name, projectId); missing override or org entry falls through to yaml layer.

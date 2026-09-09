@@ -28,6 +28,59 @@ export interface GapUserFlow {
   steps: string[];
 }
 
+type MockupsForSection = (key: string) => GapMockup[] | undefined;
+
+/** Build `sections` from a legacy architecture/user_flows/mockups/questions payload. */
+export function deriveSectionsFromLegacy(
+  o: Record<string, unknown>,
+): GapSection[] {
+  const mockups = deriveMockups(o);
+  const mockupsTagged = mockupsTaggedBy(mockups);
+  const candidates = [
+    deriveArchitectureSection(o, mockupsTagged),
+    deriveUserFlowsSection(o, mockupsTagged),
+    orphanMockupsSection(mockups),
+    openQuestionsSection(o),
+  ];
+
+  return candidates.filter((s): s is GapSection => s !== null);
+}
+
+function deriveMockups(o: Record<string, unknown>): GapMockup[] {
+  const { mockups } = o;
+
+  return Array.isArray(mockups)
+    ? mockups.map(parseMockup).filter((m): m is GapMockup => m !== null)
+    : [];
+}
+
+function mockupsTaggedBy(mockups: GapMockup[]): MockupsForSection {
+  return (key) => {
+    const tagged = mockups.filter(
+      (mk) => (mk.section ?? "architecture") === key,
+    );
+
+    return tagged.length ? tagged : undefined;
+  };
+}
+
+function deriveArchitectureSection(
+  o: Record<string, unknown>,
+  mockupsTagged: MockupsForSection,
+): GapSection | null {
+  if (o.architecture === undefined || o.architecture === null) {
+    return null;
+  }
+  const arch = parseArchitecture(o.architecture);
+  const m = mockupsTagged("architecture");
+
+  return {
+    title: "Architecture",
+    content: architectureContent(arch),
+    ...(m ? { mockups: m } : {}),
+  };
+}
+
 function parseArchitecture(raw: unknown): GapArchitecture {
   const o = asObject(raw, "architecture");
 
@@ -66,51 +119,6 @@ function architectureContent(arch: GapArchitecture): string {
   return lines.join("\n");
 }
 
-type MockupsForSection = (key: string) => GapMockup[] | undefined;
-
-function deriveMockups(o: Record<string, unknown>): GapMockup[] {
-  const { mockups } = o;
-
-  return Array.isArray(mockups)
-    ? mockups.map(parseMockup).filter((m): m is GapMockup => m !== null)
-    : [];
-}
-
-function mockupsTaggedBy(mockups: GapMockup[]): MockupsForSection {
-  return (key) => {
-    const tagged = mockups.filter(
-      (mk) => (mk.section ?? "architecture") === key,
-    );
-
-    return tagged.length ? tagged : undefined;
-  };
-}
-
-function deriveArchitectureSection(
-  o: Record<string, unknown>,
-  mockupsTagged: MockupsForSection,
-): GapSection | null {
-  if (o.architecture === undefined || o.architecture === null) {
-    return null;
-  }
-  const arch = parseArchitecture(o.architecture);
-  const m = mockupsTagged("architecture");
-
-  return {
-    title: "Architecture",
-    content: architectureContent(arch),
-    ...(m ? { mockups: m } : {}),
-  };
-}
-
-function userFlowContent(flow: unknown, i: number): string {
-  const fo = asObject(flow, `user_flows[${i}]`);
-  const name = asString(fo.name, `user_flows[${i}].name`);
-  const steps = asStringArray(fo.steps, `user_flows[${i}].steps`);
-
-  return [`**${name}**`, ...steps.map((s, j) => `${j + 1}. ${s}`)].join("\n");
-}
-
 function deriveUserFlowsSection(
   o: Record<string, unknown>,
   mockupsTagged: MockupsForSection,
@@ -130,6 +138,14 @@ function deriveUserFlowsSection(
   };
 }
 
+function userFlowContent(flow: unknown, i: number): string {
+  const fo = asObject(flow, `user_flows[${i}]`);
+  const name = asString(fo.name, `user_flows[${i}].name`);
+  const steps = asStringArray(fo.steps, `user_flows[${i}].steps`);
+
+  return [`**${name}**`, ...steps.map((s, j) => `${j + 1}. ${s}`)].join("\n");
+}
+
 function orphanMockupsSection(mockups: GapMockup[]): GapSection | null {
   const orphans = mockups.filter(
     (mk) =>
@@ -145,20 +161,4 @@ function openQuestionsSection(o: Record<string, unknown>): GapSection | null {
   }
 
   return { title: "Open questions", questions: o.questions.map(parseQuestion) };
-}
-
-/** Build `sections` from a legacy architecture/user_flows/mockups/questions payload. */
-export function deriveSectionsFromLegacy(
-  o: Record<string, unknown>,
-): GapSection[] {
-  const mockups = deriveMockups(o);
-  const mockupsTagged = mockupsTaggedBy(mockups);
-  const candidates = [
-    deriveArchitectureSection(o, mockupsTagged),
-    deriveUserFlowsSection(o, mockupsTagged),
-    orphanMockupsSection(mockups),
-    openQuestionsSection(o),
-  ];
-
-  return candidates.filter((s): s is GapSection => s !== null);
 }

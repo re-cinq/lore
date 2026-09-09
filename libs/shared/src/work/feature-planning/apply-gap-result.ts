@@ -26,6 +26,36 @@ export interface GapResultFeatures {
 export type ApplyGapResult =
   { outcome: "ready" } | { outcome: "failed"; error: string };
 
+/** Which feature and which planning round a write belongs to. */
+interface RoundInput {
+  featureId: string;
+  iteration: number;
+}
+
+/** Records a round's result; an invalid payload marks it failed and reports why rather than throwing. Advances the feature only while still mid-planning, so a slow/duplicate delivery can't drag a finalized feature back into the wizard. */
+export async function applyGapResult(
+  features: GapResultFeatures,
+  featureId: string,
+  iteration: number,
+  payload: unknown,
+): Promise<ApplyGapResult> {
+  const feature = await features.get(featureId);
+
+  if (!feature) {
+    return { outcome: "failed", error: "feature not found" };
+  }
+  const round = { featureId, iteration };
+  const parsed = readGapResult(payload);
+
+  if ("error" in parsed) {
+    return markRoundFailed(features, round, parsed.error);
+  }
+
+  await recordAndAdvance(features, round, feature.status, parsed.result);
+
+  return { outcome: "ready" };
+}
+
 /** The round's payload, or why it could not be read. An invalid payload is DATA here rather than an exception: the round still has to be marked failed and the reason recorded, and a throw would lose both. */
 function readGapResult(
   payload: unknown,
@@ -35,29 +65,6 @@ function readGapResult(
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) };
   }
-}
-
-/** Moves the feature on, but only while it is still mid-planning: a slow or duplicate delivery must not drag a finalized feature back into the wizard. */
-async function advancePlanning(
-  features: GapResultFeatures,
-  { featureId, status }: { featureId: string; status: string },
-  planningResult: ReturnType<typeof sanitizeGapResult>,
-): Promise<void> {
-  if (!isPlanningPhase(status as never)) {
-    return;
-  }
-
-  await features.transitionStatus(
-    featureId,
-    decideFeatureStatus(planningResult),
-    { draft_spec_md: planningResult.draft_spec_markdown },
-  );
-}
-
-/** Which feature and which planning round a write belongs to. */
-interface RoundInput {
-  featureId: string;
-  iteration: number;
 }
 
 async function markRoundFailed(
@@ -93,26 +100,19 @@ async function recordAndAdvance(
   await advancePlanning(features, { featureId, status }, planningResult);
 }
 
-/** Records a round's result; an invalid payload marks it failed and reports why rather than throwing. Advances the feature only while still mid-planning, so a slow/duplicate delivery can't drag a finalized feature back into the wizard. */
-export async function applyGapResult(
+/** Moves the feature on, but only while it is still mid-planning: a slow or duplicate delivery must not drag a finalized feature back into the wizard. */
+async function advancePlanning(
   features: GapResultFeatures,
-  featureId: string,
-  iteration: number,
-  payload: unknown,
-): Promise<ApplyGapResult> {
-  const feature = await features.get(featureId);
-
-  if (!feature) {
-    return { outcome: "failed", error: "feature not found" };
-  }
-  const round = { featureId, iteration };
-  const parsed = readGapResult(payload);
-
-  if ("error" in parsed) {
-    return markRoundFailed(features, round, parsed.error);
+  { featureId, status }: { featureId: string; status: string },
+  planningResult: ReturnType<typeof sanitizeGapResult>,
+): Promise<void> {
+  if (!isPlanningPhase(status as never)) {
+    return;
   }
 
-  await recordAndAdvance(features, round, feature.status, parsed.result);
-
-  return { outcome: "ready" };
+  await features.transitionStatus(
+    featureId,
+    decideFeatureStatus(planningResult),
+    { draft_spec_md: planningResult.draft_spec_markdown },
+  );
 }

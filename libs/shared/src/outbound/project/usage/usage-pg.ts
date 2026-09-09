@@ -6,6 +6,15 @@ import type {
   ProcessedCounts,
 } from "./usage-port.js";
 
+function queryParams(record: LlmCallRecord): unknown[] {
+  return [
+    ...identityParams(record),
+    ...usageParams(record),
+    ...statusParams(record),
+    ...carriedParams(record),
+  ];
+}
+
 function identityParams(
   record: LlmCallRecord,
 ): [string | null, string | null, string | null] {
@@ -36,15 +45,6 @@ function carriedParams(record: LlmCallRecord): [string | null, string | null] {
   return [
     record.carried?.assemblyRunId ?? null,
     record.carried?.stationRunId ?? null,
-  ];
-}
-
-function queryParams(record: LlmCallRecord): unknown[] {
-  return [
-    ...identityParams(record),
-    ...usageParams(record),
-    ...statusParams(record),
-    ...carriedParams(record),
   ];
 }
 

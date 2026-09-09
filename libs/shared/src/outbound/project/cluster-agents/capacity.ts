@@ -13,23 +13,6 @@ export type CapacityVerdict =
   /** Nobody registered at all; callers FAIL OPEN (boot or registry outage). */
   | { kind: "registry-empty" };
 
-/** Whether an agent may be handed new work: the operator's switch only, not offline status (reaper's view). */
-export function mayClaim(agent: Pick<ClusterAgent, "paused">): boolean {
-  return !agent.paused;
-}
-
-/** Why one matching agent cannot take work: paused wins (operator action) over offline (reaper's view). */
-function unavailableBecause(agent: ClusterAgent): string {
-  return agent.paused ? "paused" : "offline";
-}
-
-/** Each capable-but-unavailable agent with WHY, so an operator reads one line and knows whether to unpause something or go looking for a dead pod. */
-function unavailableList(providers: ClusterAgent[]): string {
-  return providers
-    .map((agent) => `${agent.name} (${unavailableBecause(agent)})`)
-    .join(", ");
-}
-
 export function capacityFor(
   requiredTags: string[],
   agents: ClusterAgent[],
@@ -69,6 +52,23 @@ function verdictAmongProviders(
     kind: "all-unavailable",
     reason: `every cluster-agent offering ${tags} is unavailable: ${unavailableList(providers)}`,
   };
+}
+
+/** Whether an agent may be handed new work: the operator's switch only, not offline status (reaper's view). */
+export function mayClaim(agent: Pick<ClusterAgent, "paused">): boolean {
+  return !agent.paused;
+}
+
+/** Each capable-but-unavailable agent with WHY, so an operator reads one line and knows whether to unpause something or go looking for a dead pod. */
+function unavailableList(providers: ClusterAgent[]): string {
+  return providers
+    .map((agent) => `${agent.name} (${unavailableBecause(agent)})`)
+    .join(", ");
+}
+
+/** Why one matching agent cannot take work: paused wins (operator action) over offline (reaper's view). */
+function unavailableBecause(agent: ClusterAgent): string {
+  return agent.paused ? "paused" : "offline";
 }
 
 /** The detail a queue-timeout records: one writer for both reaper arms. */

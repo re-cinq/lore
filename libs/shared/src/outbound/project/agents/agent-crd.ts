@@ -52,44 +52,55 @@ const POD_RESOURCES = {
   limits: { cpu: "1", memory: "1Gi", "ephemeral-storage": "4Gi" },
 };
 
-/** pod_resources override merges per-key onto defaults (never whole-object) — whole-object replace evicted every tdd-round pod at 1Gi by dropping the ephemeral-storage default. */
-function mergePodResources(override?: {
-  requests?: Record<string, string>;
-  limits?: Record<string, string>;
-}) {
-  if (!override) {
-    return POD_RESOURCES;
-  }
-
-  return {
-    requests: { ...POD_RESOURCES.requests, ...override.requests },
-    limits: { ...POD_RESOURCES.limits, ...override.limits },
-  };
-}
-
 export interface CrdPair {
   agentDefinition: AgentDefinition;
   station: Station;
 }
 
-function sinksFor(
+/** Resolved catalog row → AgentDefinition+Station CR pair; execution_mode:'station' rows render the exec-vendor shape on lore-station image, others render the LLM shape on the base image. */
+export function agentDefToCrds(
   def: ResolvedAgentDefinition,
-  opts: CatalogCrdOptions,
-): Pick<NonNullable<AgentDefinitionSpec["output"]>, "sinks" | "watch"> {
-  const sinks: OutputSink[] = [{ type: "stdout" }];
-
-  if (opts.eventsUrl) {
-    sinks.push({
-      type: "http",
-      url: opts.eventsUrl,
-      headers_secret: "agent-events-auth",
-    });
-  }
+  opts: CatalogCrdOptions = {},
+): CrdPair {
+  const name = catalogCrdName(def.name, def.project_id);
 
   return {
-    sinks,
-    // A file-deliverable recipe declares watch; the subsystem raises it as a kind:"file" event on exit — the only way the artifact leaves the pod (ai-agent-subsystem#188, lost 8 days in #1468).
-    ...(def.config?.watch ? { watch: [def.config.watch] } : {}),
+    agentDefinition: {
+      apiVersion: API_VERSION,
+      kind: "AgentDefinition",
+      metadata: { name, labels: { ...SYNC_LABELS } },
+      spec: isStationDef(def) ? stationSpec(def, opts) : llmSpec(def, opts),
+    },
+    station: stationCrd(def, opts, name),
+  };
+}
+
+/** A row that runs the exec vendor on the station image, rather than an LLM on the base one. */
+function isStationDef(def: ResolvedAgentDefinition): boolean {
+  return def.execution_mode === "station";
+}
+
+function llmSpec(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+): AgentDefinitionSpec {
+  // Key follows the MODEL's family, not the cluster's habit — must never disagree with validateCatalogEntry's default family.
+  const family = def.model ? modelFamily(def.model) : "anthropic";
+  const secretKey = family ? secretKeysOf(opts)[family] : undefined;
+
+  return {
+    description: `Lore ${def.name} recipe.`,
+    ...(def.model ? { model: def.model } : {}),
+    prompt: llmPrompt(def, opts),
+    permission_mode: "bypass",
+    max_turns: AGENT_MAX_TURNS,
+    resources: llmResources(def, opts, secretKey),
+    // Defense-in-depth: an agent must never spawn more pipeline work from inside a run; recipe denies (#1160) append after.
+    disallowed_tools: [
+      "mcp__lore__lore_create_pipeline_task",
+      ...(def.config?.disallowed_tools ?? []),
+    ],
+    output: sinksFor(def, opts),
   };
 }
 
@@ -108,6 +119,20 @@ function llmPrompt(
   return opts.mcpUrl
     ? `${def.prompt.trimEnd()}\n\n{context}`
     : def.prompt.trimEnd();
+}
+
+function llmResources(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+  secretKey: string | undefined,
+) {
+  return {
+    ...llmSecretsBlock(secretKey),
+    // Every agent pod commits its own work; git refuses without an identity and a pod has no ambient git config.
+    env: GIT_IDENTITY,
+    ...mcpServersBlock(opts),
+    ...skillsBlock(def, opts),
+  };
 }
 
 function llmSecretsBlock(secretKey: string | undefined) {
@@ -144,82 +169,6 @@ function skillsBlock(def: ResolvedAgentDefinition, opts: CatalogCrdOptions) {
     : {};
 }
 
-function llmResources(
-  def: ResolvedAgentDefinition,
-  opts: CatalogCrdOptions,
-  secretKey: string | undefined,
-) {
-  return {
-    ...llmSecretsBlock(secretKey),
-    // Every agent pod commits its own work; git refuses without an identity and a pod has no ambient git config.
-    env: GIT_IDENTITY,
-    ...mcpServersBlock(opts),
-    ...skillsBlock(def, opts),
-  };
-}
-
-function llmSpec(
-  def: ResolvedAgentDefinition,
-  opts: CatalogCrdOptions,
-): AgentDefinitionSpec {
-  // Key follows the MODEL's family, not the cluster's habit — must never disagree with validateCatalogEntry's default family.
-  const family = def.model ? modelFamily(def.model) : "anthropic";
-  const secretKey = family ? secretKeysOf(opts)[family] : undefined;
-
-  return {
-    description: `Lore ${def.name} recipe.`,
-    ...(def.model ? { model: def.model } : {}),
-    prompt: llmPrompt(def, opts),
-    permission_mode: "bypass",
-    max_turns: AGENT_MAX_TURNS,
-    resources: llmResources(def, opts, secretKey),
-    // Defense-in-depth: an agent must never spawn more pipeline work from inside a run; recipe denies (#1160) append after.
-    disallowed_tools: [
-      "mcp__lore__lore_create_pipeline_task",
-      ...(def.config?.disallowed_tools ?? []),
-    ],
-    output: sinksFor(def, opts),
-  };
-}
-
-function stationCommand(def: ResolvedAgentDefinition): unknown {
-  return def.config?.command ?? ["lore-station", def.name.replace(/^def-/, "")];
-}
-
-/** Row stores the central cluster's dgraph endpoint verbatim; a cluster with dgraph elsewhere substitutes its own. */
-function stationEnvEntries(
-  def: ResolvedAgentDefinition,
-  opts: CatalogCrdOptions,
-) {
-  return Object.entries(def.config?.env ?? {}).map(([name, value]) => ({
-    name,
-    value:
-      name === "LORE_DGRAPH_HTTP" && opts.dgraphUrl ? opts.dgraphUrl : value,
-  }));
-}
-
-/** Every station pod reads/writes over HTTP (createStationProject, D7); API base URL ships on every recipe, per-station env appends. */
-function stationEnv(def: ResolvedAgentDefinition, opts: CatalogCrdOptions) {
-  return [
-    ...(opts.apiUrl ? [{ name: "LORE_API_URL", value: opts.apiUrl }] : []),
-    ...stationEnvEntries(def, opts),
-  ];
-}
-
-/** Model credential only where the station calls a model — comment-triage silently dropped a missing key into "ignore" and reported success. */
-function stationSecrets(
-  def: ResolvedAgentDefinition,
-  anthropicKey: string | undefined,
-) {
-  return [
-    { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
-    // needs_model stations call Anthropic (comment-triage's Haiku); family-specific stations declare their own model instead.
-    ...(def.config?.needs_model && anthropicKey
-      ? [{ name: anthropicKey, ref: anthropicKey }]
-      : []),
-  ];
-}
-
 /** exec-vendor recipe (ADR-031): non-LLM node run by lore-station's entrypoint; whole node input rides {station_input}. */
 function stationSpec(
   def: ResolvedAgentDefinition,
@@ -242,6 +191,94 @@ function stationSpec(
   };
 }
 
+function stationCommand(def: ResolvedAgentDefinition): unknown {
+  return def.config?.command ?? ["lore-station", def.name.replace(/^def-/, "")];
+}
+
+/** Every station pod reads/writes over HTTP (createStationProject, D7); API base URL ships on every recipe, per-station env appends. */
+function stationEnv(def: ResolvedAgentDefinition, opts: CatalogCrdOptions) {
+  return [
+    ...(opts.apiUrl ? [{ name: "LORE_API_URL", value: opts.apiUrl }] : []),
+    ...stationEnvEntries(def, opts),
+  ];
+}
+
+/** Row stores the central cluster's dgraph endpoint verbatim; a cluster with dgraph elsewhere substitutes its own. */
+function stationEnvEntries(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+) {
+  return Object.entries(def.config?.env ?? {}).map(([name, value]) => ({
+    name,
+    value:
+      name === "LORE_DGRAPH_HTTP" && opts.dgraphUrl ? opts.dgraphUrl : value,
+  }));
+}
+
+/** Model credential only where the station calls a model — comment-triage silently dropped a missing key into "ignore" and reported success. */
+function stationSecrets(
+  def: ResolvedAgentDefinition,
+  anthropicKey: string | undefined,
+) {
+  return [
+    { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
+    // needs_model stations call Anthropic (comment-triage's Haiku); family-specific stations declare their own model instead.
+    ...(def.config?.needs_model && anthropicKey
+      ? [{ name: anthropicKey, ref: anthropicKey }]
+      : []),
+  ];
+}
+
+function sinksFor(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+): Pick<NonNullable<AgentDefinitionSpec["output"]>, "sinks" | "watch"> {
+  const sinks: OutputSink[] = [{ type: "stdout" }];
+
+  if (opts.eventsUrl) {
+    sinks.push({
+      type: "http",
+      url: opts.eventsUrl,
+      headers_secret: "agent-events-auth",
+    });
+  }
+
+  return {
+    sinks,
+    // A file-deliverable recipe declares watch; the subsystem raises it as a kind:"file" event on exit — the only way the artifact leaves the pod (ai-agent-subsystem#188, lost 8 days in #1468).
+    ...(def.config?.watch ? { watch: [def.config.watch] } : {}),
+  };
+}
+
+function stationCrd(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+  name: string,
+): Station {
+  return {
+    apiVersion: API_VERSION,
+    kind: "Station",
+    metadata: { name, labels: { ...SYNC_LABELS } },
+    spec: {
+      agentDefRef: name,
+      deadlineMinutes: def.timeout_minutes ?? (isStationDef(def) ? 15 : 30),
+      template: stationTemplate(def, opts),
+    },
+  };
+}
+
+function stationTemplate(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+) {
+  return {
+    ...templateLabels(def),
+    spec: {
+      containers: [agentContainer(def, opts)],
+    },
+  };
+}
+
 /** Template labels survive the per-task Station clone + controller's label merge — the only marker a NetworkPolicy can key on that still matches pt-* pods. */
 function templateLabels(def: ResolvedAgentDefinition) {
   const labels = def.config?.pod_labels;
@@ -251,9 +288,28 @@ function templateLabels(def: ResolvedAgentDefinition) {
     : {};
 }
 
-/** A row that runs the exec vendor on the station image, rather than an LLM on the base one. */
-function isStationDef(def: ResolvedAgentDefinition): boolean {
-  return def.execution_mode === "station";
+function agentContainer(def: ResolvedAgentDefinition, opts: CatalogCrdOptions) {
+  return {
+    name: "agent",
+    image: containerImage(def, opts),
+    ...containerWorkingDir(def),
+    resources: mergePodResources(def.config?.pod_resources),
+  };
+}
+
+/** pod_resources override merges per-key onto defaults (never whole-object) — whole-object replace evicted every tdd-round pod at 1Gi by dropping the ephemeral-storage default. */
+function mergePodResources(override?: {
+  requests?: Record<string, string>;
+  limits?: Record<string, string>;
+}) {
+  if (!override) {
+    return POD_RESOURCES;
+  }
+
+  return {
+    requests: { ...POD_RESOURCES.requests, ...override.requests },
+    limits: { ...POD_RESOURCES.limits, ...override.limits },
+  };
 }
 
 function containerImage(
@@ -275,60 +331,4 @@ function containerWorkingDir(def: ResolvedAgentDefinition): {
   }
 
   return { workingDir: REPO_WORKDIR };
-}
-
-function agentContainer(def: ResolvedAgentDefinition, opts: CatalogCrdOptions) {
-  return {
-    name: "agent",
-    image: containerImage(def, opts),
-    ...containerWorkingDir(def),
-    resources: mergePodResources(def.config?.pod_resources),
-  };
-}
-
-function stationTemplate(
-  def: ResolvedAgentDefinition,
-  opts: CatalogCrdOptions,
-) {
-  return {
-    ...templateLabels(def),
-    spec: {
-      containers: [agentContainer(def, opts)],
-    },
-  };
-}
-
-function stationCrd(
-  def: ResolvedAgentDefinition,
-  opts: CatalogCrdOptions,
-  name: string,
-): Station {
-  return {
-    apiVersion: API_VERSION,
-    kind: "Station",
-    metadata: { name, labels: { ...SYNC_LABELS } },
-    spec: {
-      agentDefRef: name,
-      deadlineMinutes: def.timeout_minutes ?? (isStationDef(def) ? 15 : 30),
-      template: stationTemplate(def, opts),
-    },
-  };
-}
-
-/** Resolved catalog row → AgentDefinition+Station CR pair; execution_mode:'station' rows render the exec-vendor shape on lore-station image, others render the LLM shape on the base image. */
-export function agentDefToCrds(
-  def: ResolvedAgentDefinition,
-  opts: CatalogCrdOptions = {},
-): CrdPair {
-  const name = catalogCrdName(def.name, def.project_id);
-
-  return {
-    agentDefinition: {
-      apiVersion: API_VERSION,
-      kind: "AgentDefinition",
-      metadata: { name, labels: { ...SYNC_LABELS } },
-      spec: isStationDef(def) ? stationSpec(def, opts) : llmSpec(def, opts),
-    },
-    station: stationCrd(def, opts, name),
-  };
 }

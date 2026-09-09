@@ -53,25 +53,6 @@ export const STATEMENT_PROJECTION = `Statement.xid
       spec: Statement.spec { Spec.file_path Spec.title }
       section: Statement.section { Section.heading }`;
 
-function specFieldsOf(stmt: GraphStatement): {
-  specPath: string;
-  specTitle: string;
-} {
-  return {
-    specPath: stmt.spec?.["Spec.file_path"] ?? "",
-    specTitle: stmt.spec?.["Spec.title"] ?? "",
-  };
-}
-
-const statementTextOf = (stmt: GraphStatement): string =>
-  stmt["Statement.text"] ?? "";
-
-const statementXidOf = (
-  stmt: GraphStatement,
-  specPath: string,
-  statementText: string,
-): string => stmt["Statement.xid"] ?? `${specPath}::${statementText}`;
-
 /** Builds an ImpactStatement from a graph Statement, carrying its xid for dedup. */
 export function toImpactStatement(
   stmt: GraphStatement,
@@ -94,6 +75,25 @@ export function toImpactStatement(
     evidence,
   };
 }
+
+function specFieldsOf(stmt: GraphStatement): {
+  specPath: string;
+  specTitle: string;
+} {
+  return {
+    specPath: stmt.spec?.["Spec.file_path"] ?? "",
+    specTitle: stmt.spec?.["Spec.title"] ?? "",
+  };
+}
+
+const statementTextOf = (stmt: GraphStatement): string =>
+  stmt["Statement.text"] ?? "";
+
+const statementXidOf = (
+  stmt: GraphStatement,
+  specPath: string,
+  statementText: string,
+): string => stmt["Statement.xid"] ?? `${specPath}::${statementText}`;
 
 /** Unions statements from every coupling path by xid, merging test selectors and keeping the strongest evidence — one finding per statement. */
 export function mergeStatements(

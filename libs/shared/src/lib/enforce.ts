@@ -4,19 +4,6 @@
 export type ErrorType =
   ((message: string) => Error) | (new (message: string) => Error);
 
-function isErrorClass(
-  errorType: ErrorType,
-): errorType is new (message: string) => Error {
-  return (
-    errorType === Error ||
-    (errorType as { prototype?: unknown }).prototype instanceof Error
-  );
-}
-
-function buildError(errorType: ErrorType, message: string): Error {
-  return isErrorClass(errorType) ? new errorType(message) : errorType(message);
-}
-
 // Throws `errorType(errorMessage)` when `condition` is falsy; built only on failure, so a Boom costs nothing on the happy path.
 export function enforceTrue(
   condition: unknown,
@@ -40,4 +27,17 @@ export function enforceOk<
     return;
   }
   throw buildError(errorType, result.error);
+}
+
+function buildError(errorType: ErrorType, message: string): Error {
+  return isErrorClass(errorType) ? new errorType(message) : errorType(message);
+}
+
+function isErrorClass(
+  errorType: ErrorType,
+): errorType is new (message: string) => Error {
+  return (
+    errorType === Error ||
+    (errorType as { prototype?: unknown }).prototype instanceof Error
+  );
 }

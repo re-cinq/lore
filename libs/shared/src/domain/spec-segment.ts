@@ -28,40 +28,6 @@ export interface Classification {
   matchedBySection: boolean;
 }
 
-function isListItem(line: string): boolean {
-  return /^\s*(?:[-*+]\s+|\d+\.\s+)/.test(line);
-}
-
-function stripListMarker(line: string): string {
-  return line.replace(/^\s*(?:[-*+]\s+|\d+\.\s+)/, "").trim();
-}
-
-function isHeading(line: string): boolean {
-  return /^#{1,6}\s+\S/.test(line);
-}
-
-function parseHeading(line: string): string {
-  return line.replace(/^#{1,6}\s+/, "").trim();
-}
-
-function isTableRow(line: string): boolean {
-  const t = line.trim();
-
-  return t.startsWith("|") && t.endsWith("|") && t.length >= 2;
-}
-
-function endsListItem(line: string): boolean {
-  if (line.trim() === "" || isListItem(line)) {
-    return true;
-  }
-
-  if (isHeading(line) || isTableRow(line)) {
-    return true;
-  }
-
-  return /^\s*```/.test(line);
-}
-
 function readListItemLines(
   lines: string[],
   startIndex: number,
@@ -99,6 +65,40 @@ function classifyStatementLine(line: string): StatementLineAction {
   }
 
   return "paragraph";
+}
+
+function stripListMarker(line: string): string {
+  return line.replace(/^\s*(?:[-*+]\s+|\d+\.\s+)/, "").trim();
+}
+
+function endsListItem(line: string): boolean {
+  if (line.trim() === "" || isListItem(line)) {
+    return true;
+  }
+
+  if (isHeading(line) || isTableRow(line)) {
+    return true;
+  }
+
+  return /^\s*```/.test(line);
+}
+
+function isListItem(line: string): boolean {
+  return /^\s*(?:[-*+]\s+|\d+\.\s+)/.test(line);
+}
+
+function isHeading(line: string): boolean {
+  return /^#{1,6}\s+\S/.test(line);
+}
+
+function isTableRow(line: string): boolean {
+  const t = line.trim();
+
+  return t.startsWith("|") && t.endsWith("|") && t.length >= 2;
+}
+
+function parseHeading(line: string): string {
+  return line.replace(/^#{1,6}\s+/, "").trim();
 }
 
 type StatementLineHandler = (
@@ -261,12 +261,6 @@ const CONTENT_RULES: { match: RegExp; category: UntestableCategory }[] = [
   },
 ];
 
-function firstEnclosingHeading(statements: Statement[]): string | null {
-  const withHeading = statements.find((s) => s.enclosingHeading !== null);
-
-  return withHeading ? withHeading.enclosingHeading : null;
-}
-
 /** Build intro ordinals (no heading or first heading). */
 export function buildIntroOrdinals(statements: Statement[]): Set<number> {
   const ordinals = new Set<number>();
@@ -281,13 +275,10 @@ export function buildIntroOrdinals(statements: Statement[]): Set<number> {
   return ordinals;
 }
 
-function matchRuleCategory(
-  rules: { match: RegExp; category: UntestableCategory }[],
-  text: string,
-): UntestableCategory | null {
-  const rule = rules.find(({ match }) => match.test(text));
+function firstEnclosingHeading(statements: Statement[]): string | null {
+  const withHeading = statements.find((s) => s.enclosingHeading !== null);
 
-  return rule ? rule.category : null;
+  return withHeading ? withHeading.enclosingHeading : null;
 }
 
 /** Section-heading heuristic: narrative sections → untestable; else → LLM. */
@@ -304,4 +295,13 @@ export function classifyByHeuristic(
   return category
     ? { testability: "untestable", category, matchedBySection: true }
     : { testability: "testable", category: null, matchedBySection: false };
+}
+
+function matchRuleCategory(
+  rules: { match: RegExp; category: UntestableCategory }[],
+  text: string,
+): UntestableCategory | null {
+  const rule = rules.find(({ match }) => match.test(text));
+
+  return rule ? rule.category : null;
 }

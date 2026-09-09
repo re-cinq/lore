@@ -39,6 +39,32 @@ export interface GraphResult {
   }>;
 }
 
+interface GraphSink {
+  nodes: Map<string, SpecGraphNode>;
+  links: SpecGraphLink[];
+}
+
+/** Pure: Dgraph query result → de-duplicated nodes + links. */
+export function flattenSpecGraph(graph: GraphResult): SpecGraph {
+  const nodes = new Map<string, SpecGraphNode>();
+  const links: SpecGraphLink[] = [];
+
+  for (const spec of graph.q ?? []) {
+    const specPath = spec["Spec.file_path"] ?? spec.uid;
+
+    nodes.set(spec.uid, {
+      id: spec.uid,
+      type: "Spec",
+      label: specLabel(specPath),
+      path: specPath,
+    });
+    emitFeatureNode(spec, nodes, links);
+    emitSpecChildNodes(spec, specPath, nodes, links);
+  }
+
+  return { nodes: [...nodes.values()], links };
+}
+
 /** "specs/1-lore-platform/spec.md" → "1-lore-platform (spec)"; ".specify/spec.md" → "spec". */
 export function specLabel(path: string): string {
   const rel = path.replace(/^specs\//, "").replace(/^\.specify\//, "");
@@ -49,33 +75,89 @@ export function specLabel(path: string): string {
   return dir ? `${dir} (${doc})` : doc;
 }
 
-function basename(path: string): string {
-  return path.split("/").pop() ?? path;
+/** One node per feature folder (deduped by uid); every md file hangs under it via `in_feature`. */
+function emitFeatureNode(
+  spec: NonNullable<GraphResult["q"]>[number],
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
+  const { feature } = spec;
+
+  if (!feature) {
+    return;
+  }
+  const featurePath = feature["Feature.path"] ?? feature.uid;
+
+  nodes.set(feature.uid, {
+    id: feature.uid,
+    type: "Feature",
+    label: basename(featurePath),
+    path: featurePath,
+  });
+  links.push({ source: feature.uid, target: spec.uid, kind: "in_feature" });
 }
 
-/** "adrs/ADR-016-dark-factory.md" → "ADR-016 (dark-factory)". */
-export function adrLabel(path: string): string {
-  const base = basename(path).replace(/\.md$/, "");
-  const m = base.match(/^(ADR-\d+)-(.*)$/i);
+function emitSpecChildNodes(
+  spec: NonNullable<GraphResult["q"]>[number],
+  specPath: string,
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
+  const sink: GraphSink = { nodes, links };
 
-  return m ? `${m[1]} (${m[2]})` : base;
+  for (const st of spec.stmts ?? []) {
+    emitStatementNode(spec.uid, specPath, st, sink);
+  }
+
+  for (const ac of spec.acs ?? []) {
+    emitAcceptanceCriterionNode(spec.uid, specPath, ac, sink);
+  }
 }
 
-/** The display node for one validating TestChunk; falls back to the uid when the row carries no file path. */
-function testChunkNode(
-  chunk: NonNullable<OwnerLinks["vb"]>[number],
-): SpecGraphNode {
-  const path = chunk["TestChunk.file_path"] ?? chunk.uid;
+function emitStatementNode(
+  specUid: string,
+  specPath: string,
+  st: NonNullable<NonNullable<GraphResult["q"]>[number]["stmts"]>[number],
+  sink: GraphSink,
+): void {
+  sink.nodes.set(st.uid, {
+    id: st.uid,
+    type: "Statement",
+    label: "",
+    path: specPath,
+    detail: (st["Statement.text"] ?? "").trim(),
+  });
+  sink.links.push({ source: specUid, target: st.uid, kind: "in_spec" });
+  emitOwnerLinks(st.uid, st, sink.nodes, sink.links);
+}
 
-  return {
-    id: chunk.uid,
-    type: "TestChunk",
-    label: basename(path),
-    path,
-    line: chunk["TestChunk.start_line"],
-    endLine: chunk["TestChunk.end_line"],
-    detail: chunk["TestChunk.test_name"],
-  };
+function emitAcceptanceCriterionNode(
+  specUid: string,
+  specPath: string,
+  ac: NonNullable<NonNullable<GraphResult["q"]>[number]["acs"]>[number],
+  sink: GraphSink,
+): void {
+  sink.nodes.set(ac.uid, {
+    id: ac.uid,
+    type: "AcceptanceCriterion",
+    label: "",
+    path: specPath,
+    detail: (ac["AcceptanceCriterion.text"] ?? "").trim(),
+  });
+  sink.links.push({ source: specUid, target: ac.uid, kind: "in_spec" });
+  emitOwnerLinks(ac.uid, ac, sink.nodes, sink.links);
+}
+
+// Emits validated_by/implemented_by/decided_by edges (plus covers fan-out) for one owner; caller emits the owner node + its in_spec link.
+function emitOwnerLinks(
+  ownerUid: string,
+  owner: OwnerLinks,
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
+  emitValidatedByLinks(ownerUid, owner.vb, nodes, links);
+  emitImplementedByLinks(ownerUid, owner.ib, nodes, links);
+  emitDecidedByLinks(ownerUid, owner.db, nodes, links);
 }
 
 function emitValidatedByLinks(
@@ -128,16 +210,21 @@ function emitDecidedByLinks(
   }
 }
 
-// Emits validated_by/implemented_by/decided_by edges (plus covers fan-out) for one owner; caller emits the owner node + its in_spec link.
-function emitOwnerLinks(
-  ownerUid: string,
-  owner: OwnerLinks,
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
-): void {
-  emitValidatedByLinks(ownerUid, owner.vb, nodes, links);
-  emitImplementedByLinks(ownerUid, owner.ib, nodes, links);
-  emitDecidedByLinks(ownerUid, owner.db, nodes, links);
+/** The display node for one validating TestChunk; falls back to the uid when the row carries no file path. */
+function testChunkNode(
+  chunk: NonNullable<OwnerLinks["vb"]>[number],
+): SpecGraphNode {
+  const path = chunk["TestChunk.file_path"] ?? chunk.uid;
+
+  return {
+    id: chunk.uid,
+    type: "TestChunk",
+    label: basename(path),
+    path,
+    line: chunk["TestChunk.start_line"],
+    endLine: chunk["TestChunk.end_line"],
+    detail: chunk["TestChunk.test_name"],
+  };
 }
 
 // The File this test exercises, reached via Coverage (HAS_COVERAGE → COVERS); one node per path (deduped).
@@ -161,101 +248,14 @@ function emitCoveredFileNodes(
   }
 }
 
-interface GraphSink {
-  nodes: Map<string, SpecGraphNode>;
-  links: SpecGraphLink[];
+/** "adrs/ADR-016-dark-factory.md" → "ADR-016 (dark-factory)". */
+export function adrLabel(path: string): string {
+  const base = basename(path).replace(/\.md$/, "");
+  const m = base.match(/^(ADR-\d+)-(.*)$/i);
+
+  return m ? `${m[1]} (${m[2]})` : base;
 }
 
-function emitStatementNode(
-  specUid: string,
-  specPath: string,
-  st: NonNullable<NonNullable<GraphResult["q"]>[number]["stmts"]>[number],
-  sink: GraphSink,
-): void {
-  sink.nodes.set(st.uid, {
-    id: st.uid,
-    type: "Statement",
-    label: "",
-    path: specPath,
-    detail: (st["Statement.text"] ?? "").trim(),
-  });
-  sink.links.push({ source: specUid, target: st.uid, kind: "in_spec" });
-  emitOwnerLinks(st.uid, st, sink.nodes, sink.links);
-}
-
-function emitAcceptanceCriterionNode(
-  specUid: string,
-  specPath: string,
-  ac: NonNullable<NonNullable<GraphResult["q"]>[number]["acs"]>[number],
-  sink: GraphSink,
-): void {
-  sink.nodes.set(ac.uid, {
-    id: ac.uid,
-    type: "AcceptanceCriterion",
-    label: "",
-    path: specPath,
-    detail: (ac["AcceptanceCriterion.text"] ?? "").trim(),
-  });
-  sink.links.push({ source: specUid, target: ac.uid, kind: "in_spec" });
-  emitOwnerLinks(ac.uid, ac, sink.nodes, sink.links);
-}
-
-function emitSpecChildNodes(
-  spec: NonNullable<GraphResult["q"]>[number],
-  specPath: string,
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
-): void {
-  const sink: GraphSink = { nodes, links };
-
-  for (const st of spec.stmts ?? []) {
-    emitStatementNode(spec.uid, specPath, st, sink);
-  }
-
-  for (const ac of spec.acs ?? []) {
-    emitAcceptanceCriterionNode(spec.uid, specPath, ac, sink);
-  }
-}
-
-/** One node per feature folder (deduped by uid); every md file hangs under it via `in_feature`. */
-function emitFeatureNode(
-  spec: NonNullable<GraphResult["q"]>[number],
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
-): void {
-  const { feature } = spec;
-
-  if (!feature) {
-    return;
-  }
-  const featurePath = feature["Feature.path"] ?? feature.uid;
-
-  nodes.set(feature.uid, {
-    id: feature.uid,
-    type: "Feature",
-    label: basename(featurePath),
-    path: featurePath,
-  });
-  links.push({ source: feature.uid, target: spec.uid, kind: "in_feature" });
-}
-
-/** Pure: Dgraph query result → de-duplicated nodes + links. */
-export function flattenSpecGraph(graph: GraphResult): SpecGraph {
-  const nodes = new Map<string, SpecGraphNode>();
-  const links: SpecGraphLink[] = [];
-
-  for (const spec of graph.q ?? []) {
-    const specPath = spec["Spec.file_path"] ?? spec.uid;
-
-    nodes.set(spec.uid, {
-      id: spec.uid,
-      type: "Spec",
-      label: specLabel(specPath),
-      path: specPath,
-    });
-    emitFeatureNode(spec, nodes, links);
-    emitSpecChildNodes(spec, specPath, nodes, links);
-  }
-
-  return { nodes: [...nodes.values()], links };
+function basename(path: string): string {
+  return path.split("/").pop() ?? path;
 }

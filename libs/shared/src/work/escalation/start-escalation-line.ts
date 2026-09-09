@@ -34,6 +34,28 @@ export const MAX_ESCALATION_ATTEMPTS = 3;
 export const escalationSubject = (taskId: string): string =>
   `escalate:${taskId}`;
 
+export async function startEscalationLine(
+  task: EscalationTask,
+  cause: EscalationCause,
+  deps: StartEscalationDeps,
+): Promise<string | null> {
+  const subjectKey = escalationSubject(task.id);
+
+  if (await alreadyEscalated(task, subjectKey, deps)) {
+    return null;
+  }
+
+  return deps.start({
+    blueprintName: "escalation",
+    taskId: task.id,
+    repo: task.repo,
+    // No working tree involved; branch doubles as the Issue link + overlap-guard key.
+    branch: subjectKey,
+    subjectKey,
+    args: escalationArgs(task, cause),
+  });
+}
+
 /** True when a line is already open for this task, or it has already been reported its full allowance of times. */
 async function alreadyEscalated(
   task: EscalationTask,
@@ -57,26 +79,4 @@ function escalationArgs(
     reason: cause.reason,
     diagnostic: cause.diagnostic,
   };
-}
-
-export async function startEscalationLine(
-  task: EscalationTask,
-  cause: EscalationCause,
-  deps: StartEscalationDeps,
-): Promise<string | null> {
-  const subjectKey = escalationSubject(task.id);
-
-  if (await alreadyEscalated(task, subjectKey, deps)) {
-    return null;
-  }
-
-  return deps.start({
-    blueprintName: "escalation",
-    taskId: task.id,
-    repo: task.repo,
-    // No working tree involved; branch doubles as the Issue link + overlap-guard key.
-    branch: subjectKey,
-    subjectKey,
-    args: escalationArgs(task, cause),
-  });
 }

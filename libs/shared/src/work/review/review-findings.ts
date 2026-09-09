@@ -69,15 +69,6 @@ function normalizeAliases(value: unknown): unknown {
   };
 }
 
-// A present label is left as-written even if invalid (rejecting a typo is deliberate); only a missing label is defaulted, from `category` when valid, else `issue`.
-function findingLabel(finding: Record<string, unknown>): unknown {
-  if (finding.label !== undefined) {
-    return finding.label;
-  }
-
-  return includes(LABELS, finding.category) ? finding.category : "issue";
-}
-
 function normalizeFinding(finding: Record<string, unknown>): unknown {
   const str = (v: unknown): string | undefined =>
     typeof v === "string" && v.length > 0 ? v : undefined;
@@ -97,6 +88,15 @@ function normalizeFinding(finding: Record<string, unknown>): unknown {
     label,
     ...(discussion === undefined ? {} : { discussion }),
   };
+}
+
+// A present label is left as-written even if invalid (rejecting a typo is deliberate); only a missing label is defaulted, from `category` when valid, else `issue`.
+function findingLabel(finding: Record<string, unknown>): unknown {
+  if (finding.label !== undefined) {
+    return finding.label;
+  }
+
+  return includes(LABELS, finding.category) ? finding.category : "issue";
 }
 
 // Tolerates the one class of malformed JSON a model reliably produces: an unescaped quote/newline in a narrative field, which killed JSON.parse and discarded every finding in #1401. Strict parse tried first; repair only on SyntaxError.
@@ -126,32 +126,23 @@ interface RepairState {
   inString: boolean;
 }
 
+function repairUnescapedStringContent(text: string): string {
+  const state: RepairState = { result: "", inString: false };
+
+  for (let i = 0; i < text.length; i++) {
+    if (!state.inString) {
+      appendNonStringChar(state, text[i]);
+      continue;
+    }
+    i = appendInStringChar(state, text, i);
+  }
+
+  return state.result;
+}
+
 function appendNonStringChar(state: RepairState, ch: string): void {
   state.inString = ch === '"';
   state.result += ch;
-}
-
-// An escape sequence: copy it and its target verbatim, untouched.
-function appendEscapeSequence(
-  state: RepairState,
-  text: string,
-  i: number,
-): number {
-  state.result += text[i] + (text[i + 1] ?? "");
-
-  return i + 1;
-}
-
-function appendQuoteChar(state: RepairState, text: string, i: number): number {
-  if (closesAString(text, i + 1)) {
-    state.inString = false;
-    state.result += '"';
-
-    return i;
-  }
-  state.result += '\\"';
-
-  return i;
 }
 
 function appendInStringChar(
@@ -177,24 +168,27 @@ function appendInStringChar(
     : appendPlainChar(state, ch, i);
 }
 
-function appendPlainChar(state: RepairState, ch: string, i: number): number {
-  state.result += ch;
+// An escape sequence: copy it and its target verbatim, untouched.
+function appendEscapeSequence(
+  state: RepairState,
+  text: string,
+  i: number,
+): number {
+  state.result += text[i] + (text[i + 1] ?? "");
 
-  return i;
+  return i + 1;
 }
 
-function repairUnescapedStringContent(text: string): string {
-  const state: RepairState = { result: "", inString: false };
+function appendQuoteChar(state: RepairState, text: string, i: number): number {
+  if (closesAString(text, i + 1)) {
+    state.inString = false;
+    state.result += '"';
 
-  for (let i = 0; i < text.length; i++) {
-    if (!state.inString) {
-      appendNonStringChar(state, text[i]);
-      continue;
-    }
-    i = appendInStringChar(state, text, i);
+    return i;
   }
+  state.result += '\\"';
 
-  return state.result;
+  return i;
 }
 
 // Whether the char at text[from] (skipping whitespace) can only follow a closing JSON string quote (`,}]:` or EOF); including `:` has a known false-positive on a quoted-then-colon narrative value, but that just falls back to `null`, never a silent corruption.
@@ -206,6 +200,12 @@ function closesAString(text: string, from: number): boolean {
   }
 
   return j >= text.length || ",}]:".includes(text[j]);
+}
+
+function appendPlainChar(state: RepairState, ch: string, i: number): number {
+  state.result += ch;
+
+  return i;
 }
 
 function isReviewOutput(value: unknown): value is ReviewOutput {
@@ -222,6 +222,16 @@ function isReviewOutput(value: unknown): value is ReviewOutput {
   }
 
   return Array.isArray(value.findings) && value.findings.every(isReviewFinding);
+}
+
+function isReviewFinding(value: unknown): value is ReviewFinding {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    hasRequiredFindingFields(value) && hasValidOptionalFindingFields(value)
+  );
 }
 
 function hasRequiredFindingFields(value: Record<string, unknown>): boolean {
@@ -241,16 +251,6 @@ function hasValidOptionalFindingFields(
     optional(value.decoration, (v) => includes(DECORATIONS, v)) &&
     optional(value.discussion, (v) => typeof v === "string") &&
     optional(value.suggestion, (v) => typeof v === "string")
-  );
-}
-
-function isReviewFinding(value: unknown): value is ReviewFinding {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    hasRequiredFindingFields(value) && hasValidOptionalFindingFields(value)
   );
 }
 

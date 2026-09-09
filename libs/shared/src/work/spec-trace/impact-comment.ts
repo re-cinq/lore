@@ -9,6 +9,90 @@ export const IMPACT_COMMENT_MARKER = "<!-- lore-trace-impact -->";
 
 const COMMENT_HEADER = "## 🔍 Lore Spec Impact";
 
+export function buildImpactComment(report: ImpactReport): string {
+  const suppressed = suppressedComment(report);
+
+  if (suppressed !== undefined) {
+    return suppressed;
+  }
+
+  const findings = commentFindings(report);
+  const { strong, weak } = evidenceSplit(findings);
+
+  if (!findings.length && !report.orphaned.length) {
+    return emptyImpactComment(report);
+  }
+
+  return populatedImpactComment(report, findings, strong, weak);
+}
+
+/** The two fixed-text cases that short-circuit rendering entirely: no graph, or an unsupported client protocol. */
+function suppressedComment(report: ImpactReport): string | undefined {
+  if (report.status === "unavailable") {
+    return `${COMMENT_HEADER}\n\nGraph not available for this repo yet — skipping impact analysis. No action needed.\n\n${IMPACT_COMMENT_MARKER}\n`;
+  }
+
+  if (report.protocol !== undefined && report.protocol < 2) {
+    return `${COMMENT_HEADER}\n\nThis repo's \`.github/workflows/lore-trace-impact.yml\` is version 1, which computed its diff against the base-branch tip instead of the merge base — so it reported every commit merged to the base since the branch point as a change of this PR. Findings from it were unreliable and are suppressed. Update the workflow to re-enable this check.\n\n${IMPACT_COMMENT_MARKER}\n`;
+  }
+
+  return undefined;
+}
+
+/** A statement with no resolvable spec is a broken graph edge, not a finding — rendering it produced the blank table rows in #1077. */
+function commentFindings(report: ImpactReport): ImpactStatement[] {
+  return dedupeRows(
+    report.statements.filter(
+      (s) => s.specTitle || s.specPath || s.statementText,
+    ),
+  );
+}
+
+function evidenceSplit(findings: ImpactStatement[]): {
+  strong: ImpactStatement[];
+  weak: ImpactStatement[];
+} {
+  return {
+    strong: findings.filter(
+      (s) => s.evidence === "statement-edit" || s.evidence === "coverage",
+    ),
+    weak: findings.filter(
+      (s) => s.evidence === "test-link" || s.evidence === "file-link",
+    ),
+  };
+}
+
+/** Same footer as a populated result — otherwise a run that skipped every file for want of a baseline looks identical to a clean "found nothing" run. */
+function emptyImpactComment(report: ImpactReport): string {
+  return [
+    COMMENT_HEADER,
+    "",
+    describeExamined(report),
+    ...commentFooterLines(report),
+  ].join("\n");
+}
+
+/** Renders the sticky PR summary comment (find-by-marker, update-in-place); formatting lives here so it is unit-tested, not buried in workflow YAML. */
+function populatedImpactComment(
+  report: ImpactReport,
+  findings: ImpactStatement[],
+  strong: ImpactStatement[],
+  weak: ImpactStatement[],
+): string {
+  const notes = report.examined ? docNotes(report.examined) : [];
+
+  return [
+    `${COMMENT_HEADER} — advisory`,
+    "",
+    commentIntro(findings),
+    ...(strong.length ? specSections(strong) : []),
+    ...weakSignalLines(weak),
+    ...(notes.length ? ["", notes.join(" ")] : []),
+    ...orphanWarningLines(report.orphaned),
+    ...commentFooterLines(report),
+  ].join("\n");
+}
+
 /** Say what was actually examined — a bare "No spec impact detected" over ungraphed files reads as a clean bill of health and taught people to skim past this check. */
 function describeExamined(report: ImpactReport): string {
   const seen = report.examined;
@@ -36,6 +120,56 @@ function describeExamined(report: ImpactReport): string {
   parts.push(...notes);
 
   return parts.join(" ");
+}
+
+function commentIntro(findings: ImpactStatement[]): string {
+  const specCount = new Set(findings.map((s) => s.specPath)).size;
+  const untouched = findings.filter((s) => !s.testsTouched).length;
+  const untouchedNote = untouched
+    ? `, and **${untouched}** of them ${untouched === 1 ? "has" : "have"} validating tests this PR does not change.`
+    : ", and changes the validating tests alongside every one of them.";
+
+  return `This PR touches **${findings.length} statement(s)** across **${specCount} spec(s)**${untouchedNote}`;
+}
+
+function weakSignalLines(weak: ImpactStatement[]): string[] {
+  if (!weak.length) {
+    return [];
+  }
+
+  return [
+    "",
+    `<details><summary>Weaker signals (${weak.length}) — linked by a spec, not proven by a test run</summary>`,
+    ...specSections(weak),
+    "",
+    "</details>",
+  ];
+}
+
+function orphanWarningLines(orphaned: OrphanStatement[]): string[] {
+  if (!orphaned.length) {
+    return [];
+  }
+
+  return [
+    "",
+    `### ⚠ Coverage warnings (${orphaned.length})`,
+    ...orphaned.map(
+      (o) =>
+        `- **${o.specTitle}** lost its only coverage — was \`${o.wasCoveredBy}\`, now deleted.`,
+    ),
+  ];
+}
+
+/** Provenance sub-line plus the sticky marker, shared by every rendered variant. */
+function commentFooterLines(report: ImpactReport): string[] {
+  return [
+    "",
+    `<sub>Deterministic · ${describeBaseline(report)} · no tests run by this check</sub>`,
+    "",
+    IMPACT_COMMENT_MARKER,
+    "",
+  ];
 }
 
 /** Doc-side populations counted rather than listed, reported even when nothing else is so a bounded output never reads as empty. */
@@ -74,138 +208,4 @@ function describeBaseline(report: ImpactReport): string {
     : "";
 
   return `graph @ \`${report.graphCommit.slice(0, 7)}\`${at}${skipNote}`;
-}
-
-/** A statement with no resolvable spec is a broken graph edge, not a finding — rendering it produced the blank table rows in #1077. */
-function commentFindings(report: ImpactReport): ImpactStatement[] {
-  return dedupeRows(
-    report.statements.filter(
-      (s) => s.specTitle || s.specPath || s.statementText,
-    ),
-  );
-}
-
-/** Provenance sub-line plus the sticky marker, shared by every rendered variant. */
-function commentFooterLines(report: ImpactReport): string[] {
-  return [
-    "",
-    `<sub>Deterministic · ${describeBaseline(report)} · no tests run by this check</sub>`,
-    "",
-    IMPACT_COMMENT_MARKER,
-    "",
-  ];
-}
-
-/** Same footer as a populated result — otherwise a run that skipped every file for want of a baseline looks identical to a clean "found nothing" run. */
-function emptyImpactComment(report: ImpactReport): string {
-  return [
-    COMMENT_HEADER,
-    "",
-    describeExamined(report),
-    ...commentFooterLines(report),
-  ].join("\n");
-}
-
-function commentIntro(findings: ImpactStatement[]): string {
-  const specCount = new Set(findings.map((s) => s.specPath)).size;
-  const untouched = findings.filter((s) => !s.testsTouched).length;
-  const untouchedNote = untouched
-    ? `, and **${untouched}** of them ${untouched === 1 ? "has" : "have"} validating tests this PR does not change.`
-    : ", and changes the validating tests alongside every one of them.";
-
-  return `This PR touches **${findings.length} statement(s)** across **${specCount} spec(s)**${untouchedNote}`;
-}
-
-function orphanWarningLines(orphaned: OrphanStatement[]): string[] {
-  if (!orphaned.length) {
-    return [];
-  }
-
-  return [
-    "",
-    `### ⚠ Coverage warnings (${orphaned.length})`,
-    ...orphaned.map(
-      (o) =>
-        `- **${o.specTitle}** lost its only coverage — was \`${o.wasCoveredBy}\`, now deleted.`,
-    ),
-  ];
-}
-
-function weakSignalLines(weak: ImpactStatement[]): string[] {
-  if (!weak.length) {
-    return [];
-  }
-
-  return [
-    "",
-    `<details><summary>Weaker signals (${weak.length}) — linked by a spec, not proven by a test run</summary>`,
-    ...specSections(weak),
-    "",
-    "</details>",
-  ];
-}
-
-/** The two fixed-text cases that short-circuit rendering entirely: no graph, or an unsupported client protocol. */
-function suppressedComment(report: ImpactReport): string | undefined {
-  if (report.status === "unavailable") {
-    return `${COMMENT_HEADER}\n\nGraph not available for this repo yet — skipping impact analysis. No action needed.\n\n${IMPACT_COMMENT_MARKER}\n`;
-  }
-
-  if (report.protocol !== undefined && report.protocol < 2) {
-    return `${COMMENT_HEADER}\n\nThis repo's \`.github/workflows/lore-trace-impact.yml\` is version 1, which computed its diff against the base-branch tip instead of the merge base — so it reported every commit merged to the base since the branch point as a change of this PR. Findings from it were unreliable and are suppressed. Update the workflow to re-enable this check.\n\n${IMPACT_COMMENT_MARKER}\n`;
-  }
-
-  return undefined;
-}
-
-function evidenceSplit(findings: ImpactStatement[]): {
-  strong: ImpactStatement[];
-  weak: ImpactStatement[];
-} {
-  return {
-    strong: findings.filter(
-      (s) => s.evidence === "statement-edit" || s.evidence === "coverage",
-    ),
-    weak: findings.filter(
-      (s) => s.evidence === "test-link" || s.evidence === "file-link",
-    ),
-  };
-}
-
-/** Renders the sticky PR summary comment (find-by-marker, update-in-place); formatting lives here so it is unit-tested, not buried in workflow YAML. */
-function populatedImpactComment(
-  report: ImpactReport,
-  findings: ImpactStatement[],
-  strong: ImpactStatement[],
-  weak: ImpactStatement[],
-): string {
-  const notes = report.examined ? docNotes(report.examined) : [];
-
-  return [
-    `${COMMENT_HEADER} — advisory`,
-    "",
-    commentIntro(findings),
-    ...(strong.length ? specSections(strong) : []),
-    ...weakSignalLines(weak),
-    ...(notes.length ? ["", notes.join(" ")] : []),
-    ...orphanWarningLines(report.orphaned),
-    ...commentFooterLines(report),
-  ].join("\n");
-}
-
-export function buildImpactComment(report: ImpactReport): string {
-  const suppressed = suppressedComment(report);
-
-  if (suppressed !== undefined) {
-    return suppressed;
-  }
-
-  const findings = commentFindings(report);
-  const { strong, weak } = evidenceSplit(findings);
-
-  if (!findings.length && !report.orphaned.length) {
-    return emptyImpactComment(report);
-  }
-
-  return populatedImpactComment(report, findings, strong, weak);
 }

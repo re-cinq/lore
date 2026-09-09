@@ -5,31 +5,28 @@ import type { BrokenLink } from "./spec-coverage-validate.js";
 /** GitHub rejects issue bodies over 65,536 chars; leave headroom for the footer. */
 const MAX_ISSUE_BODY = 60_000;
 
-function truncate(s: string, max: number): string {
-  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
-}
-
-function sectionBulletsWithinBudget(
-  list: BrokenLink[],
-  startBudget: number,
-): { bullets: string[]; sectionBudget: number; elided: number } {
-  const bullets: string[] = [];
-  let sectionBudget = startBudget;
-  let elided = 0;
-
-  for (const b of list) {
-    const where = `\`${b.link.path}${b.link.line ? `:${b.link.line}` : ""}\``;
-    const bullet = `- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`;
-
-    if (sectionBudget + bullet.length > MAX_ISSUE_BODY) {
-      elided += 1;
-      continue;
-    }
-    bullets.push(bullet);
-    sectionBudget += bullet.length + 1;
+export function formatBrokenLinksReport(broken: BrokenLink[]): string {
+  if (broken.length === 0) {
+    return "";
   }
+  const bySpec = groupBrokenLinksBySpec(broken);
+  const lines = reportHeaderLines(broken, bySpec.size);
+  const sections = renderSpecSections(bySpec, lines.join("\n").length);
 
-  return { bullets, sectionBudget, elided };
+  lines.push(...sections.lines);
+
+  if (sections.elided > 0) {
+    lines.push(
+      `_…and ${sections.elided} more broken link(s) truncated — see the job logs._`,
+    );
+    lines.push("");
+  }
+  lines.push("---");
+  lines.push(
+    "Posted by Lore's `spec-coverage-validate` job. Fix or remove the broken links to silence this.",
+  );
+
+  return lines.join("\n");
 }
 
 function groupBrokenLinksBySpec(
@@ -47,10 +44,6 @@ function groupBrokenLinksBySpec(
   return bySpec;
 }
 
-function pluralSuffix(count: number): string {
-  return count === 1 ? "" : "s";
-}
-
 function reportHeaderLines(broken: BrokenLink[], specCount: number): string[] {
   return [
     "**Broken or misplaced test links detected**",
@@ -60,9 +53,33 @@ function reportHeaderLines(broken: BrokenLink[], specCount: number): string[] {
   ];
 }
 
+function pluralSuffix(count: number): string {
+  return count === 1 ? "" : "s";
+}
+
 interface SpecSectionsResult {
   lines: string[];
   elided: number;
+}
+
+// Whole bullets only, up to the budget — a raw slice could cut mid-line and drop the footer.
+function renderSpecSections(
+  bySpec: Map<string, BrokenLink[]>,
+  startBudget: number,
+): SpecSectionsResult {
+  const lines: string[] = [];
+  let budget = startBudget;
+  let elided = 0;
+
+  for (const [specPath, list] of bySpec) {
+    const section = specSection(specPath, list, budget);
+
+    lines.push(...section.lines);
+    budget = section.budget;
+    elided += section.elided;
+  }
+
+  return { lines, elided };
 }
 
 /** One spec's heading and bullets, or nothing at all when the budget cannot carry them; the budget it answers with is what the next section starts from. */
@@ -90,46 +107,29 @@ function specSection(
   };
 }
 
-// Whole bullets only, up to the budget — a raw slice could cut mid-line and drop the footer.
-function renderSpecSections(
-  bySpec: Map<string, BrokenLink[]>,
+function sectionBulletsWithinBudget(
+  list: BrokenLink[],
   startBudget: number,
-): SpecSectionsResult {
-  const lines: string[] = [];
-  let budget = startBudget;
+): { bullets: string[]; sectionBudget: number; elided: number } {
+  const bullets: string[] = [];
+  let sectionBudget = startBudget;
   let elided = 0;
 
-  for (const [specPath, list] of bySpec) {
-    const section = specSection(specPath, list, budget);
+  for (const b of list) {
+    const where = `\`${b.link.path}${b.link.line ? `:${b.link.line}` : ""}\``;
+    const bullet = `- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`;
 
-    lines.push(...section.lines);
-    budget = section.budget;
-    elided += section.elided;
+    if (sectionBudget + bullet.length > MAX_ISSUE_BODY) {
+      elided += 1;
+      continue;
+    }
+    bullets.push(bullet);
+    sectionBudget += bullet.length + 1;
   }
 
-  return { lines, elided };
+  return { bullets, sectionBudget, elided };
 }
 
-export function formatBrokenLinksReport(broken: BrokenLink[]): string {
-  if (broken.length === 0) {
-    return "";
-  }
-  const bySpec = groupBrokenLinksBySpec(broken);
-  const lines = reportHeaderLines(broken, bySpec.size);
-  const sections = renderSpecSections(bySpec, lines.join("\n").length);
-
-  lines.push(...sections.lines);
-
-  if (sections.elided > 0) {
-    lines.push(
-      `_…and ${sections.elided} more broken link(s) truncated — see the job logs._`,
-    );
-    lines.push("");
-  }
-  lines.push("---");
-  lines.push(
-    "Posted by Lore's `spec-coverage-validate` job. Fix or remove the broken links to silence this.",
-  );
-
-  return lines.join("\n");
+function truncate(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }

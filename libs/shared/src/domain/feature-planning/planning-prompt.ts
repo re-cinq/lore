@@ -24,6 +24,16 @@ export interface PlanningPromptInput {
   answers: SectionAnswers | null;
 }
 
+export interface RoundFeedbackInput {
+  /** Which round this is, 1-based — the agent uses it to know it is refining. */
+  round: number;
+  /** The round being reacted to, read only for its section and question TEXT. */
+  priorGap: GapResult | null;
+  answers: SectionAnswers | null;
+}
+
+type SectionFeedback = { comment?: string; direction?: SectionDirection };
+
 /** Build per-round planning prompt as XML-tagged context; Round 1 is Title+UserPrompt, refinement rounds add CurrentDraftSpec. */
 export function composePlanningPrompt(input: PlanningPromptInput): string {
   const blocks = [
@@ -37,18 +47,6 @@ export function composePlanningPrompt(input: PlanningPromptInput): string {
   }
 
   return blocks.join("\n\n");
-}
-
-function tag(name: string, body: string): string {
-  return `<${name}>\n${body}\n</${name}>`;
-}
-
-export interface RoundFeedbackInput {
-  /** Which round this is, 1-based — the agent uses it to know it is refining. */
-  round: number;
-  /** The round being reacted to, read only for its section and question TEXT. */
-  priorGap: GapResult | null;
-  answers: SectionAnswers | null;
 }
 
 /** Turn for round CONTINUING previous conversation; only new feedback (omits untouched sections); pairs with composePlanningPrompt(). */
@@ -68,75 +66,23 @@ export function composeRoundFeedback(input: RoundFeedbackInput): string {
   return `<RoundFeedback round="${input.round}">\n${body}</RoundFeedback>`;
 }
 
-type SectionFeedback = { comment?: string; direction?: SectionDirection };
-
-function sectionFeedback(
-  section: GapSection,
+function currentDraftSpec(
+  gap: GapResult | null,
   answers: SectionAnswers | null,
-): SectionFeedback | undefined {
-  return answers?.sections?.[section.title];
-}
+): string | null {
+  const sections = sectionsOf(gap);
+  const otherComments = freeFormBlock(answers);
 
-function sectionComment(
-  feedback: SectionFeedback | undefined,
-): string | undefined {
-  return feedback?.comment?.trim();
-}
+  if (!sections.length) {
+    return otherComments;
+  }
+  const inner = sections.map((s) => sectionBlock(s, answers));
 
-function sectionDirection(
-  feedback: SectionFeedback | undefined,
-): SectionDirection {
-  return feedback?.direction ?? "refine";
-}
-
-function answeredQuestions(
-  section: GapSection,
-  feedback: SectionFeedback | undefined,
-  answers: SectionAnswers | null,
-): GapQuestion[] {
-  const questions = answers?.questions;
-
-  return (section.questions ?? []).filter(
-    (q) => feedback || questions?.[q.id]?.trim(),
-  );
-}
-
-function questionTag(
-  question: GapQuestion,
-  answers: SectionAnswers | null,
-): string {
-  const questions = answers?.questions;
-  const answer = questions?.[question.id]?.trim() || "(unanswered)";
-
-  return `<Question id="${question.id}">\n<Asked>${question.question}</Asked>\n<Answer>${answer}</Answer>\n</Question>`;
-}
-
-function renderFeedbackSection(
-  title: string,
-  direction: SectionDirection,
-  parts: string[],
-): string {
-  return parts.length
-    ? `<Section title="${title}" direction="${direction}">\n${parts.join("\n")}\n</Section>`
-    : `<Section title="${title}" direction="${direction}"/>`;
-}
-
-function feedbackParts(
-  comment: string | undefined,
-  answered: GapQuestion[],
-  answers: SectionAnswers | null,
-): string[] {
-  const parts: string[] = [];
-
-  if (comment) {
-    parts.push(tag("UserComment", comment));
+  if (otherComments) {
+    inner.push(otherComments);
   }
 
-  for (const question of answered) {
-    parts.push(questionTag(question, answers));
-  }
-
-  return parts;
+  return tag("CurrentDraftSpec", inner.join("\n\n"));
 }
 
 /** One section's feedback, or null when the author said nothing about it. */
@@ -162,49 +108,6 @@ function freeFormBlock(answers: SectionAnswers | null): string | null {
   return note ? tag("OtherUserComments", note) : null;
 }
 
-function currentDraftSpec(
-  gap: GapResult | null,
-  answers: SectionAnswers | null,
-): string | null {
-  const sections = sectionsOf(gap);
-  const otherComments = freeFormBlock(answers);
-
-  if (!sections.length) {
-    return otherComments;
-  }
-  const inner = sections.map((s) => sectionBlock(s, answers));
-
-  if (otherComments) {
-    inner.push(otherComments);
-  }
-
-  return tag("CurrentDraftSpec", inner.join("\n\n"));
-}
-
-function hasCommentOrDirection(feedback: SectionFeedback | undefined): boolean {
-  return Boolean(feedback?.comment?.trim()) || Boolean(feedback?.direction);
-}
-
-function renderUserComment(feedback: SectionFeedback | undefined): string {
-  const direction = feedback?.direction ?? "keep";
-  const comment = feedback?.comment?.trim() ?? "";
-
-  return `<UserComment direction="${direction}">\n${comment}\n</UserComment>`;
-}
-
-function sectionCommentBlock(
-  section: GapSection,
-  answers: SectionAnswers | null,
-): string | null {
-  const feedback = sectionFeedback(section, answers);
-
-  return hasCommentOrDirection(feedback) ? renderUserComment(feedback) : null;
-}
-
-function renderSection(title: string, parts: string[]): string {
-  return `<Section title="${title.replace(/"/g, "'")}">\n${parts.join("\n")}\n</Section>`;
-}
-
 function sectionBlock(
   section: GapSection,
   answers: SectionAnswers | null,
@@ -221,6 +124,52 @@ function sectionBlock(
   }
 
   return renderSection(section.title, parts);
+}
+
+function answeredQuestions(
+  section: GapSection,
+  feedback: SectionFeedback | undefined,
+  answers: SectionAnswers | null,
+): GapQuestion[] {
+  const questions = answers?.questions;
+
+  return (section.questions ?? []).filter(
+    (q) => feedback || questions?.[q.id]?.trim(),
+  );
+}
+
+function feedbackParts(
+  comment: string | undefined,
+  answered: GapQuestion[],
+  answers: SectionAnswers | null,
+): string[] {
+  const parts: string[] = [];
+
+  if (comment) {
+    parts.push(tag("UserComment", comment));
+  }
+
+  for (const question of answered) {
+    parts.push(questionTag(question, answers));
+  }
+
+  return parts;
+}
+
+function sectionDirection(
+  feedback: SectionFeedback | undefined,
+): SectionDirection {
+  return feedback?.direction ?? "refine";
+}
+
+function renderFeedbackSection(
+  title: string,
+  direction: SectionDirection,
+  parts: string[],
+): string {
+  return parts.length
+    ? `<Section title="${title}" direction="${direction}">\n${parts.join("\n")}\n</Section>`
+    : `<Section title="${title}" direction="${direction}"/>`;
 }
 
 function generatedContent(section: GapSection): string {
@@ -248,4 +197,55 @@ function questionsBlock(
   const body = questions.map((q) => questionTag(q, answers)).join("\n");
 
   return tag("Questions", body);
+}
+
+function sectionCommentBlock(
+  section: GapSection,
+  answers: SectionAnswers | null,
+): string | null {
+  const feedback = sectionFeedback(section, answers);
+
+  return hasCommentOrDirection(feedback) ? renderUserComment(feedback) : null;
+}
+
+function renderSection(title: string, parts: string[]): string {
+  return `<Section title="${title.replace(/"/g, "'")}">\n${parts.join("\n")}\n</Section>`;
+}
+
+function hasCommentOrDirection(feedback: SectionFeedback | undefined): boolean {
+  return Boolean(feedback?.comment?.trim()) || Boolean(feedback?.direction);
+}
+
+function renderUserComment(feedback: SectionFeedback | undefined): string {
+  const direction = feedback?.direction ?? "keep";
+  const comment = feedback?.comment?.trim() ?? "";
+
+  return `<UserComment direction="${direction}">\n${comment}\n</UserComment>`;
+}
+
+function sectionFeedback(
+  section: GapSection,
+  answers: SectionAnswers | null,
+): SectionFeedback | undefined {
+  return answers?.sections?.[section.title];
+}
+
+function questionTag(
+  question: GapQuestion,
+  answers: SectionAnswers | null,
+): string {
+  const questions = answers?.questions;
+  const answer = questions?.[question.id]?.trim() || "(unanswered)";
+
+  return `<Question id="${question.id}">\n<Asked>${question.question}</Asked>\n<Answer>${answer}</Answer>\n</Question>`;
+}
+
+function sectionComment(
+  feedback: SectionFeedback | undefined,
+): string | undefined {
+  return feedback?.comment?.trim();
+}
+
+function tag(name: string, body: string): string {
+  return `<${name}>\n${body}\n</${name}>`;
 }

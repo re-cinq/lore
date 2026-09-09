@@ -13,46 +13,31 @@ import { isUniqueViolation } from "./assembly-runs-pg-rows.js";
 import { findOpenBySubject, getById } from "./assembly-runs-pg-queries.js";
 import { listStationRuns } from "./assembly-runs-pg-station-runs.js";
 
-/** The plain-start write: row + `assembly_line.start` event in ONE CTE. */
-/** The run row and its start event in ONE statement. Both or neither: a run inserted without its event is queued with nothing to claim it, and an event without its run points at a row that does not exist. The fan-out CTE creates the delivery rows in the same breath, because fan-out reads the subscription set at INSERT time — a second statement would race a subscriber registering between them. */
-const START_RUN_SQL = `WITH al AS (
-       INSERT INTO pipeline.assembly_runs (blueprint_name, task_id, repo, branch, subject_key, args)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-       RETURNING id
-     ), ev AS (
-       INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
-       SELECT '${RUN_START_EVENT}', 'internal',
-              jsonb_build_object(
-                'assemblyLineId', al.id,
-                'blueprintName', $1,
-                'repo', $3,
-                'branch', $4,
-                'taskId', $2,
-                'args', $6::jsonb,
-                'resumedFrom', NULL::jsonb
-              ),
-              $3, '${RUN_START_EVENT}:' || al.id
-       FROM al
-       RETURNING id, event_name
-     ), fan AS (
-       ${fanOutClause("ev")}
-     )
-     SELECT id FROM al`;
-
-async function insertStart(
+/** Plain start, or start-or-JOIN onto an in-flight run sharing the same subject key, or a fork from a prior run's node. */
+export async function start(
   pool: PgPool,
   input: AssemblyRunStartInput,
 ): Promise<string> {
-  const { rows } = await pool.query(START_RUN_SQL, [
-    input.blueprintName,
-    input.taskId ?? null,
-    input.repo,
-    input.branch ?? null,
-    input.subjectKey ?? null,
-    JSON.stringify(input.args ?? {}),
-  ]);
+  if (input.resumeFrom) {
+    return startResumed(pool, input, input.resumeFrom);
+  }
 
-  return rows[0].id as string;
+  try {
+    return await insertStart(pool, input);
+  } catch (err) {
+    if (!isUniqueViolation(err) || !input.subjectKey) {
+      throw err;
+    }
+    // Start-or-JOIN: subject already in flight — hand back the run doing the work (the index enforces this under concurrency).
+    const open = await findOpenBySubject(pool, input.repo, input.subjectKey);
+
+    if (open) {
+      return open.id;
+    }
+
+    // Holder settled between the violation and this read; retry once (a second violation is a genuine race).
+    return await insertStart(pool, input);
+  }
 }
 
 /** Fork-and-rerun (specs/fork-rerun-from-node): validates then writes line+event+inherited node rows in one CTE; agent_cr_name nulled on copies so run-viz/cost joins never misattribute to the fork. */
@@ -94,6 +79,26 @@ const RESUME_START_SQL = `WITH al AS (
      )
      SELECT id FROM al`;
 
+async function startResumed(
+  pool: PgPool,
+  input: AssemblyRunStartInput,
+  resumeFrom: AssemblyRunResumeFrom,
+): Promise<string> {
+  const { source, prefix } = resolveResumePrefix(
+    input,
+    await getById(pool, resumeFrom.lineId),
+    await listStationRuns(pool, resumeFrom.lineId),
+  );
+  const { rows } = await pool.query(RESUME_START_SQL, [
+    ...forkedRunParams(input, source),
+    ...forkOriginParams(resumeFrom, prefix),
+    ...forkInheritedParams(input, source),
+    resumeFrom.iteration ?? null,
+  ]);
+
+  return rows[0].id as string;
+}
+
 /** The run's own columns ($1-$6): what the fork declares, over what it inherits from the source. */
 function forkedRunParams(
   input: AssemblyRunStartInput,
@@ -130,51 +135,46 @@ function forkInheritedParams(
   ];
 }
 
-async function startResumed(
+/** The plain-start write: row + `assembly_line.start` event in ONE CTE. */
+/** The run row and its start event in ONE statement. Both or neither: a run inserted without its event is queued with nothing to claim it, and an event without its run points at a row that does not exist. The fan-out CTE creates the delivery rows in the same breath, because fan-out reads the subscription set at INSERT time — a second statement would race a subscriber registering between them. */
+const START_RUN_SQL = `WITH al AS (
+       INSERT INTO pipeline.assembly_runs (blueprint_name, task_id, repo, branch, subject_key, args)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+       RETURNING id
+     ), ev AS (
+       INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
+       SELECT '${RUN_START_EVENT}', 'internal',
+              jsonb_build_object(
+                'assemblyLineId', al.id,
+                'blueprintName', $1,
+                'repo', $3,
+                'branch', $4,
+                'taskId', $2,
+                'args', $6::jsonb,
+                'resumedFrom', NULL::jsonb
+              ),
+              $3, '${RUN_START_EVENT}:' || al.id
+       FROM al
+       RETURNING id, event_name
+     ), fan AS (
+       ${fanOutClause("ev")}
+     )
+     SELECT id FROM al`;
+
+async function insertStart(
   pool: PgPool,
   input: AssemblyRunStartInput,
-  resumeFrom: AssemblyRunResumeFrom,
 ): Promise<string> {
-  const { source, prefix } = resolveResumePrefix(
-    input,
-    await getById(pool, resumeFrom.lineId),
-    await listStationRuns(pool, resumeFrom.lineId),
-  );
-  const { rows } = await pool.query(RESUME_START_SQL, [
-    ...forkedRunParams(input, source),
-    ...forkOriginParams(resumeFrom, prefix),
-    ...forkInheritedParams(input, source),
-    resumeFrom.iteration ?? null,
+  const { rows } = await pool.query(START_RUN_SQL, [
+    input.blueprintName,
+    input.taskId ?? null,
+    input.repo,
+    input.branch ?? null,
+    input.subjectKey ?? null,
+    JSON.stringify(input.args ?? {}),
   ]);
 
   return rows[0].id as string;
-}
-
-/** Plain start, or start-or-JOIN onto an in-flight run sharing the same subject key, or a fork from a prior run's node. */
-export async function start(
-  pool: PgPool,
-  input: AssemblyRunStartInput,
-): Promise<string> {
-  if (input.resumeFrom) {
-    return startResumed(pool, input, input.resumeFrom);
-  }
-
-  try {
-    return await insertStart(pool, input);
-  } catch (err) {
-    if (!isUniqueViolation(err) || !input.subjectKey) {
-      throw err;
-    }
-    // Start-or-JOIN: subject already in flight — hand back the run doing the work (the index enforces this under concurrency).
-    const open = await findOpenBySubject(pool, input.repo, input.subjectKey);
-
-    if (open) {
-      return open.id;
-    }
-
-    // Holder settled between the violation and this read; retry once (a second violation is a genuine race).
-    return await insertStart(pool, input);
-  }
 }
 
 export async function markRunning(pool: PgPool, id: string): Promise<void> {

@@ -80,21 +80,6 @@ type QueriedAdr = {
   links?: Array<UidRef & { stmt?: UidRef[] | UidRef; acOwners?: UidRef[] }>;
 };
 
-/** The incoming `decided_by`/`supersedes` refs naming `adr.uid`, one delete per citing node. */
-function adrCiterDeletes(adr: QueriedAdr): string[] {
-  return [
-    ...uids(adr.citers).map(
-      (uid) => `<${uid}> <Statement.decided_by> <${adr.uid}> .`,
-    ),
-    ...uids(adr.acCiters).map(
-      (uid) => `<${uid}> <AcceptanceCriterion.decided_by> <${adr.uid}> .`,
-    ),
-    ...uids(adr.superseders).map(
-      (uid) => `<${uid}> <ADR.supersedes> <${adr.uid}> .`,
-    ),
-  ];
-}
-
 /** Back-references naming `adr.uid` that also need deleting, plus the ADR node itself and its `Repo.adrs` edge. */
 function buildAdrDeletes(
   adr: QueriedAdr,
@@ -111,6 +96,21 @@ function buildAdrDeletes(
   }
 
   return deletes;
+}
+
+/** The incoming `decided_by`/`supersedes` refs naming `adr.uid`, one delete per citing node. */
+function adrCiterDeletes(adr: QueriedAdr): string[] {
+  return [
+    ...uids(adr.citers).map(
+      (uid) => `<${uid}> <Statement.decided_by> <${adr.uid}> .`,
+    ),
+    ...uids(adr.acCiters).map(
+      (uid) => `<${uid}> <AcceptanceCriterion.decided_by> <${adr.uid}> .`,
+    ),
+    ...uids(adr.superseders).map(
+      (uid) => `<${uid}> <ADR.supersedes> <${adr.uid}> .`,
+    ),
+  ];
 }
 
 /** Deletes for one incoming TraceLink: the link node itself, the citing Statement's forward ref (if any), and every citing AcceptanceCriterion's forward ref (symmetric back-edge — an owner would otherwise keep a dangling `trace_links` ref). */

@@ -1,10 +1,5 @@
 /** Dedupe-key derivations per producer: at-most-once contract via ON CONFLICT (dedupe_key) DO NOTHING. */
 
-/** Floor a timestamp to the minute, e.g. 2026-06-29T10:15:42.123Z -> 2026-06-29T10:15Z. */
-function flooredMinute(at: Date): string {
-  return `${at.toISOString().slice(0, 16)}Z`;
-}
-
 /** GitHub sends a unique X-GitHub-Delivery uuid, stable across its own retries. */
 export function githubDedupeKey(deliveryId: string): string {
   return `github:${deliveryId}`;
@@ -26,4 +21,9 @@ export function k8sAgentNodeDedupeKey(
 /** One tick per cron slot — collapses checkMissedRuns replay with the live tick. */
 export function cronDedupeKey(job: string, at: Date): string {
   return `cron:${job}:${flooredMinute(at)}`;
+}
+
+/** Floor a timestamp to the minute, e.g. 2026-06-29T10:15:42.123Z -> 2026-06-29T10:15Z. */
+function flooredMinute(at: Date): string {
+  return `${at.toISOString().slice(0, 16)}Z`;
 }

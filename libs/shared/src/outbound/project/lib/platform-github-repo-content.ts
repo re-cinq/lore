@@ -239,6 +239,28 @@ interface BlobLocation {
   path: string;
 }
 
+export async function commitFile(
+  ok: Octokit,
+  repo: string,
+  branch: string,
+  { path, content, message }: FileChange,
+): Promise<void> {
+  const [owner, name] = split(repo);
+  const { repos } = ok.rest;
+  const refs = [branch, "main"];
+  const sha = await existingBlobSha(repos, { owner, name, path }, refs);
+
+  await repos.createOrUpdateFileContents({
+    owner,
+    repo: name,
+    path,
+    branch,
+    message,
+    content: Buffer.from(content).toString("base64"),
+    ...(sha ? { sha } : {}),
+  });
+}
+
 /** The sha of the file as it already exists, from the first of `refs` that has it. GitHub rejects an update that does not name the blob being replaced, and main is checked after the branch so a file that exists upstream but not yet on the branch is still an UPDATE rather than a create that 422s. */
 async function existingBlobSha(
   repos: ReposApi,
@@ -276,26 +298,4 @@ async function blobShaAtRef(
   } catch {
     return undefined;
   }
-}
-
-export async function commitFile(
-  ok: Octokit,
-  repo: string,
-  branch: string,
-  { path, content, message }: FileChange,
-): Promise<void> {
-  const [owner, name] = split(repo);
-  const { repos } = ok.rest;
-  const refs = [branch, "main"];
-  const sha = await existingBlobSha(repos, { owner, name, path }, refs);
-
-  await repos.createOrUpdateFileContents({
-    owner,
-    repo: name,
-    path,
-    branch,
-    message,
-    content: Buffer.from(content).toString("base64"),
-    ...(sha ? { sha } : {}),
-  });
 }

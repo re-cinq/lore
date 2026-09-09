@@ -19,6 +19,27 @@ interface LinkIndexEntry {
   anchor: string;
 }
 
+export function bindDescriptorsToSpecLinks(
+  descriptors: TestDescriptor[],
+  specs: SpecSource[],
+): TestDescriptor[] {
+  const index = buildLinkIndex(specs);
+
+  return descriptors.map((descriptor) => {
+    // A descriptor that already names its spec keeps it: the author's own anchor outranks anything inferred from line ranges.
+    if (descriptor.spec !== undefined) {
+      return descriptor;
+    }
+    const anchors = anchorsFor(index, descriptor);
+
+    if (anchors.length === 0) {
+      return descriptor;
+    }
+
+    return { ...descriptor, spec: anchors.length === 1 ? anchors[0] : anchors };
+  });
+}
+
 /** Flatten every spec's statements into `(test path, line) → statement anchor` entries. */
 function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
   return specs.flatMap((spec) =>
@@ -53,25 +74,4 @@ function anchorsFor(
     entry.path === file && entry.line >= startLine && entry.line <= endLine;
 
   return [...new Set(index.filter(inRange).map((entry) => entry.anchor))];
-}
-
-export function bindDescriptorsToSpecLinks(
-  descriptors: TestDescriptor[],
-  specs: SpecSource[],
-): TestDescriptor[] {
-  const index = buildLinkIndex(specs);
-
-  return descriptors.map((descriptor) => {
-    // A descriptor that already names its spec keeps it: the author's own anchor outranks anything inferred from line ranges.
-    if (descriptor.spec !== undefined) {
-      return descriptor;
-    }
-    const anchors = anchorsFor(index, descriptor);
-
-    if (anchors.length === 0) {
-      return descriptor;
-    }
-
-    return { ...descriptor, spec: anchors.length === 1 ? anchors[0] : anchors };
-  });
 }

@@ -13,10 +13,6 @@ import type {
 
 export { enforceSchema, type ChunkRow } from "./chunk-row-memory.js";
 
-function chunkIndexOf(row: ChunkRow): number | null {
-  return (row.metadata.chunk_index as number | undefined) ?? null;
-}
-
 function toSpecChunk(row: ChunkRow): SpecChunkWithIngest {
   return {
     repo: row.repo,
@@ -47,6 +43,10 @@ function specDocumentOrder(a: ChunkRow, b: ChunkRow): number {
   }
 
   return new Date(a.ingestedAt).getTime() - new Date(b.ingestedAt).getTime();
+}
+
+function chunkIndexOf(row: ChunkRow): number | null {
+  return (row.metadata.chunk_index as number | undefined) ?? null;
 }
 
 /** In-memory ChunksPort — behavioral spec of the Pg adapter over rows keyed by (schema, repo, file_path, id); lets context-core jobs and stations test without a live {schema}.chunks table. */

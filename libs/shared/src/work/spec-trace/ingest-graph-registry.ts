@@ -88,25 +88,6 @@ export const INGEST_KINDS: Record<string, IngestKindDef> = {
   },
 };
 
-/** The directory glob a single markdown path chunks into for `def`, or undefined when the path isn't one of this kind's files. */
-function chunkGlobForPath(
-  path: string,
-  def: IngestKindDef,
-): string | undefined {
-  if (!path.endsWith(".md")) {
-    return undefined;
-  }
-  const prefix = def.prefixes.find((p) => path.startsWith(p));
-
-  if (!prefix) {
-    return undefined;
-  }
-  const rest = path.slice(prefix.length);
-  const slash = rest.indexOf("/");
-
-  return slash === -1 ? prefix : `${prefix}${rest.slice(0, slash + 1)}`;
-}
-
 /** Per-directory chunk globs for a kind's files, so a forced full-repo re-embed (which outlives the event bus's stuck-row timeout as one event) can be split into per-glob chunks that finish in seconds. */
 export function chunkGlobsForKind(
   kind: string,
@@ -132,29 +113,23 @@ export function chunkGlobsForKind(
   return [...globs].sort();
 }
 
-/** Tree paths matching the repo's explicit `.lore/ingest.yml` patterns, further narrowed by the substring `glob`. */
-function filesMatchingPatterns(
-  tree: string[],
-  patterns: string[],
-  glob?: string,
-): string[] {
-  return tree.filter(
-    (path) => matchesAnyGlob(path, patterns) && (!glob || path.includes(glob)),
-  );
-}
-
-/** Markdown tree paths under the kind's built-in prefixes, further narrowed by the substring `glob`. */
-function filesUnderKindPrefixes(
-  tree: string[],
+/** The directory glob a single markdown path chunks into for `def`, or undefined when the path isn't one of this kind's files. */
+function chunkGlobForPath(
+  path: string,
   def: IngestKindDef,
-  glob?: string,
-): string[] {
-  return tree.filter(
-    (path) =>
-      path.endsWith(".md") &&
-      def.prefixes.some((prefix) => path.startsWith(prefix)) &&
-      (!glob || path.includes(glob)),
-  );
+): string | undefined {
+  if (!path.endsWith(".md")) {
+    return undefined;
+  }
+  const prefix = def.prefixes.find((p) => path.startsWith(p));
+
+  if (!prefix) {
+    return undefined;
+  }
+  const rest = path.slice(prefix.length);
+  const slash = rest.indexOf("/");
+
+  return slash === -1 ? prefix : `${prefix}${rest.slice(0, slash + 1)}`;
 }
 
 /** How an ingest narrows the tree: `glob` is a substring filter, `patterns` (from `.lore/ingest.yml`) REPLACE the kind's built-in prefix/`.md` defaults. */
@@ -183,6 +158,31 @@ export function selectIngestFiles(
   return filesUnderKindPrefixes(tree, def, glob);
 }
 
+/** Tree paths matching the repo's explicit `.lore/ingest.yml` patterns, further narrowed by the substring `glob`. */
+function filesMatchingPatterns(
+  tree: string[],
+  patterns: string[],
+  glob?: string,
+): string[] {
+  return tree.filter(
+    (path) => matchesAnyGlob(path, patterns) && (!glob || path.includes(glob)),
+  );
+}
+
+/** Markdown tree paths under the kind's built-in prefixes, further narrowed by the substring `glob`. */
+function filesUnderKindPrefixes(
+  tree: string[],
+  def: IngestKindDef,
+  glob?: string,
+): string[] {
+  return tree.filter(
+    (path) =>
+      path.endsWith(".md") &&
+      def.prefixes.some((prefix) => path.startsWith(prefix)) &&
+      (!glob || path.includes(glob)),
+  );
+}
+
 /** Builds the run summary. `failed` only fails the task when EVERY attempted file failed; a partial failure stays `completed`. */
 export interface IngestCounts {
   attempted: number;
@@ -190,6 +190,27 @@ export interface IngestCounts {
   skipped: number;
   failedFiles: string[];
   pruned?: number;
+}
+
+export function summarizeIngest(
+  kind: IngestKind,
+  counts: IngestCounts,
+): IngestGraphSummary {
+  const { projected, skipped, failedFiles, pruned } = counts;
+  const failed = failedFiles.length;
+  const status = ingestStatus(counts);
+  const message = ingestMessage(kind, status, { ...counts, failed });
+
+  return {
+    kind,
+    projected,
+    skipped,
+    failed,
+    failedFiles,
+    ...(pruned !== undefined ? { pruned } : {}),
+    status,
+    message,
+  };
 }
 
 function ingestStatus(counts: IngestCounts): IngestGraphSummary["status"] {
@@ -213,27 +234,6 @@ function ingestMessage(
     counts.pruned !== undefined ? `, pruned ${counts.pruned}` : "";
 
   return `${kind}: projected ${counts.projected}, skipped ${counts.skipped}, failed ${counts.failed}${prunedSuffix}`;
-}
-
-export function summarizeIngest(
-  kind: IngestKind,
-  counts: IngestCounts,
-): IngestGraphSummary {
-  const { projected, skipped, failedFiles, pruned } = counts;
-  const failed = failedFiles.length;
-  const status = ingestStatus(counts);
-  const message = ingestMessage(kind, status, { ...counts, failed });
-
-  return {
-    kind,
-    projected,
-    skipped,
-    failed,
-    failedFiles,
-    ...(pruned !== undefined ? { pruned } : {}),
-    status,
-    message,
-  };
 }
 
 export function skippedSummary(

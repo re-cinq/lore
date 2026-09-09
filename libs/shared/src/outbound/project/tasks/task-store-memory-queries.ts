@@ -31,6 +31,15 @@ function bySpecTaskId(a: FeatureTaskRow, b: FeatureTaskRow): number {
   );
 }
 
+/** listTasks selects the 10-column TaskListRow subset, not SELECT * — fields outside it (context_bundle, priority, …) are absent in Pg too. */
+function toListRow(t: SeedStoreTask) {
+  return {
+    ...listRowIdentity(t),
+    ...listRowRepo(t),
+    ...listRowTimestamps(t),
+  };
+}
+
 function listRowIdentity(t: SeedStoreTask) {
   return {
     id: t.id,
@@ -53,15 +62,6 @@ function listRowTimestamps(t: SeedStoreTask) {
     created_by: t.created_by ?? "",
     created_at: t.created_at ?? "",
     updated_at: t.updated_at ?? "",
-  };
-}
-
-/** listTasks selects the 10-column TaskListRow subset, not SELECT * — fields outside it (context_bundle, priority, …) are absent in Pg too. */
-function toListRow(t: SeedStoreTask) {
-  return {
-    ...listRowIdentity(t),
-    ...listRowRepo(t),
-    ...listRowTimestamps(t),
   };
 }
 

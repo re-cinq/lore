@@ -50,6 +50,17 @@ function byIdAscending(a: AgentRunEventRow, b: AgentRunEventRow): number {
   return BigInt(a.id) < BigInt(b.id) ? -1 : 1;
 }
 
+function toInsertRow(row: AgentRunEventInsert) {
+  return {
+    task_id: row.taskId,
+    agent_cr_name: row.agentCrName,
+    ...carriedNodeFields(row.carried),
+    event_type: row.eventType,
+    ...toolFields(row),
+    ...contentFields(row),
+  };
+}
+
 function carriedNodeFields(carried: CarriedRunIdentity | null | undefined) {
   const identity: Partial<CarriedRunIdentity> = carried ?? {};
 
@@ -74,17 +85,6 @@ function contentFields(row: AgentRunEventInsert) {
     file_paths: [...(row.filePaths ?? [])],
     summary: row.summary ?? null,
     payload: row.payload ?? {},
-  };
-}
-
-function toInsertRow(row: AgentRunEventInsert) {
-  return {
-    task_id: row.taskId,
-    agent_cr_name: row.agentCrName,
-    ...carriedNodeFields(row.carried),
-    event_type: row.eventType,
-    ...toolFields(row),
-    ...contentFields(row),
   };
 }
 

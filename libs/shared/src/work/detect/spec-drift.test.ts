@@ -14,26 +14,6 @@ import type { TraceDocument } from "../../domain/spec-trace/assemble-trace-docum
 const REPO = "octo/repo";
 const savedDgraph = process.env.LORE_DGRAPH_HTTP;
 
-function driftedDocument(filePath: string): TraceDocument {
-  return {
-    filePath,
-    title: "spec",
-    description: "",
-    sections: [],
-    statements: [
-      {
-        uid: "0x1",
-        ordinal: 1,
-        text: "claims a task",
-        state: "tested",
-        violated: true,
-        links: [],
-      },
-    ],
-    coverage: { testable: 1, covered: 1, untestable: 0, ratio: 1 },
-  };
-}
-
 function buildProject(specPaths: string[]): {
   project: Project;
   created: CreateTaskInput[];
@@ -89,6 +69,26 @@ function buildProject(specPaths: string[]): {
   );
 
   return { project, created };
+}
+
+function driftedDocument(filePath: string): TraceDocument {
+  return {
+    filePath,
+    title: "spec",
+    description: "",
+    sections: [],
+    statements: [
+      {
+        uid: "0x1",
+        ordinal: 1,
+        text: "claims a task",
+        state: "tested",
+        violated: true,
+        links: [],
+      },
+    ],
+    coverage: { testable: 1, covered: 1, untestable: 0, ratio: 1 },
+  };
 }
 
 describe("specDriftJob", () => {

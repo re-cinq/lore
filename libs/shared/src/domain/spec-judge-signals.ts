@@ -1,6 +1,26 @@
 // The three pre-filter signals the spec-test judge ranks candidates by — path affinity, embedding similarity, literal assertion mention — plus the embedding parsing they need; split out of spec-judge.ts, which keeps the candidate/judgment pipeline.
 import type { Assertion } from "./spec-judge.js";
 
+/** A test shares a feature directory with the spec when it overlaps at least half the spec slug's significant tokens. */
+export function hasDirectoryAffinity(
+  specPath: string,
+  testPath: string,
+): boolean {
+  const slug = specFeatureSlug(specPath);
+
+  if (!slug) {
+    return false;
+  }
+  const slugTokens = new Set(significantTokens(slug));
+
+  if (slugTokens.size === 0) {
+    return false;
+  }
+  const overlap = countOverlap(slugTokens, significantTokens(testPath));
+
+  return overlap >= Math.max(1, Math.ceil(slugTokens.size / 2));
+}
+
 /** `specs/local-task-runner/spec.md` → `local-task-runner`; falls back to the spec's parent directory. */
 export function specFeatureSlug(specPath: string): string | null {
   const parts = specPath.split("/").filter(Boolean);
@@ -36,26 +56,6 @@ function countOverlap(slugTokens: Set<string>, testTokens: string[]): number {
   }
 
   return overlap;
-}
-
-/** A test shares a feature directory with the spec when it overlaps at least half the spec slug's significant tokens. */
-export function hasDirectoryAffinity(
-  specPath: string,
-  testPath: string,
-): boolean {
-  const slug = specFeatureSlug(specPath);
-
-  if (!slug) {
-    return false;
-  }
-  const slugTokens = new Set(significantTokens(slug));
-
-  if (slugTokens.size === 0) {
-    return false;
-  }
-  const overlap = countOverlap(slugTokens, significantTokens(testPath));
-
-  return overlap >= Math.max(1, Math.ceil(slugTokens.size / 2));
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {

@@ -8,6 +8,31 @@ export interface GraphHop {
   valid_from?: string;
 }
 
+/** Walks a `@recurse` tree depth-first, flattening it into per-hop `GraphHop`s until `maxDepth`. */
+export function flattenHops(
+  entity: Record<string, unknown>,
+  maxDepth: number,
+  depth = 1,
+): GraphHop[] {
+  if (depth > maxDepth) {
+    return [];
+  }
+  const rels = (entity["Entity.out_rels"] ?? []) as Record<string, unknown>[];
+  const hops: GraphHop[] = [];
+
+  for (const rel of rels) {
+    const target = resolveRelTarget(rel);
+
+    hops.push(buildHop(entity, rel, target, depth));
+
+    if (target) {
+      hops.push(...flattenHops(target, maxDepth, depth + 1));
+    }
+  }
+
+  return hops;
+}
+
 // `GraphRel.target` arrives as an object under `@recurse` and is normalized defensively.
 function resolveRelTarget(
   rel: Record<string, unknown>,
@@ -32,29 +57,4 @@ function buildHop(
     depth,
     valid_from: rel["GraphRel.valid_from"] as string | undefined,
   };
-}
-
-/** Walks a `@recurse` tree depth-first, flattening it into per-hop `GraphHop`s until `maxDepth`. */
-export function flattenHops(
-  entity: Record<string, unknown>,
-  maxDepth: number,
-  depth = 1,
-): GraphHop[] {
-  if (depth > maxDepth) {
-    return [];
-  }
-  const rels = (entity["Entity.out_rels"] ?? []) as Record<string, unknown>[];
-  const hops: GraphHop[] = [];
-
-  for (const rel of rels) {
-    const target = resolveRelTarget(rel);
-
-    hops.push(buildHop(entity, rel, target, depth));
-
-    if (target) {
-      hops.push(...flattenHops(target, maxDepth, depth + 1));
-    }
-  }
-
-  return hops;
 }

@@ -6,8 +6,18 @@ const CREDIT_PROBE_MODEL = "claude-haiku-4-5-20251001";
 /** Matches the account-level billing errors Anthropic returns on 402/403/429. */
 const BILLING_ERROR = /credit|balance|billing/i;
 
-function isBillingErrorStatus(status: number): boolean {
-  return status === 429 || status === 403;
+/** True only on a billing/credit error from a minimal Anthropic request; `false` when unset, on network errors, or non-billing status (let the real calls surface the actual problem). */
+export async function anthropicCreditsExhausted(
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+  const apiKey = env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    return false;
+  }
+
+  return probeBillingError(apiKey, fetchImpl);
 }
 
 async function probeBillingError(
@@ -31,6 +41,10 @@ async function probeBillingError(
   }
 }
 
+function isBillingErrorStatus(status: number): boolean {
+  return status === 429 || status === 403;
+}
+
 function creditProbeInit(apiKey: string): RequestInit {
   return {
     method: "POST",
@@ -45,18 +59,4 @@ function creditProbeInit(apiKey: string): RequestInit {
       messages: [{ role: "user", content: "hi" }],
     }),
   };
-}
-
-/** True only on a billing/credit error from a minimal Anthropic request; `false` when unset, on network errors, or non-billing status (let the real calls surface the actual problem). */
-export async function anthropicCreditsExhausted(
-  env: NodeJS.ProcessEnv = process.env,
-  fetchImpl: typeof fetch = fetch,
-): Promise<boolean> {
-  const apiKey = env.ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
-    return false;
-  }
-
-  return probeBillingError(apiKey, fetchImpl);
 }

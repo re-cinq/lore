@@ -35,14 +35,6 @@ function toRow(row: AgentRunTurnDbRow): AgentRunTurnRow {
   };
 }
 
-/** Reads one field off `carried`, or `null` when the event carried no identity at all. */
-function carriedField<T>(
-  carried: CarriedRunIdentity | null | undefined,
-  pick: (identity: CarriedRunIdentity) => T,
-): T | null {
-  return carried ? pick(carried) : null;
-}
-
 function toBatchRow(row: AgentRunTurnInsert): Record<string, unknown> {
   return {
     task_id: row.taskId,
@@ -55,6 +47,14 @@ function toBatchRow(row: AgentRunTurnInsert): Record<string, unknown> {
     envelope: row.envelope,
     dedup_key: row.dedupKey ?? null,
   };
+}
+
+/** Reads one field off `carried`, or `null` when the event carried no identity at all. */
+function carriedField<T>(
+  carried: CarriedRunIdentity | null | undefined,
+  pick: (identity: CarriedRunIdentity) => T,
+): T | null {
+  return carried ? pick(carried) : null;
 }
 
 /** Postgres-backed {@link AgentRunTurnsRepository}. Batch as ONE jsonb parameter via jsonb_to_recordset (varies row count, agent-controlled text never in statement). Envelope as TEXT cast in statement (no roundtrip). Correlation via LEFT JOIN LATERAL for resilience. */
