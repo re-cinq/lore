@@ -222,6 +222,40 @@ describe("hybridChunkItems", () => {
     expect(sources[0].text).toContain("parseSettingsForm");
   });
 
+  it("returns a Conventions item of 10 tokens for a chunk whose 120-char link group was stripped", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+    const links =
+      "([validated by `a.test.ts:6`](libs/shared/src/lib/a.test.ts#L6), [`b.test.ts:17`](libs/shared/src/lib/b.test.ts#L17))";
+    const { pool } = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          {
+            content: `- FR1 Every phase ends with a commit. ${links}`,
+            file_path: "specs/x/spec.md",
+            content_type: "spec",
+            score: 0.4,
+          },
+        ],
+      },
+    );
+
+    const sources = await hybridChunkItems(
+      pool,
+      "commit phase",
+      "re-cinq/lore",
+      {
+        contentTypes: ["doc", "spec"],
+        limit: 5,
+      },
+    );
+
+    expect(sources[0]).toMatchObject({
+      text: "- FR1 Every phase ends with a commit.",
+      tokens: 10,
+    });
+  });
+
   it("reads from the repo's provisioned team schema instead of org_shared", async () => {
     vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
     const { pool, calls } = fakePool(

@@ -95,7 +95,7 @@ unaffected.
 
 When a graph client is present, the source reads the repo's coupled statements
 and projects them into items.
-([validated by `projects coupled statements from the graph into items`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L82))
+([validated by `projects coupled statements from the graph into sources`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L82))
 
 An empty `GraphContextBlock` projects to an empty item list, contributing nothing
 to the assembly.

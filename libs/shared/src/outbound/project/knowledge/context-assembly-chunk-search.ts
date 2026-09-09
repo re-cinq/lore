@@ -2,6 +2,7 @@ import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
 import type { PgPool } from "../../memory-store.js";
 import { resolveChunkSchemaForRepo } from "../chunks/chunk-schema.js";
 import type { SourceItem } from "./context-assembly-format.js";
+import { stripCoverageLinks } from "../../../domain/spec-link-strip.js";
 import {
   mkItem,
   toScore,
@@ -65,7 +66,8 @@ function hybridSql(schema: string): string {
 function toItems(rows: ChunkSearchHit[], contentTypes: string[]): SourceItem[] {
   return normalizeScores(
     rows.map((r) =>
-      mkItem(r.content, {
+      // Stripped here, not at ingest: the stored chunk keeps its links for the coverage validators; the agent's bundle does not need them.
+      mkItem(stripCoverageLinks(r.content), {
         source_path: r.file_path,
         content_type: r.content_type ?? contentTypes[0],
         score: toScore(r.score),

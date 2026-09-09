@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { errorMessage } from "@re-cinq/lore-shared";
+import { errorMessage, stripCoverageLinks } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 /** Incremental file ingestion: fetches content from GitHub, classifies, upserts chunks, generates embeddings. */
@@ -98,14 +98,16 @@ async function insertChunk(
   return rows[0]?.id;
 }
 
-/** Embeds a chunk and stores the vector, reporting whether it landed. A separate UPDATE rather than part of the INSERT: embedding calls an external model, and a chunk that fails to embed is still worth having — it stays findable by keyword search. Only the first 8k characters are embedded, which is the model's own window. */
+/** Embeds a chunk and stores the vector, reporting whether it landed. A separate UPDATE rather than part of the INSERT: embedding calls an external model, and a chunk that fails to embed is still worth having — it stays findable by keyword search. Only the first 8k characters are embedded, which is the model's own window — after the coverage-link groups are stripped, or a backfilled spec statement spends that window on test paths. */
 async function embedChunk(
   pool: Pool,
   schema: string,
   chunkId: string,
   content: string,
 ): Promise<boolean> {
-  const embedding = await getQueryEmbedding(content.substring(0, 8000));
+  const embedding = await getQueryEmbedding(
+    stripCoverageLinks(content).substring(0, 8000),
+  );
 
   if (!embedding) {
     return false;
