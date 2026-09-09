@@ -3889,9 +3889,11 @@
                       "type": "string",
                       "minLength": 1
                     }
+                  },
+                  "ref": {
+                    "type": "string"
                   }
                 },
-                "required": ["present_paths"],
                 "additionalProperties": false
               }
             }

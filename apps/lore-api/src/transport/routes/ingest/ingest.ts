@@ -9,6 +9,7 @@ import type {
 } from "@hapi/hapi";
 import { z } from "zod";
 import { ingestFiles } from "../../../work/spec-trace/ingest.js";
+import { reconcileOrphanChunks } from "../../../work/chunks/reconcile-orphans.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { triggerAgentSpecCoverageValidate } from "../helpers.js";
@@ -51,6 +52,10 @@ async function serveIngest(
     // Fire-and-forget test re-link (gate: content-hash, landed files only).
     if (anyFileLanded(result.results)) {
       void triggerAgentSpecCoverageValidate(pool, repo);
+      // The store converges on the merge that changed the tree, so a rename's old path cannot outlive it. Merge-time ingest is the only ingestion path since #1880, which is why nothing was reconciling.
+      void reconcileOrphanChunks(pool, repo, commit).catch((err) =>
+        console.warn("[ingest] reconcile skipped:", errorMessage(err)),
+      );
     }
 
     return h.response(result);
