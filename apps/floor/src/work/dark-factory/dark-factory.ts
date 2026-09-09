@@ -36,24 +36,6 @@ export interface IssueGateDecision {
     | "approval_required_overrides_dark_mode";
 }
 
-function overridesWantIssue(
-  overrides: DarkFactoryTaskOverrides | undefined,
-): boolean {
-  return overrides?.with_issue === true;
-}
-
-function darkFactoryDisabled(
-  settings: DarkFactoryRepoSettings | undefined,
-): boolean {
-  return !settings?.enabled;
-}
-
-function createIssuePolicy(
-  settings: DarkFactoryRepoSettings | undefined,
-): CreateIssueMode {
-  return settings?.create_issue ?? "on_gate";
-}
-
 // approvalNeeded is short-circuited before this table is consulted; reaching "on_gate" here means no approval gate, so it suppresses the Issue.
 const GATE_POLICY_DECISIONS: Record<CreateIssueMode, IssueGateDecision> = {
   never: { create: false, reason: "create_issue_never" },
@@ -84,6 +66,24 @@ export function decideIssueCreate(args: {
   }
 
   return GATE_POLICY_DECISIONS[createIssuePolicy(args.settings)];
+}
+
+function overridesWantIssue(
+  overrides: DarkFactoryTaskOverrides | undefined,
+): boolean {
+  return overrides?.with_issue === true;
+}
+
+function darkFactoryDisabled(
+  settings: DarkFactoryRepoSettings | undefined,
+): boolean {
+  return !settings?.enabled;
+}
+
+function createIssuePolicy(
+  settings: DarkFactoryRepoSettings | undefined,
+): CreateIssueMode {
+  return settings?.create_issue ?? "on_gate";
 }
 
 /** Pure decision (T034): resolves the effective review mode for a task by merging per-task overrides over per-repo dark_factory settings — `human_review: required` forces `always`; disabled defaults to `always`; enabled uses `settings.review` (default `trust_based`, which lets auto-merge gate per-path; `never` skips bot review). */

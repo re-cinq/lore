@@ -69,6 +69,31 @@ export interface NodeTerminalInput {
   output?: string;
 }
 
+/** Post the review, record the outcome + advance, then publish the PR check. */
+export async function finishNodeTerminal(
+  input: NodeTerminalInput,
+  deps: AdvanceDeps,
+): Promise<void> {
+  const model = await resolveVisitModel(input, deps);
+
+  if (await handledAsBudgetSkip(input, model, deps)) {
+    return;
+  }
+  const post = await postNodeArtifacts(input, model);
+
+  await finishNodeAndAdvance(
+    {
+      assemblyLineId: input.row.id,
+      nodeId: input.nodeId,
+      iteration: input.iteration,
+      result: reviewNodeResultOverride(post, input.output, input.result),
+    },
+    deps,
+  );
+
+  await publishCheck(input.row.id, deps);
+}
+
 /** The model(s) that actually billed against this visit, read back from `llm_calls`: the dispatch spec snapshots the yaml default while the agent-definition row overrides it at run time, so the disclosure must name the reviewer that really judged the diff. Falls back to the node's declared model when nothing billed. */
 async function resolveVisitModel(
   input: NodeTerminalInput,
@@ -101,27 +126,37 @@ function isVisitFor(
   );
 }
 
-/** A review visit that failed on an exhausted LLM budget must not block the PR — an empty account is an operator problem, not the author's — so post an APPROVE saying loudly that no review happened (deduped by the same per-visit marker as a real review) and record the visit as success. */
-/** The audit row for an approval nobody's model actually produced — without it the PR shows a green review with no run behind it, and the reason (a dry account) is only in the body text. */
-async function auditBudgetSkip(
-  row: AssemblyRunRecord,
-  prNumber: number,
-  ports: ReviewPorts,
-): Promise<void> {
-  await writeAuditLog(
-    {
-      event_type: "review_budget_skip",
-      repo: row.repo,
-      payload: {
-        pr_number: prNumber,
-        assembly_run_id: row.id,
-        model: ports.model ?? null,
-      },
-    },
-    ports.audit,
+/** Out of budget: approve-with-notice and finish as SUCCESS. A retry cannot help — only a topup can — so failing the node would spend the run's remaining iterations re-hitting the same wall. Returns false when this is not a credit failure, or the node is not one that reviews. */
+async function handledAsBudgetSkip(
+  input: NodeTerminalInput,
+  model: string | undefined,
+  deps: AdvanceDeps,
+): Promise<boolean> {
+  if (!isCreditFailure(input.result)) {
+    return false;
+  }
+  const posted = await postBudgetSkipReview(input.row, input.node, {
+    iteration: input.iteration,
+    model,
+  });
+
+  if (posted === "not_applicable") {
+    return false;
+  }
+
+  await finishAsSuccess(input, deps);
+
+  return true;
+}
+
+/** An exhausted LLM budget, the one failure a retry cannot clear. */
+function isCreditFailure(result: NodeResult): boolean {
+  return (
+    result.outcome === "failed" && result.failureClass === "anthropic-credit"
   );
 }
 
+/** A review visit that failed on an exhausted LLM budget must not block the PR — an empty account is an operator problem, not the author's — so post an APPROVE saying loudly that no review happened (deduped by the same per-visit marker as a real review) and record the visit as success. */
 export async function postBudgetSkipReview(
   row: AssemblyRunRecord,
   node: RunGraphNode,
@@ -157,33 +192,23 @@ async function approveWithNotice(
   });
 }
 
-/** Out of budget: approve-with-notice and finish as SUCCESS. A retry cannot help — only a topup can — so failing the node would spend the run's remaining iterations re-hitting the same wall. Returns false when this is not a credit failure, or the node is not one that reviews. */
-async function handledAsBudgetSkip(
-  input: NodeTerminalInput,
-  model: string | undefined,
-  deps: AdvanceDeps,
-): Promise<boolean> {
-  if (!isCreditFailure(input.result)) {
-    return false;
-  }
-  const posted = await postBudgetSkipReview(input.row, input.node, {
-    iteration: input.iteration,
-    model,
-  });
-
-  if (posted === "not_applicable") {
-    return false;
-  }
-
-  await finishAsSuccess(input, deps);
-
-  return true;
-}
-
-/** An exhausted LLM budget, the one failure a retry cannot clear. */
-function isCreditFailure(result: NodeResult): boolean {
-  return (
-    result.outcome === "failed" && result.failureClass === "anthropic-credit"
+/** The audit row for an approval nobody's model actually produced — without it the PR shows a green review with no run behind it, and the reason (a dry account) is only in the body text. */
+async function auditBudgetSkip(
+  row: AssemblyRunRecord,
+  prNumber: number,
+  ports: ReviewPorts,
+): Promise<void> {
+  await writeAuditLog(
+    {
+      event_type: "review_budget_skip",
+      repo: row.repo,
+      payload: {
+        pr_number: prNumber,
+        assembly_run_id: row.id,
+        model: ports.model ?? null,
+      },
+    },
+    ports.audit,
   );
 }
 
@@ -201,31 +226,6 @@ async function finishAsSuccess(
     },
     deps,
   );
-  await publishCheck(input.row.id, deps);
-}
-
-/** Post the review, record the outcome + advance, then publish the PR check. */
-export async function finishNodeTerminal(
-  input: NodeTerminalInput,
-  deps: AdvanceDeps,
-): Promise<void> {
-  const model = await resolveVisitModel(input, deps);
-
-  if (await handledAsBudgetSkip(input, model, deps)) {
-    return;
-  }
-  const post = await postNodeArtifacts(input, model);
-
-  await finishNodeAndAdvance(
-    {
-      assemblyLineId: input.row.id,
-      nodeId: input.nodeId,
-      iteration: input.iteration,
-      result: reviewNodeResultOverride(post, input.output, input.result),
-    },
-    deps,
-  );
-
   await publishCheck(input.row.id, deps);
 }
 

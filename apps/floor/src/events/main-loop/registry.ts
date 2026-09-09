@@ -47,14 +47,20 @@ export function withExtra(
 
 type Entry = [string, EventHandler];
 
-/** The PR-lifecycle events that all start (or restart) the code-review line. */
-function prReviewTriggerEntries(): Entry[] {
-  return [
-    ["github.pull_request.opened", codeReviewOnTrigger],
-    ["github.pull_request.synchronize", codeReviewOnTrigger],
-    ["github.pull_request.reopened", codeReviewOnTrigger],
-    ["github.pull_request.ready_for_review", codeReviewOnTrigger],
-  ];
+export function buildRegistry(): Map<string, EventHandler> {
+  return new Map<string, EventHandler>([
+    ...githubEntries(),
+    ...internalEntries(),
+    ...kubernetesEntries(),
+    ...cronEntries(),
+  ]);
+}
+
+export function resolve(
+  registry: Map<string, EventHandler>,
+  eventName: string,
+): EventHandler | undefined {
+  return registry.get(eventName);
 }
 
 /** Layer 1's webhook ingress. `withExtra` rides a second handler alongside the first so neither can break the other — a spec-task sync must not be lost because a parked line failed to wake, or vice versa. */
@@ -74,6 +80,16 @@ function githubEntries(): Entry[] {
     ["github.check_suite.completed", github.autoMerge],
     ["github.issue_comment.created", codeReviewOnComment],
     ["github.issues.labeled", github.issuesLabeled],
+  ];
+}
+
+/** The PR-lifecycle events that all start (or restart) the code-review line. */
+function prReviewTriggerEntries(): Entry[] {
+  return [
+    ["github.pull_request.opened", codeReviewOnTrigger],
+    ["github.pull_request.synchronize", codeReviewOnTrigger],
+    ["github.pull_request.reopened", codeReviewOnTrigger],
+    ["github.pull_request.ready_for_review", codeReviewOnTrigger],
   ];
 }
 
@@ -130,20 +146,4 @@ function detectTickEntries(): Entry[] {
     ["cron.spec_coverage_backfill.tick", cron.specCoverageBackfill],
     ["cron.spec_coverage_validate.tick", detect.specCoverageValidateTick],
   ];
-}
-
-export function buildRegistry(): Map<string, EventHandler> {
-  return new Map<string, EventHandler>([
-    ...githubEntries(),
-    ...internalEntries(),
-    ...kubernetesEntries(),
-    ...cronEntries(),
-  ]);
-}
-
-export function resolve(
-  registry: Map<string, EventHandler>,
-  eventName: string,
-): EventHandler | undefined {
-  return registry.get(eventName);
 }

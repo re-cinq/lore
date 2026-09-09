@@ -29,88 +29,24 @@ import {
 
 export { ONBOARD_STATIC_FILES, ONBOARD_FILES } from "./onboard-content.js";
 
-/** One read of the repo, logged: the tree plus the fetched file set is what every later onboarding decision keys on. */
-async function loadOnboardContext(targetRepo: string) {
-  console.log(`[floor] Onboard: fetching context for ${targetRepo}...`);
-  const context = await fetchRepoContext(targetRepo);
-
-  console.log(
-    `[floor] Onboard: ${context.tree.length} tree entries, ${Object.keys(context.files).length} files`,
-  );
-
-  return context;
-}
-
-/** A repo that already has every file is an error rather than an empty run, because an onboard PR with no files is indistinguishable from a broken one. */
-async function planFilesToGenerate(
-  targetRepo: string,
-  survey: Parameters<typeof planOnboardFiles>[1],
-): Promise<Awaited<ReturnType<typeof planOnboardFiles>>> {
-  const toGenerate = await planOnboardFiles(targetRepo, survey);
-
-  enforceTrue(
-    toGenerate.length !== 0,
-    Error,
-    "All onboarding files already exist — nothing to generate",
-  );
-
-  console.log(`[floor] Onboard: generating ${toGenerate.length} files...`);
-
-  return toGenerate;
-}
-
-/** Reads the repo once and decides what onboarding still owes it. */
-async function planOnboarding(targetRepo: string): Promise<{
-  contextStr: string;
-  existingFiles: Set<string>;
-  toGenerate: Awaited<ReturnType<typeof planOnboardFiles>>;
-}> {
-  const context = await loadOnboardContext(targetRepo);
-
-  const existingFiles = new Set([
-    ...context.tree,
-    ...Object.keys(context.files),
-  ]);
-  const toGenerate = await planFilesToGenerate(targetRepo, {
-    existingFiles,
-    hasAdrs: context.tree.includes("adrs") || context.tree.includes("docs"),
-  });
-
-  return {
-    contextStr: JSON.stringify(context, null, 2),
-    existingFiles,
-    toGenerate,
+export async function handleOnboard({
+  task,
+  targetRepo,
+  branchName,
+  model,
+  issueNumber,
+}: TaskHandlerInput): Promise<void> {
+  const run: OnboardingRun = {
+    project: await projectFor(targetRepo),
+    targetRepo,
+    branchName,
+    task,
+    issueNumber,
   };
-}
+  const { committed, attention } = await prepareOnboarding(run, model);
+  const pr = await openOnboardingPr({ ...run, committed, attention });
 
-/** What deciding an onboarding's attention section needs: the run itself, plus whatever failed while committing. */
-interface OnboardAuditInput {
-  project: Awaited<ReturnType<typeof projectFor>>;
-  targetRepo: string;
-  task: TaskHandlerInput["task"];
-  failures: Parameters<typeof anyWorkflowsPermissionFailure>[0];
-}
-
-/** Runs BEFORE the PR is opened so its failures can be reported in the PR body — a repo that silently never calls back is the failure this exists to make visible. Everything that went wrong reaches the returned attention section, so the human reading the PR sees the gaps rather than discovering them later. */
-async function configureAndAudit(input: OnboardAuditInput): Promise<string> {
-  const { project, targetRepo, failures } = input;
-  const configFailures = await configureIngestCallback(project);
-
-  logIngestConfigResult(targetRepo, configFailures);
-
-  const workflowsPermissionDenied = anyWorkflowsPermissionFailure(failures);
-
-  await auditOnboardFailuresIfAny({
-    ...input,
-    configFailures,
-    workflowsPermissionDenied,
-  });
-
-  return onboardAttentionSection({
-    failures,
-    configFailures,
-    workflowsPermissionDenied,
-  });
+  await recordOnboardingPr(run, committed, pr);
 }
 
 /** The five facts every step of an onboarding needs. Threaded rather than re-listed: each step used to declare the same parameter block, and they drifted. */
@@ -144,24 +80,88 @@ async function prepareOnboarding(
   return { committed, attention };
 }
 
-export async function handleOnboard({
-  task,
-  targetRepo,
-  branchName,
-  model,
-  issueNumber,
-}: TaskHandlerInput): Promise<void> {
-  const run: OnboardingRun = {
-    project: await projectFor(targetRepo),
-    targetRepo,
-    branchName,
-    task,
-    issueNumber,
-  };
-  const { committed, attention } = await prepareOnboarding(run, model);
-  const pr = await openOnboardingPr({ ...run, committed, attention });
+/** Reads the repo once and decides what onboarding still owes it. */
+async function planOnboarding(targetRepo: string): Promise<{
+  contextStr: string;
+  existingFiles: Set<string>;
+  toGenerate: Awaited<ReturnType<typeof planOnboardFiles>>;
+}> {
+  const context = await loadOnboardContext(targetRepo);
 
-  await recordOnboardingPr(run, committed, pr);
+  const existingFiles = new Set([
+    ...context.tree,
+    ...Object.keys(context.files),
+  ]);
+  const toGenerate = await planFilesToGenerate(targetRepo, {
+    existingFiles,
+    hasAdrs: context.tree.includes("adrs") || context.tree.includes("docs"),
+  });
+
+  return {
+    contextStr: JSON.stringify(context, null, 2),
+    existingFiles,
+    toGenerate,
+  };
+}
+
+/** One read of the repo, logged: the tree plus the fetched file set is what every later onboarding decision keys on. */
+async function loadOnboardContext(targetRepo: string) {
+  console.log(`[floor] Onboard: fetching context for ${targetRepo}...`);
+  const context = await fetchRepoContext(targetRepo);
+
+  console.log(
+    `[floor] Onboard: ${context.tree.length} tree entries, ${Object.keys(context.files).length} files`,
+  );
+
+  return context;
+}
+
+/** A repo that already has every file is an error rather than an empty run, because an onboard PR with no files is indistinguishable from a broken one. */
+async function planFilesToGenerate(
+  targetRepo: string,
+  survey: Parameters<typeof planOnboardFiles>[1],
+): Promise<Awaited<ReturnType<typeof planOnboardFiles>>> {
+  const toGenerate = await planOnboardFiles(targetRepo, survey);
+
+  enforceTrue(
+    toGenerate.length !== 0,
+    Error,
+    "All onboarding files already exist — nothing to generate",
+  );
+
+  console.log(`[floor] Onboard: generating ${toGenerate.length} files...`);
+
+  return toGenerate;
+}
+
+/** What deciding an onboarding's attention section needs: the run itself, plus whatever failed while committing. */
+interface OnboardAuditInput {
+  project: Awaited<ReturnType<typeof projectFor>>;
+  targetRepo: string;
+  task: TaskHandlerInput["task"];
+  failures: Parameters<typeof anyWorkflowsPermissionFailure>[0];
+}
+
+/** Runs BEFORE the PR is opened so its failures can be reported in the PR body — a repo that silently never calls back is the failure this exists to make visible. Everything that went wrong reaches the returned attention section, so the human reading the PR sees the gaps rather than discovering them later. */
+async function configureAndAudit(input: OnboardAuditInput): Promise<string> {
+  const { project, targetRepo, failures } = input;
+  const configFailures = await configureIngestCallback(project);
+
+  logIngestConfigResult(targetRepo, configFailures);
+
+  const workflowsPermissionDenied = anyWorkflowsPermissionFailure(failures);
+
+  await auditOnboardFailuresIfAny({
+    ...input,
+    configFailures,
+    workflowsPermissionDenied,
+  });
+
+  return onboardAttentionSection({
+    failures,
+    configFailures,
+    workflowsPermissionDenied,
+  });
 }
 
 /** Everything that follows the PR existing: the Issue link, the repo record, the dispatch labels, the task status, and the episode. */

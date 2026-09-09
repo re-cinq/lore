@@ -28,36 +28,20 @@ export {
   type StationCatalogConfig,
 } from "./catalog-builders.js";
 
-/** Wraps the parts of a recipe a cluster may not be able to satisfy in `{{- if }}` guards. Each one exists because the UNGUARDED form fails hard rather than degrading: an empty-url MCP entry, a skills list with no source (the init reports SUCCESS and the container then dies on the missing settings.json), a telemetry sink a satellite has no credential for, and a `{context}` slot that only means anything where an MCP exists. */
-function guardMcpAndContext(body: string): string {
-  return body
-    .replace(
-      /^( *)mcp_servers:\n((?:\1 .*\n)*)/gm,
-      (_m, indent: string, entries: string) =>
-        `{{- if .Values.loreMcpUrl }}\n${indent}mcp_servers:\n${entries}{{- end }}\n`,
-    )
-    .replace(
-      /^( *)\{context\}\n/gm,
-      (_m, indent: string) =>
-        `{{- if .Values.loreMcpUrl }}\n${indent}{context}\n{{- end }}\n`,
-    );
-}
+/** The ai-agents-helm `files/catalog-seed.yaml` body, applied SERVER-SIDE by the `catalog-seed` pre-upgrade hook rather than as a template — Helm diffs rendered manifests and never reads live state, so a pruned object (#1301) stays pruned through later no-op deploys (#1468). */
+export function catalogChartYaml(
+  taskTypes: Record<string, AgentCatalogConfig>,
+  stationTypes: Record<string, StationCatalogConfig> = {},
+): string {
+  const header =
+    "# Code generated from scripts/task-types.yaml by gen-catalog. DO NOT EDIT.\n" +
+    "# Seeded catalog (ADR-031, re-cinq/lore#698). Lives at files/catalog-seed.yaml and is\n" +
+    "# applied server-side by the catalog-seed pre-upgrade hook (templates/catalog-seed-job.yaml),\n" +
+    "# which runs AFTER the CRD hook so a lagging schema cannot prune these fields (#1468).\n" +
+    "# .Values.seedCatalog gates the hook, not this file.\n";
+  const docs = buildCatalog(taskTypes, stationTypes).map(renderCr);
 
-function guardSkillsAndSinks(body: string): string {
-  return body
-    .replace(
-      /^( *)skills:\n((?:\1 .*\n)*)\1skills_source: (.*)\n/gm,
-      (_m, indent: string, entries: string, source: string) =>
-        `{{- if .Values.loreSkillsUrl }}\n${indent}skills:\n${entries}${indent}skills_source: ${source}\n{{- end }}\n`,
-    )
-    .replace(
-      /^( *)- type: http\n\1 {2}url: .*\n\1 {2}headers_secret: agent-events-auth\n/gm,
-      (match) => `{{- if .Values.agentEventsUrl }}\n${match}{{- end }}\n`,
-    );
-}
-
-function applyHelmGuards(body: string): string {
-  return guardMcpAndContext(guardSkillsAndSinks(body));
+  return substituteHelmValues(`${header}---\n${docs.join("---\n")}`);
 }
 
 /** One CR as YAML. `resource-policy: keep` because a helm uninstall must not take the recipes with it, and block scalars are LITERAL (`|`) rather than folded (`>-`) — folding would rewrap a prompt's indented JSON and code blocks, silently changing the recipe the pod runs. */
@@ -88,18 +72,34 @@ function substituteHelmValues(body: string): string {
     .replaceAll(STATION_IMAGE_SENTINEL, "{{ .Values.stationImage }}");
 }
 
-/** The ai-agents-helm `files/catalog-seed.yaml` body, applied SERVER-SIDE by the `catalog-seed` pre-upgrade hook rather than as a template — Helm diffs rendered manifests and never reads live state, so a pruned object (#1301) stays pruned through later no-op deploys (#1468). */
-export function catalogChartYaml(
-  taskTypes: Record<string, AgentCatalogConfig>,
-  stationTypes: Record<string, StationCatalogConfig> = {},
-): string {
-  const header =
-    "# Code generated from scripts/task-types.yaml by gen-catalog. DO NOT EDIT.\n" +
-    "# Seeded catalog (ADR-031, re-cinq/lore#698). Lives at files/catalog-seed.yaml and is\n" +
-    "# applied server-side by the catalog-seed pre-upgrade hook (templates/catalog-seed-job.yaml),\n" +
-    "# which runs AFTER the CRD hook so a lagging schema cannot prune these fields (#1468).\n" +
-    "# .Values.seedCatalog gates the hook, not this file.\n";
-  const docs = buildCatalog(taskTypes, stationTypes).map(renderCr);
+/** Wraps the parts of a recipe a cluster may not be able to satisfy in `{{- if }}` guards. Each one exists because the UNGUARDED form fails hard rather than degrading: an empty-url MCP entry, a skills list with no source (the init reports SUCCESS and the container then dies on the missing settings.json), a telemetry sink a satellite has no credential for, and a `{context}` slot that only means anything where an MCP exists. */
+function applyHelmGuards(body: string): string {
+  return guardMcpAndContext(guardSkillsAndSinks(body));
+}
 
-  return substituteHelmValues(`${header}---\n${docs.join("---\n")}`);
+function guardMcpAndContext(body: string): string {
+  return body
+    .replace(
+      /^( *)mcp_servers:\n((?:\1 .*\n)*)/gm,
+      (_m, indent: string, entries: string) =>
+        `{{- if .Values.loreMcpUrl }}\n${indent}mcp_servers:\n${entries}{{- end }}\n`,
+    )
+    .replace(
+      /^( *)\{context\}\n/gm,
+      (_m, indent: string) =>
+        `{{- if .Values.loreMcpUrl }}\n${indent}{context}\n{{- end }}\n`,
+    );
+}
+
+function guardSkillsAndSinks(body: string): string {
+  return body
+    .replace(
+      /^( *)skills:\n((?:\1 .*\n)*)\1skills_source: (.*)\n/gm,
+      (_m, indent: string, entries: string, source: string) =>
+        `{{- if .Values.loreSkillsUrl }}\n${indent}skills:\n${entries}${indent}skills_source: ${source}\n{{- end }}\n`,
+    )
+    .replace(
+      /^( *)- type: http\n\1 {2}url: .*\n\1 {2}headers_secret: agent-events-auth\n/gm,
+      (match) => `{{- if .Values.agentEventsUrl }}\n${match}{{- end }}\n`,
+    );
 }

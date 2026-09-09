@@ -16,19 +16,16 @@ import {
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import { pipeline } from "../../../outbound/queues.js";
 
-/** Each node row paired with its own graph node, matched by id; an unmatched row still describes itself. */
-function describeNodes(
-  rows: readonly StationRunFacts[],
-  nodes: readonly RunGraphNode[] | undefined,
-  args: Record<string, unknown>,
-) {
-  return rows.map((row) =>
-    describeStationRun(
-      row,
-      nodes?.find((node) => node.id === row.nodeId),
-      args,
-    ),
-  );
+/** GET /api/assembly-runs/{id}: run row, nodes, and Station per node. */
+export function assemblyRunReadRoute(
+  load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
+): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/assembly-runs/{id}",
+    options: { auth: "ingest-token" },
+    handler: (request) => readAssemblyRun(request.params.id, load),
+  };
 }
 
 /** The body of GET /api/assembly-runs/{id}: the run row, its node rows, and the Station each node resolved to. 404s on an unknown id. */
@@ -52,16 +49,19 @@ async function readAssemblyRun(
   };
 }
 
-/** GET /api/assembly-runs/{id}: run row, nodes, and Station per node. */
-export function assemblyRunReadRoute(
-  load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
-): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/assembly-runs/{id}",
-    options: { auth: "ingest-token" },
-    handler: (request) => readAssemblyRun(request.params.id, load),
-  };
+/** Each node row paired with its own graph node, matched by id; an unmatched row still describes itself. */
+function describeNodes(
+  rows: readonly StationRunFacts[],
+  nodes: readonly RunGraphNode[] | undefined,
+  args: Record<string, unknown>,
+) {
+  return rows.map((row) =>
+    describeStationRun(
+      row,
+      nodes?.find((node) => node.id === row.nodeId),
+      args,
+    ),
+  );
 }
 
 /** Legacy alias for `/api/assembly-runs/{id}`; kept for the deployed web-ui, DELETE once no client calls it (lore-api's withLegacyAlias rule). */
@@ -72,6 +72,19 @@ export function legacyAssemblyLineReadRoute(
 }
 
 /** GET /api/assembly-line-definitions — the catalog: every line and, per node, the Station it will run on. */
+export function assemblyLineCatalogRoute(
+  load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
+): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/assembly-line-definitions",
+    options: { auth: "ingest-token" },
+    handler: async () => ({
+      definitions: [...(await load()).values()].map(catalogEntry),
+    }),
+  };
+}
+
 /** One definition as the catalog serves it. There is no RUN here, so nodes carry their template `route` rather than resolved args — the catalog answers "what would this line do", not "what did it do". */
 function catalogEntry(definition: AssemblyLine) {
   return {
@@ -92,18 +105,5 @@ function catalogEntry(definition: AssemblyLine) {
       };
     }),
     edges: definition.edges,
-  };
-}
-
-export function assemblyLineCatalogRoute(
-  load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
-): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/assembly-line-definitions",
-    options: { auth: "ingest-token" },
-    handler: async () => ({
-      definitions: [...(await load()).values()].map(catalogEntry),
-    }),
   };
 }

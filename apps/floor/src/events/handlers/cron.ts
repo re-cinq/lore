@@ -70,18 +70,6 @@ export const leaseReaper = fromJob(() => leaseReaperJob());
 
 type AuditEntry = { event_type: string; payload: Record<string, unknown> };
 
-/** FR4's sweep in one step — flip the silent agents to offline, then answer with who is offline — because the requeue that follows must act on the set the flip just produced, not on a snapshot taken before it. */
-function offlineClusterAgentIds(
-  clusterAgents: typeof import("../../outbound/queues.js").clusterAgents,
-) {
-  return async (cutoff: Date) => {
-    await clusterAgents().markOffline(cutoff);
-    const all = await clusterAgents().list();
-
-    return new Set(all.filter((a) => a.status === "offline").map((a) => a.id));
-  };
-}
-
 /** The reaper's own reads, bound to the Floor's queue singletons. */
 function reaperPorts(
   taskStore: typeof import("../../outbound/queues.js").taskStore,
@@ -96,6 +84,18 @@ function reaperPorts(
     audit: (entry: AuditEntry) => writeAuditLog(entry),
     listClusterAgents: () => clusterAgents().list(),
     centralClusterAgentId,
+  };
+}
+
+/** FR4's sweep in one step — flip the silent agents to offline, then answer with who is offline — because the requeue that follows must act on the set the flip just produced, not on a snapshot taken before it. */
+function offlineClusterAgentIds(
+  clusterAgents: typeof import("../../outbound/queues.js").clusterAgents,
+) {
+  return async (cutoff: Date) => {
+    await clusterAgents().markOffline(cutoff);
+    const all = await clusterAgents().list();
+
+    return new Set(all.filter((a) => a.status === "offline").map((a) => a.id));
   };
 }
 

@@ -36,29 +36,152 @@ export interface LlmCallRow {
 
 const num = (value: unknown): number => (typeof value === "number" ? value : 0);
 
-// Primary model: first key of `modelUsage` (Claude Code) or `stats.models` (Gemini, confirmed against a real CLI run), else flat `model`, else "unknown".
-function firstModelKey(perModelUsage: unknown): string | null {
-  if (!isRecord(perModelUsage)) {
-    return null;
-  }
-  const keys = Object.keys(perModelUsage);
-
-  return keys.length > 0 ? keys[0] : null;
+/** A file declared under `output.watch`, raised by the subsystem on agent exit (`{"kind":"file"}`); `content`/`reason` are mutually exclusive — an undelivered declared artifact still reports, carrying why. */
+export interface AgentFileEvent {
+  taskId: string;
+  agentCrName: string | null;
+  /** The recipe-declared event name, so one run can raise several artifacts. */
+  event: string;
+  path: string;
+  content: string | null;
+  reason: string | null;
 }
 
-function resultModel(ev: Record<string, unknown>): string {
-  const fromModelUsage = firstModelKey(ev.modelUsage);
+const str = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
 
-  if (fromModelUsage !== null) {
-    return fromModelUsage;
+export interface AgentSink {
+  costRows: LlmCallRow[];
+  runEvents: AgentRunEventInsert[];
+  fileEvents: AgentFileEvent[];
+  /** Full-fidelity turns, empty unless `collectTurns` (specs/turn-level-transcript-store). */
+  turns: AgentRunTurnInsert[];
+  /** Turns lost to unparseable (redacted) lines — counted, not swallowed, so losses stay visible. */
+  turnsDropped: number;
+  /** Turns lost to MAX_RUN_TURNS_PER_BATCH — counted so "the transcript is complete" is a supportable claim. */
+  turnsCapped: number;
+}
+
+interface SinkProjections {
+  projectRunEvents: boolean;
+  collectTurns: boolean;
+}
+
+/** Parse the NDJSON sink body ONCE into cost rows + (optionally) run-visualization rows + (optionally) full-fidelity turns; single-pass parsing bounds peak memory (the regression that OOM-looped the single Floor replica). Blank/unparseable lines are skipped; a task-less line still collects as a turn. Nothing throws. */
+export function parseAgentSink(
+  ndjson: string,
+  {
+    projectRunEvents = true,
+    collectTurns = true,
+  }: Partial<SinkProjections> = {},
+): AgentSink {
+  const sink = emptySink();
+
+  for (const line of lines(ndjson)) {
+    if (!line.trim()) {
+      continue;
+    }
+
+    ingestLine(sink, line, { projectRunEvents, collectTurns });
   }
-  const fromStats = isRecord(ev.stats) ? firstModelKey(ev.stats.models) : null;
 
-  if (fromStats !== null) {
-    return fromStats;
+  return sink;
+}
+
+function emptySink(): AgentSink {
+  return {
+    costRows: [],
+    runEvents: [],
+    fileEvents: [],
+    turns: [],
+    turnsDropped: 0,
+    turnsCapped: 0,
+  };
+}
+
+/** Yield each `\n`-delimited line without `split`'s second-copy allocation — the difference that lets a 25MB report parse under 512Mi. */
+function* lines(body: string): Generator<string> {
+  let start = 0;
+
+  for (let i = 0; i < body.length; i++) {
+    if (body.charCodeAt(i) === 10) {
+      yield body.slice(start, i);
+      start = i + 1;
+    }
   }
 
-  return typeof ev.model === "string" ? ev.model : "unknown";
+  if (start < body.length) {
+    yield body.slice(start);
+  }
+}
+
+function ingestLine(
+  sink: AgentSink,
+  line: string,
+  projections: SinkProjections,
+): void {
+  const envelope = parseEnvelopeLine(line);
+
+  if (envelope === undefined) {
+    return;
+  }
+
+  ingestCostAndFileRows(sink, envelope);
+
+  if (projections.collectTurns) {
+    ingestTurn(sink, envelope, line);
+  }
+
+  if (projections.projectRunEvents) {
+    ingestRunEvents(sink, envelope);
+  }
+}
+
+function parseEnvelopeLine(line: string): unknown {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return undefined;
+  }
+}
+
+function ingestCostAndFileRows(sink: AgentSink, envelope: unknown): void {
+  const costRow = rowFromEnvelope(envelope);
+
+  if (costRow) {
+    sink.costRows.push(costRow);
+  }
+  const fileEvent = fileEventFromEnvelope(envelope);
+
+  if (fileEvent) {
+    sink.fileEvents.push(fileEvent);
+  }
+}
+
+function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
+  const { source, event: ev } = unwrapAttribution(envelope);
+  const taskId = sourceTaskId(source);
+
+  if (!taskId) {
+    return null;
+  }
+
+  if (!isRecord(ev) || ev.type !== "result") {
+    return null;
+  }
+
+  const tokens = resultTokens(ev);
+
+  if (!tokens) {
+    return null;
+  }
+
+  return costRowFrom({ taskId, source, ev, tokens });
+}
+
+// Both projections (cost + file-artifact) attribute off the same `source` shape, so the `?.`-laden lookups live here once.
+function sourceTaskId(source: { task?: unknown } | undefined | null): string {
+  return typeof source?.task === "string" ? source.task : "";
 }
 
 interface ResultTokens {
@@ -85,41 +208,6 @@ function resultTokens(ev: Record<string, unknown>): ResultTokens | null {
   return null;
 }
 
-// Claude Code/Codex report `duration_ms` at the top level; Gemini reports it under `stats`.
-function resultDurationMs(ev: Record<string, unknown>): number {
-  if (typeof ev.duration_ms === "number") {
-    return ev.duration_ms;
-  }
-
-  return isRecord(ev.stats) ? num(ev.stats.duration_ms) : 0;
-}
-
-// Gemini reports no `total_cost_usd` (quota-based billing) so we price it from tokens; keyed on the "gemini-" model prefix since the envelope carries no vendor field.
-function resultCostUsd(
-  ev: Record<string, unknown>,
-  model: string,
-  tokens: ResultTokens,
-): number {
-  if (typeof ev.total_cost_usd === "number") {
-    return ev.total_cost_usd;
-  }
-
-  return model.startsWith("gemini-")
-    ? computeGeminiCost(model, tokens.inputTokens, tokens.outputTokens)
-    : 0;
-}
-
-// Both projections (cost + file-artifact) attribute off the same `source` shape, so the `?.`-laden lookups live here once.
-function sourceTaskId(source: { task?: unknown } | undefined | null): string {
-  return typeof source?.task === "string" ? source.task : "";
-}
-
-function sourceAgentCrName(
-  source: { agent?: unknown } | undefined | null,
-): string | null {
-  return typeof source?.agent === "string" ? source.agent : null;
-}
-
 interface CostRowParts {
   taskId: string;
   source: ReturnType<typeof unwrapAttribution>["source"];
@@ -142,40 +230,60 @@ function costRowFrom({ taskId, source, ev, tokens }: CostRowParts): LlmCallRow {
   };
 }
 
-function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
-  const { source, event: ev } = unwrapAttribution(envelope);
-  const taskId = sourceTaskId(source);
+// Primary model: first key of `modelUsage` (Claude Code) or `stats.models` (Gemini, confirmed against a real CLI run), else flat `model`, else "unknown".
+function resultModel(ev: Record<string, unknown>): string {
+  const fromModelUsage = firstModelKey(ev.modelUsage);
 
-  if (!taskId) {
-    return null;
+  if (fromModelUsage !== null) {
+    return fromModelUsage;
+  }
+  const fromStats = isRecord(ev.stats) ? firstModelKey(ev.stats.models) : null;
+
+  if (fromStats !== null) {
+    return fromStats;
   }
 
-  if (!isRecord(ev) || ev.type !== "result") {
-    return null;
-  }
-
-  const tokens = resultTokens(ev);
-
-  if (!tokens) {
-    return null;
-  }
-
-  return costRowFrom({ taskId, source, ev, tokens });
+  return typeof ev.model === "string" ? ev.model : "unknown";
 }
 
-/** A file declared under `output.watch`, raised by the subsystem on agent exit (`{"kind":"file"}`); `content`/`reason` are mutually exclusive — an undelivered declared artifact still reports, carrying why. */
-export interface AgentFileEvent {
-  taskId: string;
-  agentCrName: string | null;
-  /** The recipe-declared event name, so one run can raise several artifacts. */
-  event: string;
-  path: string;
-  content: string | null;
-  reason: string | null;
+function firstModelKey(perModelUsage: unknown): string | null {
+  if (!isRecord(perModelUsage)) {
+    return null;
+  }
+  const keys = Object.keys(perModelUsage);
+
+  return keys.length > 0 ? keys[0] : null;
 }
 
-const str = (value: unknown): string | null =>
-  typeof value === "string" ? value : null;
+function sourceAgentCrName(
+  source: { agent?: unknown } | undefined | null,
+): string | null {
+  return typeof source?.agent === "string" ? source.agent : null;
+}
+
+// Gemini reports no `total_cost_usd` (quota-based billing) so we price it from tokens; keyed on the "gemini-" model prefix since the envelope carries no vendor field.
+function resultCostUsd(
+  ev: Record<string, unknown>,
+  model: string,
+  tokens: ResultTokens,
+): number {
+  if (typeof ev.total_cost_usd === "number") {
+    return ev.total_cost_usd;
+  }
+
+  return model.startsWith("gemini-")
+    ? computeGeminiCost(model, tokens.inputTokens, tokens.outputTokens)
+    : 0;
+}
+
+// Claude Code/Codex report `duration_ms` at the top level; Gemini reports it under `stats`.
+function resultDurationMs(ev: Record<string, unknown>): number {
+  if (typeof ev.duration_ms === "number") {
+    return ev.duration_ms;
+  }
+
+  return isRecord(ev.stats) ? num(ev.stats.duration_ms) : 0;
+}
 
 /** Project a `kind:"file"` envelope; null for any other line, a nameless artifact, or one with no task attribution (skip-don't-throw, same rule the cost projection uses). */
 function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {
@@ -201,47 +309,6 @@ function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {
   };
 }
 
-export interface AgentSink {
-  costRows: LlmCallRow[];
-  runEvents: AgentRunEventInsert[];
-  fileEvents: AgentFileEvent[];
-  /** Full-fidelity turns, empty unless `collectTurns` (specs/turn-level-transcript-store). */
-  turns: AgentRunTurnInsert[];
-  /** Turns lost to unparseable (redacted) lines — counted, not swallowed, so losses stay visible. */
-  turnsDropped: number;
-  /** Turns lost to MAX_RUN_TURNS_PER_BATCH — counted so "the transcript is complete" is a supportable claim. */
-  turnsCapped: number;
-}
-
-/** Yield each `\n`-delimited line without `split`'s second-copy allocation — the difference that lets a 25MB report parse under 512Mi. */
-function* lines(body: string): Generator<string> {
-  let start = 0;
-
-  for (let i = 0; i < body.length; i++) {
-    if (body.charCodeAt(i) === 10) {
-      yield body.slice(start, i);
-      start = i + 1;
-    }
-  }
-
-  if (start < body.length) {
-    yield body.slice(start);
-  }
-}
-
-function ingestCostAndFileRows(sink: AgentSink, envelope: unknown): void {
-  const costRow = rowFromEnvelope(envelope);
-
-  if (costRow) {
-    sink.costRows.push(costRow);
-  }
-  const fileEvent = fileEventFromEnvelope(envelope);
-
-  if (fileEvent) {
-    sink.fileEvents.push(fileEvent);
-  }
-}
-
 function ingestTurn(sink: AgentSink, envelope: unknown, line: string): void {
   if (sink.turns.length >= MAX_RUN_TURNS_PER_BATCH) {
     sink.turnsCapped++;
@@ -263,73 +330,6 @@ function ingestRunEvents(sink: AgentSink, envelope: unknown): void {
     return;
   }
   collectRunEventsUpToCap(sink.runEvents, envelope);
-}
-
-function parseEnvelopeLine(line: string): unknown {
-  try {
-    return JSON.parse(line);
-  } catch {
-    return undefined;
-  }
-}
-
-interface SinkProjections {
-  projectRunEvents: boolean;
-  collectTurns: boolean;
-}
-
-function emptySink(): AgentSink {
-  return {
-    costRows: [],
-    runEvents: [],
-    fileEvents: [],
-    turns: [],
-    turnsDropped: 0,
-    turnsCapped: 0,
-  };
-}
-
-function ingestLine(
-  sink: AgentSink,
-  line: string,
-  projections: SinkProjections,
-): void {
-  const envelope = parseEnvelopeLine(line);
-
-  if (envelope === undefined) {
-    return;
-  }
-
-  ingestCostAndFileRows(sink, envelope);
-
-  if (projections.collectTurns) {
-    ingestTurn(sink, envelope, line);
-  }
-
-  if (projections.projectRunEvents) {
-    ingestRunEvents(sink, envelope);
-  }
-}
-
-/** Parse the NDJSON sink body ONCE into cost rows + (optionally) run-visualization rows + (optionally) full-fidelity turns; single-pass parsing bounds peak memory (the regression that OOM-looped the single Floor replica). Blank/unparseable lines are skipped; a task-less line still collects as a turn. Nothing throws. */
-export function parseAgentSink(
-  ndjson: string,
-  {
-    projectRunEvents = true,
-    collectTurns = true,
-  }: Partial<SinkProjections> = {},
-): AgentSink {
-  const sink = emptySink();
-
-  for (const line of lines(ndjson)) {
-    if (!line.trim()) {
-      continue;
-    }
-
-    ingestLine(sink, line, { projectRunEvents, collectTurns });
-  }
-
-  return sink;
 }
 
 function collectRunEventsUpToCap(

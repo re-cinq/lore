@@ -8,26 +8,6 @@ import { settings as settingsRepo, taskStore } from "../../outbound/queues.js";
 import { resolvePrForTaskFromDb } from "./pr-policy.js";
 import { evaluateAndMerge, type AutoMergeDecision } from "./auto-merge.js";
 
-/** Resolves the task's target repo and its dark-factory settings, or null when the task has no repo or dark-factory is off. */
-async function resolveEnabledDarkFactorySettings(
-  taskId: string,
-): Promise<ResolvedDarkFactorySettings | null> {
-  const task = await taskStore().getById(taskId);
-  const targetRepo = task?.target_repo;
-
-  if (!targetRepo) {
-    return null;
-  }
-
-  const rawSettings = await settingsRepo().rawSettings(targetRepo);
-  const darkFactoryRaw = (rawSettings?.dark_factory ?? null) as Parameters<
-    typeof resolveDarkFactorySettings
-  >[0];
-  const settings = resolveDarkFactorySettings(darkFactoryRaw);
-
-  return settings.enabled ? settings : null;
-}
-
 export async function tryAutoMergeForCompletedTask(opts: {
   taskId: string;
 }): Promise<AutoMergeDecision | null> {
@@ -50,4 +30,24 @@ export async function tryAutoMergeForCompletedTask(opts: {
     prNumber: pr.prNumber,
     policy: pr.policy,
   });
+}
+
+/** Resolves the task's target repo and its dark-factory settings, or null when the task has no repo or dark-factory is off. */
+async function resolveEnabledDarkFactorySettings(
+  taskId: string,
+): Promise<ResolvedDarkFactorySettings | null> {
+  const task = await taskStore().getById(taskId);
+  const targetRepo = task?.target_repo;
+
+  if (!targetRepo) {
+    return null;
+  }
+
+  const rawSettings = await settingsRepo().rawSettings(targetRepo);
+  const darkFactoryRaw = (rawSettings?.dark_factory ?? null) as Parameters<
+    typeof resolveDarkFactorySettings
+  >[0];
+  const settings = resolveDarkFactorySettings(darkFactoryRaw);
+
+  return settings.enabled ? settings : null;
 }

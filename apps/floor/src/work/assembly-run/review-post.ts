@@ -63,58 +63,6 @@ function unpostedReviewFailure(output: string | undefined): NodeResult {
   };
 }
 
-async function auditReviewPostFailed(
-  row: AssemblyRunRecord,
-  prNumber: number,
-  message: string,
-  ports: ReviewPorts,
-): Promise<void> {
-  console.error("[code-review] post review failed:", message);
-  await writeAuditLog(
-    {
-      event_type: "review_post_failed",
-      repo: row.repo,
-      payload: {
-        pr_number: prNumber,
-        assembly_run_id: row.id,
-        error: message,
-      },
-    },
-    ports.audit,
-  );
-}
-
-interface PostedReviewContext {
-  row: AssemblyRunRecord;
-  prNumber: number;
-  output: string | undefined;
-}
-
-/** Audits and classifies a posted-or-skipped review; the `no_findings`/`deduped`/`fallback` shapes each get their own audit row. */
-async function classifyPostedReview(
-  { row, prNumber, output }: PostedReviewContext,
-  posted: Awaited<ReturnType<typeof maybePostReview>>,
-  ports: ReviewPorts,
-): Promise<ReviewPostOutcome> {
-  if (!posted) {
-    await auditUnparsedFindings(row, prNumber, output, ports);
-
-    return "no_findings";
-  }
-
-  if (posted.mode === "deduped") {
-    await auditDedupedPost(row, prNumber, posted.marker, ports);
-
-    return "already_posted";
-  }
-
-  if (posted.mode === "fallback") {
-    await auditFallbackPost(row, prNumber, posted.error, ports);
-  }
-
-  return "posted";
-}
-
 export async function postReviewFromNode(
   row: AssemblyRunRecord,
   node: RunGraphNode,
@@ -159,6 +107,58 @@ async function postAndClassify(
   });
 
   return await classifyPostedReview({ row, prNumber, output }, posted, ports);
+}
+
+interface PostedReviewContext {
+  row: AssemblyRunRecord;
+  prNumber: number;
+  output: string | undefined;
+}
+
+/** Audits and classifies a posted-or-skipped review; the `no_findings`/`deduped`/`fallback` shapes each get their own audit row. */
+async function classifyPostedReview(
+  { row, prNumber, output }: PostedReviewContext,
+  posted: Awaited<ReturnType<typeof maybePostReview>>,
+  ports: ReviewPorts,
+): Promise<ReviewPostOutcome> {
+  if (!posted) {
+    await auditUnparsedFindings(row, prNumber, output, ports);
+
+    return "no_findings";
+  }
+
+  if (posted.mode === "deduped") {
+    await auditDedupedPost(row, prNumber, posted.marker, ports);
+
+    return "already_posted";
+  }
+
+  if (posted.mode === "fallback") {
+    await auditFallbackPost(row, prNumber, posted.error, ports);
+  }
+
+  return "posted";
+}
+
+async function auditReviewPostFailed(
+  row: AssemblyRunRecord,
+  prNumber: number,
+  message: string,
+  ports: ReviewPorts,
+): Promise<void> {
+  console.error("[code-review] post review failed:", message);
+  await writeAuditLog(
+    {
+      event_type: "review_post_failed",
+      repo: row.repo,
+      payload: {
+        pr_number: prNumber,
+        assembly_run_id: row.id,
+        error: message,
+      },
+    },
+    ports.audit,
+  );
 }
 
 // The redelivery that #870 exists for: this run's marker is already on the PR, so the post was skipped — audited so a dedupe firing is visible next to the duplicate it prevented.

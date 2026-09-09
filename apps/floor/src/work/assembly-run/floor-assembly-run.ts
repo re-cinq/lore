@@ -52,26 +52,17 @@ export {
   STATION_RUN_ID_LABEL,
 };
 
-function nodeLabels(
+/** The knob/args map a station node's pod receives as `station_input.params`, extracted so the recorded input names the SAME map the pod was handed. */
+export function stationNodeParams(
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
-  iteration: number,
-  stationRunId?: string,
 ): Record<string, string> {
-  return {
-    [ASSEMBLY_RUN_ID_LABEL]: task.assemblyLineId,
-    [NODE_ID_LABEL]: node.id,
-    [NODE_ITERATION_LABEL]: String(iteration),
-    // In the spec builder so every dispatch path carries it — the reaper's relaunch once built this spec without it.
-    ...(stationRunId ? { [STATION_RUN_ID_LABEL]: stationRunId } : {}),
-  };
-}
+  const params: Record<string, string> = {};
 
-/** The git ref a node's pod checks out: `args.ref` when the branch is only a lease key (ingest lines), else the branch. */
-function cloneRef(task: FloorAssemblyRunTask): string {
-  const ref = task.args?.ref;
+  addLineArgParams(params, task.args);
+  addStationFieldParams(params, node);
 
-  return typeof ref === "string" && ref.length > 0 ? ref : task.branch;
+  return params;
 }
 
 // Line args (string/number) ride into params so a station reads its input without a DB round-trip.
@@ -97,19 +88,6 @@ function addStationFieldParams(
       params[field] = value;
     }
   }
-}
-
-/** The knob/args map a station node's pod receives as `station_input.params`, extracted so the recorded input names the SAME map the pod was handed. */
-export function stationNodeParams(
-  node: RunGraphNode,
-  task: FloorAssemblyRunTask,
-): Record<string, string> {
-  const params: Record<string, string> = {};
-
-  addLineArgParams(params, task.args);
-  addStationFieldParams(params, node);
-
-  return params;
 }
 
 /** Write-time caps for the recorded input, generous enough to hold a real prompt whole but bounded so one visit can't dominate the table. */
@@ -199,19 +177,6 @@ const STATION_PARAM_FIELDS = [
 ] as const;
 
 /** Pure: the Agent dispatch spec for one STATION node — the whole node input rides one JSON parameter (`{station_input}`); Station defaults to `def-<type>`. */
-/** The pod's argv payload. Built through the shared writer rather than an object literal: the shape is a contract with the station image (apps/stations), and a stray key on one side used to fail every run. */
-function stationInput(node: RunGraphNode, task: FloorAssemblyRunTask): string {
-  return serializeStationInput({
-    assembly_run_id: task.assemblyLineId,
-    node_id: node.id,
-    node_type: node.type,
-    repo: task.targetRepo,
-    branch: cloneRef(task),
-    task_id: task.taskId,
-    params: stationNodeParams(node, task),
-  });
-}
-
 export function nodeStationSpec(
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
@@ -231,4 +196,39 @@ export function nodeStationSpec(
     clone: CLONING_STATION_TYPES.has(node.type),
     parameters: { station_input: stationInput(node, task) },
   };
+}
+
+/** The pod's argv payload. Built through the shared writer rather than an object literal: the shape is a contract with the station image (apps/stations), and a stray key on one side used to fail every run. */
+function stationInput(node: RunGraphNode, task: FloorAssemblyRunTask): string {
+  return serializeStationInput({
+    assembly_run_id: task.assemblyLineId,
+    node_id: node.id,
+    node_type: node.type,
+    repo: task.targetRepo,
+    branch: cloneRef(task),
+    task_id: task.taskId,
+    params: stationNodeParams(node, task),
+  });
+}
+
+function nodeLabels(
+  node: RunGraphNode,
+  task: FloorAssemblyRunTask,
+  iteration: number,
+  stationRunId?: string,
+): Record<string, string> {
+  return {
+    [ASSEMBLY_RUN_ID_LABEL]: task.assemblyLineId,
+    [NODE_ID_LABEL]: node.id,
+    [NODE_ITERATION_LABEL]: String(iteration),
+    // In the spec builder so every dispatch path carries it — the reaper's relaunch once built this spec without it.
+    ...(stationRunId ? { [STATION_RUN_ID_LABEL]: stationRunId } : {}),
+  };
+}
+
+/** The git ref a node's pod checks out: `args.ref` when the branch is only a lease key (ingest lines), else the branch. */
+function cloneRef(task: FloorAssemblyRunTask): string {
+  const ref = task.args?.ref;
+
+  return typeof ref === "string" && ref.length > 0 ? ref : task.branch;
 }

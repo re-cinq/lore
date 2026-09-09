@@ -41,6 +41,56 @@ export async function handleClaudeCodeTask(
   await settleDispatch(result, input, project);
 }
 
+function agentRunSpec(input: ClaudeCodeTaskInput): AgentRunOpts {
+  const { task, branchName, agentDef } = input;
+
+  return {
+    mode: "cluster",
+    taskType: task.task_type,
+    ...bundleFields(task),
+    description: task.description,
+    // The recipe's own prompt wins over the built-in one; the task description is appended either way, since a recipe describes the JOB and the task says which instance of it.
+    prompt: agentPrompt(
+      promptOverride(agentDef),
+      task.description,
+      buildPrompt(task.task_type, task.description),
+    ),
+    branch: branchName,
+    ...runSettings(input),
+  };
+}
+
+/** The four `context_bundle` fields `agentRunSpec` threads onto the CR opts. */
+interface ContextBundleFields {
+  featureId: unknown;
+  roundFeedback: unknown;
+  resumeFromTask: unknown;
+  lineArgs: unknown;
+}
+
+/** Everything the Agent CR is dispatched with. */
+/** The context-bundle fields, threaded onto the run so a line's `continues.key: args.feature_id` resolves — the assembly-line engine itself never learns what a feature is. Each is spread conditionally: an explicitly-undefined key is not the same as an absent one to the recipe renderer. */
+function bundleFields(task: ClaudeCodeTaskInput["task"]) {
+  const { featureId, roundFeedback, resumeFromTask, lineArgs } =
+    contextBundleFields(task);
+
+  return {
+    ...optionalStringField("featureId", featureId),
+    ...optionalStringField("roundFeedback", roundFeedback),
+    ...optionalStringField("resumeFromTask", resumeFromTask),
+    ...optionalLineArgs(lineArgs),
+  };
+}
+
+function contextBundleFields(task: PipelineTask): ContextBundleFields {
+  return {
+    featureId: task.context_bundle?.feature_id,
+    roundFeedback: task.context_bundle?.round_feedback,
+    resumeFromTask: task.context_bundle?.resume_from_task,
+    lineArgs: task.context_bundle?.line_args,
+  };
+}
+
 /** A `string`-typed `context_bundle` field, spread onto the CR opts only when present — an unset field stays absent rather than becoming an explicit undefined the CR would carry. */
 function optionalStringField<
   K extends "featureId" | "roundFeedback" | "resumeFromTask",
@@ -57,6 +107,44 @@ function optionalLineArgs(lineArgs: unknown): Pick<AgentRunOpts, "lineArgs"> {
   }
 
   return {};
+}
+
+/** The agent definition's prompt override, resolved once so callers never optional-chain into it themselves. */
+function promptOverride(
+  agentDef: ClaudeCodeTaskInput["agentDef"],
+): string | null | undefined {
+  return agentDef?.prompt;
+}
+
+/** The knobs a repo can turn: model, timeout, image, and the dark-factory block. The default model is named here rather than in a recipe, so a task type with no agent-definition row still dispatches. */
+function runSettings(input: ClaudeCodeTaskInput) {
+  const { task, model, repoOverrides, darkFactory, image, agentDef } = input;
+
+  return {
+    model: model || "claude-sonnet-4-6",
+    timeoutMinutes: resolveTimeoutMinutes(
+      agentDef,
+      repoOverrides,
+      task.task_type,
+    ),
+    ...optionalImage(image),
+    ...optionalDarkFactory(darkFactory),
+  };
+}
+
+/** Agent-definition timeout wins, then the repo override, then the task-type default, then a flat fallback. */
+function resolveTimeoutMinutes(
+  agentDef: ClaudeCodeTaskInput["agentDef"],
+  repoOverrides: ClaudeCodeTaskInput["repoOverrides"],
+  taskType: string,
+): number {
+  const candidates: (number | null | undefined)[] = [
+    agentDef?.timeout_minutes,
+    repoOverrides?.timeout_minutes as number | undefined,
+    getTaskTypeConfig(taskType)?.timeout_minutes,
+  ];
+
+  return candidates.find((value) => Boolean(value)) ?? 30;
 }
 
 function optionalImage(image?: string): Pick<AgentRunOpts, "image"> {
@@ -77,94 +165,6 @@ function optionalDarkFactory(
       workflowName: darkFactory.assemblyLine,
       baseBranch: darkFactory.baseBranch ?? "main",
     },
-  };
-}
-
-/** Agent-definition timeout wins, then the repo override, then the task-type default, then a flat fallback. */
-function resolveTimeoutMinutes(
-  agentDef: ClaudeCodeTaskInput["agentDef"],
-  repoOverrides: ClaudeCodeTaskInput["repoOverrides"],
-  taskType: string,
-): number {
-  const candidates: (number | null | undefined)[] = [
-    agentDef?.timeout_minutes,
-    repoOverrides?.timeout_minutes as number | undefined,
-    getTaskTypeConfig(taskType)?.timeout_minutes,
-  ];
-
-  return candidates.find((value) => Boolean(value)) ?? 30;
-}
-
-/** The four `context_bundle` fields `agentRunSpec` threads onto the CR opts. */
-interface ContextBundleFields {
-  featureId: unknown;
-  roundFeedback: unknown;
-  resumeFromTask: unknown;
-  lineArgs: unknown;
-}
-
-function contextBundleFields(task: PipelineTask): ContextBundleFields {
-  return {
-    featureId: task.context_bundle?.feature_id,
-    roundFeedback: task.context_bundle?.round_feedback,
-    resumeFromTask: task.context_bundle?.resume_from_task,
-    lineArgs: task.context_bundle?.line_args,
-  };
-}
-
-/** The agent definition's prompt override, resolved once so callers never optional-chain into it themselves. */
-function promptOverride(
-  agentDef: ClaudeCodeTaskInput["agentDef"],
-): string | null | undefined {
-  return agentDef?.prompt;
-}
-
-/** Everything the Agent CR is dispatched with. */
-/** The context-bundle fields, threaded onto the run so a line's `continues.key: args.feature_id` resolves — the assembly-line engine itself never learns what a feature is. Each is spread conditionally: an explicitly-undefined key is not the same as an absent one to the recipe renderer. */
-function bundleFields(task: ClaudeCodeTaskInput["task"]) {
-  const { featureId, roundFeedback, resumeFromTask, lineArgs } =
-    contextBundleFields(task);
-
-  return {
-    ...optionalStringField("featureId", featureId),
-    ...optionalStringField("roundFeedback", roundFeedback),
-    ...optionalStringField("resumeFromTask", resumeFromTask),
-    ...optionalLineArgs(lineArgs),
-  };
-}
-
-/** The knobs a repo can turn: model, timeout, image, and the dark-factory block. The default model is named here rather than in a recipe, so a task type with no agent-definition row still dispatches. */
-function runSettings(input: ClaudeCodeTaskInput) {
-  const { task, model, repoOverrides, darkFactory, image, agentDef } = input;
-
-  return {
-    model: model || "claude-sonnet-4-6",
-    timeoutMinutes: resolveTimeoutMinutes(
-      agentDef,
-      repoOverrides,
-      task.task_type,
-    ),
-    ...optionalImage(image),
-    ...optionalDarkFactory(darkFactory),
-  };
-}
-
-function agentRunSpec(input: ClaudeCodeTaskInput): AgentRunOpts {
-  const { task, branchName, agentDef } = input;
-
-  return {
-    mode: "cluster",
-    taskType: task.task_type,
-    ...bundleFields(task),
-    description: task.description,
-    // The recipe's own prompt wins over the built-in one; the task description is appended either way, since a recipe describes the JOB and the task says which instance of it.
-    prompt: agentPrompt(
-      promptOverride(agentDef),
-      task.description,
-      buildPrompt(task.task_type, task.description),
-    ),
-    branch: branchName,
-    ...runSettings(input),
   };
 }
 

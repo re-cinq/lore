@@ -21,6 +21,15 @@ afterEach(() => {
   process.env.LORE_INGEST_TOKEN = ORIG;
 });
 
+function historyServer(listSince = vi.fn(() => Promise.resolve([row("1")]))) {
+  const server = Hapi.server({ port: 0 });
+
+  registerBearerAuth(server);
+  server.route(agentEventsHistoryRoute({ listSince }));
+
+  return { server, listSince };
+}
+
 function row(id: string): AgentRunEventRow {
   return {
     id,
@@ -39,15 +48,6 @@ function row(id: string): AgentRunEventRow {
     payload: {},
     createdAt: new Date("2026-07-20T10:00:00.000Z"),
   };
-}
-
-function historyServer(listSince = vi.fn(() => Promise.resolve([row("1")]))) {
-  const server = Hapi.server({ port: 0 });
-
-  registerBearerAuth(server);
-  server.route(agentEventsHistoryRoute({ listSince }));
-
-  return { server, listSince };
 }
 
 describe("parseLimit", () => {

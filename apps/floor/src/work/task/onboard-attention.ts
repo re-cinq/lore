@@ -22,6 +22,35 @@ export const anyWorkflowsPermissionFailure = (
       classifyError(f.error, f.step).category === "github-workflows-permission",
   );
 
+/** Everything the "needs attention" section reports on one onboarding run. */
+export interface OnboardAttention {
+  failures: StepFailure[];
+  configFailures: string[];
+  workflowsPermissionDenied: boolean;
+}
+
+/** Onboarding PR's "what went wrong" section; missing workflows/config block re-ingest. */
+export function onboardAttentionSection({
+  failures,
+  configFailures,
+  workflowsPermissionDenied,
+}: OnboardAttention): string {
+  if (failures.length === 0 && configFailures.length === 0) {
+    return "";
+  }
+  const lines = ["", "## Needs attention", "", ...failedFilesLines(failures)];
+
+  if (workflowsPermissionDenied) {
+    lines.push(
+      `GitHub rejected the workflow files: ${failureHint("github-workflows-permission")} Then re-run onboarding (or use the dashboard's fix-ingest button).`,
+      "",
+    );
+  }
+  lines.push(...configFailureLines(configFailures));
+
+  return lines.join("\n").replace(/\n+$/, "");
+}
+
 /** Lines listing files that could not be committed, or none when there were no failures. */
 function failedFilesLines(failures: StepFailure[]): string[] {
   if (failures.length === 0) {
@@ -50,33 +79,4 @@ function configFailureLines(configFailures: string[]): string[] {
   lines.push("");
 
   return lines;
-}
-
-/** Everything the "needs attention" section reports on one onboarding run. */
-export interface OnboardAttention {
-  failures: StepFailure[];
-  configFailures: string[];
-  workflowsPermissionDenied: boolean;
-}
-
-/** Onboarding PR's "what went wrong" section; missing workflows/config block re-ingest. */
-export function onboardAttentionSection({
-  failures,
-  configFailures,
-  workflowsPermissionDenied,
-}: OnboardAttention): string {
-  if (failures.length === 0 && configFailures.length === 0) {
-    return "";
-  }
-  const lines = ["", "## Needs attention", "", ...failedFilesLines(failures)];
-
-  if (workflowsPermissionDenied) {
-    lines.push(
-      `GitHub rejected the workflow files: ${failureHint("github-workflows-permission")} Then re-run onboarding (or use the dashboard's fix-ingest button).`,
-      "",
-    );
-  }
-  lines.push(...configFailureLines(configFailures));
-
-  return lines.join("\n").replace(/\n+$/, "");
 }

@@ -35,12 +35,10 @@ async function checkMissedRuns(): Promise<void> {
   await runDueJobs("missed run");
 }
 
-/** True when the job's cron schedule has fired since `lastRun` (or it never ran). */
-function jobIsDue(cron: string, lastRun: Date | null): boolean {
-  const interval = CronExpressionParser.parse(cron);
-  const prev = interval.prev().toDate();
-
-  return !lastRun || lastRun < prev;
+async function runDueJobs(label: string): Promise<void> {
+  for (const job of jobs.values()) {
+    await runIfDue(job, label);
+  }
 }
 
 async function runIfDue(job: JobDef, label: string): Promise<void> {
@@ -59,24 +57,12 @@ async function runIfDue(job: JobDef, label: string): Promise<void> {
   }
 }
 
-async function runDueJobs(label: string): Promise<void> {
-  for (const job of jobs.values()) {
-    await runIfDue(job, label);
-  }
-}
+/** True when the job's cron schedule has fired since `lastRun` (or it never ran). */
+function jobIsDue(cron: string, lastRun: Date | null): boolean {
+  const interval = CronExpressionParser.parse(cron);
+  const prev = interval.prev().toDate();
 
-/** A run that never started has no row to fail, so its throw is only logged. */
-async function recordJobFailure(
-  jobName: string,
-  runId: string | null,
-  err: unknown,
-): Promise<void> {
-  if (!runId) {
-    console.error(`[scheduler] Failed to start run for ${jobName}:`, err);
-
-    return;
-  }
-  await failJobRun(runId, err instanceof Error ? err.message : String(err));
+  return !lastRun || lastRun < prev;
 }
 
 async function runJob(job: JobDef): Promise<void> {
@@ -102,10 +88,34 @@ async function runJob(job: JobDef): Promise<void> {
   }
 }
 
+/** A run that never started has no row to fail, so its throw is only logged. */
+async function recordJobFailure(
+  jobName: string,
+  runId: string | null,
+  err: unknown,
+): Promise<void> {
+  if (!runId) {
+    console.error(`[scheduler] Failed to start run for ${jobName}:`, err);
+
+    return;
+  }
+  await failJobRun(runId, err instanceof Error ? err.message : String(err));
+}
+
 interface JobStatus {
   lastRun: string | null;
   status: string;
   nextRun: string;
+}
+
+export function getJobStatus(): Record<string, JobStatus> {
+  const result: Record<string, JobStatus> = {};
+
+  for (const job of jobs.values()) {
+    result[job.name] = jobStatus(job);
+  }
+
+  return result;
 }
 
 /** An unparseable cron is reported per job rather than failing the whole status read. */
@@ -122,14 +132,4 @@ function jobStatus(job: JobDef): JobStatus {
   } catch {
     return { lastRun: null, status: "error", nextRun: "invalid cron" };
   }
-}
-
-export function getJobStatus(): Record<string, JobStatus> {
-  const result: Record<string, JobStatus> = {};
-
-  for (const job of jobs.values()) {
-    result[job.name] = jobStatus(job);
-  }
-
-  return result;
 }

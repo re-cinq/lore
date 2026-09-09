@@ -34,6 +34,31 @@ export interface IssueContext {
   isFeaturePlanningType: boolean;
 }
 
+/** Existing, new, or no Issue: dark mode defers creation per `create_issue` unless `with_issue: true` forces it (FR3.2). */
+export async function ensureIssue(
+  context: IssueContext,
+): Promise<number | null> {
+  const { task, targetRepo, project } = context;
+  const existing = task.issue_number || null;
+
+  if (existing) {
+    console.log(
+      `[floor] Using existing issue #${existing} on ${targetRepo} (webhook-dispatched)`,
+    );
+
+    return existing;
+  }
+
+  const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
+  const gate = await shouldCreateIssue(task);
+
+  if (shouldSkipIssue(context, gate)) {
+    return null;
+  }
+
+  return createTaskIssue(task, targetRepo, project);
+}
+
 /** Whether the issue-creation gate says to skip, logging why when the skip is worth reporting (a general task's skip isn't — it never files one by design). */
 function shouldSkipIssue(
   { task, targetRepo, isFeaturePlanningType }: IssueContext,
@@ -51,45 +76,6 @@ function shouldSkipIssue(
   }
 
   return skip;
-}
-
-/** The Issue's generated title and body, with the body's bare references linkified before it is composed. */
-async function issueCopy(
-  task: PipelineTask,
-  targetRepo: string,
-): Promise<{ title: string; body: string }> {
-  const copy = await generateArtifactCopy({
-    kind: "issue",
-    taskType: task.task_type,
-    description: task.description,
-    repo: targetRepo,
-  });
-
-  return {
-    title: copy.title,
-    body: linkifyMarkdown(copy.body, {
-      repo: targetRepo,
-      uiUrl: process.env.LORE_UI_URL,
-    }),
-  };
-}
-
-/** Opens the Issue with its generated copy. `feature-request` is labeled `spec` rather than by its type — the label is what the merge hooks and the spec-PR handlers key on, and it names the artifact, not the request that asked for it. */
-async function openIssue(
-  task: PipelineTask,
-  targetRepo: string,
-  project: Project,
-): Promise<IssueRef> {
-  const copy = await issueCopy(task, targetRepo);
-
-  return project.issues.create(
-    copy.title,
-    composeIssueBody(copy.body, task, process.env.LORE_UI_URL),
-    [
-      "lore-managed",
-      task.task_type === "feature-request" ? "spec" : task.task_type,
-    ],
-  );
 }
 
 /** File the Issue this task reports against. Non-fatal: a GitHub App without permission costs the task its Issue, not its run. */
@@ -117,50 +103,43 @@ async function createTaskIssue(
   }
 }
 
-/** Existing, new, or no Issue: dark mode defers creation per `create_issue` unless `with_issue: true` forces it (FR3.2). */
-export async function ensureIssue(
-  context: IssueContext,
-): Promise<number | null> {
-  const { task, targetRepo, project } = context;
-  const existing = task.issue_number || null;
-
-  if (existing) {
-    console.log(
-      `[floor] Using existing issue #${existing} on ${targetRepo} (webhook-dispatched)`,
-    );
-
-    return existing;
-  }
-
-  const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
-  const gate = await shouldCreateIssue(task);
-
-  if (shouldSkipIssue(context, gate)) {
-    return null;
-  }
-
-  return createTaskIssue(task, targetRepo, project);
-}
-
-/** The task row and its event, together: a run waiting on a human is only visible once both say so. */
-async function parkAwaitingApproval(taskId: string): Promise<void> {
-  await setStatus(taskId, "awaiting_approval");
-  await insertEvent(taskId, "pending", "awaiting_approval", {
-    reason: "approval-required",
-  });
-}
-
-/** Says on the Issue what the run is waiting for; without the comment and the label a human has no sign the task is parked. */
-async function askForApprovalOnIssue(
+/** Opens the Issue with its generated copy. `feature-request` is labeled `spec` rather than by its type — the label is what the merge hooks and the spec-PR handlers key on, and it names the artifact, not the request that asked for it. */
+async function openIssue(
+  task: PipelineTask,
+  targetRepo: string,
   project: Project,
-  issueNumber: number,
-  approvalLabel: string,
-): Promise<void> {
-  await project.issues.comment(
-    issueNumber,
-    `This task requires approval before the agent can proceed.\n\nAdd the \`${approvalLabel}\` label to this issue to approve.`,
+): Promise<IssueRef> {
+  const copy = await issueCopy(task, targetRepo);
+
+  return project.issues.create(
+    copy.title,
+    composeIssueBody(copy.body, task, process.env.LORE_UI_URL),
+    [
+      "lore-managed",
+      task.task_type === "feature-request" ? "spec" : task.task_type,
+    ],
   );
-  await project.issues.addLabel(issueNumber, "awaiting-approval");
+}
+
+/** The Issue's generated title and body, with the body's bare references linkified before it is composed. */
+async function issueCopy(
+  task: PipelineTask,
+  targetRepo: string,
+): Promise<{ title: string; body: string }> {
+  const copy = await generateArtifactCopy({
+    kind: "issue",
+    taskType: task.task_type,
+    description: task.description,
+    repo: targetRepo,
+  });
+
+  return {
+    title: copy.title,
+    body: linkifyMarkdown(copy.body, {
+      repo: targetRepo,
+      uiUrl: process.env.LORE_UI_URL,
+    }),
+  };
 }
 
 /** Parks the task at `awaiting_approval` and returns true when the repo gates this type (FR3.2). */
@@ -187,4 +166,25 @@ export async function awaitApprovalIfRequired(
   );
 
   return true;
+}
+
+/** The task row and its event, together: a run waiting on a human is only visible once both say so. */
+async function parkAwaitingApproval(taskId: string): Promise<void> {
+  await setStatus(taskId, "awaiting_approval");
+  await insertEvent(taskId, "pending", "awaiting_approval", {
+    reason: "approval-required",
+  });
+}
+
+/** Says on the Issue what the run is waiting for; without the comment and the label a human has no sign the task is parked. */
+async function askForApprovalOnIssue(
+  project: Project,
+  issueNumber: number,
+  approvalLabel: string,
+): Promise<void> {
+  await project.issues.comment(
+    issueNumber,
+    `This task requires approval before the agent can proceed.\n\nAdd the \`${approvalLabel}\` label to this issue to approve.`,
+  );
+  await project.issues.addLabel(issueNumber, "awaiting-approval");
 }

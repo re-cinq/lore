@@ -3,6 +3,18 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import { projectFor } from "../../outbound/project-boot.js";
 
+/** Point the repo's workflows back at this Floor, BEFORE the PR opens so a failure here is still reportable in the PR body. An unset Floor value is never written as an empty variable — that would leave lore-ingest.yml failing on a blank URL while looking configured. */
+export async function configureIngestCallback(
+  project: Awaited<ReturnType<typeof projectFor>>,
+): Promise<string[]> {
+  const failures: string[] = [];
+
+  await setIngestVariable(project, failures);
+  await setIngestSecret(project, failures);
+
+  return failures;
+}
+
 async function setIngestVariable(
   project: Awaited<ReturnType<typeof projectFor>>,
   failures: string[],
@@ -49,18 +61,6 @@ async function setIngestSecret(
         `the \`LORE_INGEST_TOKEN\` repo secret could not be set: ${errorMessage(err)}`,
       ),
     );
-}
-
-/** Point the repo's workflows back at this Floor, BEFORE the PR opens so a failure here is still reportable in the PR body. An unset Floor value is never written as an empty variable — that would leave lore-ingest.yml failing on a blank URL while looking configured. */
-export async function configureIngestCallback(
-  project: Awaited<ReturnType<typeof projectFor>>,
-): Promise<string[]> {
-  const failures: string[] = [];
-
-  await setIngestVariable(project, failures);
-  await setIngestSecret(project, failures);
-
-  return failures;
 }
 
 /** Ingest-callback configuration is fail-soft; only the log line differs on success vs. partial failure. */

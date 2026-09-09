@@ -72,46 +72,6 @@ function agentDispatchDefaults(): AgentDispatchDefaults {
   };
 }
 
-/** Currently-running count for one task group, or 0 when the task has no group. */
-function runningCountForGroup(
-  runningByGroup: Map<string, number>,
-  taskGroupId: string | null | undefined,
-): number {
-  return taskGroupId ? runningByGroup.get(taskGroupId) || 0 : 0;
-}
-
-type SpecTaskBrief = ReturnType<typeof specTaskBrief>;
-
-/** The CR's metadata labels. extraLabels is spread last by the agent runner, so task-type here overrides the recipe's "implementation". */
-function specTaskLabels(brief: SpecTaskBrief): Record<string, string> {
-  return {
-    "lore.re-cinq.com/task-type": "spec-task",
-    ...(brief.specSlug
-      ? { "lore.re-cinq.com/spec-slug": labelValue(brief.specSlug) }
-      : {}),
-  };
-}
-
-/** Runs as an `implementation` agent, but LABELLED `spec-task`: the recipe is the same, the provenance is not, and the label is what the run page and every later query read. */
-async function runSpecTaskAgent(
-  task: ReadySpecTask,
-  brief: SpecTaskBrief,
-  defaults: AgentDispatchDefaults,
-): Promise<{ started: boolean }> {
-  const project = await projectFor(task.target_repo);
-
-  return await project.agents.run(task.id, {
-    mode: "cluster",
-    taskType: "implementation",
-    description: brief.description,
-    prompt: buildPrompt("implementation", brief.description),
-    branch: brief.branchName,
-    model: defaults.model,
-    timeoutMinutes: defaults.timeoutMinutes,
-    extraLabels: specTaskLabels(brief),
-  });
-}
-
 /** Claim one ready spec-task and dispatch its Agent CR; returns whether a CR actually started. A failure after the claim returns the task to `pending` so the next tick retries it. */
 async function dispatchSpecTask(
   task: ReadySpecTask,
@@ -135,6 +95,14 @@ async function dispatchSpecTask(
   });
 
   return runClaimed(task, runningByGroup, defaults);
+}
+
+/** Currently-running count for one task group, or 0 when the task has no group. */
+function runningCountForGroup(
+  runningByGroup: Map<string, number>,
+  taskGroupId: string | null | undefined,
+): number {
+  return taskGroupId ? runningByGroup.get(taskGroupId) || 0 : 0;
 }
 
 /** Runs a task this executor has already claimed. A dispatch failure RELEASES the claim back to `pending`: the row is claimed but nothing is running, and only a release lets the next tick try again. */
@@ -161,6 +129,48 @@ async function runClaimed(
   }
 }
 
+type SpecTaskBrief = ReturnType<typeof specTaskBrief>;
+
+/** Runs as an `implementation` agent, but LABELLED `spec-task`: the recipe is the same, the provenance is not, and the label is what the run page and every later query read. */
+async function runSpecTaskAgent(
+  task: ReadySpecTask,
+  brief: SpecTaskBrief,
+  defaults: AgentDispatchDefaults,
+): Promise<{ started: boolean }> {
+  const project = await projectFor(task.target_repo);
+
+  return await project.agents.run(task.id, {
+    mode: "cluster",
+    taskType: "implementation",
+    description: brief.description,
+    prompt: buildPrompt("implementation", brief.description),
+    branch: brief.branchName,
+    model: defaults.model,
+    timeoutMinutes: defaults.timeoutMinutes,
+    extraLabels: specTaskLabels(brief),
+  });
+}
+
+/** The CR's metadata labels. extraLabels is spread last by the agent runner, so task-type here overrides the recipe's "implementation". */
+function specTaskLabels(brief: SpecTaskBrief): Record<string, string> {
+  return {
+    "lore.re-cinq.com/task-type": "spec-task",
+    ...(brief.specSlug
+      ? { "lore.re-cinq.com/spec-slug": labelValue(brief.specSlug) }
+      : {}),
+  };
+}
+
+/** A Kubernetes label value: alphanumerics, dot, dash and underscore, 63 chars. */
+function labelValue(specSlug: string): string {
+  return (
+    specSlug
+      .replace(/[^a-zA-Z0-9._-]/g, "")
+      .replace(/^-+|-+$/g, "")
+      .substring(0, 63) || "unknown"
+  );
+}
+
 /** An existing CR means another dispatcher won; the claim stays with it, not with us. */
 function reportDispatchRace(task: ReadySpecTask): boolean {
   console.log(
@@ -184,6 +194,17 @@ function recordDispatch(
   return true;
 }
 
+/** Update the per-group concurrency counter after a successful dispatch. */
+function bumpGroupCounter(
+  runningByGroup: Map<string, number>,
+  taskGroupId: string | null | undefined,
+): void {
+  if (!taskGroupId) {
+    return;
+  }
+  runningByGroup.set(taskGroupId, (runningByGroup.get(taskGroupId) || 0) + 1);
+}
+
 /** What the agent is told to build, and where it builds it. */
 function specTaskBrief(task: ReadySpecTask) {
   const cb = (task.context_bundle ?? {}) as {
@@ -203,25 +224,4 @@ function specTaskBrief(task: ReadySpecTask) {
     description: `Implement spec-task ${cb.spec_task_id}: ${task.description}${specRef}${fileRef}`,
     branchName: `lore/spec-task/${slug}-${(cb.spec_task_id || "").toLowerCase()}-${task.id.substring(0, 8)}`,
   };
-}
-
-/** A Kubernetes label value: alphanumerics, dot, dash and underscore, 63 chars. */
-function labelValue(specSlug: string): string {
-  return (
-    specSlug
-      .replace(/[^a-zA-Z0-9._-]/g, "")
-      .replace(/^-+|-+$/g, "")
-      .substring(0, 63) || "unknown"
-  );
-}
-
-/** Update the per-group concurrency counter after a successful dispatch. */
-function bumpGroupCounter(
-  runningByGroup: Map<string, number>,
-  taskGroupId: string | null | undefined,
-): void {
-  if (!taskGroupId) {
-    return;
-  }
-  runningByGroup.set(taskGroupId, (runningByGroup.get(taskGroupId) || 0) + 1);
 }

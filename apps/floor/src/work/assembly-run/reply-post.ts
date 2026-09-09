@@ -39,13 +39,19 @@ export interface ReplyPorts {
 export type ReplyPostOutcome =
   "posted" | "already_posted" | "no_reply" | "post_failed" | "not_reply";
 
-// Invisible per-run identity leading every posted reply, keyed per iteration; runs BEFORE the node-outcome CAS (spec 6-dark-factory FR6.11) so this marker's probe is what makes a redelivered terminal event a no-op (#1004).
-function replyRunMarker(
-  assemblyLineId: string,
-  nodeId: string,
-  iteration: number,
-): string {
-  return `<!-- lore-reply-run: ${assemblyLineId}/${nodeId}/${iteration} -->`;
+export async function postReplyFromNode(
+  row: AssemblyRunRecord,
+  node: RunGraphNode,
+  output?: string,
+  ports: ReplyPorts = {},
+): Promise<ReplyPostOutcome> {
+  const prNumber = replyTargetPrNumber(row, node);
+
+  if (prNumber === null) {
+    return "not_reply";
+  }
+
+  return await postParsedReply({ row, node, prNumber, output, ports });
 }
 
 /** Which PR a reply targets, or null when this node isn't a reply-shaped one at all. */
@@ -58,6 +64,37 @@ function replyTargetPrNumber(
   }
 
   return Number(row.args.pr_number) || null;
+}
+
+/** One reply-shaped node visit: the run, the node whose output carries the reply, and the PR it is addressed to. */
+interface ReplyDelivery {
+  row: AssemblyRunRecord;
+  node: RunGraphNode;
+  prNumber: number;
+  output: string | undefined;
+  ports: ReplyPorts;
+}
+
+/** Parses the fenced REVIEW_REPLY block and delivers it; an absent block or a throw is audited, never fatal. */
+async function postParsedReply(
+  params: ReplyDelivery,
+): Promise<ReplyPostOutcome> {
+  const { row, prNumber, output, ports } = params;
+  const body = parseReviewReply(output ?? "");
+
+  if (!body) {
+    await auditUnparsedReply(row, prNumber, output, ports);
+
+    return "no_reply";
+  }
+
+  try {
+    return await deliverReply(params, body);
+  } catch (err) {
+    await auditReplyPostFailed(row, prNumber, err as Error, ports);
+
+    return "post_failed";
+  }
 }
 
 async function auditUnparsedReply(
@@ -78,31 +115,6 @@ async function auditUnparsedReply(
     },
     ports.audit,
   );
-}
-
-/** The comment this reply is addressed to (if any) and its per-run dedupe marker. */
-function replyIdentity(
-  row: AssemblyRunRecord,
-  node: RunGraphNode,
-  ports: ReplyPorts,
-): { inReplyTo: number; marker: string | undefined } {
-  const inReplyTo =
-    Number(row.args.in_reply_to_id) || Number(row.args.comment_id) || 0;
-  const marker =
-    ports.iteration === undefined
-      ? undefined
-      : replyRunMarker(row.id, node.id, ports.iteration);
-
-  return { inReplyTo, marker };
-}
-
-/** One reply-shaped node visit: the run, the node whose output carries the reply, and the PR it is addressed to. */
-interface ReplyDelivery {
-  row: AssemblyRunRecord;
-  node: RunGraphNode;
-  prNumber: number;
-  output: string | undefined;
-  ports: ReplyPorts;
 }
 
 /** Posts the reply (or skips it as a dedupe) and, when it landed in a thread, resolves that thread. */
@@ -129,6 +141,31 @@ async function deliverReply(
   await pulls.comment(prNumber, stamped);
 
   return "posted";
+}
+
+/** The comment this reply is addressed to (if any) and its per-run dedupe marker. */
+function replyIdentity(
+  row: AssemblyRunRecord,
+  node: RunGraphNode,
+  ports: ReplyPorts,
+): { inReplyTo: number; marker: string | undefined } {
+  const inReplyTo =
+    Number(row.args.in_reply_to_id) || Number(row.args.comment_id) || 0;
+  const marker =
+    ports.iteration === undefined
+      ? undefined
+      : replyRunMarker(row.id, node.id, ports.iteration);
+
+  return { inReplyTo, marker };
+}
+
+// Invisible per-run identity leading every posted reply, keyed per iteration; runs BEFORE the node-outcome CAS (spec 6-dark-factory FR6.11) so this marker's probe is what makes a redelivered terminal event a no-op (#1004).
+function replyRunMarker(
+  assemblyLineId: string,
+  nodeId: string,
+  iteration: number,
+): string {
+  return `<!-- lore-reply-run: ${assemblyLineId}/${nodeId}/${iteration} -->`;
 }
 
 /** True when this run's marker is already on the PR, and audits the skip so a deduped reply is visible rather than silent. */
@@ -165,43 +202,6 @@ async function auditReplyPostFailed(
     },
     ports.audit,
   );
-}
-
-export async function postReplyFromNode(
-  row: AssemblyRunRecord,
-  node: RunGraphNode,
-  output?: string,
-  ports: ReplyPorts = {},
-): Promise<ReplyPostOutcome> {
-  const prNumber = replyTargetPrNumber(row, node);
-
-  if (prNumber === null) {
-    return "not_reply";
-  }
-
-  return await postParsedReply({ row, node, prNumber, output, ports });
-}
-
-/** Parses the fenced REVIEW_REPLY block and delivers it; an absent block or a throw is audited, never fatal. */
-async function postParsedReply(
-  params: ReplyDelivery,
-): Promise<ReplyPostOutcome> {
-  const { row, prNumber, output, ports } = params;
-  const body = parseReviewReply(output ?? "");
-
-  if (!body) {
-    await auditUnparsedReply(row, prNumber, output, ports);
-
-    return "no_reply";
-  }
-
-  try {
-    return await deliverReply(params, body);
-  } catch (err) {
-    await auditReplyPostFailed(row, prNumber, err as Error, ports);
-
-    return "post_failed";
-  }
 }
 
 // Whether this run's reply already reached the PR (either delivery shape); best-effort like the review probe — a missing read surface or a throw reports "not posted" so the guard never drops a reply, at the cost of a rare duplicate.

@@ -8,45 +8,23 @@ import {
   type RepoContext,
 } from "@re-cinq/lore-shared/repo-context.js";
 
-/** One sample file's first 200 lines, or null when it is missing or unreadable — a single bad file must not lose the whole sample walk. */
-async function readSampleFile(
-  project: Project,
-  fullName: string,
-  entryPath: string,
-): Promise<string | null> {
-  try {
-    const content = await project.repo.read(entryPath);
+/** Fetches contextual information about a repo: top-level tree, key config files, and a sample of source files from well-known directories. */
+export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
+  const [owner, repo] = fullName.split("/");
 
-    return content === null
-      ? null
-      : content.split("\n").slice(0, 200).join("\n");
-  } catch (err) {
-    console.error(
-      `[floor] Error fetching sample ${fullName}/${entryPath}: ${errorMessage(err)}`,
-    );
+  enforceTrue(
+    owner && repo,
+    Error,
+    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
+  );
+  const project = await projectFor(fullName);
+  const [tree, files, samples] = await Promise.all([
+    readTree(project, fullName),
+    readKeyFiles(project, fullName),
+    readSamples(project, fullName),
+  ]);
 
-    return null;
-  }
-}
-
-/** Reads up to the 3-sample cap from one directory's entries (first 200 lines each); per-file read failures are logged and skipped. */
-async function sampleDirEntries(
-  project: Project,
-  fullName: string,
-  { dir, entries }: { dir: string; entries: string[] },
-  samples: Record<string, string>,
-): Promise<void> {
-  for (const entryName of entries) {
-    if (Object.keys(samples).length >= 3) {
-      return;
-    }
-    const entryPath = `${dir}/${entryName}`;
-    const content = await readSampleFile(project, fullName, entryPath);
-
-    if (content !== null) {
-      samples[entryPath] = content;
-    }
-  }
+  return { tree, files, samples };
 }
 
 /** The repo's top-level shape. A repo we cannot list is still worth describing from its key files, so a failure here is a log line and an empty tree. */
@@ -59,23 +37,6 @@ async function readTree(project: Project, fullName: string): Promise<string[]> {
     );
 
     return [];
-  }
-}
-
-/** One convention file, or null when absent or unreadable. */
-async function readKeyFile(
-  project: Project,
-  fullName: string,
-  path: string,
-): Promise<string | null> {
-  try {
-    return await project.repo.read(path);
-  } catch (err) {
-    console.error(
-      `[floor] Error fetching ${fullName}/${path}: ${errorMessage(err)}`,
-    );
-
-    return null;
   }
 }
 
@@ -99,17 +60,17 @@ async function readKeyFiles(
   return files;
 }
 
-/** One sample directory's entries, or null when it cannot be listed (most repos have only a couple of the well-known directories). */
-async function listSampleDir(
+/** One convention file, or null when absent or unreadable. */
+async function readKeyFile(
   project: Project,
   fullName: string,
-  dir: string,
-): Promise<string[] | null> {
+  path: string,
+): Promise<string | null> {
   try {
-    return await project.repo.list(dir);
+    return await project.repo.read(path);
   } catch (err) {
     console.error(
-      `[floor] Error listing ${fullName}/${dir}: ${errorMessage(err)}`,
+      `[floor] Error fetching ${fullName}/${path}: ${errorMessage(err)}`,
     );
 
     return null;
@@ -137,21 +98,60 @@ async function readSamples(
   return samples;
 }
 
-/** Fetches contextual information about a repo: top-level tree, key config files, and a sample of source files from well-known directories. */
-export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
-  const [owner, repo] = fullName.split("/");
+/** One sample directory's entries, or null when it cannot be listed (most repos have only a couple of the well-known directories). */
+async function listSampleDir(
+  project: Project,
+  fullName: string,
+  dir: string,
+): Promise<string[] | null> {
+  try {
+    return await project.repo.list(dir);
+  } catch (err) {
+    console.error(
+      `[floor] Error listing ${fullName}/${dir}: ${errorMessage(err)}`,
+    );
 
-  enforceTrue(
-    owner && repo,
-    Error,
-    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
-  );
-  const project = await projectFor(fullName);
-  const [tree, files, samples] = await Promise.all([
-    readTree(project, fullName),
-    readKeyFiles(project, fullName),
-    readSamples(project, fullName),
-  ]);
+    return null;
+  }
+}
 
-  return { tree, files, samples };
+/** Reads up to the 3-sample cap from one directory's entries (first 200 lines each); per-file read failures are logged and skipped. */
+async function sampleDirEntries(
+  project: Project,
+  fullName: string,
+  { dir, entries }: { dir: string; entries: string[] },
+  samples: Record<string, string>,
+): Promise<void> {
+  for (const entryName of entries) {
+    if (Object.keys(samples).length >= 3) {
+      return;
+    }
+    const entryPath = `${dir}/${entryName}`;
+    const content = await readSampleFile(project, fullName, entryPath);
+
+    if (content !== null) {
+      samples[entryPath] = content;
+    }
+  }
+}
+
+/** One sample file's first 200 lines, or null when it is missing or unreadable — a single bad file must not lose the whole sample walk. */
+async function readSampleFile(
+  project: Project,
+  fullName: string,
+  entryPath: string,
+): Promise<string | null> {
+  try {
+    const content = await project.repo.read(entryPath);
+
+    return content === null
+      ? null
+      : content.split("\n").slice(0, 200).join("\n");
+  } catch (err) {
+    console.error(
+      `[floor] Error fetching sample ${fullName}/${entryPath}: ${errorMessage(err)}`,
+    );
+
+    return null;
+  }
 }

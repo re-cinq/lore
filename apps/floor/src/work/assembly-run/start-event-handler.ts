@@ -36,8 +36,62 @@ interface StartEvent {
   resumedFrom: unknown;
 }
 
+export function createStartEventHandler(
+  deps: StartEventHandlerDeps,
+): EventHandler {
+  return async (params) => {
+    // Branch/args/description live in the ROW; the event carries only identity + routing (the old definitionName fallback was deleted 2026-08-18, #1272).
+    const event = readStartEvent(params);
+
+    await routeStart({ ...event, resumedFrom: params.resumedFrom }, deps);
+  };
+}
+
+/** The three fields a start event carries. A missing run id throws rather than routing: without it there is no row to fail, so a silently-dropped event would leave a queued run nobody ever walks. */
+function readStartEvent(
+  params: Record<string, unknown>,
+): Omit<StartEvent, "resumedFrom"> {
+  const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
+
+  enforceTrue(
+    isValidAssemblyLineId(assemblyLineId),
+    Error,
+    "assembly_run.start event params missing assemblyRunId",
+  );
+
+  return {
+    assemblyLineId,
+    blueprintName: String(params.blueprintName ?? ""),
+    taskId: typeof params.taskId === "string" ? params.taskId : null,
+  };
+}
+
 function isValidAssemblyLineId(id: unknown): id is string {
   return typeof id === "string" && id.length > 0;
+}
+
+/** The three ways a start event routes: a known blueprint walks its graph, a task type without one runs as a single Agent CR, and neither leaves nothing to run — that last case closes the row rather than retrying, since no retry produces a definition that does not exist. */
+async function routeStart(
+  event: StartEvent,
+  deps: StartEventHandlerDeps,
+): Promise<void> {
+  const { assemblyLineId, blueprintName, taskId } = event;
+  const definitions = await deps.definitions();
+  const definition = definitions.get(blueprintName);
+
+  if (definition) {
+    return startResolvedBlueprint({ ...event, taskId, definition }, deps);
+  }
+
+  if (taskId) {
+    return markSingleCrRun(assemblyLineId, blueprintName, taskId, deps);
+  }
+
+  return closeUnknownDefinitionRun(
+    assemblyLineId,
+    `no assembly line defined for task type "${blueprintName}"`,
+    deps,
+  );
 }
 
 /** Task-backed row without builtin definition = single-CR record; typos become silent failures (log for breadcrumb). */
@@ -75,60 +129,6 @@ async function closeUnknownDefinitionRun(
   } catch (err) {
     console.error("[notify-failure] notifier threw:", (err as Error).message);
   }
-}
-
-/** The three fields a start event carries. A missing run id throws rather than routing: without it there is no row to fail, so a silently-dropped event would leave a queued run nobody ever walks. */
-function readStartEvent(
-  params: Record<string, unknown>,
-): Omit<StartEvent, "resumedFrom"> {
-  const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
-
-  enforceTrue(
-    isValidAssemblyLineId(assemblyLineId),
-    Error,
-    "assembly_run.start event params missing assemblyRunId",
-  );
-
-  return {
-    assemblyLineId,
-    blueprintName: String(params.blueprintName ?? ""),
-    taskId: typeof params.taskId === "string" ? params.taskId : null,
-  };
-}
-
-/** The three ways a start event routes: a known blueprint walks its graph, a task type without one runs as a single Agent CR, and neither leaves nothing to run — that last case closes the row rather than retrying, since no retry produces a definition that does not exist. */
-async function routeStart(
-  event: StartEvent,
-  deps: StartEventHandlerDeps,
-): Promise<void> {
-  const { assemblyLineId, blueprintName, taskId } = event;
-  const definitions = await deps.definitions();
-  const definition = definitions.get(blueprintName);
-
-  if (definition) {
-    return startResolvedBlueprint({ ...event, taskId, definition }, deps);
-  }
-
-  if (taskId) {
-    return markSingleCrRun(assemblyLineId, blueprintName, taskId, deps);
-  }
-
-  return closeUnknownDefinitionRun(
-    assemblyLineId,
-    `no assembly line defined for task type "${blueprintName}"`,
-    deps,
-  );
-}
-
-export function createStartEventHandler(
-  deps: StartEventHandlerDeps,
-): EventHandler {
-  return async (params) => {
-    // Branch/args/description live in the ROW; the event carries only identity + routing (the old definitionName fallback was deleted 2026-08-18, #1272).
-    const event = readStartEvent(params);
-
-    await routeStart({ ...event, resumedFrom: params.resumedFrom }, deps);
-  };
 }
 
 /** Record resolved blueprint hash and snapshot graph; walk state persists in node rows (FR6.38, specs/fork-rerun-from-node FR4). */
@@ -197,25 +197,6 @@ function advanceSeam(
     );
 }
 
-function hasPrNumber(row: AssemblyRunRecord | null): row is AssemblyRunRecord {
-  return row !== null && Number(row.args.pr_number) > 0;
-}
-
-/** Skip the node query on normal starts; include it after finish to avoid overwriting correct checks. */
-async function nodesForStartCheck(
-  row: AssemblyRunRecord,
-  assemblyLineId: string,
-  listStationRuns: (
-    id: string,
-  ) => ReturnType<AssemblyRunsPort["listStationRuns"]>,
-): Promise<Awaited<ReturnType<AssemblyRunsPort["listStationRuns"]>>> {
-  if (row.status === "queued" || row.status === "running") {
-    return [];
-  }
-
-  return listStationRuns(assemblyLineId);
-}
-
 async function publishStartCheck(assemblyLineId: string): Promise<void> {
   if (!assemblyLineId) {
     return;
@@ -246,4 +227,23 @@ async function publishCheckForRun(assemblyLineId: string): Promise<void> {
   const project = await projectFor(row.repo);
 
   await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);
+}
+
+function hasPrNumber(row: AssemblyRunRecord | null): row is AssemblyRunRecord {
+  return row !== null && Number(row.args.pr_number) > 0;
+}
+
+/** Skip the node query on normal starts; include it after finish to avoid overwriting correct checks. */
+async function nodesForStartCheck(
+  row: AssemblyRunRecord,
+  assemblyLineId: string,
+  listStationRuns: (
+    id: string,
+  ) => ReturnType<AssemblyRunsPort["listStationRuns"]>,
+): Promise<Awaited<ReturnType<AssemblyRunsPort["listStationRuns"]>>> {
+  if (row.status === "queued" || row.status === "running") {
+    return [];
+  }
+
+  return listStationRuns(assemblyLineId);
 }

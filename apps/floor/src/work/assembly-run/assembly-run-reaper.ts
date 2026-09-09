@@ -58,59 +58,48 @@ export function stationQueueWaitMs(): number {
   return (minutes > 0 ? minutes : DEFAULT_QUEUE_WAIT_MINUTES) * MINUTE_MS;
 }
 
-/** finishLine (not bare finish) so the detect fan-out's pre-created job_run row is settled failed rather than left running forever. */
-async function failLongQueuedLine(
-  row: AssemblyRunRecord,
+/** One sweep over every open line; per-line failures are logged and skipped so a single bad row never wedges the tick. */
+export async function assemblyLineReaperJob(
   deps: AssemblyLineReaperDeps,
-  nowMs: number,
-): Promise<number> {
-  if (nowMs - row.createdAt.getTime() <= QUEUED_LIMIT_MINUTES * MINUTE_MS) {
-    return 0;
-  }
-  await finishLine(row, "error", "assembly_line.start never completed", deps);
+): Promise<string> {
+  const open = await deps.assemblyRuns.listOpen();
+  const ctx = await buildReapContext(deps);
+  const tally = new Map<ReapOutcome, number>();
 
-  return 1;
+  for (const row of open) {
+    try {
+      const outcome = await reapOpenRun(row, ctx);
+
+      tally.set(outcome, (tally.get(outcome) ?? 0) + 1);
+    } catch (err) {
+      console.error(
+        `[assembly-run-reaper] ${row.blueprintName}/${row.id}: ${(err as Error).message}`,
+      );
+    }
+  }
+  const count = (outcome: ReapOutcome): number => tally.get(outcome) ?? 0;
+
+  return `resolved ${count("resolved")}, requeued ${count("requeued")}, timed out ${count("timeout")}, queue-timed-out ${count("queue-timeout")}, failed-queued ${count("failed-queued")}, re-advanced ${count("advanced")}, swept-single-cr ${count("swept")} across ${open.length} open line(s)`;
 }
 
-/** One open line: no graph means the single-CR sweep, a still-queued line may have missed its start, an open node gets a recovery verdict, and none of the above means the walk simply stopped and is re-advanced. */
-async function reapOpenRun(
-  row: AssemblyRunRecord,
-  ctx: ReapContext,
-): Promise<ReapOutcome> {
-  // Same rule the walk follows (FR6.38): reaping against a since-edited graph would resolve a node the run never had.
-  const graph = await resolveRunGraph(row, ctx.deps.definitions);
+/** Everything one tick reads once and every line then shares: the clock, the queue budget, which clusters are dead, and the capacity picture that explains an unclaimed node. */
+async function buildReapContext(
+  deps: AssemblyLineReaperDeps,
+): Promise<ReapContext> {
+  const nowMs = reapNowMs(deps);
+  const queueWaitMs = reapQueueWaitMs(deps);
+  const offlineAgents = await reapOfflineAgents(deps, nowMs);
+  // AFTER the offline sweep, which mutates what this reads — reading first would misreport a cluster that just died as "capable ... it may be wedged".
+  const clusterAgents = await reapClusterAgents(deps);
 
-  if (!graph) {
-    return await reapGraphlessRun(row, ctx);
-  }
-
-  if (row.status === "queued") {
-    const failed = await failLongQueuedLine(row, ctx.deps, ctx.nowMs);
-
-    return failed > 0 ? "failed-queued" : null;
-  }
-
-  return reapGraphNodes(row, graph, ctx);
-}
-
-/** An open node gets a recovery verdict; none open means the walk simply stopped, so it is re-advanced. */
-async function reapGraphNodes(
-  row: AssemblyRunRecord,
-  graph: NonNullable<Awaited<ReturnType<typeof resolveRunGraph>>>,
-  ctx: ReapContext,
-): Promise<ReapOutcome> {
-  const { assemblyRuns } = ctx.deps;
-  const nodes = await assemblyRuns.listStationRuns(row.id);
-  const openNode = nodes.find((n) => n.outcome === null);
-
-  if (!openNode) {
-    await advanceLine(row.id, ctx.deps);
-
-    return "advanced";
-  }
-  const node = graph.nodes.find((n) => n.id === openNode.nodeId);
-
-  return node ? await recoverOpenNode({ row, node, openNode }, ctx) : null;
+  return {
+    deps,
+    nowMs,
+    queueWaitMs,
+    offlineAgents,
+    centralClusterAgentId: await deps.centralClusterAgentId(),
+    whyUnclaimed: whyUnclaimedWith(queueWaitMs, clusterAgents),
+  };
 }
 
 function reapNowMs(deps: AssemblyLineReaperDeps): number {
@@ -138,26 +127,6 @@ async function reapClusterAgents(
   return (await deps.listClusterAgents?.()) ?? [];
 }
 
-/** Everything one tick reads once and every line then shares: the clock, the queue budget, which clusters are dead, and the capacity picture that explains an unclaimed node. */
-async function buildReapContext(
-  deps: AssemblyLineReaperDeps,
-): Promise<ReapContext> {
-  const nowMs = reapNowMs(deps);
-  const queueWaitMs = reapQueueWaitMs(deps);
-  const offlineAgents = await reapOfflineAgents(deps, nowMs);
-  // AFTER the offline sweep, which mutates what this reads — reading first would misreport a cluster that just died as "capable ... it may be wedged".
-  const clusterAgents = await reapClusterAgents(deps);
-
-  return {
-    deps,
-    nowMs,
-    queueWaitMs,
-    offlineAgents,
-    centralClusterAgentId: await deps.centralClusterAgentId(),
-    whyUnclaimed: whyUnclaimedWith(queueWaitMs, clusterAgents),
-  };
-}
-
 /** The explanation an unclaimed node gets: its required tags read against the fleet's capacity. */
 function whyUnclaimedWith(
   queueWaitMs: number,
@@ -171,26 +140,57 @@ function whyUnclaimedWith(
     });
 }
 
-/** One sweep over every open line; per-line failures are logged and skipped so a single bad row never wedges the tick. */
-export async function assemblyLineReaperJob(
-  deps: AssemblyLineReaperDeps,
-): Promise<string> {
-  const open = await deps.assemblyRuns.listOpen();
-  const ctx = await buildReapContext(deps);
-  const tally = new Map<ReapOutcome, number>();
+/** One open line: no graph means the single-CR sweep, a still-queued line may have missed its start, an open node gets a recovery verdict, and none of the above means the walk simply stopped and is re-advanced. */
+async function reapOpenRun(
+  row: AssemblyRunRecord,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  // Same rule the walk follows (FR6.38): reaping against a since-edited graph would resolve a node the run never had.
+  const graph = await resolveRunGraph(row, ctx.deps.definitions);
 
-  for (const row of open) {
-    try {
-      const outcome = await reapOpenRun(row, ctx);
-
-      tally.set(outcome, (tally.get(outcome) ?? 0) + 1);
-    } catch (err) {
-      console.error(
-        `[assembly-run-reaper] ${row.blueprintName}/${row.id}: ${(err as Error).message}`,
-      );
-    }
+  if (!graph) {
+    return await reapGraphlessRun(row, ctx);
   }
-  const count = (outcome: ReapOutcome): number => tally.get(outcome) ?? 0;
 
-  return `resolved ${count("resolved")}, requeued ${count("requeued")}, timed out ${count("timeout")}, queue-timed-out ${count("queue-timeout")}, failed-queued ${count("failed-queued")}, re-advanced ${count("advanced")}, swept-single-cr ${count("swept")} across ${open.length} open line(s)`;
+  if (row.status === "queued") {
+    const failed = await failLongQueuedLine(row, ctx.deps, ctx.nowMs);
+
+    return failed > 0 ? "failed-queued" : null;
+  }
+
+  return reapGraphNodes(row, graph, ctx);
+}
+
+/** finishLine (not bare finish) so the detect fan-out's pre-created job_run row is settled failed rather than left running forever. */
+async function failLongQueuedLine(
+  row: AssemblyRunRecord,
+  deps: AssemblyLineReaperDeps,
+  nowMs: number,
+): Promise<number> {
+  if (nowMs - row.createdAt.getTime() <= QUEUED_LIMIT_MINUTES * MINUTE_MS) {
+    return 0;
+  }
+  await finishLine(row, "error", "assembly_line.start never completed", deps);
+
+  return 1;
+}
+
+/** An open node gets a recovery verdict; none open means the walk simply stopped, so it is re-advanced. */
+async function reapGraphNodes(
+  row: AssemblyRunRecord,
+  graph: NonNullable<Awaited<ReturnType<typeof resolveRunGraph>>>,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  const { assemblyRuns } = ctx.deps;
+  const nodes = await assemblyRuns.listStationRuns(row.id);
+  const openNode = nodes.find((n) => n.outcome === null);
+
+  if (!openNode) {
+    await advanceLine(row.id, ctx.deps);
+
+    return "advanced";
+  }
+  const node = graph.nodes.find((n) => n.id === openNode.nodeId);
+
+  return node ? await recoverOpenNode({ row, node, openNode }, ctx) : null;
 }

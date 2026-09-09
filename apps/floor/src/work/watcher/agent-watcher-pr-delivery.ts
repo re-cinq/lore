@@ -21,6 +21,25 @@ import {
 } from "./agent-watcher-notify.js";
 import { completeNoChangeTask } from "./agent-watcher-no-change.js";
 
+/** Succeeded non-review: compute changed-file count, close no-changes task or open PR. */
+export async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
+  const changedFiles = await computeChangedFileCount(ctx);
+
+  if (changedFiles !== 0) {
+    try {
+      await deliverPrForTask(ctx, changedFiles);
+    } catch (err) {
+      await handlePrCreationFailure(ctx, err);
+    }
+
+    return;
+  }
+  const taskUrl = taskPageUrl(ctx.taskId, process.env.LORE_UI_URL);
+  const logsRef = taskUrl ? `See [logs](${taskUrl})` : "See logs";
+
+  await completeNoChangeTask(ctx, taskUrl, logsRef);
+}
+
 /** Agent.status has no changedFiles — compute it via compare-commits. */
 async function computeChangedFileCount(ctx: AgentContext): Promise<number> {
   try {
@@ -37,16 +56,52 @@ async function computeChangedFileCount(ctx: AgentContext): Promise<number> {
   }
 }
 
-/** The generated title/body pair before the Lore footer and repo-relative link rewriting are applied. */
-function prArtifactCopy(ctx: AgentContext, changedFiles: number) {
-  return generateArtifactCopy({
-    kind: "pr",
-    taskType: ctx.taskType,
-    description: ctx.description,
-    agentOutput: ctx.output,
+/** Open a PR from the pushed branch and tell everything downstream about it — issue, feature row, CI gate, auto-review. */
+async function deliverPrForTask(
+  ctx: AgentContext,
+  changedFiles: number,
+): Promise<void> {
+  const { pr, targetRepo, issueNumber, prProject } = await openPrAndRecord(
+    ctx,
     changedFiles,
-    repo: ctx.targetRepo,
+  );
+
+  await linkPrArtifacts(ctx, {
+    pr,
+    targetRepo,
+    issueNumber,
+    changedFiles,
+    prProject,
   });
+  await runAutoMergeGate(ctx, prProject);
+  await maybeStartAutoReview(ctx, pr);
+}
+
+export interface OpenedPr {
+  pr: Awaited<
+    ReturnType<Awaited<ReturnType<typeof projectFor>>["pulls"]["open"]>
+  >;
+  targetRepo: string;
+  issueNumber: number | null;
+  changedFiles: number;
+  prProject: Awaited<ReturnType<typeof projectFor>>;
+}
+
+async function openPrAndRecord(
+  ctx: AgentContext,
+  changedFiles: number,
+): Promise<Omit<OpenedPr, "changedFiles">> {
+  const { taskId, branch, targetRepo } = ctx;
+  const { issue_number, target_repo } = await getIssueNumber(taskId);
+  const prProject = await projectFor(targetRepo);
+  const pr = await prProject.pulls.open(
+    branch,
+    await prCopy(ctx, changedFiles, issue_number),
+  );
+
+  await recordPrOpened(taskId, branch, pr);
+
+  return { pr, targetRepo: target_repo, issueNumber: issue_number, prProject };
 }
 
 /** The PR's title and body. The footer carries `Lore-Task:` (and the Issue ref when there is one) — in dark-factory mode that trailer is the ONLY cross-reference between the PR and the task that produced it. */
@@ -69,14 +124,16 @@ async function prCopy(
   };
 }
 
-export interface OpenedPr {
-  pr: Awaited<
-    ReturnType<Awaited<ReturnType<typeof projectFor>>["pulls"]["open"]>
-  >;
-  targetRepo: string;
-  issueNumber: number | null;
-  changedFiles: number;
-  prProject: Awaited<ReturnType<typeof projectFor>>;
+/** The generated title/body pair before the Lore footer and repo-relative link rewriting are applied. */
+function prArtifactCopy(ctx: AgentContext, changedFiles: number) {
+  return generateArtifactCopy({
+    kind: "pr",
+    taskType: ctx.taskType,
+    description: ctx.description,
+    agentOutput: ctx.output,
+    changedFiles,
+    repo: ctx.targetRepo,
+  });
 }
 
 /** Records the open PR against the task and any runs awaiting it. The stamp is best-effort and OUTSIDE the failure path: the PR is already open, so a stamp failure must not re-label this as a PR-open failure. */
@@ -101,21 +158,34 @@ async function recordPrOpened(
   });
 }
 
-async function openPrAndRecord(
+/** Issue cross-link, feature-row link, and the completion episode/notification — every write a freshly opened PR needs told about it. */
+async function linkPrArtifacts(
   ctx: AgentContext,
-  changedFiles: number,
-): Promise<Omit<OpenedPr, "changedFiles">> {
-  const { taskId, branch, targetRepo } = ctx;
-  const { issue_number, target_repo } = await getIssueNumber(taskId);
-  const prProject = await projectFor(targetRepo);
-  const pr = await prProject.pulls.open(
-    branch,
-    await prCopy(ctx, changedFiles, issue_number),
-  );
+  opened: OpenedPr,
+): Promise<void> {
+  const { pr, targetRepo, issueNumber, prProject } = opened;
 
-  await recordPrOpened(taskId, branch, pr);
+  await linkPrToIssue(targetRepo, issueNumber, pr.url);
+  await linkFeatureRow(ctx, pr, prProject);
 
-  return { pr, targetRepo: target_repo, issueNumber: issue_number, prProject };
+  console.log(`[agent-watcher] Task ${ctx.taskId} → PR ${pr.url}`);
+  await notifyTaskUpdate(ctx.taskId, targetRepo, "pr", pr.url);
+  recordPrEpisode(ctx, opened);
+}
+
+/** Links a spec PR back to its feature row (ADR-027). Warned rather than thrown: the PR is open either way. */
+async function linkFeatureRow(
+  ctx: AgentContext,
+  pr: OpenedPr["pr"],
+  prProject: Awaited<ReturnType<typeof projectFor>>,
+): Promise<void> {
+  try {
+    await transitionFeatureToPrOpen(ctx, pr, prProject);
+  } catch (err) {
+    console.warn(
+      `[agent-watcher] feature link failed for ${ctx.taskId}: ${errorMessage(err)}`,
+    );
+  }
 }
 
 /** Keyed on the task CARRYING a feature rather than on its type (FR6.26) — a task type is not evidence of a feature, and the context bundle is. */
@@ -141,21 +211,6 @@ async function transitionFeatureToPrOpen(
   });
 }
 
-/** Links a spec PR back to its feature row (ADR-027). Warned rather than thrown: the PR is open either way. */
-async function linkFeatureRow(
-  ctx: AgentContext,
-  pr: OpenedPr["pr"],
-  prProject: Awaited<ReturnType<typeof projectFor>>,
-): Promise<void> {
-  try {
-    await transitionFeatureToPrOpen(ctx, pr, prProject);
-  } catch (err) {
-    console.warn(
-      `[agent-watcher] feature link failed for ${ctx.taskId}: ${errorMessage(err)}`,
-    );
-  }
-}
-
 /** The PR is worth remembering with its size and intent — curated so a later task can find what this change already covered. */
 function recordPrEpisode(ctx: AgentContext, opened: OpenedPr): void {
   const { taskId, taskType, description } = ctx;
@@ -170,33 +225,6 @@ function recordPrEpisode(ctx: AgentContext, opened: OpenedPr): void {
       taskId,
     },
   ).catch(() => {});
-}
-
-/** Issue cross-link, feature-row link, and the completion episode/notification — every write a freshly opened PR needs told about it. */
-async function linkPrArtifacts(
-  ctx: AgentContext,
-  opened: OpenedPr,
-): Promise<void> {
-  const { pr, targetRepo, issueNumber, prProject } = opened;
-
-  await linkPrToIssue(targetRepo, issueNumber, pr.url);
-  await linkFeatureRow(ctx, pr, prProject);
-
-  console.log(`[agent-watcher] Task ${ctx.taskId} → PR ${pr.url}`);
-  await notifyTaskUpdate(ctx.taskId, targetRepo, "pr", pr.url);
-  recordPrEpisode(ctx, opened);
-}
-
-/** A probe failure counts as proceed: auto-merge re-checks CI itself, so a flaky read must not strand a mergeable PR. */
-async function probeCiGate(
-  prProject: Awaited<ReturnType<typeof projectFor>>,
-  branch: string,
-): Promise<"proceed" | "defer"> {
-  try {
-    return decideCiGate(await prProject.pulls.ciConclusion(branch));
-  } catch {
-    return "proceed";
-  }
 }
 
 /** Deterministic CI gate (D3): fire auto-merge only once CI is green; a red/running CI defers to the webhook re-trigger. */
@@ -222,42 +250,14 @@ async function runAutoMergeGate(
   );
 }
 
-/** Open a PR from the pushed branch and tell everything downstream about it — issue, feature row, CI gate, auto-review. */
-async function deliverPrForTask(
-  ctx: AgentContext,
-  changedFiles: number,
-): Promise<void> {
-  const { pr, targetRepo, issueNumber, prProject } = await openPrAndRecord(
-    ctx,
-    changedFiles,
-  );
-
-  await linkPrArtifacts(ctx, {
-    pr,
-    targetRepo,
-    issueNumber,
-    changedFiles,
-    prProject,
-  });
-  await runAutoMergeGate(ctx, prProject);
-  await maybeStartAutoReview(ctx, pr);
-}
-
-/** Succeeded non-review: compute changed-file count, close no-changes task or open PR. */
-export async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
-  const changedFiles = await computeChangedFileCount(ctx);
-
-  if (changedFiles !== 0) {
-    try {
-      await deliverPrForTask(ctx, changedFiles);
-    } catch (err) {
-      await handlePrCreationFailure(ctx, err);
-    }
-
-    return;
+/** A probe failure counts as proceed: auto-merge re-checks CI itself, so a flaky read must not strand a mergeable PR. */
+async function probeCiGate(
+  prProject: Awaited<ReturnType<typeof projectFor>>,
+  branch: string,
+): Promise<"proceed" | "defer"> {
+  try {
+    return decideCiGate(await prProject.pulls.ciConclusion(branch));
+  } catch {
+    return "proceed";
   }
-  const taskUrl = taskPageUrl(ctx.taskId, process.env.LORE_UI_URL);
-  const logsRef = taskUrl ? `See [logs](${taskUrl})` : "See logs";
-
-  await completeNoChangeTask(ctx, taskUrl, logsRef);
 }

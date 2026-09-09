@@ -1,5 +1,6 @@
 // Heavy OTel SDK bootstrap for remote app only; import FIRST in remote entrypoint
 
+/* eslint-disable re-lint/no-duplicate-code -- lore-api's own OTel bootstrap, a deliberate second copy: the library both apps would share is also the MCP adapter's, and ADR-032 keeps the OpenTelemetry SDK out of that install */
 import { NodeSDK } from "@opentelemetry/sdk-node";
 
 let sdk: NodeSDK | null = null;
@@ -16,7 +17,6 @@ export async function initOtel(): Promise<void> {
 }
 
 // Dynamic imports — these packages may not be installed in Phase 0
-// eslint-disable-next-line re-lint/no-duplicate-code -- lore-api's own OTel bootstrap, a deliberate second copy: the library both apps would share is also the MCP adapter's, and ADR-032 keeps the OpenTelemetry SDK out of that install
 async function buildCloudSdk(): Promise<NodeSDK> {
   const { TraceExporter } =
     await import("@google-cloud/opentelemetry-cloud-trace-exporter");
@@ -34,6 +34,7 @@ async function buildCloudSdk(): Promise<NodeSDK> {
     serviceName: "lore-api",
   });
 }
+/* eslint-enable re-lint/no-duplicate-code */
 
 // Deliberately rejects on export failures; outer shutdownGracefully handles errors (ADR-025 or similar)
 export async function shutdownOtel(): Promise<void> {

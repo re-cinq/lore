@@ -24,65 +24,22 @@ type StationFailure = Parameters<
   ReturnType<typeof pipeline>["assemblyRuns"]["finishStationRunOnce"]
 >[3];
 
-/** `failureClass` is `unknown` rather than invented — it is a closed taxonomy that drives retry and dispatch gating, and a made-up value would route real decisions. */
-function stationFailureFor(failureReason?: string): StationFailure {
-  return failureReason
-    ? { failureClass: "unknown", failureDetail: failureReason }
-    : undefined;
-}
-
-/** Closes a single-CR task's open run rows from the task's post-handler status; `phase` disambiguates a Failed-but-still-`running` task so it closes `failed`, not `completed`. */
-/** Closes a run and every station row still open under it. The station rows matter: left open they show as executing forever and the reaper keeps taking an interest in a run that is over. */
-async function closeRunRows(
-  runId: string,
-  outcome: Parameters<ReturnType<typeof pipeline>["assemblyRuns"]["finish"]>[1],
-  failureReason?: string,
+/** Settles one terminal Agent run from its event report; node CRs never arrive here (routed to `kubernetes.agent_node.*` instead). */
+export async function processAgentTerminal(
+  report: AgentTerminalReport,
 ): Promise<void> {
-  const nodes = await pipeline().assemblyRuns.listStationRuns(runId);
+  const ctx = await buildAgentTerminalContext(report);
 
-  await Promise.all(
-    nodes
-      .filter((node) => node.outcome === null)
-      .map((node) =>
-        pipeline().assemblyRuns.finishStationRunOnce(
-          node.id,
-          stationOutcomeForRunOutcome(outcome),
-          undefined,
-          stationFailureFor(failureReason),
-        ),
-      ),
-  );
-  await pipeline().assemblyRuns.finish(runId, outcome, failureReason);
-}
-
-async function finishSingleCrRunRows(
-  taskId: string,
-  phase: string | undefined,
-  failureReason?: string,
-): Promise<void> {
-  const open = (await pipeline().assemblyRuns.listForTask(taskId)).filter(
-    (row) => ["queued", "running"].includes(row.status),
-  );
-
-  if (open.length === 0) {
+  if (!ctx) {
     return;
   }
 
-  const task = await taskStore().getById(taskId);
-  const outcome = runOutcomeFromTaskStatus(task?.status ?? "completed", phase);
-
-  await Promise.all(
-    open.map((row) => closeRunRows(row.id, outcome, failureReason)),
-  );
-}
-
-/** Prefer the run row over the Agent CR: it's neither cluster-local nor pruned an hour later. */
-async function findCurrentRun(taskId: string) {
-  const runs = await pipeline().assemblyRuns.listForTask(taskId);
-
-  return (
-    runs.find((row) => ["queued", "running"].includes(row.status)) ??
-    runs.at(-1)
+  await applyTerminalPhaseEffects(ctx, report);
+  await settleSingleCrTask(
+    ctx.taskId,
+    ctx.taskType,
+    report.phase,
+    report.failureReason,
   );
 }
 
@@ -111,19 +68,14 @@ async function buildAgentTerminalContext(
   };
 }
 
-/** No `status.prUrl` guard: the DB guard in `buildAgentTerminalContext` is the same gate, read from a source that survives the pod. */
-async function applySucceededPhase(ctx: AgentContext): Promise<void> {
-  if (ctx.taskType !== "review") {
-    await handleSucceededChanges(ctx);
+/** Prefer the run row over the Agent CR: it's neither cluster-local nor pruned an hour later. */
+async function findCurrentRun(taskId: string) {
+  const runs = await pipeline().assemblyRuns.listForTask(taskId);
 
-    return;
-  }
-  // Review verdict (parsed from the reported output — Agent has no reviewResult field).
-  const reviewResult = parseReviewResult(ctx.output);
-
-  if (reviewResult) {
-    await handleReviewVerdict(ctx, reviewResult);
-  }
+  return (
+    runs.find((row) => ["queued", "running"].includes(row.status)) ??
+    runs.at(-1)
+  );
 }
 
 async function applyTerminalPhaseEffects(
@@ -141,6 +93,21 @@ async function applyTerminalPhaseEffects(
   // Only "Succeeded" and "Failed" ever reach here (validated at the event boundary); the "Succeeded" branch above already returned.
   if (report.failureReason) {
     await handleFailure(ctx, report.failureReason);
+  }
+}
+
+/** No `status.prUrl` guard: the DB guard in `buildAgentTerminalContext` is the same gate, read from a source that survives the pod. */
+async function applySucceededPhase(ctx: AgentContext): Promise<void> {
+  if (ctx.taskType !== "review") {
+    await handleSucceededChanges(ctx);
+
+    return;
+  }
+  // Review verdict (parsed from the reported output — Agent has no reviewResult field).
+  const reviewResult = parseReviewResult(ctx.output);
+
+  if (reviewResult) {
+    await handleReviewVerdict(ctx, reviewResult);
   }
 }
 
@@ -162,21 +129,54 @@ async function settleSingleCrTask(
   }
 }
 
-/** Settles one terminal Agent run from its event report; node CRs never arrive here (routed to `kubernetes.agent_node.*` instead). */
-export async function processAgentTerminal(
-  report: AgentTerminalReport,
+async function finishSingleCrRunRows(
+  taskId: string,
+  phase: string | undefined,
+  failureReason?: string,
 ): Promise<void> {
-  const ctx = await buildAgentTerminalContext(report);
+  const open = (await pipeline().assemblyRuns.listForTask(taskId)).filter(
+    (row) => ["queued", "running"].includes(row.status),
+  );
 
-  if (!ctx) {
+  if (open.length === 0) {
     return;
   }
 
-  await applyTerminalPhaseEffects(ctx, report);
-  await settleSingleCrTask(
-    ctx.taskId,
-    ctx.taskType,
-    report.phase,
-    report.failureReason,
+  const task = await taskStore().getById(taskId);
+  const outcome = runOutcomeFromTaskStatus(task?.status ?? "completed", phase);
+
+  await Promise.all(
+    open.map((row) => closeRunRows(row.id, outcome, failureReason)),
   );
+}
+
+/** Closes a single-CR task's open run rows from the task's post-handler status; `phase` disambiguates a Failed-but-still-`running` task so it closes `failed`, not `completed`. */
+/** Closes a run and every station row still open under it. The station rows matter: left open they show as executing forever and the reaper keeps taking an interest in a run that is over. */
+async function closeRunRows(
+  runId: string,
+  outcome: Parameters<ReturnType<typeof pipeline>["assemblyRuns"]["finish"]>[1],
+  failureReason?: string,
+): Promise<void> {
+  const nodes = await pipeline().assemblyRuns.listStationRuns(runId);
+
+  await Promise.all(
+    nodes
+      .filter((node) => node.outcome === null)
+      .map((node) =>
+        pipeline().assemblyRuns.finishStationRunOnce(
+          node.id,
+          stationOutcomeForRunOutcome(outcome),
+          undefined,
+          stationFailureFor(failureReason),
+        ),
+      ),
+  );
+  await pipeline().assemblyRuns.finish(runId, outcome, failureReason);
+}
+
+/** `failureClass` is `unknown` rather than invented — it is a closed taxonomy that drives retry and dispatch gating, and a made-up value would route real decisions. */
+function stationFailureFor(failureReason?: string): StationFailure {
+  return failureReason
+    ? { failureClass: "unknown", failureDetail: failureReason }
+    : undefined;
 }

@@ -78,14 +78,6 @@ async function reemitWhileSubjectOpen(
   await reemitWhileTaskOpen(ev);
 }
 
-/** One string param off the event, or "" when the params object or the key is missing. */
-function eventParamString(
-  ev: NonNullable<ReturnType<typeof mapAgentToEvent>>,
-  key: string,
-): string {
-  return String((ev.params ?? {})[key] ?? "");
-}
-
 /** Node CRs guard on the assembly-line ROW, not a task — dedupe rows persist ~7 days so a handled event's re-emit is a no-op; the reaper handles dead-lettered transitions. */
 async function reemitWhileLineOpen(
   ev: NonNullable<ReturnType<typeof mapAgentToEvent>>,
@@ -114,6 +106,31 @@ async function reemitWhileTaskOpen(
   }
 }
 
+/** One string param off the event, or "" when the params object or the key is missing. */
+function eventParamString(
+  ev: NonNullable<ReturnType<typeof mapAgentToEvent>>,
+  key: string,
+): string {
+  return String((ev.params ?? {})[key] ?? "");
+}
+
+/** Delete a terminal CR an hour after it finished. */
+async function pruneIfOld(
+  agent: AgentCr,
+  cluster: HttpAgentApi,
+): Promise<void> {
+  const completedAt = terminalCompletedAt(agent.status ?? {});
+
+  if (!completedAt || Date.now() - completedAt.getTime() <= PRUNE_AFTER_MS) {
+    return;
+  }
+  const name = agent.metadata?.name;
+
+  if (name) {
+    await removeAgentCr(name, cluster);
+  }
+}
+
 /** The CR's completion time, or null when it hasn't reached a terminal phase yet. */
 function terminalCompletedAt(status: {
   phase?: string;
@@ -139,21 +156,4 @@ async function removeAgentCr(
         (err as Error).message,
       ),
     );
-}
-
-/** Delete a terminal CR an hour after it finished. */
-async function pruneIfOld(
-  agent: AgentCr,
-  cluster: HttpAgentApi,
-): Promise<void> {
-  const completedAt = terminalCompletedAt(agent.status ?? {});
-
-  if (!completedAt || Date.now() - completedAt.getTime() <= PRUNE_AFTER_MS) {
-    return;
-  }
-  const name = agent.metadata?.name;
-
-  if (name) {
-    await removeAgentCr(name, cluster);
-  }
 }

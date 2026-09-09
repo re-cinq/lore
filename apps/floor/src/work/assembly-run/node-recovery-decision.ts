@@ -38,6 +38,26 @@ export interface NodeRecoveryInput {
   nowMs: number;
 }
 
+/** Pure per-open-node decision from the node row's lifecycle status, its age on the claim clock, and — only when visible — the CR's live status. */
+export function decideNodeRecovery(input: NodeRecoveryInput): NodeRecovery {
+  return decideEarlyOutcome(input) ?? decideCrOutcome(input);
+}
+
+/** The lifecycle-only verdicts, tried before anything that needs the CR's live status. */
+function decideEarlyOutcome(input: NodeRecoveryInput): NodeRecovery | null {
+  const checks = [decideHumanWait, decideQueuedOutcome, decideOfflineRequeue];
+
+  for (const check of checks) {
+    const recovery = check(input);
+
+    if (recovery) {
+      return recovery;
+    }
+  }
+
+  return null;
+}
+
 /** A node whose worker is a HUMAN is never stuck, it is parked — "how long may a person take to answer" has no defensible number, so no budget applies at all. */
 function decideHumanWait(input: NodeRecoveryInput): NodeRecovery | null {
   return isHumanStation(input.nodeType) ? { kind: "wait" } : null;
@@ -63,25 +83,36 @@ function decideOfflineRequeue(input: NodeRecoveryInput): NodeRecovery | null {
     : null;
 }
 
-/** The lifecycle-only verdicts, tried before anything that needs the CR's live status. */
-function decideEarlyOutcome(input: NodeRecoveryInput): NodeRecovery | null {
-  const checks = [decideHumanWait, decideQueuedOutcome, decideOfflineRequeue];
+/** When execution started, and whether the budget measured from there is spent. */
+interface BudgetClock {
+  executionStartMs: number;
+  expired: boolean;
+}
+
+/** The CR-status-dependent verdicts, tried once the row has cleared the lifecycle-only checks. */
+function decideCrOutcome(input: NodeRecoveryInput): NodeRecovery {
+  const clock = budgetClock(input);
+  const invisible = decideInvisibleCrOutcome(input, clock);
+
+  if (invisible) {
+    return invisible;
+  }
+  const checks = [
+    () => decideResolvedOutcome(input.status),
+    () => decideExpiredTimeout(clock),
+    () => decidePooledServiceWait(input.node),
+    () => decideAbsentCrOutcome(input, clock),
+  ];
 
   for (const check of checks) {
-    const recovery = check(input);
+    const recovery = check();
 
     if (recovery) {
       return recovery;
     }
   }
 
-  return null;
-}
-
-/** When execution started, and whether the budget measured from there is spent. */
-interface BudgetClock {
-  executionStartMs: number;
-  expired: boolean;
+  return { kind: "wait" };
 }
 
 /** A claimed row's budget runs from the claim so queue-wait time isn't charged against execution; pre-flip `running` rows have no claimedAt and measure from startedAt. */
@@ -143,35 +174,4 @@ function decideAbsentCrOutcome(
   return input.nowMs - clock.executionStartMs < NODE_STARTUP_GRACE_MS
     ? { kind: "wait" }
     : { kind: "requeue" };
-}
-
-/** The CR-status-dependent verdicts, tried once the row has cleared the lifecycle-only checks. */
-function decideCrOutcome(input: NodeRecoveryInput): NodeRecovery {
-  const clock = budgetClock(input);
-  const invisible = decideInvisibleCrOutcome(input, clock);
-
-  if (invisible) {
-    return invisible;
-  }
-  const checks = [
-    () => decideResolvedOutcome(input.status),
-    () => decideExpiredTimeout(clock),
-    () => decidePooledServiceWait(input.node),
-    () => decideAbsentCrOutcome(input, clock),
-  ];
-
-  for (const check of checks) {
-    const recovery = check();
-
-    if (recovery) {
-      return recovery;
-    }
-  }
-
-  return { kind: "wait" };
-}
-
-/** Pure per-open-node decision from the node row's lifecycle status, its age on the claim clock, and — only when visible — the CR's live status. */
-export function decideNodeRecovery(input: NodeRecoveryInput): NodeRecovery {
-  return decideEarlyOutcome(input) ?? decideCrOutcome(input);
 }

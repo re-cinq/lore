@@ -35,65 +35,6 @@ interface ConsoleSink {
   error: typeof console.error;
 }
 
-/** One labelled sink appending a console call to the run's log buffer. Non-string arguments are JSON-encoded because the buffer is uploaded as plain text. */
-function captureInto(buffer: string[], label: string) {
-  return (...args: unknown[]): void => {
-    buffer.push(
-      `${label} ${args
-        .map((a) => (typeof a === "string" ? a : JSON.stringify(a)))
-        .join(" ")}\n`,
-    );
-  };
-}
-
-function teeConsole(buffer: string[]): ConsoleSink {
-  const original: ConsoleSink = { log: console.log, error: console.error };
-  const captureLog = captureInto(buffer, "[log]");
-  const captureErr = captureInto(buffer, "[err]");
-
-  console.log = (...args: unknown[]) => {
-    original.log(...args);
-    captureLog(...args);
-  };
-  console.error = (...args: unknown[]) => {
-    original.error(...args);
-    captureErr(...args);
-  };
-
-  return original;
-}
-
-function restoreConsole(original: ConsoleSink): void {
-  console.log = original.log;
-  console.error = original.error;
-}
-
-async function uploadLogsBestEffort(
-  jobName: string,
-  runId: string,
-  buffer: string[],
-): Promise<string | undefined> {
-  try {
-    await writeJobRunLogs(jobName, runId, buffer.join(""));
-
-    return jobRunLogKey(jobName, runId);
-  } catch (uploadErr) {
-    console.error(
-      `[job-runner] Failed to upload logs for ${jobName}/${runId}:`,
-      uploadErr,
-    );
-
-    return undefined;
-  }
-}
-
-/** What a one-shot job pod needs before its handler runs. GitHub and repo access are deliberately absent: jobs reach those through the project facade, which builds its adapter from env on demand, so there is nothing to wire at startup. */
-function bootJobRuntime(): void {
-  initPool();
-  wireProject();
-  Llm.configure({ usage: usage() });
-}
-
 interface JobRun {
   jobName: string;
   runId: string;
@@ -101,26 +42,29 @@ interface JobRun {
   start: number;
 }
 
-/** Closes a successful run: the captured console goes to storage first, so the completed row can point at logs that already exist rather than at an upload that may still fail. */
-async function settleSuccess(run: JobRun & { summary: string }): Promise<void> {
-  const { jobName, runId, buffer, summary, start } = run;
-  const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
+export async function runJobByName(jobName: string): Promise<number> {
+  const handler = resolveJob(jobName);
 
-  await completeJobRun(runId, summary, { logPath });
-  console.log(
-    `[job-runner] ${jobName} completed in ${Date.now() - start}ms: ${summary}`,
-  );
+  if (!handler) {
+    console.error(
+      `[job-runner] Unknown job: ${jobName}. Known: ${Object.keys(dispatch).join(", ")}`,
+    );
+
+    return 2;
+  }
+
+  bootJobRuntime();
+
+  const runId = await startJobRun(jobName);
+
+  return executeJob({ jobName, runId, buffer: [], start: Date.now() }, handler);
 }
 
-/** Closes a failed run and hands back the message, so the caller can report it AFTER the console is restored — the upload has already happened by then. */
-async function settleFailure(run: JobRun, err: unknown): Promise<string> {
-  const { jobName, runId, buffer } = run;
-  const message = err instanceof Error ? err.message : String(err);
-  const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
-
-  await failJobRun(runId, message, { logPath });
-
-  return message;
+/** What a one-shot job pod needs before its handler runs. GitHub and repo access are deliberately absent: jobs reach those through the project facade, which builds its adapter from env on demand, so there is nothing to wire at startup. */
+function bootJobRuntime(): void {
+  initPool();
+  wireProject();
+  Llm.configure({ usage: usage() });
 }
 
 /** Runs the handler with the console teed into the run's buffer, restoring it on both arms so a pod that keeps going does not keep capturing. */
@@ -146,22 +90,78 @@ async function executeJob(run: JobRun, handler: JobHandler): Promise<number> {
   }
 }
 
-export async function runJobByName(jobName: string): Promise<number> {
-  const handler = resolveJob(jobName);
+function teeConsole(buffer: string[]): ConsoleSink {
+  const original: ConsoleSink = { log: console.log, error: console.error };
+  const captureLog = captureInto(buffer, "[log]");
+  const captureErr = captureInto(buffer, "[err]");
 
-  if (!handler) {
+  console.log = (...args: unknown[]) => {
+    original.log(...args);
+    captureLog(...args);
+  };
+  console.error = (...args: unknown[]) => {
+    original.error(...args);
+    captureErr(...args);
+  };
+
+  return original;
+}
+
+/** One labelled sink appending a console call to the run's log buffer. Non-string arguments are JSON-encoded because the buffer is uploaded as plain text. */
+function captureInto(buffer: string[], label: string) {
+  return (...args: unknown[]): void => {
+    buffer.push(
+      `${label} ${args
+        .map((a) => (typeof a === "string" ? a : JSON.stringify(a)))
+        .join(" ")}\n`,
+    );
+  };
+}
+
+/** Closes a successful run: the captured console goes to storage first, so the completed row can point at logs that already exist rather than at an upload that may still fail. */
+async function settleSuccess(run: JobRun & { summary: string }): Promise<void> {
+  const { jobName, runId, buffer, summary, start } = run;
+  const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
+
+  await completeJobRun(runId, summary, { logPath });
+  console.log(
+    `[job-runner] ${jobName} completed in ${Date.now() - start}ms: ${summary}`,
+  );
+}
+
+function restoreConsole(original: ConsoleSink): void {
+  console.log = original.log;
+  console.error = original.error;
+}
+
+/** Closes a failed run and hands back the message, so the caller can report it AFTER the console is restored — the upload has already happened by then. */
+async function settleFailure(run: JobRun, err: unknown): Promise<string> {
+  const { jobName, runId, buffer } = run;
+  const message = err instanceof Error ? err.message : String(err);
+  const logPath = await uploadLogsBestEffort(jobName, runId, buffer);
+
+  await failJobRun(runId, message, { logPath });
+
+  return message;
+}
+
+async function uploadLogsBestEffort(
+  jobName: string,
+  runId: string,
+  buffer: string[],
+): Promise<string | undefined> {
+  try {
+    await writeJobRunLogs(jobName, runId, buffer.join(""));
+
+    return jobRunLogKey(jobName, runId);
+  } catch (uploadErr) {
     console.error(
-      `[job-runner] Unknown job: ${jobName}. Known: ${Object.keys(dispatch).join(", ")}`,
+      `[job-runner] Failed to upload logs for ${jobName}/${runId}:`,
+      uploadErr,
     );
 
-    return 2;
+    return undefined;
   }
-
-  bootJobRuntime();
-
-  const runId = await startJobRun(jobName);
-
-  return executeJob({ jobName, runId, buffer: [], start: Date.now() }, handler);
 }
 
 function isCliEntrypoint(): boolean {

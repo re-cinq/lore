@@ -15,6 +15,23 @@ export function decideTaskReopen(taskStatus: string): "running" | null {
   return REOPENABLE.has(taskStatus) ? "running" : null;
 }
 
+export async function reopenTaskForFork(
+  row: { id: string; taskId: string | null },
+  deps: { tasks: SettleTaskDeps["tasks"] },
+): Promise<void> {
+  if (!row.taskId) {
+    return;
+  }
+
+  try {
+    await reopen(row.id, row.taskId, deps);
+  } catch (err) {
+    console.error(
+      `[reopen-task] fork ${row.id} → task ${row.taskId}: ${(err as Error).message}`,
+    );
+  }
+}
+
 /** Reopens the settled task behind a fork that just started; safe to call for every fork — task-less rows, already-open tasks, and losing racers all no-op. */
 /** Flips a settled task back to running for a fork's rerun, and records the transition. CAS-guarded on the status we read: another delivery may have moved the task since, and losing that race means somebody else already owns it. `failure_reason` is cleared with the flip — a running task should not wear the source attempt's failure text. */
 async function reopen(
@@ -53,21 +70,4 @@ async function flipToRunning(
     assembly_run_id: assemblyRunId,
     reason: "fork-rerun",
   });
-}
-
-export async function reopenTaskForFork(
-  row: { id: string; taskId: string | null },
-  deps: { tasks: SettleTaskDeps["tasks"] },
-): Promise<void> {
-  if (!row.taskId) {
-    return;
-  }
-
-  try {
-    await reopen(row.id, row.taskId, deps);
-  } catch (err) {
-    console.error(
-      `[reopen-task] fork ${row.id} → task ${row.taskId}: ${(err as Error).message}`,
-    );
-  }
 }

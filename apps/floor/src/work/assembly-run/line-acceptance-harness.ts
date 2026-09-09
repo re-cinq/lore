@@ -71,16 +71,6 @@ export function resultEnvelope(agentText: string): string {
   return JSON.stringify({ type: "result", result: agentText });
 }
 
-/** The scripted node output: the literal override, or a synthesized `LORE_NODE_RESULT` envelope for the given outcome. */
-function resolveCompletionOutput(input: CompleteAgentNodeInput): string {
-  return (
-    input.output ??
-    resultEnvelope(
-      `LORE_NODE_RESULT: {"outcome":"${input.outcome ?? "success"}"}`,
-    )
-  );
-}
-
 /** An attributed file-artifact envelope line — the sink lane's shape. */
 export function fileArtifactEnvelope(input: {
   taskId: string;
@@ -98,42 +88,6 @@ export function fileArtifactEnvelope(input: {
       content: input.content,
     },
   });
-}
-
-/** Registers one cluster agent and answers its id. A null create means the name was taken; storing "" would silently make every later claim find no work. */
-async function registerClusterAgent(
-  agents: InMemoryClusterAgents,
-  name: string,
-  tags: string[],
-): Promise<string> {
-  const created = await agents.create({
-    name,
-    tags,
-    tokenHash: `hash-${name}`,
-    clusterInfo: null,
-  });
-
-  enforceTrue(
-    created,
-    Error,
-    `acceptance harness: cluster agent "${name}" could not be registered`,
-  );
-
-  return created.id;
-}
-
-/** The exact open visit row for one node, matched by identity — `claimNextStationRun` would instead claim the next queued row of ANY node. */
-function findOpenNodeRow(
-  runs: InMemoryAssemblyRuns,
-  visit: { assemblyRunId: string; nodeId: string; iteration: number },
-): InMemoryAssemblyRuns["nodes"][number] | undefined {
-  return runs.nodes.find(
-    (n) =>
-      n.assemblyRunId === visit.assemblyRunId &&
-      n.nodeId === visit.nodeId &&
-      n.iteration === visit.iteration &&
-      n.outcome === null,
-  );
 }
 
 // eslint-disable-next-line max-lines-per-function -- acceptance-test harness: every closure shares one in-memory fleet, run store and status map, and threading that state through arguments would make the doubles harder to read than the thing they double.
@@ -343,6 +297,52 @@ export function createLineHarness(
     resume,
     visits,
   };
+}
+
+/** The scripted node output: the literal override, or a synthesized `LORE_NODE_RESULT` envelope for the given outcome. */
+function resolveCompletionOutput(input: CompleteAgentNodeInput): string {
+  return (
+    input.output ??
+    resultEnvelope(
+      `LORE_NODE_RESULT: {"outcome":"${input.outcome ?? "success"}"}`,
+    )
+  );
+}
+
+/** Registers one cluster agent and answers its id. A null create means the name was taken; storing "" would silently make every later claim find no work. */
+async function registerClusterAgent(
+  agents: InMemoryClusterAgents,
+  name: string,
+  tags: string[],
+): Promise<string> {
+  const created = await agents.create({
+    name,
+    tags,
+    tokenHash: `hash-${name}`,
+    clusterInfo: null,
+  });
+
+  enforceTrue(
+    created,
+    Error,
+    `acceptance harness: cluster agent "${name}" could not be registered`,
+  );
+
+  return created.id;
+}
+
+/** The exact open visit row for one node, matched by identity — `claimNextStationRun` would instead claim the next queued row of ANY node. */
+function findOpenNodeRow(
+  runs: InMemoryAssemblyRuns,
+  visit: { assemblyRunId: string; nodeId: string; iteration: number },
+): InMemoryAssemblyRuns["nodes"][number] | undefined {
+  return runs.nodes.find(
+    (n) =>
+      n.assemblyRunId === visit.assemblyRunId &&
+      n.nodeId === visit.nodeId &&
+      n.iteration === visit.iteration &&
+      n.outcome === null,
+  );
 }
 
 /** The operator switch `setPaused` stores, named so a call site says which way it flips. */

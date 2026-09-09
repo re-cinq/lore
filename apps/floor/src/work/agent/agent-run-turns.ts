@@ -12,6 +12,27 @@ export const MAX_RUN_TURNS_PER_BATCH = 10_000;
 const str = (value: unknown): string | null =>
   typeof value === "string" ? value : null;
 
+/** One turn from an already-parsed envelope plus its raw line; returns null only when redaction broke the JSON — an unattributed or unrecognized line is still kept, since a fidelity store must not drop what it cannot label. */
+export function turnFromEnvelope(
+  parsed: unknown,
+  rawLine: string,
+  redact: (text: string) => string = redactSecrets,
+): AgentRunTurnInsert | null {
+  const envelope = redactedLine(rawLine, redact);
+
+  if (envelope === null) {
+    return null;
+  }
+  const { source, event } = unwrapAttribution(parsed);
+
+  return {
+    ...turnSourceFields(source),
+    carried: parseCarriedRunIdentity(source),
+    eventType: isRecord(event) ? str(event.type) : null,
+    envelope,
+  };
+}
+
 /** Redact the raw line and refuse it if redaction broke its JSON (a replacement can span a JSON boundary), since one dropped line beats the whole batch's `::jsonb` cast failing. */
 function redactedLine(
   rawLine: string,
@@ -47,26 +68,5 @@ function turnSourceFields(
     taskId: str(source?.task),
     agentCrName: str(source?.agent),
     dedupKey: str(source?.turn_key),
-  };
-}
-
-/** One turn from an already-parsed envelope plus its raw line; returns null only when redaction broke the JSON — an unattributed or unrecognized line is still kept, since a fidelity store must not drop what it cannot label. */
-export function turnFromEnvelope(
-  parsed: unknown,
-  rawLine: string,
-  redact: (text: string) => string = redactSecrets,
-): AgentRunTurnInsert | null {
-  const envelope = redactedLine(rawLine, redact);
-
-  if (envelope === null) {
-    return null;
-  }
-  const { source, event } = unwrapAttribution(parsed);
-
-  return {
-    ...turnSourceFields(source),
-    carried: parseCarriedRunIdentity(source),
-    eventType: isRecord(event) ? str(event.type) : null,
-    envelope,
   };
 }

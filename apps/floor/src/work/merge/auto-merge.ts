@@ -56,6 +56,25 @@ const TRUST_ORDER: Record<string, number> = {
   full: 4,
 };
 
+interface AutoMergeGuard {
+  failed: boolean;
+  outcome: AutoMergeOutcome;
+}
+
+// Pure decision function: given a fully resolved policy and the PR's observable state, returns the outcome and rule trace, separated so the engine's network calls stay unit-testable apart from the policy logic.
+export function evaluateAutoMerge(
+  inputs: AutoMergePolicyInputs,
+): AutoMergeDecision {
+  const rule = buildBaseRule(inputs);
+  const failedGuard = autoMergeGuards(inputs).find((guard) => guard.failed);
+
+  if (failedGuard) {
+    return { outcome: failedGuard.outcome, rule };
+  }
+
+  return { outcome: "merged", rule };
+}
+
 function buildBaseRule(
   inputs: AutoMergePolicyInputs,
 ): AutoMergeDecision["rule"] {
@@ -72,9 +91,12 @@ function buildBaseRule(
   };
 }
 
-interface AutoMergeGuard {
-  failed: boolean;
-  outcome: AutoMergeOutcome;
+function autoMergeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
+  return [
+    { failed: !inputs.darkFactoryEnabled, outcome: "deferred:dark_mode_off" },
+    ...changeGuards(inputs),
+    ...reviewGuards(inputs),
+  ];
 }
 
 /** Deferral guards in priority order — the first one that fails wins, exactly like the original if-chain. */
@@ -119,33 +141,35 @@ function trustBelowMinimum(inputs: AutoMergePolicyInputs): boolean {
   return actualTrust < minTrust;
 }
 
-function autoMergeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
-  return [
-    { failed: !inputs.darkFactoryEnabled, outcome: "deferred:dark_mode_off" },
-    ...changeGuards(inputs),
-    ...reviewGuards(inputs),
-  ];
-}
-
-// Pure decision function: given a fully resolved policy and the PR's observable state, returns the outcome and rule trace, separated so the engine's network calls stay unit-testable apart from the policy logic.
-export function evaluateAutoMerge(
-  inputs: AutoMergePolicyInputs,
-): AutoMergeDecision {
-  const rule = buildBaseRule(inputs);
-  const failedGuard = autoMergeGuards(inputs).find((guard) => guard.failed);
-
-  if (failedGuard) {
-    return { outcome: failedGuard.outcome, rule };
-  }
-
-  return { outcome: "merged", rule };
-}
-
 export interface AutoMergeJobInputs {
   taskId: string;
   repo: string; // "owner/repo"
   prNumber: number;
   policy: AutoMergePolicyInputs;
+}
+
+export async function evaluateAndMerge(
+  inputs: AutoMergeJobInputs,
+): Promise<AutoMergeDecision> {
+  return await tracer.startActiveSpan(
+    "lore.auto_merge.decision",
+    async (span) => {
+      span.setAttribute("repo", inputs.repo);
+      span.setAttribute("pr_number", inputs.prNumber);
+      span.setAttribute("task_id", inputs.taskId);
+
+      try {
+        const decision = await decideAndMerge(inputs);
+
+        recordDecision(span, decision);
+        await auditDecision(inputs, decision);
+
+        return decision;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
 
 // End-to-end auto-merge job: evaluates the policy, writes an `auto_merge_decision` audit entry, and merges when the outcome is `merged`; a GitHub API failure during merge degrades to `deferred:api_failure` (R3) — the audit still writes, the PR stays open for a human.
@@ -173,6 +197,21 @@ async function decideAndMerge(
   }
 }
 
+// Try to merge a PR with backoff (R3): 3 attempts, 1s then 4s tail — throws on final failure so the caller records `deferred:api_failure` and the PR sits open for a human merge.
+async function mergeWithBackoff(opts: {
+  repo: string;
+  prNumber: number;
+}): Promise<void> {
+  await withBackoff(
+    async () => {
+      const project = await projectFor(opts.repo);
+
+      await project.pulls.merge(opts.prNumber, "squash");
+    },
+    { delaysMs: [1000, 4000] },
+  );
+}
+
 /** The rule trace on the span. Every input that could have deferred the merge is attached, so a "why did this not merge" question is answerable from the trace alone rather than by re-reading the PR. */
 function recordDecision(span: Span, decision: AutoMergeDecision): void {
   span.setAttribute("decision", decision.outcome);
@@ -198,43 +237,4 @@ async function auditDecision(
       decided_at: new Date().toISOString(),
     },
   });
-}
-
-export async function evaluateAndMerge(
-  inputs: AutoMergeJobInputs,
-): Promise<AutoMergeDecision> {
-  return await tracer.startActiveSpan(
-    "lore.auto_merge.decision",
-    async (span) => {
-      span.setAttribute("repo", inputs.repo);
-      span.setAttribute("pr_number", inputs.prNumber);
-      span.setAttribute("task_id", inputs.taskId);
-
-      try {
-        const decision = await decideAndMerge(inputs);
-
-        recordDecision(span, decision);
-        await auditDecision(inputs, decision);
-
-        return decision;
-      } finally {
-        span.end();
-      }
-    },
-  );
-}
-
-// Try to merge a PR with backoff (R3): 3 attempts, 1s then 4s tail — throws on final failure so the caller records `deferred:api_failure` and the PR sits open for a human merge.
-async function mergeWithBackoff(opts: {
-  repo: string;
-  prNumber: number;
-}): Promise<void> {
-  await withBackoff(
-    async () => {
-      const project = await projectFor(opts.repo);
-
-      await project.pulls.merge(opts.prNumber, "squash");
-    },
-    { delaysMs: [1000, 4000] },
-  );
 }

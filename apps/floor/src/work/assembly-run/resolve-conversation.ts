@@ -23,64 +23,63 @@ export interface ResolveConversationDeps {
   linesForTask?: (taskId: string) => Promise<string[]>;
 }
 
-function taskArgs(task: FloorAssemblyRunTask): Record<string, unknown> {
-  return task.args ?? {};
-}
-
-// Explicitly undefined vs null: null means "resolved, no rewind"; undefined means "not this path".
-function iterationRewind(
-  task: FloorAssemblyRunTask,
-): ExecutionRef | null | undefined {
-  const rewoundTo = taskArgs(task).resume_from_iteration;
-
-  if (rewoundTo === undefined || rewoundTo === null) {
-    return undefined;
-  }
-
-  return typeof rewoundTo === "number"
-    ? { assemblyLineId: task.assemblyLineId, iteration: rewoundTo }
-    : { assemblyLineId: NO_SUCH_LINE };
-}
-
-async function taskRewind(
-  task: FloorAssemblyRunTask,
-  deps: ResolveConversationDeps,
-): Promise<ExecutionRef | null> {
-  const from = taskArgs(task).resume_from_task;
-
-  if (typeof from !== "string" || !from || !deps.linesForTask) {
-    return null;
-  }
-  const lines = await deps.linesForTask(from);
-
-  // Newest line: listForTask orders created_at DESC, so first element is what author saw.
-  return lines.length
-    ? { assemblyLineId: lines[0] }
-    : { assemblyLineId: NO_SUCH_LINE };
-}
-
-/** Specific execution to resume when rewound: iteration or task (null if no rewind). */
-async function rewindTarget(
-  task: FloorAssemblyRunTask,
-  deps: ResolveConversationDeps,
-): Promise<ExecutionRef | null> {
-  const fromIteration = iterationRewind(task);
-
-  if (fromIteration !== undefined) {
-    return fromIteration;
-  }
-
-  return taskRewind(task, deps);
-}
-
-/** Fake id for "round that ran no line": resolves to nothing, never falls through to newest. */
-const NO_SUCH_LINE = "00000000-0000-0000-0000-000000000000";
-
 /** Conversation wiring for node execution or undefined; priorOutcome REQUIRED (see test). */
 export interface ConversationVisit {
   iteration: number;
   /** Outcome of this node's most recent visit — how a retry is told from a round. */
   priorOutcome: string | null;
+}
+
+export async function resolveConversation(
+  node: RunGraphNode,
+  task: FloorAssemblyRunTask,
+  { iteration, priorOutcome }: ConversationVisit,
+  deps: ResolveConversationDeps,
+): Promise<LoreTaskSpec["conversation"] | undefined> {
+  if (!node.continues || !mayContinue(priorOutcome)) {
+    return undefined;
+  }
+  const resolved = threadFor(node.continues, task);
+
+  if (!resolved.ok) {
+    console.warn(
+      `[conversation] node "${node.id}" of ${task.taskType}: ${resolved.error}`,
+    );
+
+    return undefined;
+  }
+
+  return pinConversation(resolved.thread, task, iteration, deps);
+}
+
+/** The thread this node's `continues` declaration names, resolved against the run's identity. */
+function threadFor(
+  continues: NonNullable<RunGraphNode["continues"]>,
+  task: FloorAssemblyRunTask,
+): ReturnType<typeof resolveThread> {
+  return resolveThread(continues.key, continues.node, {
+    assemblyLineId: task.assemblyLineId,
+    taskId: task.pipelineTaskId,
+    args: taskArgs(task),
+  });
+}
+
+/** Picks the conversation to continue and reserves the id this run will save as. */
+async function pinConversation(
+  thread: ConversationThread,
+  task: FloorAssemblyRunTask,
+  iteration: number,
+  deps: ResolveConversationDeps,
+): Promise<LoreTaskSpec["conversation"]> {
+  const id = await priorConversationId(thread, task, iteration, deps);
+  const pin = await reserveSaveId(thread, task, iteration, deps);
+
+  return {
+    source: deps.registryUrl,
+    id,
+    pin,
+    headersSecret: deps.headersSecret,
+  };
 }
 
 /** The conversation this run continues, or "" when there is none. The run NEVER continues its own execution — (line, iteration) is excluded, or a re-dispatch would resume itself. */
@@ -118,54 +117,55 @@ async function reserveSaveId(
   return pin;
 }
 
-/** Picks the conversation to continue and reserves the id this run will save as. */
-async function pinConversation(
-  thread: ConversationThread,
+/** Specific execution to resume when rewound: iteration or task (null if no rewind). */
+async function rewindTarget(
   task: FloorAssemblyRunTask,
-  iteration: number,
   deps: ResolveConversationDeps,
-): Promise<LoreTaskSpec["conversation"]> {
-  const id = await priorConversationId(thread, task, iteration, deps);
-  const pin = await reserveSaveId(thread, task, iteration, deps);
+): Promise<ExecutionRef | null> {
+  const fromIteration = iterationRewind(task);
 
-  return {
-    source: deps.registryUrl,
-    id,
-    pin,
-    headersSecret: deps.headersSecret,
-  };
-}
-
-/** The thread this node's `continues` declaration names, resolved against the run's identity. */
-function threadFor(
-  continues: NonNullable<RunGraphNode["continues"]>,
-  task: FloorAssemblyRunTask,
-): ReturnType<typeof resolveThread> {
-  return resolveThread(continues.key, continues.node, {
-    assemblyLineId: task.assemblyLineId,
-    taskId: task.pipelineTaskId,
-    args: taskArgs(task),
-  });
-}
-
-export async function resolveConversation(
-  node: RunGraphNode,
-  task: FloorAssemblyRunTask,
-  { iteration, priorOutcome }: ConversationVisit,
-  deps: ResolveConversationDeps,
-): Promise<LoreTaskSpec["conversation"] | undefined> {
-  if (!node.continues || !mayContinue(priorOutcome)) {
-    return undefined;
+  if (fromIteration !== undefined) {
+    return fromIteration;
   }
-  const resolved = threadFor(node.continues, task);
 
-  if (!resolved.ok) {
-    console.warn(
-      `[conversation] node "${node.id}" of ${task.taskType}: ${resolved.error}`,
-    );
+  return taskRewind(task, deps);
+}
 
+// Explicitly undefined vs null: null means "resolved, no rewind"; undefined means "not this path".
+function iterationRewind(
+  task: FloorAssemblyRunTask,
+): ExecutionRef | null | undefined {
+  const rewoundTo = taskArgs(task).resume_from_iteration;
+
+  if (rewoundTo === undefined || rewoundTo === null) {
     return undefined;
   }
 
-  return pinConversation(resolved.thread, task, iteration, deps);
+  return typeof rewoundTo === "number"
+    ? { assemblyLineId: task.assemblyLineId, iteration: rewoundTo }
+    : { assemblyLineId: NO_SUCH_LINE };
 }
+
+async function taskRewind(
+  task: FloorAssemblyRunTask,
+  deps: ResolveConversationDeps,
+): Promise<ExecutionRef | null> {
+  const from = taskArgs(task).resume_from_task;
+
+  if (typeof from !== "string" || !from || !deps.linesForTask) {
+    return null;
+  }
+  const lines = await deps.linesForTask(from);
+
+  // Newest line: listForTask orders created_at DESC, so first element is what author saw.
+  return lines.length
+    ? { assemblyLineId: lines[0] }
+    : { assemblyLineId: NO_SUCH_LINE };
+}
+
+function taskArgs(task: FloorAssemblyRunTask): Record<string, unknown> {
+  return task.args ?? {};
+}
+
+/** Fake id for "round that ran no line": resolves to nothing, never falls through to newest. */
+const NO_SUCH_LINE = "00000000-0000-0000-0000-000000000000";

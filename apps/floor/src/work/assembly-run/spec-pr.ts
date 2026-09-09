@@ -59,15 +59,6 @@ export function decideMarkReady(input: {
 /** Maximum PR title length (70 chars); unread titles harm discoverability. */
 const TITLE_MAX = 70;
 
-/** One line, no runs of whitespace, cut with an ellipsis past the cap. */
-function clampTitle(text: string): string {
-  const oneLine = text.replace(/\s+/g, " ").trim();
-
-  return oneLine.length > TITLE_MAX
-    ? `${oneLine.slice(0, TITLE_MAX - 1)}\u2026`
-    : oneLine;
-}
-
 /** Draft PR title from feature or issue title; branch name as fallback if no ticket. */
 export function draftPrTitle(input: {
   featureTitle: string | null;
@@ -99,6 +90,15 @@ export function readyPrTitle(
   return clampTitle(reported);
 }
 
+/** One line, no runs of whitespace, cut with an ellipsis past the cap. */
+function clampTitle(text: string): string {
+  const oneLine = text.replace(/\s+/g, " ").trim();
+
+  return oneLine.length > TITLE_MAX
+    ? `${oneLine.slice(0, TITLE_MAX - 1)}…`
+    : oneLine;
+}
+
 /** Narrow repo-bound slice of project; caller passes pulls and features directly. */
 export interface SpecPrPorts {
   pulls: {
@@ -128,27 +128,25 @@ export interface SpecPrPorts {
   };
 }
 
-/** Find existing PR on branch to avoid forking review across multiple PRs. */
-async function existingPrFor(
-  branch: string,
-  pulls: SpecPrPorts["pulls"],
-): Promise<PullRef | null> {
-  const open = await pulls.list();
-
-  return open.find((pr) => pr.branch === branch) ?? null;
-}
-
-function featureIdArg(args: Record<string, unknown>): string | null {
-  return typeof args.feature_id === "string" ? args.feature_id : null;
-}
-
-async function loadFeature(
+/** Ensure PR on branch, record on line; stamp before feature transition (safer if transition fails). */
+export async function stampLinePr(
   row: AssemblyRunRecord,
   ports: SpecPrPorts,
-): Promise<Feature | null> {
-  const featureId = featureIdArg(row.args);
+): Promise<void> {
+  const branch = row.branch;
 
-  return featureId ? ports.features.get(featureId) : null;
+  if (!branch) {
+    return;
+  }
+  const feature = await loadFeature(row, ports);
+  const title = draftPrTitle({
+    featureTitle: featureTitle(feature),
+    args: row.args,
+    branch,
+  });
+  const pr = await ensurePr({ branch, ports, title, feature, row });
+
+  await recordOpenedPr(row, pr, feature, ports);
 }
 
 function featureTitle(feature: Feature | null): string | null {
@@ -176,6 +174,31 @@ async function ensurePr(input: EnsurePrInput): Promise<PullRef> {
   );
 }
 
+/** Find existing PR on branch to avoid forking review across multiple PRs. */
+async function existingPrFor(
+  branch: string,
+  pulls: SpecPrPorts["pulls"],
+): Promise<PullRef | null> {
+  const open = await pulls.list();
+
+  return open.find((pr) => pr.branch === branch) ?? null;
+}
+
+/** Records the opened PR on the line BEFORE moving the feature, so a rejected transition cannot lose a PR the run already opened. */
+async function recordOpenedPr(
+  row: AssemblyRunRecord,
+  pr: PullRef,
+  feature: Feature | null,
+  ports: SpecPrPorts,
+): Promise<void> {
+  await ports.assemblyRuns.mergeArgs(row.id, {
+    pr_number: pr.number,
+    pr_url: pr.url,
+  });
+
+  await markFeaturePrOpen(feature, pr, ports);
+}
+
 /** Moves the feature to `pr-open`. Warned rather than thrown: the PR exists and its args are recorded by this point, so a rejected transition (a feature already past this state, say) must not undo a run that succeeded. */
 async function markFeaturePrOpen(
   feature: Awaited<ReturnType<typeof loadFeature>>,
@@ -199,50 +222,17 @@ async function markFeaturePrOpen(
   }
 }
 
-/** Records the opened PR on the line BEFORE moving the feature, so a rejected transition cannot lose a PR the run already opened. */
-async function recordOpenedPr(
-  row: AssemblyRunRecord,
-  pr: PullRef,
-  feature: Feature | null,
-  ports: SpecPrPorts,
-): Promise<void> {
-  await ports.assemblyRuns.mergeArgs(row.id, {
-    pr_number: pr.number,
-    pr_url: pr.url,
-  });
-
-  await markFeaturePrOpen(feature, pr, ports);
-}
-
-/** Ensure PR on branch, record on line; stamp before feature transition (safer if transition fails). */
-export async function stampLinePr(
+async function loadFeature(
   row: AssemblyRunRecord,
   ports: SpecPrPorts,
-): Promise<void> {
-  const branch = row.branch;
+): Promise<Feature | null> {
+  const featureId = featureIdArg(row.args);
 
-  if (!branch) {
-    return;
-  }
-  const feature = await loadFeature(row, ports);
-  const title = draftPrTitle({
-    featureTitle: featureTitle(feature),
-    args: row.args,
-    branch,
-  });
-  const pr = await ensurePr({ branch, ports, title, feature, row });
-
-  await recordOpenedPr(row, pr, feature, ports);
+  return featureId ? ports.features.get(featureId) : null;
 }
 
-function issueNumberArg(args: Record<string, unknown>): number | null {
-  return typeof args.issue_number === "number" ? args.issue_number : null;
-}
-
-function coverageFromExtras(
-  extras: Record<string, string> | undefined,
-): "partial" | "full" {
-  return extras?.["Lore-Issue-Coverage"] === "partial" ? "partial" : "full";
+function featureIdArg(args: Record<string, unknown>): string | null {
+  return typeof args.feature_id === "string" ? args.feature_id : null;
 }
 
 /** Rewrite PR body with pr-ready prose + footer; coverage verdict downgrades Closes→Refs for partial coverage (#1745). */
@@ -287,4 +277,14 @@ function prBody(
   return run.taskId
     ? head + prFooter({ issueNumber, taskId: run.taskId })
     : head;
+}
+
+function coverageFromExtras(
+  extras: Record<string, string> | undefined,
+): "partial" | "full" {
+  return extras?.["Lore-Issue-Coverage"] === "partial" ? "partial" : "full";
+}
+
+function issueNumberArg(args: Record<string, unknown>): number | null {
+  return typeof args.issue_number === "number" ? args.issue_number : null;
 }

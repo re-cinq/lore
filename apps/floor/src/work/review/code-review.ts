@@ -82,7 +82,35 @@ export interface ReviewSubmittedParams extends OpenParams {
   review_body?: string;
 }
 
+export interface StartReviewInput {
+  repo: string;
+  prNumber: number;
+  autoReview: boolean;
+  forced?: boolean;
+  actor?: string;
+}
+
 /** Start a code-review line and post the how-to comment; forced bypasses auto-review gate. */
+export async function startReview(
+  project: CodeReviewProject,
+  input: StartReviewInput,
+  uiUrl?: string,
+): Promise<string | null> {
+  const pr = await project.pulls.get(input.prNumber);
+
+  if (!pr || !reviewGateOpen(pr, input)) {
+    return null;
+  }
+  const started = await startReviewLine(project, input, pr);
+
+  // A JOINed run was announced when it started; announcing again posts a duplicate comment.
+  if (!started.joined) {
+    await announceReview(project, input.prNumber, started.id, uiUrl);
+  }
+
+  return started.id;
+}
+
 /** Starts the review line and reports whether this call JOINED a run that was already open. Check-then-act rather than a CAS: the only thing riding on the answer is whether to post the announcement comment, and a duplicate comment is the failure being avoided. The subject key is the PR, not the branch — recheck, reply and triage lines share one workspace. */
 async function startReviewLine(
   project: CodeReviewProject,
@@ -106,14 +134,6 @@ async function startReviewLine(
   return { id, joined: alreadyOpen?.id === id };
 }
 
-export interface StartReviewInput {
-  repo: string;
-  prNumber: number;
-  autoReview: boolean;
-  forced?: boolean;
-  actor?: string;
-}
-
 async function announceReview(
   project: CodeReviewProject,
   prNumber: number,
@@ -124,40 +144,6 @@ async function announceReview(
     prNumber,
     `Lore is reviewing this PR — ${loreTaskRef(runId, uiUrl)}.\n\n${REVIEW_HELP}`,
   );
-}
-
-export async function startReview(
-  project: CodeReviewProject,
-  input: StartReviewInput,
-  uiUrl?: string,
-): Promise<string | null> {
-  const pr = await project.pulls.get(input.prNumber);
-
-  if (!pr || !reviewGateOpen(pr, input)) {
-    return null;
-  }
-  const started = await startReviewLine(project, input, pr);
-
-  // A JOINed run was announced when it started; announcing again posts a duplicate comment.
-  if (!started.joined) {
-    await announceReview(project, input.prNumber, started.id, uiUrl);
-  }
-
-  return started.id;
-}
-
-function recheckArgs(
-  repo: string,
-  prNumber: number,
-  pr: PullRef,
-): Record<string, unknown> {
-  return {
-    pr_number: prNumber,
-    mode: "recheck",
-    head_sha: pr.headSha,
-    actor: pr.author,
-    description: recheckDescription(repo, prNumber, pr.branch),
-  };
 }
 
 /** Fast re-check for pushes after initial review; BRANCH_SHARED_WORKSPACE prevents lease_held drops. */
@@ -179,6 +165,20 @@ export async function startRecheck(
     branch: pr.branch,
     args: recheckArgs(input.repo, input.prNumber, pr),
   });
+}
+
+function recheckArgs(
+  repo: string,
+  prNumber: number,
+  pr: PullRef,
+): Record<string, unknown> {
+  return {
+    pr_number: prNumber,
+    mode: "recheck",
+    head_sha: pr.headSha,
+    actor: pr.author,
+    description: recheckDescription(repo, prNumber, pr.branch),
+  };
 }
 
 /** Inline review comments belonging to one review, or none when the review carries no id. */

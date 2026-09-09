@@ -78,6 +78,28 @@ interface CommentCall {
   autoReview: boolean;
 }
 
+/** A human comment. Bot authors are skipped before any API call — that guard is the loop breaker. */
+function onComment(deps: CodeReviewDeps): EventHandler {
+  return async (params) => {
+    const p = params as unknown as CommentParams;
+    const autoReview = await deps.autoReview(p.repo);
+
+    if (!autoReview || isBotActor(p.comment_author)) {
+      return; // loop guard before any API call
+    }
+    const project = await deps.project(p.repo);
+
+    if (!(await replyGateOpen({ project, p, autoReview }))) {
+      return;
+    }
+
+    // The Haiku `comment-triage` line is switched off (2026-09-03): only the explicit keyword drives a comment, so a plain reply publishes no `lore/comment-triage` check.
+    if (isReviewRequest(p.comment_body)) {
+      await startForcedReview({ project, p, autoReview }, deps.uiUrl());
+    }
+  };
+}
+
 async function replyGateOpen({
   project,
   p,
@@ -109,66 +131,6 @@ async function startForcedReview(
   );
 }
 
-/** A human comment. Bot authors are skipped before any API call — that guard is the loop breaker. */
-function onComment(deps: CodeReviewDeps): EventHandler {
-  return async (params) => {
-    const p = params as unknown as CommentParams;
-    const autoReview = await deps.autoReview(p.repo);
-
-    if (!autoReview || isBotActor(p.comment_author)) {
-      return; // loop guard before any API call
-    }
-    const project = await deps.project(p.repo);
-
-    if (!(await replyGateOpen({ project, p, autoReview }))) {
-      return;
-    }
-
-    // The Haiku `comment-triage` line is switched off (2026-09-03): only the explicit keyword drives a comment, so a plain reply publishes no `lore/comment-triage` check.
-    if (isReviewRequest(p.comment_body)) {
-      await startForcedReview({ project, p, autoReview }, deps.uiUrl());
-    }
-  };
-}
-
-function addressContext(
-  p: ReviewSubmittedParams,
-  pr: PullRef,
-  author: string,
-  inline: ReviewComment[],
-): CommentContext {
-  return {
-    repo: p.repo,
-    pr_number: p.pr_number,
-    branch: pr.branch,
-    head_sha: pr.headSha,
-    comment_id: 0,
-    comment_body:
-      reviewSubmittedFeedback(p.review_body, inline) ||
-      "changes requested in a submitted review",
-    actor: author,
-  };
-}
-
-/** A submitted request-changes review becomes an `address` work order. The review's own body and its inline comments are gathered into ONE feedback text — the agent gets the whole objection, not just whichever half the reviewer typed where. */
-async function startAddressLine(
-  project: CodeReviewProject,
-  p: ReviewSubmittedParams,
-  pr: PullRef,
-  author: string,
-): Promise<void> {
-  const inline = await inlineReviewComments(project, p.pr_number, p.review_id);
-  const route = routeTriagedComment(
-    "address",
-    addressContext(p, pr, author, inline),
-  )!;
-
-  await project.assemblyRuns.start(route.definition, {
-    branch: pr.branch,
-    args: route.args,
-  });
-}
-
 /** A submitted review. Only a request-changes review spawns a work order; an approval needs no follow-up line. */
 function onReviewSubmitted(deps: CodeReviewDeps): EventHandler {
   return async (params) => {
@@ -191,6 +153,44 @@ function onReviewSubmitted(deps: CodeReviewDeps): EventHandler {
       return;
     }
     await startAddressLine(project, p, pr!, author);
+  };
+}
+
+/** A submitted request-changes review becomes an `address` work order. The review's own body and its inline comments are gathered into ONE feedback text — the agent gets the whole objection, not just whichever half the reviewer typed where. */
+async function startAddressLine(
+  project: CodeReviewProject,
+  p: ReviewSubmittedParams,
+  pr: PullRef,
+  author: string,
+): Promise<void> {
+  const inline = await inlineReviewComments(project, p.pr_number, p.review_id);
+  const route = routeTriagedComment(
+    "address",
+    addressContext(p, pr, author, inline),
+  )!;
+
+  await project.assemblyRuns.start(route.definition, {
+    branch: pr.branch,
+    args: route.args,
+  });
+}
+
+function addressContext(
+  p: ReviewSubmittedParams,
+  pr: PullRef,
+  author: string,
+  inline: ReviewComment[],
+): CommentContext {
+  return {
+    repo: p.repo,
+    pr_number: p.pr_number,
+    branch: pr.branch,
+    head_sha: pr.headSha,
+    comment_id: 0,
+    comment_body:
+      reviewSubmittedFeedback(p.review_body, inline) ||
+      "changes requested in a submitted review",
+    actor: author,
   };
 }
 

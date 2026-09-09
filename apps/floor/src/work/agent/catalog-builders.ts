@@ -85,6 +85,47 @@ const AGENT_MCP_SERVERS: NonNullable<
   },
 ];
 
+export function buildAgentDefinition(
+  taskType: string,
+  cfg: AgentCatalogConfig,
+): AgentDefinition {
+  // An empty prompt would install a silently useless AgentDefinition; every committed entry carries one, so a build that doesn't is drift worth stopping on.
+  enforceTrue(
+    cfg.prompt_template !== undefined,
+    Error,
+    `task type "${taskType}" has no prompt_template — task-types.yaml is missing a field the catalog needs`,
+  );
+
+  return {
+    apiVersion: API_VERSION,
+    kind: "AgentDefinition",
+    metadata: { name: taskType, labels: { ...SEED_LABELS } },
+    spec: agentSpec(taskType, cfg, cfg.prompt_template),
+  };
+}
+
+function agentSpec(
+  taskType: string,
+  cfg: AgentCatalogConfig,
+  promptTemplate: string,
+): NonNullable<AgentDefinition["spec"]> {
+  return {
+    description: `Lore ${taskType} task recipe (seeded).`,
+    ...(cfg.model ? { model: cfg.model } : {}),
+    // Filled per run with CONTEXT_BOOTSTRAP — an instruction to assemble context, since nothing is fetched at dispatch.
+    prompt: `${promptTemplate.trimEnd()}\n\n{context}`,
+    permission_mode: "bypass",
+    max_turns: AGENT_MAX_TURNS,
+    resources: agentResources(cfg),
+    // Defense-in-depth — an agent must never spawn more pipeline work from inside a run; recipe-declared denies (e.g. #1160) append after.
+    disallowed_tools: [
+      "mcp__lore__lore_create_pipeline_task",
+      ...(cfg.disallowed_tools ?? []),
+    ],
+    output: agentOutput(cfg),
+  };
+}
+
 /** What a run's pod is given: credentials, a git identity, a scoped live Lore MCP, and its skills. */
 function agentResources(
   cfg: AgentCatalogConfig,
@@ -124,62 +165,6 @@ const POD_RESOURCES = {
   limits: { cpu: "1", memory: "1Gi", "ephemeral-storage": "4Gi" },
 };
 
-function agentSpec(
-  taskType: string,
-  cfg: AgentCatalogConfig,
-  promptTemplate: string,
-): NonNullable<AgentDefinition["spec"]> {
-  return {
-    description: `Lore ${taskType} task recipe (seeded).`,
-    ...(cfg.model ? { model: cfg.model } : {}),
-    // Filled per run with CONTEXT_BOOTSTRAP — an instruction to assemble context, since nothing is fetched at dispatch.
-    prompt: `${promptTemplate.trimEnd()}\n\n{context}`,
-    permission_mode: "bypass",
-    max_turns: AGENT_MAX_TURNS,
-    resources: agentResources(cfg),
-    // Defense-in-depth — an agent must never spawn more pipeline work from inside a run; recipe-declared denies (e.g. #1160) append after.
-    disallowed_tools: [
-      "mcp__lore__lore_create_pipeline_task",
-      ...(cfg.disallowed_tools ?? []),
-    ],
-    output: agentOutput(cfg),
-  };
-}
-
-export function buildAgentDefinition(
-  taskType: string,
-  cfg: AgentCatalogConfig,
-): AgentDefinition {
-  // An empty prompt would install a silently useless AgentDefinition; every committed entry carries one, so a build that doesn't is drift worth stopping on.
-  enforceTrue(
-    cfg.prompt_template !== undefined,
-    Error,
-    `task type "${taskType}" has no prompt_template — task-types.yaml is missing a field the catalog needs`,
-  );
-
-  return {
-    apiVersion: API_VERSION,
-    kind: "AgentDefinition",
-    metadata: { name: taskType, labels: { ...SEED_LABELS } },
-    spec: agentSpec(taskType, cfg, cfg.prompt_template),
-  };
-}
-
-function agentPodTemplate(cfg: AgentCatalogConfig) {
-  return {
-    spec: {
-      containers: [
-        {
-          name: "agent",
-          image: BASE_IMAGE,
-          ...(cfg.repo_workdir === false ? {} : { workingDir: REPO_WORKDIR }),
-          resources: POD_RESOURCES,
-        },
-      ],
-    },
-  };
-}
-
 export function buildStation(
   taskType: string,
   cfg: AgentCatalogConfig,
@@ -196,37 +181,18 @@ export function buildStation(
   };
 }
 
-/** A Station pod-template env block is OVERWRITTEN by the controller and silently lost (learned live, 2026-07-17), so the API base URL and ingest token ship through resources.env on every recipe; per-station cfg.env appends after. The model credential is added ONLY where the station calls a model — a deterministic station carrying one fails invisibly instead. */
-function stationResources(cfg: StationCatalogConfig) {
+function agentPodTemplate(cfg: AgentCatalogConfig) {
   return {
-    env: [
-      { name: "LORE_API_URL", value: API_URL_SENTINEL },
-      ...Object.entries(cfg.env ?? {}).map(([name, value]) => ({
-        name,
-        value,
-      })),
-    ],
-    secrets: [
-      { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
-      ...(cfg.needs_model ? AGENT_SECRETS : []),
-    ],
-  };
-}
-
-function stationSpec(
-  name: string,
-  cfg: StationCatalogConfig,
-  command: unknown,
-): NonNullable<AgentDefinition["spec"]> {
-  return {
-    description: `Lore ${name} station recipe (seeded).`,
-    model: "exec",
-    prompt: "{station_input}",
-    permission_mode: "bypass",
-    max_turns: 1,
-    tool_config: { command },
-    output: OUTPUT_SINKS,
-    resources: stationResources(cfg),
+    spec: {
+      containers: [
+        {
+          name: "agent",
+          image: BASE_IMAGE,
+          ...(cfg.repo_workdir === false ? {} : { workingDir: REPO_WORKDIR }),
+          resources: POD_RESOURCES,
+        },
+      ],
+    },
   };
 }
 
@@ -250,21 +216,37 @@ export function buildStationDefinition(
   };
 }
 
-function stationPodTemplate(cfg: StationCatalogConfig) {
+function stationSpec(
+  name: string,
+  cfg: StationCatalogConfig,
+  command: unknown,
+): NonNullable<AgentDefinition["spec"]> {
   return {
-    // Template labels survive the per-task Station clone AND the controller's label merge — the only marker a NetworkPolicy can key on that still matches pt-* pods.
-    ...(cfg.pod_labels && Object.keys(cfg.pod_labels).length > 0
-      ? { metadata: { labels: { ...cfg.pod_labels } } }
-      : {}),
-    spec: {
-      containers: [
-        {
-          name: "agent",
-          image: STATION_IMAGE_SENTINEL,
-          resources: POD_RESOURCES,
-        },
-      ],
-    },
+    description: `Lore ${name} station recipe (seeded).`,
+    model: "exec",
+    prompt: "{station_input}",
+    permission_mode: "bypass",
+    max_turns: 1,
+    tool_config: { command },
+    output: OUTPUT_SINKS,
+    resources: stationResources(cfg),
+  };
+}
+
+/** A Station pod-template env block is OVERWRITTEN by the controller and silently lost (learned live, 2026-07-17), so the API base URL and ingest token ship through resources.env on every recipe; per-station cfg.env appends after. The model credential is added ONLY where the station calls a model — a deterministic station carrying one fails invisibly instead. */
+function stationResources(cfg: StationCatalogConfig) {
+  return {
+    env: [
+      { name: "LORE_API_URL", value: API_URL_SENTINEL },
+      ...Object.entries(cfg.env ?? {}).map(([name, value]) => ({
+        name,
+        value,
+      })),
+    ],
+    secrets: [
+      { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
+      ...(cfg.needs_model ? AGENT_SECRETS : []),
+    ],
   };
 }
 
@@ -281,6 +263,24 @@ export function buildStationStation(
       agentDefRef: stationName(name),
       deadlineMinutes: cfg.timeout_minutes ?? 15,
       template: stationPodTemplate(cfg),
+    },
+  };
+}
+
+function stationPodTemplate(cfg: StationCatalogConfig) {
+  return {
+    // Template labels survive the per-task Station clone AND the controller's label merge — the only marker a NetworkPolicy can key on that still matches pt-* pods.
+    ...(cfg.pod_labels && Object.keys(cfg.pod_labels).length > 0
+      ? { metadata: { labels: { ...cfg.pod_labels } } }
+      : {}),
+    spec: {
+      containers: [
+        {
+          name: "agent",
+          image: STATION_IMAGE_SENTINEL,
+          resources: POD_RESOURCES,
+        },
+      ],
     },
   };
 }

@@ -10,19 +10,17 @@ export interface ShutdownSteps {
   exit: (code: number) => void;
 }
 
-/** Drains the in-memory queue, reporting what did not make it. Never throws: the process is already going down, and the reconcile cron is what re-emits an undelivered event — losing the exit path would be worse than losing the event. */
-async function drainEvents(steps: ShutdownSteps): Promise<void> {
-  const undrained = await steps.flushEvents?.().catch((err) => {
-    console.warn(`[floor] event drain failed: ${(err as Error).message}`);
+/** A shutdown function safe to wire to several signals. Every step is best-effort — a shutdown that cannot complete must still terminate — and it runs once however many signals arrive (SIGTERM then SIGKILL, or a Ctrl-C mid-drain, must not restart the sequence). */
+export function createShutdown(
+  steps: ShutdownSteps,
+): (signal: string) => Promise<void> {
+  let running: Promise<void> | null = null;
 
-    return 0;
-  });
+  return (signal: string) => {
+    running ??= runShutdownSequence(steps, signal);
 
-  if (undrained) {
-    console.error(
-      `[floor] exiting with ${undrained} undelivered event(s) — the reconcile cron is what re-emits them`,
-    );
-  }
+    return running;
+  };
 }
 
 /** The teardown sequence itself, in the one order that works: stop serving, then drain what the last in-flight requests queued, then flush telemetry, then exit. */
@@ -47,15 +45,17 @@ async function runShutdownSequence(
   steps.exit(0);
 }
 
-/** A shutdown function safe to wire to several signals. Every step is best-effort — a shutdown that cannot complete must still terminate — and it runs once however many signals arrive (SIGTERM then SIGKILL, or a Ctrl-C mid-drain, must not restart the sequence). */
-export function createShutdown(
-  steps: ShutdownSteps,
-): (signal: string) => Promise<void> {
-  let running: Promise<void> | null = null;
+/** Drains the in-memory queue, reporting what did not make it. Never throws: the process is already going down, and the reconcile cron is what re-emits an undelivered event — losing the exit path would be worse than losing the event. */
+async function drainEvents(steps: ShutdownSteps): Promise<void> {
+  const undrained = await steps.flushEvents?.().catch((err) => {
+    console.warn(`[floor] event drain failed: ${(err as Error).message}`);
 
-  return (signal: string) => {
-    running ??= runShutdownSequence(steps, signal);
+    return 0;
+  });
 
-    return running;
-  };
+  if (undrained) {
+    console.error(
+      `[floor] exiting with ${undrained} undelivered event(s) — the reconcile cron is what re-emits them`,
+    );
+  }
 }

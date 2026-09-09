@@ -8,13 +8,6 @@ export interface CiFeedback {
 /** How much of a CI report the prompt carries, matching the cap on every other appended failure. */
 const MAX_FEEDBACK_CHARS = 2500;
 
-/** One string arg off the run, or "" when it is absent or not a string. */
-function argText(args: Record<string, unknown>, key: string): string {
-  const value = args[key];
-
-  return typeof value === "string" ? value : "";
-}
-
 /** The CI verdict this launch should answer for, or null when the run did not arrive here from a red build. Gated on the INCOMING visit rather than on the args alone: the args persist on the run after they are acted on, and a later node must not be handed a verdict that has already been repaired. */
 export function ciFeedbackOf(
   visits: ReadonlyArray<{ nodeId: string; outcome: string | null }>,
@@ -32,6 +25,13 @@ export function ciFeedbackOf(
     failedChecks,
     summary: argText(args, "ci_failure_summary"),
   };
+}
+
+/** One string arg off the run, or "" when it is absent or not a string. */
+function argText(args: Record<string, unknown>, key: string): string {
+  const value = args[key];
+
+  return typeof value === "string" ? value : "";
 }
 
 /** Append what CI reported to the prompt the next node runs on. Kept out of the prompt TEMPLATE so every recipe shares it, exactly as the failure blocks beside it are. */

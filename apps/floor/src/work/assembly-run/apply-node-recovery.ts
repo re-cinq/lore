@@ -53,49 +53,29 @@ interface FailedOutcomeAlertTarget {
   status: AgentNodeStatus;
 }
 
-// Both alert channels fire under the same condition; splitting this out is the whole reason settleResolvedNode's complexity stays low.
-async function alertOnFailedOutcome(
-  target: FailedOutcomeAlertTarget,
-  result: Awaited<ReturnType<typeof deliverTerminalArtifacts>>,
-  deps: AssemblyLineReaperDeps,
-): Promise<void> {
-  if (result.outcome !== "failed") {
-    return;
-  }
-  const { row, node, status } = target;
-
-  if (deps.alertBilling) {
-    await deps.alertBilling(row.repo, node.type, status);
+export async function applyRecovery(
+  recovery: ReturnType<typeof decideNodeRecovery>,
+  found: OpenNodeContext,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  if (recovery.kind === "resolve") {
+    return await resolveOpenNode(found, ctx, recovery.status);
   }
 
-  if (deps.alertAgentConfig) {
-    await deps.alertAgentConfig(row.repo, node.type, status);
-  }
+  return await applyShelfRecovery(recovery.kind, found, ctx);
 }
 
-/** A dropped event lands here instead — same review/check, artifacts, and alerts the event path would have delivered, or the account-dry alarm depends on which door the event came through (#1456). */
-/** A failure is reported twice on purpose: to a human, and to the dispatch gate. The gate matters most for a CREDIT failure — every subsequent node would fail identically, so tripping it parks the runs instead of burning them. */
-async function reportFailure(
-  what: {
-    row: AssemblyRunRecord;
-    node: RunGraphNode;
-    status: ReturnType<typeof normalizeAgentStatus>;
-  },
-  result: Awaited<ReturnType<typeof deliverTerminalArtifacts>>,
-  deps: AssemblyLineReaperDeps,
-): Promise<void> {
-  await alertOnFailedOutcome(what, result, deps);
+/** The one verdict that carries a terminal CR status: the node is settled from what the pod actually reported. */
+async function resolveOpenNode(
+  found: OpenNodeContext,
+  ctx: ReapContext,
+  terminalStatus: AgentNodeStatus,
+): Promise<ReapOutcome> {
+  const { row, node, openNode } = found;
 
-  if (result.failureClass) {
-    deps.llmGate?.trip(result.failureClass, result.failureDetail);
-  }
-}
+  await settleResolvedNode({ row, node, openNode, terminalStatus }, ctx.deps);
 
-interface ResolvedNodeSettlement {
-  row: AssemblyRunRecord;
-  node: RunGraphNode;
-  openNode: StationRunRecord;
-  terminalStatus: AgentNodeStatus;
+  return "resolved";
 }
 
 async function settleResolvedNode(
@@ -118,6 +98,51 @@ async function settleResolvedNode(
   );
 }
 
+/** A dropped event lands here instead — same review/check, artifacts, and alerts the event path would have delivered, or the account-dry alarm depends on which door the event came through (#1456). */
+/** A failure is reported twice on purpose: to a human, and to the dispatch gate. The gate matters most for a CREDIT failure — every subsequent node would fail identically, so tripping it parks the runs instead of burning them. */
+async function reportFailure(
+  what: {
+    row: AssemblyRunRecord;
+    node: RunGraphNode;
+    status: ReturnType<typeof normalizeAgentStatus>;
+  },
+  result: Awaited<ReturnType<typeof deliverTerminalArtifacts>>,
+  deps: AssemblyLineReaperDeps,
+): Promise<void> {
+  await alertOnFailedOutcome(what, result, deps);
+
+  if (result.failureClass) {
+    deps.llmGate?.trip(result.failureClass, result.failureDetail);
+  }
+}
+
+// Both alert channels fire under the same condition; splitting this out is the whole reason settleResolvedNode's complexity stays low.
+async function alertOnFailedOutcome(
+  target: FailedOutcomeAlertTarget,
+  result: Awaited<ReturnType<typeof deliverTerminalArtifacts>>,
+  deps: AssemblyLineReaperDeps,
+): Promise<void> {
+  if (result.outcome !== "failed") {
+    return;
+  }
+  const { row, node, status } = target;
+
+  if (deps.alertBilling) {
+    await deps.alertBilling(row.repo, node.type, status);
+  }
+
+  if (deps.alertAgentConfig) {
+    await deps.alertAgentConfig(row.repo, node.type, status);
+  }
+}
+
+interface ResolvedNodeSettlement {
+  row: AssemblyRunRecord;
+  node: RunGraphNode;
+  openNode: StationRunRecord;
+  terminalStatus: AgentNodeStatus;
+}
+
 // Widens the reaper's open-node view into the terminal input `finishNodeTerminal` takes.
 function terminalInputFor(
   params: ResolvedNodeSettlement,
@@ -131,6 +156,50 @@ function terminalInputFor(
     result: settled.result,
     output: settled.output,
   };
+}
+
+/** The verdicts that need no CR status: each either ends the open node or puts its row back on the shelf. */
+async function applyShelfRecovery(
+  kind: ReturnType<typeof decideNodeRecovery>["kind"],
+  found: OpenNodeContext,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  if (kind === "timeout") {
+    return await applyTimeoutRecovery(found, ctx);
+  }
+
+  if (kind === "queue-timeout") {
+    return await failUnclaimed(found, ctx);
+  }
+
+  if (kind === "requeue-offline") {
+    return await requeueOffline(found, ctx);
+  }
+
+  if (kind === "requeue") {
+    return await requeueUnstarted(found, ctx);
+  }
+
+  return null;
+}
+
+/** A node whose pod stopped reporting died of infrastructure, not the work — say so instead of a bare `failed` with no story. */
+async function applyTimeoutRecovery(
+  found: OpenNodeContext,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  const { row, node, openNode, budgetMinutes } = found;
+
+  await failOpenNode(found, ctx, {
+    outcome: "failed",
+    failureClass: "infra",
+    failureDetail: `${nodeKind(node)} node timed out after ${budgetMinutes ?? DEFAULT_TIMEOUT_MINUTES} minutes without reporting`,
+  });
+  console.warn(
+    `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${nodeKind(node)}-timeout)`,
+  );
+
+  return "timeout";
 }
 
 function nodeKind(node: RunGraphNode): string {
@@ -152,6 +221,26 @@ async function failOpenNode(
     },
     ctx.deps,
   );
+}
+
+/** Carries out one recovery verdict. Every branch ends the node or puts its row back on the shelf; nothing here decides, it only acts. */
+/** Nothing ever ran, so this fails as `unclaimed` rather than `infra` — the class is what makes the walk refuse a retry. The detail names the TAGS: a line stalled on missing `gpu` capacity must say so instead of reporting a generic timeout. */
+async function failUnclaimed(
+  found: OpenNodeContext,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  const { row, openNode } = found;
+
+  await failOpenNode(found, ctx, {
+    outcome: "failed",
+    failureClass: "unclaimed",
+    failureDetail: ctx.whyUnclaimed(openNode.requiredTags),
+  });
+  console.warn(
+    `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} sat queued past ${ctx.queueWaitMs / MINUTE_MS}m unclaimed`,
+  );
+
+  return "queue-timeout";
 }
 
 /** Same row back on the shelf; the audit entry makes a flapping cluster diagnosable without database access (FR7 renders it). */
@@ -179,45 +268,6 @@ async function requeueOffline(
   return "requeued";
 }
 
-/** A node whose pod stopped reporting died of infrastructure, not the work — say so instead of a bare `failed` with no story. */
-async function applyTimeoutRecovery(
-  found: OpenNodeContext,
-  ctx: ReapContext,
-): Promise<ReapOutcome> {
-  const { row, node, openNode, budgetMinutes } = found;
-
-  await failOpenNode(found, ctx, {
-    outcome: "failed",
-    failureClass: "infra",
-    failureDetail: `${nodeKind(node)} node timed out after ${budgetMinutes ?? DEFAULT_TIMEOUT_MINUTES} minutes without reporting`,
-  });
-  console.warn(
-    `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${nodeKind(node)}-timeout)`,
-  );
-
-  return "timeout";
-}
-
-/** Carries out one recovery verdict. Every branch ends the node or puts its row back on the shelf; nothing here decides, it only acts. */
-/** Nothing ever ran, so this fails as `unclaimed` rather than `infra` — the class is what makes the walk refuse a retry. The detail names the TAGS: a line stalled on missing `gpu` capacity must say so instead of reporting a generic timeout. */
-async function failUnclaimed(
-  found: OpenNodeContext,
-  ctx: ReapContext,
-): Promise<ReapOutcome> {
-  const { row, openNode } = found;
-
-  await failOpenNode(found, ctx, {
-    outcome: "failed",
-    failureClass: "unclaimed",
-    failureDetail: ctx.whyUnclaimed(openNode.requiredTags),
-  });
-  console.warn(
-    `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} sat queued past ${ctx.queueWaitMs / MINUTE_MS}m unclaimed`,
-  );
-
-  return "queue-timeout";
-}
-
 /** A crash between claim and CR create: the SAME row resets to `queued` so another claim takes it. The armed dispatch spec rides that row, so nothing has to rebuild it. */
 async function requeueUnstarted(
   found: OpenNodeContext,
@@ -234,54 +284,24 @@ async function requeueUnstarted(
   return "requeued";
 }
 
-export async function applyRecovery(
-  recovery: ReturnType<typeof decideNodeRecovery>,
-  found: OpenNodeContext,
+/** Reads the node's live state — CR status, claimant health, applicable budget — and applies whatever `decideNodeRecovery` makes of it. */
+export async function recoverOpenNode(
+  found: {
+    row: AssemblyRunRecord;
+    node: RunGraphNode;
+    openNode: StationRunRecord;
+  },
   ctx: ReapContext,
-): Promise<ReapOutcome> {
-  if (recovery.kind === "resolve") {
-    return await resolveOpenNode(found, ctx, recovery.status);
-  }
-
-  return await applyShelfRecovery(recovery.kind, found, ctx);
-}
-
-/** The one verdict that carries a terminal CR status: the node is settled from what the pod actually reported. */
-async function resolveOpenNode(
-  found: OpenNodeContext,
-  ctx: ReapContext,
-  terminalStatus: AgentNodeStatus,
 ): Promise<ReapOutcome> {
   const { row, node, openNode } = found;
+  const state = await readNodeState(found, ctx);
+  const recovery = decideRecoveryFor(found, state, ctx);
 
-  await settleResolvedNode({ row, node, openNode, terminalStatus }, ctx.deps);
-
-  return "resolved";
-}
-
-/** The verdicts that need no CR status: each either ends the open node or puts its row back on the shelf. */
-async function applyShelfRecovery(
-  kind: ReturnType<typeof decideNodeRecovery>["kind"],
-  found: OpenNodeContext,
-  ctx: ReapContext,
-): Promise<ReapOutcome> {
-  if (kind === "timeout") {
-    return await applyTimeoutRecovery(found, ctx);
-  }
-
-  if (kind === "queue-timeout") {
-    return await failUnclaimed(found, ctx);
-  }
-
-  if (kind === "requeue-offline") {
-    return await requeueOffline(found, ctx);
-  }
-
-  if (kind === "requeue") {
-    return await requeueUnstarted(found, ctx);
-  }
-
-  return null;
+  return await applyRecovery(
+    recovery,
+    { row, node, openNode, budgetMinutes: state.budgetMinutes },
+    ctx,
+  );
 }
 
 /** The live facts a recovery decision needs. CR status is NEVER read for a row this Floor cannot see — a satellite's CR reads back null here, and null means requeue, which would double-launch work that is still running. The budget is resolved once, so the failure message names the budget actually applied rather than the global default. */
@@ -322,26 +342,6 @@ function nodeBudgetMinutes(node: RunGraphNode): number | undefined {
     yaml: node.timeout_minutes,
     manifest: stationBudgetFor(node.type),
   });
-}
-
-/** Reads the node's live state — CR status, claimant health, applicable budget — and applies whatever `decideNodeRecovery` makes of it. */
-export async function recoverOpenNode(
-  found: {
-    row: AssemblyRunRecord;
-    node: RunGraphNode;
-    openNode: StationRunRecord;
-  },
-  ctx: ReapContext,
-): Promise<ReapOutcome> {
-  const { row, node, openNode } = found;
-  const state = await readNodeState(found, ctx);
-  const recovery = decideRecoveryFor(found, state, ctx);
-
-  return await applyRecovery(
-    recovery,
-    { row, node, openNode, budgetMinutes: state.budgetMinutes },
-    ctx,
-  );
 }
 
 /** Joins the node's live state with the reaper's clock and offline set — the whole input the pure decision reads. */

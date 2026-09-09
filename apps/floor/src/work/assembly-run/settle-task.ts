@@ -56,52 +56,54 @@ export function decideTaskSettlement(input: {
 export const NO_RESULT_REASON =
   "The planning run finished but posted no result — the agent did not produce a result.json the container could POST.";
 
-function planningRoundContext(
-  task: PipelineTask,
-): { featureId: string; iteration: number } | null {
-  const featureId = task.context_bundle?.feature_id as string | undefined;
-  const iteration = task.context_bundle?.iteration as number | undefined;
-
-  if (!featureId || iteration == null) {
-    return null;
-  }
-
-  return { featureId, iteration };
+/** The slice of an assembly-run row a settlement reads. */
+export interface SettleRow {
+  id: string;
+  taskId: string | null;
+  repo: string;
+  /** The line's args — carries a node's objection back to the settlement. */
+  args?: Record<string, unknown>;
 }
 
-function roundAlreadyReady(
-  feature: FeatureWithIterations | null | undefined,
-  iteration: number,
-): boolean {
-  const round = feature?.iterations.find((i) => i.iteration === iteration);
-
-  return round?.status === "ready" && Boolean(round.gap_result);
-}
-
-/** A planning round is only finished when its GapResult landed (the pod POSTs it); a line that ended without one leaves the iteration stuck `running`, so mark it failed and revert the feature. Returns true when the round produced nothing usable, so the caller fails the TASK too rather than leaving no failure_reason to show. */
-async function settlePlanningRound(
-  task: PipelineTask,
+/** Settle the task behind a line that just reached a terminal state. Safe for every line (task-less, already-settled, losing racers all no-op); never throws — a settle failure must not poison finishLine. */
+export async function settleTaskForLine(
+  row: SettleRow,
+  outcome: string,
+  reason: string | undefined,
   deps: SettleTaskDeps,
-): Promise<boolean> {
-  const context = planningRoundContext(task);
-
-  if (!context) {
-    return false;
-  }
-  const { featureId, iteration } = context;
-  const { features } = await deps.featuresFor(task.target_repo);
-  const feature = await features.get(featureId);
-
-  if (roundAlreadyReady(feature, iteration)) {
-    return false;
+): Promise<void> {
+  if (!row.taskId) {
+    return;
   }
 
-  await features
-    .setIterationResult(featureId, iteration, null, "failed")
-    .catch(() => {});
-  await revertFeatureAfterFailure({ features }, featureId);
+  try {
+    await settle(row, outcome, reason, deps);
+  } catch (err) {
+    console.error(
+      `[settle-task] line ${row.id} → task ${row.taskId}: ${(err as Error).message}`,
+    );
+  }
+}
 
-  return true;
+/** Resolves what this outcome means for the task and applies it. `previousStatus` is captured BEFORE the write: the CAS mutates the very object being held, so reading it afterwards would report the new status as the transition's own origin. */
+async function settle(
+  row: SettleRow,
+  outcome: string,
+  reason: string | undefined,
+  deps: SettleTaskDeps,
+): Promise<void> {
+  const task = row.taskId ? await deps.tasks.getById(row.taskId) : null;
+
+  if (!task) {
+    return;
+  }
+  const context = { task, previousStatus: task.status, outcome, reason };
+  const settlement = await resolveSettlement(context, deps);
+
+  if (!settlement) {
+    return;
+  }
+  await applySettlement({ ...context, settlement, row }, deps);
 }
 
 interface SettlementContext {
@@ -134,10 +136,52 @@ async function resolveSettlement(
   return settlement;
 }
 
-function settlementExtra(settlement: TaskSettlement): Record<string, unknown> {
-  return settlement.failureReason
-    ? { failure_reason: settlement.failureReason }
-    : {};
+/** A planning round is only finished when its GapResult landed (the pod POSTs it); a line that ended without one leaves the iteration stuck `running`, so mark it failed and revert the feature. Returns true when the round produced nothing usable, so the caller fails the TASK too rather than leaving no failure_reason to show. */
+async function settlePlanningRound(
+  task: PipelineTask,
+  deps: SettleTaskDeps,
+): Promise<boolean> {
+  const context = planningRoundContext(task);
+
+  if (!context) {
+    return false;
+  }
+  const { featureId, iteration } = context;
+  const { features } = await deps.featuresFor(task.target_repo);
+  const feature = await features.get(featureId);
+
+  if (roundAlreadyReady(feature, iteration)) {
+    return false;
+  }
+
+  await features
+    .setIterationResult(featureId, iteration, null, "failed")
+    .catch(() => {});
+  await revertFeatureAfterFailure({ features }, featureId);
+
+  return true;
+}
+
+function planningRoundContext(
+  task: PipelineTask,
+): { featureId: string; iteration: number } | null {
+  const featureId = task.context_bundle?.feature_id as string | undefined;
+  const iteration = task.context_bundle?.iteration as number | undefined;
+
+  if (!featureId || iteration == null) {
+    return null;
+  }
+
+  return { featureId, iteration };
+}
+
+function roundAlreadyReady(
+  feature: FeatureWithIterations | null | undefined,
+  iteration: number,
+): boolean {
+  const round = feature?.iterations.find((i) => i.iteration === iteration);
+
+  return round?.status === "ready" && Boolean(round.gap_result);
 }
 
 interface ApplySettlementContext extends SettlementContext {
@@ -167,52 +211,8 @@ async function applySettlement(
   });
 }
 
-/** The slice of an assembly-run row a settlement reads. */
-export interface SettleRow {
-  id: string;
-  taskId: string | null;
-  repo: string;
-  /** The line's args — carries a node's objection back to the settlement. */
-  args?: Record<string, unknown>;
-}
-
-/** Resolves what this outcome means for the task and applies it. `previousStatus` is captured BEFORE the write: the CAS mutates the very object being held, so reading it afterwards would report the new status as the transition's own origin. */
-async function settle(
-  row: SettleRow,
-  outcome: string,
-  reason: string | undefined,
-  deps: SettleTaskDeps,
-): Promise<void> {
-  const task = row.taskId ? await deps.tasks.getById(row.taskId) : null;
-
-  if (!task) {
-    return;
-  }
-  const context = { task, previousStatus: task.status, outcome, reason };
-  const settlement = await resolveSettlement(context, deps);
-
-  if (!settlement) {
-    return;
-  }
-  await applySettlement({ ...context, settlement, row }, deps);
-}
-
-/** Settle the task behind a line that just reached a terminal state. Safe for every line (task-less, already-settled, losing racers all no-op); never throws — a settle failure must not poison finishLine. */
-export async function settleTaskForLine(
-  row: SettleRow,
-  outcome: string,
-  reason: string | undefined,
-  deps: SettleTaskDeps,
-): Promise<void> {
-  if (!row.taskId) {
-    return;
-  }
-
-  try {
-    await settle(row, outcome, reason, deps);
-  } catch (err) {
-    console.error(
-      `[settle-task] line ${row.id} → task ${row.taskId}: ${(err as Error).message}`,
-    );
-  }
+function settlementExtra(settlement: TaskSettlement): Record<string, unknown> {
+  return settlement.failureReason
+    ? { failure_reason: settlement.failureReason }
+    : {};
 }
