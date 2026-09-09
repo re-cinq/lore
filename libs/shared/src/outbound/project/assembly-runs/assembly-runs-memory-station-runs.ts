@@ -99,6 +99,17 @@ function toClaimed(
   };
 }
 
+/** A seed row in the port's spelling: pre-flip seeds omit the claim columns, so they read with the push-era defaults (running, no claim, no tags). */
+function toStationRun(node: SeedAssemblyLineNode): StationRunRecord {
+  return {
+    ...node,
+    status: node.status ?? "running",
+    clusterAgentId: node.clusterAgentId ?? null,
+    requiredTags: node.requiredTags ?? [],
+    claimedAt: node.claimedAt ?? null,
+  };
+}
+
 /** In-memory station-run (node-level) rows for one InMemoryAssemblyRuns instance — the "which pod ran which node, claimed by which cluster" half of the double, split out from the assembly-run (line-level) half. */
 export class StationRunStore {
   readonly nodes: SeedAssemblyLineNode[] = [];
@@ -275,13 +286,17 @@ export class StationRunStore {
     return this.nodes
       .filter((n) => n.assemblyRunId === assemblyRunId)
       .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
-      .map((n) => ({
-        ...n,
-        status: n.status ?? "running",
-        clusterAgentId: n.clusterAgentId ?? null,
-        requiredTags: n.requiredTags ?? [],
-        claimedAt: n.claimedAt ?? null,
-      }));
+      .map(toStationRun);
+  }
+
+  async findStationRunByAgentCrName(
+    agentCrName: string,
+  ): Promise<StationRunRecord | null> {
+    const newest = this.nodes
+      .filter((n) => n.agentCrName === agentCrName)
+      .at(-1);
+
+    return newest ? toStationRun(newest) : null;
   }
 
   hasOpenClaimByAgent(runId: string, clusterAgentId: string): boolean {

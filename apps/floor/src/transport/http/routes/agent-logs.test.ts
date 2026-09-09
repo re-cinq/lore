@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { buildServer } from "../server.js";
-import { parseTail } from "./agent-logs.js";
+import { liveReadableFromCentral, parseTail } from "./agent-logs.js";
 import type {
   PodLogSource,
   AgentPodInfo,
@@ -18,13 +18,13 @@ afterEach(() => {
   process.env.LORE_INGEST_TOKEN = ORIG;
 });
 
+const review: AgentPodInfo = { phase: "Running", jobName: "job-review" };
+
+const liveReadable = async () => true;
+
 const source: PodLogSource = {
   agentInfo: (name): Promise<AgentPodInfo | null> =>
-    Promise.resolve(
-      name === "05fc5491-review"
-        ? { phase: "Running", jobName: "job-review" }
-        : null,
-    ),
+    Promise.resolve(name === "05fc5491-review" ? review : null),
   podsForJob: (): Promise<PodSummary[]> =>
     Promise.resolve([
       { name: "pod-review", creationTimestamp: "2026-07-15T10:00:00.000Z" },
@@ -32,8 +32,8 @@ const source: PodLogSource = {
   podLog: (): Promise<string> => Promise.resolve("agent stdout line"),
 };
 
-function server() {
-  return buildServer({ getJobStatus: () => ({}), podLogSource: source });
+function server(podLogSource: PodLogSource = source) {
+  return buildServer({ getJobStatus: () => ({}), podLogSource, liveReadable });
 }
 
 describe("GET /api/agent-logs/{name}", () => {
@@ -105,10 +105,7 @@ describe("request-error logging (#1319)", () => {
     };
 
     try {
-      const res = await buildServer({
-        getJobStatus: () => ({}),
-        podLogSource: throwing,
-      }).inject({
+      const res = await server(throwing).inject({
         method: "GET",
         url: "/api/agent-logs/05fc5491-review",
         headers: { authorization: "Bearer ingest-secret" },
@@ -126,5 +123,67 @@ describe("request-error logging (#1319)", () => {
     } finally {
       errorSpy.mockRestore();
     }
+  });
+});
+
+describe("liveReadableFromCentral", () => {
+  it("reads live when no station run carries the CR name (a legacy single-CR task)", () => {
+    expect(liveReadableFromCentral(null, "central-1")).toBe(true);
+  });
+
+  it("reads live for a row the central cluster-agent claimed", () => {
+    expect(
+      liveReadableFromCentral(
+        { status: "claimed", clusterAgentId: "central-1" },
+        "central-1",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not read live for a row a satellite claimed", () => {
+    expect(
+      liveReadableFromCentral(
+        { status: "claimed", clusterAgentId: "sat-1" },
+        "central-1",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("GET /api/agent-logs/{name} for a CR a satellite claimed", () => {
+  it("answers from the stored archive without asking the central cluster for the CR", async () => {
+    process.env.LORE_INGEST_TOKEN = "ingest-secret";
+    const askedCentral: string[] = [];
+    const res = await buildServer({
+      getJobStatus: () => ({}),
+      podLogSource: {
+        ...source,
+        agentInfo: (name) => {
+          askedCentral.push(name);
+
+          return source.agentInfo(name);
+        },
+      },
+      podLogArchive: {
+        logsForJob: async () => null,
+        logsForAgent: async (name) =>
+          name === "05fc5491-review" ? "satellite stdout" : null,
+      },
+      liveReadable: async () => false,
+    }).inject({
+      method: "GET",
+      url: "/api/agent-logs/05fc5491-review",
+      headers: { authorization: "Bearer ingest-secret" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toEqual({
+      available: true,
+      logs: "satellite stdout",
+      phase: null,
+      podName: null,
+      archived: true,
+    });
+    expect(askedCentral).toEqual([]);
   });
 });

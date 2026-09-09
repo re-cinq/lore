@@ -43,16 +43,6 @@ export interface AssemblyLineReaperDeps extends NodeEventDeps {
   queueWaitMs?: number;
 }
 
-const DEFAULT_CENTRAL_CLUSTER_AGENT_NAME = "central";
-
-/** The central agent's registry name (`LORE_CENTRAL_CLUSTER_AGENT_NAME`). */
-export function centralClusterAgentName(): string {
-  return (
-    process.env.LORE_CENTRAL_CLUSTER_AGENT_NAME ??
-    DEFAULT_CENTRAL_CLUSTER_AGENT_NAME
-  );
-}
-
 const MINUTE_MS = 60_000;
 const QUEUED_LIMIT_MINUTES = 30;
 /** How long a `queued` row may wait for a claim before it fails terminally. */

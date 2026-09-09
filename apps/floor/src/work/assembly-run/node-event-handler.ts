@@ -61,7 +61,7 @@ export function reportedStatus(status: unknown): AgentNodeStatus | null {
   };
 }
 
-/** The event's raw terminal status, or null when the CR was claimed by a cluster this Floor cannot read (left open for the reaper instead of fabricating an outcome). */
+/** The event's raw terminal status, or null when there is nothing to settle from here — the node already reported, or its CR is in a cluster this Floor cannot read. */
 async function resolveRawStatus(
   event: NodeEvent,
   params: Record<string, unknown>,
@@ -69,17 +69,37 @@ async function resolveRawStatus(
 ): Promise<AgentNodeStatus | null> {
   const reported = reportedStatus(params.status);
 
+  if (reported !== null) {
+    return reported;
+  }
+
   // Only an older cluster-agent's event (no status) needs a cluster interrogated; an unreachable CR would otherwise read as "agent produced nothing" (2026-08-27 regression).
-  if (reported === null && (await claimUnreadableFromThisFloor(event, deps))) {
+  if (!(await openClaimReadableFromThisFloor(event, deps))) {
     return null;
   }
 
-  // Unwrap the NDJSON envelope once: every text parser below must read the agent text, not the stream carrying it.
   return (
-    reported ??
     (await deps.readAgentStatus(event.agentName)) ?? {
       phase: String(params.phase ?? ""),
     }
+  );
+}
+
+/** False for a duplicate delivery — no open row means the first delivery settled the node, and reading a CR for it would turn a satellite's null into a phantom `{ phase }` re-settlement (#1627) — and for a CR claimed by a cluster this Floor cannot read (left open for the reaper instead of fabricating an outcome). */
+async function openClaimReadableFromThisFloor(
+  event: NodeEvent,
+  deps: NodeEventDeps,
+): Promise<boolean> {
+  const openRow = await openStationRun(event, deps);
+
+  if (!openRow) {
+    return false;
+  }
+
+  return !claimUnreadableFromThisFloor(
+    event,
+    openRow,
+    (await deps.centralClusterAgentId?.()) ?? null,
   );
 }
 
@@ -214,14 +234,12 @@ async function alertOnFailure(
 }
 
 /** True when the terminal CR was claimed by a cluster this Floor cannot read — the node stays open for the cluster-aware reaper rather than fabricating an outcome. */
-async function claimUnreadableFromThisFloor(
+function claimUnreadableFromThisFloor(
   event: NodeEvent,
-  deps: NodeEventDeps,
-): Promise<boolean> {
-  const openRow = await openStationRun(event, deps);
-  const centralClusterAgentId = (await deps.centralClusterAgentId?.()) ?? null;
-
-  if (!openRow || agentCrVisible(openRow, centralClusterAgentId)) {
+  openRow: StationRunRecord,
+  centralClusterAgentId: string | null,
+): boolean {
+  if (agentCrVisible(openRow, centralClusterAgentId)) {
     return false;
   }
   console.warn(

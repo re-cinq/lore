@@ -141,6 +141,10 @@ export interface AssemblyRunsPort {
   ): Promise<boolean>;
   /** The line's node rows in visit order (row id). */
   listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]>;
+  /** The visit one Agent CR name was dispatched for, or null when no row carries it (a legacy single-CR task); a CR name keys one visit, so the newest row wins should a copied name ever collide. */
+  findStationRunByAgentCrName(
+    agentCrName: string,
+  ): Promise<StationRunRecord | null>;
   // The claim (FR3): atomically takes the oldest queued visit whose required_tags the claimant satisfies, one statement; null when nothing matches.
   /** Arms a queued visit with its dispatch contract; written after ensureStationRun since claim only takes armed rows. */
   enqueueStationRunDispatch(

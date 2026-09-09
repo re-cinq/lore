@@ -16,9 +16,9 @@ import { handleSucceededChanges } from "./agent-watcher-pr-delivery.js";
 import { handleFailure } from "./agent-watcher-failure.js";
 import { handleReviewVerdict } from "./agent-watcher-review.js";
 
-import { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
+import { cleanupPerTaskToken } from "./per-task-token.js";
 
-export { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
+export { cleanupPerTaskToken } from "./per-task-token.js";
 
 type StationFailure = Parameters<
   ReturnType<typeof pipeline>["assemblyRuns"]["finishStationRunOnce"]

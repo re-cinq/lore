@@ -115,3 +115,31 @@ describe("storedPodLogArchive", () => {
     ).toBe("c\nd");
   });
 });
+
+describe("stored pod logs read by Agent CR name", () => {
+  it("lists a CR's chunks by agent name in the same pod-then-seq order, for a run whose Job name only its own cluster knows", async () => {
+    const store = new InMemoryPodLogs();
+
+    await store.appendBatch([
+      chunk(2, "second\n"),
+      chunk(1, "first\n"),
+      { ...chunk(1, "other\n", "pod-9"), agentCrName: "run99-review" },
+    ]);
+
+    expect(
+      (await store.listForAgent("run12-review")).map((row) => row.lines),
+    ).toEqual(["first\n", "second\n"]);
+  });
+
+  it("reassembles a CR's chunks by agent name, the key a reader still holds when the CR is in another cluster", async () => {
+    const store = new InMemoryPodLogs();
+
+    await store.appendBatch([chunk(1, "one\n"), chunk(2, "two\n")]);
+
+    expect(
+      await storedPodLogArchive(store).logsForAgent("run12-review", {
+        tailLines: 1,
+      }),
+    ).toBe("two");
+  });
+});

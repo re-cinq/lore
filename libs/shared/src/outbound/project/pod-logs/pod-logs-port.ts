@@ -19,6 +19,9 @@ export interface PodLogsRepository {
   /** Every chunk for a Job, in the order its pod emitted them. */
   listForJob(jobName: string): Promise<PodLogChunk[]>;
 
+  /** The same, keyed by the Agent CR — the only key a reader holds for a run whose CR lives in a cluster it cannot ask for the Job name. */
+  listForAgent(agentCrName: string): Promise<PodLogChunk[]>;
+
   /** Retention reap. Returns how many rows went. */
   pruneOld(olderThanDays: number): Promise<number>;
 }

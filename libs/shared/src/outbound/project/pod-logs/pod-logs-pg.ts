@@ -44,7 +44,18 @@ export class PgPodLogs implements PodLogsRepository {
     );
   }
 
-  async listForJob(jobName: string): Promise<PodLogChunk[]> {
+  listForJob(jobName: string): Promise<PodLogChunk[]> {
+    return this.listBy("job_name", jobName);
+  }
+
+  listForAgent(agentCrName: string): Promise<PodLogChunk[]> {
+    return this.listBy("agent_cr_name", agentCrName);
+  }
+
+  private async listBy(
+    column: "job_name" | "agent_cr_name",
+    value: string,
+  ): Promise<PodLogChunk[]> {
     // By pod first, then seq — seq alone would interleave a retried node's two attempts; MIN(id) per pod gives first-appearance order. In-memory double sorts the same way (test pins it).
     const { rows } = await this.pool.query<DbRow>(
       `SELECT ${SELECT_COLUMNS}
@@ -52,12 +63,12 @@ export class PgPodLogs implements PodLogsRepository {
          JOIN (
            SELECT pod_name, MIN(id) AS first_id
              FROM pipeline.pod_log_chunks
-            WHERE job_name = $1
+            WHERE ${column} = $1
             GROUP BY pod_name
          ) p ON c.pod_name = p.pod_name
-        WHERE c.job_name = $1
+        WHERE c.${column} = $1
         ORDER BY p.first_id, c.seq ASC`,
-      [jobName],
+      [value],
     );
 
     return rows.map(toRow);

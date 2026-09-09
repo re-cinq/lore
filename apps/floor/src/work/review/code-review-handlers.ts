@@ -4,7 +4,7 @@ import type { TriageAction } from "@re-cinq/lore-shared/review/comment-triage.js
 import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { shouldAutoReview } from "../../outbound/should-auto-review.js";
-import { cleanupPerTaskToken } from "../../outbound/per-task-token.js";
+import { cleanupPerTaskToken } from "../watcher/per-task-token.js";
 import type { EventHandler } from "../../domain/event-types.js";
 import {
   startReview,

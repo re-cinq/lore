@@ -322,3 +322,54 @@ describe("podLogFilter", () => {
     );
   });
 });
+
+describe("readAgentLogs for a run claimed by a cluster this Floor cannot reach", () => {
+  class RecordingPodLogSource extends FakePodLogSource {
+    readonly askedFor: string[] = [];
+
+    override agentInfo(name: string): Promise<AgentPodInfo | null> {
+      this.askedFor.push(name);
+
+      return super.agentInfo(name);
+    }
+  }
+
+  const archiveByAgent = (byAgent: Record<string, string>): PodLogArchive => ({
+    logsForJob: async () => null,
+    logsForAgent: async (agentCrName) => byAgent[agentCrName] ?? null,
+  });
+
+  it("serves the stored archive by CR name without asking the central cluster for the CR", async () => {
+    const source = new RecordingPodLogSource({}, {}, {});
+
+    const result = await readAgentLogs(
+      source,
+      "05fc5491-review",
+      { liveReadable: async () => false },
+      archiveByAgent({ "05fc5491-review": "satellite stdout" }),
+    );
+
+    expect(result).toEqual({
+      available: true,
+      logs: "satellite stdout",
+      phase: null,
+      podName: null,
+      archived: true,
+    });
+    expect(source.askedFor).toEqual([]);
+  });
+
+  it("reports no-pod when nothing is archived for the CR name either", async () => {
+    const source = new RecordingPodLogSource({}, {}, {});
+
+    const result = await readAgentLogs(
+      source,
+      "05fc5491-review",
+      { liveReadable: async () => false },
+      archiveByAgent({}),
+    );
+
+    expect(result).toMatchObject({ available: false, reason: "no-pod" });
+    expect(source.askedFor).toEqual([]);
+  });
+});

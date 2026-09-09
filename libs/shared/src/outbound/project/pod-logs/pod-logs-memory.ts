@@ -3,6 +3,17 @@
 import type { PodLogChunk } from "../../../domain/models/pod-log-chunk.js";
 import type { PodLogChunkInsert, PodLogsRepository } from "./pod-logs-port.js";
 
+/** By POD first, then seq within it; retries must show after the original attempt, not interleaved. */
+function inEmissionOrder(rows: PodLogChunk[]): PodLogChunk[] {
+  const podOrder = [...new Set(rows.map((row) => row.podName))];
+
+  return rows.sort(
+    (a, b) =>
+      podOrder.indexOf(a.podName) - podOrder.indexOf(b.podName) ||
+      a.seq - b.seq,
+  );
+}
+
 export class InMemoryPodLogs implements PodLogsRepository {
   private readonly rows: PodLogChunk[] = [];
   private nextId = 1;
@@ -28,15 +39,15 @@ export class InMemoryPodLogs implements PodLogsRepository {
   }
 
   listForJob(jobName: string): Promise<PodLogChunk[]> {
-    const forJob = this.rows.filter((row) => row.jobName === jobName);
-    // Sort by POD first, then seq within it; retries must show after original attempt, not interleaved.
-    const podOrder = [...new Set(forJob.map((row) => row.podName))];
-
     return Promise.resolve(
-      forJob.sort(
-        (a, b) =>
-          podOrder.indexOf(a.podName) - podOrder.indexOf(b.podName) ||
-          a.seq - b.seq,
+      inEmissionOrder(this.rows.filter((row) => row.jobName === jobName)),
+    );
+  }
+
+  listForAgent(agentCrName: string): Promise<PodLogChunk[]> {
+    return Promise.resolve(
+      inEmissionOrder(
+        this.rows.filter((row) => row.agentCrName === agentCrName),
       ),
     );
   }
