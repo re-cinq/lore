@@ -47,40 +47,44 @@ describe("searchMemories", () => {
     ).toEqual([
       { terms: "split OR port OR lore-api", ranked: true, legacy: false },
       { terms: "split OR port OR lore-api", ranked: true, legacy: false },
-  it("returns the 2 episode rows and none of the 5 memories or 5 facts when sources is ['episode'] with limit 5", async () => {
-    const row = (id: string, source: string, rank: number) => ({
+    ]);
+  });
+
+  it("runs only the fact legs with $4 = ['episode'] and never the memories table when sources is ['episode'], returning the 2 episode rows", async () => {
+    const row = (id: string, rank: number) => ({
       id,
       key: id,
       value: `about ${id}`,
       agent_id: "a1",
-      source,
+      source: "episode",
       kw_rank: String(rank),
     });
-    const pool = scriptedPool((sql) => {
-      if (/FROM memory\.memories m/.test(sql)) {
-        return [1, 2, 3, 4, 5].map((n) => row(`m${n}`, "memory", n));
-      }
-
-      if (factKeywordQuery({ sql, params: [] })) {
-        return [
-          ...[1, 2, 3, 4, 5].map((n) => row(`f${n}`, "fact", n)),
-          row("e1", "episode", 6),
-          row("e2", "episode", 7),
-        ];
-      }
-
-      return [];
-    });
+    const pool = scriptedPool((sql) =>
+      factKeywordQuery({ sql, params: [] }) ? [row("e1", 1), row("e2", 2)] : [],
+    );
 
     const results = await searchMemories(pool, "deploy", {
       limit: 5,
       sources: ["episode"],
     });
 
-    expect(results.map((r) => [r.key, r.source])).toEqual([
-      ["e1", "episode"],
-      ["e2", "episode"],
-    ]);
+    expect({
+      memoriesQueried: pool.calls.some((c) =>
+        /FROM memory\.memories m/.test(c.sql),
+      ),
+      factCalls: pool.calls.filter(factKeywordQuery).map((c) => ({
+        gated: /= ANY\(\$4::text\[\]\)/.test(c.sql),
+        sources: c.params[3],
+      })),
+      hits: results.map((r) => [r.key, r.source]),
+    }).toEqual({
+      memoriesQueried: false,
+      factCalls: [{ gated: true, sources: ["episode"] }],
+      hits: [
+        ["e1", "episode"],
+        ["e2", "episode"],
+      ],
+    });
   });
 
   it("passes $3 = true and the ($3::boolean OR f.valid_to IS NULL) gate when include_invalidated is true", async () => {

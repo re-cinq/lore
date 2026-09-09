@@ -115,18 +115,24 @@ available to agents — the authoritative interface.
   graph_augment?)`** — hybrid semantic + keyword search over memories
   and extracted facts using Reciprocal Rank Fusion. Results include
   confidence annotations and similarity scores. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/domain/memory-ranking.test.ts#L11))
+  - The keyword leg is full-text search over the query's distinctive terms,
+    OR-joined into `websearch_to_tsquery` and ranked by `ts_rank` against
+    `key || ' ' || value` (facts: `fact_text`). It replaced an `ILIKE` on the
+    whole query sentence ordered by `created_at`, which could only ever match
+    an exact quote of the question — with the vector leg down it returned
+    nothing for every task while the store held hundreds of memories. ([validated by `searches memories and facts for 'split OR port OR lore-api' with websearch_to_tsquery ranked by ts_rank, not ILIKE by created_at`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L32), [`key-terms.test.ts:30`](libs/shared/src/domain/key-terms.test.ts#L30), [`key-terms.test.ts:36`](libs/shared/src/domain/key-terms.test.ts#L36))
   - `include_invalidated=true` enables historical queries (facts
-    superseded by later contradictions are included). ([validated by `memory-search.test.ts:41`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L68), [`memory-search.test.ts:43`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L79))
-  - `graph_augment=true` enriches results with related graph entities. ([validated by `memory-search.test.ts:63`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L90), [`memory-search.test.ts:96`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L132))
+    superseded by later contradictions are included). ([validated by `memory-search.test.ts:90`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L90), [`memory-search.test.ts:101`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L101))
+  - `graph_augment=true` enriches results with related graph entities. ([validated by `memory-search.test.ts:112`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L112), [`memory-search.test.ts:157`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L157))
   - `sources` (internal option, not an MCP parameter) narrows the merged hits
     to the named kinds BEFORE the limit and the per-source cap, so a caller
     asking for 5 episodes gets the 5 best episodes rather than whatever
-    episodes happened to survive a mixed top-5. ([validated by `memory-search.test.ts:32`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L32))
+    episodes happened to survive a mixed top-5. ([validated by `memory-search.test.ts:90`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L90))
   - Results are capped at 3 per (agent_id + source) combo to prevent
     verbose sessions from dominating (session diversification); sources already under the cap are returned intact. ([validated by `memory-ranking.test.ts:53`](libs/shared/src/domain/memory-ranking.test.ts#L53), [validated by `keeps all items when each source is under the cap`](libs/shared/src/domain/memory-ranking.test.ts#L99))
   - Every search call asynchronously increments `retrieval_count`,
     updates `last_retrieved_at`, and extends `half_life_days` (+2,
-    cap 365) on returned facts and memories. ([validated by `memory-search.test.ts:128`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L155))
+    cap 365) on returned facts and memories. ([validated by `memory-search.test.ts:53`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L53))
 
 ### Episode Ingestion
 
@@ -241,7 +247,7 @@ Mirrors each write to `memories`, preserving full history queryable via
 - `inferred` — for memory-sourced extractions. ([validated by `facts-extraction.test.ts:111`](libs/server-core/src/work/memory/facts-extraction.test.ts#L111))
 - Decision: `verified` is the human-confirmed tier, set manually (no automated code path).
 - `stale` — automatically applied after 30 days of zero retrieval.
-  Stale facts revive to `observed` on next retrieval. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L197), [`memory-search.test.ts:119`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L155))
+  Stale facts revive to `observed` on next retrieval. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L197), [`memory-search.test.ts:180`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L180))
 
 ### episodes
 
@@ -272,7 +278,7 @@ exist in the implementation but are not exposed as MCP tools; the shipped
 surface is the `pool` field on `lore_write_memory` and the `pool` parameter on
 `lore_search_memory` for scoped search. A scoped search resolves the pool by
 name first, and a name that matches no pool returns no results rather than
-falling back to an unscoped search. ([validated by `memory-search.test.ts:174`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L210), [`memory-search.test.ts:164`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L200))
+falling back to an unscoped search. ([validated by `memory-search.test.ts:235`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L235), [`memory-search.test.ts:225`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L225))
 
 ### audit_log
 

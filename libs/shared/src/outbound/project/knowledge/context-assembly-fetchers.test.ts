@@ -34,29 +34,30 @@ const hit = (id: string, source: string, rank: number) => ({
 });
 
 describe("fetchers.episodes", () => {
-  it("returns the 2 episode rows when 5 memories and 5 facts outrank them", async () => {
-    const pool = scriptedPool((sql) => {
-      if (/FROM memory\.memories m/.test(sql)) {
-        return [1, 2, 3, 4, 5].map((n) => hit(`m${n}`, "memory", n));
-      }
-
-      if (/FROM memory\.facts f/.test(sql)) {
-        return [
-          ...[1, 2, 3, 4, 5].map((n) => hit(`f${n}`, "fact", n)),
-          hit("e1", "episode", 6),
-          hit("e2", "episode", 7),
-        ];
-      }
-
-      return [];
-    });
+  it("asks the fact legs for episodes only, never the memories table, and returns the 2 episode rows", async () => {
+    const pool = scriptedPool((sql) =>
+      /FROM memory\.facts f/.test(sql)
+        ? [hit("e1", "episode", 1), hit("e2", "episode", 2)]
+        : [],
+    );
 
     const res = await fetchers.episodes(pool, "deploy", undefined, "a1");
 
     expect({
       status: res.status,
       paths: res.sources.map((s) => s.source_path),
-    }).toEqual({ status: "ok", paths: ["e1", "e2"] });
+      memoriesQueried: pool.calls.some((c) =>
+        /FROM memory\.memories m/.test(c.sql),
+      ),
+      factSources: pool.calls
+        .filter((c) => /FROM memory\.facts f/.test(c.sql))
+        .map((c) => c.params[3]),
+    }).toEqual({
+      status: "ok",
+      paths: ["e1", "e2"],
+      memoriesQueried: false,
+      factSources: [["episode"]],
+    });
   });
 });
 
