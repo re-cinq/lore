@@ -25,7 +25,7 @@ Two consequences follow, and everything else is detail:
 - **The Floor reaches the cluster through your kubeconfig.** In GKE the Floor is a pod
   and reads its service account; on your laptop it has none, so it loads
   `LORE_KUBECONFIG`, else `KUBECONFIG`, else `~/.kube/config`
-  (`libs/shared/src/kube-config.ts`).
+  (`libs/shared/src/outbound/kube-config.ts`).
 - **Run pods reach back to your host at `host.minikube.internal`.** The chart's defaults
   point at in-cluster DNS (`lore-floor.lore-floor.svc…`), which doesn't exist here, so
   `values.minikube.yaml` repoints the agent-events sink, the Lore API, and Dgraph at the

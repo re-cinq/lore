@@ -3,7 +3,6 @@ import { backoffDelay, pollUntil, runPollLoop } from "./poll-loop.js";
 
 type Outcome = "idle" | "hit" | "denied";
 
-/** Drives the loop over a fixed script of outcomes, recording what it slept. */
 function scriptedLoop(outcomes: Outcome[]) {
   const sleeps: number[] = [];
   const handled: Outcome[] = [];

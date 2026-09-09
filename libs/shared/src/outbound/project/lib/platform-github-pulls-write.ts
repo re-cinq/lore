@@ -1,0 +1,242 @@
+import type { Octokit } from "octokit";
+import type { PullDraft } from "../pulls/pull-requests-port.js";
+import type {
+  PullRef,
+  PRReviewEvent,
+  CreateReviewInput,
+  MergeMethod,
+} from "../pulls/pull-requests-port.js";
+import { split, toPullRef } from "./platform-github-support.js";
+import { addIssueLabel, commentOnIssue } from "./platform-github-issues.js";
+import type { IssuesApi, PullsApi } from "./platform-github-api.js";
+
+/** PR mutation paths for PlatformGitHub: comments, reviews, labels, merge, open, update. */
+
+/** GitHub numbers PRs in the same series as issues and comments on them through the same endpoint, so this is the issue path under the PR's name. */
+export const comment = commentOnIssue;
+
+export async function review(
+  ok: Octokit,
+  repo: string,
+  number: number,
+  { body, event }: { body: string; event: PRReviewEvent },
+): Promise<void> {
+  const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
+
+  await pulls.createReview({
+    owner,
+    repo: name,
+    pull_number: number,
+    body,
+    event,
+  });
+}
+
+export async function createReview(
+  ok: Octokit,
+  repo: string,
+  number: number,
+  input: CreateReviewInput,
+): Promise<void> {
+  const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
+
+  await pulls.createReview({
+    owner,
+    repo: name,
+    pull_number: number,
+    body: input.body,
+    event: input.event,
+    comments: input.comments.map(toReviewComment),
+  });
+}
+
+/** One inline review comment in the shape createReview takes; side is omitted while absent. */
+function toReviewComment(c: CreateReviewInput["comments"][number]): {
+  path: string;
+  line: number;
+  side?: string;
+  body: string;
+} {
+  return {
+    path: c.path,
+    line: c.line,
+    ...(c.side ? { side: c.side } : {}),
+    body: c.body,
+  };
+}
+
+export async function replyToReviewComment(
+  ok: Octokit,
+  repo: string,
+  number: number,
+  { commentId, body }: { commentId: number; body: string },
+): Promise<void> {
+  const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
+
+  await pulls.createReplyForReviewComment({
+    owner,
+    repo: name,
+    pull_number: number,
+    comment_id: commentId,
+    body,
+  });
+}
+
+/** Labels are an issue-series property too; same endpoint as addIssueLabel. */
+export const addLabel = addIssueLabel;
+
+export async function merge(
+  ok: Octokit,
+  repo: string,
+  number: number,
+  method: MergeMethod = "squash",
+): Promise<void> {
+  const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
+
+  await pulls.merge({
+    owner,
+    repo: name,
+    pull_number: number,
+    merge_method: method,
+  });
+}
+
+export async function open(
+  ok: Octokit,
+  repo: string,
+  branch: string,
+  { title, body, base, labels = ["agent-generated"], draft = false }: PullDraft,
+): Promise<PullRef> {
+  const { pulls, issues } = ok.rest;
+  const created = await createPull(pulls, repo, {
+    title,
+    body,
+    head: branch,
+    base: base ?? "main",
+    draft,
+  });
+
+  await applyLabels(issues, repo, created.number, labels);
+
+  return toPullRef(repo, created);
+}
+
+/** The raw pulls.create call, so `open` reads as create-then-label. */
+async function createPull(
+  pulls: PullsApi,
+  repo: string,
+  fields: {
+    title: string;
+    body: string;
+    head: string;
+    base: string;
+    draft: boolean;
+  },
+) {
+  const [owner, name] = split(repo);
+  const { data: created } = await pulls.create({
+    owner,
+    repo: name,
+    ...fields,
+  });
+
+  return created;
+}
+
+/** Labels a freshly opened PR; an empty list is a no-op rather than an empty call. */
+async function applyLabels(
+  issues: IssuesApi,
+  repo: string,
+  number: number,
+  labels: string[],
+): Promise<void> {
+  if (labels.length === 0) {
+    return;
+  }
+  const [owner, name] = split(repo);
+
+  await issues.addLabels({
+    owner,
+    repo: name,
+    issue_number: number,
+    labels,
+  });
+}
+
+export async function update(
+  ok: Octokit,
+  repo: string,
+  number: number,
+  fields: { title?: string; body?: string },
+): Promise<void> {
+  const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
+
+  await pulls.update({
+    owner,
+    repo: name,
+    pull_number: number,
+    ...(fields.title !== undefined ? { title: fields.title } : {}),
+    ...(fields.body !== undefined ? { body: fields.body } : {}),
+  });
+}
+
+export async function markReady(
+  ok: Octokit,
+  repo: string,
+  number: number,
+): Promise<void> {
+  const pr = await pullRequestNode(ok, repo, number);
+
+  if (!pr?.isDraft) {
+    return;
+  }
+
+  await ok.graphql(
+    `mutation ($pullRequestId: ID!) {
+      markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) {
+        pullRequest { id isDraft }
+      }
+    }`,
+    { pullRequestId: pr.id },
+  );
+}
+
+/** Read first: the mutation needs the PR's NODE id (PullRef lacks it) and GitHub errors on an already-ready PR — treat "already ready" as success, not an error. */
+async function pullRequestNode(
+  ok: Octokit,
+  repo: string,
+  number: number,
+): Promise<{ id: string; isDraft: boolean } | null | undefined> {
+  const [owner, name] = split(repo);
+  const current = (await ok.graphql(
+    `query ($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) { id isDraft }
+      }
+    }`,
+    { owner, name, number },
+  )) as {
+    repository?: { pullRequest?: { id: string; isDraft: boolean } | null };
+  };
+
+  return current.repository?.pullRequest;
+}
+
+export async function resolveReviewThread(
+  ok: Octokit,
+  threadId: string,
+): Promise<void> {
+  await ok.graphql(
+    `mutation ($threadId: ID!) {
+      resolveReviewThread(input: { threadId: $threadId }) {
+        thread { id isResolved }
+      }
+    }`,
+    { threadId },
+  );
+}

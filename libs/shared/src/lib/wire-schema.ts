@@ -2,21 +2,7 @@ import { z } from "zod";
 import { enforceTrue } from "./enforce.js";
 import type { ColumnMap } from "./row.js";
 
-/**
- * The wire projection of a model: the same fields, keyed by the COLUMNS that
- * store them.
- *
- * Several surfaces publish a row under its snake_case column names — that is
- * what the deployed clients read, and flipping any of them is expand/contract
- * work rather than a rename. Restating the shape per surface is how those copies
- * drift; deriving it from the model plus its column map means the wire contract
- * and the table cannot disagree about which fields exist.
- *
- * Timestamps stay `z.date()`. The OpenAPI generator renders that as a
- * `date-time` STRING, which is exactly what JSON carries and what the generated
- * client should therefore see — so one declaration produces the right type on
- * both sides.
- */
+/** The wire projection of a model: fields keyed by their snake_case COLUMNS, derived from the model + column map so wire contract and table cannot drift out of sync; timestamps stay `z.date()` so OpenAPI renders the `date-time` string JSON actually carries. */
 export function wireSchema<
   Shape extends z.ZodRawShape,
   Columns extends ColumnMap<z.infer<z.ZodObject<Shape>>>,
@@ -26,24 +12,40 @@ export function wireSchema<
 ): z.ZodObject<{
   [K in keyof Shape as Columns[K & keyof Columns] & string]: Shape[K];
 }> {
-  const renamed: z.ZodRawShape = {};
+  const renamed = renameFieldsToColumns(
+    schema,
+    columns as Record<string, string | undefined>,
+  );
+
+  // The rename is by construction, not by inference: zod 4 widens the built shape to a string index signature, so the declared return type is reasserted here.
+  return z.object(renamed) as unknown as z.ZodObject<{
+    [K in keyof Shape as Columns[K & keyof Columns] & string]: Shape[K];
+  }>;
+}
+
+/** Rekeys a model's shape by its bound columns; a field with no binding is an error, never a silent fallback to the field name, because defaulting would publish a wrong contract. */
+function renameFieldsToColumns<Shape extends z.ZodRawShape>(
+  schema: z.ZodObject<Shape>,
+  columns: Record<string, string | undefined>,
+): Record<string, z.ZodType> {
+  const renamed: Record<string, z.ZodType> = {};
 
   for (const [field, value] of Object.entries(schema.shape)) {
-    const column = (columns as Record<string, string>)[field];
+    const column = columns[field];
 
-    // No silent fallback to the field name. A miss here means the schema and the
-    // column map disagree about which fields exist, and defaulting to the
-    // camelCase spelling would publish a key no reader is looking for — a wrong
-    // contract, which is worse than none.
     enforceTrue(
       column !== undefined,
       Error,
       `wireSchema: no column bound for field "${String(field)}"`,
     );
-    renamed[column] = value as z.ZodTypeAny;
+    renamed[column] = value as z.ZodType;
   }
 
-  return z.object(renamed) as z.ZodObject<{
-    [K in keyof Shape as Columns[K & keyof Columns] & string]: Shape[K];
-  }>;
+  return renamed;
 }
+
+/** The plain TS shape `wireSchema` would infer, for callers that only want a snake_case-keyed type — typically `Pick<WireOf<...>, "a_column" | "b_column">` for a hand-written projection query. */
+export type WireOf<
+  Shape extends z.ZodRawShape,
+  Columns extends ColumnMap<z.infer<z.ZodObject<Shape>>>,
+> = z.infer<ReturnType<typeof wireSchema<Shape, Columns>>>;

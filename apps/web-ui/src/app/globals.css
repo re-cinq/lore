@@ -609,7 +609,7 @@ pre {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 4px;
   margin-bottom: 12px;
 }
 .spec-card h3 {

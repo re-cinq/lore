@@ -1,17 +1,4 @@
-/**
- * Runtime validation for {@link NodeResult}.
- *
- * The interface was enough while a node result only ever existed in-process: a
- * pod printed it on stdout and the Floor parsed it under its own eye. Since a
- * station can report a node's outcome over `assembly_run.resume`, the shape
- * crosses a process boundary as JSON — the same point at which StationInput was
- * given a schema rather than a cast.
- *
- * Deliberately strict about `extras`. Its values are rendered into stage-commit
- * trailers and read by the walk (a triage node's whole output is
- * `extras.action`), so a non-string that reached a trailer as `[object Object]`
- * would be a silent loss of the decision the node was run to make.
- */
+// Runtime validation for NodeResult: since a station can report a node's outcome over `assembly_run.resume`, the shape now crosses a process boundary as JSON (same reasoning that gave StationInput a schema). Strict about `extras` — a non-string reaching a trailer as `[object Object]` would silently lose the node's decision.
 
 import { z } from "zod";
 import type { NodeResult } from "./node-types.js";
@@ -19,14 +6,10 @@ import { FAILURE_CATEGORIES } from "@re-cinq/lore-shared/error-classify.js";
 
 const OUTCOME = z.enum(["success", "changes_requested", "failed"]);
 
-/** DERIVED from FailureCategory in @re-cinq/lore-shared/error-classify, not
- *  copied: a mirror drifts the moment a class is added, and zod drops what it
- *  does not declare — so the drift erases the new class rather than failing. */
+// DERIVED from FailureCategory, not copied — a mirror drifts the moment a class is added, and zod drops what it doesn't declare, so drift would erase the new class rather than fail.
 const FAILURE_CLASS = z.enum(FAILURE_CATEGORIES);
 
-/** Every field required, mirroring NodeLlmUsage: a parse DROPS what it does not
- *  declare, so an optional-everything schema would quietly discard a node's
- *  reported cost on the way across. */
+// Every field required, mirroring NodeLlmUsage: a parse DROPS what it doesn't declare, so an optional-everything schema would quietly discard reported cost.
 const USAGE = z.object({
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
@@ -44,12 +27,7 @@ export const NodeResultSchema = z.object({
   failureDetail: z.string().optional(),
 });
 
-/**
- * Compile-time proof that the schema and the interface still describe each
- * other, asserted BOTH ways on purpose. One direction alone passes while the
- * schema is looser than the interface — which is the dangerous direction, since
- * a parse silently drops every field it does not declare.
- */
+// Compile-time proof the schema and interface still describe each other, asserted BOTH ways: one direction alone passes while the schema is looser (the dangerous direction, since a parse silently drops undeclared fields).
 export type ParsedNodeResult = z.infer<typeof NodeResultSchema>;
 const _schemaAcceptsResult: ParsedNodeResult = {} as NodeResult;
 const _resultAcceptsSchema: NodeResult = {} as ParsedNodeResult;

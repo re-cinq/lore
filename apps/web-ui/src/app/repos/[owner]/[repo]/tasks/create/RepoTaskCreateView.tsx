@@ -8,16 +8,47 @@ export interface RepoTaskCreateViewProps {
   createTaskAction: (formData: FormData) => void | Promise<void>;
 }
 
-/**
- * Presentational view for the per-repo "New Task" form. Pure render — the
- * container (`page.tsx`) resolves the repo identity and passes it down, and
- * hands in the create action which the form fires back up, keeping this
- * component free of data access.
- */
-export default function RepoTaskCreateView({
-  fullName,
-  createTaskAction,
-}: RepoTaskCreateViewProps) {
+/** The task types offerable from this form. A narrower set than the pipeline supports: `onboard` and `review` are started by the platform rather than typed in here. */
+const TASK_TYPE_OPTIONS = [
+  { value: "feature-request", label: "Feature Request" },
+  { value: "general", label: "General" },
+  { value: "runbook", label: "Runbook" },
+  { value: "implementation", label: "Implementation" },
+  { value: "gap-fill", label: "Gap Fill" },
+];
+
+/** Skip the queue. Off by default because the default path — waiting for local pickup — runs on a developer subscription rather than org API credit. */
+function ImmediateCheckbox() {
+  return (
+    <label className={styles.checkboxLabel}>
+      <input type="checkbox" name="priority" value="immediate" />
+      <span>Execute immediately</span>
+      <span className={`meta ${styles.hint}`}>
+        — runs on GKE now instead of waiting for local pickup
+      </span>
+    </label>
+  );
+}
+
+/** Plain language is enough here — the agent turns it into a spec — so the placeholder says so rather than asking for structure. */
+function DescriptionField() {
+  return (
+    <>
+      <label>Description</label>
+      <textarea
+        name="description"
+        rows={5}
+        required
+        placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions."
+      />
+    </>
+  );
+}
+
+/** Per-repo "New Task" form: pure render, container resolves repo identity and handles create action. */
+export default function RepoTaskCreateView(props: RepoTaskCreateViewProps) {
+  const { fullName, createTaskAction } = props;
+
   return (
     <div>
       <h2>New Task for {fullName}</h2>
@@ -25,31 +56,11 @@ export default function RepoTaskCreateView({
         <input type="hidden" name="target_repo" value={fullName} />
 
         <label>Task Type</label>
-        <TaskTypeSelect
-          options={[
-            { value: "feature-request", label: "Feature Request" },
-            { value: "general", label: "General" },
-            { value: "runbook", label: "Runbook" },
-            { value: "implementation", label: "Implementation" },
-            { value: "gap-fill", label: "Gap Fill" },
-          ]}
-        />
+        <TaskTypeSelect options={TASK_TYPE_OPTIONS} />
 
-        <label>Description</label>
-        <textarea
-          name="description"
-          rows={5}
-          required
-          placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions."
-        />
+        <DescriptionField />
 
-        <label className={styles.checkboxLabel}>
-          <input type="checkbox" name="priority" value="immediate" />
-          <span>Execute immediately</span>
-          <span className={`meta ${styles.hint}`}>
-            — runs on GKE now instead of waiting for local pickup
-          </span>
-        </label>
+        <ImmediateCheckbox />
 
         <SubmitButton pendingLabel="Creating…">Create Task</SubmitButton>
       </form>

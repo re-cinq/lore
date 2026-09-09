@@ -2,17 +2,95 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { getAgentActivity } from "@/lib/api/tasks";
 import { classifyAgent } from "@/lib/agent-classify";
-import { listAgents } from "@/lib/agents-api";
+import { fetchAgentUsage, listAgents } from "@/lib/agents-api";
 import AgentsTable, { type AgentRow } from "@/components/AgentsTable";
 import AgentList from "./AgentList";
+import { removeAgentOverrideAction } from "./actions";
 import styles from "./agents.module.css";
 import type { components } from "@/lib/api/schema";
 
-/** The whole activity row, deliberately — this page renders every column the
- *  contract publishes, so there is nothing for a `Pick` to narrow. The global
- *  /agents page reads six of them and says so. */
+/** Whole activity row; page renders every contract column (global /agents reads six). */
 type RepoAgentQueryRow =
   components["schemas"]["AgentActivity"]["agents"][number];
+
+interface DefinitionsSectionProps {
+  fullName: string;
+  agents: Awaited<ReturnType<typeof listAgents>>;
+  usage: Awaited<ReturnType<typeof fetchAgentUsage>>;
+}
+
+/** The section's own heading, count and the one action it offers. */
+function DefinitionsHead({
+  fullName,
+  count,
+}: {
+  fullName: string;
+  count: number;
+}) {
+  return (
+    <div className={styles.sectionHead}>
+      <div className={styles.headingGroup}>
+        <h2 className={styles.sectionTitle}>Agent definitions</h2>
+        <span className="count-pill">{count}</span>
+      </div>
+      <Link href={`/repos/${fullName}/agents/new`}>
+        <button>+ New definition</button>
+      </Link>
+    </div>
+  );
+}
+
+/** The recipes each task type runs FROM — config, not a run — which is the distinction the Sessions section below it depends on. Org defaults are shown already overlaid with this repo's overrides, so what is listed is what a dispatch will actually resolve. */
+async function DefinitionsSection(props: DefinitionsSectionProps) {
+  const { fullName, agents, usage } = props;
+
+  return (
+    <section className={styles.section}>
+      <DefinitionsHead fullName={fullName} count={agents.length} />
+      <p className={styles.sectionDesc}>
+        The model, timeout, prompt and execution image each task type runs from
+        — config, not a run. Org defaults overlaid with this repo&apos;s
+        overrides.
+      </p>
+      <AgentList
+        base={`/repos/${fullName}`}
+        agents={agents}
+        usage={usage}
+        remove={removeAgentOverrideAction.bind(null, fullName)}
+      />
+    </section>
+  );
+}
+
+/** Task agents and local MCP agents together, so a developer's own session shows up beside the runs it started. An unreachable endpoint yields an empty list rather than an error — the definitions above are still worth showing. */
+async function repoActivity(fullName: string): Promise<AgentRow[]> {
+  const result = await getAgentActivity(fullName);
+  const rows = (result.status === "ok"
+    ? result.data.agents
+    : []) as unknown as RepoAgentQueryRow[];
+
+  return rows.map((r) => ({ ...r, kind: classifyAgent(r) }));
+}
+
+/** Who actually ran, as opposed to what could run. Ephemeral per-task agents stay behind the audit toggle so the list reads as people rather than as runs. */
+function SessionsSection({ activity }: { activity: AgentRow[] }) {
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHead}>
+        <div className={styles.headingGroup}>
+          <h2 className={styles.sectionTitle}>Sessions</h2>
+          <span className="count-pill">{activity.length}</span>
+        </div>
+      </div>
+      <p className={styles.sectionDesc}>
+        Developer Claude Code sessions and task runs that touched this repo,
+        grouped by agent id. Local sessions show by default; ephemeral task runs
+        stay behind the audit toggle.
+      </p>
+      <AgentsTable embedded agents={activity} />
+    </section>
+  );
+}
 
 export default async function RepoAgents({
   params,
@@ -22,54 +100,15 @@ export default async function RepoAgents({
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  const agents = await listAgents(fullName);
-
-  // Union task agents (pipeline tasks targeting this repo) with local MCP agents
-  // (memories tagged with this repo) so a developer's own agent shows up here too.
-  const result = await getAgentActivity(fullName);
-  const rows = (result.status === "ok"
-    ? result.data.agents
-    : []) as unknown as RepoAgentQueryRow[];
-
-  const activity: AgentRow[] = rows.map((r) => ({
-    ...r,
-    kind: classifyAgent(r),
-  }));
+  const [agents, usage] = await Promise.all([
+    listAgents(fullName),
+    fetchAgentUsage(),
+  ]);
 
   return (
     <div>
-      <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <div className={styles.headingGroup}>
-            <h2 className={styles.sectionTitle}>Agent definitions</h2>
-            <span className="count-pill">{agents.length}</span>
-          </div>
-          <Link href={`/repos/${owner}/${repo}/agents/new`}>
-            <button>+ New definition</button>
-          </Link>
-        </div>
-        <p className={styles.sectionDesc}>
-          The model, timeout, prompt and execution image each task type runs
-          from — config, not a run. Org defaults overlaid with this repo&apos;s
-          overrides.
-        </p>
-        <AgentList base={`/repos/${owner}/${repo}`} agents={agents} />
-      </section>
-
-      <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <div className={styles.headingGroup}>
-            <h2 className={styles.sectionTitle}>Sessions</h2>
-            <span className="count-pill">{activity.length}</span>
-          </div>
-        </div>
-        <p className={styles.sectionDesc}>
-          Developer Claude Code sessions and task runs that touched this repo,
-          grouped by agent id. Local sessions show by default; ephemeral task
-          runs stay behind the audit toggle.
-        </p>
-        <AgentsTable embedded agents={activity} />
-      </section>
+      <DefinitionsSection fullName={fullName} agents={agents} usage={usage} />
+      <SessionsSection activity={await repoActivity(fullName)} />
     </div>
   );
 }

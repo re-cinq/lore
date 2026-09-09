@@ -1,36 +1,26 @@
-import { buildMcpServer } from "./server/build-mcp-server.js";
-import { startHttpGateway } from "./server/http-transport.js";
+import { buildMcpServer } from "./transport/build-mcp-server.js";
+import { startHttpGateway } from "./transport/http-transport.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { dumpSessionLog } from "@re-cinq/lore-server-core/platform/session-tracker.js";
 import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 
-// The local MCP adapter speaks the MCP protocol over stdio and proxies every
-// data operation to the remote Lore API (LORE_API_URL). It holds no DB pool and
-// initializes no OpenTelemetry SDK — those heavy remote concerns live in
-// @re-cinq/lore-api, so every tool has exactly one path: the proxy.
-//
-// With LORE_MCP_HTTP=1 it instead serves MCP over Streamable HTTP as a shared
-// gateway for headless agent pods (server/http-transport.ts).
+// Both spellings are accepted because the value is set by hand in Helm values as well as by the chart.
+function httpGatewayRequested(): boolean {
+  return (
+    process.env.LORE_MCP_HTTP === "1" || process.env.LORE_MCP_HTTP === "true"
+  );
+}
 
-async function main() {
-  loadTaskTypes();
-  loadDefaultTemplates();
+function startGatewayFromEnv(): void {
+  startHttpGateway({
+    port: Number.parseInt(process.env.LORE_MCP_PORT ?? "8080", 10),
+    authToken: process.env.LORE_MCP_AUTH_TOKEN,
+    serverMode: process.env.LORE_MCP_SERVER_MODE === "agent" ? "agent" : "full",
+  });
+}
 
-  if (
-    process.env.LORE_MCP_HTTP === "1" ||
-    process.env.LORE_MCP_HTTP === "true"
-  ) {
-    startHttpGateway({
-      port: Number.parseInt(process.env.LORE_MCP_PORT ?? "8080", 10),
-      authToken: process.env.LORE_MCP_AUTH_TOKEN,
-      serverMode:
-        process.env.LORE_MCP_SERVER_MODE === "agent" ? "agent" : "full",
-    });
-
-    return;
-  }
-
+async function startStdioAdapter(): Promise<void> {
   const server = buildMcpServer();
   const transport = new StdioServerTransport();
 
@@ -45,6 +35,19 @@ async function main() {
   process.on("SIGTERM", exitHandler);
   process.on("SIGINT", exitHandler);
   process.on("beforeExit", exitHandler);
+}
+
+// Speaks MCP over stdio and proxies every data operation to LORE_API_URL (no DB pool, no OTel SDK); LORE_MCP_HTTP=1 serves it over Streamable HTTP instead, as a shared gateway for agent pods.
+async function main() {
+  loadTaskTypes();
+  loadDefaultTemplates();
+
+  if (httpGatewayRequested()) {
+    startGatewayFromEnv();
+
+    return;
+  }
+  await startStdioAdapter();
 }
 
 main().catch((err) => {

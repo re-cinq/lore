@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import { toApiResult } from "@/lib/api/result";
 import type { FeaturePollPayload } from "@/lib/feature-poll";
 import type { FeatureRunPayload } from "@/lib/feature-run";
@@ -9,87 +10,87 @@ import { graphIsCacheable, mergeRunGraph } from "@/lib/run-graph-cache";
 /** How often the planning page asks the server what the line is doing. */
 const POLL_MS = 4000;
 
-/**
- * The planning wizard's poll, as a hook.
- *
- * It polls while the WIZARD is on screen, not only while a planning round runs.
- * The spec phase runs no round, so an "is a round active" guard stopped polling
- * exactly when the line was working — and since the server-rendered seed carries
- * no `run`, a RELOAD mid-phase showed the decision row, offered the button again,
- * and never learned otherwise. Pressing it then mints a second line, which is how
- * one feature collected seven branches. The wizard only renders while planning is
- * unfinished, so polling for as long as it is mounted costs one GET per interval
- * on one page.
- *
- * A failed poll keeps the last good payload: a 500 or a dropped connection is not
- * news about the feature, and blanking the page on one bad tick would be worse
- * than showing state that is four seconds old.
- *
- * The run GRAPH is fetched once per run, not once per tick. It is a clone of the
- * blueprint, stamped at start and never edited (FR6.38), so re-downloading it every
- * four seconds for the life of a planning round is pure waste next to the nodes and
- * tokens that actually change. The request names the run whose graph it holds and
- * the server omits that one; `mergeRunGraph` puts it back. Naming the RUN rather
- * than sending a bare flag is what makes a retry — a new run, a new clone — fetch
- * its own graph instead of inheriting the previous one.
- */
-export function useFeaturePlanningPoll({
-  owner,
-  repo,
-  featureId,
-  initial,
-}: {
+/** One poll read. The run's graph is large and unchanging, so a cacheable one is named in the query and the server may leave it out of the response — the caller merges its held copy back in. */
+async function fetchPoll(
+  target: { owner: string; repo: string; featureId: string },
+  cached: FeatureRunPayload | null,
+): Promise<
+  ReturnType<typeof toApiResult<FeaturePollPayload>> extends Promise<infer R>
+    ? R
+    : never
+> {
+  const query =
+    cached && graphIsCacheable(cached)
+      ? `?graph=${encodeURIComponent(cached.id)}`
+      : "";
+
+  return await toApiResult<FeaturePollPayload>(
+    await fetch(
+      `/api/repos/${target.owner}/${target.repo}/features/${target.featureId}${query}`,
+      { signal: AbortSignal.timeout(15_000), cache: "no-store" },
+    ),
+  );
+}
+
+/** The fresh payload with its run graph folded onto the one already held. A poll returns only what changed, so replacing the graph outright would drop the nodes the previous response established. */
+function withMergedGraph(
+  heldRun: FeatureRunPayload | null,
+  fresh: FeaturePollPayload,
+): FeaturePollPayload {
+  return fresh.run
+    ? { ...fresh, run: mergeRunGraph(heldRun, fresh.run) }
+    : fresh;
+}
+
+interface PollInput {
   owner: string;
   repo: string;
   featureId: string;
   initial: FeaturePollPayload;
-}): {
+}
+
+interface PollHandle {
   data: FeaturePollPayload;
+  /** Polls immediately and returns the merged payload, so a caller that just submitted can act on the result without waiting for the next tick. */
   refresh: () => Promise<FeaturePollPayload | null>;
-} {
-  const [data, setData] = useState<FeaturePollPayload>(initial);
+}
 
-  // The run whose graph is in hand, read through a ref so `refresh` keeps a stable
-  // identity: it is the polling effect's only dependency, and re-creating it each
-  // tick would tear down and restart the interval on every poll. Written in an
-  // effect rather than during render — a ref touched while rendering is not safe
-  // under concurrent React.
-  const held = useRef<FeatureRunPayload | null>(null);
+/** One poll, folded into state and handed back to the caller. Identity is stable across renders so the interval below is not torn down on every payload. */
+function usePollRefresh(
+  target: PollInput,
+  held: RefObject<FeatureRunPayload | null>,
+  setPayload: Dispatch<SetStateAction<FeaturePollPayload>>,
+) {
+  const { owner, repo, featureId } = target;
 
-  useEffect(() => {
-    held.current = data.run ?? null;
-  }, [data.run]);
-
-  const refresh = useCallback(async (): Promise<FeaturePollPayload | null> => {
-    const cached = held.current;
-    const query =
-      cached && graphIsCacheable(cached)
-        ? `?graph=${encodeURIComponent(cached.id)}`
-        : "";
-    const result = await toApiResult<FeaturePollPayload>(
-      await fetch(`/api/repos/${owner}/${repo}/features/${featureId}${query}`, {
-        signal: AbortSignal.timeout(15_000),
-        cache: "no-store",
-      }),
-    );
+  return useCallback(async (): Promise<FeaturePollPayload | null> => {
+    const result = await fetchPoll({ owner, repo, featureId }, held.current);
 
     if (result.status !== "ok") {
       return null;
     }
     const fresh = result.data;
 
-    // Merged through the functional update so the graph is folded into whatever
-    // the CURRENT payload holds, not into a snapshot this closure captured.
-    setData((previous) =>
-      fresh.run
-        ? { ...fresh, run: mergeRunGraph(previous.run ?? null, fresh.run) }
-        : fresh,
-    );
+    // Functional update, so the graph folds into the CURRENT payload rather than the snapshot this closure captured.
+    setPayload((previous) => withMergedGraph(previous.run ?? null, fresh));
 
-    return fresh.run
-      ? { ...fresh, run: mergeRunGraph(held.current, fresh.run) }
-      : fresh;
+    return withMergedGraph(held.current, fresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the ref and the state setter are stable for the component's lifetime.
   }, [owner, repo, featureId]);
+}
+
+/** Poll while wizard is on screen; failed polls keep last good payload; run graph fetched once per run via named request. */
+export function useFeaturePlanningPoll(input: PollInput): PollHandle {
+  const [payload, setPayload] = useState<FeaturePollPayload>(input.initial);
+
+  // Run's graph in hand via ref so `refresh` keeps stable identity; written in effect for concurrent React safety.
+  const held = useRef<FeatureRunPayload | null>(null);
+
+  useEffect(() => {
+    held.current = payload.run ?? null;
+  }, [payload.run]);
+
+  const refresh = usePollRefresh(input, held, setPayload);
 
   useEffect(() => {
     void refresh();
@@ -98,5 +99,5 @@ export function useFeaturePlanningPoll({
     return () => clearInterval(timer);
   }, [refresh]);
 
-  return { data, refresh };
+  return { data: payload, refresh };
 }

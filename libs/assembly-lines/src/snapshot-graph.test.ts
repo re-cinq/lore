@@ -52,10 +52,7 @@ describe("snapshotGraph", () => {
     });
   });
 
-  it("resolves an inherited station at clone time, flagged as inherited", () => {
-    // The whole point: an agent node with no station_ref runs the recipe named
-    // after its LINE, and re-deriving that on every read is what let three nodes
-    // silently run the planning prompt.
+  it("resolves an inherited station at clone time, flagged as inherited (re-deriving this on every read is what let three nodes silently run the planning prompt)", () => {
     expect(graph().nodes[0]).toMatchObject({
       id: "implement",
       type: "agent",
@@ -93,11 +90,7 @@ describe("snapshotGraph", () => {
     expect(graph().nodes[1].required_tags).toBeUndefined();
   });
 
-  it("carries the knobs a station pod receives as params", () => {
-    // The Floor reads job_ref / condition_ref straight off the node into the pod's
-    // params, so a clone that dropped them would dispatch a station with no input.
-    // (`validator` used to be one of these and was removed in #1051 — nothing ever
-    // read it.)
+  it("carries the knobs a station pod receives as params (the Floor reads job_ref/condition_ref straight off the node into the pod's params; `validator` was one of these, removed in #1051 since nothing ever read it)", () => {
     expect(graph().nodes[1]).toMatchObject({ job_ref: "quick-checks" });
   });
 
@@ -117,5 +110,60 @@ describe("snapshotGraph", () => {
 
   it("round-trips through JSON, since the clone is stored as jsonb", () => {
     expect(JSON.parse(JSON.stringify(graph()))).toEqual(graph());
+  });
+
+  it("carries condition_ref, route, and continues onto the node clone", () => {
+    const withOptionalFields = snapshotGraph(
+      parseAssemblyLine(`
+name: demo2
+description: exercises condition_ref/route/continues
+version: 1
+entry: a
+exit: done
+nodes:
+  - id: a
+    type: agent
+    prompt_ref: x
+    condition_ref: only-if-flagged
+    continues:
+      node: a
+      key: line
+  - id: author
+    type: feature_review
+    route: /repos/{args.repo}/features/{args.feature_id}
+  - id: done
+    type: retrospective
+edges:
+  - from: a
+    to: author
+    on: success
+  - from: a
+    to: done
+    on: changes_requested
+  - from: a
+    to: done
+    on: failed
+  - from: author
+    to: done
+    on: success
+  - from: author
+    to: done
+    on: changes_requested
+  - from: author
+    to: done
+    on: failed
+`),
+      "demo2",
+    );
+
+    expect(withOptionalFields.nodes.find((n) => n.id === "a")).toMatchObject({
+      condition_ref: "only-if-flagged",
+      continues: { node: "a", key: "line" },
+    });
+    expect(
+      withOptionalFields.nodes.find((n) => n.id === "author"),
+    ).toMatchObject({
+      route: "/repos/{args.repo}/features/{args.feature_id}",
+    });
   });
 });

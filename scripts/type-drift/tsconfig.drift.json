@@ -11,7 +11,20 @@
     "baseUrl": ".",
     "paths": {
       "@re-cinq/lore-shared": ["../../libs/shared/src/index.ts"],
-      "@re-cinq/lore-shared/*": ["../../libs/shared/src/*"],
+      "@re-cinq/lore-shared/project/assembly-runs/run-graph.js": [
+        "../../libs/shared/src/domain/run-graph.ts"
+      ],
+      "@re-cinq/lore-shared/http/internal-token.js": [
+        "../../libs/shared/src/lib/internal-token.ts"
+      ],
+      "@re-cinq/lore-shared/*": [
+        "../../libs/shared/src/*",
+        "../../libs/shared/src/outbound/*",
+        "../../libs/shared/src/work/*",
+        "../../libs/shared/src/domain/*",
+        "../../libs/shared/src/transport/*",
+        "../../libs/shared/src/lib/*"
+      ],
       "@re-cinq/lore-assembly-lines": [
         "../../libs/assembly-lines/src/index.ts"
       ],
@@ -19,7 +32,6 @@
     }
   },
   "include": [
-    "run-stream-types.drift.ts",
     "run-turn-types.drift.ts",
     "assembly-line-definition.drift.ts",
     "run-graph.drift.ts",

@@ -1,22 +1,88 @@
 "use client";
 
-import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import { markdownSanitizeSchema } from "@/lib/markdown-sanitize";
-import { resolveHref, blobUrl } from "@/lib/github-links";
+import { blobUrl } from "@/lib/github-links";
+import { useResolvedMarkdownLinks } from "@/app/repos/[owner]/[repo]/useResolvedMarkdownLinks";
 import { languageForPath, fenceFor } from "@/lib/code-lang";
 import { chunkHeader, type ChunkMeta } from "@/lib/chunk-presenter";
 import readme from "../ReadmeBox.module.css";
 import styles from "./ChunkBody.module.css";
 
-/** Content types whose `content` is markdown (rendered as prose). Everything
- * that isn't `code` falls back to this branch — `pull_request`/`rule` and any
- * future text type render fine as markdown. */
+/** Non-code types render as markdown prose (pull_request/rule/etc). */
 const CODE_TYPE = "code";
+
+type ChunkKind = "code" | "prose";
+
+const WRAPPER_CLASS = readme.readme;
+const PREVIEW_WRAPPER_CLASS = `${readme.readme} ${styles.previewBox}`;
+
+function codeFence(content: string, filePath: string): string {
+  const fence = fenceFor(content);
+
+  return `${fence}${languageForPath(filePath)}\n${content}\n${fence}`;
+}
+
+function markdownFor(
+  kind: ChunkKind,
+  content: string,
+  filePath: string,
+): string {
+  return kind === "code" ? codeFence(content, filePath) : content;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rehypePluginsFor(kind: ChunkKind): any[] {
+  return kind === "code"
+    ? [rehypeHighlight]
+    : [rehypeRaw, [rehypeSanitize, markdownSanitizeSchema], rehypeHighlight];
+}
+
+function codeLineRange(
+  kind: ChunkKind,
+  metadata: ChunkMeta | undefined,
+): { start?: number; end?: number } {
+  if (kind !== "code" || !metadata) {
+    return {};
+  }
+
+  return { start: metadata.start_line, end: metadata.end_line };
+}
+
+interface ChunkHeaderProps {
+  headerLabel: string;
+  ghHref: string;
+}
+
+function ChunkHeader({ headerLabel, ghHref }: ChunkHeaderProps) {
+  if (!headerLabel && !ghHref) {
+    return null;
+  }
+
+  return (
+    <div className={styles.chunkHeader}>
+      {headerLabel && <span className={styles.headerLabel}>{headerLabel}</span>}
+      {ghHref && <GitHubLink href={ghHref} />}
+    </div>
+  );
+}
+
+function GitHubLink({ href }: { href: string }) {
+  return (
+    <a
+      className={styles.headerLink}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      View on GitHub ↗
+    </a>
+  );
+}
 
 export interface ChunkBodyProps {
   content: string;
@@ -30,96 +96,85 @@ export interface ChunkBodyProps {
   preview?: boolean;
 }
 
-/**
- * Renders ONE ingested chunk richly. Prose (`doc`/`adr`/`spec`/`pull_request`/
- * `rule`) goes through ReactMarkdown with repo-relative links rewritten to
- * GitHub (new tab); `code` is run through the same pipeline inside a synthesized
- * fenced block so highlight.js colors it. Reused by the list cards (preview)
- * and the per-file detail views.
- */
-export default function ChunkBody({
+/** Where this chunk lives on GitHub. A code chunk carries its line range into the fragment so the link lands on the chunk rather than the top of the file; prose chunks have no range to point at. */
+function ghHrefFor({
+  repo,
+  branch,
+  filePath,
+  kind,
+  metadata,
+}: {
+  repo: string;
+  branch: string;
+  filePath: string;
+  kind: ChunkKind;
+  metadata?: ChunkMeta;
+}) {
+  return blobUrl(repo, branch, filePath, codeLineRange(kind, metadata));
+}
+
+/** The chunk's body. Code arrives already fenced by `markdownFor`, so both content kinds go through the same markdown renderer and differ only in the plugins they carry. */
+interface ChunkMarkdownProps {
+  markdown: string;
+  rehypePlugins: React.ComponentProps<typeof ReactMarkdown>["rehypePlugins"];
+  components: React.ComponentProps<typeof ReactMarkdown>["components"];
+  className: string;
+}
+
+function ChunkMarkdown({
+  markdown,
+  rehypePlugins,
+  components,
+  className,
+}: ChunkMarkdownProps) {
+  return (
+    <div className={className}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={rehypePlugins}
+        components={components}
+      >
+        {markdown}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+/** Render ingested chunk: prose→ReactMarkdown with GitHub links, code→highlight.js. */
+export default function ChunkBody(props: ChunkBodyProps) {
+  const view = useChunkView(props);
+
+  return (
+    <div>
+      {!props.preview && (
+        <ChunkHeader headerLabel={view.headerLabel} ghHref={view.ghHref} />
+      )}
+      <ChunkMarkdown
+        markdown={view.markdown}
+        rehypePlugins={view.rehypePlugins}
+        components={view.components}
+        className={props.preview ? PREVIEW_WRAPPER_CLASS : WRAPPER_CLASS}
+      />
+    </div>
+  );
+}
+
+/** Everything the two halves of the body need, derived once: the content kind decides the fencing, the plugins and whether the GitHub link carries a line range. */
+function useChunkView({
   content,
   contentType,
   filePath,
   repo,
   branch = "main",
   metadata,
-  preview = false,
 }: ChunkBodyProps) {
-  const isCode = contentType === CODE_TYPE;
+  const kind: ChunkKind = contentType === CODE_TYPE ? "code" : "prose";
 
-  const mdComponents = useMemo(
-    () => ({
-      a(props: React.ComponentPropsWithoutRef<"a"> & { node?: unknown }) {
-        const { href, children, node: _node, ...rest } = props;
-        const { href: resolved, external } = resolveHref(
-          href ?? "",
-          repo,
-          branch,
-        );
-        const ext = external
-          ? { target: "_blank", rel: "noopener noreferrer" }
-          : {};
-
-        return (
-          <a href={resolved} {...ext} {...rest}>
-            {children}
-          </a>
-        );
-      },
-    }),
-    [repo, branch],
-  );
-
-  const fence = isCode ? fenceFor(content) : "";
-  const markdown = isCode
-    ? `${fence}${languageForPath(filePath)}\n${content}\n${fence}`
-    : content;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rehypePlugins: any[] = isCode
-    ? [rehypeHighlight]
-    : [rehypeRaw, [rehypeSanitize, markdownSanitizeSchema], rehypeHighlight];
-
-  const headerLabel = chunkHeader(contentType, metadata);
-  const ghHref = blobUrl(
-    repo,
-    branch,
-    filePath,
-    isCode ? metadata?.start_line : undefined,
-    isCode ? metadata?.end_line : undefined,
-  );
-
-  return (
-    <div>
-      {!preview && (headerLabel || ghHref) && (
-        <div className={styles.chunkHeader}>
-          {headerLabel && (
-            <span className={styles.headerLabel}>{headerLabel}</span>
-          )}
-          {ghHref && (
-            <a
-              className={styles.headerLink}
-              href={ghHref}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View on GitHub ↗
-            </a>
-          )}
-        </div>
-      )}
-      <div
-        className={`${readme.readme}${preview ? ` ${styles.previewBox}` : ""}`}
-      >
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={rehypePlugins}
-          components={mdComponents}
-        >
-          {markdown}
-        </ReactMarkdown>
-      </div>
-    </div>
-  );
+  return {
+    components: useResolvedMarkdownLinks(repo, branch),
+    markdown: markdownFor(kind, content, filePath),
+    rehypePlugins: rehypePluginsFor(kind),
+    headerLabel: chunkHeader(contentType, metadata),
+    ghHref: ghHrefFor({ repo, branch, filePath, kind, metadata }),
+  };
 }

@@ -7,8 +7,8 @@ output "ui_url" {
 }
 
 output "webhook_url" {
-  description = "Point the GitHub App / org webhook here (the ingress moved to the Floor)."
-  value       = var.lore_webhook_hostname != "" ? "https://${var.lore_webhook_hostname}/api/webhook/github" : ""
+  description = "Point repo webhooks here: the event-router front door (ADR-044)."
+  value       = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}/api/events" : ""
 }
 
 output "log_bucket" {

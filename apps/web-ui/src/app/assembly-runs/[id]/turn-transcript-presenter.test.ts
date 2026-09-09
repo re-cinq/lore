@@ -23,6 +23,8 @@ import {
   HOOK_RESPONSE_BOOTSTRAP,
   TOOL_PROGRESS_SKILL_FIRST,
   TOOL_PROGRESS_SKILL_LAST,
+  GEMINI_ASSISTANT_DELTA_FIRST,
+  GEMINI_ASSISTANT_DELTA_LAST,
 } from "@/lib/agent-log-entries.fixtures";
 
 function turn(id: string, nodeId: string | null): AgentRunTurn {
@@ -130,22 +132,22 @@ describe("envelopePretty", () => {
 
 describe("nextTurnsCursor with the Floor's hasMore flag", () => {
   it("continues from the last id of a short page when hasMore is true", () => {
-    expect(nextTurnsCursor([turn("1", "implement")], true)).toBe("1");
+    expect(nextTurnsCursor([turn("1", "implement")], { hasMore: true })).toBe(
+      "1",
+    );
   });
 
   it("stops paging on a full page when hasMore is false", () => {
-    expect(nextTurnsCursor(fullPage(), false)).toBeNull();
+    expect(nextTurnsCursor(fullPage(), { hasMore: false })).toBeNull();
   });
 
   it("stops paging when hasMore is true but no row carries a string id", () => {
-    expect(nextTurnsCursor([{ id: 7 }, {}], true)).toBeNull();
+    expect(nextTurnsCursor([{ id: 7 }, {}], { hasMore: true })).toBeNull();
   });
 
   it("falls back to the short-page rule when the response carries no flag", () => {
-    expect(nextTurnsCursor([turn("1", "implement")], undefined)).toBeNull();
-    expect(nextTurnsCursor(fullPage(), undefined)).toBe(
-      String(TURNS_PAGE_LIMIT),
-    );
+    expect(nextTurnsCursor([turn("1", "implement")], {})).toBeNull();
+    expect(nextTurnsCursor(fullPage(), {})).toBe(String(TURNS_PAGE_LIMIT));
   });
 
   it("bounds one walk to 20 pages", () => {
@@ -172,13 +174,13 @@ describe("parseHasMore", () => {
 
 describe("serverReportsMore", () => {
   it("trusts the flag over page length in both directions", () => {
-    expect(serverReportsMore([{}], true)).toBe(true);
-    expect(serverReportsMore(fullPage(), false)).toBe(false);
+    expect(serverReportsMore([{}], { hasMore: true })).toBe(true);
+    expect(serverReportsMore(fullPage(), { hasMore: false })).toBe(false);
   });
 
   it("falls back to page-length inference without a flag", () => {
-    expect(serverReportsMore(fullPage(), undefined)).toBe(true);
-    expect(serverReportsMore([{}], undefined)).toBe(false);
+    expect(serverReportsMore(fullPage(), {})).toBe(true);
+    expect(serverReportsMore([{}], {})).toBe(false);
   });
 });
 
@@ -291,9 +293,6 @@ describe("clockTime", () => {
 });
 
 describe("conversationEntries — hook turns", () => {
-  // The reported bug: pod agent-job-595d2b0b-ccb-implement-cczl8 emitted eight
-  // hook turns, four of them the same cumulative npm log at growing length, and
-  // every one of them rendered as its own raw JSON blob.
   const hookTurn = (id: string, line: string, at: string) =>
     turnWithEnvelope(id, JSON.parse(line), at);
 
@@ -334,8 +333,6 @@ describe("conversationEntries — hook turns", () => {
 });
 
 describe("conversationEntries — tool progress turns", () => {
-  // The reported bug: pod agent-job-f89164e0-31a-review-zhs6b emitted nineteen
-  // heartbeat turns for one Skill call, each rendering as its own raw JSON blob.
   const beat = (id: string, line: string, at: string) =>
     turnWithEnvelope(id, JSON.parse(line), at);
 
@@ -356,5 +353,28 @@ describe("conversationEntries — tool progress turns", () => {
         },
       },
     });
+  });
+});
+
+describe("conversationEntries — gemini delta turns", () => {
+  const geminiTurn = (id: string, line: string, at: string) =>
+    turnWithEnvelope(id, JSON.parse(line), at);
+
+  it("merges delta chunk turns into one assistant-text on the first turn's timestamp", () => {
+    const entries = conversationEntries([
+      geminiTurn("1", GEMINI_ASSISTANT_DELTA_FIRST, "2026-09-02T07:10:02.000Z"),
+      geminiTurn("2", GEMINI_ASSISTANT_DELTA_LAST, "2026-09-02T07:10:02.400Z"),
+    ]);
+
+    expect(entries).toEqual([
+      {
+        at: "2026-09-02T07:10:02.000Z",
+        entry: {
+          kind: "assistant-text",
+          text: "The PR adds a traceability link to the Rollout section.",
+          delta: true,
+        },
+      },
+    ]);
   });
 });

@@ -43,7 +43,7 @@ COPY --from=builder /app/apps/stations/dist ./apps/stations/dist
 COPY --from=builder /app/apps/stations/package.json ./apps/stations/
 
 # The exec vendor invokes `lore-station <type> '<station_input>'`.
-RUN printf '#!/bin/sh\nexec node /app/apps/stations/dist/cli/main.js "$@"\n' > /usr/local/bin/lore-station \
+RUN printf '#!/bin/sh\nexec node /app/apps/stations/dist/transport/cli/main.js "$@"\n' > /usr/local/bin/lore-station \
   && chmod +x /usr/local/bin/lore-station
 
 # node:22-slim ships the `node` user at uid 1000 (matches the run-pod securityContext).

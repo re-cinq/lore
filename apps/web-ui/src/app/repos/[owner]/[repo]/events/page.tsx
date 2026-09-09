@@ -10,8 +10,6 @@ export default async function RepoEvents({
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  // The first page renders server-side; the rest pages in client-side via
-  // InfiniteEvents against the events API route.
   const { events, hasMore } = await fetchRepoEvents(fullName, 0);
 
   return (

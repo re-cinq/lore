@@ -35,6 +35,31 @@ describe("parseAgentForm", () => {
     });
   });
 
+  it("collects the six pod-resource inputs into pod_resources", () => {
+    const p = parseAgentForm(
+      fd({
+        is_new: "0",
+        name: "fix-ci",
+        res_requests_cpu: "500m",
+        res_requests_memory: "2Gi",
+        res_limits_cpu: "2",
+        res_limits_memory: "4Gi",
+        res_limits_ephemeral: "4Gi",
+      }),
+    );
+
+    expect(p.def.pod_resources).toEqual({
+      requests: { cpu: "500m", memory: "2Gi" },
+      limits: { cpu: "2", memory: "4Gi", "ephemeral-storage": "4Gi" },
+    });
+  });
+
+  it("all pod-resource inputs blank sends pod_resources null so a save clears an old value", () => {
+    const p = parseAgentForm(fd({ is_new: "0", name: "fix-ci" }));
+
+    expect(p.def.pod_resources).toBeNull();
+  });
+
   it("reads the hidden name on edit and the custom model field", () => {
     const p = parseAgentForm(
       fd({

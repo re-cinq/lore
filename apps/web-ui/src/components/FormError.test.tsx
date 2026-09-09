@@ -11,7 +11,6 @@ describe("FormError", () => {
   });
 
   it("renders nothing for a null message", () => {
-    // Result unions hand back null as often as undefined.
     const { container } = render(<FormError message={null} />);
 
     expect(container).toBeEmptyDOMElement();
@@ -24,8 +23,6 @@ describe("FormError", () => {
   });
 
   it("announces the message so a screen reader hears the failure", () => {
-    // The hand-rolled copies were plain <p>s: a submit that failed was silent
-    // unless you happened to be looking at that part of the page.
     render(<FormError message="Title and prompt are required." />);
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Title and prompt are required.",

@@ -1,16 +1,4 @@
-/**
- * Pure, deterministic anti-crowding rules for the D3 spec-graph force layout.
- *
- * The base graph hairballs when many nodes wire into a few hubs: leaves pile up
- * around the hub and labels overlap. These three degree-driven transforms spread
- * a dense neighbourhood apart without touching the expanded-ring spoke layout —
- * value-in/value-out, no side effects, so the layout calls them per node/link.
- *
- * `nodeDegrees` is computed once from the raw link list; the three rule helpers
- * take an already-resolved degree so the simulation's per-tick callbacks stay a
- * single arithmetic step. The degree cap keeps a single mega-hub from blowing
- * the layout off-screen.
- */
+/** Anti-crowding rules for D3 spec-graph force layout; three degree-driven transforms. */
 
 const DEGREE_CAP = 16;
 const COLLIDE_BASE_PADDING = 18;
@@ -34,11 +22,7 @@ export function nodeDegrees(links: DegreeLink[]): Map<string, number> {
   return degree;
 }
 
-/**
- * Rule #1 — a link is weakened by its busier (higher-degree) endpoint, so a node
- * wired to 30 files no longer yanks all 30 into a knot. Isolated leaf-to-leaf
- * links stay strong; hub links sink to a floor so they never vanish entirely.
- */
+/** Weaken link by busier endpoint so hubs don't yank neighbors into knot. */
 export function crowdedLinkStrength(
   degreeSource: number,
   degreeTarget: number,
@@ -48,19 +32,12 @@ export function crowdedLinkStrength(
   return Math.max(LINK_STRENGTH_FLOOR, LINK_STRENGTH_NUMERATOR / busier);
 }
 
-/**
- * Rule #2 — repulsion grows with the square root of degree (capped), so hubs
- * actively shove their dense neighbourhoods apart.
- */
+/** Repulsion grows with degree so hubs shove dense neighbourhoods apart. */
 export function crowdedCharge(baseCharge: number, degree: number): number {
   return baseCharge * Math.sqrt(Math.min(degree, DEGREE_CAP));
 }
 
-/**
- * Rule #3 — hard personal space: the collision radius reserves the circle plus
- * base padding plus padding that grows with degree (capped), so busy nodes and
- * their labels physically cannot pile on top of each other.
- */
+/** Hard personal space: collision radius grows with degree so labels cannot overlap. */
 export function crowdedCollideRadius(
   baseRadius: number,
   degree: number,

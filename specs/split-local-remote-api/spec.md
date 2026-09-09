@@ -14,7 +14,7 @@ This split separates the local stdio MCP adapter from the remote HTTPS REST back
 
 Today the local stdio MCP adapter and the remote HTTPS REST backend are the
 **same deployable**, `apps/mcp-server`. One `index.ts` builds an `McpServer`,
-and [`server/transports.ts`](../../apps/mcp-server/src/server/transports.ts)
+and `server/transports.ts`
 picks the runtime at boot from `MCP_TRANSPORT`: `stdio` (a developer's machine)
 or `http` (the GKE REST backend the stdio adapter proxies to).
 
@@ -43,7 +43,7 @@ Only the **local** adapter actually speaks the MCP protocol. The name belongs to
 the local side alone.
 
 A third issue is **route-layer ergonomics**: every REST handler lives flat in
-[`api/routes/`](../../apps/mcp-server/src/api/routes/) — ~30 handler modules and
+`api/routes/` — ~30 handler modules and
 their tests in one directory. Adding or finding a route means scanning a wall of
 sibling files.
 
@@ -147,7 +147,7 @@ or naming-honesty goal).
   and behave identically (proxy to `LORE_API_URL`, file fallback to `~/.lore`).
   The server-core proxy client round-trips a GET read and a POST write through the
   real lore-api server (the change persists in the DB), and returns
-  `not_configured` when no `LORE_API_URL` is set. ([validated by `proxy.test.ts:91`](apps/lore-api/src/integration-tests/proxy.test.ts#L91), [validated by `proxy.test.ts:104`](apps/lore-api/src/integration-tests/proxy.test.ts#L104), [validated by `proxy.test.ts:132`](apps/lore-api/src/integration-tests/proxy.test.ts#L132))
+  `not_configured` when no `LORE_API_URL` is set. ([validated by `proxy.test.ts:84`](apps/lore-api/src/integration-tests/proxy.test.ts#L69), [validated by `proxy.test.ts:97`](apps/lore-api/src/integration-tests/proxy.test.ts#L80), [validated by `proxy.test.ts:125`](apps/lore-api/src/integration-tests/proxy.test.ts#L101))
 - **FR-8** Infra points at the new remote app: Dockerfile, Helm values,
   terraform, and CI workflows build/deploy `apps/lore-api`.
 - **FR-9** Developer scripts updated: `install.sh`, `dev-local.sh`,
@@ -163,7 +163,7 @@ or naming-honesty goal).
   onboarding. The import is indirected through a variable
   (`const spec = "libsodium-wrappers"`) to avoid demanding a declaration file
   for an untyped package, which makes it invisible to every static dependency
-  checker — so the declaration is pinned by a test rather than by tooling. ([validated by `runtime-deps.test.ts:23`](libs/shared/src/project/lib/runtime-deps.test.ts#L23), [`runtime-deps.test.ts:27`](libs/shared/src/project/lib/runtime-deps.test.ts#L27), [`runtime-deps.test.ts:31`](libs/shared/src/project/lib/runtime-deps.test.ts#L31))
+  checker — so the declaration is pinned by a test rather than by tooling. ([validated by `runtime-deps.test.ts:23`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L12), [`runtime-deps.test.ts:16`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L16), [`runtime-deps.test.ts:20`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L20))
 
 ## Success Criteria
 

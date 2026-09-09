@@ -2,16 +2,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-// The ui-helm migrations are the tracked, idempotent channel applied to lore-db
-// on every deploy (as the `lore` owner). These assert the hippo-memory columns
-// (ADR-016) and the dark-factory audit_log are backfilled for repos bootstrapped
-// before those landed in the baseline setup scripts — the prod drift that left
-// `memory.facts.confidence` missing and broke all memory/episode retrieval.
 const MIGRATIONS_DIR = join(
   import.meta.dirname,
-  "..", // src → mcp-server
-  "..", // mcp-server → apps
-  "..", // apps → repo root
+  "..",
+  "..",
+  "..",
   "infra",
   "terraform",
   "modules",

@@ -3,9 +3,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import SettingsView, { type SettingsApprovalConfig } from "./SettingsView";
 
-// ThemeSwitcher is a 'use client' leaf that calls useTheme() and throws
-// without a ThemeProvider. Stub it so SettingsView's own markup is the
-// subject under test; the View renders it as-is in production.
 vi.mock("@/components/ThemeSwitcher", () => ({
   default: () => <div data-testid="theme-switcher" />,
 }));

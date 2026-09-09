@@ -5,6 +5,8 @@ import {
   buildLocalIndex,
   buildCoverageIndex,
   mergeIndexes,
+  type LinkTarget,
+  type RangeEntry,
   type SpecCodeIndex,
   type SpecSource,
 } from "./spec-index.js";
@@ -13,6 +15,12 @@ import { renderHoverMarkdown } from "./hover.js";
 import { LoreClient } from "./lore-client.js";
 import { detectRepo, gitConfigGlobal } from "./repo.js";
 import type { OpenLocalArgs } from "./command-links.js";
+import {
+  resolveCredentialField,
+  decorationRange,
+  entriesForPath,
+  partitionByLayer,
+} from "./decoration-math.js";
 
 interface State {
   index: SpecCodeIndex;
@@ -37,10 +45,11 @@ const decCovered = vscode.window.createTextEditorDecorationType({
   overviewRulerLane: vscode.OverviewRulerLane.Left,
 });
 
-const lensesChanged = new vscode.EventEmitter<void>();
-
 function workspaceRoot(): string | null {
-  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
+  const { workspaceFolders } = vscode.workspace;
+  const folder: vscode.WorkspaceFolder | undefined = workspaceFolders?.[0];
+
+  return folder?.uri.fsPath ?? null;
 }
 
 /** Repo-relative, forward-slashed path for an absolute file, or null if outside the root. */
@@ -56,10 +65,14 @@ function toRepoRelative(root: string, fsPath: string): string | null {
 
 function resolveCredentials(): { apiUrl: string; token: string } | null {
   const config = vscode.workspace.getConfiguration("lore");
-  const apiUrl =
-    config.get<string>("apiUrl")?.trim() || gitConfigGlobal("lore.api-url");
-  const token =
-    config.get<string>("token")?.trim() || gitConfigGlobal("lore.ingest-token");
+  const apiUrl = resolveCredentialField(
+    config.get<string>("apiUrl"),
+    gitConfigGlobal("lore.api-url"),
+  );
+  const token = resolveCredentialField(
+    config.get<string>("token"),
+    gitConfigGlobal("lore.ingest-token"),
+  );
 
   return apiUrl && token ? { apiUrl, token } : null;
 }
@@ -88,6 +101,28 @@ async function readSpecSources(root: string): Promise<SpecSource[]> {
   return sources.filter((s): s is SpecSource => s !== null);
 }
 
+// The coverage half of the index, or an empty one. Every reason it can be missing — no credentials, no detectable repo, an unreachable API — leaves the LOCAL index intact: highlighting what the workspace itself knows is still useful offline, so a failure here is logged rather than surfaced.
+async function readCoverageIndex(root: string): Promise<SpecCodeIndex> {
+  const creds = resolveCredentials();
+  const repo = detectRepo(root);
+
+  if (!creds || !repo) {
+    return new Map();
+  }
+
+  try {
+    return buildCoverageIndex(
+      await new LoreClient(creds.apiUrl, creds.token).graph(repo),
+    );
+  } catch (err) {
+    console.error(
+      `[lore] coverage graph fetch failed: ${err instanceof Error ? err.message : err}`,
+    );
+
+    return new Map();
+  }
+}
+
 async function rebuildIndex(): Promise<void> {
   const root = workspaceRoot();
 
@@ -97,24 +132,22 @@ async function rebuildIndex(): Promise<void> {
 
   const local = buildLocalIndex(await readSpecSources(root));
 
-  let coverage: SpecCodeIndex = new Map();
-  const creds = resolveCredentials();
-  const repo = detectRepo(root);
-
-  if (creds && repo) {
-    try {
-      coverage = buildCoverageIndex(
-        await new LoreClient(creds.apiUrl, creds.token).graph(repo),
-      );
-    } catch (err) {
-      console.error(
-        `[lore] coverage graph fetch failed: ${err instanceof Error ? err.message : err}`,
-      );
-    }
-  }
-
-  state.index = mergeIndexes(local, coverage);
+  state.index = mergeIndexes(local, await readCoverageIndex(root));
   applyToVisibleEditors();
+}
+
+function toDecorationOptions(
+  entries: RangeEntry[],
+  lastLine: number,
+): vscode.DecorationOptions[] {
+  return entries.map((entry) => {
+    const { start, end } = decorationRange(entry, lastLine);
+    const hover = new vscode.MarkdownString(renderHoverMarkdown(entry));
+
+    hover.isTrusted = true;
+
+    return { range: new vscode.Range(start, 0, end, 0), hoverMessage: hover };
+  });
 }
 
 function applyToEditor(editor: vscode.TextEditor): void {
@@ -123,31 +156,20 @@ function applyToEditor(editor: vscode.TextEditor): void {
   if (!root) {
     return;
   }
-  const rel = toRepoRelative(root, editor.document.uri.fsPath);
-  const entries = rel ? (state.index.get(rel) ?? []) : [];
+  const { document } = editor;
+  const rel = toRepoRelative(root, document.uri.fsPath);
+  const entries = entriesForPath(state.index, rel);
+  const lastLine = document.lineCount - 1;
+  const { implemented, covered } = partitionByLayer(entries);
 
-  const implemented: vscode.DecorationOptions[] = [];
-  const covered: vscode.DecorationOptions[] = [];
-
-  for (const entry of entries) {
-    const lastLine = editor.document.lineCount - 1;
-    const start = Math.min(Math.max(entry.startLine - 1, 0), lastLine);
-    const end = Math.min(Math.max(entry.endLine - 1, start), lastLine);
-    const hover = new vscode.MarkdownString(renderHoverMarkdown(entry));
-
-    hover.isTrusted = true;
-    const option: vscode.DecorationOptions = {
-      range: new vscode.Range(start, 0, end, 0),
-      hoverMessage: hover,
-    };
-
-    (entry.layer === "implemented" ? implemented : covered).push(option);
-  }
   editor.setDecorations(
     decImplemented,
-    state.show.implemented ? implemented : [],
+    state.show.implemented ? toDecorationOptions(implemented, lastLine) : [],
   );
-  editor.setDecorations(decCovered, state.show.covered ? covered : []);
+  editor.setDecorations(
+    decCovered,
+    state.show.covered ? toDecorationOptions(covered, lastLine) : [],
+  );
 }
 
 function applyToVisibleEditors(): void {
@@ -155,6 +177,27 @@ function applyToVisibleEditors(): void {
     applyToEditor(editor);
   }
 }
+
+function linkLenses(
+  range: vscode.Range,
+  targets: LinkTarget[],
+): vscode.CodeLens[] {
+  return targets.map(
+    (target) =>
+      new vscode.CodeLens(range, {
+        title: `$(link) ${target.label}`,
+        command: "lore.openLocal",
+        arguments: [
+          {
+            path: target.path,
+            line: target.line ?? 1,
+          } satisfies OpenLocalArgs,
+        ],
+      }),
+  );
+}
+
+const lensesChanged = new vscode.EventEmitter<void>();
 
 const lensProvider: vscode.CodeLensProvider = {
   onDidChangeCodeLenses: lensesChanged.event,
@@ -165,20 +208,7 @@ const lensProvider: vscode.CodeLensProvider = {
     for (const lens of specLenses(document.getText())) {
       const range = document.lineAt(Math.min(lens.line, lastLine)).range;
 
-      for (const target of [...lens.tests, ...lens.code]) {
-        lenses.push(
-          new vscode.CodeLens(range, {
-            title: `$(link) ${target.label}`,
-            command: "lore.openLocal",
-            arguments: [
-              {
-                path: target.path,
-                line: target.line ?? 1,
-              } satisfies OpenLocalArgs,
-            ],
-          }),
-        );
-      }
+      lenses.push(...linkLenses(range, [...lens.tests, ...lens.code]));
     }
 
     return lenses;
@@ -205,11 +235,9 @@ async function openLocal(args: OpenLocalArgs): Promise<void> {
   editor.revealRange(target, vscode.TextEditorRevealType.InCenter);
 }
 
-export function activate(context: vscode.ExtensionContext): void {
-  context.subscriptions.push(
-    decImplemented,
-    decCovered,
-    lensesChanged,
+// What the reader can invoke. `toggleHighlights` reads the CURRENT state to decide the next one, so turning either kind on turns both on — one control, one meaning.
+function commandSubscriptions(): vscode.Disposable[] {
+  return [
     vscode.commands.registerCommand("lore.openLocal", openLocal),
     vscode.commands.registerCommand("lore.refresh", () => void rebuildIndex()),
     vscode.commands.registerCommand("lore.toggleHighlights", () => {
@@ -218,6 +246,12 @@ export function activate(context: vscode.ExtensionContext): void {
       state.show = { implemented: !on, covered: !on };
       applyToVisibleEditors();
     }),
+  ];
+}
+
+// What the editor tells us. Saving a `spec.md` rebuilds the index because the file that just changed is the one the highlights are derived from; any other save is none of our business.
+function editorSubscriptions(): vscode.Disposable[] {
+  return [
     vscode.languages.registerCodeLensProvider(
       { scheme: "file", language: "markdown" },
       lensProvider,
@@ -232,7 +266,22 @@ export function activate(context: vscode.ExtensionContext): void {
         void rebuildIndex();
       }
     }),
+  ];
+}
+
+/** Everything the extension owns for the window's lifetime. Pushed onto `context.subscriptions` so VS Code disposes them on deactivate — a listener left registered would keep firing against a dead index. */
+function registerSubscriptions(context: vscode.ExtensionContext): void {
+  context.subscriptions.push(
+    decImplemented,
+    decCovered,
+    lensesChanged,
+    ...commandSubscriptions(),
+    ...editorSubscriptions(),
   );
+}
+
+export function activate(context: vscode.ExtensionContext): void {
+  registerSubscriptions(context);
 
   const config = vscode.workspace.getConfiguration("lore");
 

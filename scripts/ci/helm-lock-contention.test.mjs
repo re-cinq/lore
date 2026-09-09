@@ -42,6 +42,18 @@ test("classifies the name-reuse variant as contention", () => {
   );
 });
 
+test("classifies a pruned/superseded revision secret as contention", () => {
+  // A sibling deploy in the same fan-out advanced or pruned the release's
+  // history mid-upgrade, so the revision secret this upgrade expected is gone
+  // — not a broken release, just a race with a deploy that got there first.
+  assert.equal(
+    isContention(
+      'Error: UPGRADE FAILED: secrets "sh.helm.release.v1.lore-platform.v1010" not found',
+    ),
+    true,
+  );
+});
+
 test("a genuine template error is NOT contention, so it fails loudly", () => {
   assert.equal(
     isContention(

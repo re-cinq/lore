@@ -1,9 +1,4 @@
 // @vitest-environment jsdom
-//
-// The planning pages show the machine that runs them. Same component both sides:
-// with no run it is a preview of what "Start planning" sets in motion, with one it
-// is the live walk.
-
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { FeatureAssemblyLine } from "./FeatureAssemblyLine";
@@ -44,8 +39,7 @@ describe("FeatureAssemblyLine", () => {
     ).toBeTruthy();
   });
 
-  it("renders nothing at all when the definition could not be fetched", () => {
-    // The Floor being down must not take the create form with it.
+  it("renders nothing at all when the definition could not be fetched, so the Floor being down does not take the create form with it", () => {
     const { container } = render(<FeatureAssemblyLine definition={null} />);
 
     expect(container).toBeEmptyDOMElement();
@@ -76,8 +70,6 @@ describe("FeatureAssemblyLine", () => {
   });
 
   it("suppresses the inner graph heading, which the card already provides", () => {
-    // RunGraphView hardcodes an <h2>Graph</h2>; under "Plan a new feature" that
-    // reads as a second, competing section title.
     render(<FeatureAssemblyLine definition={planning} />);
     expect(screen.queryByRole("heading", { name: "Graph" })).toBeNull();
   });

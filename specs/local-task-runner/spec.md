@@ -118,10 +118,10 @@ RETURNING *;
 ```
 
 GKE's agent worker uses the same query but with `status = 'pending'`.
-The `FOR UPDATE SKIP LOCKED` ensures only one runner claims each task. ([validated by `task-queue.test.ts:9`](libs/shared/src/project/tasks/task-queue.test.ts#L9))
+The `FOR UPDATE SKIP LOCKED` ensures only one runner claims each task. ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
 
 **Grace period**: GKE worker waits 30s before claiming pending tasks.
-Local runners claim immediately. This gives local runners priority. ([validated by `task-queue.test.ts:249`](libs/shared/src/project/tasks/task-queue.test.ts#L249), [`task-queue.test.ts:236`](libs/shared/src/project/tasks/task-queue.test.ts#L236))
+Local runners claim immediately. This gives local runners priority. ([validated by `task-queue.test.ts:245`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L245), [`task-queue.test.ts:232`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L232))
 
 ### Execution Flow
 
@@ -204,7 +204,7 @@ locally:
 - **Isolation**: each task gets its own git worktree
 - **Developer's session**: unaffected — worktrees are separate
 - **Machine sleep**: in-progress tasks are killed. Cleanup job detects
-  stale tasks (no PID running) and re-queues them as `pending` for GKE ([validated by `worker.test.ts:163`](apps/floor/src/jobs/task/worker.test.ts#L163))
+  stale tasks (no PID running) and re-queues them as `pending` for GKE ([validated by `worker.test.ts:154`](apps/floor/src/work/task/worker.test.ts#L138))
 
 ### Statusline Integration
 
@@ -297,7 +297,7 @@ const task = await query(
 
 1. `lore_run_task_locally` spawns background Claude Code in a worktree
 2. Developer's main session continues uninterrupted
-3. Polling mode claims pending tasks before GKE (30s priority window) ([validated by `task-queue.test.ts:9`](libs/shared/src/project/tasks/task-queue.test.ts#L9), [`worker.test.ts:163`](apps/floor/src/jobs/task/worker.test.ts#L163))
+3. Polling mode claims pending tasks before GKE (30s priority window) ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7), [`worker.test.ts:138`](apps/floor/src/work/task/worker.test.ts#L138))
 
 4. Tasks from GitHub Issues work through local runner when polling
 5. Background task commits, pushes, creates PR on completion
@@ -307,4 +307,4 @@ const task = await query(
 9. Failed tasks preserve worktree for debugging
 10. No API credits consumed (uses Claude Code subscription)
 11. Auto-review triggers on GKE after local PR creation
-12. Stale tasks (machine offline) re-queued to GKE after 30 min ([validated by `worker.test.ts:163`](apps/floor/src/jobs/task/worker.test.ts#L163))
+12. Stale tasks (machine offline) re-queued to GKE after 30 min ([validated by `worker.test.ts:154`](apps/floor/src/work/task/worker.test.ts#L138))

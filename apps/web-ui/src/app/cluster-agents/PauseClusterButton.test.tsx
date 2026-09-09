@@ -10,16 +10,15 @@ describe("PauseClusterButton", () => {
     render(<PauseClusterButton paused={false} toggle={toggle} />);
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
 
-    expect(toggle).toHaveBeenCalledWith(true);
+    expect(toggle).toHaveBeenCalledWith({ paused: true });
   });
 
   it("offers Resume for a paused cluster and asks to un-pause it", () => {
-    // The switch is a toggle, not a one-way door.
     const toggle = vi.fn().mockResolvedValue(undefined);
 
     render(<PauseClusterButton paused toggle={toggle} />);
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
 
-    expect(toggle).toHaveBeenCalledWith(false);
+    expect(toggle).toHaveBeenCalledWith({ paused: false });
   });
 });

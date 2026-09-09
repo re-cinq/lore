@@ -1,0 +1,79 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import { zodResponse } from "../../http/zod-response.js";
+import { errorMessage } from "@re-cinq/lore-shared";
+import type { Pool } from "pg";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
+import { z } from "zod";
+import { queryLiveGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
+import { bearerScope } from "../../http/bearer-scope.js";
+import { zodValidate } from "../../http/zod-validate.js";
+import { repoFullName, boolFlag } from "../common-schemas.js";
+
+const GraphQuery = z.object({
+  entity: z.string().optional(),
+  relation_type: z.string().optional(),
+  repo: repoFullName.optional(),
+  include_invalidated: boolFlag,
+});
+
+type GraphQuery = z.infer<typeof GraphQuery>;
+
+/** GET /api/graph — read the live knowledge graph (MCP-proxied lore_query_graph). */
+/** Graph query results — shape follows the query. */
+const GraphQuerySchema = z.record(z.string(), z.unknown());
+
+/** The snake_case wire query as the graph reader's camelCase options. */
+function graphOptions(query: GraphQuery) {
+  const {
+    entity,
+    relation_type: relationType,
+    repo,
+    include_invalidated: includeInvalidated,
+  } = query;
+
+  return { entity, relationType, repo, includeInvalidated };
+}
+
+/** Entities and relationships matching a query. The graph is written asynchronously by episode ingestion, so this read may legitimately trail the memory it describes. */
+async function serveGraph(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), "knowledge graph requires PostgreSQL");
+
+  try {
+    const options = graphOptions(request.query as unknown as GraphQuery);
+
+    return h.response(await queryLiveGraph(pool, options));
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
+export function graphRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/graph",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(GraphQuery) },
+      },
+      GraphQuerySchema,
+      {
+        name: "GraphQuery",
+        description: "Entities and relationships matching a query",
+      },
+    ),
+    handler: (request, h) => serveGraph(getPool, request, h),
+  };
+}

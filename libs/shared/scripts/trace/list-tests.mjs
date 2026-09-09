@@ -10,9 +10,9 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { descriptorsFromVitestList } from "../../dist/spec-trace/trace-descriptors.js";
-import { bindDescriptorsToSpecLinks } from "../../dist/spec-trace/bind-descriptors-to-spec-links.js";
-import { resolveTestLines } from "../../dist/spec-trace/resolve-test-lines.js";
+import { descriptorsFromVitestList } from "../../dist/domain/spec-trace/trace-descriptors.js";
+import { bindDescriptorsToSpecLinks } from "../../dist/work/spec-trace/bind-descriptors-to-spec-links.js";
+import { resolveTestLines } from "../../dist/work/spec-trace/resolve-test-lines.js";
 
 const ROOT = process.cwd(); // manifest cwd == repo root
 // Packages whose `src/` tests feed the graph. Override to narrow scope, e.g.

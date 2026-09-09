@@ -16,11 +16,13 @@ describe("TestCommandsSetup", () => {
     ).toBeInTheDocument();
   });
 
-  it('renders a "Set up test commands" heading', () => {
-    render(<TestCommandsSetup />);
+  it('renders "Set up test commands" as the collapsible card summary', () => {
+    const { container } = render(<TestCommandsSetup />);
+
     expect(
-      screen.getByRole("heading", { name: /set up test commands/i }),
-    ).toBeInTheDocument();
+      screen.getByText("Set up test commands").closest("summary"),
+    ).not.toBeNull();
+    expect(container.querySelector("details")?.open).toBe(false);
   });
 
   it("copies the full setup prompt to the clipboard on Copy click", async () => {

@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import ContextCard, { type ContextCardChunk } from "./ContextCard";
+import styles from "./ContextCard.module.css";
 
 const chunk = (over: Partial<ContextCardChunk> = {}): ContextCardChunk => ({
   id: "1",
@@ -28,6 +29,48 @@ describe("ContextCard", () => {
       "href",
       "/repos/o/r/context/specs%2Fa%2Fspec.md",
     );
+  });
+
+  it("renders the file path as plain text when there is no detail route", () => {
+    render(
+      <ContextCard
+        chunk={chunk({ file_path: "specs/a/spec.md" })}
+        repo="o/r"
+      />,
+    );
+
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("specs/a/spec.md")).toBeInTheDocument();
+  });
+
+  it("renders an em dash when the chunk has no file path", () => {
+    render(<ContextCard chunk={chunk({ file_path: null })} repo="o/r" />);
+
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("renders an em dash in the date column when the chunk has no ingested_at", () => {
+    render(
+      <ContextCard
+        chunk={chunk({ ingested_at: null })}
+        detailHref="/x"
+        repo="o/r"
+      />,
+    );
+
+    expect(screen.getAllByText("—")).toHaveLength(1);
+  });
+
+  it("renders no metadata header when the chunk has no metadata", () => {
+    render(
+      <ContextCard
+        chunk={chunk({ metadata: null })}
+        detailHref="/x"
+        repo="o/r"
+      />,
+    );
+
+    expect(document.querySelector(`.${styles.subhead}`)).toBeNull();
   });
 
   it("renders the type badge with its color class", () => {

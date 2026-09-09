@@ -1,0 +1,188 @@
+import { describe, it, expect } from "vitest";
+import {
+  ciConclusionOf,
+  ciJudgedSha,
+  externalCheckRuns,
+  summarizeFailedChecks,
+} from "./check-runs.js";
+import type { CheckRun, PullCommit } from "./pull-requests-port.js";
+
+const check = (over: Partial<CheckRun> = {}): CheckRun => ({
+  name: "test",
+  status: "completed",
+  conclusion: "success",
+  ...over,
+});
+
+const commit = (over: Partial<PullCommit> = {}): PullCommit => ({
+  sha: "aaa",
+  message: "feat: a change",
+  date: "2026-09-09T10:00:00Z",
+  ...over,
+});
+
+describe("ciConclusionOf", () => {
+  it("returns none when the ref has no check runs", () => {
+    expect(ciConclusionOf([])).toBe("none");
+  });
+
+  it("returns pending when one run among successes is in_progress", () => {
+    expect(
+      ciConclusionOf([
+        check(),
+        check({ name: "lint", status: "in_progress", conclusion: null }),
+      ]),
+    ).toBe("pending");
+  });
+
+  it("returns failure when one completed run among successes is cancelled", () => {
+    expect(
+      ciConclusionOf([
+        check(),
+        check({ name: "lint", conclusion: "cancelled" }),
+      ]),
+    ).toBe("failure");
+  });
+
+  it("returns success when a completed run carries a null conclusion", () => {
+    expect(ciConclusionOf([check({ conclusion: null })])).toBe("success");
+  });
+});
+
+describe("externalCheckRuns", () => {
+  it("drops lore/code-review and keeps test:shared", () => {
+    expect(
+      externalCheckRuns([
+        check({ name: "lore/code-review" }),
+        check({ name: "test:shared" }),
+      ]).map((run) => run.name),
+    ).toEqual(["test:shared"]);
+  });
+});
+
+describe("summarizeFailedChecks", () => {
+  it("names two checks sharing a name once, since two workflows can publish one", () => {
+    expect(
+      summarizeFailedChecks([
+        check({ name: "build", conclusion: "failure" }),
+        check({ name: "build", conclusion: "timed_out" }),
+      ]).names,
+    ).toEqual(["build"]);
+  });
+
+  it("gathers what both checks of one name reported into a single block", () => {
+    expect(
+      summarizeFailedChecks([
+        check({
+          name: "build",
+          conclusion: "failure",
+          output: { title: "ui", summary: null },
+        }),
+        check({
+          name: "build",
+          conclusion: "failure",
+          output: { title: "api", summary: null },
+        }),
+      ]).summary,
+    ).toBe("### build (failure)\n\nui\n\napi");
+  });
+
+  it("returns an empty summary when a failed check reported nothing, which is the ordinary case for an Actions job", () => {
+    expect(
+      summarizeFailedChecks([check({ name: "lint", conclusion: "failure" })]),
+    ).toEqual({ names: ["lint"], summary: "" });
+  });
+
+  it("omits the checks that reported nothing while keeping the one that did", () => {
+    expect(
+      summarizeFailedChecks([
+        check({ name: "build", conclusion: "failure" }),
+        check({
+          name: "lint",
+          conclusion: "failure",
+          output: { title: "3 problems", summary: null },
+        }),
+      ]).summary,
+    ).toBe("### lint (failure)\n\n3 problems");
+  });
+
+  it("names only the failed checks, in the order given", () => {
+    expect(
+      summarizeFailedChecks([
+        check({ name: "lint", conclusion: "failure" }),
+        check({ name: "test:shared" }),
+        check({ name: "build", conclusion: "timed_out" }),
+      ]).names,
+    ).toEqual(["lint", "build"]);
+  });
+
+  it("carries the output title and summary under the check name", () => {
+    expect(
+      summarizeFailedChecks([
+        check({
+          name: "lint",
+          conclusion: "failure",
+          output: { title: "3 problems", summary: "no-unused-vars in a.ts" },
+        }),
+      ]).summary,
+    ).toBe("### lint (failure)\n\n3 problems\n\nno-unused-vars in a.ts");
+  });
+
+  it("cuts a summary past the cap with a truncation marker", () => {
+    expect(
+      summarizeFailedChecks(
+        [
+          check({
+            name: "lint",
+            conclusion: "failure",
+            output: { title: null, summary: "x".repeat(200) },
+          }),
+        ],
+        80,
+      ).summary,
+    ).toBe(`### lint (failure)\n\n${"x".repeat(60)}\n...(truncated)`);
+  });
+
+  it("returns no names and an empty summary when every check passed", () => {
+    expect(summarizeFailedChecks([check()])).toEqual({
+      names: [],
+      summary: "",
+    });
+  });
+});
+
+describe("ciJudgedSha", () => {
+  it("returns the commit before a head whose message skips CI", () => {
+    expect(
+      ciJudgedSha([
+        commit({ sha: "aaa" }),
+        commit({ sha: "bbb", message: "style: prettier [skip ci]" }),
+      ]),
+    ).toBe("aaa");
+  });
+
+  it("returns the head sha when the head carries no skip marker", () => {
+    expect(ciJudgedSha([commit({ sha: "aaa" }), commit({ sha: "bbb" })])).toBe(
+      "bbb",
+    );
+  });
+
+  it("returns null when every commit message skips CI", () => {
+    expect(
+      ciJudgedSha([commit({ sha: "aaa", message: "chore [ci skip]" })]),
+    ).toBe(null);
+  });
+
+  it("returns null for a pull request with no commits", () => {
+    expect(ciJudgedSha([])).toBe(null);
+  });
+
+  it("skips a commit whose skip marker is upper case", () => {
+    expect(
+      ciJudgedSha([
+        commit({ sha: "aaa" }),
+        commit({ sha: "bbb", message: "wip [NO CI]" }),
+      ]),
+    ).toBe("aaa");
+  });
+});

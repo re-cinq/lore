@@ -40,8 +40,6 @@ describe("graph caching across poll ticks", () => {
   });
 
   it("takes the server's graph whenever one is sent, even if the client had another", () => {
-    // A retry mints a NEW run with its own clone. The client must not keep showing
-    // the previous run's graph, which is why the request names the run it holds.
     const other = { ...featurePlanningDefinition, entry: "elsewhere" };
     const next = withGraph({ id: "run-2", definition: other });
 
@@ -49,8 +47,6 @@ describe("graph caching across poll ticks", () => {
   });
 
   it("does not resurrect a graph for a DIFFERENT run than the one cached", () => {
-    // Defensive: if the server ever omitted while answering about another run,
-    // showing the old graph would draw the wrong picture confidently.
     const next = withGraph({
       id: "run-2",
       definition: null,

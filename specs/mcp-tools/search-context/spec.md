@@ -23,7 +23,7 @@ any ingest has run.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/context-tools.ts#L23)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/context-tools.ts#L23)).
 
 - **name**: `lore_search_context`
 - **description** (verbatim):
@@ -47,7 +47,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
    log `"[lore] lore_search_context: auto-detected repo {repo}"` to stderr (advisory).
 2. **DB path** — if `isDbAvailable()`:
    1. `schema = team || "org_shared"`; `results = hybridSearch(query, schema, limit)`
-      ([hybridSearch](../../../libs/server-core/src/platform/db.ts#L109) — HNSW vector +
+      ([hybridSearch](../../../libs/server-core/src/outbound/db.ts#L109) — HNSW vector +
       BM25, fused by RRF). `hybridSearch` resolves the schema dynamically via the
       shared `chunkSchemaOrOrgShared`: a provisioned team schema is searched
       directly; an unknown, unprovisioned, or injection-shaped name falls back to
@@ -84,25 +84,25 @@ strings, or the path-not-found error. Never throws.
 
 ## Acceptance Criteria
 
-A matching paragraph is returned with its source path. ([validated by `returns the matching paragraph with its source path`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L62))
+A matching paragraph is returned with its source path. ([validated by `returns the matching paragraph with its source path`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L56))
 
-Matching is case-insensitive. ([validated by `matches case-insensitively`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L73))
+Matching is case-insensitive. ([validated by `matches case-insensitively`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L67))
 
-Paragraphs that do not contain the query are excluded. ([validated by `excludes paragraphs that do not contain the query`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L82))
+Paragraphs that do not contain the query are excluded. ([validated by `excludes paragraphs that do not contain the query`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L76))
 
-When nothing matches, a no-results message is returned. ([validated by `returns a no-results message when nothing matches`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L90))
+When nothing matches, a no-results message is returned. ([validated by `returns a no-results message when nothing matches`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L84))
 
-The number of returned paragraphs is capped at `limit`. ([validated by `caps the number of returned paragraphs at the limit`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L101))
+The number of returned paragraphs is capped at `limit`. ([validated by `caps the number of returned paragraphs at the limit`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L95))
 
-A `team` scopes the search to that team subtree. ([validated by `scopes the search to a team subtree when team is given`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L108))
+A `team` scopes the search to that team subtree. ([validated by `scopes the search to a team subtree when team is given`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L102))
 
-An unknown team yields a path-not-found error. ([validated by `returns a path-not-found error for an unknown team`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L118))
+An unknown team yields a path-not-found error. ([validated by `returns a path-not-found error for an unknown team`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L112))
 
-`hybridSearch` searches a provisioned team schema directly. ([validated by `searches a provisioned team schema directly`](libs/server-core/src/platform/db.test.ts#L30))
+`hybridSearch` searches a provisioned team schema directly. ([validated by `searches a provisioned team schema directly`](libs/server-core/src/outbound/db.test.ts#L29))
 
-`hybridSearch` falls back to `org_shared` for an unprovisioned schema. ([validated by `falls back to org_shared for an unprovisioned schema`](libs/server-core/src/platform/db.test.ts#L47))
+`hybridSearch` falls back to `org_shared` for an unprovisioned schema. ([validated by `falls back to org_shared for an unprovisioned schema`](libs/server-core/src/outbound/db.test.ts#L46))
 
-`hybridSearch` falls back to `org_shared` for an injection-shaped schema name without an existence check. ([validated by `falls back to org_shared for an injection-shaped schema without an existence check`](libs/server-core/src/platform/db.test.ts#L60))
+`hybridSearch` falls back to `org_shared` for an injection-shaped schema name without an existence check. ([validated by `falls back to org_shared for an injection-shaped schema without an existence check`](libs/server-core/src/outbound/db.test.ts#L59))
 
 The DB branch's ranking quality is exercised only against live Postgres + Vertex
 embeddings. *(untested beyond schema resolution: the RRF result-formatting is

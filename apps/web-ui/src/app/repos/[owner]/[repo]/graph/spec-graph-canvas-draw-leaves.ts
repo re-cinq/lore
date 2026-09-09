@@ -1,0 +1,119 @@
+import { applyPoint, type ZoomTransform } from "@/lib/graph-viewport";
+import { isLeafCanvas, radiusOf, type SimNode } from "./spec-graph-visual";
+import type {
+  AggBadge,
+  CanvasColors,
+  CanvasDrawState,
+} from "./spec-graph-canvas-draw";
+
+/** The leaf-node dot pass and the zoomed-out per-parent aggregation-count badges. */
+
+export interface LeafDrawDeps {
+  ctx: CanvasRenderingContext2D;
+  colors: CanvasColors;
+  aggHidden: Set<string>;
+  /** At aggregated zoom the ring stands in for its leaves, so a hidden leaf is not drawn. */
+  collapsing: boolean;
+}
+
+function shouldSkipLeaf(
+  deps: LeafDrawDeps,
+  n: SimNode,
+  state: CanvasDrawState,
+): boolean {
+  if (!isLeafCanvas(n.type) || (deps.collapsing && deps.aggHidden.has(n.id))) {
+    return true;
+  }
+
+  return state.nodeOpacity(n.id) <= 0;
+}
+
+function drawLeafNode(
+  deps: LeafDrawDeps,
+  n: SimNode,
+  state: CanvasDrawState,
+): void {
+  const { ctx, colors } = deps;
+
+  ctx.globalAlpha = state.nodeOpacity(n.id);
+  ctx.fillStyle = colors.canvasColorOf(n.type);
+  ctx.beginPath();
+  ctx.arc(n.x ?? 0, n.y ?? 0, radiusOf(n.type), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = colors.surfaceColor;
+  ctx.stroke();
+}
+
+export function drawLeafNodes(
+  deps: LeafDrawDeps,
+  state: CanvasDrawState,
+): void {
+  deps.ctx.lineWidth = 1.5 / state.transform.k;
+
+  for (const n of state.nodes) {
+    if (!shouldSkipLeaf(deps, n, state)) {
+      drawLeafNode(deps, n, state);
+    }
+  }
+}
+
+export interface BadgeDrawDeps {
+  ctx: CanvasRenderingContext2D;
+  dpr: number;
+  colors: CanvasColors;
+  aggBadges: AggBadge[];
+}
+
+/** Where a badge sits: just off its parent's top-right, in screen pixels so it stays a fixed size at any zoom. */
+function badgeAnchor(
+  parent: SimNode,
+  transform: CanvasDrawState["transform"],
+): { x: number; y: number } {
+  const screen = applyPoint(transform as ZoomTransform, {
+    x: parent.x ?? 0,
+    y: parent.y ?? 0,
+  });
+
+  return {
+    x: screen.x + radiusOf(parent.type) + 8,
+    y: screen.y - radiusOf(parent.type),
+  };
+}
+
+function drawBadge(
+  deps: BadgeDrawDeps,
+  badge: AggBadge,
+  state: CanvasDrawState,
+): void {
+  const { ctx, colors } = deps;
+  const parent = state.nodeById.get(badge.parentId);
+
+  if (!parent) {
+    return;
+  }
+  const { x: px, y: py } = badgeAnchor(parent, state.transform);
+
+  ctx.fillStyle = colors.canvasColorOf(badge.type);
+  ctx.beginPath();
+  ctx.arc(px, py, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = colors.badgeTextColor;
+  ctx.fillText(String(badge.count), px, py + 0.5);
+}
+
+// Screen-space pass: count badges over collapsed parents (CSS pixels, zoom-readable).
+export function drawAggregationBadges(
+  deps: BadgeDrawDeps,
+  state: CanvasDrawState,
+): void {
+  const { ctx, dpr } = deps;
+
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.font = "600 10px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  deps.aggBadges.forEach((badge) => drawBadge(deps, badge, state));
+  ctx.restore();
+}

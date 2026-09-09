@@ -11,18 +11,7 @@ import {
 import { enforceOk } from "@/lib/api/result";
 import type { SectionAnswers } from "@/lib/feature-types";
 
-// The feature's lifecycle mutations. Identity arrives as LEADING BOUND
-// PARAMETERS, so the page writes `refineFeatureAction.bind(null, fullName, id)`
-// and the View's prop signature is unchanged — it still receives
-// `refine(answers, fromIteration?)`.
-//
-// Bound arguments are encrypted into the client payload, so repo and feature id
-// come from the server and never from the browser.
-//
-// Every one enforces its result. `apiFetch` reports failure in the RETURN VALUE,
-// so an action that ignored it would resolve normally: the browser is told 200,
-// nothing was written, and it is indistinguishable from a no-op refresh.
-
+// Lifecycle mutations; bound args encrypted into payload so repo/id come from server; all enforce result.
 export async function refineFeatureAction(
   fullName: string,
   id: string,

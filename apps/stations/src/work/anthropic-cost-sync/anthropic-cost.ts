@@ -1,0 +1,149 @@
+import { z } from "zod";
+import type { AnthropicCostDailyRow as SharedCostDailyRow } from "@re-cinq/lore-shared/project/cost/cost-port.js";
+
+const CostResult = z.object({
+  amount: z.string(),
+  model: z.string().nullable().optional(),
+});
+
+const CostBucket = z.object({
+  starting_at: z.string(),
+  results: z.array(CostResult),
+});
+
+const CostReport = z.object({
+  data: z.array(CostBucket),
+});
+
+export interface CostRow {
+  date: string;
+  model: string;
+  costUsd: number;
+}
+
+export function parseCostReport(raw: unknown): CostRow[] {
+  const report = CostReport.parse(raw);
+
+  return report.data.flatMap((bucket) =>
+    bucket.results.map((result) => ({
+      date: bucket.starting_at.slice(0, 10),
+      model: result.model ?? "",
+      costUsd: Number(result.amount) / 100,
+    })),
+  );
+}
+
+const UsageResult = z.object({
+  model: z.string().nullable().optional(),
+  uncached_input_tokens: z.number().optional(),
+  output_tokens: z.number().optional(),
+  cache_read_input_tokens: z.number().optional(),
+  cache_creation: z
+    .object({
+      ephemeral_1h_input_tokens: z.number().optional(),
+      ephemeral_5m_input_tokens: z.number().optional(),
+    })
+    .optional(),
+});
+
+const UsageBucket = z.object({
+  starting_at: z.string(),
+  results: z.array(UsageResult),
+});
+
+const UsageReport = z.object({
+  data: z.array(UsageBucket),
+});
+
+export interface UsageRow {
+  date: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+}
+
+// The merged bucket IS the stored row's upsert shape (one declaration in `libs/shared/src/domain/models/anthropic-cost-daily.ts`) — it used to be restated here with the key spelled `date` vs the writer's `bucketDate`, a hand-written rename seam.
+export type AnthropicCostDailyRow = SharedCostDailyRow;
+
+/** An empty day/model row. Both halves start from one of these because cost and usage are separate reports: a model can appear in either alone, and the missing half must read as zero rather than absent. */
+function blankRow(bucketDate: string, model: string): AnthropicCostDailyRow {
+  return {
+    bucketDate,
+    model,
+    costUsd: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+  };
+}
+
+// The row for one day and model, created blank on first sight. Cost and usage arrive from two separate endpoints and neither is a superset of the other, so both sides have to be able to introduce a row.
+function rowFor(
+  byKey: Map<string, AnthropicCostDailyRow>,
+  date: string,
+  model: string,
+): AnthropicCostDailyRow {
+  const key = `${date}|${model}`;
+  const row = byKey.get(key) ?? blankRow(date, model);
+
+  byKey.set(key, row);
+
+  return row;
+}
+
+// Adds one usage record's four token counts onto the row.
+function addUsage(row: AnthropicCostDailyRow, usage: UsageRow): void {
+  row.inputTokens += usage.inputTokens;
+  row.outputTokens += usage.outputTokens;
+  row.cacheReadTokens += usage.cacheReadTokens;
+  row.cacheCreationTokens += usage.cacheCreationTokens;
+}
+
+export function mergeCostAndUsage(
+  costRows: CostRow[],
+  usageRows: UsageRow[],
+): AnthropicCostDailyRow[] {
+  const byKey = new Map<string, AnthropicCostDailyRow>();
+
+  for (const cost of costRows) {
+    rowFor(byKey, cost.date, cost.model).costUsd += cost.costUsd;
+  }
+
+  for (const usage of usageRows) {
+    addUsage(rowFor(byKey, usage.date, usage.model), usage);
+  }
+
+  return [...byKey.values()];
+}
+
+function cacheCreationTokens(result: z.infer<typeof UsageResult>): number {
+  return (
+    (result.cache_creation?.ephemeral_1h_input_tokens ?? 0) +
+    (result.cache_creation?.ephemeral_5m_input_tokens ?? 0)
+  );
+}
+
+function toUsageRow(
+  bucket: z.infer<typeof UsageBucket>,
+  result: z.infer<typeof UsageResult>,
+): UsageRow {
+  return {
+    date: bucket.starting_at.slice(0, 10),
+    model: result.model ?? "",
+    inputTokens: result.uncached_input_tokens ?? 0,
+    outputTokens: result.output_tokens ?? 0,
+    cacheReadTokens: result.cache_read_input_tokens ?? 0,
+    cacheCreationTokens: cacheCreationTokens(result),
+  };
+}
+
+export function parseUsageReport(raw: unknown): UsageRow[] {
+  const report = UsageReport.parse(raw);
+
+  return report.data.flatMap((bucket) =>
+    bucket.results.map((result) => toUsageRow(bucket, result)),
+  );
+}

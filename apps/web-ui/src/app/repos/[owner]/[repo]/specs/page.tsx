@@ -3,26 +3,31 @@ import { fetchSpecSummaries } from "@/lib/trace-api";
 import { statusesByPath } from "@/lib/doc-statuses";
 import SpecListView from "./SpecListView";
 
-export default async function RepoSpecs({
-  params,
-}: {
+/** What the list is drawn from — the graph, not the repo — and how much of it there is. */
+function SpecsLede({ fullName, count }: { fullName: string; count: number }) {
+  return (
+    <p className="meta page-lede">
+      Specs in the traceability graph for <code>{fullName}</code> ({count}).
+    </p>
+  );
+}
+
+interface RepoSpecsProps {
   params: Promise<{ owner: string; repo: string }>;
-}) {
+}
+
+export default async function RepoSpecs({ params }: RepoSpecsProps) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  // The spec-traceability graph is the source of truth — the list and the
-  // lifecycle status pills alike, both from this one call.
+  // Spec-traceability graph is source of truth for list and lifecycle status pills.
   const summaries = await fetchSpecSummaries(fullName);
   const specs = summaries.sort((a, b) => a.filePath.localeCompare(b.filePath));
   const statuses = statusesByPath(specs);
 
   return (
     <div>
-      <p className="meta page-lede">
-        Specs in the traceability graph for <code>{fullName}</code> (
-        {specs.length}).
-      </p>
+      <SpecsLede fullName={fullName} count={specs.length} />
       <SpecListView
         owner={owner}
         repo={repo}

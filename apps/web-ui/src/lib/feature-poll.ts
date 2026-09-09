@@ -1,5 +1,5 @@
 import { getFeatureStatus } from "@/lib/api/features";
-import { runIdOf } from "./api/run-id";
+import { runIdOf, type RunIdCarrier } from "./api/run-id";
 import { getTask } from "@/lib/api/tasks";
 import { formatStationConversation } from "@/lib/station-conversation";
 import { fetchFeatureRunById, type FeatureRunPayload } from "@/lib/feature-run";
@@ -8,17 +8,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs";
 
-// Everything the planning wizard's 4s poll needs, in one place.
-//
-// This used to live inside the route handler, where vitest.config.ts excludes
-// `src/app/api/**` from coverage — so ~50 lines of the wizard's data path were
-// untested by construction. The handler is now the thin thing it should be:
-// authorize, call this, answer.
-//
-// FeaturePollPayload is exported because PlanningWizard used to carry a private
-// `Poll` interface that was a hand copy of this route's response shape — two
-// definitions of one contract, in different files, with nothing keeping them in
-// step.
+// Everything planning wizard needs for 4s polls; exported for API contract parity.
 
 export interface FeaturePollPayload {
   feature: FeatureRow;
@@ -30,8 +20,7 @@ export interface FeaturePollPayload {
   run: FeatureRunPayload | null;
 }
 
-/** The local Docker Station's live log for a task, as the model's transcript.
- *  Best effort; only the local docker backend writes it. */
+/** Local Docker Station's live log for a task (best effort). */
 function liveStationLog(taskId: string): string | null {
   try {
     const file = path.join(
@@ -47,59 +36,80 @@ function liveStationLog(taskId: string): string | null {
   }
 }
 
-/** The poll payload, or null when the repo has no such feature. */
-export async function loadFeaturePoll(
-  fullName: string,
-  id: string,
-  /** The run whose graph the polling client already holds. Sent by the wizard so
-   *  the immutable clone is not re-shipped every four seconds. */
-  haveGraphForRun?: string | null,
-): Promise<FeaturePollPayload | null> {
-  // One call for the row, its latest round, and the most recent round that
-  // produced a result — lore-api built this endpoint for exactly this 4s poll,
-  // and it deliberately omits every round's gap_result (mockup markup plus a
-  // repo stylesheet each), which the full feature read would re-send every four
-  // seconds.
-  const status = await getFeatureStatus(fullName, id);
+type PollTask = { status: string; failure_reason: string | null };
 
-  if (status.status !== "ok") {
+async function resolveTask(
+  taskId: string | null | undefined,
+): Promise<PollTask | null> {
+  if (!taskId) {
     return null;
   }
+  const row = await getTask(taskId);
+
+  if (row.status !== "ok") {
+    return null;
+  }
+  const taskRow = row.data as unknown as {
+    status: string;
+    failure_reason?: string | null;
+  };
+
+  return {
+    status: taskRow.status,
+    failure_reason: taskRow.failure_reason ?? null,
+  };
+}
+
+function liveOutputFor(
+  taskId: string | null | undefined,
+  taskStatus: string | undefined,
+): string | null {
+  if (!taskId || taskStatus !== "running") {
+    return null;
+  }
+
+  return liveStationLog(taskId);
+}
+
+type FeatureStatusData = {
+  feature: FeatureRow;
+  latest_iteration: FeatureIterationRow | null;
+  last_ready_iteration: FeatureIterationRow | null;
+} & RunIdCarrier;
+
+async function pollPayloadFrom(
+  statusData: FeatureStatusData,
+  haveGraphForRun?: string | null,
+): Promise<FeaturePollPayload> {
   const {
     feature,
     latest_iteration: latestIteration,
     last_ready_iteration,
-  } = status.data;
-  let task: { status: string; failure_reason: string | null } | null = null;
-
-  if (latestIteration?.task_id) {
-    // Surface the task's status/failure so the wizard shows a failure and a retry
-    // even when a hard crash left the iteration stuck at 'running'.
-    const row = await getTask(latestIteration.task_id);
-
-    task =
-      row.status === "ok"
-        ? {
-            status: row.data.status,
-            failure_reason:
-              (row.data as unknown as { failure_reason?: string | null })
-                .failure_reason ?? null,
-          }
-        : null;
-  }
+  } = statusData;
+  const task = await resolveTask(latestIteration?.task_id);
 
   return {
     feature,
     latestIteration,
     task,
-    liveOutput:
-      latestIteration?.task_id && task?.status === "running"
-        ? liveStationLog(latestIteration.task_id)
-        : null,
+    liveOutput: liveOutputFor(latestIteration?.task_id, task?.status),
     lastReady: last_ready_iteration,
-    // The endpoint already resolved which line the graph hangs on: from round 2
-    // a resumed round mints no task, so only the OWNING task can resolve it and
-    // the server is the one that knows which that was.
-    run: await fetchFeatureRunById(runIdOf(status.data), haveGraphForRun),
+    run: await fetchFeatureRunById(runIdOf(statusData), haveGraphForRun),
   };
+}
+
+/** Poll payload, or null when feature not found. */
+export async function loadFeaturePoll(
+  fullName: string,
+  id: string,
+  /** Run whose graph client already holds (avoids re-shipping clone every 4s). */
+  haveGraphForRun?: string | null,
+): Promise<FeaturePollPayload | null> {
+  const status = await getFeatureStatus(fullName, id);
+
+  if (status.status !== "ok") {
+    return null;
+  }
+
+  return pollPayloadFrom(status.data, haveGraphForRun);
 }

@@ -2,10 +2,7 @@
 import { useEffect, useState } from "react";
 import PRStatusBadge from "./PRStatusBadge";
 
-/**
- * Client container for PRStatusBadge — polls the PR status once on mount and
- * hands the resolved status down to the pure badge (data down, actions up).
- */
+/** Container: polls PR status on mount, hands to pure Badge (data down). */
 export default function PRStatusBadgePanel({ taskId }: { taskId: string }) {
   const [status, setStatus] = useState<string | null>(null);
 
@@ -14,9 +11,9 @@ export default function PRStatusBadgePanel({ taskId }: { taskId: string }) {
       signal: AbortSignal.timeout(15_000),
     })
       .then((r) => r.json())
-      .then((data) => {
-        if (data.computed_status) {
-          setStatus(data.computed_status);
+      .then((prStatus) => {
+        if (prStatus.computed_status) {
+          setStatus(prStatus.computed_status);
         }
       })
       .catch(() => {

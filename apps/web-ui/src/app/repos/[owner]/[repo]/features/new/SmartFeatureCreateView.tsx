@@ -12,25 +12,10 @@ type CreateAction = (
   formData: FormData,
 ) => Promise<{ error?: string }>;
 
-export default function SmartFeatureCreateView({
-  action,
-  definition = null,
-}: {
-  action: CreateAction;
-  definition?: AssemblyLineDefinition | null;
-}) {
-  const [state, formAction, pending] = useActionState(action, null);
-
+/** What the author supplies. Both required: the planning round has nothing to analyze without a prompt, and nothing to call the feature without a title. */
+function FeatureFields() {
   return (
-    <form action={formAction} className={`task-form ${styles.form}`}>
-      <h2>Plan a new feature</h2>
-
-      <FeatureAssemblyLine definition={definition} />
-      <p className="meta">
-        Describe what you want. A planning Station analyzes it against this
-        project and returns a gap-closing analysis you can refine before a spec
-        PR is opened.
-      </p>
+    <>
       <label>
         Title
         <input name="title" required placeholder="Short feature name" />
@@ -44,6 +29,39 @@ export default function SmartFeatureCreateView({
           placeholder="What should it do, for whom, and why?"
         />
       </label>
+    </>
+  );
+}
+
+/** Why the prompt is worth writing carefully: it is the whole input to the planning round. */
+function PlanningBlurb() {
+  return (
+    <p className="meta">
+      Describe what you want. A planning Station analyzes it against this
+      project and returns a gap-closing analysis you can refine before a spec PR
+      is opened.
+    </p>
+  );
+}
+
+interface SmartFeatureCreateViewProps {
+  action: CreateAction;
+  definition?: AssemblyLineDefinition | null;
+}
+
+export default function SmartFeatureCreateView({
+  action,
+  definition = null,
+}: SmartFeatureCreateViewProps) {
+  const [state, formAction, pending] = useActionState(action, null);
+
+  return (
+    <form action={formAction} className={`task-form ${styles.form}`}>
+      <h2>Plan a new feature</h2>
+
+      <FeatureAssemblyLine definition={definition} />
+      <PlanningBlurb />
+      <FeatureFields />
       <FormError message={state?.error} />
       <SubmitButton pending={pending} pendingLabel="Starting planning…">
         Start planning

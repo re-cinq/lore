@@ -1,27 +1,30 @@
-/**
- * Retry a fallible async operation with a fixed schedule of backoff delays.
- * Runs `delaysMs.length + 1` attempts total: the initial try, then one more after
- * each delay. `delaysMs[i]` is awaited between attempt `i` and attempt `i + 1`, so
- * `[1000, 4000]` means 3 attempts sleeping 1s then 4s. On exhaustion the last error
- * is rethrown so the caller can record the failure.
- *
- * (Replaces the two hand-rolled `for (attempt < delays.length)` loops in the floor
- * escalation + auto-merge jobs, which ran one fewer attempt than their comments
- * claimed and never awaited the final delay.)
- */
+// Retries a fallible async op on a fixed delay schedule: `delaysMs.length + 1` attempts total, rethrowing the last error on exhaustion — replaces two hand-rolled floor loops that ran one attempt short and never awaited the final delay.
 export interface BackoffOptions {
   delaysMs: readonly number[];
   /** Injectable sleep for tests; defaults to setTimeout. */
   sleep?: (ms: number) => Promise<void>;
-  /**
-   * Retry only errors this predicate accepts; anything else rethrows
-   * immediately, before any sleep. Omitted = retry every error.
-   */
+  /** Retry only errors this predicate accepts; omitted = retry every error. */
   retryOn?: (err: unknown) => boolean;
 }
 
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Rethrows a non-retryable error; otherwise waits out this attempt's delay (if any is left). */
+async function waitOrRethrow(
+  err: unknown,
+  attempt: number,
+  opts: BackoffOptions,
+  sleep: (ms: number) => Promise<void>,
+): Promise<void> {
+  if (opts.retryOn && !opts.retryOn(err)) {
+    throw err;
+  }
+
+  if (attempt < opts.delaysMs.length) {
+    await sleep(opts.delaysMs[attempt]);
+  }
+}
 
 export async function withBackoff<T>(
   fn: () => Promise<T>,
@@ -34,14 +37,8 @@ export async function withBackoff<T>(
     try {
       return await fn();
     } catch (err) {
-      if (opts.retryOn && !opts.retryOn(err)) {
-        throw err;
-      }
       lastError = err;
-
-      if (attempt < opts.delaysMs.length) {
-        await sleep(opts.delaysMs[attempt]);
-      }
+      await waitOrRethrow(err, attempt, opts, sleep);
     }
   }
   throw lastError;

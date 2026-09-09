@@ -2,17 +2,18 @@ export const dynamic = "force-dynamic";
 
 import { getRepo } from "@/lib/api/repos";
 import { getRepoTasks, getAuditLog } from "@/lib/api/tasks";
+import { resolveDarkFactorySettings } from "@/lib/dark-factory-resolve";
+import { deriveDarkFactoryConsole } from "./derive-console";
 import {
-  resolveDarkFactorySettings,
-  type DarkFactorySettings,
-} from "@/lib/dark-factory-resolve";
-import {
-  deriveDarkFactoryConsole,
-  type ConsoleTask,
-  type ConsoleAuditEvent,
-} from "./derive-console";
+  unwrapOr,
+  normalizeConsoleTasks,
+  normalizeConsoleDecisions,
+  resolveTrustLevel,
+  darkFactorySettingsOf,
+  type RawTaskRow,
+  type RawAuditRow,
+} from "./page-input";
 import DarkFactoryConsoleView from "./DarkFactoryConsoleView";
-import type { components } from "@/lib/api/schema";
 
 const DF_EVENT_TYPES = [
   "auto_merge_decision",
@@ -21,17 +22,28 @@ const DF_EVENT_TYPES = [
   "spec_trace_ingest",
 ];
 
-interface TaskRow {
-  id: string;
-  task_type: string;
-  status: string;
-  pr_url: string | null;
-  created_at: string | Date;
+/** The console's whole model. Both reads are BEST-EFFORT: a legacy cluster with no `audit_log` returns an empty list rather than failing, and the activation state above it is worth showing even when the history below is missing. */
+async function consoleModel(
+  fullName: string,
+  settings: Record<string, unknown>,
+) {
+  const [taskResult, auditResult] = await Promise.all([
+    getRepoTasks(fullName, 15),
+    getAuditLog(fullName, DF_EVENT_TYPES),
+  ]);
+
+  return deriveDarkFactoryConsole({
+    resolved: resolveDarkFactorySettings(darkFactorySettingsOf(settings)),
+    trustLevel: resolveTrustLevel(settings),
+    tasks: normalizeConsoleTasks(
+      unwrapOr(taskResult, { tasks: [] }).tasks as unknown as RawTaskRow[],
+    ),
+    decisions: normalizeConsoleDecisions(
+      unwrapOr(auditResult, { entries: [] })
+        .entries as unknown as RawAuditRow[],
+    ),
+  });
 }
-
-type AuditRow = components["schemas"]["AuditLogPage"]["entries"][number];
-
-const iso = (value: string | Date): string => new Date(value).toISOString();
 
 export default async function DarkFactoryPage({
   params,
@@ -48,46 +60,7 @@ export default async function DarkFactoryPage({
     return <div>Repo not found</div>;
   }
 
-  const settings = repoData.settings ?? {};
-  const resolved = resolveDarkFactorySettings(
-    settings.dark_factory as DarkFactorySettings | undefined,
-  );
-  const trustLevel =
-    (settings.trust as { level?: string } | undefined)?.level ?? "unset";
-
-  // Both reads are best-effort at the API: a legacy cluster without
-  // pipeline.audit_log answers an empty list rather than failing the console.
-  const [taskResult, auditResult] = await Promise.all([
-    getRepoTasks(fullName, 15),
-    getAuditLog(fullName, DF_EVENT_TYPES),
-  ]);
-  const tasks: ConsoleTask[] = (
-    (taskResult.status === "ok"
-      ? taskResult.data.tasks
-      : []) as unknown as TaskRow[]
-  ).map((row) => ({
-    id: String(row.id),
-    task_type: row.task_type,
-    status: row.status,
-    pr_url: row.pr_url,
-    created_at: iso(row.created_at),
-  }));
-  const decisions: ConsoleAuditEvent[] = (
-    (auditResult.status === "ok"
-      ? auditResult.data.entries
-      : []) as unknown as AuditRow[]
-  ).map((row) => ({
-    event_type: row.event_type,
-    payload: row.payload ?? {},
-    created_at: iso(row.created_at),
-  }));
-
-  const model = deriveDarkFactoryConsole({
-    resolved,
-    trustLevel,
-    tasks,
-    decisions,
-  });
+  const model = await consoleModel(fullName, repoData.settings ?? {});
 
   return <DarkFactoryConsoleView owner={owner} repo={repo} model={model} />;
 }

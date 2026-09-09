@@ -1,12 +1,4 @@
-// Which definition edge each visited node actually traversed, derived from the
-// walk rows' outcomes. The live reducer collapses an outcome to succeeded/failed
-// and loses the verdict the edge acts on (`changes_requested` reads as succeeded),
-// so the taken branch is read from the persisted rows, not from node status.
-//
-// This mirrors the intent of the server-side edge selection (libs/assembly-lines
-// selectEdge) with only the node outcome in hand: prefer an exact `on` match,
-// then a `<kind>-<on>` suffix (a station emits `review-failed` for the `failed`
-// edge), then fall back to an unconditional `always` edge.
+// Derives taken edges from walk rows using selectEdge logic (exact match → suffix match → fallback).
 
 import type {
   AssemblyLineDefinition,
@@ -33,11 +25,7 @@ function pickEdge(
   );
 }
 
-/**
- * The edge a node traversed given its outcome, or null while it is still running
- * or when nothing matches. Shared by the taken-path overlay and the step list so
- * both read the walk the same way.
- */
+/** Edge a node traversed, or null while running or unmatched; shared by taken-path overlay and step list. */
 export function chosenEdge(
   definition: AssemblyLineDefinition | null,
   nodeId: string,
@@ -53,10 +41,7 @@ export function chosenEdge(
   );
 }
 
-/**
- * The keys of every edge a completed node traversed. A node still running (null
- * outcome) has taken no edge yet and contributes nothing.
- */
+/** Keys of every edge a completed node traversed; running nodes contribute nothing. */
 export function takenEdgeKeys(
   definition: AssemblyLineDefinition | null,
   nodes: readonly AssemblyRunNode[],

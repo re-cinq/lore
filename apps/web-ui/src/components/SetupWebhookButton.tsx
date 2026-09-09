@@ -1,25 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
-import styles from "./ReonboardButton.module.css";
+import PendingActionButton from "@/components/PendingActionButton";
 
-export default function SetupWebhookButton({
-  action,
-  text,
-}: {
+/** The webhook-setup instance, kept as its own component for existing callers. */
+export default function SetupWebhookButton(props: {
   action: () => Promise<void>;
   text: string;
 }) {
-  const [pending, startTransition] = useTransition();
-
-  return (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={() => startTransition(() => action())}
-      className={styles.button}
-    >
-      {pending ? "setting up…" : text}
-    </button>
-  );
+  return <PendingActionButton {...props} pendingText="setting up…" />;
 }

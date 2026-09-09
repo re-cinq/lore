@@ -42,15 +42,15 @@ that's plumbing, not duplication.
 ## Webhooks (HMAC-authenticated)
 | Route | Spec | Auth | Purpose |
 |-------|------|------|---------|
-| `POST /api/webhook/github` | [spec](webhook-github/spec.md) | HMAC `sha256=` | PR/review/comment/issue events → review-reactor / auto-merge / task. |
+| `POST /api/events` (event-router, GitHub branch; legacy `POST /api/webhook/github` rewritten to it by the Floor ingress) | [spec](webhook-github/spec.md) | HMAC `sha256=` | PR/review/comment/issue events → `github.*` rows on `pipeline.events`. |
 | `POST /api/webhook/slack` | [spec](webhook-slack/spec.md) | HMAC `v0=` | `/lore` slash command → create/retry tasks. |
 | `POST /api/webhook/incident` | [spec](webhook-incident/spec.md) | path-exempt, repo-gated | PagerDuty/Opsgenie → `settings.incidents`. |
 
 ## Spec-traceability
 | Route | Spec | Auth | Purpose |
 |-------|------|------|---------|
-| ~~`POST /api/repos/:o/:r/coverage`~~ | [spec](repo-coverage/spec.md) | — | **Removed** (cutover): coverage is parsed in the lore-code-trace binary now; ingest is the Floor `ci-tests` hook. |
-| ~~`POST /api/repos/:o/:r/test-report`~~ | [spec](repo-test-report/spec.md) | — | **Removed** (cutover): test ingest is `POST /api/webhook/ci-tests` on Floor, fed by the lore-code-trace binary. |
+| ~~`POST /api/repos/:o/:r/coverage`~~ | `spec` | — | **Removed** (cutover): coverage is parsed in the lore-code-trace binary now; ingest is the Floor `ci-tests` hook. |
+| ~~`POST /api/repos/:o/:r/test-report`~~ | `spec` | — | **Removed** (cutover): test ingest is `POST /api/webhook/ci-tests` on Floor, fed by the lore-code-trace binary. |
 | `POST /api/repos/:o/:r/impact` | [spec](repo-impact/spec.md) | write | Deterministic pre-merge spec-impact for a diff. |
 | `GET /api/repos/:o/:r/trace/*` | [spec](repo-trace/spec.md) | read | Read a repo's trace docs/graph/ring. |
 | `GET /api/trace/specs` | [spec](global-trace-specs/spec.md) | read | Cross-repo spec document list. |

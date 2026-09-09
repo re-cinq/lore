@@ -5,7 +5,7 @@
 # one ticket" is legitimately a small integer where "how many tickets in a repo's
 # backlog" never is.
 name: implementation-loop
-description: Work one backlog ticket top-down — acceptance tests first, then one red-green-refactor round per visit — behind a draft PR, and park until it is green with no unresolved review threads. Never merges.
+description: Work one backlog ticket top-down — acceptance tests first, then one red-green-refactor round per visit, each judged by the pull request's own CI — behind a draft PR, and park until it is green with no unresolved review threads. Never merges.
 version: 1
 entry: dod
 exit: done
@@ -34,14 +34,24 @@ nodes:
     prompt_ref: tdd-round
     station_ref: tdd-round
     model: claude-sonnet-4-6
-    description: ONE red-green-refactor round. Commit and push on green.
+    description: ONE red-green-refactor round. Commit and push what it wrote.
 
-  # No `validate` node between the rounds and review. Lint and typecheck are
-  # what CI already runs, and since red CI now routes to `fix-ci` instead of
-  # blocking the ticket, an in-pod pre-check buys latency at the cost of a
-  # `node:validate` claim — the exact resource whose absence starved five
-  # tickets on 2026-08-28. The rounds run the repo's own format step before
-  # committing, which is what the failures it caught actually needed.
+  # The round is judged by the pull request's build, not by the pod that wrote
+  # it. A pod running the repo's whole suite pays for a machine to answer a
+  # question CI answers anyway, on hardware the repo already sized for it; a
+  # park costs nothing while it waits. `ci_check`, not `pr_review`: the flip
+  # that takes a PR out of draft keys on the DESTINATION type, so a pr_review
+  # wait here would un-draft after round one and start review on unfinished work.
+  - id: await-ci
+    type: ci_check
+    route: "{args.pr_url}"
+    description: Waiting on CI for the round just pushed — GitHub Actions is the judge.
+
+  # No `validate` node, and no in-pod lint, format or typecheck either. All of
+  # it is what CI already runs on the pull request, and since red CI routes to
+  # another round instead of blocking the ticket, running it twice buys latency
+  # at the cost of a `node:validate` claim — the exact resource whose absence
+  # starved five tickets on 2026-08-28.
   - id: ready-for-review
     type: agent
     prompt_ref: pr-ready
@@ -97,19 +107,37 @@ edges:
     to: retrospective
     on: changes_requested
 
-  # The ONLY self-edge on this node. Two would share one from->to budget counter
-  # (transition.ts keys iteration_max on `${from}->${to}`), so a `failed` round
-  # would be judged against the round budget it never spent.
+  # Both outcomes mean the same thing now — the round pushed, and CI decides
+  # what that push was worth. The round no longer judges its own acceptance
+  # bar, so it has no way to tell "done" from "more to do" that is worth
+  # routing on; the build can.
   - from: tdd-round
+    to: await-ci
+    on: success
+  - from: tdd-round
+    to: await-ci
+    on: changes_requested
+  # Stuck, or the pod died. There is nothing to judge, so nothing to wait for.
+  - from: tdd-round
+    to: retrospective
+    on: failed
+
+  - from: await-ci
+    to: ready-for-review
+    on: success
+  # The round budget lives HERE, not on a tdd-round self-edge: the counter keys
+  # on `${from}->${to}`, and every round now leaves through the wait, so this is
+  # the edge every round comes back on. Twelve rounds on one ticket means it was
+  # mis-sized and its acceptance tests should have been split, so the budget
+  # failing IS the diagnosis. The loader demands no bound on a human-gated
+  # cycle; the runtime enforces this one because it is declared.
+  - from: await-ci
     to: tdd-round
     on: changes_requested
     iteration_max: 12
-  - from: tdd-round
-    to: ready-for-review
-    on: success
-  # Stuck, or the pod died. No self-retry is available here by the shared-counter
-  # rule above, so the ticket parks for a human.
-  - from: tdd-round
+  # A build that stayed red across a round that pushed nothing. Another round
+  # would re-derive the same verdict, so this is a human's.
+  - from: await-ci
     to: retrospective
     on: failed
 

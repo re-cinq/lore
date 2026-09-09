@@ -4,9 +4,7 @@ import { statusesByKey } from "@/lib/doc-statuses";
 import GlobalDocsView from "@/components/GlobalDocsView";
 
 export default async function AdrsPage() {
-  // The spec-traceability graph is the source of truth — the list and the
-  // lifecycle status pills (from each ADR's frontmatter) alike, both from
-  // this one call.
+  // The spec-traceability graph is the source of truth for both the list and the frontmatter status pills.
   const adrs = await fetchAllAdrs();
 
   return (

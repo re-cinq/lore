@@ -20,7 +20,7 @@ cluster gate. What exists instead:
 - The walk is **event-driven on the Floor**: state lives in
   `pipeline.assembly_runs` + `pipeline.station_runs`; terminal
   CR phases emit `kubernetes.agent_node.*` events, handled by
-  `apps/floor/src/jobs/assembly-run/node-event-handler.ts` and driven
+  `apps/floor/src/work/assembly-run/node-event-handler.ts` and driven
   through `advance.ts`; a
   per-minute reaper (`cron.assembly_line_reaper.tick`) resolves
   dropped events, relaunches missing CRs, and times out stuck nodes.
@@ -103,7 +103,7 @@ gh pr create --repo "$REPO" \
 # CODEOWNER applies the label
 gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label dark-factory-approval
 
-# Disable (route: apps/lore-api/src/api/routes/dark-factory/dark-factory.ts)
+# Disable (route: apps/lore-api/src/transport/routes/dark-factory/dark-factory.ts)
 curl -X PUT "$LORE_API_URL/api/repos/$REPO/settings/dark-factory" \
   -H "Authorization: Bearer $LORE_TOKEN" \
   -H "X-Lore-Approval-PR: $REPO#$PR_NUMBER" \
@@ -125,7 +125,7 @@ yet stays open for a human.
 **How to verify the flip took.** Look for the *absence* of new
 `auto_merge_decision` rows for the repo, not for a `deferred:` row.
 `tryAutoMergeForCompletedTask`
-(`apps/floor/src/jobs/merge/auto-merge-trigger.ts`) returns early on
+(`apps/floor/src/work/merge/auto-merge-trigger.ts`) returns early on
 `settings.enabled === false`, deliberately *before* `evaluateAndMerge`,
 so a disabled repo writes no audit row at all — the
 `deferred:dark_mode_off` outcome exists in the enum but is unreachable
@@ -364,7 +364,7 @@ Watch:
 Promote the pilot repo's `auto_merge.min_trust` one tier at a time
 (`docs` → `tests` → `implementation` → `full`), waiting at least
 3 successful merges at each tier (the auto-promotion logic lives in
-`apps/floor/src/jobs/merge/merge-check.ts`; threshold via
+`apps/floor/src/work/merge/merge-check.ts`; threshold via
 `lore.repos.settings.trust.auto_promote_threshold`, default 3).
 
 Note: `auto_merge.paths` changes and downgrading `require_green_ci` /
@@ -379,5 +379,5 @@ own approval PR. Raising `min_trust` is admin-scope only.
 - quickstart scenarios at `specs/6-dark-factory/quickstart.md`
 - settings route spec at `specs/api-routes/dark-factory-settings/spec.md`
   (schema + two-key field list in
-  `apps/lore-api/src/features/dark-factory/dark-factory-settings.ts`)
+  `apps/lore-api/src/work/dark-factory/dark-factory-settings.ts`)
 - station contract at `specs/6-dark-factory/contracts/station-contract.md`

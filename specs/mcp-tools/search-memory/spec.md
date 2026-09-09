@@ -22,7 +22,7 @@ only currently-valid facts by default while still allowing historical lookups.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L162)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L162)).
 
 - **name**: `lore_search_memory`
 - **description** (verbatim):
@@ -46,7 +46,7 @@ Semantic (vector + keyword) search across org-wide memories and extracted facts;
 
 1. **DB path** — if `isMemoryDbAvailable()`: call `searchMemories(getPool(),
    query, agent_id, pool, limit, include_invalidated, graph_augment)`
-   ([handler](../../../libs/server-core/src/features/memory/memory-search.ts#L4), re-export of
+   ([handler](../../../libs/shared/src/outbound/project/knowledge/memory-search.ts), re-export of
    `@re-cinq/lore-shared/project/knowledge/memory-search`). The engine:
    1. Resolve `agent` (or null) and, when `pool` given, resolve its `pool_id`
       via `SELECT id FROM memory.shared_pools WHERE name = $1`. **Missing pool →
@@ -64,7 +64,7 @@ Semantic (vector + keyword) search across org-wide memories and extracted facts;
       — Reciprocal Rank Fusion; each list is contiguous rank order so index
       rank == row rank. Carries `confidence` onto fused rows.
    7. `diversify(merged, limit)` — caps per `agent_id::source` (max 3 each),
-      then slices to `limit`. ([validated by `memory-ranking.test.ts:67`](libs/shared/src/memory-ranking.test.ts#L67))
+      then slices to `limit`. ([validated by `memory-ranking.test.ts:67`](libs/shared/src/domain/memory-ranking.test.ts#L67))
    8. **Graph augment** (when `graph_augment` and results non-empty):
       `refreshEntityCache` (5-min TTL of `memory.entities` names) →
       `detectEntities` (≥3 chars, max 5) → `graphAugment` (1-hop over
@@ -94,27 +94,27 @@ A single MCP text content block. Pretty-printed JSON array of
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `getPool()`.
-- Engine `searchMemories` ([memory-search.ts](../../../libs/server-core/src/features/memory/memory-search.ts#L4)); ranking core `rrfMerge` / `diversify` in `@re-cinq/lore-shared`.
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L15)); `searchMemoryFile` (offline).
+- Engine `searchMemories` ([memory-search.ts](../../../libs/shared/src/outbound/project/knowledge/memory-search.ts)); ranking core `rrfMerge` / `diversify` in `@re-cinq/lore-shared`.
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L15)); `searchMemoryFile` (offline).
 - Tables: `memory.memories`, `memory.facts`, `memory.shared_pools`, `memory.entities`, `memory.edges` (reads); `memory.facts` / `memory.memories` (retrieval-strengthening updates); `memory.audit_log` (insert, `operation='search'`).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
 ## Acceptance Criteria
 
-1. A `pool` argument is resolved to a pool id by name before any search runs. ([validated by `memory-search.test.ts:38`](libs/server-core/src/features/memory/memory-search.test.ts#L38))
+1. A `pool` argument is resolved to a pool id by name before any search runs. ([validated by `memory-search.test.ts:29`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L29))
 
 2. When the named pool does not exist, search short-circuits to an empty
-   result. ([validated by `memory-search.test.ts:25`](libs/server-core/src/features/memory/memory-search.test.ts#L25))
+   result. ([validated by `memory-search.test.ts:19`](libs/shared/src/outbound/project/knowledge/memory-search.test.ts#L19))
 
-3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/memory-ranking.test.ts#L11))
+3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/domain/memory-ranking.test.ts#L11))
 
 4. Diversification slices the total output to the requested limit across all
-   sources. ([validated by `memory-ranking.test.ts:86`](libs/shared/src/memory-ranking.test.ts#L86))
+   sources. ([validated by `memory-ranking.test.ts:86`](libs/shared/src/domain/memory-ranking.test.ts#L86))
 
 5. Cross-repo candidates are ranked by a case-insensitive transfer score that
    starts at 0.5, adds 0.15 per portable keyword and subtracts 0.15 per local
    keyword, clamped to `[0, 1]` — so portable-rich text scores above the 0.5
-   passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:78`](apps/mcp-server/src/features/context/transfer-score.test.ts#L78), [validated by `transfer-score.test.ts:103`](apps/mcp-server/src/features/context/transfer-score.test.ts#L103), [validated by `transfer-score.test.ts:112`](apps/mcp-server/src/features/context/transfer-score.test.ts#L112))
+   passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:74`](apps/mcp-server/src/work/context/transfer-score.test.ts#L35), [validated by `transfer-score.test.ts:96`](apps/mcp-server/src/work/context/transfer-score.test.ts#L57), [validated by `transfer-score.test.ts:104`](apps/mcp-server/src/work/context/transfer-score.test.ts#L65))
 
 ## Out of Scope
 

@@ -1,14 +1,6 @@
-// Everything web-ui knows about the stations a PERSON works (FR6.40), in one
-// record. The set used to be enumerated four times — a budget set, a badge map,
-// a phase map, and an inline `type === "pr_review"` compare — so adding a third
-// human station type meant four edits and a silent miss rendered a parked node
-// with an "overdue" countdown. Now the union gains a member and every consumer
-// fails typecheck until this record answers for it.
-//
-// A hand mirror of `HUMAN_STATION_TYPES` in @re-cinq/lore-assembly-lines (web-ui
-// cannot import libs); the union is guarded by `scripts/type-drift/run-graph.drift.ts`.
+// Single record for all human station types; failures on adds prevent silent misses.
 
-export type HumanStationType = "feature_review" | "pr_review";
+export type HumanStationType = "feature_review" | "pr_review" | "ci_check";
 
 export interface HumanStationMeta {
   /** The run badge: whose move it is. */
@@ -29,6 +21,11 @@ export const HUMAN_STATIONS: Record<HumanStationType, HumanStationMeta> = {
     label: "Waiting for the spec PR",
     phase: "awaiting-merge",
     whyParked: "Parked — waiting for the spec PR to merge.",
+  },
+  ci_check: {
+    label: "Waiting for CI",
+    phase: "awaiting-merge",
+    whyParked: "Parked — waiting for the pull request's build to finish.",
   },
 };
 
