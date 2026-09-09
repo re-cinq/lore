@@ -42,7 +42,7 @@ describe("the station registry", () => {
 
 describe("the registry covers the node types a blueprint can name", () => {
   const DISPATCHABLE = NODE_TYPES.filter(
-    (t) => t !== "agent" && t !== "feature_review" && t !== "pr_review",
+    (t) => t !== "agent" && !HUMAN_STATION_TYPES.some((h) => h === t),
   );
 
   it("has a station for every dispatchable node type, so none dies at runtime", () => {

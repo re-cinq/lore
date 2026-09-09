@@ -1,12 +1,16 @@
 // Which node types are worked by a PERSON (specs/6-dark-factory FR6.40) — a type here also needs a manifest in `apps/stations`; `route` belongs to the NODE (loader-required, resolved from run args at read time, e.g. pr_review on {args.pr_url}).
 
-// feature_review = planning wizard's per-section form (accept/refine/abandon); pr_review = GitHub PR view (merged/changes requested/closed unmerged), reported by webhook not a served form.
+// feature_review = planning wizard's per-section form (accept/refine/abandon); pr_review = GitHub PR view (merged/changes requested/closed unmerged), reported by webhook not a served form; ci_check = the pull request's own build, which is a person's work in exactly the sense that matters here — nothing Lore runs decides it.
 import {
   routePlaceholders,
   isRouteArgPlaceholder,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
-export const HUMAN_STATION_TYPES = ["feature_review", "pr_review"] as const;
+export const HUMAN_STATION_TYPES = [
+  "feature_review",
+  "pr_review",
+  "ci_check",
+] as const;
 
 export type HumanStationType = (typeof HUMAN_STATION_TYPES)[number];
 

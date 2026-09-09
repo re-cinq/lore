@@ -1,6 +1,7 @@
 // The spec ONE node dispatch runs with — first launch and reaper relaunch alike; a second builder here previously dropped conversation continuity and the station-run id label on relaunch (#1466, FR-15.13), so a field added here must reach both doors or neither.
 
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import { withCiFeedback, type CiFeedback } from "./ci-feedback.js";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
   nodeAgentSpec,
@@ -33,6 +34,8 @@ export interface NodeLaunchInput {
   incomingFailure?: IncomingFailure | null;
   /** This node's OWN earlier failed attempts, in-run plus (on a forked run) the source runs' visits. Derive the in-run half with {@link priorFailuresOf}; the fork chain is the caller's read. */
   priorFailures?: PriorFailure[];
+  /** What CI reported about the push this dispatch answers for. Derive with {@link ciFeedbackOf}; null when the run did not arrive here from a red build. */
+  ciFeedback?: CiFeedback | null;
 }
 
 /** A preceding node's failure, as the next node needs to hear it. */
@@ -223,6 +226,7 @@ interface PromptResolutionInput {
   content: string;
   incomingFailure: IncomingFailure | null;
   priorFailures: readonly PriorFailure[];
+  ciFeedback: CiFeedback | null;
 }
 
 function resolvedPromptFor(
@@ -235,13 +239,33 @@ function resolvedPromptFor(
     return null;
   }
 
-  return withPriorFailures(
-    withIncomingFailure(
-      deps.resolvePrompt(node.prompt_ref ?? node.type, content),
-      incomingFailure,
+  // CI's verdict comes LAST: it is about the push this node is being launched to repair, where the blocks above it are about attempts that came before.
+  return withCiFeedback(
+    withPriorFailures(
+      withIncomingFailure(
+        deps.resolvePrompt(node.prompt_ref ?? node.type, content),
+        incomingFailure,
+      ),
+      priorFailures,
     ),
-    priorFailures,
+    input.ciFeedback,
   );
+}
+
+/** Everything the prompt is built from, with the two failure channels resolved against each other so a retry does not hear the same failure twice. */
+function promptInput(
+  input: Omit<NodeLaunchInput, "stationRunId">,
+  content: string,
+): PromptResolutionInput {
+  const incomingFailure = input.incomingFailure ?? null;
+
+  return {
+    node: input.node,
+    content,
+    incomingFailure,
+    priorFailures: dedupedPriorFailures(input.priorFailures, incomingFailure),
+    ciFeedback: input.ciFeedback ?? null,
+  };
 }
 
 /** Resolve what a visit is dispatched WITH, before its row is written — separate from the spec build because the station-run row is minted between the two (same module so a field added to one is visible to the other); the conversation resolves FIRST since it decides how much round content the prompt carries (FR-15.11). */
@@ -251,19 +275,11 @@ export async function resolveNodeDispatch(
 ): Promise<NodeDispatch> {
   const conversation = await resolveConversationFor(input, deps);
   const content = resolveRoundContent(input.task, conversation);
-  const incomingFailure = input.incomingFailure ?? null;
-  const priorFailures = dedupedPriorFailures(
-    input.priorFailures,
-    incomingFailure,
-  );
 
   return {
     conversation,
     content,
-    prompt: resolvedPromptFor(
-      { node: input.node, content, incomingFailure, priorFailures },
-      deps,
-    ),
+    prompt: resolvedPromptFor(promptInput(input, content), deps),
   };
 }
 

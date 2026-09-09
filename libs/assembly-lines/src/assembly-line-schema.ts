@@ -101,6 +101,7 @@ const PRODUCIBLE_OUTCOMES: Record<
   // accept / merged, refine, and abandoned — a person can do all three.
   feature_review: ["success", "changes_requested", "failed"],
   pr_review: ["success", "changes_requested", "failed"],
+  ci_check: ["success", "changes_requested", "failed"],
 };
 
 // Producible outcomes of `node` with no matching edge under `selectEdge` semantics (an `always` edge covers every outcome); empty for the exit node.

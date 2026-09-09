@@ -13,7 +13,8 @@ export type DefinitionNodeType =
   | "escalation_step"
   // Stations whose worker is a PERSON — the type names the form contract, `route` the page it lives on (FR6.40).
   | "feature_review"
-  | "pr_review";
+  | "pr_review"
+  | "ci_check";
 
 export type DefinitionEdgeCondition =
   "success" | "changes_requested" | "failed" | "always";

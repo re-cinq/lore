@@ -30,6 +30,7 @@ describe("humanStation", () => {
 
   it("carries every human station type — the record IS the registration", () => {
     expect(Object.keys(HUMAN_STATIONS).sort()).toEqual([
+      "ci_check",
       "feature_review",
       "pr_review",
     ]);

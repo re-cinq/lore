@@ -1,6 +1,6 @@
 // Single record for all human station types; failures on adds prevent silent misses.
 
-export type HumanStationType = "feature_review" | "pr_review";
+export type HumanStationType = "feature_review" | "pr_review" | "ci_check";
 
 export interface HumanStationMeta {
   /** The run badge: whose move it is. */
@@ -21,6 +21,11 @@ export const HUMAN_STATIONS: Record<HumanStationType, HumanStationMeta> = {
     label: "Waiting for the spec PR",
     phase: "awaiting-merge",
     whyParked: "Parked — waiting for the spec PR to merge.",
+  },
+  ci_check: {
+    label: "Waiting for CI",
+    phase: "awaiting-merge",
+    whyParked: "Parked — waiting for the pull request's build to finish.",
   },
 };
 

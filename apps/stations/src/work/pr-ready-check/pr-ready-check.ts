@@ -1,99 +1,34 @@
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
-import type { CiConclusion } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import type { ReviewThread } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
 import {
   parkedHumanNode,
-  type ParkedNode,
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
-import { decidePrReady, type PrReadyVerdict } from "./decide-ready.js";
+import { ciReportForRun, prReportForRun } from "./park-readers.js";
+import type {
+  LoopRunSlice,
+  ParkedReport,
+  PrReadyCheckDeps,
+} from "./sweep-contract.js";
 
-/** The slice of one open implementation-loop run the sweep reads. */
-export interface LoopRunSlice {
-  id: string;
-  repo: string;
-  status: string;
-  args: Record<string, unknown>;
-  graph: RunGraph | null;
-}
+export type {
+  LoopRunSlice,
+  ParkedReport,
+  PrReadyCheckDeps,
+} from "./sweep-contract.js";
 
-export interface PrReadyCheckDeps {
-  listOpenLoopRuns(): Promise<LoopRunSlice[]>;
-  listStationRuns(runId: string): Promise<ParkedNode[]>;
-  /** The PR's head sha — the ref ciConclusion is asked about. */
-  getPrHeadSha(repo: string, number: number): Promise<string | null>;
-  ciConclusion(repo: string, ref: string): Promise<CiConclusion>;
-  /** Does this repo run checks at all? A repo fact, not a clock. */
-  hasCiHistory(repo: string): Promise<boolean>;
-  listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
-  /** Open runs of PR-review family for this PR — "address round-trip in flight" signal. */
-  countOpenReviewRuns(repo: string, number: number): Promise<number>;
-  report(
-    target: ParkedTarget,
-    outcome: "success" | "changes_requested" | "failed",
-    args?: Record<string, unknown>,
-  ): Promise<void>;
-}
-
-/** Park located by station TYPE from run's graph; id is pre-clone fallback. */
+/** Parks located by station TYPE from run's graph; id is pre-clone fallback. A run holds at most one open row, so the two are never ambiguous. */
 const AWAIT_STATION_TYPE = "pr_review";
 const AWAIT_NODE = "await-pr";
+const CI_STATION_TYPE = "ci_check";
+const CI_NODE = "await-ci";
 
 /** One parked run, ready to verdict: the target to report to plus what to report. */
 interface ParkedVerdict {
   target: ParkedTarget;
-  verdict: PrReadyVerdict;
-}
-
-// The PR this run is parked on, and the commit to judge it by — or null when there is nothing to judge. A run with no `pr_number` never got that far; a PR with no head sha has no commit to check, because it was closed or its branch is gone. Both are skipped and logged rather than counted as waiting.
-async function judgeable(
-  run: LoopRunSlice,
-  deps: PrReadyCheckDeps,
-): Promise<{ prNumber: number; headSha: string } | null> {
-  const prNumber = Number(run.args.pr_number) || 0;
-
-  if (!prNumber) {
-    console.log(
-      `[pr-ready-check] run ${run.id} parked with no pr_number — skipped`,
-    );
-
-    return null;
-  }
-  const headSha = await deps.getPrHeadSha(run.repo, prNumber);
-
-  if (!headSha) {
-    console.log(
-      `[pr-ready-check] PR #${prNumber} on ${run.repo} has no head sha — skipped`,
-    );
-
-    return null;
-  }
-
-  return { prNumber, headSha };
-}
-
-/** The evidence a parked PR is judged on, or null when there is nothing to judge yet. All four reads run together — they are independent, and this job sweeps every parked run on a tick. */
-async function verdictForRun(
-  run: LoopRunSlice,
-  deps: PrReadyCheckDeps,
-): Promise<PrReadyVerdict | null> {
-  const judged = await judgeable(run, deps);
-
-  if (!judged) {
-    return null;
-  }
-  const { prNumber, headSha } = judged;
-  const [ci, threads, openReviewRunCount, hasCiHistory] = await Promise.all([
-    deps.ciConclusion(run.repo, headSha),
-    deps.listReviewThreads(run.repo, prNumber),
-    deps.countOpenReviewRuns(run.repo, prNumber),
-    deps.hasCiHistory(run.repo),
-  ]);
-
-  return decidePrReady({ ci, threads, openReviewRunCount, hasCiHistory });
+  /** null while the park has nothing to act on — a tick that is waiting, not one that is skipped. */
+  report: ParkedReport | null;
 }
 
 // Which node of which run the verdict is reported against. The iteration is part of it: a run that has been round the loop before has several attempts at the same node, and the report has to name the one that is parked.
@@ -108,24 +43,52 @@ function targetOf(
   };
 }
 
-/** Locates the parked node and pairs it with its verdict, or null to skip this run untallied. */
+/** The two parks, each with the reader that judges it. Ordered CI-first only for determinism: a run holds one open row, so at most one ever matches. */
+const PARK_KINDS = [
+  { type: CI_STATION_TYPE, fallbackNodeId: CI_NODE, read: ciReportForRun },
+  {
+    type: AWAIT_STATION_TYPE,
+    fallbackNodeId: AWAIT_NODE,
+    read: prReportForRun,
+  },
+] as const;
+
+/** The park this run is sitting at, with the reader that judges it. */
+async function parkedAt(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+): Promise<{
+  parked: { nodeId: string; iteration: number };
+  read: (typeof PARK_KINDS)[number]["read"];
+} | null> {
+  const rows = await deps.listStationRuns(run.id);
+
+  for (const kind of PARK_KINDS) {
+    const parked = parkedHumanNode(run.status, rows, run.graph, kind);
+
+    if (parked) {
+      return { parked, read: kind.read };
+    }
+  }
+
+  return null;
+}
+
+/** Locates the parked node and pairs it with its report, or null to skip this run untallied. */
 async function evaluateParkedRun(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
 ): Promise<ParkedVerdict | null> {
-  const parked = parkedHumanNode(
-    run.status,
-    await deps.listStationRuns(run.id),
-    run.graph,
-    { type: AWAIT_STATION_TYPE, fallbackNodeId: AWAIT_NODE },
-  );
-  const verdict = parked ? await verdictForRun(run, deps) : null;
+  const at = await parkedAt(run, deps);
 
-  if (!parked || !verdict) {
+  if (!at) {
     return null;
   }
 
-  return { target: targetOf(run, parked), verdict };
+  return {
+    target: targetOf(run, at.parked),
+    report: await at.read(run, deps),
+  };
 }
 
 /** Sweep tallies, mutated in place as each run resolves. */
@@ -142,22 +105,21 @@ async function applyVerdict(
   deps: PrReadyCheckDeps,
   tally: SweepTally,
 ): Promise<void> {
-  const { target, verdict } = evaluated;
+  const { target, report } = evaluated;
 
-  if (verdict.kind === "ready") {
-    await deps.report(target, "success");
+  if (!report) {
+    tally.waiting++;
+
+    return;
+  }
+  await deps.report(target, report.outcome, report.args);
+
+  if (report.outcome === "success") {
     tally.resumed++;
 
     return;
   }
-
-  if (verdict.kind === "blocked") {
-    await deps.report(target, verdict.outcome, { reason: verdict.reason });
-    tally.blocked++;
-
-    return;
-  }
-  tally.waiting++;
+  tally.blocked++;
 }
 
 /** Reports one run's verdict (if it has one) and bumps the matching tally. */
@@ -256,13 +218,13 @@ function prReads(
   projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
 ): Pick<
   PrReadyCheckDeps,
-  "getPrHeadSha" | "ciConclusion" | "listReviewThreads"
+  "listPrCommits" | "listChecks" | "listReviewThreads"
 > {
   return {
-    getPrHeadSha: async (repo, number) =>
-      (await (await projectOf(repo)).pulls.get(number))?.headSha ?? null,
-    ciConclusion: async (repo, ref) =>
-      (await projectOf(repo)).pulls.ciConclusion(ref),
+    listPrCommits: async (repo, number) =>
+      (await projectOf(repo)).pulls.listCommits(number),
+    listChecks: async (repo, ref) =>
+      (await projectOf(repo)).pulls.listChecks(ref),
     listReviewThreads: async (repo, number) =>
       (await projectOf(repo)).pulls.listReviewThreads(number),
   };

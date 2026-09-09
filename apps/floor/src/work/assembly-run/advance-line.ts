@@ -14,6 +14,7 @@ import {
   resolveNodeDispatch,
   type PriorFailure,
 } from "./launch-spec.js";
+import { ciFeedbackOf } from "./ci-feedback.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 import {
   collectPriorNodeFailures,
@@ -136,6 +137,8 @@ async function dispatchForNode(
       priorOutcome: priorOutcomeOf(visits, nodeId),
       // How a retried node learns why it is running again instead of repeating itself.
       incomingFailure: incomingFailureOf(visits),
+      // And how a round learns what the build said about the push before it.
+      ciFeedback: ciFeedbackOf(visits, step.task.args ?? {}),
       priorFailures,
     },
     deps,
