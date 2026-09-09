@@ -129,6 +129,20 @@ describe("dropSeen (cross-section dedup)", () => {
       (second as Array<{ source_path: string }>).map((i) => i.source_path),
     ).toEqual(["c"]);
   });
+
+  it("drops a twin at copy/a.ts sharing content_hash abc123 with the a.ts an earlier section emitted", () => {
+    const seen = new Set<string>();
+    const twinOf = (path: string) => ({
+      text: "same body",
+      tokens: 1,
+      source_path: path,
+      content_hash: "abc123",
+    });
+
+    dropSeen([twinOf("a.ts")] as never, seen);
+
+    expect(dropSeen([twinOf("copy/a.ts")] as never, seen)).toEqual([]);
+  });
 });
 
 const source = (tokens: number, path: string) => ({

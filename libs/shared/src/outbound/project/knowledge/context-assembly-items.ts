@@ -173,9 +173,9 @@ export function fitItemsToBudget(
 
 export { extractKeyTerms } from "../../../domain/key-terms.js";
 
-/** The identity a document keeps across sections: its path, else its text. */
+/** The identity a document keeps across sections: its content hash (a file and its copied twin at another path are one document), else its path, else its text. */
 export function seenKey(it: SourceItem): string {
-  return it.source_path || it.text;
+  return it.content_hash || it.source_path || it.text;
 }
 
 /** Filter out sources already emitted in an earlier section — keeps a document in its highest-priority section only. Marks what it keeps as seen. */
