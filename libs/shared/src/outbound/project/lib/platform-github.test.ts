@@ -3,7 +3,12 @@ import { PlatformGitHub } from "./platform-github.js";
 
 const state: {
   files: Array<{ filename: string }>;
-  checkRuns: Array<{ name: string; status: string; conclusion: string | null }>;
+  checkRuns: Array<{
+    name: string;
+    status: string;
+    conclusion: string | null;
+    output: { title: string | null; summary: string | null };
+  }>;
   token: string;
   labelError?: { status?: number };
   reviewCall?: Record<string, unknown>;
@@ -187,23 +192,69 @@ describe("PlatformGitHub paginated reads + helpers", () => {
 
   it("listChecks maps each run to name/status/conclusion", async () => {
     state.checkRuns = [
-      { name: "build", status: "completed", conclusion: "success" },
+      {
+        name: "build",
+        status: "completed",
+        conclusion: "success",
+        output: { title: null, summary: null },
+      },
     ];
     expect(await gh().listChecks("re-cinq/lore", "abc")).toEqual([
-      { name: "build", status: "completed", conclusion: "success" },
+      {
+        name: "build",
+        status: "completed",
+        conclusion: "success",
+        output: { title: null, summary: null },
+      },
+    ]);
+  });
+
+  it("listChecks carries the output title and summary a job reported", async () => {
+    state.checkRuns = [
+      {
+        name: "lint",
+        status: "completed",
+        conclusion: "failure",
+        output: { title: "3 problems", summary: "no-unused-vars" },
+      },
+    ];
+    expect(await gh().listChecks("re-cinq/lore", "abc")).toEqual([
+      {
+        name: "lint",
+        status: "completed",
+        conclusion: "failure",
+        output: { title: "3 problems", summary: "no-unused-vars" },
+      },
     ]);
   });
 
   it("ciConclusion reports failure when any check failed", async () => {
     state.checkRuns = [
-      { name: "a", status: "completed", conclusion: "success" },
-      { name: "b", status: "completed", conclusion: "failure" },
+      {
+        name: "a",
+        status: "completed",
+        conclusion: "success",
+        output: { title: null, summary: null },
+      },
+      {
+        name: "b",
+        status: "completed",
+        conclusion: "failure",
+        output: { title: null, summary: null },
+      },
     ];
     expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("failure");
   });
 
   it("ciConclusion reports pending while a check is not completed", async () => {
-    state.checkRuns = [{ name: "a", status: "in_progress", conclusion: null }];
+    state.checkRuns = [
+      {
+        name: "a",
+        status: "in_progress",
+        conclusion: null,
+        output: { title: null, summary: null },
+      },
+    ];
     expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("pending");
   });
 

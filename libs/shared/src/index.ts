@@ -255,6 +255,14 @@ export {
 } from "./outbound/kube-config.js";
 export { prFooter } from "./domain/pr-body.js";
 export {
+  ciConclusionOf,
+  ciJudgedSha,
+  externalCheckRuns,
+  failedCheckRuns,
+  summarizeFailedChecks,
+  SKIP_CI_MARKERS,
+} from "./outbound/project/pulls/check-runs.js";
+export {
   decideOnboard,
   onboardLockKey,
   onboardTaskDescription,

@@ -73,6 +73,8 @@ export interface CheckRun {
   name: string;
   status: string;
   conclusion: string | null;
+  /** What the job reported about itself. Optional: only the CI-feedback path reads it, and every in-memory double predates it. */
+  output?: { title: string | null; summary: string | null };
 }
 
 /** One inline comment inside a review thread — the GraphQL node, REST-mappable. */
