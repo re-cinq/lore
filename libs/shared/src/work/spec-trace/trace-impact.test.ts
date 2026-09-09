@@ -121,6 +121,33 @@ describe("buildImpactAnnotations", () => {
     ]);
     expect(annotations[0].message).toContain("only coverage");
   });
+
+  // specs/spec-traceability-graph/data-model.md#call-graph-indirect
+  it("renders indirect statements as notice-level rather than warning so they appear in a quieter PR section", () => {
+    const annotations = buildImpactAnnotations(
+      {
+        status: "ok",
+        testSelectors: [],
+        orphaned: [],
+        statements: [
+          {
+            specPath: "specs/x/spec.md",
+            specTitle: "X",
+            statementText: "callee is called by this caller",
+            statementAnchor: "specs/x/spec.md",
+            tests: [],
+            changedFile: "src/callee.ts",
+            evidence: "coverage",
+            indirect: true,
+          } as unknown as ImpactStatement,
+        ],
+      },
+      [{ path: "src/callee.ts", ranges: [[1, 5]] }],
+    );
+
+    expect(annotations).toHaveLength(1);
+    expect(annotations[0].annotation_level).toBe("notice");
+  });
 });
 
 describe("buildImpactComment", () => {

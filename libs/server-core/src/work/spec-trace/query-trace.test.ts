@@ -282,4 +282,20 @@ describe("runQueryTrace", () => {
       "Lore API unreachable for lore-query-trace: connect ECONNREFUSED.",
     );
   });
+
+  // specs/spec-traceability-graph/data-model.md#call-graph-callers-of
+  it("routes a callers_of query to a callers endpoint rather than the document endpoint", async () => {
+    let calledPath = "";
+    await runQueryTrace(
+      { callers_of: "nextTransition" } as unknown as QueryTraceArgs,
+      {
+        proxyGet: async (p) => {
+          calledPath = p;
+          return { ok: true, body: JSON.stringify(doc()) };
+        },
+        detectRepo: () => "o/r",
+      },
+    );
+    expect(calledPath).toMatch(/callers|call-graph/);
+  });
 });

@@ -235,6 +235,14 @@ ADR.embedding:          float32vector @index(hnsw(metric:"cosine")) .
 ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 ```
 
+## Call graph (cross-file symbol references)
+
+The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares-references-and-imports](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L168))
+
+`lore-query-trace` routes a `callers_of` query to a callers endpoint rather than the trace/document endpoint. ([validated by routes-callers-of-to-callers-endpoint](libs/server-core/src/work/spec-trace/query-trace.test.ts#L287))
+
+Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by indirect-notice-level](libs/shared/src/work/spec-trace/trace-impact.test.ts#L126))
+
 ### `xid` keys (deterministic, idempotent)
 
 | Node | `xid` |
