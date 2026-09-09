@@ -195,17 +195,48 @@ function blockEntry(block: unknown, role: unknown): LogEntry | null {
   return entry ? entry(block, role) : null;
 }
 
-function messageEntries(value: Record<string, unknown>): LogEntry[] {
+/** The turn's content blocks, or null when the envelope carries none in the shape we know. */
+function contentBlocks(value: Record<string, unknown>): unknown[] | null {
   const message = value.message;
   const content = isRecord(message) ? message.content : null;
 
-  if (!Array.isArray(content)) {
+  return Array.isArray(content) ? content : null;
+}
+
+function messageEntries(value: Record<string, unknown>): LogEntry[] {
+  const content = contentBlocks(value);
+
+  if (content === null) {
     return [];
   }
 
   return content
     .map((block) => blockEntry(block, value.type))
     .filter((entry): entry is LogEntry => entry !== null);
+}
+
+/** Whether every block is one this dialect knows how to read — an empty list is not, since a turn with no blocks tells us nothing about its shape. */
+function everyBlockKnown(blocks: readonly unknown[]): boolean {
+  return (
+    blocks.length > 0 &&
+    blocks.every(
+      (block) =>
+        isRecord(block) &&
+        ENTRY_BY_BLOCK_TYPE[String(block.type)] !== undefined,
+    )
+  );
+}
+
+/** What a turn shows when no block produced an entry: nothing when every block was a kind we know that simply had nothing to draw — a thinking block redacted to an empty string is the common one — and the raw envelope only when the shape is one we cannot read. Dumping JSON for a turn we understood perfectly well is louder than the turn itself. */
+function silentOrRaw(
+  value: Record<string, unknown>,
+  originalLine: string,
+): LogEntry[] {
+  const blocks = contentBlocks(value);
+
+  return blocks !== null && everyBlockKnown(blocks)
+    ? []
+    : [{ kind: "raw", text: originalLine }];
 }
 
 /** An assistant or user turn, whose content blocks carry the text and tool calls. */
@@ -218,7 +249,7 @@ function claudeMessageEntries(
   }
   const entries = messageEntries(value);
 
-  return entries.length > 0 ? entries : [{ kind: "raw", text: originalLine }];
+  return entries.length > 0 ? entries : silentOrRaw(value, originalLine);
 }
 
 export function claudeStreamEntries(
