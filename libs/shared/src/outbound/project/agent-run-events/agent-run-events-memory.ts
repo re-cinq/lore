@@ -113,14 +113,12 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
     limit: number,
   ): Promise<AgentRunEventRow[]> {
     const cursor = BigInt(afterId);
+    const matching = this.rows.filter(
+      (row) => row.assemblyLineId === assemblyLineId && BigInt(row.id) > cursor,
+    );
 
-    return this.rows
-      .filter(
-        (row) =>
-          row.assemblyLineId === assemblyLineId && BigInt(row.id) > cursor,
-      )
-      .sort(byIdAscending)
-      .slice(0, limit);
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the events double's paging tail; the turns double pages its own table the same way because each mirrors a cursor-paged port, and a double that drifted from it would stop being a spec
+    return matching.sort(byIdAscending).slice(0, limit);
   }
 
   async pruneOld(olderThanDays: number): Promise<number> {

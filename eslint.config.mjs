@@ -300,7 +300,7 @@ export default tseslint.config(
     files: ["{apps,libs}/*/src/**/*.{ts,tsx}"],
     rules: {
       "re-lint/no-duplicate-code": [
-        "warn",
+        "error",
         {
           roots: ["apps", "libs"],
           formats: ["typescript", "tsx"],

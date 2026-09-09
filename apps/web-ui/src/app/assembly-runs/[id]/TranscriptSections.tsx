@@ -6,7 +6,7 @@ import {
   type TimedLogEntry,
 } from "./turn-transcript-presenter";
 import { EntryLine } from "@/components/LogEntriesView";
-import LogFormatToggle from "@/components/LogFormatToggle";
+import { LogFormatToggleRow } from "@/components/LogFormatToggle";
 import styles from "./FullTranscriptPanel.module.css";
 
 export interface NodeSegmentView {
@@ -84,13 +84,11 @@ export function TranscriptToggleRow({
   }
 
   return (
-    <div className={styles.toggleRow}>
-      <LogFormatToggle
-        raw={showRaw}
-        onFormatted={() => setShowRaw(false)}
-        onRaw={() => setShowRaw(true)}
-      />
-    </div>
+    <LogFormatToggleRow
+      className={styles.toggleRow}
+      showRaw={showRaw}
+      setShowRaw={setShowRaw}
+    />
   );
 }
 

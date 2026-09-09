@@ -39,3 +39,26 @@ export default function LogFormatToggle({
     </span>
   );
 }
+
+interface LogFormatToggleRowProps {
+  className: string;
+  showRaw: boolean;
+  setShowRaw: (raw: boolean) => void;
+}
+
+/** The toggle on its own row, wired to a boolean setter — the shape both log viewers need; each passes the row class from its own stylesheet, which is all they disagree about. */
+export function LogFormatToggleRow({
+  className,
+  showRaw,
+  setShowRaw,
+}: LogFormatToggleRowProps) {
+  return (
+    <div className={className}>
+      <LogFormatToggle
+        raw={showRaw}
+        onFormatted={() => setShowRaw(false)}
+        onRaw={() => setShowRaw(true)}
+      />
+    </div>
+  );
+}

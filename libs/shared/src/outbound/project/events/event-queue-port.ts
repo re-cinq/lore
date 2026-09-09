@@ -29,6 +29,7 @@ export interface EventQueueRepository {
   /** Insert one event, collapsing a redelivery when `dedupeKey` is set. */
   insert(input: EventInsert): Promise<void>;
   /** Atomically claim up to `limit` runnable rows; `excludeEventNames` skips busy serial families so their waiting rows stay `pending` rather than get reaped and re-run concurrently. */
+  // eslint-disable-next-line re-lint/no-duplicate-code -- the single-consumer half of pipeline.events; the deliveries port says the same words about per-subscriber rows, and folding them would make one of the two lie about what it claims
   claimBatch(limit: number, excludeEventNames?: string[]): Promise<EventRow[]>;
   markDone(id: string): Promise<void>;
   markFailed(id: string, error: string, backoffSeconds: number): Promise<void>;

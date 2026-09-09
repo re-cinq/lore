@@ -18,6 +18,7 @@ export type AgentRunEventType = z.infer<typeof AgentRunEventTypeSchema>;
 
 export const AgentRunEventSchema = z.object({
   id: z.string(),
+  // eslint-disable-next-line re-lint/no-duplicate-code -- a model of pipeline.agent_run_events: it shares field NAMES with the turns model but not their contracts — task_id is non-null here and nullable there — so one shared shape would misstate a column
   taskId: z.string(),
   agentCrName: z.string().nullable(),
   assemblyLineId: z.string().nullable(),

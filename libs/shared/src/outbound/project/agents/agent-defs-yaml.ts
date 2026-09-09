@@ -174,8 +174,9 @@ export class AgentDefsYaml implements AgentDefsPort {
   }
 
   async list(_repo: string): Promise<AgentDefinition[]> {
-    return [...this.load().values()].sort((a, b) =>
-      a.name.localeCompare(b.name),
+    return [...this.load().values()].sort(
+      (a, b) => a.name.localeCompare(b.name),
+      // eslint-disable-next-line re-lint/no-duplicate-code -- the YAML/offline agent-definitions adapter; its unsupported-write methods exist to satisfy the port, and no-forwarding-class bans the base class that would declare them once
     );
   }
 

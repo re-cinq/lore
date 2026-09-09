@@ -15,6 +15,7 @@ interface NavGroup {
 // Repo-centric nav (spec 4-ux-repo-onboarding FR-3.8) — only genuinely cross-repo views live at top level.
 const groups: NavGroup[] = [
   {
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the nav section table, restated in SidebarNav.test.tsx as the exact sections and order a reader must see; the restatement is the assertion, so there is nothing here to share with it
     links: [
       { href: "/", label: "Repos" },
       { href: "/assembly-runs", label: "Assembly Runs" },
@@ -28,6 +29,7 @@ const groups: NavGroup[] = [
   {
     label: "Insights",
     links: [
+      // eslint-disable-next-line re-lint/no-duplicate-code -- the second nav section's links, likewise restated in SidebarNav.test.tsx as the expected list; a test that imported this table would assert only that the table equals itself
       { href: "/analytics", label: "Analytics" },
       { href: "/spend", label: "Spend" },
       { href: "/gaps", label: "Gaps" },
