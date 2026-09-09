@@ -41,6 +41,23 @@ describe("reconcileOrphanChunks", () => {
     });
   });
 
+  it("deletes nothing when the tree read throws, so the route can answer 502 instead of crashing", async () => {
+    vi.mocked(projectFor).mockResolvedValue({
+      repo: {
+        tree: async () => {
+          throw new Error("GitHub API 502");
+        },
+      },
+    } as never);
+
+    const result = await reconcileOrphanChunks({} as never, "re-cinq/lore");
+
+    expect({
+      result,
+      pruned: vi.mocked(pruneOrphanChunks).mock.calls.length,
+    }).toEqual({ result: null, pruned: 0 });
+  });
+
   it("deletes nothing when the tree reads empty, because that is a failed read and not an empty repo", async () => {
     withTree([]);
 

@@ -8,13 +8,23 @@ export async function reconcileOrphanChunks(
   repo: string,
   ref?: string,
 ): Promise<PruneResult | null> {
-  const project = await projectFor(repo);
-  const present = await project.repo.tree(ref);
+  const present = await readTree(repo, ref);
 
-  // An empty tree is a failed read, never an empty repo — pruning against it would delete everything the repo has.
+  // An unreadable or empty tree is a failed read, never an empty repo — pruning against it would delete everything the repo has.
   if (present.length === 0) {
     return null;
   }
 
   return pruneOrphanChunks(pool, repo, present);
+}
+
+/** The tree, or nothing. A refused or truncated GitHub read throws, and an exception here would surface as a 500 on a route that promises 502 — worse, it would read as "the sweep ran" to anything that only checks for absence of a crash. */
+async function readTree(repo: string, ref?: string): Promise<string[]> {
+  try {
+    return await (await projectFor(repo)).repo.tree(ref);
+  } catch (err) {
+    console.warn(`[reconcile] could not read the tree for ${repo}:`, err);
+
+    return [];
+  }
 }
