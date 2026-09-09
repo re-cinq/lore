@@ -429,6 +429,21 @@ if (pg.ok) {
 
     return new PgEventDeliveries(pool);
   });
+
+  afterAll(async () => {
+    const pool = new Pool(PG_CONFIG);
+
+    try {
+      await pool.query(
+        `DELETE FROM pipeline.events WHERE event_name LIKE 'internal.test.%'`,
+      );
+      await pool.query(
+        `DELETE FROM pipeline.event_subscriptions WHERE subscriber LIKE 'sub-%'`,
+      );
+    } finally {
+      await pool.end();
+    }
+  });
 }
 
 function deadRow(id: string, handledAt: string, error: string) {
