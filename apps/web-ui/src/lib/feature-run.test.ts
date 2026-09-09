@@ -34,6 +34,8 @@ const planningRun: AssemblyRun = {
   durationSeconds: null,
   prUrl: null,
   prNumber: null,
+  issueUrl: null,
+  issueNumber: null,
   createdBy: "gedaiu",
   costUsd: null,
 };

@@ -9057,6 +9057,12 @@
           "task_pr_number": {
             "type": ["number", "null"]
           },
+          "issue_url": {
+            "type": ["string", "null"]
+          },
+          "issue_number": {
+            "type": ["number", "null"]
+          },
           "created_by": {
             "type": ["string", "null"]
           },
@@ -9081,6 +9087,8 @@
           "args_pr_number",
           "pr_url",
           "task_pr_number",
+          "issue_url",
+          "issue_number",
           "created_by",
           "cost_usd"
         ],
@@ -9143,6 +9151,12 @@
                 "task_pr_number": {
                   "type": ["number", "null"]
                 },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "issue_number": {
+                  "type": ["number", "null"]
+                },
                 "created_by": {
                   "type": ["string", "null"]
                 },
@@ -9167,6 +9181,8 @@
                 "args_pr_number",
                 "pr_url",
                 "task_pr_number",
+                "issue_url",
+                "issue_number",
                 "created_by",
                 "cost_usd"
               ],
