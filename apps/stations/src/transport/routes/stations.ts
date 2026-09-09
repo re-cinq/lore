@@ -14,26 +14,16 @@ export interface StationsRouteDeps {
   bearerToken?: string;
 }
 
-// The named station, if it exists and is not already mid-run. The 404 lists what the registry does answer to, because the commonest cause is a blueprint naming a station this deployment does not carry.
-function availableStation(
-  deps: StationsRouteDeps,
-  running: Set<string>,
-  name: string,
-) {
-  const station = deps.registry().get(name);
+export function stationsRoute(deps: StationsRouteDeps): ServerRoute {
+  // Tracks stations mid-run; the Floor is single-replica today so this is insurance, but it's what makes a second replica or a retried tick safe rather than a double sweep.
+  const running = new Set<string>();
 
-  enforceTrue(
-    station,
-    apiError(404),
-    `no station named "${name}" — the registry answers to: ${[...deps.registry().keys()].join(", ")}`,
-  );
-  enforceTrue(
-    !running.has(name),
-    apiError(409),
-    `station "${name}" is already running — a tick arrived before the last one finished`,
-  );
-
-  return station;
+  return {
+    method: "POST",
+    path: "/api/stations/{name}",
+    options: { auth: false },
+    handler: runStationHandler(deps, running),
+  };
 }
 
 // Runs one named station, once. The 409 is the point of `running`: a tick that arrives before the last one finished is refused rather than queued, because two sweeps of the same station would each act on what the other is mid-way through. Released in `finally`, not on success — a throw must not leave the station latched.
@@ -59,14 +49,24 @@ function runStationHandler(
   };
 }
 
-export function stationsRoute(deps: StationsRouteDeps): ServerRoute {
-  // Tracks stations mid-run; the Floor is single-replica today so this is insurance, but it's what makes a second replica or a retried tick safe rather than a double sweep.
-  const running = new Set<string>();
+// The named station, if it exists and is not already mid-run. The 404 lists what the registry does answer to, because the commonest cause is a blueprint naming a station this deployment does not carry.
+function availableStation(
+  deps: StationsRouteDeps,
+  running: Set<string>,
+  name: string,
+) {
+  const station = deps.registry().get(name);
 
-  return {
-    method: "POST",
-    path: "/api/stations/{name}",
-    options: { auth: false },
-    handler: runStationHandler(deps, running),
-  };
+  enforceTrue(
+    station,
+    apiError(404),
+    `no station named "${name}" — the registry answers to: ${[...deps.registry().keys()].join(", ")}`,
+  );
+  enforceTrue(
+    !running.has(name),
+    apiError(409),
+    `station "${name}" is already running — a tick arrived before the last one finished`,
+  );
+
+  return station;
 }

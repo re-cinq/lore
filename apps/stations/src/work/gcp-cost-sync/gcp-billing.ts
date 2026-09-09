@@ -46,19 +46,16 @@ type QueryRow = z.infer<typeof QueryResponse>["rows"] extends
   ? Row
   : never;
 
-/** One cell out of BigQuery's positional row shape, named once so neither reader navigates it. */
-function cell(row: QueryRow, index: number): string | null | undefined {
-  const cells = row.f;
+export function parseBillingQueryResponse(raw: unknown): GcpCostDailyRow[] {
+  const response = QueryResponse.parse(raw);
 
-  return cells[index]?.v;
-}
+  enforceTrue(
+    response.jobComplete !== false,
+    Error,
+    "BigQuery billing query did not complete in time",
+  );
 
-function cellText(row: QueryRow, index: number): string {
-  return cell(row, index) ?? "";
-}
-
-function cellNumber(row: QueryRow, index: number): number {
-  return Number(cell(row, index) ?? 0);
+  return (response.rows ?? []).map(toBillingRow);
 }
 
 function toBillingRow(row: QueryRow): GcpCostDailyRow {
@@ -70,14 +67,17 @@ function toBillingRow(row: QueryRow): GcpCostDailyRow {
   };
 }
 
-export function parseBillingQueryResponse(raw: unknown): GcpCostDailyRow[] {
-  const response = QueryResponse.parse(raw);
+function cellText(row: QueryRow, index: number): string {
+  return cell(row, index) ?? "";
+}
 
-  enforceTrue(
-    response.jobComplete !== false,
-    Error,
-    "BigQuery billing query did not complete in time",
-  );
+function cellNumber(row: QueryRow, index: number): number {
+  return Number(cell(row, index) ?? 0);
+}
 
-  return (response.rows ?? []).map(toBillingRow);
+/** One cell out of BigQuery's positional row shape, named once so neither reader navigates it. */
+function cell(row: QueryRow, index: number): string | null | undefined {
+  const cells = row.f;
+
+  return cells[index]?.v;
 }

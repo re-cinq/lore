@@ -55,26 +55,6 @@ export function describeFlipMiss(
   );
 }
 
-// Opens the status-flip PR and, if it landed, moves the feature to implemented. The feature transitions only on a successful flip: the spec header is the org's record of what shipped, and marking the feature done while its spec still says Draft would put the two out of step.
-async function flipAndTransition(
-  project: Project,
-  specPath: string,
-  task: MergeableTask,
-  featureId: string,
-): Promise<void> {
-  const result = await openSpecStatusFlipPr(project, specPath, {
-    evidence: `Completion: every task in group \`${task.task_group_id}\` is merged (last: PR #${task.pr_number}).`,
-  });
-
-  if (!decideFeatureImplemented(result)) {
-    console.warn(describeFlipMiss(specPath, result, featureId));
-
-    return;
-  }
-  await project.features.transitionStatus(featureId, "implemented");
-  console.log(describeFlipSuccess(specPath, result));
-}
-
 export async function maybeFlipSpecStatus(
   project: Project,
   task: MergeableTask,
@@ -96,4 +76,24 @@ export async function maybeFlipSpecStatus(
   const specPath = feature.spec_path ?? `specs/${feature.slug}/spec.md`;
 
   await flipAndTransition(project, specPath, task, decision.featureId);
+}
+
+// Opens the status-flip PR and, if it landed, moves the feature to implemented. The feature transitions only on a successful flip: the spec header is the org's record of what shipped, and marking the feature done while its spec still says Draft would put the two out of step.
+async function flipAndTransition(
+  project: Project,
+  specPath: string,
+  task: MergeableTask,
+  featureId: string,
+): Promise<void> {
+  const result = await openSpecStatusFlipPr(project, specPath, {
+    evidence: `Completion: every task in group \`${task.task_group_id}\` is merged (last: PR #${task.pr_number}).`,
+  });
+
+  if (!decideFeatureImplemented(result)) {
+    console.warn(describeFlipMiss(specPath, result, featureId));
+
+    return;
+  }
+  await project.features.transitionStatus(featureId, "implemented");
+  console.log(describeFlipSuccess(specPath, result));
 }

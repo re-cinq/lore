@@ -29,32 +29,22 @@ const failed = (detail: string): NodeResult => ({
   failureDetail: detail.substring(0, 300),
 });
 
-// The filed Issue as produced ARGS, not extras: args are merged into the line and reach notify as its params, while extras route the walk and never arrive there. `issue_url` is set only when there is one — absent selects the audit-only text downstream, so an empty string must not stand in for it.
-function filedArgs(issue: { url?: string; number: number | string }) {
-  return {
-    ...(issue.url ? { issue_url: issue.url } : {}),
-    issue_number: String(issue.number),
-  };
-}
-
-// One attempt at opening the Issue. A refusal comes back as an error string rather than thrown, so the retry loop above decides whether it is worth another go.
-async function tryFileIssue(
-  input: EscalateInput,
+export async function runEscalationStep(
+  jobRef: string,
+  taskId: string,
   deps: EscalationStepDeps,
-): Promise<{ result: NodeResult } | { error: string }> {
-  const title = `[lore] needs-human-help: ${input.reason} on ${input.branchName}`;
+): Promise<NodeResult> {
+  const input = await deps.escalationInput(taskId);
 
-  try {
-    const issue = await deps.createIssue(
-      input.repo,
-      title,
-      renderEscalationBody(input),
-    );
-
-    return { result: { outcome: "success", args: filedArgs(issue) } };
-  } catch (err) {
-    return { error: (err as Error).message };
+  if (jobRef === "file-issue") {
+    return fileIssue(input, deps);
   }
+
+  if (jobRef === "notify") {
+    return notify(input, deps);
+  }
+
+  return failed(`no escalation step named "${jobRef}"`);
 }
 
 async function fileIssue(
@@ -79,6 +69,52 @@ async function fileIssue(
   }
 
   return failed(`could not open the issue: ${lastError}`);
+}
+
+// One attempt at opening the Issue. A refusal comes back as an error string rather than thrown, so the retry loop above decides whether it is worth another go.
+async function tryFileIssue(
+  input: EscalateInput,
+  deps: EscalationStepDeps,
+): Promise<{ result: NodeResult } | { error: string }> {
+  const title = `[lore] needs-human-help: ${input.reason} on ${input.branchName}`;
+
+  try {
+    const issue = await deps.createIssue(
+      input.repo,
+      title,
+      renderEscalationBody(input),
+    );
+
+    return { result: { outcome: "success", args: filedArgs(issue) } };
+  } catch (err) {
+    return { error: (err as Error).message };
+  }
+}
+
+// The filed Issue as produced ARGS, not extras: args are merged into the line and reach notify as its params, while extras route the walk and never arrive there. `issue_url` is set only when there is one — absent selects the audit-only text downstream, so an empty string must not stand in for it.
+function filedArgs(issue: { url?: string; number: number | string }) {
+  return {
+    ...(issue.url ? { issue_url: issue.url } : {}),
+    issue_number: String(issue.number),
+  };
+}
+
+async function notify(
+  input: EscalateInput,
+  deps: EscalationStepDeps,
+): Promise<NodeResult> {
+  const issue = filedIssue(deps);
+
+  await deps.writeAudit({
+    event_type: "escalation_issued",
+    task_id: input.taskId,
+    repo: input.repo,
+    payload: escalationAuditPayload(input, issue),
+  });
+
+  await deps.notify(escalationMessage(input, issue));
+
+  return { outcome: "success" };
 }
 
 interface FiledIssue {
@@ -118,40 +154,4 @@ function escalationMessage(
   }
 
   return `🚨 Lore needs human help (${input.reason}) — ${issue.url ?? `issue #${issue.number}`}`;
-}
-
-async function notify(
-  input: EscalateInput,
-  deps: EscalationStepDeps,
-): Promise<NodeResult> {
-  const issue = filedIssue(deps);
-
-  await deps.writeAudit({
-    event_type: "escalation_issued",
-    task_id: input.taskId,
-    repo: input.repo,
-    payload: escalationAuditPayload(input, issue),
-  });
-
-  await deps.notify(escalationMessage(input, issue));
-
-  return { outcome: "success" };
-}
-
-export async function runEscalationStep(
-  jobRef: string,
-  taskId: string,
-  deps: EscalationStepDeps,
-): Promise<NodeResult> {
-  const input = await deps.escalationInput(taskId);
-
-  if (jobRef === "file-issue") {
-    return fileIssue(input, deps);
-  }
-
-  if (jobRef === "notify") {
-    return notify(input, deps);
-  }
-
-  return failed(`no escalation step named "${jobRef}"`);
 }

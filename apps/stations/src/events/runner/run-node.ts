@@ -27,13 +27,6 @@ export const PublishedNode = z.object({
 
 export type PublishedNode = z.infer<typeof PublishedNode>;
 
-/** Reads a zod failure into one line — the navigation of someone else's error shape, named once. */
-function zodIssueText(error: z.ZodError): string {
-  const { issues } = error;
-
-  return issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ");
-}
-
 export function parsePublishedNode(payload: unknown): PublishedNode {
   const parsed = PublishedNode.safeParse(payload);
 
@@ -44,6 +37,13 @@ export function parsePublishedNode(payload: unknown): PublishedNode {
   );
 
   return parsed.data;
+}
+
+/** Reads a zod failure into one line — the navigation of someone else's error shape, named once. */
+function zodIssueText(error: z.ZodError): string {
+  const { issues } = error;
+
+  return issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ");
 }
 
 /** Reports a node's outcome to the parked visit — `reportToParkedNode`'s shape. */
@@ -62,35 +62,6 @@ const failed = (detail: string): NodeResult => ({
   failureClass: "unknown",
   failureDetail: detail,
 });
-
-// The published node, in the shape the station contract states. `branch` falls back to empty rather than being omitted: the contract has the field, and a station reading it should see "none" rather than undefined.
-function stationInput(event: PublishedNode): StationInput {
-  return {
-    assembly_run_id: event.assemblyLineId,
-    node_id: event.nodeId,
-    node_type: event.nodeType,
-    repo: event.repo,
-    branch: event.branch ?? "",
-    task_id: event.taskId,
-    params: event.params,
-  };
-}
-
-// What the station made of this node. A missing runner and a thrown runner both become a failed result rather than an exception: the walk advances on the reported outcome, so a node that could not run has to say so through the same channel as one that ran and failed.
-async function nodeResult(
-  event: PublishedNode,
-  run: NodeStationRun | undefined,
-) {
-  if (!run) {
-    return failed(
-      `no station answers to node type "${event.nodeType}" — the registry and the blueprint disagree`,
-    );
-  }
-
-  return run(stationInput(event), NO_WORKSPACE).catch((err: Error) =>
-    failed(err.message),
-  );
-}
 
 export async function runPublishedNode(
   event: PublishedNode,
@@ -111,4 +82,33 @@ export async function runPublishedNode(
     result.args ?? {},
     result,
   );
+}
+
+// What the station made of this node. A missing runner and a thrown runner both become a failed result rather than an exception: the walk advances on the reported outcome, so a node that could not run has to say so through the same channel as one that ran and failed.
+async function nodeResult(
+  event: PublishedNode,
+  run: NodeStationRun | undefined,
+) {
+  if (!run) {
+    return failed(
+      `no station answers to node type "${event.nodeType}" — the registry and the blueprint disagree`,
+    );
+  }
+
+  return run(stationInput(event), NO_WORKSPACE).catch((err: Error) =>
+    failed(err.message),
+  );
+}
+
+// The published node, in the shape the station contract states. `branch` falls back to empty rather than being omitted: the contract has the field, and a station reading it should see "none" rather than undefined.
+function stationInput(event: PublishedNode): StationInput {
+  return {
+    assembly_run_id: event.assemblyLineId,
+    node_id: event.nodeId,
+    node_type: event.nodeType,
+    repo: event.repo,
+    branch: event.branch ?? "",
+    task_id: event.taskId,
+    params: event.params,
+  };
 }

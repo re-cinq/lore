@@ -12,6 +12,22 @@ import type { StationEnv } from "../lib/station.js";
 
 const execFile = promisify(execFileCb);
 
+export async function runValidateStation(
+  input: StationInput,
+  env: StationEnv,
+): Promise<NodeResult> {
+  const gitDir = path.join(env.workspaceDir, "target");
+  const changed = await changedFiles(gitDir);
+  const handler = createValidateHandler(
+    changed ? { changedFiles: () => changed } : {},
+  );
+
+  return handler(
+    { id: input.node_id, type: "validate" },
+    nodeContext(input, gitDir),
+  );
+}
+
 /** Changed files vs default branch to scope lint/typecheck; undefined if diff unavailable. */
 async function changedFiles(gitDir: string): Promise<string[] | undefined> {
   try {
@@ -40,20 +56,4 @@ function nodeContext(input: StationInput, gitDir: string) {
     iteration: 0,
     assemblyLineName: input.node_type,
   };
-}
-
-export async function runValidateStation(
-  input: StationInput,
-  env: StationEnv,
-): Promise<NodeResult> {
-  const gitDir = path.join(env.workspaceDir, "target");
-  const changed = await changedFiles(gitDir);
-  const handler = createValidateHandler(
-    changed ? { changedFiles: () => changed } : {},
-  );
-
-  return handler(
-    { id: input.node_id, type: "validate" },
-    nodeContext(input, gitDir),
-  );
 }

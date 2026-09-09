@@ -29,29 +29,6 @@ export {
   maybeFlipSpecStatus,
 } from "./spec-status-flip.js";
 
-/** Reads the merged tasks.md and files its spec-tasks as one group. The read is off the default branch, not the PR's: the PR is merged by the time this runs, so main is where the file now lives. */
-async function syncSpecTasks(repo: string, specSlug: string): Promise<void> {
-  const tasksPath = `specs/${specSlug}/tasks.md`;
-  const content = await projectFor(repo).then((p) => p.repo.read(tasksPath));
-
-  if (!content) {
-    console.log(`[job] merge-check: no tasks.md at ${tasksPath}`);
-
-    return;
-  }
-  const withDeps = inferPhaseDependencies(parseTasks(content));
-  const taskGroupId = crypto.randomUUID();
-  const { created } = await syncTasksToDb(
-    getPool(),
-    { repo, specSlug, taskGroupId },
-    withDeps,
-  );
-
-  console.log(
-    `[job] merge-check: synced ${created}/${withDeps.length} spec-tasks for ${specSlug} (group ${taskGroupId})`,
-  );
-}
-
 /** Fallback: sync spec-tasks when feature-request PR merges but webhook missed. */
 export async function syncSpecTasksFromMerge(task: {
   id: string;
@@ -76,41 +53,72 @@ export async function syncSpecTasksFromMerge(task: {
   await syncSpecTasks(task.target_repo, specSlug);
 }
 
-/** Extracts owner/repo and PR number from a github.com pull URL, or null when the URL is not one. */
-export function parseOnboardingPrUrl(
-  url: string,
-): { owner: string; repoName: string; number: number } | null {
-  const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+/** Reads the merged tasks.md and files its spec-tasks as one group. The read is off the default branch, not the PR's: the PR is merged by the time this runs, so main is where the file now lives. */
+async function syncSpecTasks(repo: string, specSlug: string): Promise<void> {
+  const tasksPath = `specs/${specSlug}/tasks.md`;
+  const content = await projectFor(repo).then((p) => p.repo.read(tasksPath));
 
-  if (!match) {
-    return null;
+  if (!content) {
+    console.log(`[job] merge-check: no tasks.md at ${tasksPath}`);
+
+    return;
   }
-  const [, owner, repoName, prNumber] = match;
+  const withDeps = inferPhaseDependencies(parseTasks(content));
+  const taskGroupId = crypto.randomUUID();
+  const { created } = await syncTasksToDb(
+    getPool(),
+    { repo, specSlug, taskGroupId },
+    withDeps,
+  );
 
-  return { owner, repoName, number: parseInt(prNumber, 10) };
+  console.log(
+    `[job] merge-check: synced ${created}/${withDeps.length} spec-tasks for ${specSlug} (group ${taskGroupId})`,
+  );
 }
 
 type OnboardingOutcome = "merged" | "closed" | "invalid" | "unchanged";
 
-// Closed without merging: the stored URL is cleared so onboarding can be resubmitted (#968). Leaving it would make the repo look permanently mid-onboarding.
-async function clearClosedOnboarding(
-  repo: PendingOnboardingRepo,
-): Promise<OnboardingOutcome> {
-  await settings().clearOnboardingPrUrl(repo.id);
-  console.log(
-    `[job] merge-check: ${repo.full_name} onboarding PR closed unmerged — cleared`,
-  );
+type MergeableOutcome = "merged" | "closed" | "unchanged";
 
-  return "closed";
+export async function mergeCheckJob(): Promise<string> {
+  const repos = await settings().pendingOnboardingRepos();
+
+  if (repos.length === 0) {
+    console.log("[job] merge-check: no pending repos");
+  }
+  const mergedCount = await sweepOnboardingRepos(repos);
+  const tasks = await pipeline().taskQueue.mergeableTasks();
+  const taskCounts = await sweepMergeableTasks(tasks);
+
+  return `Checked ${repos.length} repos (${mergedCount} merged), ${tasks.length} tasks (${taskCounts.merged} merged, ${taskCounts.closed} rejected)`;
 }
 
-// A stored onboarding URL this job cannot read. Logged rather than cleared: the row is someone's record of an onboarding attempt, and losing it would hide the fact that the URL was ever wrong.
-function reportInvalidPrUrl(repo: PendingOnboardingRepo): OnboardingOutcome {
-  console.log(
-    `[job] merge-check: invalid PR URL for ${repo.full_name}: ${repo.onboarding_pr_url}`,
-  );
+/** Onboarding PRs. Each repo is caught on its own — one repo whose PR cannot be read must not stop the sweep, because the next repo's merge is what unblocks its ingestion. */
+async function sweepOnboardingRepos(
+  repos: PendingOnboardingRepo[],
+): Promise<number> {
+  let mergedCount = 0;
 
-  return "invalid";
+  for (const repo of repos) {
+    if ((await checkedOutcome(repo)) === "merged") {
+      mergedCount++;
+    }
+  }
+
+  return mergedCount;
+}
+
+// One repo's outcome, or "unchanged" if reading it threw. Caught per repo on purpose: one repo whose PR cannot be read must not stop the sweep, because the next repo's merge is what unblocks its ingestion.
+async function checkedOutcome(
+  repo: PendingOnboardingRepo,
+): Promise<OnboardingOutcome> {
+  try {
+    return await checkOnboardingRepo(repo);
+  } catch (err) {
+    console.error(`[job] merge-check: error checking ${repo.full_name}:`, err);
+
+    return "unchanged";
+  }
 }
 
 /** One onboarding repo's PR check: merges/clears the row as needed, reporting what happened. */
@@ -138,17 +146,62 @@ async function checkOnboardingRepo(
   return "unchanged";
 }
 
-type MergeableOutcome = "merged" | "closed" | "unchanged";
+/** Extracts owner/repo and PR number from a github.com pull URL, or null when the URL is not one. */
+export function parseOnboardingPrUrl(
+  url: string,
+): { owner: string; repoName: string; number: number } | null {
+  const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
 
-// The run store, as the merge line reads it. Thunks, not values: the pool does not exist when this module is loaded. The LINE does the work from here — its nine steps expose failures that route forward, which a single call could not.
-function mergeLinePorts(): Parameters<typeof startMergeLine>[1] {
-  return {
-    findOpenBySubject: (repo, key) =>
-      pipeline().assemblyRuns.findOpenBySubject(repo, key),
-    countBySubject: (repo, key) =>
-      pipeline().assemblyRuns.countBySubject(repo, key),
-    start: (input) => pipeline().assemblyRuns.start(input),
+  if (!match) {
+    return null;
+  }
+  const [, owner, repoName, prNumber] = match;
+
+  return { owner, repoName, number: parseInt(prNumber, 10) };
+}
+
+// A stored onboarding URL this job cannot read. Logged rather than cleared: the row is someone's record of an onboarding attempt, and losing it would hide the fact that the URL was ever wrong.
+function reportInvalidPrUrl(repo: PendingOnboardingRepo): OnboardingOutcome {
+  console.log(
+    `[job] merge-check: invalid PR URL for ${repo.full_name}: ${repo.onboarding_pr_url}`,
+  );
+
+  return "invalid";
+}
+
+// Closed without merging: the stored URL is cleared so onboarding can be resubmitted (#968). Leaving it would make the repo look permanently mid-onboarding.
+async function clearClosedOnboarding(
+  repo: PendingOnboardingRepo,
+): Promise<OnboardingOutcome> {
+  await settings().clearOnboardingPrUrl(repo.id);
+  console.log(
+    `[job] merge-check: ${repo.full_name} onboarding PR closed unmerged — cleared`,
+  );
+
+  return "closed";
+}
+
+/** Task PRs. The safety net for a missed `pull_request.closed` webhook — deliveries are lossy, and a merged task nobody noticed never boosts the memory that contributed to it. */
+async function sweepMergeableTasks(
+  tasks: MergeableTask[],
+): Promise<{ merged: number; closed: number }> {
+  let merged = 0;
+  let closed = 0;
+  const bump: Record<MergeableOutcome, () => void> = {
+    merged: () => merged++,
+    closed: () => closed++,
+    unchanged: () => {},
   };
+
+  for (const task of tasks) {
+    try {
+      bump[await checkMergeableTask(task)]();
+    } catch (err) {
+      console.error(`[job] merge-check: error checking task ${task.id}:`, err);
+    }
+  }
+
+  return { merged, closed };
 }
 
 /** One mergeable task's PR check: starts the merge line or records rejection, reporting what happened. */
@@ -179,68 +232,15 @@ async function checkMergeableTask(
   return "unchanged";
 }
 
-// One repo's outcome, or "unchanged" if reading it threw. Caught per repo on purpose: one repo whose PR cannot be read must not stop the sweep, because the next repo's merge is what unblocks its ingestion.
-async function checkedOutcome(
-  repo: PendingOnboardingRepo,
-): Promise<OnboardingOutcome> {
-  try {
-    return await checkOnboardingRepo(repo);
-  } catch (err) {
-    console.error(`[job] merge-check: error checking ${repo.full_name}:`, err);
-
-    return "unchanged";
-  }
-}
-
-/** Onboarding PRs. Each repo is caught on its own — one repo whose PR cannot be read must not stop the sweep, because the next repo's merge is what unblocks its ingestion. */
-async function sweepOnboardingRepos(
-  repos: PendingOnboardingRepo[],
-): Promise<number> {
-  let mergedCount = 0;
-
-  for (const repo of repos) {
-    if ((await checkedOutcome(repo)) === "merged") {
-      mergedCount++;
-    }
-  }
-
-  return mergedCount;
-}
-
-/** Task PRs. The safety net for a missed `pull_request.closed` webhook — deliveries are lossy, and a merged task nobody noticed never boosts the memory that contributed to it. */
-async function sweepMergeableTasks(
-  tasks: MergeableTask[],
-): Promise<{ merged: number; closed: number }> {
-  let merged = 0;
-  let closed = 0;
-  const bump: Record<MergeableOutcome, () => void> = {
-    merged: () => merged++,
-    closed: () => closed++,
-    unchanged: () => {},
+// The run store, as the merge line reads it. Thunks, not values: the pool does not exist when this module is loaded. The LINE does the work from here — its nine steps expose failures that route forward, which a single call could not.
+function mergeLinePorts(): Parameters<typeof startMergeLine>[1] {
+  return {
+    findOpenBySubject: (repo, key) =>
+      pipeline().assemblyRuns.findOpenBySubject(repo, key),
+    countBySubject: (repo, key) =>
+      pipeline().assemblyRuns.countBySubject(repo, key),
+    start: (input) => pipeline().assemblyRuns.start(input),
   };
-
-  for (const task of tasks) {
-    try {
-      bump[await checkMergeableTask(task)]();
-    } catch (err) {
-      console.error(`[job] merge-check: error checking task ${task.id}:`, err);
-    }
-  }
-
-  return { merged, closed };
-}
-
-export async function mergeCheckJob(): Promise<string> {
-  const repos = await settings().pendingOnboardingRepos();
-
-  if (repos.length === 0) {
-    console.log("[job] merge-check: no pending repos");
-  }
-  const mergedCount = await sweepOnboardingRepos(repos);
-  const tasks = await pipeline().taskQueue.mergeableTasks();
-  const taskCounts = await sweepMergeableTasks(tasks);
-
-  return `Checked ${repos.length} repos (${mergedCount} merged), ${tasks.length} tasks (${taskCounts.merged} merged, ${taskCounts.closed} rejected)`;
 }
 
 /** A merged task: mark merged, close Issue, boost memory, promote trust. */
@@ -267,27 +267,6 @@ async function handleRejectedTask(task: MergeableTask): Promise<void> {
   await applyOutcomeFeedback(task.id, "penalize");
 }
 
-// The audit entry for what the outcome did to the contributing facts and memories. Swallows its own failure: the boost or penalty has already landed, and losing the record of it is not a reason to report the feedback as failed.
-async function recordFeedback(
-  taskId: string,
-  action: "boost" | "penalize",
-  factIds: string[],
-  memoryIds: string[],
-): Promise<void> {
-  await memoryLifecycle()
-    .writeAuditLog({
-      agentId: "merge-check",
-      operation: "outcome-feedback",
-      metadata: {
-        task_id: taskId,
-        action,
-        fact_count: factIds.length,
-        memory_count: memoryIds.length,
-      },
-    })
-    .catch(() => {});
-}
-
 /** Boost or penalize task facts/memories by PR outcome. */
 export async function applyOutcomeFeedback(
   taskId: string,
@@ -311,17 +290,34 @@ export async function applyOutcomeFeedback(
   }
 }
 
-// The trust block after banking one merge. `promoted_at` is stamped only on an actual promotion — every merge moves the count, but only the one that crosses a tier is a moment worth dating.
-function promotedTrust(
-  trust: TrustState | undefined,
-  decision: ReturnType<typeof nextTrust>,
-) {
-  return {
-    ...trust,
-    level: decision.level,
-    successful_tasks: decision.successfulTasks,
-    ...(decision.promoted ? { promoted_at: new Date().toISOString() } : {}),
-  };
+// The audit entry for what the outcome did to the contributing facts and memories. Swallows its own failure: the boost or penalty has already landed, and losing the record of it is not a reason to report the feedback as failed.
+async function recordFeedback(
+  taskId: string,
+  action: "boost" | "penalize",
+  factIds: string[],
+  memoryIds: string[],
+): Promise<void> {
+  await memoryLifecycle()
+    .writeAuditLog({
+      agentId: "merge-check",
+      operation: "outcome-feedback",
+      metadata: {
+        task_id: taskId,
+        action,
+        fact_count: factIds.length,
+        memory_count: memoryIds.length,
+      },
+    })
+    .catch(() => {});
+}
+
+/** Bank one successful merge for progressive trust promotion. */
+export async function promoteTrust(targetRepo: string): Promise<void> {
+  try {
+    await bankMerge(targetRepo);
+  } catch {
+    /* trust promotion is best-effort */
+  }
 }
 
 // Moves the repo's trust one merge forward. A repo with no settings row and a decision that holds are both no-ops: trust is banked, not inferred, so a repo Lore knows nothing about does not start climbing.
@@ -350,11 +346,15 @@ async function bankMerge(targetRepo: string): Promise<void> {
   }
 }
 
-/** Bank one successful merge for progressive trust promotion. */
-export async function promoteTrust(targetRepo: string): Promise<void> {
-  try {
-    await bankMerge(targetRepo);
-  } catch {
-    /* trust promotion is best-effort */
-  }
+// The trust block after banking one merge. `promoted_at` is stamped only on an actual promotion — every merge moves the count, but only the one that crosses a tier is a moment worth dating.
+function promotedTrust(
+  trust: TrustState | undefined,
+  decision: ReturnType<typeof nextTrust>,
+) {
+  return {
+    ...trust,
+    level: decision.level,
+    successful_tasks: decision.successfulTasks,
+    ...(decision.promoted ? { promoted_at: new Date().toISOString() } : {}),
+  };
 }

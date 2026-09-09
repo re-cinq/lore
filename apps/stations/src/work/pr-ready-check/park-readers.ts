@@ -16,47 +16,6 @@ import type {
   PrReadyCheckDeps,
 } from "./sweep-contract.js";
 
-// The PR this run is parked on, and the commit to judge it by — or null when there is nothing to judge. A run with no `pr_number` never got that far; a PR with no judgeable commit has nothing CI was ever going to check.
-async function judgeable(
-  run: LoopRunSlice,
-  deps: PrReadyCheckDeps,
-): Promise<{ prNumber: number; headSha: string } | null> {
-  const prNumber = Number(run.args.pr_number) || 0;
-
-  if (!prNumber) {
-    console.log(
-      `[pr-ready-check] run ${run.id} parked with no pr_number — skipped`,
-    );
-
-    return null;
-  }
-  const headSha = ciJudgedSha(await deps.listPrCommits(run.repo, prNumber));
-
-  return headSha ? { prNumber, headSha } : null;
-}
-
-/** A red build reaches `fix-ci` naming the checks that failed; every other blocked reason carries only its reason. */
-function prReport(
-  verdict: PrReadyVerdict,
-  feedback: () => CiFeedbackArgs,
-): ParkedReport | null {
-  if (verdict.kind === "ready") {
-    return { outcome: "success", args: {} };
-  }
-
-  if (verdict.kind === "wait") {
-    return null;
-  }
-
-  return {
-    outcome: verdict.outcome,
-    args: {
-      reason: verdict.reason,
-      ...(verdict.reason === "ci_red" ? feedback() : {}),
-    },
-  };
-}
-
 /** The end-of-line wait: CI plus review threads. All four reads run together — they are independent, and this job sweeps every parked run on a tick. */
 export async function prReportForRun(
   run: LoopRunSlice,
@@ -98,11 +57,26 @@ async function prEvidence(
   return { checks, threads, openReviewRunCount, hasCiHistory };
 }
 
-/** The sha a red verdict was last reported for on this run, from its args. */
-function lastReportedSha(args: Record<string, unknown>): string | null {
-  const sha = args.ci_feedback_sha;
+/** A red build reaches `fix-ci` naming the checks that failed; every other blocked reason carries only its reason. */
+function prReport(
+  verdict: PrReadyVerdict,
+  feedback: () => CiFeedbackArgs,
+): ParkedReport | null {
+  if (verdict.kind === "ready") {
+    return { outcome: "success", args: {} };
+  }
 
-  return typeof sha === "string" && sha.length > 0 ? sha : null;
+  if (verdict.kind === "wait") {
+    return null;
+  }
+
+  return {
+    outcome: verdict.outcome,
+    args: {
+      reason: verdict.reason,
+      ...(verdict.reason === "ci_red" ? feedback() : {}),
+    },
+  };
 }
 
 /** The per-round wait: CI alone decides, and only the checks the repo itself publishes count — a run must not wait on the review check Lore has not started while the PR is still a draft. */
@@ -140,4 +114,30 @@ function ciReport(verdict: CiCheckVerdict): ParkedReport | null {
         outcome: verdict.outcome,
         args: { reason: verdict.reason, ...verdict.feedback },
       };
+}
+
+/** The sha a red verdict was last reported for on this run, from its args. */
+function lastReportedSha(args: Record<string, unknown>): string | null {
+  const sha = args.ci_feedback_sha;
+
+  return typeof sha === "string" && sha.length > 0 ? sha : null;
+}
+
+// The PR this run is parked on, and the commit to judge it by — or null when there is nothing to judge. A run with no `pr_number` never got that far; a PR with no judgeable commit has nothing CI was ever going to check.
+async function judgeable(
+  run: LoopRunSlice,
+  deps: PrReadyCheckDeps,
+): Promise<{ prNumber: number; headSha: string } | null> {
+  const prNumber = Number(run.args.pr_number) || 0;
+
+  if (!prNumber) {
+    console.log(
+      `[pr-ready-check] run ${run.id} parked with no pr_number — skipped`,
+    );
+
+    return null;
+  }
+  const headSha = ciJudgedSha(await deps.listPrCommits(run.repo, prNumber));
+
+  return headSha ? { prNumber, headSha } : null;
 }

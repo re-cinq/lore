@@ -30,6 +30,30 @@ export interface SubscribeRetry {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+export async function startStationDrain(
+  deps: StationDrainDeps,
+  intervalMs = 1000,
+  handlers: Map<string, EventHandler> = buildStationHandlers(),
+  retry: SubscribeRetry = { attempts: 10, delayMs: 1000 },
+): Promise<NodeJS.Timeout> {
+  // Awaited before the loop — fan-out reads the subscription set at insert time, so an earlier event is delivered to nobody.
+  await subscribeWithRetry(deps, retry);
+
+  await repairMissedDeliveries(deps);
+
+  return startEventLoop(
+    {
+      resolve: (name) => handlers.get(name),
+      claim: (limit, exclude) =>
+        deps.claim(STATIONS_SUBSCRIBER, limit, exclude),
+      markDone: deps.markDone,
+      markFailed: deps.markFailed,
+      markDead: deps.markDead,
+    },
+    intervalMs,
+  );
+}
+
 // Retries subscribe on boot since this service and the router race up (npm start) or reorder (rollout); still fails hard on the last attempt, since an unregistered drainer looks identical to an idle one.
 async function subscribeWithRetry(
   deps: StationDrainDeps,
@@ -67,28 +91,4 @@ async function repairMissedDeliveries(deps: StationDrainDeps): Promise<void> {
       `[stations] boot reconcile failed (${(err as Error).message}) — draining anyway`,
     );
   }
-}
-
-export async function startStationDrain(
-  deps: StationDrainDeps,
-  intervalMs = 1000,
-  handlers: Map<string, EventHandler> = buildStationHandlers(),
-  retry: SubscribeRetry = { attempts: 10, delayMs: 1000 },
-): Promise<NodeJS.Timeout> {
-  // Awaited before the loop — fan-out reads the subscription set at insert time, so an earlier event is delivered to nobody.
-  await subscribeWithRetry(deps, retry);
-
-  await repairMissedDeliveries(deps);
-
-  return startEventLoop(
-    {
-      resolve: (name) => handlers.get(name),
-      claim: (limit, exclude) =>
-        deps.claim(STATIONS_SUBSCRIBER, limit, exclude),
-      markDone: deps.markDone,
-      markFailed: deps.markFailed,
-      markDead: deps.markDead,
-    },
-    intervalMs,
-  );
 }

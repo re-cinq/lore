@@ -17,6 +17,26 @@ export type PrReadyVerdict =
       outcome: "changes_requested" | "failed";
     };
 
+/** Verdict for await-pr: hasCiHistory distinguishes "no checks configured" (green) from "not started" (pending). */
+export function decidePrReady(input: {
+  ci: CiConclusion;
+  threads: readonly ReviewThread[];
+  openReviewRunCount: number;
+  /** Does this repo run checks at all? */
+  hasCiHistory: boolean;
+}): PrReadyVerdict {
+  const ci = ciVerdict({ ci: input.ci, hasCiHistory: input.hasCiHistory });
+
+  if (ci) {
+    return ci;
+  }
+  const unresolved = input.threads.filter(
+    (t) => !t.isResolved && !t.isOutdated,
+  );
+
+  return threadVerdict(unresolved.length, input.openReviewRunCount);
+}
+
 /** The CI-only half of the verdict, or null to fall through to the thread check. */
 function ciVerdict(input: {
   ci: CiConclusion;
@@ -49,24 +69,4 @@ function threadVerdict(
   return openReviewRunCount > 0
     ? { kind: "wait", reason: "address_in_flight" }
     : { kind: "blocked", reason: "unresolved_threads", outcome: "failed" };
-}
-
-/** Verdict for await-pr: hasCiHistory distinguishes "no checks configured" (green) from "not started" (pending). */
-export function decidePrReady(input: {
-  ci: CiConclusion;
-  threads: readonly ReviewThread[];
-  openReviewRunCount: number;
-  /** Does this repo run checks at all? */
-  hasCiHistory: boolean;
-}): PrReadyVerdict {
-  const ci = ciVerdict({ ci: input.ci, hasCiHistory: input.hasCiHistory });
-
-  if (ci) {
-    return ci;
-  }
-  const unresolved = input.threads.filter(
-    (t) => !t.isResolved && !t.isOutdated,
-  );
-
-  return threadVerdict(unresolved.length, input.openReviewRunCount);
 }
