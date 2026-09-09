@@ -84,8 +84,10 @@ function agentCountsOverCap<T extends { agent_id: string }>(
 ): AgentCount[] {
   const counts = new Map<string, number>();
 
-  for (const row of rows.filter(counted)) {
-    counts.set(row.agent_id, (counts.get(row.agent_id) ?? 0) + 1);
+  for (const row of rows) {
+    if (counted(row)) {
+      counts.set(row.agent_id, (counts.get(row.agent_id) ?? 0) + 1);
+    }
   }
 
   return [...counts.entries()]
