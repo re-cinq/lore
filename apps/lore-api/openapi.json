@@ -6759,7 +6759,7 @@
       "get": {
         "operationId": "get_api_search-context",
         "summary": "GET /api/search-context",
-        "tags": ["Other"],
+        "tags": ["Context"],
         "security": [
           {
             "bearerAuth": []
