@@ -6,7 +6,8 @@ import { testFileImpact } from "./impact-test-link.js";
 import { readGraphBaseline } from "./graph-baseline.js";
 import { specFileImpact } from "./impact-statement-delta.js";
 import {
-  implementedByImpact,
+  implementedByImpactAndXids,
+  callerHopImpact,
   validatedByImpact,
   orphanImpact,
 } from "./impact-code-graph.js";
@@ -52,9 +53,12 @@ async function fileImpact(
   aligned: boolean,
 ): Promise<Array<ImpactStatement & { xid: string }>> {
   const ranges = file.baseRanges ?? file.ranges;
+  const { statements: directStatements, touchedChunkXids } =
+    await implementedByImpactAndXids(dgraph, repo, file.path, ranges);
 
   return [
-    ...(await implementedByImpact(dgraph, repo, file.path, ranges)),
+    ...directStatements,
+    ...(await callerHopImpact(dgraph, repo, touchedChunkXids, file.path)),
     ...(await testFileImpact(dgraph, repo, file.path, {
       ranges,
       fileLevel: !aligned,

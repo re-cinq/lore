@@ -471,6 +471,76 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
       },
     ]);
   });
+
+  // specs/spec-traceability-graph/data-model.md#call-graph-hop
+  it("surfaces a caller statement as indirect when only the callee chunk is changed (one-hop reference expansion)", async () => {
+    const repo = `test-impact/${randomUUID()}`;
+
+    createdRepo = repo;
+    await stampGraphBaseline(dgraphClient, repo, "base1", BASELINE_AT);
+    const specPath = "specs/caller/spec.md";
+    const txn = dgraphClient.newTxn();
+
+    try {
+      await txn.mutate({
+        setJson: {
+          uid: "_:spec",
+          "dgraph.type": "Spec",
+          "Spec.xid": `${repo}|${specPath}`,
+          "Spec.repo": repo,
+          "Spec.file_path": specPath,
+          "Spec.title": "Caller Spec",
+          "Spec.sections": [
+            {
+              uid: "_:stmt",
+              "dgraph.type": "Statement",
+              "Statement.xid": `${repo}|${specPath}|1`,
+              "Statement.repo": repo,
+              "Statement.text": "The caller MUST delegate to the callee.",
+              "Statement.spec": { uid: "_:spec" },
+              "Statement.implemented_by": {
+                uid: "_:caller",
+                "dgraph.type": "CodeChunk",
+                "CodeChunk.xid": `${repo}|src/caller.ts|1`,
+                "CodeChunk.repo": repo,
+                "CodeChunk.file_path": "src/caller.ts",
+                "CodeChunk.start_line": 1,
+                "CodeChunk.end_line": 10,
+                "CodeChunk.references": {
+                  uid: "_:callee",
+                  "dgraph.type": "CodeChunk",
+                  "CodeChunk.xid": `${repo}|src/callee.ts|1`,
+                  "CodeChunk.repo": repo,
+                  "CodeChunk.file_path": "src/callee.ts",
+                  "CodeChunk.start_line": 1,
+                  "CodeChunk.end_line": 5,
+                },
+              },
+            },
+          ],
+        },
+        commitNow: true,
+      });
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+
+    const report = await computeImpact(
+      dgraphClient,
+      repo,
+      [{ path: "src/callee.ts", ranges: [[1, 5]], aligned: true }],
+      { protocol: 2 },
+    );
+
+    expect(report.status).toBe("ok");
+    expect(report.statements).toMatchObject([
+      {
+        statementText: "The caller MUST delegate to the callee.",
+        changedFile: "src/callee.ts",
+        indirect: true,
+      },
+    ]);
+  });
 });
 
 describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {

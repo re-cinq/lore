@@ -12,6 +12,7 @@ import {
 import type { OrphanStatement } from "./impact-types.js";
 
 interface GraphImplChunk {
+  "CodeChunk.xid"?: string;
   "CodeChunk.start_line"?: number;
   "CodeChunk.end_line"?: number;
   stmts?: GraphStatement[];
@@ -19,6 +20,7 @@ interface GraphImplChunk {
 
 const IMPL_QUERY = `query q($repo: string, $fp: string) {
   chunks(func: eq(CodeChunk.file_path, $fp)) @filter(eq(CodeChunk.repo, $repo)) {
+    CodeChunk.xid
     CodeChunk.start_line
     CodeChunk.end_line
     stmts: ~Statement.implemented_by {
@@ -41,6 +43,39 @@ function implChunkInScope(
   );
 }
 
+export interface ImplResult {
+  statements: Array<ImpactStatement & { xid: string }>;
+  /** Xids of every in-scope CodeChunk, even those with no associated statement (needed for the caller-hop pass). */
+  touchedChunkXids: string[];
+}
+
+/** CodeChunks in `file` whose line range overlaps any changed range → their statements + xids. */
+export async function implementedByImpactAndXids(
+  dgraph: DgraphClientPort,
+  repo: string,
+  file: string,
+  ranges: [number, number][],
+): Promise<ImplResult> {
+  const chunks = await withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(IMPL_QUERY, { $repo: repo, $fp: file });
+
+    return (res.data.chunks ?? []) as GraphImplChunk[];
+  });
+
+  const inScope = chunks.filter((chunk) => implChunkInScope(chunk, ranges));
+
+  return {
+    statements: inScope.flatMap((chunk) =>
+      (chunk.stmts ?? []).map((stmt) =>
+        toImpactStatement(stmt, file, [], "file-link"),
+      ),
+    ),
+    touchedChunkXids: inScope
+      .map((c) => c["CodeChunk.xid"] ?? "")
+      .filter(Boolean),
+  };
+}
+
 /** CodeChunks in `file` whose line range overlaps any changed range → their statements. */
 export async function implementedByImpact(
   dgraph: DgraphClientPort,
@@ -48,19 +83,64 @@ export async function implementedByImpact(
   file: string,
   ranges: [number, number][],
 ): Promise<Array<ImpactStatement & { xid: string }>> {
-  const chunks = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(IMPL_QUERY, { $repo: repo, $fp: file });
+  const { statements } = await implementedByImpactAndXids(
+    dgraph,
+    repo,
+    file,
+    ranges,
+  );
 
-    return (res.data.chunks ?? []) as GraphImplChunk[];
-  });
+  return statements;
+}
 
-  return chunks
-    .filter((chunk) => implChunkInScope(chunk, ranges))
-    .flatMap((chunk) =>
-      (chunk.stmts ?? []).map((stmt) =>
-        toImpactStatement(stmt, file, [], "file-link"),
-      ),
-    );
+const CALLERS_QUERY = `query q($repo: string, $xid: string) {
+  callee(func: eq(CodeChunk.xid, $xid)) {
+    callers: ~CodeChunk.references @filter(eq(CodeChunk.repo, $repo)) {
+      CodeChunk.file_path
+      stmts: ~Statement.implemented_by {
+        ${STATEMENT_PROJECTION}
+      }
+    }
+  }
+}`;
+
+interface GraphCaller {
+  "CodeChunk.file_path"?: string;
+  stmts?: GraphStatement[];
+}
+
+/** For each callee chunk xid, finds all caller chunks (via reverse CodeChunk.references) and returns their statements marked indirect. */
+export async function callerHopImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  calleeXids: string[],
+  calleeFile: string,
+): Promise<Array<ImpactStatement & { xid: string }>> {
+  const results: Array<ImpactStatement & { xid: string }> = [];
+
+  for (const xid of calleeXids) {
+    const callees = await withTxn(dgraph, async (txn) => {
+      const res = await txn.queryWithVars(CALLERS_QUERY, {
+        $repo: repo,
+        $xid: xid,
+      });
+
+      return (res.data.callee ?? []) as { callers?: GraphCaller[] }[];
+    });
+
+    for (const callee of callees) {
+      for (const caller of callee.callers ?? []) {
+        for (const stmt of caller.stmts ?? []) {
+          results.push({
+            ...toImpactStatement(stmt, calleeFile, [], "file-link"),
+            indirect: true,
+          });
+        }
+      }
+    }
+  }
+
+  return results;
 }
 
 interface GraphTestChunk {
