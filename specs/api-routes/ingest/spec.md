@@ -122,19 +122,19 @@ When the supplied `commit` belongs to a different repo than the one being fetche
 
 A file resolved at the exact given commit is ingested with a single GitHub call — no HEAD retry. ([validated by `ingests a file resolved at the given commit without retrying HEAD`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L178))
 
-A 404 at the given commit (when it differs from `HEAD`) retries the fetch at `HEAD` and ingests the file found there. ([validated by `falls back to HEAD when the commit is unknown to the repo`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L201))
+A 404 at the given commit (when it differs from `HEAD`) retries the fetch at `HEAD` and ingests the file found there. ([validated by `falls back to HEAD when the commit is unknown to the repo`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L223))
 
-When the commit is already `HEAD` and the file 404s, the file is reported `deleted` (its chunks removed) without a second fetch attempt. ([validated by `marks a file deleted (no HEAD retry) when the commit is already HEAD and the file 404s`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L231))
+When the commit is already `HEAD` and the file 404s, the file is reported `deleted` (its chunks removed) without a second fetch attempt. ([validated by `marks a file deleted (no HEAD retry) when the commit is already HEAD and the file 404s`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L253))
 
-A path that resolves to a directory (no file content) is reported `skipped` with `"not a file (directory?)"`, not deleted. ([validated by `skips a not-a-file result (directory) without deleting or throwing`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L255))
+A path that resolves to a directory (no file content) is reported `skipped` with `"not a file (directory?)"`, not deleted. ([validated by `skips a not-a-file result (directory) without deleting or throwing`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L277))
 
-Inline `{path, content}` files never call GitHub; an unclassifiable extension is reported `skipped` with `"unsupported file type"`. ([validated by `skips an unsupported file type without a GitHub call for inline content`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L274))
+Inline `{path, content}` files never call GitHub; an unclassifiable extension is reported `skipped` with `"unsupported file type"`. ([validated by `skips an unsupported file type without a GitHub call for inline content`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L296))
 
-An inline entry whose `content` is the empty string is content the caller supplied, not an absent one: it resolves to `""` without a GitHub call, so a payload-only ingest with no GitHub client does not fault. ([validated by `returns the empty content of an inline entry without reaching GitHub`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L339))
+An inline entry whose `content` is the empty string is content the caller supplied, not an absent one: it resolves to `""` without a GitHub call, so a payload-only ingest with no GitHub client does not fault. ([validated by `returns the empty content of an inline entry without reaching GitHub`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L361))
 
-A non-404 GitHub failure is caught per-file and reported as an `error` result rather than throwing out of `ingestFiles`. ([validated by `records an error result (not a thrown error) for a non-404 GitHub failure`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L289))
+A non-404 GitHub failure is caught per-file and reported as an `error` result rather than throwing out of `ingestFiles`. ([validated by `records an error result (not a thrown error) for a non-404 GitHub failure`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L311))
 
-The returned `ingested`/`deleted`/`errors` counts tally the per-file outcomes of a mixed batch. ([validated by `tallies ingested, deleted, and error counts across a mixed batch`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L309))
+The returned `ingested`/`deleted`/`errors` counts tally the per-file outcomes of a mixed batch. ([validated by `tallies ingested, deleted, and error counts across a mixed batch`](apps/lore-api/src/work/spec-trace/ingest.test.ts#L331))
 
 ### POST /api/repos/{owner}/{repo}/chunks/prune — the orphan sweep
 
