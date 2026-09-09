@@ -12,7 +12,7 @@ import NodeMetaLine from "./NodeMetaLine";
 import NodeOutcomeList from "./NodeOutcomeList";
 import NodePlainLabel from "./NodePlainLabel";
 import NodeRunBadge from "./NodeRunBadge";
-import { NODE_WIDTH, titleCase } from "./run-graph-geometry";
+import { NODE_WIDTH, nodeTextRows, titleCase } from "./run-graph-geometry";
 import { classes } from "./run-graph-tone-classes";
 import styles from "./run-graph.module.css";
 
@@ -117,6 +117,8 @@ function nodeInteraction(
 
 interface NodeBodyProps {
   badge: ReturnType<typeof computeBadge>;
+  /** Baselines for this node's text lines, offsets from the box centre. */
+  baselines: readonly number[];
   outcomes: readonly string[];
   title: string;
   node: GraphNodeProps["node"];
@@ -127,7 +129,7 @@ interface NodeBodyProps {
 
 /** What the box says, in precedence order: a run badge when this visit has an outcome, else the outcomes the definition declares, else the plain name. A node cannot show both — the badge IS the run's answer, and listing the possibilities beside it would read as though they were still open. */
 function NodeBody(props: NodeBodyProps) {
-  const { badge, outcomes, title, node, leftEdge } = props;
+  const { badge, outcomes, title, node, leftEdge, baselines } = props;
 
   if (badge) {
     return (
@@ -136,6 +138,7 @@ function NodeBody(props: NodeBodyProps) {
         badge={badge}
         leftEdge={leftEdge}
         centerY={node.y}
+        baselines={baselines}
       />
     );
   }
@@ -229,23 +232,40 @@ function NodeBox({ leftEdge, top, height }: NodeBoxProps) {
   );
 }
 
+/** What the box draws and where: the baselines its lines are centred on, and the facts line ready to render — empty when this visit has nothing to report, which is what makes the stack two lines instead of three. */
+function nodeLines(
+  props: GraphNodeProps,
+  badge: ReturnType<typeof computeBadge>,
+  leftEdge: number,
+) {
+  const meta = badge ? (props.meta ?? "") : "";
+  const baselines = nodeTextRows(meta === "" ? 2 : 3);
+
+  return {
+    baselines,
+    metaLine: {
+      meta,
+      leftEdge,
+      centerY: props.node.y,
+      baseline: baselines[2] ?? 0,
+    },
+  };
+}
+
 export default function GraphNode(props: GraphNodeProps) {
   const { node, model, mode, height, isTerminal, onSelect } = props;
   const badge = computeBadge(mode, model);
   const outcomes = model?.outcomes ?? [];
   const { top, leftEdge } = boxOf(node, height);
   const interaction = nodeInteraction(node.id, onSelect);
-  const body = { node, badge, outcomes, isTerminal, top, leftEdge };
+  const { baselines, metaLine } = nodeLines(props, badge, leftEdge);
+  const body = { node, badge, baselines, outcomes, isTerminal, top, leftEdge };
 
   return (
     <g {...groupProps(body, interaction, props.selected === true)}>
       <NodeBox leftEdge={leftEdge} top={top} height={height} />
       <NodeBody {...body} title={titleCase(node.id)} />
-      <NodeMetaLine
-        meta={badge ? (props.meta ?? "") : ""}
-        leftEdge={leftEdge}
-        centerY={node.y}
-      />
+      <NodeMetaLine {...metaLine} />
     </g>
   );
 }
