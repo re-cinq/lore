@@ -5,6 +5,19 @@ import { dumpSessionLog } from "@re-cinq/lore-server-core/platform/session-track
 import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 
+// Speaks MCP over stdio and proxies every data operation to LORE_API_URL (no DB pool, no OTel SDK); LORE_MCP_HTTP=1 serves it over Streamable HTTP instead, as a shared gateway for agent pods.
+async function main() {
+  loadTaskTypes();
+  loadDefaultTemplates();
+
+  if (httpGatewayRequested()) {
+    startGatewayFromEnv();
+
+    return;
+  }
+  await startStdioAdapter();
+}
+
 // Both spellings are accepted because the value is set by hand in Helm values as well as by the chart.
 function httpGatewayRequested(): boolean {
   return (
@@ -35,19 +48,6 @@ async function startStdioAdapter(): Promise<void> {
   process.on("SIGTERM", exitHandler);
   process.on("SIGINT", exitHandler);
   process.on("beforeExit", exitHandler);
-}
-
-// Speaks MCP over stdio and proxies every data operation to LORE_API_URL (no DB pool, no OTel SDK); LORE_MCP_HTTP=1 serves it over Streamable HTTP instead, as a shared gateway for agent pods.
-async function main() {
-  loadTaskTypes();
-  loadDefaultTemplates();
-
-  if (httpGatewayRequested()) {
-    startGatewayFromEnv();
-
-    return;
-  }
-  await startStdioAdapter();
 }
 
 main().catch((err) => {

@@ -43,15 +43,6 @@ export function deriveUpdateStatus(
   return { updateAvailable: true, commitsBehind, builtSha, remoteSha };
 }
 
-async function git(args: string[], timeoutMs = 8000): Promise<string> {
-  const { stdout } = await execFileP("git", ["-C", LORE_DIR, ...args], {
-    timeout: timeoutMs,
-    windowsHide: true,
-  });
-
-  return stdout.trim();
-}
-
 // Fetches origin/main and compares to the built SHA; any failure (no checkout, offline, git missing) resolves to "no update" so the MCP never nags on a bad signal.
 export async function computeUpdateStatus(): Promise<UpdateStatus> {
   try {
@@ -74,6 +65,15 @@ export async function computeUpdateStatus(): Promise<UpdateStatus> {
   } catch {
     return NO_UPDATE;
   }
+}
+
+async function git(args: string[], timeoutMs = 8000): Promise<string> {
+  const { stdout } = await execFileP("git", ["-C", LORE_DIR, ...args], {
+    timeout: timeoutMs,
+    windowsHide: true,
+  });
+
+  return stdout.trim();
 }
 
 let cached: Promise<UpdateStatus> | null = null;

@@ -21,15 +21,72 @@ interface PendingTaskRow {
   issue_number?: number | null;
 }
 
-function pendingTask(row: PendingTaskRow): PendingTask {
-  return {
-    id: row.id,
-    description: (row.description || "").substring(0, 200),
-    task_type: row.task_type,
-    target_repo: row.target_repo,
-    created_at: row.created_at,
-    issue_number: row.issue_number ?? undefined,
+let notifierInterval: ReturnType<typeof setInterval> | null = null;
+
+// Starts the background task notifier: polls every 30s, writes matches to ~/.lore/pending-tasks.json (read-only, never claims), which the statusline reads to show "N new task(s)".
+export function startNotifier(
+  repos: string[],
+  taskTypes: string[],
+  dbPool?: PgPool,
+): void {
+  if (notifierInterval) {
+    return;
+  }
+  const poll = pollCycle(repos, taskTypes, dbPool);
+
+  // Run immediately, then on interval
+  void poll();
+  notifierInterval = setInterval(() => void poll(), 30_000);
+}
+
+// Every fifth cycle also sweeps stale tasks (~2.5 min at a 30s interval) — not something each poll needs to pay for.
+function pollCycle(
+  repos: string[],
+  taskTypes: string[],
+  dbPool?: PgPool,
+): () => Promise<void> {
+  let pollCount = 0;
+
+  return async () => {
+    await writePendingFile(repos, taskTypes, dbPool);
+    pollCount++;
+
+    if (pollCount % 5 === 0) {
+      await cleanupStaleTasks().catch((err) =>
+        warnBestEffort("stale-task cleanup sweep", err),
+      );
+    }
   };
+}
+
+// Refreshes the file the statusline reads. Best effort throughout — this runs on a timer inside the MCP server, and a poll that threw would take the server down with it.
+async function writePendingFile(
+  repos: string[],
+  taskTypes: string[],
+  dbPool?: PgPool,
+): Promise<void> {
+  try {
+    const tasks = await fetchPendingTasks(repos, taskTypes, dbPool);
+
+    fs.writeFileSync(PENDING_FILE, JSON.stringify(tasks, null, 2));
+  } catch {
+    /* never crash the MCP server */
+  }
+}
+
+// Fetches pending pipeline tasks matching the given repos/task types; prefers a direct DB query when a pool is available, else falls back to the Lore API.
+export async function fetchPendingTasks(
+  repos: string[],
+  taskTypes: string[],
+  dbPool?: PgPool,
+): Promise<PendingTask[]> {
+  if (repos.length === 0 || taskTypes.length === 0) {
+    return [];
+  }
+  // The pool is the fast path when this process has one; anything wrong with it falls through to the API rather than failing the poll.
+  const direct = dbPool ? await pendingFromDb(dbPool, repos, taskTypes) : null;
+
+  return direct ?? (await pendingFromApi(repos, taskTypes));
 }
 
 // Oldest first, capped at ten: this feeds a statusline count, so the exact tail does not matter and an unbounded read on a busy org would.
@@ -62,29 +119,6 @@ async function pendingFromDb(
   }
 }
 
-/** The unfiltered pending list. Returns nothing rather than throwing on a non-ok response — the caller's whole contract is that a poll never surfaces an error. */
-async function fetchPendingRows(
-  apiUrl: string,
-  token: string,
-): Promise<PendingTaskRow[]> {
-  const resp = await fetch(`${apiUrl}/api/task`, {
-    signal: AbortSignal.timeout(30_000),
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ action: "list", status: "pending" }),
-  });
-
-  if (!resp.ok) {
-    return [];
-  }
-  const body = (await resp.json()) as { tasks?: PendingTaskRow[] };
-
-  return body.tasks || [];
-}
-
 async function pendingFromApi(
   repos: string[],
   taskTypes: string[],
@@ -111,72 +145,38 @@ async function pendingFromApi(
   }
 }
 
-// Fetches pending pipeline tasks matching the given repos/task types; prefers a direct DB query when a pool is available, else falls back to the Lore API.
-export async function fetchPendingTasks(
-  repos: string[],
-  taskTypes: string[],
-  dbPool?: PgPool,
-): Promise<PendingTask[]> {
-  if (repos.length === 0 || taskTypes.length === 0) {
+/** The unfiltered pending list. Returns nothing rather than throwing on a non-ok response — the caller's whole contract is that a poll never surfaces an error. */
+async function fetchPendingRows(
+  apiUrl: string,
+  token: string,
+): Promise<PendingTaskRow[]> {
+  const resp = await fetch(`${apiUrl}/api/task`, {
+    signal: AbortSignal.timeout(30_000),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action: "list", status: "pending" }),
+  });
+
+  if (!resp.ok) {
     return [];
   }
-  // The pool is the fast path when this process has one; anything wrong with it falls through to the API rather than failing the poll.
-  const direct = dbPool ? await pendingFromDb(dbPool, repos, taskTypes) : null;
+  const body = (await resp.json()) as { tasks?: PendingTaskRow[] };
 
-  return direct ?? (await pendingFromApi(repos, taskTypes));
+  return body.tasks || [];
 }
 
-let notifierInterval: ReturnType<typeof setInterval> | null = null;
-
-// Refreshes the file the statusline reads. Best effort throughout — this runs on a timer inside the MCP server, and a poll that threw would take the server down with it.
-async function writePendingFile(
-  repos: string[],
-  taskTypes: string[],
-  dbPool?: PgPool,
-): Promise<void> {
-  try {
-    const tasks = await fetchPendingTasks(repos, taskTypes, dbPool);
-
-    fs.writeFileSync(PENDING_FILE, JSON.stringify(tasks, null, 2));
-  } catch {
-    /* never crash the MCP server */
-  }
-}
-
-// Every fifth cycle also sweeps stale tasks (~2.5 min at a 30s interval) — not something each poll needs to pay for.
-function pollCycle(
-  repos: string[],
-  taskTypes: string[],
-  dbPool?: PgPool,
-): () => Promise<void> {
-  let pollCount = 0;
-
-  return async () => {
-    await writePendingFile(repos, taskTypes, dbPool);
-    pollCount++;
-
-    if (pollCount % 5 === 0) {
-      await cleanupStaleTasks().catch((err) =>
-        warnBestEffort("stale-task cleanup sweep", err),
-      );
-    }
+function pendingTask(row: PendingTaskRow): PendingTask {
+  return {
+    id: row.id,
+    description: (row.description || "").substring(0, 200),
+    task_type: row.task_type,
+    target_repo: row.target_repo,
+    created_at: row.created_at,
+    issue_number: row.issue_number ?? undefined,
   };
-}
-
-// Starts the background task notifier: polls every 30s, writes matches to ~/.lore/pending-tasks.json (read-only, never claims), which the statusline reads to show "N new task(s)".
-export function startNotifier(
-  repos: string[],
-  taskTypes: string[],
-  dbPool?: PgPool,
-): void {
-  if (notifierInterval) {
-    return;
-  }
-  const poll = pollCycle(repos, taskTypes, dbPool);
-
-  // Run immediately, then on interval
-  void poll();
-  notifierInterval = setInterval(() => void poll(), 30_000);
 }
 
 /** Stops the background notifier and removes the pending-tasks file. */

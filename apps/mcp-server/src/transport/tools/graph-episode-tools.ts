@@ -40,6 +40,15 @@ interface WriteEpisodeArgs {
   agent_id?: string;
 }
 
+function registerWriteEpisodeTool(server: McpServer) {
+  server.tool(
+    "lore_write_episode",
+    `Ingests one raw uncurated text blob as a deduplicated episode; returns {status: "ok", episode_id, source, ref} or {status: "duplicate"} when already ingested. Content is secret-redacted; facts and graph entities/edges are extracted asynchronously. Use for bulk/passive capture where you do not want to choose a key and do not need the text individually addressable. Instead: lore_write_memory for a curated nugget you want to retrieve by a specific key. No file fallback — requires DB or API.`,
+    WRITE_EPISODE_INPUT,
+    writeEpisodeHandler,
+  );
+}
+
 async function writeEpisodeHandler(args: WriteEpisodeArgs) {
   try {
     const handled = interpretMemoryProxy(
@@ -62,20 +71,47 @@ async function writeEpisodeHandler(args: WriteEpisodeArgs) {
   }
 }
 
-function registerWriteEpisodeTool(server: McpServer) {
-  server.tool(
-    "lore_write_episode",
-    `Ingests one raw uncurated text blob as a deduplicated episode; returns {status: "ok", episode_id, source, ref} or {status: "duplicate"} when already ingested. Content is secret-redacted; facts and graph entities/edges are extracted asynchronously. Use for bulk/passive capture where you do not want to choose a key and do not need the text individually addressable. Instead: lore_write_memory for a curated nugget you want to retrieve by a specific key. No file fallback — requires DB or API.`,
-    WRITE_EPISODE_INPUT,
-    writeEpisodeHandler,
-  );
-}
-
 interface GraphQueryArgs {
   entity?: string;
   relation_type?: string;
   repo?: string;
   include_invalidated?: boolean;
+}
+
+function registerQueryGraphTool(server: McpServer) {
+  server.tool(
+    "lore_query_graph",
+    `Reads the live knowledge graph and returns typed relationship edges {entity, entity_type, relation, related_entity, related_type, direction, valid_from} for one entity, or recent edges when no entity given. Use when you want structured relationships (uses/owns/depends-on/replaced-by), not prose. Graph is populated asynchronously by lore_write_episode — no writes here. Instead: lore_search_memory for learnings and facts in prose form; lore_search_context for raw document passages; lore_assemble_context for the token-budgeted startup bundle.`,
+    QUERY_GRAPH_INPUT,
+    async (args) =>
+      trackLatency("lore_query_graph", async () => {
+        try {
+          return await queryGraph(args);
+        } catch (err) {
+          return textResult(`Error querying graph: ${errorMessage(err)}`);
+        }
+      }),
+  );
+}
+
+/** Reads the graph through the API — the adapter holds no pool even in stdio mode, so an unconfigured LORE_API_URL leaves nothing to read and says so rather than reporting an empty graph. */
+async function queryGraph(args: {
+  entity?: string;
+  relation_type?: string;
+  repo?: string;
+  include_invalidated?: boolean;
+}) {
+  const params = buildGraphQueryParams(args);
+  const proxied = await withReadCache(graphReadSpec(args), () =>
+    proxyGetApi(`/api/graph?${params.toString()}`),
+  );
+
+  return (
+    interpretMemoryProxy("lore_query_graph", proxied) ??
+    textResult(
+      "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL.",
+    )
+  );
 }
 
 function buildGraphQueryParams(args: GraphQueryArgs): URLSearchParams {
@@ -110,39 +146,12 @@ function graphReadSpec(args: GraphQueryArgs) {
   };
 }
 
-/** Reads the graph through the API — the adapter holds no pool even in stdio mode, so an unconfigured LORE_API_URL leaves nothing to read and says so rather than reporting an empty graph. */
-async function queryGraph(args: {
-  entity?: string;
-  relation_type?: string;
-  repo?: string;
-  include_invalidated?: boolean;
-}) {
-  const params = buildGraphQueryParams(args);
-  const proxied = await withReadCache(graphReadSpec(args), () =>
-    proxyGetApi(`/api/graph?${params.toString()}`),
-  );
-
-  return (
-    interpretMemoryProxy("lore_query_graph", proxied) ??
-    textResult(
-      "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL.",
-    )
-  );
-}
-
-function registerQueryGraphTool(server: McpServer) {
+function registerAgentStatsTool(server: McpServer) {
   server.tool(
-    "lore_query_graph",
-    `Reads the live knowledge graph and returns typed relationship edges {entity, entity_type, relation, related_entity, related_type, direction, valid_from} for one entity, or recent edges when no entity given. Use when you want structured relationships (uses/owns/depends-on/replaced-by), not prose. Graph is populated asynchronously by lore_write_episode — no writes here. Instead: lore_search_memory for learnings and facts in prose form; lore_search_context for raw document passages; lore_assemble_context for the token-budgeted startup bundle.`,
-    QUERY_GRAPH_INPUT,
-    async (args) =>
-      trackLatency("lore_query_graph", async () => {
-        try {
-          return await queryGraph(args);
-        } catch (err) {
-          return textResult(`Error querying graph: ${errorMessage(err)}`);
-        }
-      }),
+    "lore_agent_stats",
+    `Returns an agent's combined health and learning statistics as JSON (memory_count, total_facts, active_facts, invalidated_facts, total_searches, recent_episodes, etc.). Use to gauge how much an agent has learned and how active it is. Instead: lore_my_usage for per-developer LLM token spend.`,
+    AGENT_STATS_INPUT,
+    agentStatsHandler,
   );
 }
 
@@ -176,14 +185,5 @@ function statsRefusal(
 
   return textResult(
     `Could not fetch agent stats from the Lore API: ${proxied.detail}`,
-  );
-}
-
-function registerAgentStatsTool(server: McpServer) {
-  server.tool(
-    "lore_agent_stats",
-    `Returns an agent's combined health and learning statistics as JSON (memory_count, total_facts, active_facts, invalidated_facts, total_searches, recent_episodes, etc.). Use to gauge how much an agent has learned and how active it is. Instead: lore_my_usage for per-developer LLM token spend.`,
-    AGENT_STATS_INPUT,
-    agentStatsHandler,
   );
 }
