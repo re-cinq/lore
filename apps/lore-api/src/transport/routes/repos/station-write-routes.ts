@@ -10,6 +10,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoOf, fail } from "./station-helpers.js";
+import { OkSchema } from "../../http/ok-schema.js";
 
 // The write half of the station-pod surface: a pod holds no GitHub App creds (ADR-031 D6/D7), so every issue/branch/commit/pull write it makes comes back through these routes and the shared Project facade.
 
@@ -56,8 +57,6 @@ const PullRefSchema = z.object({
   author: z.string().optional(),
   draft: z.boolean().optional(),
 });
-
-const OkSchema = z.object({ ok: z.literal(true) });
 
 async function serveCreateIssue(
   request: Request,

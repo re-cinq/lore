@@ -17,6 +17,7 @@ import {
   twoKeyFieldsTouched,
 } from "../../../work/dark-factory/dark-factory-settings.js";
 import { withPool } from "../with-pool.js";
+import { OkSchema } from "../../http/ok-schema.js";
 
 // THE REFUSAL IS THE POINT: a patch touching privileged dark-factory fields is refused outright (nothing written) to keep the CODEOWNER-approval ceremony on PUT /settings/dark-factory from being bypassed by this blanket merge.
 
@@ -39,8 +40,6 @@ const RepoSettingsBody = z.object({
 });
 
 type RepoSettingsBody = z.infer<typeof RepoSettingsBody>;
-
-const OkSchema = z.object({ ok: z.literal(true) });
 
 function enforceDarkFactoryAllowed(darkFactory: unknown, repo: string): void {
   if (!darkFactory) {

@@ -256,7 +256,7 @@ async function serveReadBacklog(
 async function setLoopEnabled(
   pool: Pool,
   repo: string,
-  enabled: boolean,
+  { enabled }: { enabled: boolean },
 ): Promise<void> {
   const { rows } = await pool.query<{ full_name: string }>(
     "SELECT full_name FROM lore.repos WHERE full_name = $1",
@@ -313,7 +313,7 @@ async function serveToggleBacklog(
   const repo = repoOf(request.params);
   const { enabled } = request.payload as { enabled: boolean };
 
-  await setLoopEnabled(pool, repo, enabled);
+  await setLoopEnabled(pool, repo, { enabled });
 
   if (enabled) {
     await seedBacklogLabels(repo);

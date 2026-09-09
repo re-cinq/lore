@@ -134,7 +134,7 @@ export const FeatureCreatedSchema = z.object({
   task_id: z.string(),
 });
 
-export const OkSchema = z.object({ ok: z.literal(true) });
+export { OkSchema } from "../../http/ok-schema.js";
 
 /** Round start response: Station mints task_id, or resumed run reports run id + null task. */
 export const RoundStartedSchema = z.object({

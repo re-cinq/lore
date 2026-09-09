@@ -78,11 +78,14 @@ function decideEarlyOutcome(input: NodeRecoveryInput): NodeRecovery | null {
   return null;
 }
 
-/** A claimed row's budget runs from the claim so queue-wait time isn't charged against execution; pre-flip `running` rows have no claimedAt and measure from startedAt. */
-function budgetClock(input: NodeRecoveryInput): {
+/** When execution started, and whether the budget measured from there is spent. */
+interface BudgetClock {
   executionStartMs: number;
   expired: boolean;
-} {
+}
+
+/** A claimed row's budget runs from the claim so queue-wait time isn't charged against execution; pre-flip `running` rows have no claimedAt and measure from startedAt. */
+function budgetClock(input: NodeRecoveryInput): BudgetClock {
   const budgetMs =
     ((input.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES) +
       TIMEOUT_BUFFER_MINUTES) *
@@ -100,13 +103,13 @@ function budgetClock(input: NodeRecoveryInput): {
 /** A row claimed by a SATELLITE: its CR can't be read from here, so its only signal is the budget (liveness is checked outside this function). */
 function decideInvisibleCrOutcome(
   input: NodeRecoveryInput,
-  expired: boolean,
+  clock: BudgetClock,
 ): NodeRecovery | null {
   if (input.crVisible) {
     return null;
   }
 
-  return expired ? { kind: "timeout" } : { kind: "wait" };
+  return clock.expired ? { kind: "timeout" } : { kind: "wait" };
 }
 
 function decideResolvedOutcome(
@@ -119,8 +122,8 @@ function decideResolvedOutcome(
   return null;
 }
 
-function decideExpiredTimeout(expired: boolean): NodeRecovery | null {
-  return expired ? { kind: "timeout" } : null;
+function decideExpiredTimeout(clock: BudgetClock): NodeRecovery | null {
+  return clock.expired ? { kind: "timeout" } : null;
 }
 
 /** A node dispatched to the POOLED SERVICE has no CR (published on the bus); requeueing it would duplicate work already in flight, so it only times out like anything else. */
@@ -130,32 +133,31 @@ function decidePooledServiceWait(node: StationRunRecord): NodeRecovery | null {
 
 /** Absence (a 404) is the crash-between-claim-and-CR case, requeued after the startup grace runs from the execution clock (claim time), not enqueue time, to avoid requeuing a CR still provisioning. */
 function decideAbsentCrOutcome(
-  status: AgentNodeStatus | null,
-  nowMs: number,
-  executionStartMs: number,
+  input: NodeRecoveryInput,
+  clock: BudgetClock,
 ): NodeRecovery | null {
-  if (status !== null) {
+  if (input.status !== null) {
     return null;
   }
 
-  return nowMs - executionStartMs < NODE_STARTUP_GRACE_MS
+  return input.nowMs - clock.executionStartMs < NODE_STARTUP_GRACE_MS
     ? { kind: "wait" }
     : { kind: "requeue" };
 }
 
 /** The CR-status-dependent verdicts, tried once the row has cleared the lifecycle-only checks. */
 function decideCrOutcome(input: NodeRecoveryInput): NodeRecovery {
-  const { executionStartMs, expired } = budgetClock(input);
-  const invisible = decideInvisibleCrOutcome(input, expired);
+  const clock = budgetClock(input);
+  const invisible = decideInvisibleCrOutcome(input, clock);
 
   if (invisible) {
     return invisible;
   }
   const checks = [
     () => decideResolvedOutcome(input.status),
-    () => decideExpiredTimeout(expired),
+    () => decideExpiredTimeout(clock),
     () => decidePooledServiceWait(input.node),
-    () => decideAbsentCrOutcome(input.status, input.nowMs, executionStartMs),
+    () => decideAbsentCrOutcome(input, clock),
   ];
 
   for (const check of checks) {

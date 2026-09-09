@@ -52,12 +52,19 @@ function configFailureLines(configFailures: string[]): string[] {
   return lines;
 }
 
+/** Everything the "needs attention" section reports on one onboarding run. */
+export interface OnboardAttention {
+  failures: StepFailure[];
+  configFailures: string[];
+  workflowsPermissionDenied: boolean;
+}
+
 /** Onboarding PR's "what went wrong" section; missing workflows/config block re-ingest. */
-export function onboardAttentionSection(
-  failures: StepFailure[],
-  configFailures: string[],
-  workflowsPermissionDenied: boolean,
-): string {
+export function onboardAttentionSection({
+  failures,
+  configFailures,
+  workflowsPermissionDenied,
+}: OnboardAttention): string {
   if (failures.length === 0 && configFailures.length === 0) {
     return "";
   }

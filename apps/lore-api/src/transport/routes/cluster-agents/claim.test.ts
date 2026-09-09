@@ -91,13 +91,13 @@ describe("handleClaim", () => {
     const { agents, agent } = await registeredAgent();
     const { runs } = await armedQueuedRun();
 
-    await agents.setPaused(agent.id, true);
+    await agents.setPaused(agent.id, PAUSED);
 
     expect(await handleClaim({ agents, runs }, TOKEN, agent.id)).toEqual({
       code: 204,
     });
 
-    await agents.setPaused(agent.id, false);
+    await agents.setPaused(agent.id, RESUMED);
 
     expect(await handleClaim({ agents, runs }, TOKEN, agent.id)).toMatchObject({
       code: 200,
@@ -139,3 +139,6 @@ describe("handleClaim", () => {
     });
   });
 });
+
+const PAUSED = true;
+const RESUMED = false;

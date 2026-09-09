@@ -319,12 +319,12 @@ async function prepareTask(
 ): Promise<TaskDispatch> {
   // Feature lifecycle runs through the Station (ADR-028), forced below regardless of dark-factory; also gates Issue creation (decompose files its own).
   const isFeaturePlanningType = isFeatureLifecycleType(task.task_type);
-  const issueNumber = await ensureIssue(
+  const issueNumber = await ensureIssue({
     task,
     targetRepo,
     project,
     isFeaturePlanningType,
-  );
+  });
 
   return { task, targetRepo, project, issueNumber, isFeaturePlanningType };
 }

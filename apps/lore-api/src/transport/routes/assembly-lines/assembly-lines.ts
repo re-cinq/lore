@@ -22,6 +22,7 @@ import {
   RunRowSchema,
   StationRunListSchema,
   toRunRow,
+  toRunRowWithGraph,
   TokenUsageSchema,
 } from "./run-row.js";
 import { withPool } from "../with-pool.js";
@@ -100,9 +101,10 @@ async function runListRows(
   const selected = await selectRuns(port, query);
   const enrichment = await enrichmentById(pool, selected);
 
-  return selected.map((run) =>
-    toRunRow(run, enrichment.get(run.id), query.task_id !== undefined),
-  );
+  // A task-centric caller gets the graph so it can draw the DAG; a plain page does not.
+  return query.task_id === undefined
+    ? selected.map((run) => toRunRow(run, enrichment.get(run.id)))
+    : selected.map((run) => toRunRowWithGraph(run, enrichment.get(run.id)));
 }
 
 /** A page of runs, newest first. Filters are applied in SQL rather than after the fetch, because a busy org's run table is large and the page is small. */
@@ -285,7 +287,7 @@ async function serveRunDetail(
     enforceTrue(run, apiError(404), "Run not found");
     const enrichment = await enrichmentById(pool, [run]);
 
-    return h.response(toRunRow(run, enrichment.get(run.id), true));
+    return h.response(toRunRowWithGraph(run, enrichment.get(run.id)));
   } catch (err) {
     // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);

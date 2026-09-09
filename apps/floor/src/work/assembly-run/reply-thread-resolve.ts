@@ -6,10 +6,11 @@ import { findThreadForComment } from "@re-cinq/lore-shared/project/pulls/review-
 import { writeAuditLog } from "../../outbound/audit.js";
 import type { ReplyPoster, ReplyPorts } from "./reply-post.js";
 
-type ThreadResolveAudit = (
-  payload: Record<string, unknown>,
-  resolved: boolean,
-) => Promise<void>;
+/** Both halves of the attempt, named rather than selected by a flag: an unresolved thread is a decision, not silence. */
+interface ThreadResolveAudit {
+  resolved(payload: Record<string, unknown>): Promise<void>;
+  failed(payload: Record<string, unknown>): Promise<void>;
+}
 
 /** Looks up the thread the reply landed in, auditing (and swallowing) a lookup failure or an unmatched comment. */
 async function findRepliedThread(
@@ -29,7 +30,7 @@ async function findRepliedThread(
   const thread = findThreadForComment(threads, target.inReplyTo);
 
   if (!thread) {
-    await audit({ reason: "no_thread_for_comment" }, false);
+    await audit.failed({ reason: "no_thread_for_comment" });
   }
 
   return thread;
@@ -44,10 +45,10 @@ async function listThreadsSafely(
   try {
     return await listReviewThreads(prNumber);
   } catch (err) {
-    await audit(
-      { reason: "list_failed", error: (err as Error).message },
-      false,
-    );
+    await audit.failed({
+      reason: "list_failed",
+      error: (err as Error).message,
+    });
 
     return null;
   }
@@ -61,16 +62,13 @@ async function resolveThreadSafely(
 ): Promise<void> {
   try {
     await resolveReviewThread(thread.id);
-    await audit({ thread_id: thread.id }, true);
+    await audit.resolved({ thread_id: thread.id });
   } catch (err) {
-    await audit(
-      {
-        reason: "resolve_failed",
-        thread_id: thread.id,
-        error: (err as Error).message,
-      },
-      false,
-    );
+    await audit.failed({
+      reason: "resolve_failed",
+      thread_id: thread.id,
+      error: (err as Error).message,
+    });
   }
 }
 
@@ -81,19 +79,20 @@ function threadResolveAudit(
   target: { prNumber: number; inReplyTo: number },
   ports: ReplyPorts,
 ): ThreadResolveAudit {
-  return (payload, resolved) =>
+  const write = (event_type: string, payload: Record<string, unknown>) =>
     writeAuditLog(
       {
-        event_type: threadResolveEvent(resolved),
+        event_type,
         repo: row.repo,
         payload: { ...threadAuditKeys(row, target), ...payload },
       },
       ports.audit,
     );
-}
 
-function threadResolveEvent(resolved: boolean): string {
-  return resolved ? "review_thread_resolved" : "review_thread_resolve_failed";
+  return {
+    resolved: (payload) => write("review_thread_resolved", payload),
+    failed: (payload) => write("review_thread_resolve_failed", payload),
+  };
 }
 
 /** The keys both halves of the attempt share, so a resolve and a failure to resolve read as the same decision from two sides. */

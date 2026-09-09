@@ -52,7 +52,7 @@ const MemoryBody = z.discriminatedUnion("action", [
     agent_id: z.string().optional(),
     ttl: z.number().optional(),
     repo: z.string().optional(),
-    extract_facts: z.boolean().default(false),
+    extract_facts: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
   }),
   z.object({
     action: z.literal("read"),
@@ -67,8 +67,8 @@ const MemoryBody = z.discriminatedUnion("action", [
     pool_name: z.string().optional(),
     limit: z.number().optional(),
     // Carried from lore_search_memory, which has no pool of its own to honor them with (ADR-032).
-    include_invalidated: z.boolean().default(false),
-    graph_augment: z.boolean().default(false),
+    include_invalidated: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
+    graph_augment: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
   }),
   z.object({
     action: z.literal("delete"),

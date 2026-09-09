@@ -59,7 +59,7 @@ async function tryRecoverFromTranscript(
 
   return recoverLostRound(project, feature.id, lostRound, {
     graph: latestRun?.graph ?? null,
-    open: runOpen,
+    runOpen,
   });
 }
 
@@ -69,12 +69,12 @@ async function decideRecovery(
   ctx: RoundContext,
   now: number,
 ): Promise<ReturnType<typeof decidePlanningRecovery>> {
-  const { latest, latestRun, runOpen } = ctx;
+  const { runOpen } = ctx;
 
   return decidePlanningRecovery({
     iterations: feature.iterations,
     featureStatus: feature.status,
-    isActive: await roundStillActive(latest, latestRun !== undefined, runOpen),
+    isActive: await roundStillActive(ctx),
     nowMs: now,
     runOpen,
   });
@@ -225,16 +225,16 @@ export async function featurePlanningReaperJob(): Promise<string> {
 }
 
 /** isActive probes the agent-cr backend this repo's round ran on — the legacy path for rounds that predate assembly-run execution. */
-async function roundStillActive(
-  latest: FeatureWithIterations["iterations"][number] | undefined,
-  latestRunExists: boolean,
-  runOpen: boolean,
-): Promise<boolean> {
+async function roundStillActive({
+  latest,
+  latestRun,
+  runOpen,
+}: RoundContext): Promise<boolean> {
   if (latest?.status !== "running" || !latest.task_id) {
     return true;
   }
 
-  if (latestRunExists) {
+  if (latestRun !== undefined) {
     return runOpen;
   }
 

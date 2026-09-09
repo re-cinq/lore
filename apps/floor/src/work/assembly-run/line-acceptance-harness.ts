@@ -237,7 +237,7 @@ export function createLineHarness(
     const agent = await agents.findByName(name);
 
     if (agent) {
-      await agents.setPaused(agent.id, true);
+      await agents.setPaused(agent.id, PAUSED);
     }
   }
 
@@ -246,7 +246,7 @@ export function createLineHarness(
     const agent = await agents.findByName(name);
 
     if (agent) {
-      await agents.setPaused(agent.id, false);
+      await agents.setPaused(agent.id, RESUMED);
     }
   }
 
@@ -344,3 +344,8 @@ export function createLineHarness(
     visits,
   };
 }
+
+/** The operator switch `setPaused` stores, named so a call site says which way it flips. */
+const PAUSED = true;
+
+const RESUMED = false;

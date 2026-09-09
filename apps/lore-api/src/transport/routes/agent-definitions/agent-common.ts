@@ -35,25 +35,38 @@ export type Ceremony = {
   approver?: string;
 };
 
+/** The write being authorized: whose request, on which repo, and whether it touched the gated `image` field. */
+export interface CeremonyRequest {
+  request: Request;
+  repo: string;
+  imageTouched: boolean;
+}
+
 /** The image-touch gate, and the ceremony it produced — `gate` is null when the write never touched the gated field. */
-export async function resolveCeremony(
-  request: Request,
-  repo: string,
-  imageTouched: boolean,
-): Promise<{ gate: ApprovalOutcome | null; ceremony: Ceremony }> {
+export async function resolveCeremony({
+  request,
+  repo,
+  imageTouched,
+}: CeremonyRequest): Promise<{
+  gate: ApprovalOutcome | null;
+  ceremony: Ceremony;
+}> {
   const gate = imageTouched
     ? await checkApproval(request, repo, ["image"], IMAGE_DETAIL)
     : null;
 
-  const ceremony: Ceremony = gate?.ok
+  return { gate, ceremony: ceremonyFrom(gate) };
+}
+
+/** Two-key when a CODEOWNER-approved PR carried the image change; plain admin otherwise. */
+function ceremonyFrom(gate: ApprovalOutcome | null): Ceremony {
+  return gate?.ok
     ? {
         tier: "two_key",
         pr_ref: gate.evidence.prRef,
         approver: gate.evidence.approver,
       }
     : { tier: "admin" };
-
-  return { gate, ceremony };
 }
 
 export async function createFieldsWithPodResources(

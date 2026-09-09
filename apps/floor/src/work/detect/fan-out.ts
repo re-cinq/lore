@@ -58,7 +58,10 @@ const ACTIVITY_GATE = `
     AND bool_or(content_type = 'code' AND ingested_at > now() - ($1 || ' days')::interval)`;
 
 /** One SELECT per team schema, unioned. Schema-per-team isolation means there is no single chunks table to read, and the names are regex-checked by the caller before they reach this string. */
-function schemaUnion(schemas: string[], activeOnly: boolean): string {
+function schemaUnion(
+  schemas: string[],
+  { activeOnly }: { activeOnly: boolean },
+): string {
   const chunkFilter = activeOnly
     ? `content_type IN ('spec', 'code')`
     : `content_type = 'spec'`;
@@ -83,7 +86,7 @@ export function specReposSql(
     "specReposSql needs at least one valid chunk schema",
   );
 
-  const union = schemaUnion(safeSchemas, opts.activeOnly);
+  const union = schemaUnion(safeSchemas, opts);
   const activityGate = opts.activeOnly ? ACTIVITY_GATE : "";
 
   return `

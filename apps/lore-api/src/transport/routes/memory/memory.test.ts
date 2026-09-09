@@ -80,7 +80,7 @@ describe("POST /api/memory", () => {
   });
 
   it("writes via DB when memory DB available", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(writeMemory).mockResolvedValue({ id: 1 } as any);
     const res = await post({ action: "write", key: "k", value: "v" });
 
@@ -89,7 +89,7 @@ describe("POST /api/memory", () => {
   });
 
   it("extracts facts after a DB write when extract_facts is set", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(writeMemory).mockResolvedValue({ key: "k", version: 1 } as never);
     vi.mocked(extractFactsForMemory).mockResolvedValue(undefined);
     await post({
@@ -110,7 +110,7 @@ describe("POST /api/memory", () => {
   });
 
   it("skips fact extraction when extract_facts is absent", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(writeMemory).mockResolvedValue({ key: "k", version: 1 } as never);
     await post({ action: "write", key: "k", value: "v" });
 
@@ -118,7 +118,7 @@ describe("POST /api/memory", () => {
   });
 
   it("writes via file fallback when memory DB unavailable", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    memoryDbDown();
     vi.mocked(writeMemoryFile).mockReturnValue({ id: "f" } as any);
     const res = await post({ action: "write", key: "k", value: "v" });
 
@@ -126,7 +126,7 @@ describe("POST /api/memory", () => {
   });
 
   it("parses a JSON body sent with a non-JSON Content-Type", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(writeMemory).mockResolvedValue({ id: 7 } as any);
     const res = await inject(
       JSON.stringify({ action: "write", key: "k", value: "v" }),
@@ -143,7 +143,7 @@ describe("POST /api/memory", () => {
   });
 
   it("reads via DB", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(readMemory).mockResolvedValue({ value: "v" } as any);
     const res = await post({ action: "read", key: "k", version: "3" });
 
@@ -152,42 +152,42 @@ describe("POST /api/memory", () => {
   });
 
   it("reads full history via DB with version=all", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(readMemory).mockResolvedValue([{ v: 1 }] as any);
     await post({ action: "read", key: "k", version: "all" });
     expect(readMemory).toHaveBeenCalledWith("k", undefined, "all");
   });
 
   it("reads latest via DB when no version given", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(readMemory).mockResolvedValue({ v: 1 } as any);
     await post({ action: "read", key: "k" });
     expect(readMemory).toHaveBeenCalledWith("k", undefined, undefined);
   });
 
   it("reads a numeric version via file fallback", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    memoryDbDown();
     vi.mocked(readMemoryFile).mockReturnValue({ v: 2 } as any);
     await post({ action: "read", key: "k", version: "2" });
     expect(readMemoryFile).toHaveBeenCalledWith("k", undefined, 2);
   });
 
   it("reads full history via file with version=all", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    memoryDbDown();
     vi.mocked(readMemoryFile).mockReturnValue([{ v: 1 }] as any);
     await post({ action: "read", key: "k", version: "all" });
     expect(readMemoryFile).toHaveBeenCalledWith("k", undefined, "all");
   });
 
   it("reads latest via file fallback when no version given", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    memoryDbDown();
     vi.mocked(readMemoryFile).mockReturnValue({ v: 1 } as any);
     await post({ action: "read", key: "k" });
     expect(readMemoryFile).toHaveBeenCalledWith("k", undefined, undefined);
   });
 
   it("writes with undefined embedding when the embedder returns falsy", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(getQueryEmbedding).mockResolvedValue(null as any);
     vi.mocked(writeMemory).mockResolvedValue({ id: 1 } as any);
     await post({ action: "write", key: "k", value: "v" });
@@ -208,7 +208,7 @@ describe("POST /api/memory", () => {
   });
 
   it("searches via DB", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(searchMemories).mockResolvedValue([{ m: 1 }] as any);
     const res = await post({ action: "search", query: "q" });
 
@@ -217,7 +217,7 @@ describe("POST /api/memory", () => {
   });
 
   it("forwards include_invalidated and graph_augment to the searcher", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(searchMemories).mockResolvedValue([] as never);
     await post({
       action: "search",
@@ -240,7 +240,7 @@ describe("POST /api/memory", () => {
   });
 
   it("defaults include_invalidated and graph_augment to false", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(searchMemories).mockResolvedValue([] as never);
     await post({ action: "search", query: "q" });
 
@@ -251,7 +251,7 @@ describe("POST /api/memory", () => {
   });
 
   it("searches via file fallback", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    memoryDbDown();
     vi.mocked(searchMemoryFile).mockReturnValue([] as any);
     await post({ action: "search", query: "q" });
     expect(searchMemoryFile).toHaveBeenCalledWith("q", undefined, 10);
@@ -264,7 +264,7 @@ describe("POST /api/memory", () => {
   });
 
   it("deletes via DB", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(deleteMemory).mockResolvedValue({ ok: true } as any);
     const res = await post({ action: "delete", key: "k" });
 
@@ -272,7 +272,7 @@ describe("POST /api/memory", () => {
   });
 
   it("deletes via file fallback", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    memoryDbDown();
     vi.mocked(deleteMemoryFile).mockReturnValue({ ok: 1 } as any);
     await post({ action: "delete", key: "k" });
     expect(deleteMemoryFile).toHaveBeenCalled();
@@ -285,7 +285,7 @@ describe("POST /api/memory", () => {
   });
 
   it("lists via DB with default limit 50 offset 0", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(listMemories).mockResolvedValue({
       memories: [{ k: 1 }],
       total: 1,
@@ -295,7 +295,7 @@ describe("POST /api/memory", () => {
   });
 
   it("threads offset through and echoes paging metadata", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(listMemories).mockResolvedValue({
       memories: [{ k: 2 }],
       total: 9,
@@ -312,7 +312,7 @@ describe("POST /api/memory", () => {
   });
 
   it("caps the list limit at 100", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    memoryDbUp();
     vi.mocked(listMemories).mockResolvedValue({
       memories: [],
       total: 0,
@@ -322,7 +322,7 @@ describe("POST /api/memory", () => {
   });
 
   it("lists via file fallback", async () => {
-    vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
+    memoryDbDown();
     vi.mocked(listMemoriesFile).mockReturnValue({
       memories: [],
       total: 0,
@@ -364,3 +364,11 @@ describe("POST /api/memory", () => {
     expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
   });
 });
+
+function memoryDbUp(): void {
+  vi.mocked(isMemoryDbAvailable).mockReturnValue(true); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+}
+
+function memoryDbDown(): void {
+  vi.mocked(isMemoryDbAvailable).mockReturnValue(false); // eslint-disable-line re-lint/no-flag-params -- a stubbed return value, not a flag argument
+}

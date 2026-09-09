@@ -74,7 +74,13 @@ function readEntities(
   );
 }
 
-function edgesSql(showInvalid: boolean | undefined): string {
+/** Which entity's edges to read, and whether invalidated ones count. */
+interface EdgeScope {
+  entity?: string | undefined;
+  show_invalid?: boolean | undefined;
+}
+
+function edgesSql({ show_invalid }: EdgeScope): string {
   return `SELECT s.name as source_name, s.entity_type as source_type,
                       e.relation_type, t.name as target_name, t.entity_type as target_type,
                       e.valid_from, e.valid_to,
@@ -84,7 +90,7 @@ function edgesSql(showInvalid: boolean | undefined): string {
                  JOIN memory.entities t ON t.id = e.target_id
                  LEFT JOIN memory.episodes ep ON ep.id = e.source_episode_id
                 WHERE (LOWER(s.name) = LOWER($1) OR LOWER(t.name) = LOWER($1))
-                  ${showInvalid ? "" : "AND e.valid_to IS NULL"}
+                  ${show_invalid ? "" : "AND e.valid_to IS NULL"}
                 ORDER BY e.valid_from DESC
                 LIMIT 50`;
 }
@@ -92,13 +98,14 @@ function edgesSql(showInvalid: boolean | undefined): string {
 /** Only a SELECTED entity has edges to show — unselected, this is the explorer's costliest query, so it is not run at all. */
 async function readEdgesFor(
   pool: Pool,
-  entity: string | undefined,
-  showInvalid: boolean | undefined,
+  scope: EdgeScope,
 ): Promise<Record<string, unknown>[]> {
+  const { entity } = scope;
+
   if (!entity) {
     return [];
   }
-  const { rows } = await pool.query(edgesSql(showInvalid), [entity]);
+  const { rows } = await pool.query(edgesSql(scope), [entity]);
 
   return rows;
 }
@@ -120,7 +127,7 @@ async function serveGraphBrowse(
     stats: statRows[0] ?? {},
     entity_types: entityTypes,
     entities,
-    edges: await readEdgesFor(pool, entity, show_invalid),
+    edges: await readEdgesFor(pool, { entity, show_invalid }),
   });
 }
 

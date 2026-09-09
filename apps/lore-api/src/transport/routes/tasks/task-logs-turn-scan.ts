@@ -90,8 +90,7 @@ function initTurnScanState(
 function turnSliceResult(
   taskId: string,
   state: TurnScanState,
-  hasMore: boolean,
-  sawTurns: boolean,
+  { hasMore, sawTurns }: { hasMore: boolean; sawTurns: boolean },
 ): TurnSlice {
   return {
     slice: state.slice,
@@ -116,11 +115,14 @@ interface TurnScanPageContext {
 function scanDone(
   state: TurnScanState,
   context: TurnScanPageContext,
-  sliced: boolean,
+  { sliced }: { sliced: boolean },
 ): TurnScanStep {
   return {
     kind: "done",
-    result: turnSliceResult(context.taskId, state, sliced, context.sawTurns),
+    result: turnSliceResult(context.taskId, state, {
+      hasMore: sliced,
+      sawTurns: context.sawTurns,
+    }),
   };
 }
 
@@ -140,7 +142,7 @@ function stepTurnScan(
   }
 
   if (outcome === "sliced" || page.length < TURNS_PAGE_SIZE) {
-    return scanDone(state, context, outcome === "sliced");
+    return scanDone(state, context, { sliced: outcome === "sliced" });
   }
 
   return { kind: "continue", afterId: nextPageAfterId(page, state) };

@@ -71,11 +71,18 @@ function onTrigger(deps: CodeReviewDeps): EventHandler {
   };
 }
 
-async function replyGateOpen(
-  project: CodeReviewProject,
-  p: CommentParams,
-  autoReview: boolean,
-): Promise<boolean> {
+/** One comment, on one project, under that repo's `auto_review` setting — the three things every comment-driven step reads. */
+interface CommentCall {
+  project: CodeReviewProject;
+  p: CommentParams;
+  autoReview: boolean;
+}
+
+async function replyGateOpen({
+  project,
+  p,
+  autoReview,
+}: CommentCall): Promise<boolean> {
   const pr = await project.pulls.get(p.pr_number);
 
   return decideReviewOnReply({
@@ -86,9 +93,7 @@ async function replyGateOpen(
 }
 
 async function startForcedReview(
-  project: CodeReviewProject,
-  p: CommentParams,
-  autoReview: boolean,
+  { project, p, autoReview }: CommentCall,
   uiUrl: string | undefined,
 ): Promise<void> {
   await startReview(
@@ -115,13 +120,13 @@ function onComment(deps: CodeReviewDeps): EventHandler {
     }
     const project = await deps.project(p.repo);
 
-    if (!(await replyGateOpen(project, p, autoReview))) {
+    if (!(await replyGateOpen({ project, p, autoReview }))) {
       return;
     }
 
     // The Haiku `comment-triage` line is switched off (2026-09-03): only the explicit keyword drives a comment, so a plain reply publishes no `lore/comment-triage` check.
     if (isReviewRequest(p.comment_body)) {
-      await startForcedReview(project, p, autoReview, deps.uiUrl());
+      await startForcedReview({ project, p, autoReview }, deps.uiUrl());
     }
   };
 }

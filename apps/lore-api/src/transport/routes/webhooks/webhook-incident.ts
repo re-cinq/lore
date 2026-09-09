@@ -12,6 +12,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { formatZodError } from "../../http/zod-validate.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
+import { OkTrue } from "../../http/ok-schema.js";
 
 // Constant-time string compare; length-guarded since timingSafeEqual throws on unequal buffers.
 function safeEqual(a: string, b: string): boolean {
@@ -24,7 +25,7 @@ function safeEqual(a: string, b: string): boolean {
 // PagerDuty HMAC-SHA256 verification; X-PagerDuty-Signature is comma-delimited v1=<hex> list.
 /** The incident was recorded against a repo. */
 const IncidentRecordedSchema = z.object({
-  ok: z.literal(true),
+  ok: OkTrue,
   repo: z.string(),
 });
 

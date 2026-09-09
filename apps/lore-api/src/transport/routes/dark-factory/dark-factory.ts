@@ -25,6 +25,7 @@ import {
   parseSettingsBody,
   type SettingsPatch,
 } from "./dark-factory-merge.js";
+import { OkTrue } from "../../http/ok-schema.js";
 
 const DF_PATH = "/api/repos/{owner}/{repo}/settings/dark-factory";
 const repoOf = (params: Record<string, string>) =>
@@ -39,7 +40,7 @@ type Ceremony = {
 
 /** The WRITE echoes what it applied plus the two-key ceremony that authorised it (ADR-016). */
 const DarkFactoryAppliedSchema = z.object({
-  ok: z.literal(true),
+  ok: OkTrue,
   applied: ResolvedDarkFactorySettingsSchema,
   ceremony: z.object({
     tier: z.enum(["two_key", "admin"]),

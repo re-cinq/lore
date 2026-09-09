@@ -19,6 +19,7 @@ import {
   clampedLimit,
   offsetParam,
 } from "../common-schemas.js";
+import { OkSchema } from "../../http/ok-schema.js";
 
 interface TokensPostBody {
   action?: string;
@@ -58,7 +59,7 @@ const TokenListSchema = z.object({
 });
 
 const TokenWriteSchema = z.union([
-  z.object({ ok: z.literal(true) }),
+  OkSchema,
   z.object({
     id: z.string(),
     name: z.string(),

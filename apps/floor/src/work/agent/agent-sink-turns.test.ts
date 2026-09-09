@@ -8,6 +8,10 @@ const assistant = (content: unknown[]): unknown => ({
   type: "assistant",
   message: { content },
 });
+const COST_ONLY = { projectRunEvents: false, collectTurns: false };
+const VIZ_ONLY = { projectRunEvents: true, collectTurns: false };
+const TURNS_ONLY = { projectRunEvents: false, collectTurns: true };
+const EVERYTHING = { projectRunEvents: true, collectTurns: true };
 const body = [
   line(assistant([{ type: "text", text: "hi" }])),
   line({ type: "result", subtype: "success", usage: { input_tokens: 10 } }),
@@ -19,19 +23,19 @@ describe("parseAgentSink turn collection", () => {
   });
 
   it("collects nothing on the cost-only path, which opts out explicitly", () => {
-    expect(parseAgentSink(body, false, false).turns).toEqual([]);
+    expect(parseAgentSink(body, COST_ONLY).turns).toEqual([]);
   });
 
   it("leaves the cost rows and viz rows identical whether turns are collected or not (no production off-switch since the feature flag was removed)", () => {
-    const without = parseAgentSink(body, true, false);
-    const with_ = parseAgentSink(body, true, true);
+    const without = parseAgentSink(body, VIZ_ONLY);
+    const with_ = parseAgentSink(body, EVERYTHING);
 
     expect(with_.costRows).toEqual(without.costRows);
     expect(with_.runEvents).toEqual(without.runEvents);
   });
 
   it("collects one turn per stream-json line in the same pass as the cost rows", () => {
-    const sink = parseAgentSink(body, true, true);
+    const sink = parseAgentSink(body, EVERYTHING);
 
     expect(sink.costRows).toHaveLength(1);
     expect(sink.turns.map((turn) => turn.eventType)).toEqual([
@@ -41,13 +45,13 @@ describe("parseAgentSink turn collection", () => {
   });
 
   it("collects the raw line verbatim, untruncated, as the turn envelope", () => {
-    const sink = parseAgentSink(body, true, true);
+    const sink = parseAgentSink(body, EVERYTHING);
 
     expect(sink.turns.map((turn) => turn.envelope)).toEqual(body.split("\n"));
   });
 
   it("collects a turn for a line the viz projection drops as an unknown kind", () => {
-    const sink = parseAgentSink(line({ type: "brand_new_kind" }), true, true);
+    const sink = parseAgentSink(line({ type: "brand_new_kind" }), EVERYTHING);
 
     expect(sink.runEvents).toEqual([]);
     expect(sink.turns).toHaveLength(1);
@@ -58,7 +62,7 @@ describe("parseAgentSink turn collection", () => {
       line(assistant([{ type: "text", text: "x" }])),
     ).join("\n");
 
-    expect(parseAgentSink(many, false, true).turns).toHaveLength(
+    expect(parseAgentSink(many, TURNS_ONLY).turns).toHaveLength(
       MAX_RUN_TURNS_PER_BATCH,
     );
   });
@@ -75,7 +79,7 @@ const REDACTION_BREAKING_LINE = JSON.stringify({
 
 describe("parseAgentSink dropped turns", () => {
   it("counts a turn dropped because redaction left its line unparseable", () => {
-    const sink = parseAgentSink(REDACTION_BREAKING_LINE, false, true);
+    const sink = parseAgentSink(REDACTION_BREAKING_LINE, TURNS_ONLY);
 
     expect(sink.turns).toEqual([]);
     expect(sink.turnsDropped).toBe(1);
@@ -84,20 +88,21 @@ describe("parseAgentSink dropped turns", () => {
   it("keeps the other turns of a body when one line's redaction breaks it", () => {
     const mixed = [REDACTION_BREAKING_LINE, body].join("\n");
 
-    const sink = parseAgentSink(mixed, false, true);
+    const sink = parseAgentSink(mixed, TURNS_ONLY);
 
     expect(sink.turns).toHaveLength(2);
     expect(sink.turnsDropped).toBe(1);
   });
 
   it("counts nothing dropped for a body no redaction breaks", () => {
-    expect(parseAgentSink(body, false, true).turnsDropped).toBe(0);
+    expect(parseAgentSink(body, TURNS_ONLY).turnsDropped).toBe(0);
   });
 
   it("counts nothing dropped on the cost-only path", () => {
-    expect(parseAgentSink(REDACTION_BREAKING_LINE, false, false)).toMatchObject(
-      { turns: [], turnsDropped: 0 },
-    );
+    expect(parseAgentSink(REDACTION_BREAKING_LINE, COST_ONLY)).toMatchObject({
+      turns: [],
+      turnsDropped: 0,
+    });
   });
 });
 
@@ -108,25 +113,24 @@ describe("parseAgentSink capped turns", () => {
     ).join("\n");
 
   it("counts every turn the per-batch cap left out", () => {
-    const sink = parseAgentSink(overCap(5), false, true);
+    const sink = parseAgentSink(overCap(5), TURNS_ONLY);
 
     expect(sink.turns).toHaveLength(MAX_RUN_TURNS_PER_BATCH);
     expect(sink.turnsCapped).toBe(5);
   });
 
   it("counts nothing capped for a body under the cap", () => {
-    expect(parseAgentSink(body, false, true).turnsCapped).toBe(0);
+    expect(parseAgentSink(body, TURNS_ONLY).turnsCapped).toBe(0);
   });
 
   it("counts nothing capped on the cost-only path", () => {
-    expect(parseAgentSink(overCap(5), false, false).turnsCapped).toBe(0);
+    expect(parseAgentSink(overCap(5), COST_ONLY).turnsCapped).toBe(0);
   });
 
   it("keeps counting redaction drops and cap drops apart", () => {
     const sink = parseAgentSink(
       [REDACTION_BREAKING_LINE, overCap(3)].join("\n"),
-      false,
-      true,
+      TURNS_ONLY,
     );
 
     expect(sink).toMatchObject({ turnsDropped: 1, turnsCapped: 3 });

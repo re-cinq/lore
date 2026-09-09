@@ -12,6 +12,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
+import { OkFalse, OkTrue } from "../../http/ok-schema.js";
 
 const OnboardBody = z.object({
   repo: z
@@ -31,12 +32,12 @@ const OnboardResultSchema = z.union([
     status: z.string(),
     webhook: z.union([
       z.object({
-        ok: z.literal(true),
+        ok: OkTrue,
         hookId: z.number(),
         created: z.boolean(),
       }),
       z.object({
-        ok: z.literal(false),
+        ok: OkFalse,
         reason: z.string(),
         detail: z.string().optional(),
       }),

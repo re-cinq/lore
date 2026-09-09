@@ -78,8 +78,11 @@ export async function createAgentDefinition(
   }
 
   const create = parsed.value;
-  const imageTouched = imageFieldTouched(create);
-  const { gate, ceremony } = await resolveCeremony(request, repo, imageTouched);
+  const { gate, ceremony } = await resolveCeremony({
+    request,
+    repo,
+    imageTouched: imageFieldTouched(create),
+  });
 
   if (gate && !gate.ok) {
     return { code: gate.code, body: gate.body };
@@ -133,8 +136,11 @@ export async function updateAgentDefinition(
   }
 
   const { repo } = target;
-  const imageTouched = imageFieldTouched(parsed.value);
-  const { gate, ceremony } = await resolveCeremony(request, repo, imageTouched);
+  const { gate, ceremony } = await resolveCeremony({
+    request,
+    repo,
+    imageTouched: imageFieldTouched(parsed.value),
+  });
 
   if (gate && !gate.ok) {
     return { code: gate.code, body: gate.body };

@@ -26,12 +26,18 @@ export async function commentTaskFailureOnIssue(
   await issues.addLabel(issueNumber, "lore-failed").catch(() => {});
 }
 
+/** The task an Issue would be filed for, where, and whether it is a feature-lifecycle type (those file their own). */
+export interface IssueContext {
+  task: PipelineTask;
+  targetRepo: string;
+  project: Project;
+  isFeaturePlanningType: boolean;
+}
+
 /** Whether the issue-creation gate says to skip, logging why when the skip is worth reporting (a general task's skip isn't — it never files one by design). */
 function shouldSkipIssue(
-  task: PipelineTask,
-  isFeaturePlanningType: boolean,
+  { task, targetRepo, isFeaturePlanningType }: IssueContext,
   gate: { create: boolean; reason: string },
-  targetRepo: string,
 ): boolean {
   // A general task never files one, and a feature-planning line files its own.
   const eligible = task.task_type !== "general" && !isFeaturePlanningType;
@@ -113,11 +119,9 @@ async function createTaskIssue(
 
 /** Existing, new, or no Issue: dark mode defers creation per `create_issue` unless `with_issue: true` forces it (FR3.2). */
 export async function ensureIssue(
-  task: PipelineTask,
-  targetRepo: string,
-  project: Project,
-  isFeaturePlanningType: boolean,
+  context: IssueContext,
 ): Promise<number | null> {
+  const { task, targetRepo, project } = context;
   const existing = task.issue_number || null;
 
   if (existing) {
@@ -131,7 +135,7 @@ export async function ensureIssue(
   const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
   const gate = await shouldCreateIssue(task);
 
-  if (shouldSkipIssue(task, isFeaturePlanningType, gate, targetRepo)) {
+  if (shouldSkipIssue(context, gate)) {
     return null;
   }
 

@@ -116,18 +116,6 @@ function isoOrNull(at: Date | null): string | null {
   return at ? at.toISOString() : null;
 }
 
-// Present only when withGraph asked for it; graph itself may still be unresolved (predates clones AND blueprint gone).
-function graphField(
-  withGraph: boolean,
-  graph: unknown,
-): Record<string, unknown> {
-  if (!withGraph) {
-    return {};
-  }
-
-  return { graph: graph ?? null };
-}
-
 // enrichment is a same-shaped fallback away from its own fields once it's known to exist — only created_by falls further, to the run's own recorded actor.
 function enrichedFields(
   enrichment: RunEnrichment | undefined,
@@ -178,10 +166,27 @@ function lifecycle(run: AssemblyRunSummary) {
   };
 }
 
+/** One run as the list views read it — no graph, which only a task-centric caller needs. */
 export function toRunRow(
+  run: AssemblyRunSummary,
+  enrichment: RunEnrichment | undefined,
+) {
+  return runRow(run, enrichment, {});
+}
+
+// graph itself may still be unresolved (predates clones AND blueprint gone).
+/** The same row plus the run's cloned graph, for a caller that draws the DAG. */
+export function toRunRowWithGraph(
   run: AssemblyRunSummary & { graph?: unknown },
   enrichment: RunEnrichment | undefined,
-  withGraph: boolean,
+) {
+  return runRow(run, enrichment, { graph: run.graph ?? null });
+}
+
+function runRow(
+  run: AssemblyRunSummary,
+  enrichment: RunEnrichment | undefined,
+  graphField: Record<string, unknown>,
 ) {
   const { pr_url, task_pr_number, created_by, cost_usd } = enrichedFields(
     enrichment,
@@ -190,7 +195,7 @@ export function toRunRow(
 
   return {
     ...identity(run),
-    ...graphField(withGraph, run.graph),
+    ...graphField,
     ...lifecycle(run),
     args_pr_number: argsPrNumber(run.args["pr_number"]),
     pr_url,

@@ -148,7 +148,9 @@ async function runClaimed(
   try {
     const result = await runSpecTaskAgent(task, brief, defaults);
 
-    return recordDispatch(task, brief, runningByGroup, result.started);
+    return result.started
+      ? recordDispatch(task, brief, runningByGroup)
+      : reportDispatchRace(task);
   } catch (err) {
     await setStatus(task.id, "pending");
     console.error(
@@ -159,21 +161,21 @@ async function runClaimed(
   }
 }
 
-/** Book a started CR against the per-group counter, or report the race that means someone else owns the claim. */
+/** An existing CR means another dispatcher won; the claim stays with it, not with us. */
+function reportDispatchRace(task: ReadySpecTask): boolean {
+  console.log(
+    `[spec-task-executor] Agent CR for ${task.id} already exists, skipping`,
+  );
+
+  return false;
+}
+
+/** Book a started CR against the per-group counter. */
 function recordDispatch(
   task: ReadySpecTask,
   brief: SpecTaskBrief,
   runningByGroup: Map<string, number>,
-  started: boolean,
 ): boolean {
-  // An existing CR means another dispatcher won; the claim stays with it, not with us.
-  if (!started) {
-    console.log(
-      `[spec-task-executor] Agent CR for ${task.id} already exists, skipping`,
-    );
-
-    return false;
-  }
   bumpGroupCounter(runningByGroup, task.task_group_id);
   console.log(
     `[spec-task-executor] Dispatched ${brief.specTaskId} (${task.id}) → Agent CR`,

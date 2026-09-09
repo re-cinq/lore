@@ -1,6 +1,7 @@
 // Contracts for the implementation-loop repo surface (FR10); the named ImplementationLoop component is what web-ui aliases from generated schema.d.ts — keep it stable.
 
 import { z } from "zod";
+import { OkTrue } from "../../http/ok-schema.js";
 
 /** One node of a ticket's run, in graph order — the mini pipeline's dot. */
 export const PipelineNodeSchema = z.object({
@@ -40,7 +41,7 @@ export const ImplementationLoopSchema = z.object({
 export const ToggleBodySchema = z.object({ enabled: z.boolean() });
 
 export const ToggleResultSchema = z.object({
-  ok: z.literal(true),
+  ok: OkTrue,
   enabled: z.boolean(),
 });
 

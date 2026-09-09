@@ -175,7 +175,7 @@ function baseOperation(
     tags: [tagFor(normPath)],
     security: publicOp ? [] : [{ bearerAuth: [] }],
     "x-rate-limit-bucket": bucketFor(route.path),
-    responses: responsesFor(publicOp, hasBody, success),
+    responses: responsesFor({ isPublicOp: publicOp, hasBody, success }),
   };
 }
 

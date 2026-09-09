@@ -193,17 +193,9 @@ export const specPrResumeLine: EventHandler = async (params) => {
   });
 };
 
-/** True when a merged PR carries the `spec` label and its branch names a spec slug — the only PRs whose tasks.md should sync. Closed-unmerged reaches this event too, so `merged` is checked first. */
-function mergedSpecSlug(
-  merged: boolean,
-  labels: string[],
-  branch: string,
-): string | null {
-  if (!merged || !labels.includes("spec")) {
-    return null;
-  }
-
-  return specSlugFromBranch(branch);
+/** The spec slug of a PR carrying the `spec` label — the only PRs whose tasks.md should sync. Callers gate on `merged` themselves, since closed-unmerged reaches this event too. */
+function specLabelledSlug(labels: string[], branch: string): string | null {
+  return labels.includes("spec") ? specSlugFromBranch(branch) : null;
 }
 
 /** Reads tasks.md AT THE MERGE COMMIT and files its spec-tasks as one group. The commit matters: reading the branch would race a branch already deleted, and reading HEAD would pick up whatever merged after. */
@@ -264,7 +256,7 @@ export const specPrMerge: EventHandler = async (params) => {
     labels: string[];
   };
 
-  const specSlug = mergedSpecSlug(merged, labels, branch);
+  const specSlug = merged ? specLabelledSlug(labels, branch) : null;
 
   if (!specSlug) {
     return;
