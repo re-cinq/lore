@@ -46,6 +46,102 @@ const FACT_MATCH_SQL = `SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref
           ORDER BY score DESC
           LIMIT 20`;
 
+export function memorySearchRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/memory-search",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(MemorySearchQuery) },
+      },
+      MemorySearchSchema,
+      {
+        name: "MemorySearchResults",
+        description: "Ranked memories and facts",
+      },
+    ),
+    handler: withPool(getPool, serveMemorySearch),
+  };
+}
+
+/** Memories and facts ranked lexically against one query, in that order. */
+async function serveMemorySearch(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const { q } = request.query as unknown as MemorySearchQuery;
+
+  const [{ rows: memories }, { rows: facts }] = await Promise.all([
+    pool.query(MEMORY_MATCH_SQL, [q]),
+    pool.query(FACT_MATCH_SQL, [q]),
+  ]);
+
+  return h.response({ results: [...memories, ...facts] });
+}
+
+const MEMORY_LIST_SQL = `SELECT m.id, m.key, m.value, m.version, m.created_at, m.ttl_seconds,
+            EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
+       FROM memory.memories m
+      WHERE m.agent_id = $1 AND m.is_deleted = FALSE
+        AND (m.expires_at IS NULL OR m.expires_at > now())
+      ORDER BY m.created_at DESC
+      LIMIT $2`;
+
+export function listMemoriesRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/memories",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(MemoriesQuery) },
+      },
+      MemoryListSchema,
+      {
+        name: "MemoryList",
+        description: "An agent's memories with versions and facts",
+      },
+    ),
+    handler: withPool(getPool, serveMemoryList),
+  };
+}
+
+/** An agent's memories with their versions and extracted facts — the browse view behind the memory page. */
+async function serveMemoryList(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const { agent, limit } = request.query as unknown as MemoriesQuery;
+
+  const { rows: memories } = await pool.query<{
+    id: string;
+    has_facts: boolean;
+  }>(MEMORY_LIST_SQL, [agent, limit]);
+
+  return h.response({ memories: await withHistory(pool, memories) });
+}
+
+/** Attaches each memory's version history and extracted facts. */
+async function withHistory(
+  pool: Pool,
+  memories: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+  const detailed = [];
+
+  for (const memory of memories) {
+    detailed.push({
+      ...memory,
+      versions: await readMemoryVersions(pool, memory.id),
+      facts: await readMemoryFacts(pool, memory),
+    });
+  }
+
+  return detailed;
+}
+
 async function readMemoryVersions(pool: Pool, memoryId: unknown) {
   const { rows } = await pool.query(
     `SELECT version, value, created_at FROM memory.memory_versions
@@ -67,100 +163,4 @@ async function readMemoryFacts(pool: Pool, memory: Record<string, unknown>) {
   );
 
   return rows;
-}
-
-/** Attaches each memory's version history and extracted facts. */
-async function withHistory(
-  pool: Pool,
-  memories: Record<string, unknown>[],
-): Promise<Record<string, unknown>[]> {
-  const detailed = [];
-
-  for (const memory of memories) {
-    detailed.push({
-      ...memory,
-      versions: await readMemoryVersions(pool, memory.id),
-      facts: await readMemoryFacts(pool, memory),
-    });
-  }
-
-  return detailed;
-}
-
-/** Memories and facts ranked lexically against one query, in that order. */
-async function serveMemorySearch(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const { q } = request.query as unknown as MemorySearchQuery;
-
-  const [{ rows: memories }, { rows: facts }] = await Promise.all([
-    pool.query(MEMORY_MATCH_SQL, [q]),
-    pool.query(FACT_MATCH_SQL, [q]),
-  ]);
-
-  return h.response({ results: [...memories, ...facts] });
-}
-
-export function memorySearchRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/memory-search",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(MemorySearchQuery) },
-      },
-      MemorySearchSchema,
-      {
-        name: "MemorySearchResults",
-        description: "Ranked memories and facts",
-      },
-    ),
-    handler: withPool(getPool, serveMemorySearch),
-  };
-}
-
-const MEMORY_LIST_SQL = `SELECT m.id, m.key, m.value, m.version, m.created_at, m.ttl_seconds,
-            EXISTS(SELECT 1 FROM memory.facts f WHERE f.memory_id = m.id) as has_facts
-       FROM memory.memories m
-      WHERE m.agent_id = $1 AND m.is_deleted = FALSE
-        AND (m.expires_at IS NULL OR m.expires_at > now())
-      ORDER BY m.created_at DESC
-      LIMIT $2`;
-
-/** An agent's memories with their versions and extracted facts — the browse view behind the memory page. */
-async function serveMemoryList(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const { agent, limit } = request.query as unknown as MemoriesQuery;
-
-  const { rows: memories } = await pool.query<{
-    id: string;
-    has_facts: boolean;
-  }>(MEMORY_LIST_SQL, [agent, limit]);
-
-  return h.response({ memories: await withHistory(pool, memories) });
-}
-
-export function listMemoriesRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/memories",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(MemoriesQuery) },
-      },
-      MemoryListSchema,
-      {
-        name: "MemoryList",
-        description: "An agent's memories with versions and facts",
-      },
-    ),
-    handler: withPool(getPool, serveMemoryList),
-  };
 }

@@ -21,6 +21,19 @@ const IngestStateSchema = z.object({
   commit: z.string().nullable(),
 });
 
+export function ingestStateRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/ingest-state",
+    options: zodResponse(bearerScope("read"), IngestStateSchema, {
+      name: "IngestState",
+      description: "The last commit ingested for a repo and kind",
+      errors: [400],
+    }),
+    handler: withPool(getPool, serveIngestState),
+  };
+}
+
 /** The last commit ingested for the requested kind, or null when nothing has landed yet. */
 async function serveIngestState(
   pool: Pool,
@@ -38,17 +51,4 @@ async function serveIngestState(
   const commit = await storedCommit(pool, repo, kind);
 
   return h.response({ kind, commit });
-}
-
-export function ingestStateRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/ingest-state",
-    options: zodResponse(bearerScope("read"), IngestStateSchema, {
-      name: "IngestState",
-      description: "The last commit ingested for a repo and kind",
-      errors: [400],
-    }),
-    handler: withPool(getPool, serveIngestState),
-  };
 }

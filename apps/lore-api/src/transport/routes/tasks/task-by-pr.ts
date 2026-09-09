@@ -21,68 +21,38 @@ const TaskByPrSchema = z.object({
   trailer_source: z.enum(["db", "pr_body", "final_commit"]),
 });
 
-async function taskIdFromDb(
-  pool: Pool,
-  repo: string,
-  prNumber: number,
-): Promise<string | null> {
-  try {
-    const { rows } = await pool.query(
-      `SELECT id FROM pipeline.tasks
-         WHERE target_repo = $1 AND pr_number = $2
-         LIMIT 1`,
-      [repo, prNumber],
-    );
-
-    return rows.length > 0 ? rows[0].id : null;
-  } catch (err) {
-    console.error("[by-pr] DB lookup failed:", err);
-
-    return null;
-  }
+export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/tasks/by-pr/{owner}/{repo}/{number}",
+    options: zodResponse(bearerScope("read"), TaskByPrSchema, {
+      name: "TaskByPr",
+      description: "The task a pull request belongs to",
+      errors: [404],
+    }),
+    handler: (request, h) => serveTaskByPr(getPool, request, h),
+  };
 }
 
-type PrTrailerResult = {
-  task_id: string;
-  trailer_source: "pr_body" | "final_commit";
-} | null;
+/** Resolves a PR back to the task that opened it. In dark-factory mode the `Lore-Task:` trailer is the only cross-reference, so this read is what makes a PR traceable. */
+async function serveTaskByPr(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
 
-// Final commit on the PR head branch, read when the PR body carries no trailer.
-async function taskIdFromHeadCommit(
-  git: Awaited<ReturnType<typeof getOctokit>>["rest"]["git"],
-  target: { owner: string; repo: string; sha: string },
-): Promise<PrTrailerResult> {
-  const commit = await git.getCommit({
-    owner: target.owner,
-    repo: target.repo,
-    commit_sha: target.sha,
-  });
-  const taskId = parseTrailers(commit.data.message)?.taskId;
+  enforceTrue(pool, apiError(503), "database unavailable");
+  const target = prTarget(request);
+  const { owner, repoName, prNumber } = target;
+  // The DB first: it holds the link for every PR Lore opened itself, and the trailer parse below is for PRs it did not.
+  const dbTaskId = await taskIdFromDb(pool, `${owner}/${repoName}`, prNumber);
 
-  return taskId ? { task_id: taskId, trailer_source: "final_commit" } : null;
-}
-
-async function taskIdFromGithub(
-  owner: string,
-  repoName: string,
-  prNumber: number,
-): Promise<PrTrailerResult> {
-  const { pulls, git } = (await getOctokit()).rest;
-  const { data: pr } = await pulls.get({
-    owner,
-    repo: repoName,
-    pull_number: prNumber,
-  });
-
-  const fromBody = pr.body?.match(LORE_TASK_TRAILER_RE);
-
-  if (fromBody) {
-    return { task_id: fromBody[1], trailer_source: "pr_body" };
+  if (dbTaskId) {
+    return h.response({ task_id: dbTaskId, trailer_source: "db" });
   }
 
-  const head = { owner, repo: repoName, sha: pr.head.sha };
-
-  return taskIdFromHeadCommit(git, head);
+  return githubFallback(target, h);
 }
 
 interface PrTarget {
@@ -104,6 +74,27 @@ function prTarget(request: Request): PrTarget {
     repoName: request.params.repo,
     prNumber: Number.parseInt(request.params.number, 10),
   };
+}
+
+async function taskIdFromDb(
+  pool: Pool,
+  repo: string,
+  prNumber: number,
+): Promise<string | null> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id FROM pipeline.tasks
+         WHERE target_repo = $1 AND pr_number = $2
+         LIMIT 1`,
+      [repo, prNumber],
+    );
+
+    return rows.length > 0 ? rows[0].id : null;
+  } catch (err) {
+    console.error("[by-pr] DB lookup failed:", err);
+
+    return null;
+  }
 }
 
 // Not in the DB: read the PR body and its final commit for a `Lore-Task:` trailer, which is the only cross-reference a dark-factory PR carries.
@@ -129,36 +120,45 @@ async function githubFallback(
   }
 }
 
-/** Resolves a PR back to the task that opened it. In dark-factory mode the `Lore-Task:` trailer is the only cross-reference, so this read is what makes a PR traceable. */
-async function serveTaskByPr(
-  getPool: () => Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const pool = getPool();
+type PrTrailerResult = {
+  task_id: string;
+  trailer_source: "pr_body" | "final_commit";
+} | null;
 
-  enforceTrue(pool, apiError(503), "database unavailable");
-  const target = prTarget(request);
-  const { owner, repoName, prNumber } = target;
-  // The DB first: it holds the link for every PR Lore opened itself, and the trailer parse below is for PRs it did not.
-  const dbTaskId = await taskIdFromDb(pool, `${owner}/${repoName}`, prNumber);
+async function taskIdFromGithub(
+  owner: string,
+  repoName: string,
+  prNumber: number,
+): Promise<PrTrailerResult> {
+  const { pulls, git } = (await getOctokit()).rest;
+  const { data: pr } = await pulls.get({
+    owner,
+    repo: repoName,
+    pull_number: prNumber,
+  });
 
-  if (dbTaskId) {
-    return h.response({ task_id: dbTaskId, trailer_source: "db" });
+  const fromBody = pr.body?.match(LORE_TASK_TRAILER_RE);
+
+  if (fromBody) {
+    return { task_id: fromBody[1], trailer_source: "pr_body" };
   }
 
-  return githubFallback(target, h);
+  const head = { owner, repo: repoName, sha: pr.head.sha };
+
+  return taskIdFromHeadCommit(git, head);
 }
 
-export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/tasks/by-pr/{owner}/{repo}/{number}",
-    options: zodResponse(bearerScope("read"), TaskByPrSchema, {
-      name: "TaskByPr",
-      description: "The task a pull request belongs to",
-      errors: [404],
-    }),
-    handler: (request, h) => serveTaskByPr(getPool, request, h),
-  };
+// Final commit on the PR head branch, read when the PR body carries no trailer.
+async function taskIdFromHeadCommit(
+  git: Awaited<ReturnType<typeof getOctokit>>["rest"]["git"],
+  target: { owner: string; repo: string; sha: string },
+): Promise<PrTrailerResult> {
+  const commit = await git.getCommit({
+    owner: target.owner,
+    repo: target.repo,
+    commit_sha: target.sha,
+  });
+  const taskId = parseTrailers(commit.data.message)?.taskId;
+
+  return taskId ? { task_id: taskId, trailer_source: "final_commit" } : null;
 }

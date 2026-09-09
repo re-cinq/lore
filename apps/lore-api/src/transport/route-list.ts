@@ -101,6 +101,22 @@ import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 
 type PoolGetter = () => Pool | null;
 
+/** Every route the API serves, grouped by the thing it acts on. */
+export function routeList(getPool: PoolGetter): ServerRoute[] {
+  return [
+    ...platformRoutes(getPool),
+    ...repoRoutes(getPool),
+    ...taskRoutes(getPool),
+    ...memoryRoutes(getPool),
+    ...ingestRoutes(getPool),
+    ...webhookRoutes(getPool),
+    ...clusterAgentRoutes(getPool),
+    ...agentDefinitionRoutes(getPool),
+    ...analyticsRoutes(getPool),
+    ...traceRoutes(),
+  ];
+}
+
 /** The service describing and serving itself: health, model status, the binary, and the OpenAPI docs. */
 function platformRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
@@ -260,21 +276,5 @@ function traceRoutes(): ServerRoute[] {
     ...stationDataRoutes(),
     traceAdrsRoute(),
     traceSpecsRoute(),
-  ];
-}
-
-/** Every route the API serves, grouped by the thing it acts on. */
-export function routeList(getPool: PoolGetter): ServerRoute[] {
-  return [
-    ...platformRoutes(getPool),
-    ...repoRoutes(getPool),
-    ...taskRoutes(getPool),
-    ...memoryRoutes(getPool),
-    ...ingestRoutes(getPool),
-    ...webhookRoutes(getPool),
-    ...clusterAgentRoutes(getPool),
-    ...agentDefinitionRoutes(getPool),
-    ...analyticsRoutes(getPool),
-    ...traceRoutes(),
   ];
 }

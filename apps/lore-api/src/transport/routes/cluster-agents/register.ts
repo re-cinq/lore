@@ -64,6 +64,80 @@ export interface RegisterDeps {
   registrationToken: string | undefined;
 }
 
+type IssuableDecision = Exclude<RegistrationDecision, { kind: "reject" }>;
+
+const NAME_TAKEN = {
+  code: 409 as const,
+  body: { error: "name is registered to a live identity" },
+};
+
+const REGISTER_OPTIONS = zodResponse(
+  {
+    auth: false,
+    validate: { payload: zodValidate(RegisterBody) },
+  },
+  RegisterResponse,
+  {
+    name: "ClusterAgentRegistration",
+    description:
+      "The registered identity with its per-agent token — served once and never again",
+    errors: [401, 409],
+  },
+);
+
+export function clusterAgentRegisterRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/cluster-agents/register",
+    options: REGISTER_OPTIONS,
+    handler: withPool(getPool, serveRegister),
+  };
+}
+
+/** A cluster-agent introducing itself. Registration is mandatory in every cluster: nothing is ever pushed to an agent, so an unregistered process would simply never be given work. */
+async function serveRegister(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const bearer = extractBearer(request.headers.authorization);
+
+  const result = await handleRegister(
+    {
+      repository: new PgClusterAgents(pool),
+      registrationToken: process.env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN,
+    },
+    bearer,
+    request.payload as RegisterBody,
+  );
+
+  return h.response(result.body).code(result.code);
+}
+
+export async function handleRegister(
+  deps: RegisterDeps,
+  bearer: string | undefined,
+  body: RegisterBody,
+): Promise<RegisterResult | { code: 401 | 503; body: { error: string } }> {
+  if (isUnauthorizedRegistration(deps, bearer)) {
+    return { code: 401, body: { error: "unauthorized" } };
+  }
+
+  const presented = body.current_token ?? "";
+  const decision: RegistrationDecision = decideRegistration(
+    await deps.repository.findByName(body.name),
+    presented ? hashAgentToken(presented) : null,
+  );
+
+  if (decision.kind === "reject") {
+    return NAME_TAKEN;
+  }
+
+  return registerAgent(deps, body, decision, presented);
+}
+
 function isUnauthorizedRegistration(
   deps: RegisterDeps,
   bearer: string | undefined,
@@ -73,41 +147,6 @@ function isUnauthorizedRegistration(
     !bearer ||
     !secretEquals(bearer, deps.registrationToken)
   );
-}
-
-type IssuableDecision = Exclude<RegistrationDecision, { kind: "reject" }>;
-
-/** Re-registering KEEPS its token: rotating would 401 running pods already holding the credential (#1587). */
-function issueTokenForDecision(
-  decision: IssuableDecision,
-  presented: string,
-): { token: string; tokenHash: string } {
-  return decision.kind === "create"
-    ? mintAgentToken()
-    : { token: presented, tokenHash: decision.tokenHash };
-}
-
-function persistRegistration(
-  deps: RegisterDeps,
-  decision: IssuableDecision,
-  input: RegisterClusterAgentInput,
-): Promise<ClusterAgent | null> {
-  return decision.kind === "create"
-    ? deps.repository.create(input)
-    : deps.repository.refresh(decision.id, input);
-}
-
-const NAME_TAKEN = {
-  code: 409 as const,
-  body: { error: "name is registered to a live identity" },
-};
-
-/** The registered identity as the agent sees it. The token appears here and nowhere else — only its hash is stored. */
-function registeredBody(
-  agent: ClusterAgent,
-  token: string,
-): z.infer<typeof RegisterResponse> {
-  return { id: agent.id, name: agent.name, tags: agent.tags, token };
 }
 
 /** The handler core, injectable for tests: gate, decide, mint, persist. */
@@ -133,69 +172,30 @@ async function registerAgent(
   return { code: 200, body: registeredBody(agent, issued.token) };
 }
 
-export async function handleRegister(
+/** Re-registering KEEPS its token: rotating would 401 running pods already holding the credential (#1587). */
+function issueTokenForDecision(
+  decision: IssuableDecision,
+  presented: string,
+): { token: string; tokenHash: string } {
+  return decision.kind === "create"
+    ? mintAgentToken()
+    : { token: presented, tokenHash: decision.tokenHash };
+}
+
+function persistRegistration(
   deps: RegisterDeps,
-  bearer: string | undefined,
-  body: RegisterBody,
-): Promise<RegisterResult | { code: 401 | 503; body: { error: string } }> {
-  if (isUnauthorizedRegistration(deps, bearer)) {
-    return { code: 401, body: { error: "unauthorized" } };
-  }
-
-  const presented = body.current_token ?? "";
-  const decision: RegistrationDecision = decideRegistration(
-    await deps.repository.findByName(body.name),
-    presented ? hashAgentToken(presented) : null,
-  );
-
-  if (decision.kind === "reject") {
-    return NAME_TAKEN;
-  }
-
-  return registerAgent(deps, body, decision, presented);
+  decision: IssuableDecision,
+  input: RegisterClusterAgentInput,
+): Promise<ClusterAgent | null> {
+  return decision.kind === "create"
+    ? deps.repository.create(input)
+    : deps.repository.refresh(decision.id, input);
 }
 
-/** A cluster-agent introducing itself. Registration is mandatory in every cluster: nothing is ever pushed to an agent, so an unregistered process would simply never be given work. */
-async function serveRegister(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const bearer = extractBearer(request.headers.authorization);
-
-  const result = await handleRegister(
-    {
-      repository: new PgClusterAgents(pool),
-      registrationToken: process.env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN,
-    },
-    bearer,
-    request.payload as RegisterBody,
-  );
-
-  return h.response(result.body).code(result.code);
-}
-
-const REGISTER_OPTIONS = zodResponse(
-  {
-    auth: false,
-    validate: { payload: zodValidate(RegisterBody) },
-  },
-  RegisterResponse,
-  {
-    name: "ClusterAgentRegistration",
-    description:
-      "The registered identity with its per-agent token — served once and never again",
-    errors: [401, 409],
-  },
-);
-
-export function clusterAgentRegisterRoute(
-  getPool: () => Pool | null,
-): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/cluster-agents/register",
-    options: REGISTER_OPTIONS,
-    handler: withPool(getPool, serveRegister),
-  };
+/** The registered identity as the agent sees it. The token appears here and nowhere else — only its hash is stored. */
+function registeredBody(
+  agent: ClusterAgent,
+  token: string,
+): z.infer<typeof RegisterResponse> {
+  return { id: agent.id, name: agent.name, tags: agent.tags, token };
 }

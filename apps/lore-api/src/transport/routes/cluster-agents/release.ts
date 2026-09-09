@@ -37,19 +37,39 @@ type ReleaseResult =
   | { code: 200; body: z.infer<typeof ReleaseResponse> }
   | { code: 401 | 403 | 503; body: { error: string } };
 
-/** Puts the unlaunched visit back on the queue and says so out loud: a run that keeps bouncing between clusters is only legible if each refusal names the agent and its reason. */
-async function requeueAndLog(
-  deps: ReleaseDeps,
-  agentName: string,
-  body: z.infer<typeof ReleaseBody>,
-): Promise<"requeued" | "settled"> {
-  const requeued = await deps.runs.requeueStationRun(body.node_row_id);
+export function clusterAgentReleaseRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/cluster-agents/{id}/release",
+    options: zodResponse(
+      { auth: false, validate: { payload: zodValidate(ReleaseBody) } },
+      ReleaseResponse,
+      {
+        name: "ClusterAgentRelease",
+        description:
+          "Whether the unlaunched visit went back on the queue or had already settled",
+      },
+    ),
+    handler: withPool(getPool, serveRelease),
+  };
+}
 
-  console.warn(
-    `[lore-api] cluster-agent ${agentName} could not launch station run row ${body.node_row_id} (${requeued ? "requeued" : "already settled"}): ${body.reason}`,
+/** A cluster-agent handing back work it could not start. */
+async function serveRelease(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const result = await handleRelease(
+    { agents: new PgClusterAgents(pool), runs: new PgAssemblyRuns(pool) },
+    extractBearer(request.headers.authorization),
+    request.params.id,
+    request.payload as z.infer<typeof ReleaseBody>,
   );
 
-  return requeued ? "requeued" : "settled";
+  return h.response(result.body).code(result.code);
 }
 
 /** The handler core, injectable for tests: authenticate, then requeue. */
@@ -71,37 +91,17 @@ export async function handleRelease(
   };
 }
 
-/** A cluster-agent handing back work it could not start. */
-async function serveRelease(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const result = await handleRelease(
-    { agents: new PgClusterAgents(pool), runs: new PgAssemblyRuns(pool) },
-    extractBearer(request.headers.authorization),
-    request.params.id,
-    request.payload as z.infer<typeof ReleaseBody>,
+/** Puts the unlaunched visit back on the queue and says so out loud: a run that keeps bouncing between clusters is only legible if each refusal names the agent and its reason. */
+async function requeueAndLog(
+  deps: ReleaseDeps,
+  agentName: string,
+  body: z.infer<typeof ReleaseBody>,
+): Promise<"requeued" | "settled"> {
+  const requeued = await deps.runs.requeueStationRun(body.node_row_id);
+
+  console.warn(
+    `[lore-api] cluster-agent ${agentName} could not launch station run row ${body.node_row_id} (${requeued ? "requeued" : "already settled"}): ${body.reason}`,
   );
 
-  return h.response(result.body).code(result.code);
-}
-
-export function clusterAgentReleaseRoute(
-  getPool: () => Pool | null,
-): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/cluster-agents/{id}/release",
-    options: zodResponse(
-      { auth: false, validate: { payload: zodValidate(ReleaseBody) } },
-      ReleaseResponse,
-      {
-        name: "ClusterAgentRelease",
-        description:
-          "Whether the unlaunched visit went back on the queue or had already settled",
-      },
-    ),
-    handler: withPool(getPool, serveRelease),
-  };
+  return requeued ? "requeued" : "settled";
 }

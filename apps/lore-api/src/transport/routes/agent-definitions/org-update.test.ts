@@ -22,14 +22,6 @@ const orgRow = {
   config: { skills: ["lore-context"] },
 };
 
-function paramOr<T>(
-  params: unknown[] | undefined,
-  index: number,
-  fallback: T,
-): T {
-  return (params?.[index] as T | undefined) ?? fallback;
-}
-
 function fakePool(capture: Array<{ text: string; params?: unknown[] }>): Pool {
   return {
     query: async (text: string, params?: unknown[]) => {
@@ -47,6 +39,14 @@ function fakePool(capture: Array<{ text: string; params?: unknown[] }>): Pool {
       };
     },
   } as unknown as Pool;
+}
+
+function paramOr<T>(
+  params: unknown[] | undefined,
+  index: number,
+  fallback: T,
+): T {
+  return (params?.[index] as T | undefined) ?? fallback;
 }
 
 async function server(pool: Pool | null): Promise<Hapi.Server> {

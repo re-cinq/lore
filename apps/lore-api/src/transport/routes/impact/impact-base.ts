@@ -20,14 +20,15 @@ const ImpactBaseSchema = z.record(z.string(), z.unknown());
 
 type Dgraph = NonNullable<ReturnType<typeof createDgraphClient>>;
 
-/** The stamped baseline in wire shape. */
-async function stampedBase(dgraph: Dgraph, repo: string) {
-  const baseline = await readGraphBaseline(dgraph, repo);
-
+export function impactBaseRoute(): ServerRoute {
   return {
-    graphCommit: baseline.commit,
-    graphCommitAt: baseline.at,
-    source: baseline.source,
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/impact/base",
+    options: zodResponse(bearerScope("read"), ImpactBaseSchema, {
+      name: "ImpactBase",
+      description: "The stamped base commit, or unstamped",
+    }),
+    handler: (request, h) => serveImpactBase(request, h),
   };
 }
 
@@ -54,14 +55,13 @@ async function serveImpactBase(
   }
 }
 
-export function impactBaseRoute(): ServerRoute {
+/** The stamped baseline in wire shape. */
+async function stampedBase(dgraph: Dgraph, repo: string) {
+  const baseline = await readGraphBaseline(dgraph, repo);
+
   return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/impact/base",
-    options: zodResponse(bearerScope("read"), ImpactBaseSchema, {
-      name: "ImpactBase",
-      description: "The stamped base commit, or unstamped",
-    }),
-    handler: (request, h) => serveImpactBase(request, h),
+    graphCommit: baseline.commit,
+    graphCommitAt: baseline.at,
+    source: baseline.source,
   };
 }

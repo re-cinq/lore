@@ -20,6 +20,20 @@ export interface PipelineAnalytics {
   by_type: { task_type: string; tasks: string }[];
 }
 
+export async function pipelineAnalytics(
+  pool: Pool,
+  period: AnalyticsPeriod,
+): Promise<PipelineAnalytics> {
+  const periodFilter = PERIOD_FILTERS[period];
+  const [usage, tasks, byType] = await Promise.all([
+    readUsage(pool, periodFilter),
+    readTaskCounts(pool, periodFilter),
+    readCountsByType(pool, periodFilter),
+  ]);
+
+  return { period, usage, tasks, by_type: byType };
+}
+
 /** Token totals for the period. Parsed here rather than cast in SQL: pg returns these as strings because a count can outgrow a JS number, and the API contract is a number. */
 async function readUsage(pool: Pool, periodFilter: string) {
   const { rows } = await pool.query<{
@@ -61,18 +75,4 @@ async function readCountsByType(pool: Pool, periodFilter: string) {
   );
 
   return rows;
-}
-
-export async function pipelineAnalytics(
-  pool: Pool,
-  period: AnalyticsPeriod,
-): Promise<PipelineAnalytics> {
-  const periodFilter = PERIOD_FILTERS[period];
-  const [usage, tasks, byType] = await Promise.all([
-    readUsage(pool, periodFilter),
-    readTaskCounts(pool, periodFilter),
-    readCountsByType(pool, periodFilter),
-  ]);
-
-  return { period, usage, tasks, by_type: byType };
 }

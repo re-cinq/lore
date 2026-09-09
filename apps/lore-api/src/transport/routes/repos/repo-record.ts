@@ -14,6 +14,24 @@ import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 
+// Collapses 9 web-ui call sites that each selected a different column subset of this row into one whole-record endpoint; wire stays snake_case (not camelCase) because mcp-server reads `full_name` from it — renaming is expand/contract work.
+export function repoRecordRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}",
+    options: zodResponse(
+      bearerScope("read"),
+      wireSchema(RepoSchema, REPO_COLUMNS),
+      {
+        name: "Repo",
+        description: "One lore.repos row",
+        errors: [404],
+      },
+    ),
+    handler: (request, h) => serveRepoRecord(request, h),
+  };
+}
+
 /** The whole lore.repos row for one repo, or a 404 when it was never onboarded. */
 async function serveRepoRecord(
   request: Request,
@@ -34,22 +52,4 @@ async function serveRepoRecord(
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
-}
-
-// Collapses 9 web-ui call sites that each selected a different column subset of this row into one whole-record endpoint; wire stays snake_case (not camelCase) because mcp-server reads `full_name` from it — renaming is expand/contract work.
-export function repoRecordRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}",
-    options: zodResponse(
-      bearerScope("read"),
-      wireSchema(RepoSchema, REPO_COLUMNS),
-      {
-        name: "Repo",
-        description: "One lore.repos row",
-        errors: [404],
-      },
-    ),
-    handler: (request, h) => serveRepoRecord(request, h),
-  };
 }

@@ -26,6 +26,60 @@ interface InstallEnv {
   LORE_REPO_URL?: string;
 }
 
+export function clusterAgentInstallRoutes(): ServerRoute[] {
+  return [installInfoRoute(), installScriptRoute()];
+}
+
+/** What this deployment can hand an installer — URLs and the registration token — or the reason it cannot. Answering with the REASON rather than a bare 404 is the point: "no registration token configured" is a fixable state, and a satellite operator has no other way to learn it. */
+function installInfoRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/cluster-agents/install-info",
+    options: zodResponse(bearerScope("admin"), InstallInfoResponse, {
+      name: "ClusterAgentInstallInfo",
+      description:
+        "What this deployment can hand a satellite installer — URLs and the registration token, or why not",
+    }),
+    handler: (_request: Request, h: ResponseToolkit) =>
+      h.response(buildInstallInfo(process.env)).code(200),
+  };
+}
+
+/** The script itself. Served as `text/x-shellscript` and gated on admin scope: it CARRIES the registration token, so holding the response means being able to register clusters. */
+function installScriptRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/cluster-agents/install.sh",
+    options: bearerScope("admin"),
+    handler: (_request: Request, h: ResponseToolkit) => {
+      const install = buildInstallInfo(process.env);
+
+      if (!install.available) {
+        return h.response({ error: install.reason ?? "unavailable" }).code(404);
+      }
+
+      return h
+        .response(renderInstallScript(install))
+        .type("text/x-shellscript")
+        .code(200);
+    },
+  };
+}
+
+/** Pure: what this deployment can hand a satellite installer. */
+export function buildInstallInfo(env: InstallEnv): InstallInfo {
+  const missing = missingEnvVars(env);
+
+  return {
+    available: missing.length === 0,
+    reason: unavailableReason(missing),
+    api_url: orNull(env.LORE_API_URL),
+    event_router_url: orNull(env.LORE_EVENT_ROUTER_PUBLIC_URL),
+    registration_token: orNull(env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN),
+    repo_url: env.LORE_REPO_URL ?? DEFAULT_REPO_URL,
+  };
+}
+
 function missingEnvVars(env: InstallEnv): string[] {
   return [
     env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN
@@ -43,23 +97,6 @@ function unavailableReason(missing: readonly string[]): string | null {
 }
 
 const orNull = (value: string | undefined): string | null => value ?? null;
-
-/** Pure: what this deployment can hand a satellite installer. */
-export function buildInstallInfo(env: InstallEnv): InstallInfo {
-  const missing = missingEnvVars(env);
-
-  return {
-    available: missing.length === 0,
-    reason: unavailableReason(missing),
-    api_url: orNull(env.LORE_API_URL),
-    event_router_url: orNull(env.LORE_EVENT_ROUTER_PUBLIC_URL),
-    registration_token: orNull(env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN),
-    repo_url: env.LORE_REPO_URL ?? DEFAULT_REPO_URL,
-  };
-}
-
-const shellQuote = (value: string): string =>
-  `'${value.replace(/'/g, `'\\''`)}'`;
 
 /** Pure: the ready-to-run installer for an `available` deployment. */
 // eslint-disable-next-line max-lines-per-function -- one shell script, returned whole: it is read as a file by whoever runs it, and splitting the heredoc into fragments would make the thing a human reviews before piping it to bash harder to review, not easier
@@ -103,42 +140,5 @@ exec "$tmp/lore/scripts/install-satellite.sh" "$@"
 `;
 }
 
-/** What this deployment can hand an installer — URLs and the registration token — or the reason it cannot. Answering with the REASON rather than a bare 404 is the point: "no registration token configured" is a fixable state, and a satellite operator has no other way to learn it. */
-function installInfoRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/cluster-agents/install-info",
-    options: zodResponse(bearerScope("admin"), InstallInfoResponse, {
-      name: "ClusterAgentInstallInfo",
-      description:
-        "What this deployment can hand a satellite installer — URLs and the registration token, or why not",
-    }),
-    handler: (_request: Request, h: ResponseToolkit) =>
-      h.response(buildInstallInfo(process.env)).code(200),
-  };
-}
-
-/** The script itself. Served as `text/x-shellscript` and gated on admin scope: it CARRIES the registration token, so holding the response means being able to register clusters. */
-function installScriptRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/cluster-agents/install.sh",
-    options: bearerScope("admin"),
-    handler: (_request: Request, h: ResponseToolkit) => {
-      const install = buildInstallInfo(process.env);
-
-      if (!install.available) {
-        return h.response({ error: install.reason ?? "unavailable" }).code(404);
-      }
-
-      return h
-        .response(renderInstallScript(install))
-        .type("text/x-shellscript")
-        .code(200);
-    },
-  };
-}
-
-export function clusterAgentInstallRoutes(): ServerRoute[] {
-  return [installInfoRoute(), installScriptRoute()];
-}
+const shellQuote = (value: string): string =>
+  `'${value.replace(/'/g, `'\\''`)}'`;

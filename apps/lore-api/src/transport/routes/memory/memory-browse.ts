@@ -57,57 +57,23 @@ const ENTITY_TYPES_SQL = `
          ORDER BY cnt DESC
       `;
 
-function readEntities(
-  pool: Pool,
-  type: string | undefined,
-): Promise<{ rows: Record<string, unknown>[] }> {
-  return pool.query(
-    `SELECT en.id, en.name, en.entity_type, en.repo, en.updated_at,
-                (SELECT count(*)::int FROM memory.edges e
-                  WHERE (e.source_id = en.id OR e.target_id = en.id)
-                    AND e.valid_to IS NULL) as edge_count
-           FROM memory.entities en
-           ${type ? "WHERE en.entity_type = $1" : ""}
-          ORDER BY en.updated_at DESC
-          LIMIT 50`,
-    type ? [type] : [],
-  );
-}
-
-/** Which entity's edges to read, and whether invalidated ones count. */
-interface EdgeScope {
-  entity?: string | undefined;
-  show_invalid?: boolean | undefined;
-}
-
-function edgesSql({ show_invalid }: EdgeScope): string {
-  return `SELECT s.name as source_name, s.entity_type as source_type,
-                      e.relation_type, t.name as target_name, t.entity_type as target_type,
-                      e.valid_from, e.valid_to,
-                      CASE WHEN ep.id IS NOT NULL THEN 'episode' ELSE 'memory' END as source_label
-                 FROM memory.edges e
-                 JOIN memory.entities s ON s.id = e.source_id
-                 JOIN memory.entities t ON t.id = e.target_id
-                 LEFT JOIN memory.episodes ep ON ep.id = e.source_episode_id
-                WHERE (LOWER(s.name) = LOWER($1) OR LOWER(t.name) = LOWER($1))
-                  ${show_invalid ? "" : "AND e.valid_to IS NULL"}
-                ORDER BY e.valid_from DESC
-                LIMIT 50`;
-}
-
-/** Only a SELECTED entity has edges to show — unselected, this is the explorer's costliest query, so it is not run at all. */
-async function readEdgesFor(
-  pool: Pool,
-  scope: EdgeScope,
-): Promise<Record<string, unknown>[]> {
-  const { entity } = scope;
-
-  if (!entity) {
-    return [];
-  }
-  const { rows } = await pool.query(edgesSql(scope), [entity]);
-
-  return rows;
+function graphBrowseRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/graph-browse",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(GraphBrowseQuery) },
+      },
+      GraphBrowseSchema,
+      {
+        name: "GraphBrowse",
+        description: "Entities and edges of the knowledge graph",
+      },
+    ),
+    handler: withPool(getPool, serveGraphBrowse),
+  };
 }
 
 /** Entities and edges of the knowledge graph, for browsing rather than querying — the whole neighbourhood, not the answer to a question. */
@@ -131,23 +97,57 @@ async function serveGraphBrowse(
   });
 }
 
-function graphBrowseRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/graph-browse",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(GraphBrowseQuery) },
-      },
-      GraphBrowseSchema,
-      {
-        name: "GraphBrowse",
-        description: "Entities and edges of the knowledge graph",
-      },
-    ),
-    handler: withPool(getPool, serveGraphBrowse),
-  };
+function readEntities(
+  pool: Pool,
+  type: string | undefined,
+): Promise<{ rows: Record<string, unknown>[] }> {
+  return pool.query(
+    `SELECT en.id, en.name, en.entity_type, en.repo, en.updated_at,
+                (SELECT count(*)::int FROM memory.edges e
+                  WHERE (e.source_id = en.id OR e.target_id = en.id)
+                    AND e.valid_to IS NULL) as edge_count
+           FROM memory.entities en
+           ${type ? "WHERE en.entity_type = $1" : ""}
+          ORDER BY en.updated_at DESC
+          LIMIT 50`,
+    type ? [type] : [],
+  );
+}
+
+/** Which entity's edges to read, and whether invalidated ones count. */
+interface EdgeScope {
+  entity?: string | undefined;
+  show_invalid?: boolean | undefined;
+}
+
+/** Only a SELECTED entity has edges to show — unselected, this is the explorer's costliest query, so it is not run at all. */
+async function readEdgesFor(
+  pool: Pool,
+  scope: EdgeScope,
+): Promise<Record<string, unknown>[]> {
+  const { entity } = scope;
+
+  if (!entity) {
+    return [];
+  }
+  const { rows } = await pool.query(edgesSql(scope), [entity]);
+
+  return rows;
+}
+
+function edgesSql({ show_invalid }: EdgeScope): string {
+  return `SELECT s.name as source_name, s.entity_type as source_type,
+                      e.relation_type, t.name as target_name, t.entity_type as target_type,
+                      e.valid_from, e.valid_to,
+                      CASE WHEN ep.id IS NOT NULL THEN 'episode' ELSE 'memory' END as source_label
+                 FROM memory.edges e
+                 JOIN memory.entities s ON s.id = e.source_id
+                 JOIN memory.entities t ON t.id = e.target_id
+                 LEFT JOIN memory.episodes ep ON ep.id = e.source_episode_id
+                WHERE (LOWER(s.name) = LOWER($1) OR LOWER(t.name) = LOWER($1))
+                  ${show_invalid ? "" : "AND e.valid_to IS NULL"}
+                ORDER BY e.valid_from DESC
+                LIMIT 50`;
 }
 
 const POOL_LIST_SQL = `
@@ -159,18 +159,6 @@ const POOL_LIST_SQL = `
          GROUP BY sp.id
          ORDER BY sp.created_at DESC
       `;
-
-async function servePoolList(
-  getPool: () => Pool | null,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-  const { rows } = await pool.query(POOL_LIST_SQL);
-
-  return h.response({ pools: rows });
-}
 
 function listPoolsRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -184,19 +172,29 @@ function listPoolsRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
-/** The live entries of one pool — expired and soft-deleted memories are not what it holds. */
-async function readPoolEntries(pool: Pool, poolId: unknown) {
-  const { rows } = await pool.query(
-    `SELECT m.id, m.key, m.value, m.agent_id, m.version, m.created_at
-       FROM memory.memories m
-      WHERE m.pool_id = $1
-        AND m.is_deleted = FALSE
-        AND (m.expires_at IS NULL OR m.expires_at > now())
-      ORDER BY m.created_at DESC`,
-    [poolId],
-  );
+async function servePoolList(
+  getPool: () => Pool | null,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
 
-  return rows;
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { rows } = await pool.query(POOL_LIST_SQL);
+
+  return h.response({ pools: rows });
+}
+
+function poolDetailRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/pools/{name}",
+    options: zodResponse(bearerScope("read"), PoolDetailSchema, {
+      name: "SharedPoolDetail",
+      description: "One pool and the live entries in it",
+      errors: [404],
+    }),
+    handler: withPool(getPool, servePoolDetail),
+  };
 }
 
 /** One shared pool and what it holds. Pools are how memory crosses agent boundaries, so the count is what tells a reader whether anyone is actually using it. */
@@ -219,17 +217,53 @@ async function servePoolDetail(
   });
 }
 
-function poolDetailRoute(getPool: () => Pool | null): ServerRoute {
+/** The live entries of one pool — expired and soft-deleted memories are not what it holds. */
+async function readPoolEntries(pool: Pool, poolId: unknown) {
+  const { rows } = await pool.query(
+    `SELECT m.id, m.key, m.value, m.agent_id, m.version, m.created_at
+       FROM memory.memories m
+      WHERE m.pool_id = $1
+        AND m.is_deleted = FALSE
+        AND (m.expires_at IS NULL OR m.expires_at > now())
+      ORDER BY m.created_at DESC`,
+    [poolId],
+  );
+
+  return rows;
+}
+
+function listEpisodesRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
-    path: "/api/pools/{name}",
-    options: zodResponse(bearerScope("read"), PoolDetailSchema, {
-      name: "SharedPoolDetail",
-      description: "One pool and the live entries in it",
-      errors: [404],
-    }),
-    handler: withPool(getPool, servePoolDetail),
+    path: "/api/episodes",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(EpisodesQuery) },
+      },
+      EpisodePageSchema,
+      { name: "EpisodePage", description: "A page of ingested episodes" },
+    ),
+    handler: withPool(getPool, serveEpisodeList),
   };
+}
+
+/** Recent episodes — the raw text facts were extracted FROM, which is what makes an extracted fact auditable. */
+async function serveEpisodeList(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const { source, agent, limit, offset } =
+    request.query as unknown as EpisodesQuery;
+  const { where, params } = episodeFilter(source, agent);
+  const total = await readEpisodeCount(pool, where, params);
+  const { rows: episodes } = await pool.query(
+    episodePageSql(where, params.length),
+    [...params, limit, offset],
+  );
+
+  return h.response({ episodes, total });
 }
 
 function episodeFilter(source: string | undefined, agent: string | undefined) {
@@ -273,38 +307,4 @@ function episodePageSql(where: string, paramCount: number): string {
        ${where}
       ORDER BY e.created_at DESC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
-}
-
-/** Recent episodes — the raw text facts were extracted FROM, which is what makes an extracted fact auditable. */
-async function serveEpisodeList(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const { source, agent, limit, offset } =
-    request.query as unknown as EpisodesQuery;
-  const { where, params } = episodeFilter(source, agent);
-  const total = await readEpisodeCount(pool, where, params);
-  const { rows: episodes } = await pool.query(
-    episodePageSql(where, params.length),
-    [...params, limit, offset],
-  );
-
-  return h.response({ episodes, total });
-}
-
-function listEpisodesRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/episodes",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(EpisodesQuery) },
-      },
-      EpisodePageSchema,
-      { name: "EpisodePage", description: "A page of ingested episodes" },
-    ),
-    handler: withPool(getPool, serveEpisodeList),
-  };
 }

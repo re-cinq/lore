@@ -9,6 +9,22 @@ import {
 
 const b64 = (text: string) => Buffer.from(text, "utf-8").toString("base64");
 
+function fakeOctokit(init: {
+  prState?: string;
+  pullsGetError?: unknown;
+  events?: unknown[];
+  listEventsError?: unknown;
+  codeownersContent?: string | null;
+}) {
+  return {
+    rest: {
+      pulls: { get: mockPullsGet(init.prState, init.pullsGetError) },
+      issues: { listEvents: mockListEvents(init.events, init.listEventsError) },
+      repos: { getContent: mockGetContent(init.codeownersContent) },
+    },
+  } as unknown as Octokit;
+}
+
 function mockPullsGet(prState: string | undefined, error: unknown) {
   if (error) {
     return vi.fn().mockRejectedValue(error);
@@ -35,22 +51,6 @@ function mockGetContent(codeownersContent: string | null | undefined) {
   return vi.fn().mockResolvedValue({
     data: { content: b64(codeownersContent), encoding: "base64" },
   });
-}
-
-function fakeOctokit(init: {
-  prState?: string;
-  pullsGetError?: unknown;
-  events?: unknown[];
-  listEventsError?: unknown;
-  codeownersContent?: string | null;
-}) {
-  return {
-    rest: {
-      pulls: { get: mockPullsGet(init.prState, init.pullsGetError) },
-      issues: { listEvents: mockListEvents(init.events, init.listEventsError) },
-      repos: { getContent: mockGetContent(init.codeownersContent) },
-    },
-  } as unknown as Octokit;
 }
 
 const labeledEvent = (login: string) => ({

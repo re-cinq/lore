@@ -12,28 +12,6 @@ interface Issued {
   params: unknown[];
 }
 
-function poolWith(
-  rows: unknown[][],
-  issued: Issued[] = [],
-  rejectWhen: (sql: string) => boolean = () => false,
-) {
-  let call = 0;
-
-  return {
-    query: async (sql: string, params: unknown[] = []) => {
-      issued.push({ sql, params });
-
-      if (rejectWhen(sql)) {
-        call++;
-
-        return Promise.reject(undefinedTable());
-      }
-
-      return { rows: rows[call++] ?? [] };
-    },
-  } as never;
-}
-
 async function serverWith(
   rows: unknown[][],
   deps: Partial<SpendWindowDeps> = {},
@@ -57,6 +35,28 @@ async function serverWith(
   );
 
   return server;
+}
+
+function poolWith(
+  rows: unknown[][],
+  issued: Issued[] = [],
+  rejectWhen: (sql: string) => boolean = () => false,
+) {
+  let call = 0;
+
+  return {
+    query: async (sql: string, params: unknown[] = []) => {
+      issued.push({ sql, params });
+
+      if (rejectWhen(sql)) {
+        call++;
+
+        return Promise.reject(undefinedTable());
+      }
+
+      return { rows: rows[call++] ?? [] };
+    },
+  } as never;
 }
 
 const BASE_ROWS: unknown[][] = [

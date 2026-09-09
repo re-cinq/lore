@@ -38,66 +38,22 @@ export function parseCursor(lastEventId: unknown, after: unknown): string {
   return numericOrNull(lastEventId) ?? numericOrNull(after) ?? "0";
 }
 
-/** The production wiring, or the injected one; a deployment without a database cannot stream. */
-function resolveDeps(
-  pool: Pool | null,
-  deps: RunStreamRouteDeps | undefined,
-): RunStreamRouteDeps {
-  if (deps) {
-    return deps;
-  }
-  enforceTrue(pool !== null, apiError(503), "database unavailable");
-
+export function runStreamRoute(
+  getPool: () => Pool | null,
+  deps?: RunStreamRouteDeps,
+): ServerRoute {
   return {
-    runs: new PgAssemblyRuns(pool),
-    events: new PgAgentRunEvents(pool),
-    taskEvents: new PgTaskEvents(pool),
-    prStatus: fetchPrStatus,
-    notifier: pgRunNotifier(),
+    method: "GET",
+    path: "/api/assembly-runs/{id}/stream",
+    options: zodResponse(bearerScope("read"), RunStreamFrameSchema, {
+      name: "RunStreamFrame",
+      description:
+        "Server-Sent Events: one `event:` per frame type, `data:` the frame; only agent_event frames carry an `id:` (the Last-Event-ID cursor)",
+      contentType: "text/event-stream",
+      errors: [404],
+    }),
+    handler: (request, h) => serveRunStream(getPool, deps, request, h),
   };
-}
-
-/** The hub refuses past its per-run cap (capacity, not a bug → 503); matched on message prefix since subscribe throws a plain Error. Anything else rethrows as-is. */
-function rethrowStreamStartError(err: unknown): never {
-  const isCapacityError =
-    err instanceof Error && err.message.startsWith("run stream: ");
-
-  if (!isCapacityError) {
-    throw err;
-  }
-
-  throw apiError(503)("too many subscribers for this run");
-}
-
-function startStream(
-  stream: PassThrough,
-  run: AssemblyRunRecord,
-  request: Request,
-  deps: RunStreamRouteDeps,
-): RunStream {
-  const after = parseCursor(
-    request.headers["last-event-id"],
-    request.query.after,
-  );
-
-  try {
-    return streamRun(stream, { ...deps, run, after });
-  } catch (err) {
-    rethrowStreamStartError(err);
-  }
-}
-
-/** The SSE headers, set once here so the route body is just the stream's lifecycle. */
-function sseResponse(h: ResponseToolkit, stream: PassThrough): ResponseObject {
-  return (
-    h
-      .response(stream)
-      .type("text/event-stream")
-      .header("cache-control", "no-cache, no-transform")
-      .header("x-accel-buffering", "no")
-      // Compression buffers SSE frames; identity encoding keeps frames on the wire immediately.
-      .header("content-encoding", "identity")
-  );
 }
 
 async function serveRunStream(
@@ -121,20 +77,64 @@ async function serveRunStream(
   return sseResponse(h, stream);
 }
 
-export function runStreamRoute(
-  getPool: () => Pool | null,
-  deps?: RunStreamRouteDeps,
-): ServerRoute {
+/** The production wiring, or the injected one; a deployment without a database cannot stream. */
+function resolveDeps(
+  pool: Pool | null,
+  deps: RunStreamRouteDeps | undefined,
+): RunStreamRouteDeps {
+  if (deps) {
+    return deps;
+  }
+  enforceTrue(pool !== null, apiError(503), "database unavailable");
+
   return {
-    method: "GET",
-    path: "/api/assembly-runs/{id}/stream",
-    options: zodResponse(bearerScope("read"), RunStreamFrameSchema, {
-      name: "RunStreamFrame",
-      description:
-        "Server-Sent Events: one `event:` per frame type, `data:` the frame; only agent_event frames carry an `id:` (the Last-Event-ID cursor)",
-      contentType: "text/event-stream",
-      errors: [404],
-    }),
-    handler: (request, h) => serveRunStream(getPool, deps, request, h),
+    runs: new PgAssemblyRuns(pool),
+    events: new PgAgentRunEvents(pool),
+    taskEvents: new PgTaskEvents(pool),
+    prStatus: fetchPrStatus,
+    notifier: pgRunNotifier(),
   };
+}
+
+function startStream(
+  stream: PassThrough,
+  run: AssemblyRunRecord,
+  request: Request,
+  deps: RunStreamRouteDeps,
+): RunStream {
+  const after = parseCursor(
+    request.headers["last-event-id"],
+    request.query.after,
+  );
+
+  try {
+    return streamRun(stream, { ...deps, run, after });
+  } catch (err) {
+    rethrowStreamStartError(err);
+  }
+}
+
+/** The hub refuses past its per-run cap (capacity, not a bug → 503); matched on message prefix since subscribe throws a plain Error. Anything else rethrows as-is. */
+function rethrowStreamStartError(err: unknown): never {
+  const isCapacityError =
+    err instanceof Error && err.message.startsWith("run stream: ");
+
+  if (!isCapacityError) {
+    throw err;
+  }
+
+  throw apiError(503)("too many subscribers for this run");
+}
+
+/** The SSE headers, set once here so the route body is just the stream's lifecycle. */
+function sseResponse(h: ResponseToolkit, stream: PassThrough): ResponseObject {
+  return (
+    h
+      .response(stream)
+      .type("text/event-stream")
+      .header("cache-control", "no-cache, no-transform")
+      .header("x-accel-buffering", "no")
+      // Compression buffers SSE frames; identity encoding keeps frames on the wire immediately.
+      .header("content-encoding", "identity")
+  );
 }

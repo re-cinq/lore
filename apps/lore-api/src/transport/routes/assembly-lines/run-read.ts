@@ -26,6 +26,46 @@ const RunReadSchema = z.object({
   nodes: z.array(z.record(z.string(), z.unknown())),
 });
 
+export function runReadRoute(
+  getPool: () => Pool | null,
+  load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
+  runs?: AssemblyRunsPort,
+): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/assembly-runs/{id}",
+    options: zodResponse(bearerScope("read"), RunReadSchema, {
+      name: "AssemblyRunRead",
+      description: "A run joined to the graph it walked",
+      errors: [404],
+    }),
+    handler: (request) => serveRunRead(getPool, load, runs, request),
+  };
+}
+
+async function serveRunRead(
+  getPool: () => Pool | null,
+  load: () => Promise<Map<string, AssemblyLine>>,
+  runs: AssemblyRunsPort | undefined,
+  request: Request,
+): Promise<object> {
+  const port = resolvePort(getPool(), runs);
+  const line = await port.getById(request.params.id);
+
+  enforceTrue(line !== null, apiError(404), "assembly run not found");
+  const [rows, graph] = await Promise.all([
+    port.listStationRuns(line.id),
+    // The run's own clone; loaded by name only for rows stamped before clones existed (same rule as the walk and the reaper).
+    resolveRunGraph(line, load),
+  ]);
+
+  return {
+    line,
+    definitionKnown: Boolean(graph),
+    nodes: describeNodes(rows, graph, line.args),
+  };
+}
+
 /** One run, enriched: its nodes, its task and the definition it walks — the canonical read the run page is built from. */
 /** The injected port, or one built on the pool. The guard pairs the two possibilities because a disjunction cannot narrow `pool` on its own — the cast is proven by having required one of them. */
 function resolvePort(
@@ -56,44 +96,4 @@ function describeNodes(
       args,
     ),
   );
-}
-
-async function serveRunRead(
-  getPool: () => Pool | null,
-  load: () => Promise<Map<string, AssemblyLine>>,
-  runs: AssemblyRunsPort | undefined,
-  request: Request,
-): Promise<object> {
-  const port = resolvePort(getPool(), runs);
-  const line = await port.getById(request.params.id);
-
-  enforceTrue(line !== null, apiError(404), "assembly run not found");
-  const [rows, graph] = await Promise.all([
-    port.listStationRuns(line.id),
-    // The run's own clone; loaded by name only for rows stamped before clones existed (same rule as the walk and the reaper).
-    resolveRunGraph(line, load),
-  ]);
-
-  return {
-    line,
-    definitionKnown: Boolean(graph),
-    nodes: describeNodes(rows, graph, line.args),
-  };
-}
-
-export function runReadRoute(
-  getPool: () => Pool | null,
-  load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
-  runs?: AssemblyRunsPort,
-): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/assembly-runs/{id}",
-    options: zodResponse(bearerScope("read"), RunReadSchema, {
-      name: "AssemblyRunRead",
-      description: "A run joined to the graph it walked",
-      errors: [404],
-    }),
-    handler: (request) => serveRunRead(getPool, load, runs, request),
-  };
 }

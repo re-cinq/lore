@@ -22,6 +22,35 @@ export interface HeartbeatDeps {
   now: () => Date;
 }
 
+export function clusterAgentHeartbeatRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/cluster-agents/{id}/heartbeat",
+    options: zodResponse({ auth: false }, HeartbeatResponse, {
+      name: "ClusterAgentHeartbeat",
+      description: "Liveness acknowledgement; last_seen_at was bumped",
+    }),
+    handler: withPool(getPool, serveHeartbeat),
+  };
+}
+
+/** A cluster-agent saying it is still there. */
+async function serveHeartbeat(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const result = await handleHeartbeat(
+    { agents: new PgClusterAgents(pool), now: () => new Date() },
+    extractBearer(request.headers.authorization),
+    request.params.id,
+  );
+
+  return h.response(result.body).code(result.code);
+}
+
 /** The handler core, injectable for tests: authenticate, bump, revive. */
 export async function handleHeartbeat(
   deps: HeartbeatDeps,
@@ -40,33 +69,4 @@ export async function handleHeartbeat(
   await deps.agents.heartbeat(auth.agent.id, deps.now());
 
   return { code: 200, body: { status: "ok" } };
-}
-
-/** A cluster-agent saying it is still there. */
-async function serveHeartbeat(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const result = await handleHeartbeat(
-    { agents: new PgClusterAgents(pool), now: () => new Date() },
-    extractBearer(request.headers.authorization),
-    request.params.id,
-  );
-
-  return h.response(result.body).code(result.code);
-}
-
-export function clusterAgentHeartbeatRoute(
-  getPool: () => Pool | null,
-): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/cluster-agents/{id}/heartbeat",
-    options: zodResponse({ auth: false }, HeartbeatResponse, {
-      name: "ClusterAgentHeartbeat",
-      description: "Liveness acknowledgement; last_seen_at was bumped",
-    }),
-    handler: withPool(getPool, serveHeartbeat),
-  };
 }

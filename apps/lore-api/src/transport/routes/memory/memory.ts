@@ -151,6 +151,69 @@ export const MemoryOperationSchema = z.union([
   }),
 ]);
 
+export function memoryRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/memory",
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(MemoryBody) },
+      },
+      MemoryOperationSchema,
+      {
+        name: "MemoryOperationResult",
+        description: "The result of the requested memory action",
+        errors: [400, 404],
+      },
+    ),
+    handler: (request, h) => serveMemoryAction(getPool, request, h),
+  };
+}
+
+/** The memory verbs behind one POST: read, write, delete and list share a route because the MCP adapter proxies them as one action field. */
+async function serveMemoryAction(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+  const body = request.payload as MemoryBody;
+
+  try {
+    return h.response(await memoryActionResult(pool, body));
+  } catch (err) {
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
+}
+
+/** Dispatches the body's `action` to the verb that answers it. */
+async function memoryActionResult(
+  pool: Pool | null,
+  body: MemoryBody,
+): Promise<object> {
+  // Only the two actions that carry text to match on pay for an embedding.
+  const embedding = await embeddingFor(body);
+
+  if (body.action === "write") {
+    return writeAction(pool, body, embedding);
+  }
+
+  if (body.action === "read") {
+    return readAction(body);
+  }
+
+  if (body.action === "search") {
+    return searchAction(pool, body);
+  }
+
+  if (body.action === "delete") {
+    return deleteAction(body);
+  }
+
+  return listAction(body);
+}
+
 /** A write embeds its value and a search its query; every other action needs none. */
 async function embeddingFor(body: MemoryBody): Promise<number[] | null> {
   if (body.action === "write") {
@@ -161,20 +224,6 @@ async function embeddingFor(body: MemoryBody): Promise<number[] | null> {
 }
 
 type MemoryWriteBody = Extract<MemoryBody, { action: "write" }>;
-
-// Fire-and-forget: the caller is waiting on the write, not on the facts.
-function scheduleFactExtraction(pool: Pool | null, body: MemoryWriteBody) {
-  if (!(body.extract_facts && isMemoryDbAvailable())) {
-    return;
-  }
-
-  void extractFactsForMemory(pool!, {
-    key: body.key,
-    value: body.value,
-    agentId: resolveAgentId(body.agent_id),
-    repo: body.repo,
-  });
-}
 
 async function writeAction(
   pool: Pool | null,
@@ -195,6 +244,20 @@ async function writeAction(
   scheduleFactExtraction(pool, body);
 
   return written;
+}
+
+// Fire-and-forget: the caller is waiting on the write, not on the facts.
+function scheduleFactExtraction(pool: Pool | null, body: MemoryWriteBody) {
+  if (!(body.extract_facts && isMemoryDbAvailable())) {
+    return;
+  }
+
+  void extractFactsForMemory(pool!, {
+    key: body.key,
+    value: body.value,
+    agentId: resolveAgentId(body.agent_id),
+    repo: body.repo,
+  });
 }
 
 async function readAction(
@@ -252,67 +315,4 @@ async function listAction(
     : listMemoriesFile(body.agent_id, body.limit, body.offset);
 
   return { ...result, limit: body.limit, offset: body.offset };
-}
-
-/** Dispatches the body's `action` to the verb that answers it. */
-async function memoryActionResult(
-  pool: Pool | null,
-  body: MemoryBody,
-): Promise<object> {
-  // Only the two actions that carry text to match on pay for an embedding.
-  const embedding = await embeddingFor(body);
-
-  if (body.action === "write") {
-    return writeAction(pool, body, embedding);
-  }
-
-  if (body.action === "read") {
-    return readAction(body);
-  }
-
-  if (body.action === "search") {
-    return searchAction(pool, body);
-  }
-
-  if (body.action === "delete") {
-    return deleteAction(body);
-  }
-
-  return listAction(body);
-}
-
-/** The memory verbs behind one POST: read, write, delete and list share a route because the MCP adapter proxies them as one action field. */
-async function serveMemoryAction(
-  getPool: () => Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const pool = getPool();
-  const body = request.payload as MemoryBody;
-
-  try {
-    return h.response(await memoryActionResult(pool, body));
-  } catch (err) {
-    return h.response({ error: errorMessage(err) }).code(500);
-  }
-}
-
-export function memoryRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/memory",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(MemoryBody) },
-      },
-      MemoryOperationSchema,
-      {
-        name: "MemoryOperationResult",
-        description: "The result of the requested memory action",
-        errors: [400, 404],
-      },
-    ),
-    handler: (request, h) => serveMemoryAction(getPool, request, h),
-  };
 }

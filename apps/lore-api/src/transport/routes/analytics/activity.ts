@@ -52,21 +52,6 @@ const EventsQuery = z.object({
 
 type EventsQuery = z.infer<typeof EventsQuery>;
 
-// A dashboard count that must never take its page down: an absent table or failed count reports null.
-async function countOrNull(
-  pool: Pool,
-  sql: string,
-  params: unknown[],
-): Promise<number | null> {
-  try {
-    const { rows } = await pool.query<{ c: number }>(sql, params);
-
-    return rows[0]?.c ?? null;
-  } catch {
-    return null;
-  }
-}
-
 // Each response body is DERIVED from its model + column map via wireSchema, so the contract and the table state the same fields.
 const EVENT_BROWSE_FIELDS = [
   "id",
@@ -134,6 +119,25 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
   ];
 }
 
+function memoryAuditRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/memory-audit",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(MemoryAuditQuery) },
+      },
+      MemoryAuditPageSchema,
+      {
+        name: "MemoryAuditPage",
+        description: "A page of memory-audit entries",
+      },
+    ),
+    handler: withPool(getPool, serveMemoryAudit),
+  };
+}
+
 /** A page of memory-audit entries — who wrote or read which memory, which is the only record of an agent touching org-wide state. */
 async function serveMemoryAudit(
   pool: Pool,
@@ -162,35 +166,6 @@ async function memoryAuditPage(pool: Pool, query: MemoryAuditQuery) {
   );
 
   return { entries, total: countRows[0]?.count ?? 0 };
-}
-
-function memoryAuditRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/memory-audit",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(MemoryAuditQuery) },
-      },
-      MemoryAuditPageSchema,
-      {
-        name: "MemoryAuditPage",
-        description: "A page of memory-audit entries",
-      },
-    ),
-    handler: withPool(getPool, serveMemoryAudit),
-  };
-}
-
-function trimmedOrUndefined(value?: string): string | undefined {
-  const trimmed = value?.trim();
-
-  return trimmed ? trimmed : undefined;
-}
-
-function whereClause(conditions: string[]): string {
-  return conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 }
 
 /** The optional filters, as a WHERE clause and its positional params — built once so the count and the page cannot disagree about what is being filtered. */
@@ -234,6 +209,32 @@ function pushEquals(clause: {
   conditions.push(`${clause.column} = $${params.length}`);
 }
 
+function trimmedOrUndefined(value?: string): string | undefined {
+  const trimmed = value?.trim();
+
+  return trimmed ? trimmed : undefined;
+}
+
+function whereClause(conditions: string[]): string {
+  return conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+}
+
+function eventsRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/events",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(EventsQuery) },
+      },
+      EventListSchema,
+      { name: "RepoEventList", description: "A repo's recent events" },
+    ),
+    handler: withPool(getPool, serveRepoEvents),
+  };
+}
+
 /** A repo's recent bus events, newest first: what the Floor was asked to do, and in which order. */
 async function serveRepoEvents(
   pool: Pool,
@@ -268,22 +269,6 @@ async function repoEventRows(pool: Pool, { repo, limit, offset }: EventsQuery) {
   return rows;
 }
 
-function eventsRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/events",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(EventsQuery) },
-      },
-      EventListSchema,
-      { name: "RepoEventList", description: "A repo's recent events" },
-    ),
-    handler: withPool(getPool, serveRepoEvents),
-  };
-}
-
 function jobRunRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -313,13 +298,15 @@ async function serveJobRun(
     : h.response({ error: "Job run not found" }).code(404);
 }
 
-/** Seven-day counters for a repo — the numbers the dashboard tiles read, computed here rather than client-side so every caller counts the same way. */
-/** The three seven-day counters. Auto-merges and escalations are counted from the AUDIT log rather than from task status: a task can be merged by a human after the machine deferred, and only the audit row says which happened. */
-async function sevenDayCounts(pool: Pool, repo: string) {
+function activityCountsRoute(getPool: () => Pool | null): ServerRoute {
   return {
-    tasks: await countOrNull(pool, TASKS_7D_SQL, [repo]),
-    auto_merged: await countOrNull(pool, AUTO_MERGED_7D_SQL, [repo]),
-    escalations: await countOrNull(pool, ESCALATIONS_7D_SQL, [repo]),
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/activity-counts",
+    options: zodResponse(bearerScope("read"), ActivityCountsSchema, {
+      name: "RepoActivityCounts",
+      description: "Seven-day activity counters for a repo",
+    }),
+    handler: withPool(getPool, serveActivityCounts),
   };
 }
 
@@ -333,14 +320,27 @@ async function serveActivityCounts(
   return h.response(await sevenDayCounts(pool, repo));
 }
 
-function activityCountsRoute(getPool: () => Pool | null): ServerRoute {
+/** Seven-day counters for a repo — the numbers the dashboard tiles read, computed here rather than client-side so every caller counts the same way. */
+/** The three seven-day counters. Auto-merges and escalations are counted from the AUDIT log rather than from task status: a task can be merged by a human after the machine deferred, and only the audit row says which happened. */
+async function sevenDayCounts(pool: Pool, repo: string) {
   return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/activity-counts",
-    options: zodResponse(bearerScope("read"), ActivityCountsSchema, {
-      name: "RepoActivityCounts",
-      description: "Seven-day activity counters for a repo",
-    }),
-    handler: withPool(getPool, serveActivityCounts),
+    tasks: await countOrNull(pool, TASKS_7D_SQL, [repo]),
+    auto_merged: await countOrNull(pool, AUTO_MERGED_7D_SQL, [repo]),
+    escalations: await countOrNull(pool, ESCALATIONS_7D_SQL, [repo]),
   };
+}
+
+// A dashboard count that must never take its page down: an absent table or failed count reports null.
+async function countOrNull(
+  pool: Pool,
+  sql: string,
+  params: unknown[],
+): Promise<number | null> {
+  try {
+    const { rows } = await pool.query<{ c: number }>(sql, params);
+
+    return rows[0]?.c ?? null;
+  } catch {
+    return null;
+  }
 }

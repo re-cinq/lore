@@ -50,23 +50,6 @@ const TASK_EVENTS_SQL = `SELECT ${selectList(TASK_EVENT_COLUMNS)}
 const TASK_LLM_CALLS_SQL = `SELECT ${selectList(TASK_RUNTIME_LLM_COLUMNS)}
      FROM pipeline.llm_calls WHERE task_id = $1 ORDER BY created_at`;
 
-/** A table these dashboards read may not exist yet on a fresh install, so an empty page is the honest answer; any other failure is not ours to swallow. */
-async function rowsOrEmpty<T>(
-  read: () => Promise<{ rows: T[] }>,
-): Promise<T[]> {
-  try {
-    const { rows } = await read();
-
-    return rows;
-  } catch (err) {
-    if (missingTable(err)) {
-      return [];
-    }
-
-    throw err;
-  }
-}
-
 export function taskViewRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     repoTasksRoute(getPool),
@@ -75,6 +58,22 @@ export function taskViewRoutes(getPool: () => Pool | null): ServerRoute[] {
     taskRuntimeRoute(getPool),
     auditLogRoute(getPool),
   ];
+}
+
+function repoTasksRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repo-tasks",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(RepoTasksQuery) },
+      },
+      RepoTaskListSchema,
+      { name: "RepoTaskList", description: "A repo's recent tasks" },
+    ),
+    handler: withPool(getPool, serveRepoTasks),
+  };
 }
 
 /** A repo's recent tasks, newest first. */
@@ -92,20 +91,21 @@ async function serveRepoTasks(
   return h.response({ tasks });
 }
 
-function repoTasksRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repo-tasks",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(RepoTasksQuery) },
-      },
-      RepoTaskListSchema,
-      { name: "RepoTaskList", description: "A repo's recent tasks" },
-    ),
-    handler: withPool(getPool, serveRepoTasks),
-  };
+/** A table these dashboards read may not exist yet on a fresh install, so an empty page is the honest answer; any other failure is not ours to swallow. */
+async function rowsOrEmpty<T>(
+  read: () => Promise<{ rows: T[] }>,
+): Promise<T[]> {
+  try {
+    const { rows } = await read();
+
+    return rows;
+  } catch (err) {
+    if (missingTable(err)) {
+      return [];
+    }
+
+    throw err;
+  }
 }
 
 function taskStatsRoute(getPool: () => Pool | null): ServerRoute {
@@ -129,6 +129,55 @@ function taskStatsRoute(getPool: () => Pool | null): ServerRoute {
       return h.response(rows[0] ?? { total: 0, today: 0 });
     },
   };
+}
+
+function agentActivityRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/agent-activity",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(AgentActivityQuery) },
+      },
+      AgentActivitySchema,
+      { name: "AgentActivity", description: "Per-agent activity roll-up" },
+    ),
+    handler: withPool(getPool, serveAgentActivity),
+  };
+}
+
+/** Per-agent activity rolled up across both the task and the memory side. */
+async function serveAgentActivity(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const { repo } = request.query as unknown as AgentActivityQuery;
+
+  const { rows } = await pool.query(agentActivitySql(repo), repo ? [repo] : []);
+
+  return h.response({ agents: rows });
+}
+
+function agentActivitySql(repo: string | undefined): string {
+  return `WITH task_agents AS (
+           ${taskAgentsCte(repo)}
+         ),
+         mem_agents AS (
+           ${memoryAgentsCte(repo)}
+         )
+         SELECT COALESCE(ta.agent_id, ma.agent_id)           as agent_id,
+                COALESCE(ta.task_count, 0)                   as task_count,
+                COALESCE(ta.cost_usd, 0)                     as cost_usd,
+                ta.created_by,
+                ta.reason_type,
+                ta.reason,
+                COALESCE(ma.memory_count, 0)                 as memory_count,
+                GREATEST(ta.last_task_at, ma.last_memory_at) as last_active
+           FROM task_agents ta
+           FULL OUTER JOIN mem_agents ma ON ta.agent_id = ma.agent_id
+          ORDER BY last_active DESC NULLS LAST`;
 }
 
 /** The FULL OUTER JOIN is the point: an agent that only wrote memories never appears in pipeline.tasks, and one that only ran tasks never appears in memory.memories. The cost aggregate stays SQL-side rather than shipping the whole pipeline history to Node per row. */
@@ -158,52 +207,15 @@ function memoryAgentsCte(repo: string | undefined): string {
             GROUP BY agent_id`;
 }
 
-function agentActivitySql(repo: string | undefined): string {
-  return `WITH task_agents AS (
-           ${taskAgentsCte(repo)}
-         ),
-         mem_agents AS (
-           ${memoryAgentsCte(repo)}
-         )
-         SELECT COALESCE(ta.agent_id, ma.agent_id)           as agent_id,
-                COALESCE(ta.task_count, 0)                   as task_count,
-                COALESCE(ta.cost_usd, 0)                     as cost_usd,
-                ta.created_by,
-                ta.reason_type,
-                ta.reason,
-                COALESCE(ma.memory_count, 0)                 as memory_count,
-                GREATEST(ta.last_task_at, ma.last_memory_at) as last_active
-           FROM task_agents ta
-           FULL OUTER JOIN mem_agents ma ON ta.agent_id = ma.agent_id
-          ORDER BY last_active DESC NULLS LAST`;
-}
-
-/** Per-agent activity rolled up across both the task and the memory side. */
-async function serveAgentActivity(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const { repo } = request.query as unknown as AgentActivityQuery;
-
-  const { rows } = await pool.query(agentActivitySql(repo), repo ? [repo] : []);
-
-  return h.response({ agents: rows });
-}
-
-function agentActivityRoute(getPool: () => Pool | null): ServerRoute {
+function taskRuntimeRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
-    path: "/api/agent-activity",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(AgentActivityQuery) },
-      },
-      AgentActivitySchema,
-      { name: "AgentActivity", description: "Per-agent activity roll-up" },
-    ),
-    handler: withPool(getPool, serveAgentActivity),
+    path: "/api/tasks/{id}/runtime",
+    options: zodResponse(bearerScope("read"), TaskRuntimeSchema, {
+      name: "TaskRuntime",
+      description: "A task's transitions and LLM calls",
+    }),
+    handler: withPool(getPool, serveTaskRuntime),
   };
 }
 
@@ -219,35 +231,6 @@ async function serveTaskRuntime(
   const { rows: llmCalls } = await pool.query(TASK_LLM_CALLS_SQL, [taskId]);
 
   return h.response({ events, llm_calls: llmCalls });
-}
-
-function taskRuntimeRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/tasks/{id}/runtime",
-    options: zodResponse(bearerScope("read"), TaskRuntimeSchema, {
-      name: "TaskRuntime",
-      description: "A task's transitions and LLM calls",
-    }),
-    handler: withPool(getPool, serveTaskRuntime),
-  };
-}
-
-/** The audit trail: every auto-merge decision, dark-factory settings change and escalation, which is the record a rollback is reconstructed from. */
-async function serveAuditLog(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const { repo, event_types, limit } =
-    request.query as unknown as AuditLogQuery;
-
-  const types = event_types.split(",").map((t) => t.trim());
-  const entries = await rowsOrEmpty(() =>
-    pool.query(AUDIT_LOG_SQL, [repo, types, limit]),
-  );
-
-  return h.response({ entries });
 }
 
 function auditLogRoute(getPool: () => Pool | null): ServerRoute {
@@ -267,4 +250,21 @@ function auditLogRoute(getPool: () => Pool | null): ServerRoute {
     ),
     handler: withPool(getPool, serveAuditLog),
   };
+}
+
+/** The audit trail: every auto-merge decision, dark-factory settings change and escalation, which is the record a rollback is reconstructed from. */
+async function serveAuditLog(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const { repo, event_types, limit } =
+    request.query as unknown as AuditLogQuery;
+
+  const types = event_types.split(",").map((t) => t.trim());
+  const entries = await rowsOrEmpty(() =>
+    pool.query(AUDIT_LOG_SQL, [repo, types, limit]),
+  );
+
+  return h.response({ entries });
 }

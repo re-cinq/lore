@@ -33,6 +33,19 @@ const periodUsageSql = (periodFilter: string): string =>
    WHERE (t.created_by = $1 OR t.created_by LIKE $2 OR t.agent_id = $1)
      AND ${periodFilter}`;
 
+export async function agentUsage(
+  pool: Pool,
+  agentId: string,
+): Promise<AgentUsage> {
+  const usage: Record<string, PeriodUsage> = {};
+
+  for (const period of PERIODS) {
+    usage[period.name] = await readPeriodUsage(pool, agentId, period.filter);
+  }
+
+  return { agent_id: agentId, usage };
+}
+
 // LIKE matches the agent id's first 8 chars for short-prefix created_by attribution.
 async function readPeriodUsage(
   pool: Pool,
@@ -50,17 +63,4 @@ async function readPeriodUsage(
     input_tokens: Number(rows[0].input_tokens),
     output_tokens: Number(rows[0].output_tokens),
   };
-}
-
-export async function agentUsage(
-  pool: Pool,
-  agentId: string,
-): Promise<AgentUsage> {
-  const usage: Record<string, PeriodUsage> = {};
-
-  for (const period of PERIODS) {
-    usage[period.name] = await readPeriodUsage(pool, agentId, period.filter);
-  }
-
-  return { agent_id: agentId, usage };
 }

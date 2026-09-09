@@ -42,123 +42,51 @@ const TaskBody = z.object({
 
 type TaskBody = z.infer<typeof TaskBody>;
 
-// Refusable state transition (cancel, run-now): both shared seams throw "Task not found" (404) or a state message (409) — one mapping so the branches can't drift.
-async function refusable<T extends object>(
-  h: ResponseToolkit,
-  transition: () => Promise<T>,
-) {
-  try {
-    return h.response(await transition());
-  } catch (err) {
-    const message = errorMessage(err);
-
-    return h
-      .response({ error: message })
-      .code(message === "Task not found" ? 404 : 409);
-  }
-}
-
-const ALLOWED_STATUSES = [
-  "running",
-  "pr-created",
-  "completed",
-  "failed",
-  "needs-human-help",
-  "cancelled",
-];
-
-/** Status update from the local runner (no action field, has task_id + status). */
-interface RunnerStatusUpdate {
-  status: string;
-  prUrl: string | undefined;
-  error: string | undefined;
-}
-
-/** The SET list and its bind values built together, because each optional column's placeholder number is decided by how many values precede it. */
-function statusSetClauses({ status, prUrl, error }: RunnerStatusUpdate): {
-  clauses: string[];
-  values: unknown[];
-} {
-  const clauses = ["status = $1", "updated_at = now()"];
-  const values: unknown[] = [status];
-
-  if (prUrl) {
-    clauses.push(`pr_url = $${values.length + 1}`);
-    values.push(prUrl);
-  }
-
-  if (error) {
-    clauses.push(`error = $${values.length + 1}`);
-    values.push(error);
-  }
-
-  return { clauses, values };
-}
-
-async function updateTaskStatus(
-  pool: Pool,
-  taskId: string,
-  update: RunnerStatusUpdate,
-) {
-  const { status } = update;
-
-  enforceTrue(
-    ALLOWED_STATUSES.includes(status),
-    apiError(400),
-    `invalid status: ${status}`,
-  );
-  const { clauses, values } = statusSetClauses(update);
-
-  values.push(taskId);
-  await pool.query(
-    `UPDATE pipeline.tasks SET ${clauses.join(", ")} WHERE id = $${values.length}`,
-    values,
-  );
-
-  return { ok: true, task_id: taskId, status };
-}
-
 // One POST multiplexes create/cancel/retry/run-now/revise/set-priority; the contract is the union of what those answer.
 const TaskWriteSchema = z.record(z.string(), z.unknown());
 
-async function retryAction(
-  h: ResponseToolkit,
-  taskId: string,
-): Promise<ResponseObject> {
-  const { retryTask } =
-    await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
-
-  return h.response(await retryTask(taskId));
+export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/task",
+    options: zodResponse(
+      {
+        ...bearerScope("task"),
+        validate: { payload: zodValidate(TaskBody) },
+      },
+      TaskWriteSchema,
+      {
+        name: "TaskWriteResult",
+        description: "The created task, or the transition's acknowledgement",
+        errors: [400, 404, 409],
+      },
+    ),
+    handler: withPool(getPool, serveTaskPost),
+  };
 }
 
-function reviseAction(
+/** Creating a task, or acknowledging a transition on one — the same endpoint, because the caller is the same MCP tool and the action rides in the body. */
+async function serveTaskPost(
   pool: Pool,
+  request: Request,
   h: ResponseToolkit,
-  parsed: TaskBody,
-  taskId: string,
 ): Promise<ResponseObject> {
-  const feedback = parsed.feedback ?? "";
+  try {
+    const parsed = request.payload as TaskBody;
 
-  return refusable(h, () => revisePipelineTask(pool, taskId, feedback));
+    return (
+      (await actOnExistingTask(pool, h, parsed)) ??
+      (await createTaskFromBody(h, parsed))
+    );
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    console.error("[api/task] error:", errorMessage(err));
+
+    return h.response({ error: errorMessage(err) }).code(500);
+  }
 }
-
-// Refuse rather than silently no-op on unknown id, terminal state, or past pending.
-const EXISTING_TASK_ACTIONS: Record<
-  string,
-  (
-    pool: Pool,
-    h: ResponseToolkit,
-    parsed: TaskBody,
-    taskId: string,
-  ) => Promise<ResponseObject>
-> = {
-  retry: (_pool, h, _parsed, taskId) => retryAction(h, taskId),
-  cancel: (pool, h, _parsed, taskId) =>
-    refusable(h, () => cancelPipelineTask(pool, taskId)),
-  "run-now": (pool, h, _parsed, taskId) =>
-    refusable(h, () => escalatePipelineTask(pool, taskId)),
-  revise: reviseAction,
-};
 
 /** Every shape that names an EXISTING task; null when the body names none, which means "create". */
 async function actOnExistingTask(
@@ -184,6 +112,61 @@ async function actOnExistingTask(
     (await setPriority(pool, h, parsed, taskId)) ??
     (await reportRunnerStatus(pool, h, parsed, taskId))
   );
+}
+
+// Refuse rather than silently no-op on unknown id, terminal state, or past pending.
+const EXISTING_TASK_ACTIONS: Record<
+  string,
+  (
+    pool: Pool,
+    h: ResponseToolkit,
+    parsed: TaskBody,
+    taskId: string,
+  ) => Promise<ResponseObject>
+> = {
+  retry: (_pool, h, _parsed, taskId) => retryAction(h, taskId),
+  cancel: (pool, h, _parsed, taskId) =>
+    refusable(h, () => cancelPipelineTask(pool, taskId)),
+  "run-now": (pool, h, _parsed, taskId) =>
+    refusable(h, () => escalatePipelineTask(pool, taskId)),
+  revise: reviseAction,
+};
+
+async function retryAction(
+  h: ResponseToolkit,
+  taskId: string,
+): Promise<ResponseObject> {
+  const { retryTask } =
+    await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
+
+  return h.response(await retryTask(taskId));
+}
+
+function reviseAction(
+  pool: Pool,
+  h: ResponseToolkit,
+  parsed: TaskBody,
+  taskId: string,
+): Promise<ResponseObject> {
+  const feedback = parsed.feedback ?? "";
+
+  return refusable(h, () => revisePipelineTask(pool, taskId, feedback));
+}
+
+// Refusable state transition (cancel, run-now): both shared seams throw "Task not found" (404) or a state message (409) — one mapping so the branches can't drift.
+async function refusable<T extends object>(
+  h: ResponseToolkit,
+  transition: () => Promise<T>,
+) {
+  try {
+    return h.response(await transition());
+  } catch (err) {
+    const message = errorMessage(err);
+
+    return h
+      .response({ error: message })
+      .code(message === "Task not found" ? 404 : 409);
+  }
 }
 
 /** Plain priority write — unlike run-now it records no transition, so a task past `pending` is simply not matched. */
@@ -226,25 +209,64 @@ async function reportRunnerStatus(
   );
 }
 
-function resolvedTaskType(taskType: string | undefined): string {
-  if (taskType && getTaskTypes().includes(taskType)) {
-    return taskType;
-  }
+const ALLOWED_STATUSES = [
+  "running",
+  "pr-created",
+  "completed",
+  "failed",
+  "needs-human-help",
+  "cancelled",
+];
 
-  return "general";
+/** Status update from the local runner (no action field, has task_id + status). */
+interface RunnerStatusUpdate {
+  status: string;
+  prUrl: string | undefined;
+  error: string | undefined;
 }
 
-function createTaskArgs(parsed: TaskBody, description: string) {
-  return {
-    description,
-    taskType: resolvedTaskType(parsed.task_type),
-    targetRepo: parsed.target_repo,
-    createdBy: parsed.created_by || "remote-mcp",
-    contextBundle:
-      (parsed.context as Record<string, unknown> | undefined) || undefined,
-    priority: parsed.priority || "normal",
-    taskGroupId: parsed.group_id || undefined,
-  };
+async function updateTaskStatus(
+  pool: Pool,
+  taskId: string,
+  update: RunnerStatusUpdate,
+) {
+  const { status } = update;
+
+  enforceTrue(
+    ALLOWED_STATUSES.includes(status),
+    apiError(400),
+    `invalid status: ${status}`,
+  );
+  const { clauses, values } = statusSetClauses(update);
+
+  values.push(taskId);
+  await pool.query(
+    `UPDATE pipeline.tasks SET ${clauses.join(", ")} WHERE id = $${values.length}`,
+    values,
+  );
+
+  return { ok: true, task_id: taskId, status };
+}
+
+/** The SET list and its bind values built together, because each optional column's placeholder number is decided by how many values precede it. */
+function statusSetClauses({ status, prUrl, error }: RunnerStatusUpdate): {
+  clauses: string[];
+  values: unknown[];
+} {
+  const clauses = ["status = $1", "updated_at = now()"];
+  const values: unknown[] = [status];
+
+  if (prUrl) {
+    clauses.push(`pr_url = $${values.length + 1}`);
+    values.push(prUrl);
+  }
+
+  if (error) {
+    clauses.push(`error = $${values.length + 1}`);
+    values.push(error);
+  }
+
+  return { clauses, values };
 }
 
 /** The default: a body with no task id creates one. */
@@ -270,45 +292,23 @@ async function createTaskFromBody(
   return h.response(await createTask(createTaskArgs(parsed, description)));
 }
 
-/** Creating a task, or acknowledging a transition on one — the same endpoint, because the caller is the same MCP tool and the action rides in the body. */
-async function serveTaskPost(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  try {
-    const parsed = request.payload as TaskBody;
-
-    return (
-      (await actOnExistingTask(pool, h, parsed)) ??
-      (await createTaskFromBody(h, parsed))
-    );
-  } catch (err) {
-    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-    rethrowBoom(err);
-
-    console.error("[api/task] error:", errorMessage(err));
-
-    return h.response({ error: errorMessage(err) }).code(500);
-  }
+function createTaskArgs(parsed: TaskBody, description: string) {
+  return {
+    description,
+    taskType: resolvedTaskType(parsed.task_type),
+    targetRepo: parsed.target_repo,
+    createdBy: parsed.created_by || "remote-mcp",
+    contextBundle:
+      (parsed.context as Record<string, unknown> | undefined) || undefined,
+    priority: parsed.priority || "normal",
+    taskGroupId: parsed.group_id || undefined,
+  };
 }
 
-export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/task",
-    options: zodResponse(
-      {
-        ...bearerScope("task"),
-        validate: { payload: zodValidate(TaskBody) },
-      },
-      TaskWriteSchema,
-      {
-        name: "TaskWriteResult",
-        description: "The created task, or the transition's acknowledgement",
-        errors: [400, 404, 409],
-      },
-    ),
-    handler: withPool(getPool, serveTaskPost),
-  };
+function resolvedTaskType(taskType: string | undefined): string {
+  if (taskType && getTaskTypes().includes(taskType)) {
+    return taskType;
+  }
+
+  return "general";
 }

@@ -58,22 +58,6 @@ const PullRefSchema = z.object({
   draft: z.boolean().optional(),
 });
 
-async function serveCreateIssue(
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  try {
-    const { title, body, labels } = request.payload as z.infer<
-      typeof IssueBody
-    >;
-    const p = await projectFor(repoOf(request.params));
-
-    return h.response(await p.issues.create(title, body, labels));
-  } catch (err) {
-    return fail(h, err);
-  }
-}
-
 export function createIssueRoute(): ServerRoute {
   return {
     method: "POST",
@@ -90,17 +74,17 @@ export function createIssueRoute(): ServerRoute {
   };
 }
 
-async function serveCreateBranch(
+async function serveCreateIssue(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    const { branch, base } = request.payload as z.infer<typeof BranchBody>;
+    const { title, body, labels } = request.payload as z.infer<
+      typeof IssueBody
+    >;
     const p = await projectFor(repoOf(request.params));
 
-    await p.repo.createBranch(branch, base);
-
-    return h.response({ ok: true });
+    return h.response(await p.issues.create(title, body, labels));
   } catch (err) {
     return fail(h, err);
   }
@@ -122,17 +106,15 @@ export function createBranchRoute(): ServerRoute {
   };
 }
 
-async function serveCommit(
+async function serveCreateBranch(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    const { branch, path, content, message } = request.payload as z.infer<
-      typeof CommitBody
-    >;
+    const { branch, base } = request.payload as z.infer<typeof BranchBody>;
     const p = await projectFor(repoOf(request.params));
 
-    await p.repo.commitFile(branch, path, content, message);
+    await p.repo.createBranch(branch, base);
 
     return h.response({ ok: true });
   } catch (err) {
@@ -156,19 +138,19 @@ export function commitRoute(): ServerRoute {
   };
 }
 
-async function serveCreatePull(
+async function serveCommit(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    const { branch, title, body, base, labels } = request.payload as z.infer<
-      typeof PullBody
+    const { branch, path, content, message } = request.payload as z.infer<
+      typeof CommitBody
     >;
     const p = await projectFor(repoOf(request.params));
 
-    return h.response(
-      await p.pulls.open(branch, { title, body, base, labels }),
-    );
+    await p.repo.commitFile(branch, path, content, message);
+
+    return h.response({ ok: true });
   } catch (err) {
     return fail(h, err);
   }
@@ -188,4 +170,22 @@ export function createPullRoute(): ServerRoute {
     ),
     handler: (request, h) => serveCreatePull(request, h),
   };
+}
+
+async function serveCreatePull(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  try {
+    const { branch, title, body, base, labels } = request.payload as z.infer<
+      typeof PullBody
+    >;
+    const p = await projectFor(repoOf(request.params));
+
+    return h.response(
+      await p.pulls.open(branch, { title, body, base, labels }),
+    );
+  } catch (err) {
+    return fail(h, err);
+  }
 }

@@ -10,17 +10,6 @@ interface Issued {
   params: unknown[];
 }
 
-function poolWith(resultsBySql: Array<[RegExp, unknown[]]>, issued: Issued[]) {
-  return {
-    query: async (sql: string, params: unknown[] = []) => {
-      issued.push({ sql, params });
-      const match = resultsBySql.find(([re]) => re.test(sql));
-
-      return { rows: match ? match[1] : [], rowCount: match?.[1].length ?? 0 };
-    },
-  } as never;
-}
-
 function fakeDeps(): IngestDeltaDeps & {
   calls: Array<[string, ...unknown[]]>;
 } {
@@ -80,6 +69,17 @@ async function serverWith(
   server.route(ingestDeltaRoute(() => poolWith(resultsBySql, issued), deps));
 
   return server;
+}
+
+function poolWith(resultsBySql: Array<[RegExp, unknown[]]>, issued: Issued[]) {
+  return {
+    query: async (sql: string, params: unknown[] = []) => {
+      issued.push({ sql, params });
+      const match = resultsBySql.find(([re]) => re.test(sql));
+
+      return { rows: match ? match[1] : [], rowCount: match?.[1].length ?? 0 };
+    },
+  } as never;
 }
 
 const post = (server: Hapi.Server, payload: Record<string, unknown>) =>

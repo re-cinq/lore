@@ -49,20 +49,6 @@ export function orgSettingsRoutes(getPool: () => Pool | null): ServerRoute[] {
   ];
 }
 
-/** The stored settings rows alongside the number of repos they govern. */
-async function readOrgSettings(
-  pool: Pool,
-): Promise<{ settings: unknown[]; repo_count: number }> {
-  const { rows: settings } = await pool.query(
-    `SELECT key, value, updated_at FROM lore.settings ORDER BY key`,
-  );
-  const { rows: countRows } = await pool.query<{ count: number }>(
-    `SELECT count(*)::int as count FROM lore.repos`,
-  );
-
-  return { settings, repo_count: countRows[0]?.count ?? 0 };
-}
-
 function readOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -81,22 +67,34 @@ function readOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
-/** Upserts each posted entry, skipping the blanks the form re-posts for untouched fields. */
-async function applySettingEntries(
+/** The stored settings rows alongside the number of repos they govern. */
+async function readOrgSettings(
   pool: Pool,
-  entries: SettingsBody["entries"],
-): Promise<void> {
-  for (const { key, value } of entries) {
-    // A blank value is "leave it alone", not "erase it" — the form posts every field every time.
-    if (!value.trim()) {
-      continue;
-    }
-    await pool.query(
-      `INSERT INTO lore.settings (key, value) VALUES ($1, $2)
-       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`,
-      [key, value.trim()],
-    );
-  }
+): Promise<{ settings: unknown[]; repo_count: number }> {
+  const { rows: settings } = await pool.query(
+    `SELECT key, value, updated_at FROM lore.settings ORDER BY key`,
+  );
+  const { rows: countRows } = await pool.query<{ count: number }>(
+    `SELECT count(*)::int as count FROM lore.repos`,
+  );
+
+  return { settings, repo_count: countRows[0]?.count ?? 0 };
+}
+
+function writeOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "PUT",
+    path: "/api/settings",
+    options: zodResponse(
+      {
+        ...bearerScope("admin"),
+        validate: { payload: zodValidate(SettingsBody) },
+      },
+      OkSchema,
+      { name: "OrgSettingsSaved", description: "The settings were written" },
+    ),
+    handler: withPool(getPool, serveOrgSettingsWrite),
+  };
 }
 
 /** Writes the org-wide settings every repo inherits where it has not overridden them. */
@@ -120,19 +118,33 @@ async function serveOrgSettingsWrite(
   return h.response({ ok: true });
 }
 
-function writeOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
+/** Upserts each posted entry, skipping the blanks the form re-posts for untouched fields. */
+async function applySettingEntries(
+  pool: Pool,
+  entries: SettingsBody["entries"],
+): Promise<void> {
+  for (const { key, value } of entries) {
+    // A blank value is "leave it alone", not "erase it" — the form posts every field every time.
+    if (!value.trim()) {
+      continue;
+    }
+    await pool.query(
+      `INSERT INTO lore.settings (key, value) VALUES ($1, $2)
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`,
+      [key, value.trim()],
+    );
+  }
+}
+
+function repoSessionsRoute(getPool: () => Pool | null): ServerRoute {
   return {
-    method: "PUT",
-    path: "/api/settings",
-    options: zodResponse(
-      {
-        ...bearerScope("admin"),
-        validate: { payload: zodValidate(SettingsBody) },
-      },
-      OkSchema,
-      { name: "OrgSettingsSaved", description: "The settings were written" },
-    ),
-    handler: withPool(getPool, serveOrgSettingsWrite),
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/sessions",
+    options: zodResponse(bearerScope("read"), RepoSessionsSchema, {
+      name: "RepoSessions",
+      description: "Local-session activity against a repo",
+    }),
+    handler: withPool(getPool, serveRepoSessions),
   };
 }
 
@@ -150,16 +162,4 @@ async function serveRepoSessions(
   );
 
   return h.response(rows[0] ?? { devs: 0, last: null });
-}
-
-function repoSessionsRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/sessions",
-    options: zodResponse(bearerScope("read"), RepoSessionsSchema, {
-      name: "RepoSessions",
-      description: "Local-session activity against a repo",
-    }),
-    handler: withPool(getPool, serveRepoSessions),
-  };
 }

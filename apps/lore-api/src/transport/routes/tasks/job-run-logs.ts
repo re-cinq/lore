@@ -23,6 +23,22 @@ const JobRunLogsSchema = z.object({
   complete: z.boolean(),
 });
 
+export function jobRunLogsRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/job-run-logs",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(JobRunLogsQuery) },
+      },
+      JobRunLogsSchema,
+      { name: "JobRunLogs", description: "A job run's captured output" },
+    ),
+    handler: (request, h) => serveJobRunLogs(request, h),
+  };
+}
+
 /** One scheduled job run's captured output. Logs live server-side, so this is the only way to read a CronJob pod that has already been reaped. */
 async function serveJobRunLogs(
   request: Request,
@@ -57,20 +73,4 @@ async function readJobRunOutput(
   const [content] = await file.download();
 
   return { logs: content.toString("utf-8"), complete: true };
-}
-
-export function jobRunLogsRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/job-run-logs",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(JobRunLogsQuery) },
-      },
-      JobRunLogsSchema,
-      { name: "JobRunLogs", description: "A job run's captured output" },
-    ),
-    handler: (request, h) => serveJobRunLogs(request, h),
-  };
 }

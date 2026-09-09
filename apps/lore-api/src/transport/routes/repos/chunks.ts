@@ -59,16 +59,17 @@ const CHUNK_COLLECTION_BY_KIND: Record<
   has: hasChunkResult,
 };
 
-async function chunkCollection(
-  kind: string,
-  chunks: ChunksProject,
-  q: ChunkQuery,
-): Promise<Record<string, unknown>> {
-  const resolve = CHUNK_COLLECTION_BY_KIND[kind];
-
-  enforceTrue(resolve, apiError(404), `unknown chunk kind: ${kind}`);
-
-  return resolve(chunks, q);
+export function chunksRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/chunks/{kind}",
+    options: zodResponse(bearerScope("read"), RepoChunksSchema, {
+      name: "RepoChunks",
+      description: "A chunk collection, shaped by {kind}",
+      errors: [400],
+    }),
+    handler: (request, h) => serveChunks(request, h),
+  };
 }
 
 /** One chunk collection, named by {kind} and read through the repo's Project rather than Postgres. */
@@ -97,15 +98,14 @@ async function serveChunks(
   }
 }
 
-export function chunksRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/chunks/{kind}",
-    options: zodResponse(bearerScope("read"), RepoChunksSchema, {
-      name: "RepoChunks",
-      description: "A chunk collection, shaped by {kind}",
-      errors: [400],
-    }),
-    handler: (request, h) => serveChunks(request, h),
-  };
+async function chunkCollection(
+  kind: string,
+  chunks: ChunksProject,
+  q: ChunkQuery,
+): Promise<Record<string, unknown>> {
+  const resolve = CHUNK_COLLECTION_BY_KIND[kind];
+
+  enforceTrue(resolve, apiError(404), `unknown chunk kind: ${kind}`);
+
+  return resolve(chunks, q);
 }

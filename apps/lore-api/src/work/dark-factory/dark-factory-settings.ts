@@ -64,6 +64,26 @@ export function parseTaskOverrides(raw: unknown): TaskOverridesPatch {
   return TaskOverridesSchema.parse(raw);
 }
 
+/** Returns field paths requiring two-key ceremony (admin + CODEOWNERS PR); see FR3.9 + R9 for details. */
+export function twoKeyFieldsTouched(
+  patch: DarkFactorySettings,
+  taskOverrides?: TaskOverridesPatch,
+): string[] {
+  const touched: string[] = [];
+
+  if (patch.enabled !== undefined) {
+    touched.push("enabled");
+  }
+  touched.push(...autoMergeFieldsTouched(patch.auto_merge));
+
+  if (patch.execution?.image !== undefined) {
+    touched.push("execution.image");
+  }
+  touched.push(...taskOverrideImageFieldsTouched(taskOverrides));
+
+  return touched;
+}
+
 function autoMergeFieldsTouched(
   autoMerge: DarkFactorySettings["auto_merge"],
 ): string[] {
@@ -85,12 +105,6 @@ function autoMergeFieldsTouched(
   return touched;
 }
 
-function hasImageOverride(
-  override: TaskOverridesPatch[string] | undefined,
-): boolean {
-  return override?.execution?.image !== undefined;
-}
-
 function taskOverrideImageFieldsTouched(
   taskOverrides: TaskOverridesPatch | undefined,
 ): string[] {
@@ -105,22 +119,8 @@ function taskOverrideImageFieldsTouched(
   return touched;
 }
 
-/** Returns field paths requiring two-key ceremony (admin + CODEOWNERS PR); see FR3.9 + R9 for details. */
-export function twoKeyFieldsTouched(
-  patch: DarkFactorySettings,
-  taskOverrides?: TaskOverridesPatch,
-): string[] {
-  const touched: string[] = [];
-
-  if (patch.enabled !== undefined) {
-    touched.push("enabled");
-  }
-  touched.push(...autoMergeFieldsTouched(patch.auto_merge));
-
-  if (patch.execution?.image !== undefined) {
-    touched.push("execution.image");
-  }
-  touched.push(...taskOverrideImageFieldsTouched(taskOverrides));
-
-  return touched;
+function hasImageOverride(
+  override: TaskOverridesPatch[string] | undefined,
+): boolean {
+  return override?.execution?.image !== undefined;
 }

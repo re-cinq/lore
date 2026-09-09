@@ -35,19 +35,24 @@ type IngestGraphBody = z.infer<typeof IngestGraphBody>;
 /** Which projection kinds the push triggered. */
 const IngestTriggeredSchema = z.object({ triggered: z.array(z.string()) });
 
-/** The doc kinds a push asked for, defaulting to both; an unknown kind is refused rather than dropped. */
-function resolveDocKinds(body: IngestGraphBody): string[] {
-  const requested =
-    body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
-  const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
-
-  enforceTrue(
-    unsupported.length <= 0,
-    apiError(400),
-    `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
-  );
-
-  return requested;
+export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/repos/{owner}/{repo}/ingest-graph",
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(IngestGraphBody) },
+      },
+      IngestTriggeredSchema,
+      {
+        name: "IngestTriggered",
+        description: "The projections this push started",
+        errors: [400],
+      },
+    ),
+    handler: (request, h) => serveIngestGraph(getPool, request, h),
+  };
 }
 
 /** Projects a repo's specs or ADRs into the traceability graph. Test projection is deliberately NOT accepted here — that path is CI-only, through the lore-code-trace binary. */
@@ -73,22 +78,17 @@ async function serveIngestGraph(
   return h.response({ triggered: requested });
 }
 
-export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/repos/{owner}/{repo}/ingest-graph",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(IngestGraphBody) },
-      },
-      IngestTriggeredSchema,
-      {
-        name: "IngestTriggered",
-        description: "The projections this push started",
-        errors: [400],
-      },
-    ),
-    handler: (request, h) => serveIngestGraph(getPool, request, h),
-  };
+/** The doc kinds a push asked for, defaulting to both; an unknown kind is refused rather than dropped. */
+function resolveDocKinds(body: IngestGraphBody): string[] {
+  const requested =
+    body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
+  const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
+
+  enforceTrue(
+    unsupported.length <= 0,
+    apiError(400),
+    `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
+  );
+
+  return requested;
 }

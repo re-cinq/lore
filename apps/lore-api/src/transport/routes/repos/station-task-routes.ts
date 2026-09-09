@@ -43,6 +43,18 @@ const StationTaskListSchema = z.object({
   ),
 });
 
+export function driftTasksRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/tasks/drift",
+    options: zodResponse(bearerScope("read"), StationTaskListSchema, {
+      name: "DriftTaskList",
+      description: "Tasks already open for a spec",
+    }),
+    handler: (request, h) => serveDriftTasks(request, h),
+  };
+}
+
 /** The tasks already open against one spec — what a drift detector checks before filing another. */
 async function serveDriftTasks(
   request: Request,
@@ -69,16 +81,34 @@ async function serveDriftTasks(
   }
 }
 
-export function driftTasksRoute(): ServerRoute {
+export function openLikeTasksRoute(): ServerRoute {
   return {
     method: "GET",
-    path: "/api/repos/{owner}/{repo}/tasks/drift",
+    path: "/api/repos/{owner}/{repo}/tasks/open-like",
     options: zodResponse(bearerScope("read"), StationTaskListSchema, {
-      name: "DriftTaskList",
-      description: "Tasks already open for a spec",
+      name: "OpenLikeTaskList",
+      description: "Open tasks matching a prefix",
     }),
-    handler: (request, h) => serveDriftTasks(request, h),
+    handler: (request, h) => serveOpenLikeTasks(request, h),
   };
+}
+
+/** Tasks a station may still act on — queued or running — which is the set a reaper decides about. */
+async function serveOpenLikeTasks(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  try {
+    const query = openLikeQuery(request);
+    const p = await projectFor(repoOf(request.params));
+
+    return h.response({ tasks: await p.tasks.findOpenLike(query) });
+  } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
+
+    return fail(h, err);
+  }
 }
 
 /** The open-task lookup this request names; both selectors are required, so a half-specified query is refused rather than answered with everything. */
@@ -102,33 +132,19 @@ function openLikeQuery(request: Request): {
   };
 }
 
-/** Tasks a station may still act on — queued or running — which is the set a reaper decides about. */
-async function serveOpenLikeTasks(
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  try {
-    const query = openLikeQuery(request);
-    const p = await projectFor(repoOf(request.params));
-
-    return h.response({ tasks: await p.tasks.findOpenLike(query) });
-  } catch (err) {
-    // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-    rethrowBoom(err);
-
-    return fail(h, err);
-  }
-}
-
-export function openLikeTasksRoute(): ServerRoute {
+export function createRepoTaskRoute(): ServerRoute {
   return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/tasks/open-like",
-    options: zodResponse(bearerScope("read"), StationTaskListSchema, {
-      name: "OpenLikeTaskList",
-      description: "Open tasks matching a prefix",
-    }),
-    handler: (request, h) => serveOpenLikeTasks(request, h),
+    method: "POST",
+    path: "/api/repos/{owner}/{repo}/tasks",
+    options: zodResponse(
+      {
+        ...bearerScope("task"),
+        validate: { payload: zodValidate(TaskBody) },
+      },
+      StationTaskCreatedSchema,
+      { name: "StationTaskCreated", description: "The task that was queued" },
+    ),
+    handler: (request, h) => serveCreateRepoTask(request, h),
   };
 }
 
@@ -151,20 +167,4 @@ async function serveCreateRepoTask(
   } catch (err) {
     return fail(h, err);
   }
-}
-
-export function createRepoTaskRoute(): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/repos/{owner}/{repo}/tasks",
-    options: zodResponse(
-      {
-        ...bearerScope("task"),
-        validate: { payload: zodValidate(TaskBody) },
-      },
-      StationTaskCreatedSchema,
-      { name: "StationTaskCreated", description: "The task that was queued" },
-    ),
-    handler: (request, h) => serveCreateRepoTask(request, h),
-  };
 }

@@ -9,16 +9,6 @@ import {
 
 const originalEnv = { ...process.env };
 
-function serializedPayload(requestBody: unknown): string | undefined {
-  if (requestBody === undefined) {
-    return undefined;
-  }
-
-  return typeof requestBody === "string"
-    ? requestBody
-    : JSON.stringify(requestBody);
-}
-
 function req(
   opts: { method: "GET" | "POST" | "PUT"; body?: unknown; query?: string },
   pool: unknown = makePool(),
@@ -31,6 +21,16 @@ function req(
     headers: AUTH,
     payload,
   });
+}
+
+function serializedPayload(requestBody: unknown): string | undefined {
+  if (requestBody === undefined) {
+    return undefined;
+  }
+
+  return typeof requestBody === "string"
+    ? requestBody
+    : JSON.stringify(requestBody);
 }
 
 describe("/api/tokens", () => {

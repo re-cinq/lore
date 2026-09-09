@@ -32,42 +32,20 @@ export const optionsOf = (route: ServerRoute): RouteOptions =>
     ? route.options
     : {}) as RouteOptions;
 
-/** A route with `payload.parse === false` self-handles its body (webhooks: HMAC/form). */
-function selfHandlesBody(route: ServerRoute): boolean {
-  const payload = optionsOf(route).payload as { parse?: boolean } | undefined;
+/** zod → JSON Schema for embedding in a requestBody; draft-7 output, `$schema` stripped. */
+export function toRequestSchema(schema: ZodType): JsonSchema {
+  const out = z.toJSONSchema(schema, {
+    reused: "inline",
+    target: "draft-07",
+    io: "input",
+    unrepresentable: "any",
+    override: restoreLegacyShape,
+  }) as JsonSchema;
 
-  return payload?.parse === false;
+  delete out.$schema;
+
+  return out;
 }
-
-/** Parse:false route with real API surface (NDJSON) declared via options.app.rawBody; not webhook. */
-interface RawBodyMeta {
-  contentType: string;
-  description: string;
-}
-
-function rawBodyOf(route: ServerRoute): RawBodyMeta | undefined {
-  const app = optionsOf(route).app as { rawBody?: RawBodyMeta } | undefined;
-
-  return app?.rawBody;
-}
-
-/** The zod payload schema stamped by `zodValidate`, if this route declares one. */
-function routeSchema(route: ServerRoute): ZodType | undefined {
-  const validate = optionsOf(route).validate as
-    { payload?: unknown } | undefined;
-
-  return getZodSchema(validate?.payload);
-}
-
-const FREEFORM_BODY: JsonSchema = {
-  type: "object",
-  additionalProperties: true,
-};
-
-const jsonBody = (schema: JsonSchema): JsonSchema => ({
-  required: true,
-  content: { "application/json": { schema } },
-});
 
 /** zod's own generator drops two things the contract has always published: a `z.date()` becomes an empty schema rather than the date-time string JSON actually carries, and a closed object no longer says so. */
 function restoreLegacyShape({
@@ -89,19 +67,37 @@ function restoreLegacyShape({
   }
 }
 
-/** zod → JSON Schema for embedding in a requestBody; draft-7 output, `$schema` stripped. */
-export function toRequestSchema(schema: ZodType): JsonSchema {
-  const out = z.toJSONSchema(schema, {
-    reused: "inline",
-    target: "draft-07",
-    io: "input",
-    unrepresentable: "any",
-    override: restoreLegacyShape,
-  }) as JsonSchema;
+// 401 here covers auth:false routes that hand-authenticate (pre-shared token).
+const DECLARABLE_ERRORS: Array<{ status: number; ref: string }> = [
+  { status: 401, ref: "Unauthorized" },
+  { status: 404, ref: "NotFound" },
+  { status: 409, ref: "Conflict" },
+];
 
-  delete out.$schema;
+const PRIVATE_OP_RESPONSES: Record<string, JsonSchema> = {
+  "401": { $ref: "#/components/responses/Unauthorized" },
+  "403": { $ref: "#/components/responses/Forbidden" },
+  "503": { $ref: "#/components/responses/ServiceUnavailable" },
+};
 
-  return out;
+export function responsesFor({
+  isPublicOp,
+  hasBody,
+  success,
+}: {
+  isPublicOp: boolean;
+  hasBody: boolean;
+  success?: { meta: OpenApiResponseMeta; ref: JsonSchema };
+}): Record<string, JsonSchema> {
+  const declared = new Set<number>(success?.meta.errors ?? []);
+
+  return {
+    ...successResponse(success),
+    ...declaredErrorResponses(declared),
+    ...bodyResponses({ hasBody, declared }),
+    ...(isPublicOp ? {} : PRIVATE_OP_RESPONSES),
+    "429": { $ref: "#/components/responses/RateLimited" },
+  };
 }
 
 function successResponse(success?: {
@@ -124,13 +120,6 @@ function successResponse(success?: {
       };
 }
 
-// 401 here covers auth:false routes that hand-authenticate (pre-shared token).
-const DECLARABLE_ERRORS: Array<{ status: number; ref: string }> = [
-  { status: 401, ref: "Unauthorized" },
-  { status: 404, ref: "NotFound" },
-  { status: 409, ref: "Conflict" },
-];
-
 function declaredErrorResponses(
   declared: Set<number>,
 ): Record<string, JsonSchema> {
@@ -144,12 +133,6 @@ function declaredErrorResponses(
 
   return responses;
 }
-
-const PRIVATE_OP_RESPONSES: Record<string, JsonSchema> = {
-  "401": { $ref: "#/components/responses/Unauthorized" },
-  "403": { $ref: "#/components/responses/Forbidden" },
-  "503": { $ref: "#/components/responses/ServiceUnavailable" },
-};
 
 function bodyResponses({
   hasBody,
@@ -171,49 +154,119 @@ function bodyResponses({
   return responses;
 }
 
-export function responsesFor({
-  isPublicOp,
-  hasBody,
-  success,
-}: {
-  isPublicOp: boolean;
-  hasBody: boolean;
-  success?: { meta: OpenApiResponseMeta; ref: JsonSchema };
-}): Record<string, JsonSchema> {
-  const declared = new Set<number>(success?.meta.errors ?? []);
+/** Register response as named component; duplicate with different shape is hard error. */
+export function registerResponse(
+  route: ServerRoute,
+  key: string,
+  schemas: Record<string, JsonSchema>,
+  coverage: Coverage,
+): { meta: OpenApiResponseMeta; ref: JsonSchema } | undefined {
+  const meta = getResponseMeta(optionsOf(route).plugins);
 
-  return {
-    ...successResponse(success),
-    ...declaredErrorResponses(declared),
-    ...bodyResponses({ hasBody, declared }),
-    ...(isPublicOp ? {} : PRIVATE_OP_RESPONSES),
-    "429": { $ref: "#/components/responses/RateLimited" },
+  if (!meta) {
+    coverage.responsesMissing.push(key);
+
+    return undefined;
+  }
+  const converted = toRequestSchema(meta.schema);
+
+  enforceUniqueShape(schemas, meta.name, converted, key);
+  schemas[meta.name] = converted;
+  coverage.responses.push(key);
+
+  return { meta, ref: { $ref: `#/components/schemas/${meta.name}` } };
+}
+
+/** Two shapes under one component name would silently publish whichever route registered last, so it fails the build instead. */
+function enforceUniqueShape(
+  schemas: Record<string, JsonSchema>,
+  name: string,
+  converted: JsonSchema,
+  key: string,
+): void {
+  const existing = schemas[name];
+
+  enforceTrue(
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Record<string,_> hides that an unregistered name reads back undefined.
+    existing === undefined ||
+      JSON.stringify(existing) === JSON.stringify(converted),
+    Error,
+    `openapi: response schema "${name}" is registered with two different shapes (at ${key})`,
+  );
+}
+
+/** Classify write route body: self-handled, bodyless, or Zod-derived; record coverage. */
+export function applyRequestBody(
+  op: { description?: string; requestBody?: JsonSchema },
+  route: ServerRoute,
+  method: string,
+  coverage: Coverage,
+): void {
+  const key = `${method} ${route.path}`;
+
+  if (selfHandlesBody(route)) {
+    coverage.selfHandled.push(key);
+    applySelfHandledBody(op, route);
+
+    return;
+  }
+
+  if (BODYLESS_WRITES.has(key)) {
+    coverage.bodyless.push(key);
+
+    return;
+  }
+  op.requestBody = resolveBody(route, method, key, coverage);
+}
+
+/** A route with `payload.parse === false` self-handles its body (webhooks: HMAC/form). */
+function selfHandlesBody(route: ServerRoute): boolean {
+  const payload = optionsOf(route).payload as { parse?: boolean } | undefined;
+
+  return payload?.parse === false;
+}
+
+/** Parse:false route with real API surface (NDJSON) declared via options.app.rawBody; not webhook. */
+interface RawBodyMeta {
+  contentType: string;
+  description: string;
+}
+
+/** Self-handled body: handler verifies it, not JSON parsing; publish declared shape or note. */
+function applySelfHandledBody(
+  op: { description?: string; requestBody?: JsonSchema },
+  route: ServerRoute,
+): void {
+  const raw = rawBodyOf(route);
+
+  if (!raw) {
+    op.description =
+      "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.";
+
+    return;
+  }
+  op.description = raw.description;
+  op.requestBody = {
+    required: true,
+    content: { [raw.contentType]: { schema: { type: "string" } } },
   };
 }
 
-/** The sidecar-declared body of a route that validates its payload elsewhere; undefined when the sidecar has no entry either. */
-function sidecarBody(
-  route: ServerRoute,
-  method: string,
-  key: string,
-  coverage: Coverage,
-): JsonSchema | undefined {
-  const domain = domainBody(method, route.path);
+function rawBodyOf(route: ServerRoute): RawBodyMeta | undefined {
+  const app = optionsOf(route).app as { rawBody?: RawBodyMeta } | undefined;
 
-  if (domain?.schema) {
-    coverage.lifted.push(key);
-
-    return jsonBody(toRequestSchema(domain.schema));
-  }
-
-  if (domain?.freeform) {
-    coverage.freeform.push(key);
-
-    return jsonBody(FREEFORM_BODY);
-  }
-
-  return undefined;
+  return app?.rawBody;
 }
+
+const FREEFORM_BODY: JsonSchema = {
+  type: "object",
+  additionalProperties: true,
+};
+
+const jsonBody = (schema: JsonSchema): JsonSchema => ({
+  required: true,
+  content: { "application/json": { schema } },
+});
 
 /** Resolve + classify a write route's request body; records coverage as a side effect. */
 function resolveBody(
@@ -240,89 +293,36 @@ function resolveBody(
   return jsonBody(FREEFORM_BODY);
 }
 
-/** Two shapes under one component name would silently publish whichever route registered last, so it fails the build instead. */
-function enforceUniqueShape(
-  schemas: Record<string, JsonSchema>,
-  name: string,
-  converted: JsonSchema,
-  key: string,
-): void {
-  const existing = schemas[name];
+/** The zod payload schema stamped by `zodValidate`, if this route declares one. */
+function routeSchema(route: ServerRoute): ZodType | undefined {
+  const validate = optionsOf(route).validate as
+    { payload?: unknown } | undefined;
 
-  enforceTrue(
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Record<string,_> hides that an unregistered name reads back undefined.
-    existing === undefined ||
-      JSON.stringify(existing) === JSON.stringify(converted),
-    Error,
-    `openapi: response schema "${name}" is registered with two different shapes (at ${key})`,
-  );
+  return getZodSchema(validate?.payload);
 }
 
-/** Register response as named component; duplicate with different shape is hard error. */
-export function registerResponse(
-  route: ServerRoute,
-  key: string,
-  schemas: Record<string, JsonSchema>,
-  coverage: Coverage,
-): { meta: OpenApiResponseMeta; ref: JsonSchema } | undefined {
-  const meta = getResponseMeta(optionsOf(route).plugins);
-
-  if (!meta) {
-    coverage.responsesMissing.push(key);
-
-    return undefined;
-  }
-  const converted = toRequestSchema(meta.schema);
-
-  enforceUniqueShape(schemas, meta.name, converted, key);
-  schemas[meta.name] = converted;
-  coverage.responses.push(key);
-
-  return { meta, ref: { $ref: `#/components/schemas/${meta.name}` } };
-}
-
-/** Self-handled body: handler verifies it, not JSON parsing; publish declared shape or note. */
-function applySelfHandledBody(
-  op: { description?: string; requestBody?: JsonSchema },
-  route: ServerRoute,
-): void {
-  const raw = rawBodyOf(route);
-
-  if (!raw) {
-    op.description =
-      "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.";
-
-    return;
-  }
-  op.description = raw.description;
-  op.requestBody = {
-    required: true,
-    content: { [raw.contentType]: { schema: { type: "string" } } },
-  };
-}
-
-/** Classify write route body: self-handled, bodyless, or Zod-derived; record coverage. */
-export function applyRequestBody(
-  op: { description?: string; requestBody?: JsonSchema },
+/** The sidecar-declared body of a route that validates its payload elsewhere; undefined when the sidecar has no entry either. */
+function sidecarBody(
   route: ServerRoute,
   method: string,
+  key: string,
   coverage: Coverage,
-): void {
-  const key = `${method} ${route.path}`;
+): JsonSchema | undefined {
+  const domain = domainBody(method, route.path);
 
-  if (selfHandlesBody(route)) {
-    coverage.selfHandled.push(key);
-    applySelfHandledBody(op, route);
+  if (domain?.schema) {
+    coverage.lifted.push(key);
 
-    return;
+    return jsonBody(toRequestSchema(domain.schema));
   }
 
-  if (BODYLESS_WRITES.has(key)) {
-    coverage.bodyless.push(key);
+  if (domain?.freeform) {
+    coverage.freeform.push(key);
 
-    return;
+    return jsonBody(FREEFORM_BODY);
   }
-  op.requestBody = resolveBody(route, method, key, coverage);
+
+  return undefined;
 }
 
 const ERROR_BODY = {

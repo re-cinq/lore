@@ -33,30 +33,6 @@ const DAY_MS = 24 * 3600 * 1000;
 
 type BaselineStats = Awaited<ReturnType<BaselinePort["baselineStats"]>>;
 
-// job_pods and review-share have no source yet, so they stay literal until OTEL-side capture lands.
-function toCounters(stats: BaselineStats, windowDays: number): RepoCounters {
-  return {
-    job_pods_per_impl_task_p50: 4,
-    issues_per_week: (stats.issues_count * 7) / windowDays,
-    bot_pr_no_human_review_share: 0,
-    median_time_to_merge_hours: stats.median_ttm_hours ?? 0,
-    _job_pods_source: "static_baseline",
-  };
-}
-
-function describeCapture(
-  repo: string,
-  window: { start: Date; end: Date },
-  counters: RepoCounters,
-): string {
-  return (
-    `Captured baseline for ${repo} ` +
-    `(window ${window.start.toISOString().slice(0, 10)} → ` +
-    `${window.end.toISOString().slice(0, 10)}): ` +
-    JSON.stringify(counters)
-  );
-}
-
 /** Snapshot `windowDays` of pre-enablement counters for one repo. */
 export async function captureBaselineForRepo(
   repo: string,
@@ -79,4 +55,28 @@ export async function captureBaselineForRepo(
   });
 
   return describeCapture(repo, window, counters);
+}
+
+// job_pods and review-share have no source yet, so they stay literal until OTEL-side capture lands.
+function toCounters(stats: BaselineStats, windowDays: number): RepoCounters {
+  return {
+    job_pods_per_impl_task_p50: 4,
+    issues_per_week: (stats.issues_count * 7) / windowDays,
+    bot_pr_no_human_review_share: 0,
+    median_time_to_merge_hours: stats.median_ttm_hours ?? 0,
+    _job_pods_source: "static_baseline",
+  };
+}
+
+function describeCapture(
+  repo: string,
+  window: { start: Date; end: Date },
+  counters: RepoCounters,
+): string {
+  return (
+    `Captured baseline for ${repo} ` +
+    `(window ${window.start.toISOString().slice(0, 10)} → ` +
+    `${window.end.toISOString().slice(0, 10)}): ` +
+    JSON.stringify(counters)
+  );
 }

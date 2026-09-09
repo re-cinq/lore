@@ -55,65 +55,17 @@ export interface ClusterAgentListDeps {
   audit: Pick<AuditPort, "listRecentByType">;
 }
 
-function payloadString(payload: Record<string, unknown>, key: string) {
-  const value = payload[key];
-
-  return typeof value === "string" ? value : null;
-}
-
-function payloadNumber(payload: Record<string, unknown>, key: string) {
-  const value = payload[key];
-
-  return typeof value === "number" ? value : null;
-}
-
-/** The handler core, injectable for tests: roster + claim counts + offline log. */
-/** One "agent went offline" audit entry, flattened. The run it was holding is carried through: the useful question about an offline agent is what it took down with it, not that it went. */
-function offlineEvent(entry: {
-  createdAt: Date;
-  payload: Record<string, unknown>;
-}) {
+export function clusterAgentListRoute(getPool: () => Pool | null): ServerRoute {
   return {
-    created_at: entry.createdAt.toISOString(),
-    cluster_agent_id: payloadString(entry.payload, "cluster_agent_id"),
-    station_run_id: payloadString(entry.payload, "station_run_id"),
-    assembly_run_id: payloadString(entry.payload, "assembly_run_id"),
-    node_id: payloadString(entry.payload, "node_id"),
-    elapsed_since_claim_ms: payloadNumber(
-      entry.payload,
-      "elapsed_since_claim_ms",
-    ),
-  };
-}
-
-/** One registered cluster on the wire. The open-claim count rides ALONG with the roster row: an agent's name says nothing about whether it is holding work. */
-function rosterItem(
-  agent: ClusterAgent,
-  runningClaims: number,
-): z.infer<typeof ClusterAgentListItem> {
-  return {
-    id: agent.id,
-    name: agent.name,
-    tags: agent.tags,
-    status: agent.status,
-    paused: agent.paused,
-    last_seen_at: agent.lastSeenAt.toISOString(),
-    running_claims: runningClaims,
-  };
-}
-
-export async function handleClusterAgentList(
-  deps: ClusterAgentListDeps,
-): Promise<ClusterAgentListBody> {
-  const [roster, openClaims, offlineEntries] = await Promise.all([
-    deps.agents.list(),
-    deps.runs.countOpenClaimsByAgent(),
-    deps.audit.listRecentByType("cluster_agent_offline", OFFLINE_EVENT_LIMIT),
-  ]);
-
-  return {
-    agents: roster.map((agent) => rosterItem(agent, openClaims[agent.id] ?? 0)),
-    offline_events: offlineEntries.map(offlineEvent),
+    method: "GET",
+    path: "/api/cluster-agents",
+    options: zodResponse(bearerScope("read"), ClusterAgentListResponse, {
+      name: "ClusterAgentList",
+      description:
+        "Every registered cluster-agent with its open-claim count, plus recent offline events",
+    }),
+    handler: (_request: Request, h: ResponseToolkit) =>
+      serveClusterAgentList(getPool, h),
   };
 }
 
@@ -135,16 +87,64 @@ async function serveClusterAgentList(
   return h.response(body);
 }
 
-export function clusterAgentListRoute(getPool: () => Pool | null): ServerRoute {
+export async function handleClusterAgentList(
+  deps: ClusterAgentListDeps,
+): Promise<ClusterAgentListBody> {
+  const [roster, openClaims, offlineEntries] = await Promise.all([
+    deps.agents.list(),
+    deps.runs.countOpenClaimsByAgent(),
+    deps.audit.listRecentByType("cluster_agent_offline", OFFLINE_EVENT_LIMIT),
+  ]);
+
   return {
-    method: "GET",
-    path: "/api/cluster-agents",
-    options: zodResponse(bearerScope("read"), ClusterAgentListResponse, {
-      name: "ClusterAgentList",
-      description:
-        "Every registered cluster-agent with its open-claim count, plus recent offline events",
-    }),
-    handler: (_request: Request, h: ResponseToolkit) =>
-      serveClusterAgentList(getPool, h),
+    agents: roster.map((agent) => rosterItem(agent, openClaims[agent.id] ?? 0)),
+    offline_events: offlineEntries.map(offlineEvent),
   };
+}
+
+/** One registered cluster on the wire. The open-claim count rides ALONG with the roster row: an agent's name says nothing about whether it is holding work. */
+function rosterItem(
+  agent: ClusterAgent,
+  runningClaims: number,
+): z.infer<typeof ClusterAgentListItem> {
+  return {
+    id: agent.id,
+    name: agent.name,
+    tags: agent.tags,
+    status: agent.status,
+    paused: agent.paused,
+    last_seen_at: agent.lastSeenAt.toISOString(),
+    running_claims: runningClaims,
+  };
+}
+
+/** The handler core, injectable for tests: roster + claim counts + offline log. */
+/** One "agent went offline" audit entry, flattened. The run it was holding is carried through: the useful question about an offline agent is what it took down with it, not that it went. */
+function offlineEvent(entry: {
+  createdAt: Date;
+  payload: Record<string, unknown>;
+}) {
+  return {
+    created_at: entry.createdAt.toISOString(),
+    cluster_agent_id: payloadString(entry.payload, "cluster_agent_id"),
+    station_run_id: payloadString(entry.payload, "station_run_id"),
+    assembly_run_id: payloadString(entry.payload, "assembly_run_id"),
+    node_id: payloadString(entry.payload, "node_id"),
+    elapsed_since_claim_ms: payloadNumber(
+      entry.payload,
+      "elapsed_since_claim_ms",
+    ),
+  };
+}
+
+function payloadString(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+
+  return typeof value === "string" ? value : null;
+}
+
+function payloadNumber(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+
+  return typeof value === "number" ? value : null;
 }

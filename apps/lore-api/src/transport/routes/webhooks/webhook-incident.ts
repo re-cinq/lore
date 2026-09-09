@@ -14,21 +14,91 @@ import { formatZodError } from "../../http/zod-validate.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import { OkTrue } from "../../http/ok-schema.js";
 
-// Constant-time string compare; length-guarded since timingSafeEqual throws on unequal buffers.
-function safeEqual(a: string, b: string): boolean {
-  const aBuf = Buffer.from(a);
-  const bBuf = Buffer.from(b);
-
-  return aBuf.length === bBuf.length && timingSafeEqual(aBuf, bBuf);
-}
-
-// PagerDuty HMAC-SHA256 verification; X-PagerDuty-Signature is comma-delimited v1=<hex> list.
 /** The incident was recorded against a repo. */
 const IncidentRecordedSchema = z.object({
   ok: OkTrue,
   repo: z.string(),
 });
 
+export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/webhook/incident",
+    // Auth-exempt; senders verified by HMAC or shared token below.
+    options: zodResponse(
+      { auth: false, payload: { parse: false } },
+      IncidentRecordedSchema,
+      {
+        name: "IncidentRecorded",
+        description: "The incident was attached to a repo",
+      },
+    ),
+    handler: (request, h) => serveIncident(getPool, request, h),
+  };
+}
+
+/** A production incident from PagerDuty or Opsgenie. Recorded on the repo so context assembly can surface it at priority 1 — an agent working during an incident should know. */
+async function serveIncident(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const secret = process.env.LORE_INCIDENT_WEBHOOK_SECRET;
+  const token = process.env.LORE_INCIDENT_WEBHOOK_TOKEN;
+
+  enforceTrue(
+    secret || token,
+    apiError(503),
+    "incident webhook not configured",
+  );
+
+  const body = rawBody(request);
+
+  enforceTrue(
+    credentialsPresented(request, secret, token, body),
+    apiError(401),
+    "unauthorized",
+  );
+
+  return recordIncident(getPool, body, h);
+}
+
+// True when the caller presented either a valid PagerDuty HMAC signature or a matching bearer/query token.
+function credentialsPresented(
+  request: Request,
+  secret: string | undefined,
+  token: string | undefined,
+  body: string,
+): boolean {
+  const signature = firstHeaderValue(request.headers["x-pagerduty-signature"]);
+  const signatureOk =
+    !!secret && verifyPagerDutySignature(secret, signature, body);
+  const presented = presentedToken(request);
+  const tokenOk = !!token && !!presented && safeEqual(presented, token);
+
+  return signatureOk || tokenOk;
+}
+
+function firstHeaderValue(
+  header: string | string[] | undefined,
+): string | undefined {
+  return Array.isArray(header) ? header[0] : header;
+}
+
+/** The bearer token presented via `Authorization: Bearer …` or the `?token=` fallback. */
+function presentedToken(request: Request): string | undefined {
+  const header = request.headers.authorization;
+  const value = Array.isArray(header) ? header[0] : header;
+
+  if (value?.startsWith("Bearer ")) {
+    return value.slice("Bearer ".length);
+  }
+  const query = request.query.token;
+
+  return typeof query === "string" ? query : undefined;
+}
+
+// PagerDuty HMAC-SHA256 verification; X-PagerDuty-Signature is comma-delimited v1=<hex> list.
 export function verifyPagerDutySignature(
   secret: string,
   header: string | undefined,
@@ -46,17 +116,32 @@ export function verifyPagerDutySignature(
   });
 }
 
-/** The bearer token presented via `Authorization: Bearer …` or the `?token=` fallback. */
-function presentedToken(request: Request): string | undefined {
-  const header = request.headers.authorization;
-  const value = Array.isArray(header) ? header[0] : header;
+// Constant-time string compare; length-guarded since timingSafeEqual throws on unequal buffers.
+function safeEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
 
-  if (value?.startsWith("Bearer ")) {
-    return value.slice("Bearer ".length);
+  return aBuf.length === bBuf.length && timingSafeEqual(aBuf, bBuf);
+}
+
+/** Parses the already-verified body and records it. Reached only after the signature check, so nothing here re-reads or re-serializes the raw payload. */
+async function recordIncident(
+  getPool: () => Pool | null,
+  body: string,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const result = parseIncident(body, Date.now());
+
+  // result.error exists only inside this branch; type-narrowing prevents enforce.
+  if ("error" in result) {
+    return h.response({ error: result.error }).code(400);
   }
-  const query = request.query.token;
 
-  return typeof query === "string" ? query : undefined;
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), "database unavailable");
+
+  return upsertIncident(pool, result, h);
 }
 
 const REPO_NAME = /^[\w.-]+\/[\w.-]+$/;
@@ -76,6 +161,29 @@ const asString = (value: unknown, fallback: string): string =>
 
 type ParsedIncidentPayload =
   { ok: false; error: string } | { ok: true; root: Record<string, unknown> };
+
+// Normalize PagerDuty/Opsgenie/direct payload; validate date as ISO clamped to now to prevent eviction.
+export function parseIncident(
+  body: string,
+  now: number,
+): { error: string } | { repo: string; entry: IncidentEntry } {
+  const parsedPayload = parseIncidentPayload(body);
+
+  if (!parsedPayload.ok) {
+    return { error: parsedPayload.error };
+  }
+
+  const incident = incidentEnvelope(parsedPayload.root);
+  const repo = incidentRepo(incident);
+
+  if (repo === null) {
+    return { error: "repo must be in owner/name form" };
+  }
+
+  const validated = validatedEntry(buildIncidentCandidate(incident, now), now);
+
+  return "error" in validated ? validated : { repo, entry: validated.entry };
+}
 
 // Parses the raw body into a plain object, or an error if it isn't one.
 function parseIncidentPayload(body: string): ParsedIncidentPayload {
@@ -120,20 +228,6 @@ interface IncidentCandidate {
   url: string | null;
 }
 
-// ISO `date` field, else `now` (validated as ISO clamped to now downstream).
-function incidentDate(incident: Record<string, unknown>, now: number): string {
-  return typeof incident.date === "string"
-    ? incident.date
-    : new Date(now).toISOString();
-}
-
-// `url` direct, else PagerDuty's `html_url`.
-function incidentUrl(incident: Record<string, unknown>): string | null {
-  const url = incident.url ?? incident.html_url;
-
-  return typeof url === "string" ? url : null;
-}
-
 // Maps PagerDuty/Opsgenie/direct field names onto the canonical incident shape.
 function buildIncidentCandidate(
   incident: Record<string, unknown>,
@@ -146,6 +240,20 @@ function buildIncidentCandidate(
     resolved: Boolean(incident.resolved ?? incident.status === "resolved"),
     url: incidentUrl(incident),
   };
+}
+
+// ISO `date` field, else `now` (validated as ISO clamped to now downstream).
+function incidentDate(incident: Record<string, unknown>, now: number): string {
+  return typeof incident.date === "string"
+    ? incident.date
+    : new Date(now).toISOString();
+}
+
+// `url` direct, else PagerDuty's `html_url`.
+function incidentUrl(incident: Record<string, unknown>): string | null {
+  const url = incident.url ?? incident.html_url;
+
+  return typeof url === "string" ? url : null;
 }
 
 // Validates the candidate and clamps its date to now, so a future-dated incident cannot evict the real ones.
@@ -164,49 +272,22 @@ function validatedEntry(
   return { entry: { ...parsed.data, date: new Date(clampedMs).toISOString() } };
 }
 
-// Normalize PagerDuty/Opsgenie/direct payload; validate date as ISO clamped to now to prevent eviction.
-export function parseIncident(
-  body: string,
-  now: number,
-): { error: string } | { repo: string; entry: IncidentEntry } {
-  const parsedPayload = parseIncidentPayload(body);
+async function upsertIncident(
+  pool: Pool,
+  result: { repo: string; entry: IncidentEntry },
+  h: ResponseToolkit,
+) {
+  try {
+    await appendIncident(pool, result.repo, result.entry);
 
-  if (!parsedPayload.ok) {
-    return { error: parsedPayload.error };
+    return h.response({ ok: true, repo: result.repo });
+  } catch (err) {
+    return h
+      .response({
+        error: err instanceof Error ? err.message : "internal error",
+      })
+      .code(500);
   }
-
-  const incident = incidentEnvelope(parsedPayload.root);
-  const repo = incidentRepo(incident);
-
-  if (repo === null) {
-    return { error: "repo must be in owner/name form" };
-  }
-
-  const validated = validatedEntry(buildIncidentCandidate(incident, now), now);
-
-  return "error" in validated ? validated : { repo, entry: validated.entry };
-}
-
-function firstHeaderValue(
-  header: string | string[] | undefined,
-): string | undefined {
-  return Array.isArray(header) ? header[0] : header;
-}
-
-// True when the caller presented either a valid PagerDuty HMAC signature or a matching bearer/query token.
-function credentialsPresented(
-  request: Request,
-  secret: string | undefined,
-  token: string | undefined,
-  body: string,
-): boolean {
-  const signature = firstHeaderValue(request.headers["x-pagerduty-signature"]);
-  const signatureOk =
-    !!secret && verifyPagerDutySignature(secret, signature, body);
-  const presented = presentedToken(request);
-  const tokenOk = !!token && !!presented && safeEqual(presented, token);
-
-  return signatureOk || tokenOk;
 }
 
 const APPEND_INCIDENT_SQL = `UPDATE lore.repos
@@ -231,85 +312,4 @@ async function appendIncident(
   entry: IncidentEntry,
 ): Promise<void> {
   await pool.query(APPEND_INCIDENT_SQL, [repo, JSON.stringify(entry)]);
-}
-
-async function upsertIncident(
-  pool: Pool,
-  result: { repo: string; entry: IncidentEntry },
-  h: ResponseToolkit,
-) {
-  try {
-    await appendIncident(pool, result.repo, result.entry);
-
-    return h.response({ ok: true, repo: result.repo });
-  } catch (err) {
-    return h
-      .response({
-        error: err instanceof Error ? err.message : "internal error",
-      })
-      .code(500);
-  }
-}
-
-/** Parses the already-verified body and records it. Reached only after the signature check, so nothing here re-reads or re-serializes the raw payload. */
-async function recordIncident(
-  getPool: () => Pool | null,
-  body: string,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const result = parseIncident(body, Date.now());
-
-  // result.error exists only inside this branch; type-narrowing prevents enforce.
-  if ("error" in result) {
-    return h.response({ error: result.error }).code(400);
-  }
-
-  const pool = getPool();
-
-  enforceTrue(pool, apiError(503), "database unavailable");
-
-  return upsertIncident(pool, result, h);
-}
-
-/** A production incident from PagerDuty or Opsgenie. Recorded on the repo so context assembly can surface it at priority 1 — an agent working during an incident should know. */
-async function serveIncident(
-  getPool: () => Pool | null,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const secret = process.env.LORE_INCIDENT_WEBHOOK_SECRET;
-  const token = process.env.LORE_INCIDENT_WEBHOOK_TOKEN;
-
-  enforceTrue(
-    secret || token,
-    apiError(503),
-    "incident webhook not configured",
-  );
-
-  const body = rawBody(request);
-
-  enforceTrue(
-    credentialsPresented(request, secret, token, body),
-    apiError(401),
-    "unauthorized",
-  );
-
-  return recordIncident(getPool, body, h);
-}
-
-export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/webhook/incident",
-    // Auth-exempt; senders verified by HMAC or shared token below.
-    options: zodResponse(
-      { auth: false, payload: { parse: false } },
-      IncidentRecordedSchema,
-      {
-        name: "IncidentRecorded",
-        description: "The incident was attached to a repo",
-      },
-    ),
-    handler: (request, h) => serveIncident(getPool, request, h),
-  };
 }

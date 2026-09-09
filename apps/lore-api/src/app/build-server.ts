@@ -18,18 +18,6 @@ import {
 // 1 MB body cap applied to every native route via the server payload default.
 const MAX_BODY_BYTES = 1_048_576;
 
-function logOpenApiCoverage(routes: ServerRoute[]): void {
-  const { coverage } = generateOpenApi(routes);
-
-  console.log(summarizeCoverage(coverage));
-
-  if (coverage.uncovered.length) {
-    console.warn(
-      `[openapi] WARNING uncovered write routes: ${coverage.uncovered.join(", ")}`,
-    );
-  }
-}
-
 // `traceHttp` is the metric half the span does not carry — lore-api recorded it per request before the tracing plugin was shared, and still does.
 const TRACING = { tracerName: "lore.api.http", observe: traceHttp };
 
@@ -59,4 +47,16 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   }
 
   return server;
+}
+
+function logOpenApiCoverage(routes: ServerRoute[]): void {
+  const { coverage } = generateOpenApi(routes);
+
+  console.log(summarizeCoverage(coverage));
+
+  if (coverage.uncovered.length) {
+    console.warn(
+      `[openapi] WARNING uncovered write routes: ${coverage.uncovered.join(", ")}`,
+    );
+  }
 }

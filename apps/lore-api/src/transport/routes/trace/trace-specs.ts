@@ -10,6 +10,18 @@ const SpecListSchema = z.object({
   specs: z.array(z.record(z.string(), z.unknown())),
 });
 
+export function traceSpecsRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/trace/specs",
+    options: zodResponse(bearerScope("read"), SpecListSchema, {
+      name: "SpecList",
+      description: "Every spec in the traceability graph",
+    }),
+    handler: (_request, h) => serveSpecList(h),
+  };
+}
+
 /** Every spec the graph holds. A deployment with no graph configured answers with an empty list rather than an error — the global viewer is readable before any projection has run. */
 async function serveSpecList(h: ResponseToolkit): Promise<ResponseObject> {
   const dgraph = createDgraphClient(process.env);
@@ -25,16 +37,4 @@ async function serveSpecList(h: ResponseToolkit): Promise<ResponseObject> {
       .response({ error: err instanceof Error ? err.message : String(err) })
       .code(500);
   }
-}
-
-export function traceSpecsRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/trace/specs",
-    options: zodResponse(bearerScope("read"), SpecListSchema, {
-      name: "SpecList",
-      description: "Every spec in the traceability graph",
-    }),
-    handler: (_request, h) => serveSpecList(h),
-  };
 }

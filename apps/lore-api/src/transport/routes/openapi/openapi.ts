@@ -17,28 +17,6 @@ const generate = (getPool: () => Pool | null, routeList: RouteListFn) =>
     serverUrl: process.env.LORE_API_URL,
   });
 
-/** Inline the spec safely inside a <script> — neutralize `</script>` / `<!--`. */
-function docsHtml(spec: object): string {
-  const json = JSON.stringify(spec).replace(/</g, "\\u003c");
-
-  return `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Lore API — Reference</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>body { margin: 0; padding: 0; }</style>
-  </head>
-  <body>
-    <div id="redoc"></div>
-    <script src="${REDOC_CDN}"></script>
-    <script>
-      Redoc.init(${json}, {}, document.getElementById("redoc"));
-    </script>
-  </body>
-</html>`;
-}
-
 export function openApiJsonRoute(
   getPool: () => Pool | null,
   routeList: RouteListFn,
@@ -81,4 +59,26 @@ export function docsRoute(
       }
     },
   };
+}
+
+/** Inline the spec safely inside a <script> — neutralize `</script>` / `<!--`. */
+function docsHtml(spec: object): string {
+  const json = JSON.stringify(spec).replace(/</g, "\\u003c");
+
+  return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Lore API — Reference</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>body { margin: 0; padding: 0; }</style>
+  </head>
+  <body>
+    <div id="redoc"></div>
+    <script src="${REDOC_CDN}"></script>
+    <script>
+      Redoc.init(${json}, {}, document.getElementById("redoc"));
+    </script>
+  </body>
+</html>`;
 }

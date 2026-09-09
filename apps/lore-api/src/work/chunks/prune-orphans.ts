@@ -11,6 +11,22 @@ export interface PruneResult {
   deleted_chunks: number;
 }
 
+export async function pruneOrphanChunks(
+  pool: Pool,
+  repo: string,
+  presentPaths: string[],
+): Promise<PruneResult> {
+  const schema = await resolveChunkSchemaForRepo(pool, repo);
+  const indexed = await indexedPaths(pool, schema, repo);
+  const orphaned = planChunkPrune(indexed, presentPaths, classifyFile);
+
+  return {
+    schema,
+    deleted_paths: orphaned,
+    deleted_chunks: await deletePaths(pool, schema, repo, orphaned),
+  };
+}
+
 async function indexedPaths(
   pool: Pool,
   schema: string,
@@ -39,20 +55,4 @@ async function deletePaths(
   );
 
   return rowCount ?? 0;
-}
-
-export async function pruneOrphanChunks(
-  pool: Pool,
-  repo: string,
-  presentPaths: string[],
-): Promise<PruneResult> {
-  const schema = await resolveChunkSchemaForRepo(pool, repo);
-  const indexed = await indexedPaths(pool, schema, repo);
-  const orphaned = planChunkPrune(indexed, presentPaths, classifyFile);
-
-  return {
-    schema,
-    deleted_paths: orphaned,
-    deleted_chunks: await deletePaths(pool, schema, repo, orphaned),
-  };
 }

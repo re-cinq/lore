@@ -41,6 +41,36 @@ const SATELLITE_UNREACHABLE = {
   },
 };
 
+export function clusterAgentRestartRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/cluster-agents/{id}/restart",
+    options: zodResponse(bearerScope("write"), RestartResponse, {
+      name: "ClusterAgentRestart",
+      description:
+        "Bounces the central cluster-agent so it re-pulls the latest image on restart. Refused for a satellite — lore-api has no inbound path to it.",
+      errors: [400, 404],
+    }),
+    handler: withPool(getPool, serveRestart),
+  };
+}
+
+/** Bounces the central cluster-agent's pod. */
+async function serveRestart(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const result = await handleRestart(
+    { agents: new PgClusterAgents(pool), restart: restartClusterAgent },
+    request.params.id,
+  );
+
+  return h.response(result.body).code(result.code);
+}
+
 /** The handler core, injectable for tests. */
 export async function handleRestart(
   deps: RestartDeps,
@@ -61,35 +91,5 @@ export async function handleRestart(
   return {
     code: 200,
     body: { id: agent.id, name: agent.name, restarted: true },
-  };
-}
-
-/** Bounces the central cluster-agent's pod. */
-async function serveRestart(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const result = await handleRestart(
-    { agents: new PgClusterAgents(pool), restart: restartClusterAgent },
-    request.params.id,
-  );
-
-  return h.response(result.body).code(result.code);
-}
-
-export function clusterAgentRestartRoute(
-  getPool: () => Pool | null,
-): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/cluster-agents/{id}/restart",
-    options: zodResponse(bearerScope("write"), RestartResponse, {
-      name: "ClusterAgentRestart",
-      description:
-        "Bounces the central cluster-agent so it re-pulls the latest image on restart. Refused for a satellite — lore-api has no inbound path to it.",
-      errors: [400, 404],
-    }),
-    handler: withPool(getPool, serveRestart),
   };
 }

@@ -39,25 +39,24 @@ const PullFilesSchema = z.object({
 
 const GITHUB_UNCONFIGURED = "GitHub not configured";
 
-function httpStatusOf(err: unknown): number | undefined {
-  return (err as { status?: number } | null)?.status;
-}
-
-/** 404 when GitHub has no such pull request, 424 when GitHub is unconfigured (the dependency is absent, nothing failed), 500 otherwise; a guard's refusal already carries its status. */
-function failureResponse(err: unknown, h: ResponseToolkit): ResponseObject {
-  rethrowBoom(err);
-  enforceTrue(
-    httpStatusOf(err) !== 404,
-    apiError(404),
-    "pull request not found",
-  );
-  enforceTrue(
-    !errorMessage(err).startsWith(GITHUB_UNCONFIGURED),
-    apiError(424),
-    errorMessage(err),
-  );
-
-  return h.response({ error: errorMessage(err) }).code(500);
+export function pullFilesRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/pulls/{number}/files",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { params: zodValidate(PullFilesParams) },
+      },
+      PullFilesSchema,
+      {
+        name: "PullFiles",
+        description: "Every changed file on a PR with its unified patch",
+        errors: [400, 404],
+      },
+    ),
+    handler: (request, h) => servePullFiles(request, h),
+  };
 }
 
 /** Every changed file on one PR with its unified patch. */
@@ -77,22 +76,23 @@ async function servePullFiles(
   }
 }
 
-export function pullFilesRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/pulls/{number}/files",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { params: zodValidate(PullFilesParams) },
-      },
-      PullFilesSchema,
-      {
-        name: "PullFiles",
-        description: "Every changed file on a PR with its unified patch",
-        errors: [400, 404],
-      },
-    ),
-    handler: (request, h) => servePullFiles(request, h),
-  };
+/** 404 when GitHub has no such pull request, 424 when GitHub is unconfigured (the dependency is absent, nothing failed), 500 otherwise; a guard's refusal already carries its status. */
+function failureResponse(err: unknown, h: ResponseToolkit): ResponseObject {
+  rethrowBoom(err);
+  enforceTrue(
+    httpStatusOf(err) !== 404,
+    apiError(404),
+    "pull request not found",
+  );
+  enforceTrue(
+    !errorMessage(err).startsWith(GITHUB_UNCONFIGURED),
+    apiError(424),
+    errorMessage(err),
+  );
+
+  return h.response({ error: errorMessage(err) }).code(500);
+}
+
+function httpStatusOf(err: unknown): number | undefined {
+  return (err as { status?: number } | null)?.status;
 }

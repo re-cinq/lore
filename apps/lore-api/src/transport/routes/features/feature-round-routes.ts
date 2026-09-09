@@ -27,41 +27,25 @@ import {
 import { run, BASE, WRITE_PAYLOAD, repoOf } from "./feature-route-support.js";
 import { acceptPlan, startPlanningRound } from "./feature-round-actions.js";
 
-/** Binds planning sequence to task queue; repo lands verbatim in target_repo. */
-const createPlanningTask: StartPlanningDeps["createPlanningTask"] = async ({
-  repo,
-  description,
-  args,
-}) => {
-  const task = await createTask({
-    description,
-    taskType: "feature-planning",
-    targetRepo: repo,
-    createdBy: "ui",
-    contextBundle: args,
-    priority: "immediate",
-  });
-
-  return task.task_id as string;
-};
-
 interface CreateFeatureBody {
   title?: unknown;
   prompt?: unknown;
   parent_feature_id?: string;
 }
 
-/** How the shared planning starter reaches this repo's own feature store. */
-function planningDeps(
-  features: Awaited<ReturnType<typeof projectFor>>["features"],
-): Parameters<typeof startFeaturePlanning>[1] {
+export function createFeatureRoute(): ServerRoute {
   return {
-    createFeature: (feature) => features.create(feature),
-    appendIteration: (featureId, answers) =>
-      features.appendIteration(featureId, answers),
-    createPlanningTask,
-    attachIterationTask: (featureId, iteration, taskId) =>
-      features.attachIterationTask(featureId, iteration, taskId),
+    method: "POST",
+    path: BASE,
+    options: {
+      ...zodResponse(bearerScope("write"), FeatureCreatedSchema, {
+        name: "FeatureCreated",
+        status: 201,
+        errors: [400],
+      }),
+      payload: WRITE_PAYLOAD,
+    },
+    handler: (request, h) => run(h, () => createFeature(request, h)),
   };
 }
 
@@ -82,21 +66,37 @@ async function createFeature(request: Request, h: ResponseToolkit) {
     .code(201);
 }
 
-export function createFeatureRoute(): ServerRoute {
+/** How the shared planning starter reaches this repo's own feature store. */
+function planningDeps(
+  features: Awaited<ReturnType<typeof projectFor>>["features"],
+): Parameters<typeof startFeaturePlanning>[1] {
   return {
-    method: "POST",
-    path: BASE,
-    options: {
-      ...zodResponse(bearerScope("write"), FeatureCreatedSchema, {
-        name: "FeatureCreated",
-        status: 201,
-        errors: [400],
-      }),
-      payload: WRITE_PAYLOAD,
-    },
-    handler: (request, h) => run(h, () => createFeature(request, h)),
+    createFeature: (feature) => features.create(feature),
+    appendIteration: (featureId, answers) =>
+      features.appendIteration(featureId, answers),
+    createPlanningTask,
+    attachIterationTask: (featureId, iteration, taskId) =>
+      features.attachIterationTask(featureId, iteration, taskId),
   };
 }
+
+/** Binds planning sequence to task queue; repo lands verbatim in target_repo. */
+const createPlanningTask: StartPlanningDeps["createPlanningTask"] = async ({
+  repo,
+  description,
+  args,
+}) => {
+  const task = await createTask({
+    description,
+    taskType: "feature-planning",
+    targetRepo: repo,
+    createdBy: "ui",
+    contextBundle: args,
+    priority: "immediate",
+  });
+
+  return task.task_id as string;
+};
 
 /** POST .../features/:id/iterations — submit a refinement round. */
 export function createIterationRoute(getPool: () => Pool | null): ServerRoute {
@@ -117,6 +117,21 @@ export function createIterationRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response(result.body).code(result.code);
       }),
+  };
+}
+
+export function iterationResultRoute(): ServerRoute {
+  return {
+    method: "POST",
+    path: `${BASE}/{id}/iterations/{n}/result`,
+    options: {
+      ...zodResponse(bearerScope("write"), OkSchema, {
+        name: "Ok",
+        errors: [400, 404],
+      }),
+      payload: WRITE_PAYLOAD,
+    },
+    handler: (request, h) => run(h, () => recordIterationResult(request, h)),
   };
 }
 
@@ -147,19 +162,11 @@ async function recordIterationResult(request: Request, h: ResponseToolkit) {
     : h.response({ ok: true });
 }
 
-export function iterationResultRoute(): ServerRoute {
-  return {
-    method: "POST",
-    path: `${BASE}/{id}/iterations/{n}/result`,
-    options: {
-      ...zodResponse(bearerScope("write"), OkSchema, {
-        name: "Ok",
-        errors: [400, 404],
-      }),
-      payload: WRITE_PAYLOAD,
-    },
-    handler: (request, h) => run(h, () => recordIterationResult(request, h)),
-  };
+/** POST .../features/:id/create-spec-file and /finalize — accept the plan; served both paths during UI rollout. */
+export function finalizeRoutes(getPool: () => Pool | null): ServerRoute[] {
+  return [`${BASE}/{id}/create-spec-file`, `${BASE}/{id}/finalize`].map(
+    (path) => finalizeRoute(getPool, path),
+  );
 }
 
 /** One accept-the-plan route; the two spellings differ only in path while the UI rolls over. */
@@ -184,11 +191,20 @@ function finalizeRoute(getPool: () => Pool | null, path: string): ServerRoute {
   };
 }
 
-/** POST .../features/:id/create-spec-file and /finalize — accept the plan; served both paths during UI rollout. */
-export function finalizeRoutes(getPool: () => Pool | null): ServerRoute[] {
-  return [`${BASE}/{id}/create-spec-file`, `${BASE}/{id}/finalize`].map(
-    (path) => finalizeRoute(getPool, path),
-  );
+export function splitFeatureRoute(): ServerRoute {
+  return {
+    method: "POST",
+    path: `${BASE}/{id}/split`,
+    options: {
+      ...zodResponse(bearerScope("write"), FeatureSchema, {
+        name: "Feature",
+        status: 201,
+        errors: [400, 404, 409],
+      }),
+      payload: WRITE_PAYLOAD,
+    },
+    handler: (request, h) => run(h, () => splitFeature(request, h)),
+  };
 }
 
 /** POST .../features/:id/split — create a child draft from a split suggestion. */
@@ -210,20 +226,4 @@ async function splitFeature(request: Request, h: ResponseToolkit) {
   return h
     .response(await features.createSplitChild(parentId, { title, prompt }))
     .code(201);
-}
-
-export function splitFeatureRoute(): ServerRoute {
-  return {
-    method: "POST",
-    path: `${BASE}/{id}/split`,
-    options: {
-      ...zodResponse(bearerScope("write"), FeatureSchema, {
-        name: "Feature",
-        status: 201,
-        errors: [400, 404, 409],
-      }),
-      payload: WRITE_PAYLOAD,
-    },
-    handler: (request, h) => run(h, () => splitFeature(request, h)),
-  };
 }

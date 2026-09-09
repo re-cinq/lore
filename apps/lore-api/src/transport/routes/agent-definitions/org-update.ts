@@ -27,63 +27,39 @@ const IMAGE_ORG_DETAIL =
   "Changing an execution image is CODEOWNERS-gated per repo. Set it through " +
   "/api/repos/{owner}/{repo}/agent-definitions with an approval PR instead.";
 
-function orDefault<T>(value: T | undefined, fallback: T): T {
-  return value ?? fallback;
-}
-
-function orgDefinitionFields(
-  name: string,
-  fields: Omit<ReturnType<typeof parseAgentPatch>, "pod_resources">,
-) {
+export function orgAgentDefinitionUpdateRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
   return {
-    name,
-    model: orDefault(fields.model, null),
-    timeout_minutes: orDefault(fields.timeout_minutes, null),
-    prompt: orDefault(fields.prompt, null),
-    image: orDefault(fields.image, null),
-    execution_mode: orDefault(fields.execution_mode, "claude-code" as const),
-    review_required: fields.review_required ?? false,
-    config: orDefault(fields.config, null),
+    method: "PUT",
+    path: "/api/agent-definitions/{name}",
+    options: zodResponse(bearerScope("admin"), OrgAgentWrittenSchema, {
+      name: "OrgAgentDefinitionWritten",
+      description: "The updated org-default definition",
+      errors: [400],
+    }),
+    handler: withPool(getPool, serveOrgUpdate),
   };
 }
 
-// Merge happens inside the upsert (atomic under the row lock); yaml is only the fallback for a configless org row, so it never orphans the seed's skills.
-async function resolveOrgPodResourcesUpdate(
-  name: string,
-  podResources: ReturnType<typeof parseAgentPatch>["pod_resources"],
-) {
-  if (podResources === undefined) {
-    return undefined;
-  }
-
-  return {
-    podResources,
-    inheritedConfig:
-      (await new AgentDefsYaml().resolve("", name))?.config ?? null,
-  };
-}
-
-/** Applies a validated patch to the ORG default. `image` is refused here rather than ignored: an org-wide image change affects every repo that has not overridden it, so it is a per-repo decision by design. */
-async function applyOrgPatch(
+/** The org-default write. Anything past the body parse is either a guard's own refusal (which already carries its status) or an unexpected failure. */
+async function serveOrgUpdate(
   pool: Pool,
-  name: string,
-  patch: ReturnType<typeof parseAgentPatch>,
-) {
-  enforceTrue(
-    !imageFieldTouched(patch),
-    apiError(400, { detail: IMAGE_ORG_DETAIL }),
-    "image_org_gated",
-  );
-  const { pod_resources, ...fields } = patch;
-  const agent = await updateOrgDefinition(
-    pool,
-    orgDefinitionFields(name, fields),
-    await resolveOrgPodResourcesUpdate(name, pod_resources),
-  );
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const name = request.params.name as string;
 
-  await audit(pool, "agent_org_updated", { name });
+  try {
+    return await orgUpdateOutcome(pool, name, request, h);
+  } catch (err) {
+    // A guard's refusal (the org image gate) already carries its status; only an unexpected failure is this block's to shape.
+    rethrowBoom(err);
 
-  return agent;
+    console.error("[agents] org update failed:", err);
+
+    return h.response({ error: "internal" }).code(500);
+  }
 }
 
 /** Parses the body and applies it. A malformed body is the CALLER's mistake and answers 400 with the parse issues, rather than reaching the route's catch. */
@@ -110,45 +86,69 @@ async function orgUpdateOutcome(
   });
 }
 
-/** The org-default write. Anything past the body parse is either a guard's own refusal (which already carries its status) or an unexpected failure. */
-async function serveOrgUpdate(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const name = request.params.name as string;
-
-  try {
-    return await orgUpdateOutcome(pool, name, request, h);
-  } catch (err) {
-    // A guard's refusal (the org image gate) already carries its status; only an unexpected failure is this block's to shape.
-    rethrowBoom(err);
-
-    console.error("[agents] org update failed:", err);
-
-    return h.response({ error: "internal" }).code(500);
-  }
-}
-
-export function orgAgentDefinitionUpdateRoute(
-  getPool: () => Pool | null,
-): ServerRoute {
-  return {
-    method: "PUT",
-    path: "/api/agent-definitions/{name}",
-    options: zodResponse(bearerScope("admin"), OrgAgentWrittenSchema, {
-      name: "OrgAgentDefinitionWritten",
-      description: "The updated org-default definition",
-      errors: [400],
-    }),
-    handler: withPool(getPool, serveOrgUpdate),
-  };
-}
-
 function issuesOf(err: unknown): unknown {
   return typeof err === "object" && err !== null && "issues" in err
     ? (err as { issues: unknown }).issues
     : (err as Error).message;
+}
+
+/** Applies a validated patch to the ORG default. `image` is refused here rather than ignored: an org-wide image change affects every repo that has not overridden it, so it is a per-repo decision by design. */
+async function applyOrgPatch(
+  pool: Pool,
+  name: string,
+  patch: ReturnType<typeof parseAgentPatch>,
+) {
+  enforceTrue(
+    !imageFieldTouched(patch),
+    apiError(400, { detail: IMAGE_ORG_DETAIL }),
+    "image_org_gated",
+  );
+  const { pod_resources, ...fields } = patch;
+  const agent = await updateOrgDefinition(
+    pool,
+    orgDefinitionFields(name, fields),
+    await resolveOrgPodResourcesUpdate(name, pod_resources),
+  );
+
+  await audit(pool, "agent_org_updated", { name });
+
+  return agent;
+}
+
+function orgDefinitionFields(
+  name: string,
+  fields: Omit<ReturnType<typeof parseAgentPatch>, "pod_resources">,
+) {
+  return {
+    name,
+    model: orDefault(fields.model, null),
+    timeout_minutes: orDefault(fields.timeout_minutes, null),
+    prompt: orDefault(fields.prompt, null),
+    image: orDefault(fields.image, null),
+    execution_mode: orDefault(fields.execution_mode, "claude-code" as const),
+    review_required: fields.review_required ?? false,
+    config: orDefault(fields.config, null),
+  };
+}
+
+function orDefault<T>(value: T | undefined, fallback: T): T {
+  return value ?? fallback;
+}
+
+// Merge happens inside the upsert (atomic under the row lock); yaml is only the fallback for a configless org row, so it never orphans the seed's skills.
+async function resolveOrgPodResourcesUpdate(
+  name: string,
+  podResources: ReturnType<typeof parseAgentPatch>["pod_resources"],
+) {
+  if (podResources === undefined) {
+    return undefined;
+  }
+
+  return {
+    podResources,
+    inheritedConfig:
+      (await new AgentDefsYaml().resolve("", name))?.config ?? null,
+  };
 }
 
 async function audit(

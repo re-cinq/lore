@@ -59,6 +59,28 @@ const AnalyticsOverviewSchema = z.object({
 });
 
 /** Org-wide pipeline analytics for a period: usage, task outcomes and the per-type breakdown behind the dashboard. */
+export function analyticsOverviewRoute(
+  getPool: () => Pool | null,
+): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/analytics-overview",
+    options: zodResponse(bearerScope("read"), AnalyticsOverviewSchema, {
+      name: "AnalyticsOverview",
+      description: "Pipeline and usage roll-ups",
+    }),
+    handler: withPool(getPool, serveAnalyticsOverview),
+  };
+}
+
+async function serveAnalyticsOverview(
+  pool: Pool,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  return h.response(await overviewSections(pool));
+}
+
 /** The dashboard's six sections. Run together: they are independent reads and the page shows all of them at once, so serialising them would make the slowest one the sum of all six. */
 async function overviewSections(pool: Pool) {
   const [
@@ -89,28 +111,6 @@ function overviewQueries(pool: Pool) {
     rows(pool, TOOL_LATENCY_SQL),
     rows(pool, RECENT_JOB_RUNS_SQL),
   ]);
-}
-
-async function serveAnalyticsOverview(
-  pool: Pool,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  return h.response(await overviewSections(pool));
-}
-
-export function analyticsOverviewRoute(
-  getPool: () => Pool | null,
-): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/analytics-overview",
-    options: zodResponse(bearerScope("read"), AnalyticsOverviewSchema, {
-      name: "AnalyticsOverview",
-      description: "Pipeline and usage roll-ups",
-    }),
-    handler: withPool(getPool, serveAnalyticsOverview),
-  };
 }
 
 async function rows(pool: Pool, sql: string) {

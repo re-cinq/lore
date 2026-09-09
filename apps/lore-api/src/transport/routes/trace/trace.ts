@@ -36,33 +36,67 @@ const TraceReadSchema = z.record(z.string(), z.unknown());
 type ProjectResult = Awaited<ReturnType<typeof projectFor>>;
 type Trace = ProjectResult["trace"];
 
-// A deployment whose lore.features table was never created reads as no features.
-function listFeaturesTolerantly(featureStore: ProjectResult["features"]) {
-  return featureStore.list().catch((err) => {
-    if ((err as { code?: string }).code === "42P01") {
-      return [];
-    }
-    throw err;
-  });
+export function traceRoute(): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/repos/{owner}/{repo}/trace/{kind}",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(TraceQuery) },
+      },
+      TraceReadSchema,
+      {
+        name: "TraceRead",
+        description: "A traceability read, shaped by {kind}",
+        errors: [400, 404],
+      },
+    ),
+    handler: (request, h) => serveTrace(request, h),
+  };
 }
 
-// lore.features is source of truth for Feature nodes (ADR-027); tolerate 42P01.
-async function graphWithFeatures(trace: Trace, project: ProjectResult) {
-  const { features: featureStore } = project;
-  const [graph, features] = await Promise.all([
-    trace.graph(),
-    listFeaturesTolerantly(featureStore),
-  ]);
+/** A traceability read, shaped by {kind}: the spec-to-test graph the coverage view and the VS Code extension both read. */
+async function serveTrace(
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const kind = request.params.kind;
 
-  return mergePersistentFeatures(
-    graph,
-    features.map((f) => ({
-      id: f.id,
-      title: f.title,
-      path: f.path,
-      status: f.status,
-    })),
+  enforceTrue(TRACE_KINDS.has(kind), apiError(404), "not found");
+  const { path: filePath = "" } = request.query as TraceQuery;
+
+  try {
+    return h.response(await traceResult(request, kind, filePath));
+  } catch (err) {
+    // Guard's refusal carries its status; only unexpected failure needs shaping.
+    rethrowBoom(err);
+
+    return h
+      .response({ error: err instanceof Error ? err.message : String(err) })
+      .code(500);
+  }
+}
+
+/** The body for one {kind}: the no-path handlers shape their own, the rest need the ?path= the guard below demands. */
+async function traceResult(
+  request: Request,
+  kind: string,
+  filePath: string,
+): Promise<object> {
+  const project = await projectFor(
+    `${request.params.owner}/${request.params.repo}`,
   );
+  const trace = project.trace;
+  const noPathHandler = NO_PATH_KINDS[kind];
+
+  if (noPathHandler) {
+    return noPathHandler(trace, project);
+  }
+
+  enforceTrue(filePath, apiError(400), "path query param required");
+
+  return PATH_KINDS[kind](trace, filePath);
 }
 
 // Kinds answerable without a ?path=; each handler shapes its own response body.
@@ -88,65 +122,31 @@ const PATH_KINDS: Record<
   source: async (trace, filePath) => ({ source: await trace.source(filePath) }),
 };
 
-/** The body for one {kind}: the no-path handlers shape their own, the rest need the ?path= the guard below demands. */
-async function traceResult(
-  request: Request,
-  kind: string,
-  filePath: string,
-): Promise<object> {
-  const project = await projectFor(
-    `${request.params.owner}/${request.params.repo}`,
+// lore.features is source of truth for Feature nodes (ADR-027); tolerate 42P01.
+async function graphWithFeatures(trace: Trace, project: ProjectResult) {
+  const { features: featureStore } = project;
+  const [graph, features] = await Promise.all([
+    trace.graph(),
+    listFeaturesTolerantly(featureStore),
+  ]);
+
+  return mergePersistentFeatures(
+    graph,
+    features.map((f) => ({
+      id: f.id,
+      title: f.title,
+      path: f.path,
+      status: f.status,
+    })),
   );
-  const trace = project.trace;
-  const noPathHandler = NO_PATH_KINDS[kind];
-
-  if (noPathHandler) {
-    return noPathHandler(trace, project);
-  }
-
-  enforceTrue(filePath, apiError(400), "path query param required");
-
-  return PATH_KINDS[kind](trace, filePath);
 }
 
-/** A traceability read, shaped by {kind}: the spec-to-test graph the coverage view and the VS Code extension both read. */
-async function serveTrace(
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const kind = request.params.kind;
-
-  enforceTrue(TRACE_KINDS.has(kind), apiError(404), "not found");
-  const { path: filePath = "" } = request.query as TraceQuery;
-
-  try {
-    return h.response(await traceResult(request, kind, filePath));
-  } catch (err) {
-    // Guard's refusal carries its status; only unexpected failure needs shaping.
-    rethrowBoom(err);
-
-    return h
-      .response({ error: err instanceof Error ? err.message : String(err) })
-      .code(500);
-  }
-}
-
-export function traceRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/trace/{kind}",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(TraceQuery) },
-      },
-      TraceReadSchema,
-      {
-        name: "TraceRead",
-        description: "A traceability read, shaped by {kind}",
-        errors: [400, 404],
-      },
-    ),
-    handler: (request, h) => serveTrace(request, h),
-  };
+// A deployment whose lore.features table was never created reads as no features.
+function listFeaturesTolerantly(featureStore: ProjectResult["features"]) {
+  return featureStore.list().catch((err) => {
+    if ((err as { code?: string }).code === "42P01") {
+      return [];
+    }
+    throw err;
+  });
 }

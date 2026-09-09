@@ -56,6 +56,54 @@ type LoadDefinitions = () => Promise<ReadonlyMap<string, AssemblyLine>>;
 const defaultStart: StartRun = async ({ blueprintName, repo, ...opts }) =>
   (await projectFor(repo)).assemblyRuns.start(blueprintName, opts);
 
+export function startRunRoute(
+  start: StartRun = defaultStart,
+  loadDefinitions: LoadDefinitions = loadBuiltinAssemblyLines,
+): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/assembly-runs",
+    options: startRunOptions(),
+    handler: (request, h) => serveStartRun(start, loadDefinitions, request, h),
+  };
+}
+
+/** The route's declared contract: task scope, a validated body, and a 201 carrying the new run's id. */
+function startRunOptions() {
+  return zodResponse(
+    {
+      ...bearerScope("task"),
+      validate: { payload: zodValidate(StartBody) },
+    },
+    StartResponse,
+    {
+      name: "AssemblyRunStarted",
+      status: 201,
+      description: "Run started",
+      errors: [400, 409],
+    },
+  );
+}
+
+/** Starts a run, or resumes one from a node. The row and its start event are written in ONE atomic statement, so a run is never queued with nothing to claim it. */
+async function serveStartRun(
+  start: StartRun,
+  loadDefinitions: LoadDefinitions,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const body = request.payload as z.infer<typeof StartBody>;
+  const input = buildStartInput(body);
+
+  if (body.resume_from === undefined) {
+    return h.response({ id: await start(input) }).code(201);
+  }
+
+  const id = await startResumedRun(body, input, start, loadDefinitions);
+
+  return h.response({ id }).code(201);
+}
+
 function buildStartInput(
   body: z.infer<typeof StartBody>,
 ): AssemblyRunStartInput {
@@ -65,48 +113,6 @@ function buildStartInput(
     ...(body.branch === undefined ? {} : { branch: body.branch }),
     ...(body.args === undefined ? {} : { args: body.args }),
   };
-}
-
-// The fork's drift guard needs the CURRENT definition's hash as its left-hand side; libs/shared can't derive it (the dependency runs the other way).
-/** Where the resumed run picks up. `iteration` is OMITTED rather than passed as undefined when the caller did not name one: the port treats an absent iteration as "the latest visit" and an explicit one as an exact row, and those are different resumes. */
-function resumePoint(resumeFrom: {
-  run_id: string;
-  node_id: string;
-  iteration?: number;
-}) {
-  return {
-    lineId: resumeFrom.run_id,
-    nodeId: resumeFrom.node_id,
-    ...(resumeFrom.iteration === undefined
-      ? {}
-      : { iteration: resumeFrom.iteration }),
-  };
-}
-
-/** The start payload a fork carries: the source visit to resume at, plus the CURRENT definition's hash as the drift guard's left-hand side. */
-function resumeInput(
-  body: z.infer<typeof StartBody>,
-  input: AssemblyRunStartInput,
-  definition: AssemblyLine,
-): AssemblyRunStartInput {
-  return {
-    ...input,
-    blueprintHash: definitionHash(definition),
-    resumeFrom: resumePoint(
-      body.resume_from as NonNullable<typeof body.resume_from>,
-    ),
-  };
-}
-
-/** Only the port's typed REFUSALS (drift, non-terminal source, missing visit — all pre-write) become a 409; anything else stays the internal failure it is. */
-function rethrowResumeFailure(err: unknown): never {
-  rethrowBoom(err);
-
-  if (err instanceof ResumeRefusedError) {
-    throw apiError(409)(err.message);
-  }
-
-  throw err;
 }
 
 async function startResumedRun(
@@ -130,50 +136,44 @@ async function startResumedRun(
   }
 }
 
-/** Starts a run, or resumes one from a node. The row and its start event are written in ONE atomic statement, so a run is never queued with nothing to claim it. */
-async function serveStartRun(
-  start: StartRun,
-  loadDefinitions: LoadDefinitions,
-  request: Request,
-  h: ResponseToolkit,
-): Promise<ResponseObject> {
-  const body = request.payload as z.infer<typeof StartBody>;
-  const input = buildStartInput(body);
+// The fork's drift guard needs the CURRENT definition's hash as its left-hand side; libs/shared can't derive it (the dependency runs the other way).
+/** The start payload a fork carries: the source visit to resume at, plus the CURRENT definition's hash as the drift guard's left-hand side. */
+function resumeInput(
+  body: z.infer<typeof StartBody>,
+  input: AssemblyRunStartInput,
+  definition: AssemblyLine,
+): AssemblyRunStartInput {
+  return {
+    ...input,
+    blueprintHash: definitionHash(definition),
+    resumeFrom: resumePoint(
+      body.resume_from as NonNullable<typeof body.resume_from>,
+    ),
+  };
+}
 
-  if (body.resume_from === undefined) {
-    return h.response({ id: await start(input) }).code(201);
+/** Where the resumed run picks up. `iteration` is OMITTED rather than passed as undefined when the caller did not name one: the port treats an absent iteration as "the latest visit" and an explicit one as an exact row, and those are different resumes. */
+function resumePoint(resumeFrom: {
+  run_id: string;
+  node_id: string;
+  iteration?: number;
+}) {
+  return {
+    lineId: resumeFrom.run_id,
+    nodeId: resumeFrom.node_id,
+    ...(resumeFrom.iteration === undefined
+      ? {}
+      : { iteration: resumeFrom.iteration }),
+  };
+}
+
+/** Only the port's typed REFUSALS (drift, non-terminal source, missing visit — all pre-write) become a 409; anything else stays the internal failure it is. */
+function rethrowResumeFailure(err: unknown): never {
+  rethrowBoom(err);
+
+  if (err instanceof ResumeRefusedError) {
+    throw apiError(409)(err.message);
   }
 
-  const id = await startResumedRun(body, input, start, loadDefinitions);
-
-  return h.response({ id }).code(201);
-}
-
-/** The route's declared contract: task scope, a validated body, and a 201 carrying the new run's id. */
-function startRunOptions() {
-  return zodResponse(
-    {
-      ...bearerScope("task"),
-      validate: { payload: zodValidate(StartBody) },
-    },
-    StartResponse,
-    {
-      name: "AssemblyRunStarted",
-      status: 201,
-      description: "Run started",
-      errors: [400, 409],
-    },
-  );
-}
-
-export function startRunRoute(
-  start: StartRun = defaultStart,
-  loadDefinitions: LoadDefinitions = loadBuiltinAssemblyLines,
-): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/assembly-runs",
-    options: startRunOptions(),
-    handler: (request, h) => serveStartRun(start, loadDefinitions, request, h),
-  };
+  throw err;
 }

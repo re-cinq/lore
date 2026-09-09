@@ -97,45 +97,34 @@ export async function enrichmentById(
   return new Map(rows.map(({ id, ...enrichment }) => [id, enrichment]));
 }
 
-// PR number from a run's args, or null; a bare Number() coercion turns null/"" into 0, rendering a link to a PR that doesn't exist — the replaced SQL answered NULL for both.
-function argsPrNumber(raw: unknown): number | null {
-  if (typeof raw === "number") {
-    return Number.isFinite(raw) ? raw : null;
-  }
-
-  if (typeof raw !== "string" || raw.trim() === "") {
-    return null;
-  }
-  const parsed = Number(raw);
-
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function isoOrNull(at: Date | null): string | null {
-  return at ? at.toISOString() : null;
-}
-
-/** What a run with no task (or no matching enrichment row) carries. */
-const NO_ENRICHMENT: RunEnrichment = {
-  pr_url: null,
-  task_pr_number: null,
-  issue_url: null,
-  issue_number: null,
-  created_by: null,
-  cost_usd: null,
-};
-
-// Only created_by falls further than its own column, to the actor the run itself recorded.
-function enrichedFields(
+/** One run as the list views read it — no graph, which only a task-centric caller needs. */
+export function toRunRow(
+  run: AssemblyRunSummary,
   enrichment: RunEnrichment | undefined,
-  argsActor: unknown,
-): RunEnrichment {
-  const actorFallback = (argsActor as string | null) ?? null;
+) {
+  return runRow(run, enrichment, {});
+}
 
+// graph itself may still be unresolved (predates clones AND blueprint gone).
+/** The same row plus the run's cloned graph, for a caller that draws the DAG. */
+export function toRunRowWithGraph(
+  run: AssemblyRunSummary & { graph?: unknown },
+  enrichment: RunEnrichment | undefined,
+) {
+  return runRow(run, enrichment, { graph: run.graph ?? null });
+}
+
+function runRow(
+  run: AssemblyRunSummary,
+  enrichment: RunEnrichment | undefined,
+  graphField: Record<string, unknown>,
+) {
   return {
-    ...NO_ENRICHMENT,
-    ...enrichment,
-    created_by: enrichment?.created_by ?? actorFallback,
+    ...identity(run),
+    ...graphField,
+    ...lifecycle(run),
+    args_pr_number: argsPrNumber(run.args["pr_number"]),
+    ...enrichedFields(enrichment, run.args["actor"]),
   };
 }
 
@@ -165,33 +154,44 @@ function lifecycle(run: AssemblyRunSummary) {
   };
 }
 
-/** One run as the list views read it — no graph, which only a task-centric caller needs. */
-export function toRunRow(
-  run: AssemblyRunSummary,
-  enrichment: RunEnrichment | undefined,
-) {
-  return runRow(run, enrichment, {});
+function isoOrNull(at: Date | null): string | null {
+  return at ? at.toISOString() : null;
 }
 
-// graph itself may still be unresolved (predates clones AND blueprint gone).
-/** The same row plus the run's cloned graph, for a caller that draws the DAG. */
-export function toRunRowWithGraph(
-  run: AssemblyRunSummary & { graph?: unknown },
-  enrichment: RunEnrichment | undefined,
-) {
-  return runRow(run, enrichment, { graph: run.graph ?? null });
+// PR number from a run's args, or null; a bare Number() coercion turns null/"" into 0, rendering a link to a PR that doesn't exist — the replaced SQL answered NULL for both.
+function argsPrNumber(raw: unknown): number | null {
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) ? raw : null;
+  }
+
+  if (typeof raw !== "string" || raw.trim() === "") {
+    return null;
+  }
+  const parsed = Number(raw);
+
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function runRow(
-  run: AssemblyRunSummary,
+/** What a run with no task (or no matching enrichment row) carries. */
+const NO_ENRICHMENT: RunEnrichment = {
+  pr_url: null,
+  task_pr_number: null,
+  issue_url: null,
+  issue_number: null,
+  created_by: null,
+  cost_usd: null,
+};
+
+// Only created_by falls further than its own column, to the actor the run itself recorded.
+function enrichedFields(
   enrichment: RunEnrichment | undefined,
-  graphField: Record<string, unknown>,
-) {
+  argsActor: unknown,
+): RunEnrichment {
+  const actorFallback = (argsActor as string | null) ?? null;
+
   return {
-    ...identity(run),
-    ...graphField,
-    ...lifecycle(run),
-    args_pr_number: argsPrNumber(run.args["pr_number"]),
-    ...enrichedFields(enrichment, run.args["actor"]),
+    ...NO_ENRICHMENT,
+    ...enrichment,
+    created_by: enrichment?.created_by ?? actorFallback,
   };
 }

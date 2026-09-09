@@ -43,28 +43,23 @@ interface StationUsageRef {
   inherited: boolean;
 }
 
-/** One catalog entry with the blueprint nodes that dispatch it. */
-function usageEntry(name: string, refs: StationUsageRef[]) {
+export function agentDefinitionUsageRoute(
+  getPool: () => Pool | null = () => null,
+): ServerRoute {
   return {
-    name,
-    used_by: refs.map((ref) => ({
-      blueprint: ref.blueprint,
-      node_id: ref.nodeId,
-      inherited: ref.inherited,
-    })),
-  };
-}
+    method: "GET",
+    path: "/api/agent-definitions/usage",
+    options: zodResponse(bearerScope("read"), UsageResponse, {
+      name: "AgentDefinitionUsage",
+      description:
+        "Every station name a builtin blueprint node dispatches, with the nodes that reference it",
+    }),
+    handler: async (_request, h) => {
+      const applied = await appliedStatuses(getPool());
+      const lines = await loadBuiltinAssemblyLines();
 
-/** The wire shape from the walk's map — sorted so the response is stable. */
-export function usageResponse(
-  usage: ReadonlyMap<string, StationUsageRef[]>,
-  applied: z.infer<typeof UsageResponse>["applied"] = [],
-): z.infer<typeof UsageResponse> {
-  return {
-    usage: [...usage]
-      .map(([name, refs]) => usageEntry(name, refs))
-      .sort((a, b) => a.name.localeCompare(b.name)),
-    applied,
+      return h.response(usageResponse(stationUsage(lines), applied));
+    },
   };
 }
 
@@ -87,22 +82,27 @@ async function appliedStatuses(
   }));
 }
 
-export function agentDefinitionUsageRoute(
-  getPool: () => Pool | null = () => null,
-): ServerRoute {
+/** The wire shape from the walk's map — sorted so the response is stable. */
+export function usageResponse(
+  usage: ReadonlyMap<string, StationUsageRef[]>,
+  applied: z.infer<typeof UsageResponse>["applied"] = [],
+): z.infer<typeof UsageResponse> {
   return {
-    method: "GET",
-    path: "/api/agent-definitions/usage",
-    options: zodResponse(bearerScope("read"), UsageResponse, {
-      name: "AgentDefinitionUsage",
-      description:
-        "Every station name a builtin blueprint node dispatches, with the nodes that reference it",
-    }),
-    handler: async (_request, h) => {
-      const applied = await appliedStatuses(getPool());
-      const lines = await loadBuiltinAssemblyLines();
+    usage: [...usage]
+      .map(([name, refs]) => usageEntry(name, refs))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    applied,
+  };
+}
 
-      return h.response(usageResponse(stationUsage(lines), applied));
-    },
+/** One catalog entry with the blueprint nodes that dispatch it. */
+function usageEntry(name: string, refs: StationUsageRef[]) {
+  return {
+    name,
+    used_by: refs.map((ref) => ({
+      blueprint: ref.blueprint,
+      node_id: ref.nodeId,
+      inherited: ref.inherited,
+    })),
   };
 }
