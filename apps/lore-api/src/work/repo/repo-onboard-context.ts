@@ -1,32 +1,15 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { getOctokit } from "../../outbound/github-client.js";
+import {
+  KEY_FILES,
+  SAMPLE_DIRS,
+  type RepoContext,
+} from "@re-cinq/lore-shared/repo-context.js";
+
+export type { RepoContext };
 
 // ── Fetch repo context for onboarding agents ────────────────────────
-
-export interface RepoContext {
-  tree: string[];
-  files: Record<string, string>;
-  samples: Record<string, string>;
-}
-
-const KEY_FILES = [
-  "README.md",
-  "CLAUDE.md",
-  "AGENTS.md",
-  "package.json",
-  "go.mod",
-  "Cargo.toml",
-  "requirements.txt",
-  "Dockerfile",
-  "docker-compose.yml",
-  "pom.xml",
-  "Makefile",
-  "tsconfig.json",
-  "pyproject.toml",
-];
-
-const SAMPLE_DIRS = ["src", "lib", "cmd", "internal", "app", "pkg"];
 
 /** Decodes base64-encoded file content returned by the GitHub API. */
 function decodeContent(encoded: string): string {

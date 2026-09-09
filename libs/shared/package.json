@@ -129,6 +129,10 @@
     "./repo-validation/repo-validation.js": {
       "types": "./dist/work/repo-validation/repo-validation.d.ts",
       "default": "./dist/work/repo-validation/repo-validation.js"
+    },
+    "./repo-context.js": {
+      "types": "./dist/domain/repo-context.d.ts",
+      "default": "./dist/domain/repo-context.js"
     }
   },
   "scripts": {

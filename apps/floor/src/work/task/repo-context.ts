@@ -2,30 +2,11 @@ import type { Project } from "@re-cinq/lore-shared";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../outbound/project-boot.js";
-
-export interface RepoContext {
-  tree: string[];
-  files: Record<string, string>;
-  samples: Record<string, string>;
-}
-
-const KEY_FILES = [
-  "README.md",
-  "CLAUDE.md",
-  "AGENTS.md",
-  "package.json",
-  "go.mod",
-  "Cargo.toml",
-  "requirements.txt",
-  "Dockerfile",
-  "docker-compose.yml",
-  "pom.xml",
-  "Makefile",
-  "tsconfig.json",
-  "pyproject.toml",
-];
-
-const SAMPLE_DIRS = ["src", "lib", "cmd", "internal", "app", "pkg"];
+import {
+  KEY_FILES,
+  SAMPLE_DIRS,
+  type RepoContext,
+} from "@re-cinq/lore-shared/repo-context.js";
 
 /** One sample file's first 200 lines, or null when it is missing or unreadable — a single bad file must not lose the whole sample walk. */
 async function readSampleFile(
