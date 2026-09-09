@@ -25,6 +25,6 @@ export interface PodLogSource {
   agentInfo(name: string): Promise<AgentPodInfo | null>;
   /** Pods for a Job (via the `job-name` label). */
   podsForJob(jobName: string): Promise<PodSummary[]>;
-  /** A pod's logs, optionally tail-limited. */
+  /** A pod's logs, optionally tail-limited — from whichever container ran: a failed init container when there is one, the default otherwise. A pod that dies in init never starts `agent`, so naming no container would ask for one that is still `PodInitializing` and answer BadRequest instead of the failure. */
   podLog(podName: string, tailLines?: number): Promise<string>;
 }
