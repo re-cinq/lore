@@ -6,25 +6,27 @@ export interface NodeMetaLineProps {
   meta: string;
   leftEdge: number;
   centerY: number;
+  /** This line's baseline, as an offset from the box centre (`nodeTextRows`). */
+  baseline: number;
 }
 
-const attrs = (leftEdge: number, centerY: number) => ({
+const attrs = (leftEdge: number, y: number) => ({
   className: styles.nodeMeta,
   "data-meta": true,
   x: leftEdge + 40,
-  y: centerY + 27,
+  y,
   textAnchor: "start" as const,
 });
 
 export default function NodeMetaLine(props: NodeMetaLineProps) {
-  const { meta, leftEdge, centerY } = props;
+  const { meta, leftEdge, centerY, baseline } = props;
 
   if (meta === "") {
     return null;
   }
 
   return (
-    <text {...attrs(leftEdge, centerY)}>
+    <text {...attrs(leftEdge, centerY + baseline)}>
       <title>{meta}</title>
       {fitNodeLabel(meta)}
     </text>
