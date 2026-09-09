@@ -6758,6 +6758,47 @@
         ]
       }
     },
+    "/api/search-context": {
+      "get": {
+        "operationId": "get_api_search-context",
+        "summary": "GET /api/search-context",
+        "tags": ["Context"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Hybrid vector + BM25 passages from the ingested corpus, highest-scoring first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchContextResults"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/session-summary": {
       "post": {
         "operationId": "post_api_session-summary",
@@ -14571,6 +14612,32 @@
             "additionalProperties": false
           }
         ]
+      },
+      "SearchContextResults": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                },
+                "source_path": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": ["content", "score", "source_path"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["results"],
+        "additionalProperties": false
       },
       "SessionSummaryResult": {
         "anyOf": [
