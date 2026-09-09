@@ -24,7 +24,7 @@ import {
   useRunGraph,
   useSelectedNode,
 } from "./run-visualization-hooks";
-import FileHeatmapView from "./FileHeatmapView";
+import { RunFilesSection } from "./RunFilesSection";
 import { NodeInspectorPanel } from "./NodeInspectorPanel";
 import { RunGraphSection } from "./RunGraphSection";
 import { RunWorkbenchLayout } from "./RunWorkbenchLayout";
@@ -44,6 +44,8 @@ export interface RunVisualizationPanelProps {
   taskEvents?: readonly TaskRuntimeEvent[];
   /** The page's fold for the stream's state families; the panel owns the socket, the page owns run/node/task state. */
   onFrame?: (frame: RunStreamFrame) => void;
+  /** The run's pull request, which the per-file diff drawer reads; null when the run opened none. */
+  prNumber?: number | null;
 }
 
 /** What the viewer has selected or expanded. None of it is derived from the run, so it survives every live event. */
@@ -327,6 +329,17 @@ function visibleNodeCount(view: RunView): number {
   return visibleGraph.nodes.length;
 }
 
+/** The files strip's plain values: the touches the reducer folded and the run the drawer reads diffs for. */
+function filesProps(view: RunView, page: RunVisualizationPanelProps) {
+  return {
+    touches: view.state.fileTouches,
+    showAll: view.showAllFiles,
+    onToggleShowAll: view.toggleShowAllFiles,
+    runId: page.runId,
+    prNumber: page.prNumber ?? null,
+  };
+}
+
 export default function RunVisualizationPanel(
   props: RunVisualizationPanelProps,
 ) {
@@ -337,13 +350,7 @@ export default function RunVisualizationPanel(
       <RunWorkbenchLayout
         graph={<RunGraph view={view} definition={props.definition} />}
         inspector={<NodeInspectorPanel {...inspectorProps(view, props)} />}
-        below={
-          <FileHeatmapView
-            touches={view.state.fileTouches}
-            showAll={view.showAllFiles}
-            onToggleShowAll={view.toggleShowAllFiles}
-          />
-        }
+        below={<RunFilesSection {...filesProps(view, props)} />}
       />
     </section>
   );

@@ -1,0 +1,67 @@
+.diff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-2xs);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-xs);
+  align-items: baseline;
+}
+
+.filename {
+  color: var(--text);
+}
+
+.added {
+  color: var(--success);
+}
+
+.removed {
+  color: var(--danger);
+}
+
+.lines {
+  overflow-x: auto;
+  white-space: pre;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.line {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr);
+  gap: var(--fs-2xs);
+}
+
+.line[data-diff-line="add"] {
+  background: var(--success-bg);
+}
+
+.line[data-diff-line="del"] {
+  background: var(--danger-bg);
+}
+
+.line[data-diff-line="hunk"] {
+  color: var(--text-muted);
+  background: var(--bg-hover);
+}
+
+.lineNo {
+  min-width: 3ch;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.prefix {
+  color: var(--text-muted);
+}
+
+.text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -55,9 +55,10 @@ async function resolveSessionRun(
   return { accessToken, run };
 }
 
-/** What a run proxy needs once the ladder has passed: the run id, the caller's request, and the upstream to ask. */
+/** What a run proxy needs once the ladder has passed: the run id, the run the ladder resolved, the caller's request, and the upstream to ask. */
 export interface RunProxyContext extends UpstreamConfig {
   id: string;
+  run: AssemblyRun;
   req: Request;
 }
 
@@ -94,5 +95,11 @@ async function proxyAuthorizedRun(
     return auth;
   }
 
-  return proxy({ id, req, upstreamUrl: auth.upstreamUrl, token: auth.token });
+  return proxy({
+    id,
+    run: auth.run,
+    req,
+    upstreamUrl: auth.upstreamUrl,
+    token: auth.token,
+  });
 }

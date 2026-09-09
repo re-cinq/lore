@@ -970,3 +970,39 @@ describe("agent edit link", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("file diff drawer", () => {
+  it("mounts the drawer titled with the touched file when its heatmap bar is clicked", async () => {
+    stubHistory([
+      eventRow({
+        id: "2",
+        nodeId: "implement",
+        eventType: "tool_call",
+        toolName: "Edit",
+        filePaths: ["src/a.ts"],
+      }),
+    ]);
+    useFakeEventSource();
+
+    const { container } = render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="finished"
+        definition={definition}
+        nodes={[]}
+        repo="re-cinq/lore"
+        reason={null}
+        prNumber={42}
+      />,
+    );
+
+    await settle();
+    await act(async () => {
+      fireEvent.click(
+        container.querySelector("[data-path='src/a.ts']") as HTMLElement,
+      );
+    });
+
+    expect(screen.getByText("Diff · src/a.ts")).toBeInTheDocument();
+  });
+});

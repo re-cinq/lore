@@ -14,6 +14,7 @@ import type { RunStreamFrame } from "@/lib/run-stream-types";
 import type { NodeModel } from "@/lib/node-models";
 import { Alert } from "@/components/Alert";
 import AssemblyRunView from "./AssemblyRunView";
+import DefinitionOfDonePanel from "./DefinitionOfDonePanel";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
@@ -69,6 +70,7 @@ function panelProps({ props, run, live, applyFrame }: LiveSectionsProps) {
     nodes: live.nodes,
     repo: run.repo,
     reason: run.reason,
+    prNumber: run.prNumber,
     agentEditHrefs: props.agentEditHrefs,
     nodeModels: props.nodeModels,
     taskEvents: live.taskEvents,
@@ -91,6 +93,11 @@ function LiveSections(sections: LiveSectionsProps) {
   );
 }
 
+/** Changes when the run's status or its CI check moved — the two moments the definition of done can read differently. */
+function dodRefreshKey(live: ReturnType<typeof initialRunLive>): string {
+  return `${live.run.status}:${live.ciCheck?.observed_at ?? ""}`;
+}
+
 export default function RunLiveShell(props: RunLiveShellProps) {
   const [live, applyFrame] = useReducer(reduceRunLive, props, (seed) =>
     initialRunLive(seed.run, seed.nodes, seed.taskEvents),
@@ -100,6 +107,7 @@ export default function RunLiveShell(props: RunLiveShellProps) {
   return (
     <>
       <AssemblyRunView run={run} />
+      <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
       <AssemblyRunOptions run={run} />
       <LiveSections
         props={props}
