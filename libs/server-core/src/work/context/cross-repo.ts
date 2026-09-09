@@ -4,10 +4,16 @@ interface RepoSettingsRow {
   settings?: { cross_repo?: boolean };
 }
 
-function rowAllowsCrossRepo(rows: RepoSettingsRow[]): boolean {
-  const settings = rows[0]?.settings;
+// Whether the REPO's own settings.cross_repo flag enables cross-repo context; a caller that was asked for it explicitly never needs to ask. Best-effort: a settings lookup failure degrades to disabled rather than throwing.
+export async function repoWantsCrossRepo(
+  pool: Pool | null,
+  repo: string | undefined,
+): Promise<boolean> {
+  if (!repo || !pool) {
+    return false;
+  }
 
-  return settings?.cross_repo === true;
+  return repoAllowsCrossRepo(pool, repo);
 }
 
 // What the repo's own settings say. Best-effort: a settings lookup that fails degrades to DISABLED rather than throwing — cross-repo context is an enrichment, and losing it must not cost the caller its own repo's context.
@@ -24,14 +30,8 @@ async function repoAllowsCrossRepo(pool: Pool, repo: string): Promise<boolean> {
   }
 }
 
-// Whether the REPO's own settings.cross_repo flag enables cross-repo context; a caller that was asked for it explicitly never needs to ask. Best-effort: a settings lookup failure degrades to disabled rather than throwing.
-export async function repoWantsCrossRepo(
-  pool: Pool | null,
-  repo: string | undefined,
-): Promise<boolean> {
-  if (!repo || !pool) {
-    return false;
-  }
+function rowAllowsCrossRepo(rows: RepoSettingsRow[]): boolean {
+  const settings = rows[0]?.settings;
 
-  return repoAllowsCrossRepo(pool, repo);
+  return settings?.cross_repo === true;
 }

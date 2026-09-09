@@ -51,6 +51,41 @@ interface ToolStats {
   totalMs: number;
 }
 
+/** Formats any session log as a human-readable summary (pure formatting, no LLM). */
+export function formatSessionSummaryFromLog(
+  log: ToolCallEntry[],
+  startTime: string,
+): string {
+  if (log.length === 0) {
+    return "";
+  }
+
+  const lines = summaryHeader(log, startTime);
+  const sorted = Object.entries(tallyByTool(log)).sort(
+    (a, b) => b[1].calls - a[1].calls,
+  );
+
+  for (const [tool, stats] of sorted) {
+    lines.push(formatToolLine(tool, stats));
+  }
+
+  return lines.join("\n");
+}
+
+// How long the session ran, how much it did, and how much of that failed — the three figures a reader wants before the per-tool breakdown.
+function summaryHeader(log: ToolCallEntry[], startTime: string): string[] {
+  const durationMin = Math.round(
+    (Date.now() - new Date(startTime).getTime()) / 60000,
+  );
+  const totalErrors = log.filter((e) => !e.success).length;
+
+  return [
+    `Session: ${durationMin}min, ${log.length} tool calls, ${totalErrors} errors`,
+    "",
+    "Tool usage:",
+  ];
+}
+
 function tallyByTool(log: ToolCallEntry[]): Record<string, ToolStats> {
   const toolCounts: Record<string, ToolStats> = {};
 
@@ -76,52 +111,6 @@ function formatToolLine(tool: string, stats: ToolStats): string {
   return `  ${tool}: ${stats.calls}x, avg ${avgMs}ms${errSuffix}`;
 }
 
-// How long the session ran, how much it did, and how much of that failed — the three figures a reader wants before the per-tool breakdown.
-function summaryHeader(log: ToolCallEntry[], startTime: string): string[] {
-  const durationMin = Math.round(
-    (Date.now() - new Date(startTime).getTime()) / 60000,
-  );
-  const totalErrors = log.filter((e) => !e.success).length;
-
-  return [
-    `Session: ${durationMin}min, ${log.length} tool calls, ${totalErrors} errors`,
-    "",
-    "Tool usage:",
-  ];
-}
-
-/** Formats any session log as a human-readable summary (pure formatting, no LLM). */
-export function formatSessionSummaryFromLog(
-  log: ToolCallEntry[],
-  startTime: string,
-): string {
-  if (log.length === 0) {
-    return "";
-  }
-
-  const lines = summaryHeader(log, startTime);
-  const sorted = Object.entries(tallyByTool(log)).sort(
-    (a, b) => b[1].calls - a[1].calls,
-  );
-
-  for (const [tool, stats] of sorted) {
-    lines.push(formatToolLine(tool, stats));
-  }
-
-  return lines.join("\n");
-}
-
-// The session as it is written to disk: the formatted summary AND the raw log, because the summary is what a person reads and the log is what fact extraction reads back.
-function dumpPayload() {
-  return {
-    startTime: sessionStartTime,
-    endTime: new Date().toISOString(),
-    summary: formatSessionSummary(),
-    toolCalls: sessionLog.length,
-    log: sessionLog,
-  };
-}
-
 /** Writes session log to JSON file on process exit. */
 export function dumpSessionLog(filePath?: string): void {
   if (sessionLog.length === 0) {
@@ -136,4 +125,15 @@ export function dumpSessionLog(filePath?: string): void {
   } catch {
     // Best effort — don't crash on exit
   }
+}
+
+// The session as it is written to disk: the formatted summary AND the raw log, because the summary is what a person reads and the log is what fact extraction reads back.
+function dumpPayload() {
+  return {
+    startTime: sessionStartTime,
+    endTime: new Date().toISOString(),
+    summary: formatSessionSummary(),
+    toolCalls: sessionLog.length,
+    log: sessionLog,
+  };
 }

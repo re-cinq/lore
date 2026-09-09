@@ -12,6 +12,45 @@ interface ContradictingFact {
   similarity: number;
 }
 
+export async function invalidateContradictions(
+  pool: PgPool,
+  newFactId: string,
+  embeddingStr: string,
+  agentId: string | null,
+): Promise<number> {
+  try {
+    return await retireContradicted(pool, newFactId, embeddingStr, agentId);
+  } catch (err) {
+    console.warn("[facts] Contradiction detection failed (non-fatal):", err);
+
+    return 0;
+  }
+}
+
+// Retires every fact the new one contradicts, and records that it did. The audit entry comes last: the invalidations are the durable change, and an agentless call (a fact with no owner) still performs them.
+async function retireContradicted(
+  pool: PgPool,
+  newFactId: string,
+  embeddingStr: string,
+  agentId: string | null,
+): Promise<number> {
+  const rows = await findContradicting(pool, newFactId, embeddingStr);
+
+  if (rows.length === 0) {
+    return 0;
+  }
+
+  for (const row of rows) {
+    await invalidateFact(pool, newFactId, row);
+  }
+
+  if (agentId) {
+    await auditInvalidation(pool, agentId, newFactId, rows);
+  }
+
+  return rows.length;
+}
+
 // The still-valid facts closest to a new one. Only `valid_to IS NULL` rows are candidates: a fact already retired cannot be contradicted again, and re-invalidating it would rewrite history that has already been recorded.
 const CONTRADICTING_SQL = `SELECT id, fact_text, 1 - (embedding <=> $1::vector) AS similarity
    FROM memory.facts f
@@ -62,20 +101,6 @@ async function invalidateFact(
   );
 }
 
-// What was retired and how close it was. The similarity travels with each id, because "these two facts disagreed" is only reviewable if you can see how confident that judgement was.
-function invalidationMetadata(
-  newFactId: string,
-  invalidated: ContradictingFact[],
-) {
-  return {
-    new_fact_id: newFactId,
-    invalidated: invalidated.map((r) => ({
-      id: r.id,
-      similarity: r.similarity,
-    })),
-  };
-}
-
 async function auditInvalidation(
   pool: PgPool,
   agentId: string,
@@ -91,41 +116,16 @@ async function auditInvalidation(
     .catch(() => {});
 }
 
-// Retires every fact the new one contradicts, and records that it did. The audit entry comes last: the invalidations are the durable change, and an agentless call (a fact with no owner) still performs them.
-async function retireContradicted(
-  pool: PgPool,
+// What was retired and how close it was. The similarity travels with each id, because "these two facts disagreed" is only reviewable if you can see how confident that judgement was.
+function invalidationMetadata(
   newFactId: string,
-  embeddingStr: string,
-  agentId: string | null,
-): Promise<number> {
-  const rows = await findContradicting(pool, newFactId, embeddingStr);
-
-  if (rows.length === 0) {
-    return 0;
-  }
-
-  for (const row of rows) {
-    await invalidateFact(pool, newFactId, row);
-  }
-
-  if (agentId) {
-    await auditInvalidation(pool, agentId, newFactId, rows);
-  }
-
-  return rows.length;
-}
-
-export async function invalidateContradictions(
-  pool: PgPool,
-  newFactId: string,
-  embeddingStr: string,
-  agentId: string | null,
-): Promise<number> {
-  try {
-    return await retireContradicted(pool, newFactId, embeddingStr, agentId);
-  } catch (err) {
-    console.warn("[facts] Contradiction detection failed (non-fatal):", err);
-
-    return 0;
-  }
+  invalidated: ContradictingFact[],
+) {
+  return {
+    new_fact_id: newFactId,
+    invalidated: invalidated.map((r) => ({
+      id: r.id,
+      similarity: r.similarity,
+    })),
+  };
 }

@@ -12,26 +12,26 @@ import {
 
 // Shared pools (PostgreSQL-backed): cross-agent key/value memories grouped under a named pool.
 
-async function getOrCreateSharedPoolId(
-  tx: Pick<PgPool, "query">,
+export async function sharedWrite(
   poolName: string,
-  agent: string,
-): Promise<string> {
-  const found = await tx.query(
-    `SELECT id FROM memory.shared_pools WHERE name = $1`,
-    [poolName],
+  input: Omit<MemoryWriteInput, "ttl" | "repo">,
+): Promise<WriteResult> {
+  const { key, agentId } = input;
+  const agent = resolveAgentId(agentId);
+  const db = getMemoryPool()!;
+
+  const createdAt = await runInTransaction(db, (tx) =>
+    insertSharedMemory(tx, poolName, agent, input),
   );
 
-  if (found.rows.length > 0) {
-    return firstRow(found).id as string;
-  }
+  await auditLog(agent, "shared_write", key, { pool: poolName });
 
-  const created = await tx.query(
-    `INSERT INTO memory.shared_pools (name, created_by) VALUES ($1, $2) RETURNING id`,
-    [poolName, agent],
-  );
-
-  return firstRow(created).id as string;
+  return {
+    key,
+    version: 1,
+    agent_id: agent,
+    created_at: createdAt,
+  };
 }
 
 // Same atomicity contract as writeMemory (#1154): pool lookup/create, memories insert, and version insert land in one transaction when the pool provides connect(); a query-only pool stays sequential.
@@ -57,26 +57,43 @@ async function insertSharedMemory(
   return inserted.created_at as string;
 }
 
-export async function sharedWrite(
+async function getOrCreateSharedPoolId(
+  tx: Pick<PgPool, "query">,
   poolName: string,
-  input: Omit<MemoryWriteInput, "ttl" | "repo">,
-): Promise<WriteResult> {
-  const { key, agentId } = input;
-  const agent = resolveAgentId(agentId);
-  const db = getMemoryPool()!;
-
-  const createdAt = await runInTransaction(db, (tx) =>
-    insertSharedMemory(tx, poolName, agent, input),
+  agent: string,
+): Promise<string> {
+  const found = await tx.query(
+    `SELECT id FROM memory.shared_pools WHERE name = $1`,
+    [poolName],
   );
 
-  await auditLog(agent, "shared_write", key, { pool: poolName });
+  if (found.rows.length > 0) {
+    return firstRow(found).id as string;
+  }
 
-  return {
-    key,
-    version: 1,
-    agent_id: agent,
-    created_at: createdAt,
-  };
+  const created = await tx.query(
+    `INSERT INTO memory.shared_pools (name, created_by) VALUES ($1, $2) RETURNING id`,
+    [poolName, agent],
+  );
+
+  return firstRow(created).id as string;
+}
+
+export async function sharedRead(poolName: string, key?: string) {
+  const pool = getMemoryPool()!;
+  const poolResult = await pool.query(
+    `SELECT id FROM memory.shared_pools WHERE name = $1`,
+    [poolName],
+  );
+
+  if (poolResult.rows.length === 0) {
+    return key ? null : [];
+  }
+  const poolId = firstRow(poolResult).id;
+
+  return key
+    ? readPoolKey(pool, poolId as string, key)
+    : readPoolEntries(pool, poolId as string);
 }
 
 // One key's latest live value, or null. Ordered by VERSION, not time: a rewritten entry keeps its created_at, so the newest row is not always the newest value.
@@ -104,21 +121,4 @@ async function readPoolEntries(
   );
 
   return rows;
-}
-
-export async function sharedRead(poolName: string, key?: string) {
-  const pool = getMemoryPool()!;
-  const poolResult = await pool.query(
-    `SELECT id FROM memory.shared_pools WHERE name = $1`,
-    [poolName],
-  );
-
-  if (poolResult.rows.length === 0) {
-    return key ? null : [];
-  }
-  const poolId = firstRow(poolResult).id;
-
-  return key
-    ? readPoolKey(pool, poolId as string, key)
-    : readPoolEntries(pool, poolId as string);
 }

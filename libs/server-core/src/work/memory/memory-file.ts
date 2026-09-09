@@ -32,10 +32,6 @@ export {
   activeMemoryEntry,
 } from "./memory-file-core.js";
 
-function versionsPath(agentId: string): string {
-  return join(agentDir(agentId), "versions.json");
-}
-
 export interface VersionRecord {
   version: number;
   value: string;
@@ -44,43 +40,24 @@ export interface VersionRecord {
 
 // ── Write ────────────────────────────────────────────────────────────
 
-function resolveExpiresAt(ttlSeconds?: number): string | null {
-  if (!ttlSeconds) {
-    return null;
-  }
-
-  return new Date(Date.now() + ttlSeconds * 1000).toISOString();
-}
-
-/** History is append-only: the record above is last-write-wins, so the only way to see what a memory used to say is this list. */
-function appendVersion(
-  versions: Record<string, VersionRecord[]>,
+export function writeMemoryFile(
   key: string,
-  entry: VersionRecord,
-): void {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- read from disk JSON; this key may genuinely be absent
-  if (!versions[key]) {
-    versions[key] = [];
-  }
-  versions[key].push(entry);
-}
+  value: string,
+  agentId?: string,
+  ttlSeconds?: number,
+): WriteResult {
+  const id = resolveAgentId(agentId);
+  const now = new Date().toISOString();
+  const ttl = ttlSeconds ?? null;
+  const nextVersion = persistWrite({
+    id,
+    key,
+    record: newRecord(value, now, ttlSeconds),
+  });
 
-// Both files as they currently stand. Read together because a write touches both, and reading them at different moments would let a concurrent writer land between.
-function readBoth(id: string) {
-  return {
-    memories: readJson<Record<string, MemoryRecord>>(memoriesPath(id), {}),
-    versions: readJson<Record<string, VersionRecord[]>>(versionsPath(id), {}),
-  };
-}
+  appendAudit(writeAudit(id, key, nextVersion, ttl));
 
-// Current first, then history. A crash between them leaves the memory readable with one version entry missing; the reverse order would invert that into a version history for a memory that is not there.
-function flushBoth(
-  id: string,
-  memories: Record<string, MemoryRecord>,
-  versions: Record<string, VersionRecord[]>,
-): void {
-  writeJson(memoriesPath(id), memories);
-  writeJson(versionsPath(id), versions);
+  return { key, version: nextVersion, agent_id: id, created_at: now };
 }
 
 /** Writes the record and its version entry. Both files are rewritten, current first — a crash between them leaves the memory readable with one version entry missing, which the reverse order would invert into a version history for a memory that is not there. */
@@ -102,6 +79,41 @@ function persistWrite(write: {
   flushBoth(id, memories, versions);
 
   return version;
+}
+
+// Both files as they currently stand. Read together because a write touches both, and reading them at different moments would let a concurrent writer land between.
+function readBoth(id: string) {
+  return {
+    memories: readJson<Record<string, MemoryRecord>>(memoriesPath(id), {}),
+    versions: readJson<Record<string, VersionRecord[]>>(versionsPath(id), {}),
+  };
+}
+
+function versionsPath(agentId: string): string {
+  return join(agentDir(agentId), "versions.json");
+}
+
+// Current first, then history. A crash between them leaves the memory readable with one version entry missing; the reverse order would invert that into a version history for a memory that is not there.
+function flushBoth(
+  id: string,
+  memories: Record<string, MemoryRecord>,
+  versions: Record<string, VersionRecord[]>,
+): void {
+  writeJson(memoriesPath(id), memories);
+  writeJson(versionsPath(id), versions);
+}
+
+/** History is append-only: the record above is last-write-wins, so the only way to see what a memory used to say is this list. */
+function appendVersion(
+  versions: Record<string, VersionRecord[]>,
+  key: string,
+  entry: VersionRecord,
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- read from disk JSON; this key may genuinely be absent
+  if (!versions[key]) {
+    versions[key] = [];
+  }
+  versions[key].push(entry);
 }
 
 // The audit entry for one write. `pool_name` is null because this is an agent's own memory — a pool write records the pool it landed in instead.
@@ -136,82 +148,15 @@ function newRecord(
   };
 }
 
-export function writeMemoryFile(
-  key: string,
-  value: string,
-  agentId?: string,
-  ttlSeconds?: number,
-): WriteResult {
-  const id = resolveAgentId(agentId);
-  const now = new Date().toISOString();
-  const ttl = ttlSeconds ?? null;
-  const nextVersion = persistWrite({
-    id,
-    key,
-    record: newRecord(value, now, ttlSeconds),
-  });
-
-  appendAudit(writeAudit(id, key, nextVersion, ttl));
-
-  return { key, version: nextVersion, agent_id: id, created_at: now };
-}
-
-// ── Read ─────────────────────────────────────────────────────────────
-
-/** Full version history sorted by version descending (newest first). */
-function versionHistoryDescending(
-  agentId: string,
-  key: string,
-): VersionRecord[] | null {
-  const versions = readJson<Record<string, VersionRecord[]>>(
-    versionsPath(agentId),
-    {},
-  );
-  const history = versions[key];
-
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- versions is Record<string, VersionRecord[]> read from disk JSON; this key may genuinely be absent
-  if (!history || history.length === 0) {
+function resolveExpiresAt(ttlSeconds?: number): string | null {
+  if (!ttlSeconds) {
     return null;
   }
 
-  return [...history].sort((a, b) => b.version - a.version);
+  return new Date(Date.now() + ttlSeconds * 1000).toISOString();
 }
 
-// A past value as a memory entry. TTL and deletion are deliberately blank: they describe the key's CURRENT state, and reporting a live expiry against an old version would say the past expires.
-function historicalEntry(key: string, match: VersionRecord): MemoryEntry {
-  return {
-    key,
-    value: match.value,
-    version: match.version,
-    created_at: match.created_at,
-    ttl_seconds: null,
-    is_deleted: false,
-    expires_at: null,
-  };
-}
-
-/** One numbered version, as a memory entry. TTL and deletion are deliberately blank: they describe the key's CURRENT state, and this is a historical value — reporting a live expiry against an old version would say the past expires. */
-function versionAt(
-  agentId: string,
-  key: string,
-  version: number,
-): MemoryEntry | null {
-  const versions = readJson<Record<string, VersionRecord[]>>(
-    versionsPath(agentId),
-    {},
-  );
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- versions is Record<string, VersionRecord[]> read from disk JSON; this key may genuinely be absent
-  const match = versions[key]?.find((v) => v.version === version);
-
-  return match ? historicalEntry(key, match) : null;
-}
-
-// The key's current value, if it is still live. Reads the memories file rather than the version history: the latest version and the current record can differ when the key has since been deleted.
-function latestEntry(id: string, key: string): MemoryEntry | null {
-  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
-
-  return activeMemoryEntry(key, memories[key]);
-}
+// ── Read ─────────────────────────────────────────────────────────────
 
 export function readMemoryFile(
   key: string,
@@ -237,18 +182,62 @@ export function readMemoryFile(
     : latestEntry(id, key);
 }
 
-// ── Delete (soft-delete) ─────────────────────────────────────────────
+/** Full version history sorted by version descending (newest first). */
+function versionHistoryDescending(
+  agentId: string,
+  key: string,
+): VersionRecord[] | null {
+  const versions = readJson<Record<string, VersionRecord[]>>(
+    versionsPath(agentId),
+    {},
+  );
+  const history = versions[key];
 
-// The audit entry for one soft delete. No metadata: the key and the operation are the whole story, and the value is still on disk for anyone who needs it.
-function deleteAudit(id: string, key: string) {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- versions is Record<string, VersionRecord[]> read from disk JSON; this key may genuinely be absent
+  if (!history || history.length === 0) {
+    return null;
+  }
+
+  return [...history].sort((a, b) => b.version - a.version);
+}
+
+/** One numbered version, as a memory entry. TTL and deletion are deliberately blank: they describe the key's CURRENT state, and this is a historical value — reporting a live expiry against an old version would say the past expires. */
+function versionAt(
+  agentId: string,
+  key: string,
+  version: number,
+): MemoryEntry | null {
+  const versions = readJson<Record<string, VersionRecord[]>>(
+    versionsPath(agentId),
+    {},
+  );
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- versions is Record<string, VersionRecord[]> read from disk JSON; this key may genuinely be absent
+  const match = versions[key]?.find((v) => v.version === version);
+
+  return match ? historicalEntry(key, match) : null;
+}
+
+// A past value as a memory entry. TTL and deletion are deliberately blank: they describe the key's CURRENT state, and reporting a live expiry against an old version would say the past expires.
+function historicalEntry(key: string, match: VersionRecord): MemoryEntry {
   return {
-    agent_id: id,
-    operation: "delete" as const,
-    memory_key: key,
-    pool_name: null,
-    metadata: null,
+    key,
+    value: match.value,
+    version: match.version,
+    created_at: match.created_at,
+    ttl_seconds: null,
+    is_deleted: false,
+    expires_at: null,
   };
 }
+
+// The key's current value, if it is still live. Reads the memories file rather than the version history: the latest version and the current record can differ when the key has since been deleted.
+function latestEntry(id: string, key: string): MemoryEntry | null {
+  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
+
+  return activeMemoryEntry(key, memories[key]);
+}
+
+// ── Delete (soft-delete) ─────────────────────────────────────────────
 
 export function deleteMemoryFile(
   key: string,
@@ -269,6 +258,17 @@ export function deleteMemoryFile(
   appendAudit(deleteAudit(id, key));
 
   return { key, deleted: true };
+}
+
+// The audit entry for one soft delete. No metadata: the key and the operation are the whole story, and the value is still on disk for anyone who needs it.
+function deleteAudit(id: string, key: string) {
+  return {
+    agent_id: id,
+    operation: "delete" as const,
+    memory_key: key,
+    pool_name: null,
+    metadata: null,
+  };
 }
 
 // Pools/snapshots/list/search live in sibling files, re-exported for import-path back-compat.

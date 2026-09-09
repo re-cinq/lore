@@ -34,162 +34,11 @@ interface Community {
   summary: string;
 }
 
-// ---------- Helpers ----------
-
-function readJsonSafe<T>(path: string): T | null {
-  try {
-    const raw = readFileSync(path, "utf-8");
-
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-function entityMatchesQuery(entity: GraphEntity, lowerQuery: string): boolean {
-  const haystacks = [
-    entity.name,
-    entity.id,
-    entity.type,
-    ...(entity.aliases ?? []),
-  ];
-
-  return haystacks.some((text) => text.toLowerCase().includes(lowerQuery));
-}
-
-function formatEntity(entity: GraphEntity): string {
-  return `${entity.type}:${entity.name}`;
-}
-
 // Traverse the graph from a set of seed entity IDs, following relationships up to `depth` hops; returns human-readable traversal chains.
 interface TraversalNode {
   entityId: string;
   chain: string;
   hops: number;
-}
-
-/** Undirected adjacency: a relationship is walkable from either end, so "what is connected to X" does not depend on which side of the edge X was written on. */
-function adjacencyOf(
-  graph: Graph,
-): Map<string, { relType: string; neighborId: string }[]> {
-  const adjacency = new Map<
-    string,
-    { relType: string; neighborId: string }[]
-  >();
-  const link = (from: string, relType: string, neighborId: string) => {
-    const edges = adjacency.get(from) ?? [];
-
-    edges.push({ relType, neighborId });
-    adjacency.set(from, edges);
-  };
-
-  for (const rel of graph.relationships) {
-    link(rel.source, rel.type, rel.target);
-    link(rel.target, rel.type, rel.source);
-  }
-
-  return adjacency;
-}
-
-// Walks the queue until it empties, appending each new chain as it is reached. One visit per entity, so a chain is its SHORTEST path — a second route to the same entity says nothing the first did not.
-function drainQueue(
-  queue: TraversalNode[],
-  chains: string[],
-  depth: number,
-  ctx: {
-    adjacency: Map<string, { relType: string; neighborId: string }[]>;
-    entityById: Map<string, GraphEntity>;
-    visited: Set<string>;
-  },
-): void {
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    const next =
-      node.hops < depth
-        ? unvisitedNeighbors(node, ctx.adjacency, ctx.entityById, ctx.visited)
-        : [];
-
-    chains.push(...next.map((n) => n.chain));
-    queue.push(...next);
-  }
-}
-
-// The seeds as traversal nodes, marked visited. Each seed is itself a RESULT, not only a starting point — an entity the query named is part of the answer even when it has no neighbours.
-function seedQueue(
-  seedIds: Set<string>,
-  entityById: Map<string, GraphEntity>,
-  visited: Set<string>,
-): TraversalNode[] {
-  const queue: TraversalNode[] = [];
-
-  for (const seedId of seedIds) {
-    const entity = entityById.get(seedId);
-
-    if (entity) {
-      queue.push({ entityId: seedId, chain: formatEntity(entity), hops: 0 });
-      visited.add(seedId);
-    }
-  }
-
-  return queue;
-}
-
-/** BFS out from the seeds, up to `depth` hops, collecting the chain of labels walked to reach each entity; one visit per entity, so a chain is its shortest path. */
-function traverseGraph(
-  graph: Graph,
-  seedIds: Set<string>,
-  depth: number,
-): string[] {
-  const entityById = new Map(graph.entities.map((e) => [e.id, e]));
-  const adjacency = adjacencyOf(graph);
-  const visited = new Set<string>();
-  const queue = seedQueue(seedIds, entityById, visited);
-  const chains = queue.map((node) => node.chain);
-
-  drainQueue(queue, chains, depth, {
-    adjacency,
-    entityById,
-    visited,
-  });
-
-  return chains;
-}
-
-// One hop further, carrying the path walked to get here. The chain is what makes a result explicable — "auth → depends-on:postgres" says why the entity turned up, which the entity alone does not.
-function step(
-  node: TraversalNode,
-  relType: string,
-  neighborId: string,
-  neighbor: GraphEntity,
-): TraversalNode {
-  return {
-    entityId: neighborId,
-    chain: `${node.chain} → ${relType}:${formatEntity(neighbor)}`,
-    hops: node.hops + 1,
-  };
-}
-
-function unvisitedNeighbors(
-  node: TraversalNode,
-  adjacency: Map<string, { relType: string; neighborId: string }[]>,
-  entityById: Map<string, GraphEntity>,
-  visited: Set<string>,
-): TraversalNode[] {
-  const found: TraversalNode[] = [];
-
-  for (const { relType, neighborId } of adjacency.get(node.entityId) ?? []) {
-    const neighbor = visited.has(neighborId)
-      ? undefined
-      : entityById.get(neighborId);
-
-    visited.add(neighborId);
-
-    if (neighbor) {
-      found.push(step(node, relType, neighborId, neighbor));
-    }
-  }
-
-  return found;
 }
 
 // ---------- Tool input schemas ----------
@@ -216,27 +65,6 @@ export const getDomainSummaryInputSchema = {
 
 // ---------- Tool handlers ----------
 
-/** The answer for one query: the entities that matched and what they reach. Bare seed labels are dropped when longer chains already contain them — but only then, so a match with no relationships still reports itself rather than reading as no match at all. */
-function describeMatches(graph: Graph, query: string, depth: number): string {
-  const lowerQuery = query.toLowerCase();
-  const matching = graph.entities.filter((entity) =>
-    entityMatchesQuery(entity, lowerQuery),
-  );
-  const matchingIds = new Set(matching.map((entity) => entity.id));
-
-  if (matchingIds.size === 0) {
-    return `No entities found matching "${query}". Try a broader search term.`;
-  }
-  const chains = traverseGraph(graph, matchingIds, depth);
-  const traversal = chains.filter((c) => c.includes("→"));
-  const noun = matchingIds.size === 1 ? "entity" : "entities";
-
-  return (
-    `Found ${matchingIds.size} matching ${noun}, depth=${depth}:\n\n` +
-    (traversal.length > 0 ? traversal : chains).join("\n")
-  );
-}
-
 // graph_search: find entities matching a query and traverse relationships.
 export async function graphSearchHandler({
   query,
@@ -258,16 +86,6 @@ export async function graphSearchHandler({
   }
 }
 
-/** The MCP content envelope these two handlers answer in. */
-function text(message: string): { content: { type: "text"; text: string }[] } {
-  return { content: [{ type: "text" as const, text: message }] };
-}
-
-/** Normalizes a caught value to a display string, without assuming it's an Error. */
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 /** The static graph, or the message explaining why there is none to read. */
 function loadGraph(): Graph | string {
   const graphPath = join(CONTEXT_PATH, "graphrag", "graph.json");
@@ -287,22 +105,184 @@ function loadGraph(): Graph | string {
     : 'Error: graph.json is missing required "entities" or "relationships" fields.';
 }
 
-// The domain's summary, or a miss that names what IS available — which turns a dead end into a usable answer. Matched case-insensitively, because the caller is typing a name a human wrote.
-function domainAnswer(communities: Community[], domain: string): string {
-  const lowerDomain = domain.toLowerCase();
-  const match = communities.find(
-    (c) => c.domain && c.domain.toLowerCase() === lowerDomain,
-  );
+function readJsonSafe<T>(path: string): T | null {
+  try {
+    const raw = readFileSync(path, "utf-8");
 
-  if (match) {
-    return `## Domain: ${match.domain}\n\n${match.summary}`;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
   }
-  const available = communities
-    .map((c) => c.domain)
-    .filter(Boolean)
-    .join(", ");
+}
 
-  return `No community found for domain "${domain}".${available ? ` Available domains: ${available}.` : ""}`;
+/** The answer for one query: the entities that matched and what they reach. Bare seed labels are dropped when longer chains already contain them — but only then, so a match with no relationships still reports itself rather than reading as no match at all. */
+function describeMatches(graph: Graph, query: string, depth: number): string {
+  const lowerQuery = query.toLowerCase();
+  const matching = graph.entities.filter((entity) =>
+    entityMatchesQuery(entity, lowerQuery),
+  );
+  const matchingIds = new Set(matching.map((entity) => entity.id));
+
+  if (matchingIds.size === 0) {
+    return `No entities found matching "${query}". Try a broader search term.`;
+  }
+  const chains = traverseGraph(graph, matchingIds, depth);
+  const traversal = chains.filter((c) => c.includes("→"));
+  const noun = matchingIds.size === 1 ? "entity" : "entities";
+
+  return (
+    `Found ${matchingIds.size} matching ${noun}, depth=${depth}:\n\n` +
+    (traversal.length > 0 ? traversal : chains).join("\n")
+  );
+}
+
+function entityMatchesQuery(entity: GraphEntity, lowerQuery: string): boolean {
+  const haystacks = [
+    entity.name,
+    entity.id,
+    entity.type,
+    ...(entity.aliases ?? []),
+  ];
+
+  return haystacks.some((text) => text.toLowerCase().includes(lowerQuery));
+}
+
+/** BFS out from the seeds, up to `depth` hops, collecting the chain of labels walked to reach each entity; one visit per entity, so a chain is its shortest path. */
+function traverseGraph(
+  graph: Graph,
+  seedIds: Set<string>,
+  depth: number,
+): string[] {
+  const entityById = new Map(graph.entities.map((e) => [e.id, e]));
+  const adjacency = adjacencyOf(graph);
+  const visited = new Set<string>();
+  const queue = seedQueue(seedIds, entityById, visited);
+  const chains = queue.map((node) => node.chain);
+
+  drainQueue(queue, chains, depth, {
+    adjacency,
+    entityById,
+    visited,
+  });
+
+  return chains;
+}
+
+/** Undirected adjacency: a relationship is walkable from either end, so "what is connected to X" does not depend on which side of the edge X was written on. */
+function adjacencyOf(
+  graph: Graph,
+): Map<string, { relType: string; neighborId: string }[]> {
+  const adjacency = new Map<
+    string,
+    { relType: string; neighborId: string }[]
+  >();
+  const link = (from: string, relType: string, neighborId: string) => {
+    const edges = adjacency.get(from) ?? [];
+
+    edges.push({ relType, neighborId });
+    adjacency.set(from, edges);
+  };
+
+  for (const rel of graph.relationships) {
+    link(rel.source, rel.type, rel.target);
+    link(rel.target, rel.type, rel.source);
+  }
+
+  return adjacency;
+}
+
+// The seeds as traversal nodes, marked visited. Each seed is itself a RESULT, not only a starting point — an entity the query named is part of the answer even when it has no neighbours.
+function seedQueue(
+  seedIds: Set<string>,
+  entityById: Map<string, GraphEntity>,
+  visited: Set<string>,
+): TraversalNode[] {
+  const queue: TraversalNode[] = [];
+
+  for (const seedId of seedIds) {
+    const entity = entityById.get(seedId);
+
+    if (entity) {
+      queue.push({ entityId: seedId, chain: formatEntity(entity), hops: 0 });
+      visited.add(seedId);
+    }
+  }
+
+  return queue;
+}
+
+function formatEntity(entity: GraphEntity): string {
+  return `${entity.type}:${entity.name}`;
+}
+
+// Walks the queue until it empties, appending each new chain as it is reached. One visit per entity, so a chain is its SHORTEST path — a second route to the same entity says nothing the first did not.
+function drainQueue(
+  queue: TraversalNode[],
+  chains: string[],
+  depth: number,
+  ctx: {
+    adjacency: Map<string, { relType: string; neighborId: string }[]>;
+    entityById: Map<string, GraphEntity>;
+    visited: Set<string>;
+  },
+): void {
+  while (queue.length > 0) {
+    const node = queue.shift()!;
+    const next =
+      node.hops < depth
+        ? unvisitedNeighbors(node, ctx.adjacency, ctx.entityById, ctx.visited)
+        : [];
+
+    chains.push(...next.map((n) => n.chain));
+    queue.push(...next);
+  }
+}
+
+function unvisitedNeighbors(
+  node: TraversalNode,
+  adjacency: Map<string, { relType: string; neighborId: string }[]>,
+  entityById: Map<string, GraphEntity>,
+  visited: Set<string>,
+): TraversalNode[] {
+  const found: TraversalNode[] = [];
+
+  for (const { relType, neighborId } of adjacency.get(node.entityId) ?? []) {
+    const neighbor = visited.has(neighborId)
+      ? undefined
+      : entityById.get(neighborId);
+
+    visited.add(neighborId);
+
+    if (neighbor) {
+      found.push(step(node, relType, neighborId, neighbor));
+    }
+  }
+
+  return found;
+}
+
+// One hop further, carrying the path walked to get here. The chain is what makes a result explicable — "auth → depends-on:postgres" says why the entity turned up, which the entity alone does not.
+function step(
+  node: TraversalNode,
+  relType: string,
+  neighborId: string,
+  neighbor: GraphEntity,
+): TraversalNode {
+  return {
+    entityId: neighborId,
+    chain: `${node.chain} → ${relType}:${formatEntity(neighbor)}`,
+    hops: node.hops + 1,
+  };
+}
+
+/** The MCP content envelope these two handlers answer in. */
+function text(message: string): { content: { type: "text"; text: string }[] } {
+  return { content: [{ type: "text" as const, text: message }] };
+}
+
+/** Normalizes a caught value to a display string, without assuming it's an Error. */
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 // get_domain_summary: return the prose summary for a community/domain.
@@ -342,4 +322,22 @@ function loadCommunities(): Community[] | string {
   return Array.isArray(communities)
     ? communities
     : "Error: communities.json should contain a JSON array of community objects.";
+}
+
+// The domain's summary, or a miss that names what IS available — which turns a dead end into a usable answer. Matched case-insensitively, because the caller is typing a name a human wrote.
+function domainAnswer(communities: Community[], domain: string): string {
+  const lowerDomain = domain.toLowerCase();
+  const match = communities.find(
+    (c) => c.domain && c.domain.toLowerCase() === lowerDomain,
+  );
+
+  if (match) {
+    return `## Domain: ${match.domain}\n\n${match.summary}`;
+  }
+  const available = communities
+    .map((c) => c.domain)
+    .filter(Boolean)
+    .join(", ");
+
+  return `No community found for domain "${domain}".${available ? ` Available domains: ${available}.` : ""}`;
 }

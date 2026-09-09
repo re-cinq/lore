@@ -27,45 +27,6 @@ export type ProxyResult =
 
 export { PROXY_RETRY_DELAYS_MS };
 
-// The ingest token on a JSON POST.
-function postHeaders(apiToken: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${apiToken}`,
-    "Content-Type": "application/json",
-  };
-}
-
-// One POST to the API, bearing the ingest token. Rebuilt per attempt rather than captured: a Request body cannot be replayed, so the retry loop needs a fresh one each time.
-function postJson(
-  url: string,
-  apiToken: string,
-  body: Record<string, unknown>,
-): Promise<Response> {
-  return fetch(url, {
-    method: "POST",
-    headers: postHeaders(apiToken),
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
-  });
-}
-
-// A non-retriable 4xx. Carries the server's own message, status and body through, so the caller can tell a refusal from an unreachable API rather than seeing both as "it did not work".
-function refusalResult(
-  status: number,
-  detail: string,
-  errorBody: string,
-): ProxyResult {
-  return { ok: false, reason: "unreachable", detail, status, body: errorBody };
-}
-
-/** The URL and token every proxied call needs, or null when this process was never pointed at an API. */
-function apiTarget(): { apiUrl: string; apiToken: string } | null {
-  const apiUrl = process.env.LORE_API_URL;
-  const apiToken = process.env.LORE_INGEST_TOKEN;
-
-  return apiUrl && apiToken ? { apiUrl, apiToken } : null;
-}
-
 export async function proxyToApi(
   endpoint: string,
   body: Record<string, unknown>,
@@ -84,6 +45,45 @@ export async function proxyToApi(
   );
 }
 
+/** The URL and token every proxied call needs, or null when this process was never pointed at an API. */
+function apiTarget(): { apiUrl: string; apiToken: string } | null {
+  const apiUrl = process.env.LORE_API_URL;
+  const apiToken = process.env.LORE_INGEST_TOKEN;
+
+  return apiUrl && apiToken ? { apiUrl, apiToken } : null;
+}
+
+// One POST to the API, bearing the ingest token. Rebuilt per attempt rather than captured: a Request body cannot be replayed, so the retry loop needs a fresh one each time.
+function postJson(
+  url: string,
+  apiToken: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  return fetch(url, {
+    method: "POST",
+    headers: postHeaders(apiToken),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+}
+
+// The ingest token on a JSON POST.
+function postHeaders(apiToken: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${apiToken}`,
+    "Content-Type": "application/json",
+  };
+}
+
+// A non-retriable 4xx. Carries the server's own message, status and body through, so the caller can tell a refusal from an unreachable API rather than seeing both as "it did not work".
+function refusalResult(
+  status: number,
+  detail: string,
+  errorBody: string,
+): ProxyResult {
+  return { ok: false, reason: "unreachable", detail, status, body: errorBody };
+}
+
 export function proxyMemory(
   action: string,
   params: Record<string, unknown>,
@@ -91,75 +91,12 @@ export function proxyMemory(
   return proxyToApi("/api/memory", { action, ...params });
 }
 
-function storeWhenCacheable(
-  policy: ReadCachePolicy,
-  body: string,
-  cacheIf?: (body: string) => boolean,
-): void {
-  if (cacheIf && !cacheIf(body)) {
-    return;
-  }
-  store(policy, body);
-}
-
-function serveFresh({
-  fresh,
-  label,
-}: {
-  fresh: { body: string; ageSeconds: number };
-  label: boolean;
-}): ProxyResult {
-  return {
-    ok: true,
-    body: label ? markFresh(fresh.body, fresh.ageSeconds) : fresh.body,
-  };
-}
-
-function readFreshHit({
-  policy,
-  label,
-}: {
-  policy: ReadCachePolicy;
-  label: boolean;
-}): ProxyResult | null {
-  const fresh = readFresh(policy);
-
-  return fresh ? serveFresh({ fresh, label }) : null;
-}
-
 type ReadCacheOpts = { label?: boolean; cacheIf?: (body: string) => boolean };
-
-function resolveReadCacheOpts(
-  opts: ReadCacheOpts | undefined,
-): Required<Pick<ReadCacheOpts, "label">> & Pick<ReadCacheOpts, "cacheIf"> {
-  return { label: opts?.label !== false, cacheIf: opts?.cacheIf };
-}
 
 interface StaleFallbackInput {
   policy: ReadCachePolicy;
   result: Extract<ProxyResult, { ok: false }>;
   label: boolean;
-}
-
-// Falls back to a stale cached copy only for a genuine "unreachable" outcome; denials pass through.
-function serveStaleFallback({
-  policy,
-  result,
-  label,
-}: StaleFallbackInput): ProxyResult {
-  if (result.reason !== "unreachable") {
-    return result;
-  }
-  const stale = readAny(policy);
-
-  if (!stale) {
-    return result;
-  }
-
-  return {
-    ok: true,
-    body: label ? markStale(stale.body, stale.ageSeconds) : stale.body,
-  };
 }
 
 // Cache wrapper for proxied reads; fresh hit short-circuits network; stale on unreachable.
@@ -187,6 +124,69 @@ export async function withReadCache(
   }
 
   return serveStaleFallback({ policy, result, label });
+}
+
+function resolveReadCacheOpts(
+  opts: ReadCacheOpts | undefined,
+): Required<Pick<ReadCacheOpts, "label">> & Pick<ReadCacheOpts, "cacheIf"> {
+  return { label: opts?.label !== false, cacheIf: opts?.cacheIf };
+}
+
+function readFreshHit({
+  policy,
+  label,
+}: {
+  policy: ReadCachePolicy;
+  label: boolean;
+}): ProxyResult | null {
+  const fresh = readFresh(policy);
+
+  return fresh ? serveFresh({ fresh, label }) : null;
+}
+
+function serveFresh({
+  fresh,
+  label,
+}: {
+  fresh: { body: string; ageSeconds: number };
+  label: boolean;
+}): ProxyResult {
+  return {
+    ok: true,
+    body: label ? markFresh(fresh.body, fresh.ageSeconds) : fresh.body,
+  };
+}
+
+function storeWhenCacheable(
+  policy: ReadCachePolicy,
+  body: string,
+  cacheIf?: (body: string) => boolean,
+): void {
+  if (cacheIf && !cacheIf(body)) {
+    return;
+  }
+  store(policy, body);
+}
+
+// Falls back to a stale cached copy only for a genuine "unreachable" outcome; denials pass through.
+function serveStaleFallback({
+  policy,
+  result,
+  label,
+}: StaleFallbackInput): ProxyResult {
+  if (result.reason !== "unreachable") {
+    return result;
+  }
+  const stale = readAny(policy);
+
+  if (!stale) {
+    return result;
+  }
+
+  return {
+    ok: true,
+    body: label ? markStale(stale.body, stale.ageSeconds) : stale.body,
+  };
 }
 
 // GET sibling of proxyToApi for read-only routes; same gate/budget/shape, no body.
