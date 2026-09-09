@@ -815,3 +815,29 @@ config flag.
 - FR7: the cluster list shows a just-registered agent as `active` and flips
   it to `offline` within the offline threshold (5 min) plus one reaper cycle
   after its last heartbeat.
+
+## FR4 amendment (2026-09-09) — the edges of routing by claimant
+
+- The open row a terminal event is matched to is the one whose Agent CR the
+  event NAMES, not whichever open row for that node sorts first. The claim that
+  gates the read and the CR that is read must be the same row: a node can hold
+  more than one open row, since an unreadable one is deliberately left for the
+  reaper, and an event without an iteration — the older cluster-agent's, the
+  only kind needing a read at all — would otherwise let a satellite's open row
+  deny a readable central run its read and strand it. ([validated by settles the row whose CR the event names](apps/floor/src/work/assembly-run/node-event-handler.test.ts#L621))
+- An unresolved central cluster-agent id routes the per-task token reclaim to
+  central rather than skipping it. Not knowing which cluster claimed a run is
+  not evidence a satellite did, and failing closed there stops reclaiming every
+  pull-dispatched run's Secret — the `agent-secrets` leak of #1647. The DELETE
+  is best-effort and central holds only what it claimed, so attempting it is
+  the safe direction. ([validated by routes to central when the central id is unresolved](apps/floor/src/work/watcher/per-task-token.test.ts#L41))
+- A CR this Floor was allowed to ask for and did not find falls back to the
+  stored archive by CR name, and reports `no-agent` only when the archive holds
+  nothing either. A missing CR means pruned (the retention reap, #1673) or
+  never ours — neither means the agent produced nothing. ([validated by falls back to the archive when a readable CR is absent](apps/floor/src/work/station/agent-pod-logs.test.ts#L383), [`agent-pod-logs.test.ts:399`](apps/floor/src/work/station/agent-pod-logs.test.ts#L399))
+
+### Why these three
+
+Routing each remaining cluster read by claimant (#1627) left three edges where
+a read still took the wrong branch. Each is the same mistake the routing exists
+to prevent: reading "we cannot see it from here" as a fact about the run.

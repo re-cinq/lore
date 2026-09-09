@@ -373,3 +373,39 @@ describe("readAgentLogs for a run claimed by a cluster this Floor cannot reach",
     expect(source.askedFor).toEqual([]);
   });
 });
+
+describe("readAgentLogs when a readable CR is absent", () => {
+  const archiveByAgent = (byAgent: Record<string, string>): PodLogArchive => ({
+    logsForJob: async () => null,
+    logsForAgent: async (agentCrName) => byAgent[agentCrName] ?? null,
+  });
+
+  it("falls back to the archive, since a CR we may ask for and cannot find is pruned or elsewhere rather than silent", async () => {
+    const source = new FakePodLogSource({}, {}, {});
+
+    const result = await readAgentLogs(
+      source,
+      "05fc5491-review",
+      { liveReadable: async () => true },
+      archiveByAgent({ "05fc5491-review": "reaped CR, archived stdout" }),
+    );
+
+    expect(result).toMatchObject({
+      available: true,
+      logs: "reaped CR, archived stdout",
+    });
+  });
+
+  it("still reports no-agent when the archive holds nothing either", async () => {
+    const source = new FakePodLogSource({}, {}, {});
+
+    const result = await readAgentLogs(
+      source,
+      "05fc5491-review",
+      { liveReadable: async () => true },
+      archiveByAgent({}),
+    );
+
+    expect(result).toMatchObject({ available: false, reason: "no-agent" });
+  });
+});

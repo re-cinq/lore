@@ -36,3 +36,14 @@ describe("decideTokenCleanup", () => {
     ).toBe("skip");
   });
 });
+
+describe("decideTokenCleanup when the central cluster-agent id is unresolved", () => {
+  it("routes to central, since not knowing which cluster claimed a run is not evidence a satellite did", () => {
+    expect(
+      decideTokenCleanup(
+        [{ status: "claimed", clusterAgentId: "sat-1" }],
+        null,
+      ),
+    ).toBe("central");
+  });
+});

@@ -616,3 +616,44 @@ edges:
     });
   });
 });
+
+describe("the open row a terminal event is matched to", () => {
+  it("settles the row whose CR the event names, not whichever open row for that node sorts first", async () => {
+    const h = harness();
+    const { id } = await reviewInFlight(h);
+
+    h.port.nodes[0].clusterAgentId = "satellite-1";
+    h.port.nodes[0].status = "claimed";
+
+    const centralCr = `${id.substring(0, 12)}-review-2`;
+
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 2,
+      agentCrName: centralCr,
+    });
+    h.port.nodes[1].clusterAgentId = "central-1";
+    h.port.nodes[1].status = "claimed";
+    h.statusByName[centralCr] = {
+      phase: "Succeeded",
+      output: "notes\nREVIEW_RESULT:APPROVED",
+    };
+
+    const handler = createNodeEventHandler({
+      ...h.deps,
+      centralClusterAgentId: async () => "central-1",
+    });
+
+    await handler({
+      assemblyLineId: id,
+      nodeId: "review",
+      agentName: centralCr,
+      taskId: id,
+      phase: "Succeeded",
+    });
+
+    expect(h.port.nodes[1]).toMatchObject({ outcome: "success" });
+    expect(h.port.nodes[0]).toMatchObject({ outcome: null });
+  });
+});

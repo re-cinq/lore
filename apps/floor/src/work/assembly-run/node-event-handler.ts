@@ -257,13 +257,15 @@ async function openStationRun(
   deps: NodeEventDeps,
 ): Promise<StationRunRecord | undefined> {
   const rows = await deps.assemblyRuns.listStationRuns(event.assemblyLineId);
-
-  return rows.find(
+  const open = rows.filter(
     (row) =>
       row.nodeId === event.nodeId &&
       row.outcome === null &&
       (event.iteration === undefined || row.iteration === event.iteration),
   );
+
+  // The CR name is what the read is keyed on, so it must also decide WHICH open row's claim gates that read. A node can hold more than one open row — this Floor deliberately leaves an unreadable one open for the reaper — and an event without an iteration (an older cluster-agent's, which is the only kind that needs a read at all) would otherwise be gated by whichever row happened to sort first: a satellite's open row then denies a readable central run its read and strands it. Falls back to the first open row for a legacy row that recorded no CR name.
+  return open.find((row) => row.agentCrName === event.agentName) ?? open[0];
 }
 
 /** Merges declared artifacts then decides outcome; shared by both terminal doors (node event + reaper resolve) since a dropped event means only one will ever see this output. A declared-but-unproduced artifact FAILS the node — else the next station reads an empty bag as "predecessor decided nothing." */
