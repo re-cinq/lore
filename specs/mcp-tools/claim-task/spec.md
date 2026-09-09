@@ -45,7 +45,7 @@ Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one 
    MCP adapter holds no pool (ADR-032), so the atomic claim runs in lore-api
    ([`POST /api/spec-tasks/claim`](../../api-routes/spec-tasks/spec.md)).
 3. The route delegates to `claimTask(pool, task_id, agent_id)`
-   ([handler](../../../libs/server-core/src/work/pipeline/tasks.ts#L29)). It:
+   ([handler](../../../libs/server-core/src/work/pipeline/tasks.ts#L44)). It:
    1. `pool.connect()` → `BEGIN`.
    2. `SELECT id FROM pipeline.tasks WHERE id = $1 AND status = 'pending' FOR UPDATE SKIP LOCKED`.
    3. If no row → `ROLLBACK`, release, return `false`.

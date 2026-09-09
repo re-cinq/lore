@@ -40,31 +40,23 @@ const DEFAULT_CONFIG: CacheConfig = {
   ttl_overrides: {},
 };
 
-function baseDir(): string {
-  return (
-    process.env.LORE_CACHE_DIR ||
-    join(process.env.HOME || "/tmp", ".lore", "cache")
-  );
-}
-
-function entriesDir(): string {
-  return join(baseDir(), "entries");
-}
-
-// Tool prefixes filename (sanitized) so invalidate can filter by name without opening entries.
-function fileToolPrefix(tool: string): string {
-  return tool.replace(/[^a-zA-Z0-9_-]/g, "_");
-}
-
-function entryPath(tool: string, key: string): string {
-  return join(entriesDir(), `${fileToolPrefix(tool)}.${key}.json`);
-}
-
-// Owner-only (0700) so cached org reads are not world-readable on a shared box.
-function ensureDir(dir: string): void {
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
+export function isCacheEnabled(): boolean {
+  if (process.env.LORE_CACHE_ENABLED === "false") {
+    return false;
   }
+
+  if (process.env.LORE_CACHE_ENABLED === "true") {
+    return true;
+  }
+
+  return loadConfig().enabled;
+}
+
+function loadConfig(): CacheConfig {
+  return {
+    ...DEFAULT_CONFIG,
+    ...readJson<Partial<CacheConfig>>(join(baseDir(), "config.json"), {}),
+  };
 }
 
 function readJson<T>(filePath: string, fallback: T): T {
@@ -79,40 +71,22 @@ function readJson<T>(filePath: string, fallback: T): T {
   }
 }
 
-// 0600: cached read bodies can contain org memory/context; keep them owner-only.
-function writeJson(filePath: string, value: unknown): void {
-  ensureDir(dirname(filePath));
-  writeFileSync(filePath, JSON.stringify(value, null, 2) + "\n", {
-    encoding: "utf-8",
-    mode: 0o600,
-  });
+function baseDir(): string {
+  return (
+    process.env.LORE_CACHE_DIR ||
+    join(process.env.HOME || "/tmp", ".lore", "cache")
+  );
 }
 
-function safeUnlink(filePath: string): void {
-  try {
-    unlinkSync(filePath);
-  } catch {
-    // best-effort
-  }
-}
-
-function loadConfig(): CacheConfig {
-  return {
-    ...DEFAULT_CONFIG,
-    ...readJson<Partial<CacheConfig>>(join(baseDir(), "config.json"), {}),
-  };
-}
-
-export function isCacheEnabled(): boolean {
-  if (process.env.LORE_CACHE_ENABLED === "false") {
-    return false;
-  }
-
-  if (process.env.LORE_CACHE_ENABLED === "true") {
-    return true;
-  }
-
-  return loadConfig().enabled;
+export function buildKey(
+  tool: string,
+  args: Record<string, unknown>,
+  repo?: string,
+): string {
+  // NUL (\x00) separator prevents collisions; written as escape to keep file text.
+  return createHash("sha256")
+    .update(`${tool}\x00${canonical(args)}\x00${repo || ""}`)
+    .digest("hex");
 }
 
 function canonical(value: unknown): string {
@@ -130,37 +104,6 @@ function canonical(value: unknown): string {
     .sort();
 
   return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(record[k])}`).join(",")}}`;
-}
-
-export function buildKey(
-  tool: string,
-  args: Record<string, unknown>,
-  repo?: string,
-): string {
-  // NUL (\x00) separator prevents collisions; written as escape to keep file text.
-  return createHash("sha256")
-    .update(`${tool}\x00${canonical(args)}\x00${repo || ""}`)
-    .digest("hex");
-}
-
-function ageSeconds(entry: CacheEntry): number {
-  return Math.max(
-    0,
-    Math.floor((Date.now() - Date.parse(entry.storedAt)) / 1000),
-  );
-}
-
-function effectiveTtl(policy: ReadCachePolicy): number {
-  const override = loadConfig().ttl_overrides[policy.tool];
-
-  return typeof override === "number" ? override : policy.ttlSeconds;
-}
-
-function readEntry(policy: ReadCachePolicy): CacheEntry | null {
-  return readJson<CacheEntry | null>(
-    entryPath(policy.tool, buildKey(policy.tool, policy.args, policy.repo)),
-    null,
-  );
 }
 
 export function readFresh(
@@ -181,6 +124,33 @@ export function readFresh(
   }
 
   return { body: entry.body, ageSeconds: age };
+}
+
+function readEntry(policy: ReadCachePolicy): CacheEntry | null {
+  return readJson<CacheEntry | null>(
+    entryPath(policy.tool, buildKey(policy.tool, policy.args, policy.repo)),
+    null,
+  );
+}
+
+function entryPath(tool: string, key: string): string {
+  return join(entriesDir(), `${fileToolPrefix(tool)}.${key}.json`);
+}
+
+function entriesDir(): string {
+  return join(baseDir(), "entries");
+}
+
+// Tool prefixes filename (sanitized) so invalidate can filter by name without opening entries.
+function fileToolPrefix(tool: string): string {
+  return tool.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+function ageSeconds(entry: CacheEntry): number {
+  return Math.max(
+    0,
+    Math.floor((Date.now() - Date.parse(entry.storedAt)) / 1000),
+  );
 }
 
 export function readAny(
@@ -217,36 +187,25 @@ export function store(policy: ReadCachePolicy, body: string): void {
   evictIfNeeded();
 }
 
-function matchesTool(file: string, prefixes: Set<string>): boolean {
-  return (
-    file.endsWith(".json") && prefixes.has(file.slice(0, file.indexOf(".") + 1))
-  );
+function effectiveTtl(policy: ReadCachePolicy): number {
+  const override = loadConfig().ttl_overrides[policy.tool];
+
+  return typeof override === "number" ? override : policy.ttlSeconds;
 }
 
-// Scoped entries need a read to confirm repo match; unscoped entries unlink straight off filename.
-function matchesRepoScope(path: string, repo: string | undefined): boolean {
-  if (repo === undefined) {
-    return true;
-  }
-
-  return readJson<CacheEntry | null>(path, null)?.repo === repo;
+// 0600: cached read bodies can contain org memory/context; keep them owner-only.
+function writeJson(filePath: string, value: unknown): void {
+  ensureDir(dirname(filePath));
+  writeFileSync(filePath, JSON.stringify(value, null, 2) + "\n", {
+    encoding: "utf-8",
+    mode: 0o600,
+  });
 }
 
-export function invalidate(tools: string[], repo?: string): void {
-  if (!existsSync(entriesDir())) {
-    return;
-  }
-  const prefixes = new Set(tools.map((t) => `${fileToolPrefix(t)}.`));
-  const matches = readdirSync(entriesDir()).filter((file) =>
-    matchesTool(file, prefixes),
-  );
-
-  for (const file of matches) {
-    const path = join(entriesDir(), file);
-
-    if (matchesRepoScope(path, repo)) {
-      safeUnlink(path);
-    }
+// Owner-only (0700) so cached org reads are not world-readable on a shared box.
+function ensureDir(dir: string): void {
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 }
 
@@ -275,6 +234,51 @@ function evictIfNeeded(): void {
   }
 }
 
+function safeUnlink(filePath: string): void {
+  try {
+    unlinkSync(filePath);
+  } catch {
+    // best-effort
+  }
+}
+
+export function invalidate(tools: string[], repo?: string): void {
+  if (!existsSync(entriesDir())) {
+    return;
+  }
+  const prefixes = new Set(tools.map((t) => `${fileToolPrefix(t)}.`));
+  const matches = readdirSync(entriesDir()).filter((file) =>
+    matchesTool(file, prefixes),
+  );
+
+  for (const file of matches) {
+    const path = join(entriesDir(), file);
+
+    if (matchesRepoScope(path, repo)) {
+      safeUnlink(path);
+    }
+  }
+}
+
+function matchesTool(file: string, prefixes: Set<string>): boolean {
+  return (
+    file.endsWith(".json") && prefixes.has(file.slice(0, file.indexOf(".") + 1))
+  );
+}
+
+// Scoped entries need a read to confirm repo match; unscoped entries unlink straight off filename.
+function matchesRepoScope(path: string, repo: string | undefined): boolean {
+  if (repo === undefined) {
+    return true;
+  }
+
+  return readJson<CacheEntry | null>(path, null)?.repo === repo;
+}
+
+export function markFresh(body: string, age: number): string {
+  return `<!-- lore-cache: HIT, age ${formatAge(age)} -->\n${body}`;
+}
+
 function formatAge(seconds: number): string {
   if (seconds < 60) {
     return `${seconds}s`;
@@ -285,10 +289,6 @@ function formatAge(seconds: number): string {
   }
 
   return `${Math.floor(seconds / 3600)}h`;
-}
-
-export function markFresh(body: string, age: number): string {
-  return `<!-- lore-cache: HIT, age ${formatAge(age)} -->\n${body}`;
 }
 
 export function markStale(body: string, age: number): string {

@@ -7,25 +7,35 @@ import type {
 } from "@re-cinq/lore-shared";
 import type { ProxyResult } from "../../outbound/proxy.js";
 
-/** Signal priority for the summary — the collisions worth surfacing first. */
-function signalRank(s: TraceStatement): number {
-  if (s.violated) {
-    return 0;
+export function formatTraceQuery(
+  doc: TraceDocument,
+  selector?: string,
+): string {
+  if (!selector?.trim()) {
+    return summary(doc);
+  }
+  const matches = selectStatements(doc, selector);
+
+  if (matches.length === 0) {
+    return `No statement in ${doc.filePath} matches "${selector}".`;
   }
 
-  if (s.drifted) {
-    return 1;
-  }
-
-  if (s.state === "untested") {
-    return 2;
-  }
-
-  return 3;
+  return matches.map(detail).join("\n\n");
 }
 
-function includesCaseless(text: string, lowerNeedle: string): boolean {
-  return text.toLowerCase().includes(lowerNeedle);
+function summary(doc: TraceDocument): string {
+  if (doc.statements.length === 0) {
+    return `No graph data for ${doc.filePath} (not ingested, or the graph is empty on main).`;
+  }
+  const { testable, covered, ratio } = doc.coverage;
+  const lines = [
+    `# ${doc.title || doc.filePath}`,
+    `Coverage: ${covered}/${testable} testable (${Math.round(ratio * 100)}%)`,
+  ];
+
+  lines.push(...attentionSection(doc));
+
+  return lines.join("\n");
 }
 
 // Worst first: sorted by SIGNAL then ordinal, so a violated statement outranks a merely untested one wherever it sits in the document.
@@ -46,21 +56,6 @@ function attentionSection(doc: TraceDocument): string[] {
   ];
 }
 
-function summary(doc: TraceDocument): string {
-  if (doc.statements.length === 0) {
-    return `No graph data for ${doc.filePath} (not ingested, or the graph is empty on main).`;
-  }
-  const { testable, covered, ratio } = doc.coverage;
-  const lines = [
-    `# ${doc.title || doc.filePath}`,
-    `Coverage: ${covered}/${testable} testable (${Math.round(ratio * 100)}%)`,
-  ];
-
-  lines.push(...attentionSection(doc));
-
-  return lines.join("\n");
-}
-
 function attentionTag(statement: TraceStatement): string {
   if (statement.violated) {
     return "violated";
@@ -73,13 +68,50 @@ function attentionTag(statement: TraceStatement): string {
   return "untested";
 }
 
-/** Renders one link as `path:line — detail`, omitting the parts it lacks. */
-function linkLine(link: TraceLinkRef): string {
-  const loc = link.path
-    ? `${link.path}${link.line ? `:${link.line}` : ""}`
-    : link.label;
+/** Signal priority for the summary — the collisions worth surfacing first. */
+function signalRank(s: TraceStatement): number {
+  if (s.violated) {
+    return 0;
+  }
 
-  return link.detail ? `${loc} — ${link.detail}` : loc;
+  if (s.drifted) {
+    return 1;
+  }
+
+  if (s.state === "untested") {
+    return 2;
+  }
+
+  return 3;
+}
+
+/** A statement matches when the selector equals its ordinal, else case-insensitive substring of its text. */
+function selectStatements(
+  doc: TraceDocument,
+  selector: string,
+): TraceStatement[] {
+  const byOrdinal = doc.statements.filter(
+    (s) => String(s.ordinal) === selector.trim(),
+  );
+
+  if (byOrdinal.length) {
+    return byOrdinal;
+  }
+  const needle = selector.trim().toLowerCase();
+
+  return doc.statements.filter((s) => includesCaseless(s.text, needle));
+}
+
+function includesCaseless(text: string, lowerNeedle: string): boolean {
+  return text.toLowerCase().includes(lowerNeedle);
+}
+
+function detail(statement: TraceStatement): string {
+  return [
+    statementHeader(statement),
+    statement.text,
+    ...linkSections(statement),
+  ].join("\n");
 }
 
 // Flags are ADDITIVE to the state, never replacing it — a covered statement that has since drifted is still covered, and hiding that would misreport the coverage figure.
@@ -112,45 +144,13 @@ function linkSections(statement: TraceStatement): string[] {
   return out;
 }
 
-function detail(statement: TraceStatement): string {
-  return [
-    statementHeader(statement),
-    statement.text,
-    ...linkSections(statement),
-  ].join("\n");
-}
+/** Renders one link as `path:line — detail`, omitting the parts it lacks. */
+function linkLine(link: TraceLinkRef): string {
+  const loc = link.path
+    ? `${link.path}${link.line ? `:${link.line}` : ""}`
+    : link.label;
 
-/** A statement matches when the selector equals its ordinal, else case-insensitive substring of its text. */
-function selectStatements(
-  doc: TraceDocument,
-  selector: string,
-): TraceStatement[] {
-  const byOrdinal = doc.statements.filter(
-    (s) => String(s.ordinal) === selector.trim(),
-  );
-
-  if (byOrdinal.length) {
-    return byOrdinal;
-  }
-  const needle = selector.trim().toLowerCase();
-
-  return doc.statements.filter((s) => includesCaseless(s.text, needle));
-}
-
-export function formatTraceQuery(
-  doc: TraceDocument,
-  selector?: string,
-): string {
-  if (!selector?.trim()) {
-    return summary(doc);
-  }
-  const matches = selectStatements(doc, selector);
-
-  if (matches.length === 0) {
-    return `No statement in ${doc.filePath} matches "${selector}".`;
-  }
-
-  return matches.map(detail).join("\n\n");
+  return link.detail ? `${loc} — ${link.detail}` : loc;
 }
 
 export interface QueryTraceArgs {
@@ -166,19 +166,6 @@ export interface QueryTraceArgs {
 export interface QueryTraceDeps {
   proxyGet: (path: string) => Promise<ProxyResult>;
   detectRepo: () => string | null;
-}
-
-function formatProxyFailure(
-  result: Extract<ProxyResult, { ok: false }>,
-): string {
-  if (result.reason === "not_configured") {
-    return "lore-query-trace needs LORE_API_URL + a read-scoped LORE_INGEST_TOKEN to reach the graph; neither is configured.";
-  }
-  const scopeHint = result.detail.includes("403")
-    ? " — the token needs `read` scope for trace queries."
-    : "";
-
-  return `Lore API unreachable for lore-query-trace: ${result.detail}.${scopeHint}`;
 }
 
 /** Orchestrates query: resolves repo, proxies GET for trace document, formats result (never throws). */
@@ -235,4 +222,17 @@ async function documentQuery(
     JSON.parse(result.body) as TraceDocument,
     args.statement,
   );
+}
+
+function formatProxyFailure(
+  result: Extract<ProxyResult, { ok: false }>,
+): string {
+  if (result.reason === "not_configured") {
+    return "lore-query-trace needs LORE_API_URL + a read-scoped LORE_INGEST_TOKEN to reach the graph; neither is configured.";
+  }
+  const scopeHint = result.detail.includes("403")
+    ? " — the token needs `read` scope for trace queries."
+    : "";
+
+  return `Lore API unreachable for lore-query-trace: ${result.detail}.${scopeHint}`;
 }

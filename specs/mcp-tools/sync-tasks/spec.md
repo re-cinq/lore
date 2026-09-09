@@ -53,7 +53,7 @@ Parses a speckit tasks.md and idempotently upserts each checklist item as a spec
    tasks answers `{parsed: 0, synced: 0, created: 0}` and the tool renders
    `"No tasks found in the provided markdown."`.
 4. The route delegates to `syncTasksToDb(pool, repo, spec_slug, parsed)`
-   ([handler](../../../libs/server-core/src/work/pipeline/tasks.ts#L24)). For each parsed task it:
+   ([handler](../../../libs/server-core/src/work/pipeline/tasks.ts#L39)). For each parsed task it:
    1. Builds `title = "{specTaskId}: {description}"` and a `metadata` object
       (`spec_task_id`, `depends_on`, `spec_slug`, `parallelizable`, `phase`,
       `file_path`); `status = 'completed'` if the checkbox was ticked, else `'pending'`.

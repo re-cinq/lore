@@ -31,15 +31,6 @@ interface MemoryLookup {
   value: string;
 }
 
-// Look up a memory row by repo (preferred) or agent, when neither is set.
-function resolveLookup(repo: string | undefined, agent: string): MemoryLookup {
-  if (repo) {
-    return { field: "repo", value: repo };
-  }
-
-  return { field: "agent_id", value: agent };
-}
-
 interface UpsertArgs {
   key: string;
   value: string;
@@ -64,63 +55,31 @@ interface RowWrite {
   ttlSeconds: number | null;
 }
 
-// Overwrites the live row in place. `created_at` is refreshed because decay scores age from the LAST write, not the first — a memory rewritten today is not stale just because it was created a year ago.
-async function supersedeRow(
-  db: Pick<PgPool, "query">,
-  memoryId: string,
-  version: number,
-  write: RowWrite,
-): Promise<void> {
-  await db.query(SUPERSEDE_SQL, [
-    write.value,
-    version,
-    write.embeddingParam,
-    write.ttlSeconds,
-    write.ttlSeconds,
-    memoryId,
-  ]);
+// A memories row is never written without its version record (#1154).
+interface VersionRecord {
+  memoryId: string;
+  version: number;
+  value: string;
+  embeddingParam: string | null;
 }
 
-/** Supersedes the live row IN PLACE, keeping its id — the version table is what preserves the old value, and a new id here would orphan every fact and episode already pointing at this memory. `created_at` is refreshed because decay scores age from the last write, not the first. */
-async function updateExisting(
-  db: Pick<PgPool, "query">,
-  row: { id: string; version: number },
-  write: {
-    value: string;
-    embeddingParam: string | null;
-    ttlSeconds: number | null;
-  },
-): Promise<Upsert> {
-  const { value, embeddingParam } = write;
-  const memoryId = row.id;
-  const version = row.version + 1;
-
-  await supersedeRow(db, memoryId, version, write);
-  await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
-
-  return { memoryId, version };
-}
-
-/** The first write of a key: the row and its version 1 entry, so a memory is never in the store without the history that explains it. */
-async function insertFirst(
-  db: Pick<PgPool, "query">,
-  args: UpsertArgs,
-  write: { embeddingParam: string | null; ttlSeconds: number | null },
-): Promise<Upsert> {
-  const { key, value, agent, repo } = args;
-  const { embeddingParam, ttlSeconds } = write;
-  const version = 1;
-  const result = await db.query(
-    `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
-     VALUES ($1, $2, $3, $4, 1, $5, now() + make_interval(secs => $6), $7)
-     RETURNING id, created_at`,
-    [agent, key, value, embeddingParam, ttlSeconds, ttlSeconds, repo || null],
+export async function writeMemory(
+  input: MemoryWriteInput,
+): Promise<WriteResult> {
+  const agent = resolveAgentId(input.agentId);
+  const db = getMemoryPool()!;
+  const { memoryId, version } = await runInTransaction(db, (tx) =>
+    upsertMemoryWithVersion(tx, { ...input, agent }),
   );
-  const memoryId = firstRow(result).id as string;
 
-  await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
+  await auditLog(agent, "write", input.key);
 
-  return { memoryId, version };
+  return {
+    key: input.key,
+    version,
+    agent_id: agent,
+    created_at: await readCreatedAt(memoryId),
+  };
 }
 
 async function upsertMemoryWithVersion(
@@ -160,12 +119,72 @@ async function findLiveRow(
   return { id: row.id as string, version: row.version as number };
 }
 
-// A memories row is never written without its version record (#1154).
-interface VersionRecord {
-  memoryId: string;
-  version: number;
-  value: string;
-  embeddingParam: string | null;
+// Look up a memory row by repo (preferred) or agent, when neither is set.
+function resolveLookup(repo: string | undefined, agent: string): MemoryLookup {
+  if (repo) {
+    return { field: "repo", value: repo };
+  }
+
+  return { field: "agent_id", value: agent };
+}
+
+/** Supersedes the live row IN PLACE, keeping its id — the version table is what preserves the old value, and a new id here would orphan every fact and episode already pointing at this memory. `created_at` is refreshed because decay scores age from the last write, not the first. */
+async function updateExisting(
+  db: Pick<PgPool, "query">,
+  row: { id: string; version: number },
+  write: {
+    value: string;
+    embeddingParam: string | null;
+    ttlSeconds: number | null;
+  },
+): Promise<Upsert> {
+  const { value, embeddingParam } = write;
+  const memoryId = row.id;
+  const version = row.version + 1;
+
+  await supersedeRow(db, memoryId, version, write);
+  await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
+
+  return { memoryId, version };
+}
+
+// Overwrites the live row in place. `created_at` is refreshed because decay scores age from the LAST write, not the first — a memory rewritten today is not stale just because it was created a year ago.
+async function supersedeRow(
+  db: Pick<PgPool, "query">,
+  memoryId: string,
+  version: number,
+  write: RowWrite,
+): Promise<void> {
+  await db.query(SUPERSEDE_SQL, [
+    write.value,
+    version,
+    write.embeddingParam,
+    write.ttlSeconds,
+    write.ttlSeconds,
+    memoryId,
+  ]);
+}
+
+/** The first write of a key: the row and its version 1 entry, so a memory is never in the store without the history that explains it. */
+async function insertFirst(
+  db: Pick<PgPool, "query">,
+  args: UpsertArgs,
+  write: { embeddingParam: string | null; ttlSeconds: number | null },
+): Promise<Upsert> {
+  const { key, value, agent, repo } = args;
+  const { embeddingParam, ttlSeconds } = write;
+  const version = 1;
+  const result = await db.query(
+    `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
+     VALUES ($1, $2, $3, $4, 1, $5, now() + make_interval(secs => $6), $7)
+     RETURNING id, created_at`,
+    [agent, key, value, embeddingParam, ttlSeconds, ttlSeconds, repo || null],
+  );
+  const memoryId = firstRow(result).id as string;
+
+  await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
+
+  return { memoryId, version };
 }
 
 async function insertVersionRecord(
@@ -189,23 +208,21 @@ async function readCreatedAt(memoryId: string): Promise<string> {
   return firstRow(row).created_at as string;
 }
 
-export async function writeMemory(
-  input: MemoryWriteInput,
-): Promise<WriteResult> {
-  const agent = resolveAgentId(input.agentId);
-  const db = getMemoryPool()!;
-  const { memoryId, version } = await runInTransaction(db, (tx) =>
-    upsertMemoryWithVersion(tx, { ...input, agent }),
-  );
+export async function listMemories(
+  agentId?: string,
+  limit: number = 50,
+  offset: number = 0,
+  repo?: string,
+): Promise<{ memories: Record<string, unknown>[]; total: number }> {
+  // Scope by repo (preferred) or agent_id
+  const { filter, params } = memoryListScope(repo, agentId, limit, offset);
 
-  await auditLog(agent, "write", input.key);
+  const rows = await listPage(filter, params);
+  const total = await countScoped(filter, countScopeParams(repo, agentId));
 
-  return {
-    key: input.key,
-    version,
-    agent_id: agent,
-    created_at: await readCreatedAt(memoryId),
-  };
+  await auditLog(agentId || "org", "list", null);
+
+  return { memories: rows, total };
 }
 
 function countScopeParams(
@@ -252,23 +269,6 @@ async function countScoped(
   );
 
   return firstRow(countResult).total as number;
-}
-
-export async function listMemories(
-  agentId?: string,
-  limit: number = 50,
-  offset: number = 0,
-  repo?: string,
-): Promise<{ memories: Record<string, unknown>[]; total: number }> {
-  // Scope by repo (preferred) or agent_id
-  const { filter, params } = memoryListScope(repo, agentId, limit, offset);
-
-  const rows = await listPage(filter, params);
-  const total = await countScoped(filter, countScopeParams(repo, agentId));
-
-  await auditLog(agentId || "org", "list", null);
-
-  return { memories: rows, total };
 }
 
 // Reads, shared pools and snapshots live in sibling files, re-exported for import-path back-compat.
