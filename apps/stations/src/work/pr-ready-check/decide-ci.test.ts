@@ -57,6 +57,23 @@ describe("decideCiReady", () => {
     });
   });
 
+  it("ends the run when a conflict outlives the round sent to clear it, rather than spending the budget", () => {
+    expect(
+      decideCiReady(
+        input({
+          mergeable: false,
+          checks: [],
+          judgedSha: "abc123",
+          lastReportedSha: "abc123",
+        }),
+      ),
+    ).toMatchObject({
+      kind: "blocked",
+      reason: "pr_conflicting_unchanged",
+      outcome: "failed",
+    });
+  });
+
   it("waits rather than guessing while GitHub has not computed mergeability yet", () => {
     expect(decideCiReady(input({ mergeable: null, checks: [] }))).toEqual({
       kind: "wait",

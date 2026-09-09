@@ -26,6 +26,13 @@ export type CiCheckVerdict =
       outcome: "changes_requested";
       feedback: CiFeedbackArgs;
     }
+  // The same guard `ci_red_unchanged` gives a red build: a round that cleared nothing would otherwise be sent back twelve times to learn one fact.
+  | {
+      kind: "blocked";
+      reason: "pr_conflicting_unchanged";
+      outcome: "failed";
+      feedback: CiFeedbackArgs;
+    }
   // As on the await-pr wait, the two blocked reasons carry DIFFERENT outcomes, because only `outcome` routes: a build the line can repair goes back to a round, one it demonstrably cannot goes to a human.
   | {
       kind: "blocked";
@@ -51,7 +58,7 @@ export function decideCiReady(input: {
   mergeable: boolean | null;
 }): CiCheckVerdict {
   if (input.mergeable === false) {
-    return conflictVerdict(input.judgedSha);
+    return conflictVerdict(input.judgedSha, input.lastReportedSha);
   }
 
   if (!input.judgedSha) {
@@ -89,18 +96,29 @@ function settledVerdict(input: {
     : { kind: "ready" };
 }
 
-/** A pull request GitHub will not build. The round is told plainly, because "no checks" would otherwise read as "not started" forever. */
-function conflictVerdict(judgedSha: string | null): CiCheckVerdict {
+/** What the round is told about a branch GitHub will not build. */
+const CONFLICT_SUMMARY =
+  "GitHub runs no workflow on a conflicted pull request, so this branch has no build and never will until it merges its base cleanly. Bring it up to date with the base branch and push.";
+
+/** A pull request GitHub will not build, told to the round while the branch is still moving. An unchanged sha means the round it was handed to cleared nothing, and twelve more would clear nothing either — the same guard `ci_red_unchanged` gives a red build. */
+function conflictVerdict(
+  judgedSha: string | null,
+  lastReportedSha: string | null,
+): CiCheckVerdict {
+  const routing =
+    !judgedSha || judgedSha !== lastReportedSha
+      ? ({ reason: "pr_conflicting", outcome: "changes_requested" } as const)
+      : ({ reason: "pr_conflicting_unchanged", outcome: "failed" } as const);
+
+  return { kind: "blocked", ...routing, feedback: conflictFeedback(judgedSha) };
+}
+
+/** What the round is handed about a branch with no build: no check names, because there are none. */
+function conflictFeedback(judgedSha: string | null): CiFeedbackArgs {
   return {
-    kind: "blocked",
-    reason: "pr_conflicting",
-    outcome: "changes_requested",
-    feedback: {
-      ci_feedback_sha: judgedSha ?? "",
-      ci_failed_checks: "none — the pull request conflicts with its base",
-      ci_failure_summary:
-        "GitHub runs no workflow on a conflicted pull request, so this branch has no build and never will until it merges its base cleanly. Bring it up to date with the base branch and push.",
-    },
+    ci_feedback_sha: judgedSha ?? "",
+    ci_failed_checks: "none — the pull request conflicts with its base",
+    ci_failure_summary: CONFLICT_SUMMARY,
   };
 }
 
