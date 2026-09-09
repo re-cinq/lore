@@ -27,22 +27,6 @@ type RawPromptfooOutput = {
   results?: { stats?: RawPromptfooStats };
 };
 
-function rawStats(output: RawPromptfooOutput): RawPromptfooStats | undefined {
-  return output.stats ?? output.results?.stats;
-}
-
-function toPromptfooStats(stats: {
-  passRate: number;
-  passes?: number;
-  total?: number;
-}): PromptfooStats {
-  return {
-    passRate: stats.passRate,
-    passes: stats.passes ?? null,
-    total: stats.total ?? null,
-  };
-}
-
 /** Pure parse of `promptfoo eval --output json` stdout — stats live at the root or under `results` depending on the promptfoo version; null when neither. */
 export function parsePromptfooStats(stdout: string): PromptfooStats | null {
   let output: RawPromptfooOutput;
@@ -61,6 +45,22 @@ export function parsePromptfooStats(stdout: string): PromptfooStats | null {
   return toPromptfooStats({ ...stats, passRate: stats.passRate });
 }
 
+function rawStats(output: RawPromptfooOutput): RawPromptfooStats | undefined {
+  return output.stats ?? output.results?.stats;
+}
+
+function toPromptfooStats(stats: {
+  passRate: number;
+  passes?: number;
+  total?: number;
+}): PromptfooStats {
+  return {
+    passRate: stats.passRate,
+    passes: stats.passes ?? null,
+    total: stats.total ?? null,
+  };
+}
+
 /** Is the promptfoo CLI runnable? (`npx promptfoo --version`). */
 export async function isPromptfooAvailable(): Promise<boolean> {
   try {
@@ -70,34 +70,6 @@ export async function isPromptfooAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function evalArgs(configPath: string, extraArgs?: string[]): string[] {
-  return [
-    "promptfoo",
-    "eval",
-    "--config",
-    configPath,
-    "--output",
-    "json",
-    "--no-progress-bar",
-    ...(extraArgs ?? []),
-  ];
-}
-
-/** Runs promptfoo and returns its stdout. `--no-progress-bar` matters: the progress output is not JSON, and it lands on the same stream the stats are parsed from. */
-async function evalStdout(opts: {
-  configPath: string;
-  extraArgs?: string[];
-  timeoutMs?: number;
-}): Promise<string> {
-  const { stdout } = await execFileAsync(
-    "npx",
-    evalArgs(opts.configPath, opts.extraArgs),
-    { timeout: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS, maxBuffer: MAX_BUFFER },
-  );
-
-  return stdout;
 }
 
 export async function runPromptfooEval(opts: {
@@ -122,4 +94,32 @@ export async function runPromptfooEval(opts: {
   } catch (error) {
     return { ok: false, reason: "exec-failed", error };
   }
+}
+
+/** Runs promptfoo and returns its stdout. `--no-progress-bar` matters: the progress output is not JSON, and it lands on the same stream the stats are parsed from. */
+async function evalStdout(opts: {
+  configPath: string;
+  extraArgs?: string[];
+  timeoutMs?: number;
+}): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "npx",
+    evalArgs(opts.configPath, opts.extraArgs),
+    { timeout: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS, maxBuffer: MAX_BUFFER },
+  );
+
+  return stdout;
+}
+
+function evalArgs(configPath: string, extraArgs?: string[]): string[] {
+  return [
+    "promptfoo",
+    "eval",
+    "--config",
+    configPath,
+    "--output",
+    "json",
+    "--no-progress-bar",
+    ...(extraArgs ?? []),
+  ];
 }

@@ -4,6 +4,16 @@ import { NodeSDK } from "@opentelemetry/sdk-node";
 
 let sdk: NodeSDK | null = null;
 
+export async function initOtel(): Promise<void> {
+  try {
+    sdk = await buildCloudSdk();
+    sdk.start();
+    console.log("[otel] Tracing and metrics initialized → Cloud Monitoring");
+  } catch {
+    console.log("[otel] Cloud exporters not available, tracing disabled");
+  }
+}
+
 /** The Cloud exporters are imported dynamically so a deployment without them fails here rather than at module load, which is what makes tracing optional. */
 // eslint-disable-next-line re-lint/no-duplicate-code -- the Floor's own OTel bootstrap; the only home it could share with lore-api's copy is @re-cinq/lore-shared, which would drag the OpenTelemetry SDK into the lean MCP install ADR-032 exists to protect
 async function buildCloudSdk(): Promise<NodeSDK> {
@@ -22,16 +32,6 @@ async function buildCloudSdk(): Promise<NodeSDK> {
     }),
     serviceName: "lore-floor",
   });
-}
-
-export async function initOtel(): Promise<void> {
-  try {
-    sdk = await buildCloudSdk();
-    sdk.start();
-    console.log("[otel] Tracing and metrics initialized → Cloud Monitoring");
-  } catch {
-    console.log("[otel] Cloud exporters not available, tracing disabled");
-  }
 }
 
 export async function shutdownOtel(): Promise<void> {

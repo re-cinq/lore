@@ -26,10 +26,6 @@ export function checkName(blueprintName: string): string {
   return CHECK_NAME_ALIAS[blueprintName] ?? blueprintName;
 }
 
-function headShaArg(line: AssemblyRunRecord): string {
-  return typeof line.args.head_sha === "string" ? line.args.head_sha : "";
-}
-
 export function assemblyLineCheck(
   line: AssemblyRunRecord,
   nodes: readonly StationRunRecord[],
@@ -59,6 +55,10 @@ function checkIdentity(
   };
 }
 
+function headShaArg(line: AssemblyRunRecord): string {
+  return typeof line.args.head_sha === "string" ? line.args.head_sha : "";
+}
+
 /** Whether the check is still running, and what it concluded once it is not. */
 function checkState(
   line: AssemblyRunRecord,
@@ -78,6 +78,31 @@ type TerminalResult = {
   conclusion: NonNullable<CheckRunInput["conclusion"]>;
   summary: string;
 };
+
+function terminal(
+  line: AssemblyRunRecord,
+  nodes: readonly StationRunRecord[],
+): TerminalResult {
+  const failure = failureResult(line);
+
+  if (failure) {
+    return failure;
+  }
+
+  if (line.outcome === "pr_closed") {
+    return { conclusion: "cancelled", summary: "PR closed." };
+  }
+
+  if (hasChangesRequested(line, nodes)) {
+    return {
+      conclusion: "neutral",
+      summary:
+        "Changes suggested — reply to a review comment to apply, or push a fix.",
+    };
+  }
+
+  return { conclusion: "success", summary: "Approved." };
+}
 
 // Key on outcome, not status: `outcome: "failed"` still closes the row as `finished`, so any non-benign outcome publishes a red check.
 function failureResult(line: AssemblyRunRecord): TerminalResult | null {
@@ -104,31 +129,6 @@ function hasChangesRequested(
     line.outcome === "changes_requested" ||
     latestNodeOutcomes(nodes).includes("changes_requested")
   );
-}
-
-function terminal(
-  line: AssemblyRunRecord,
-  nodes: readonly StationRunRecord[],
-): TerminalResult {
-  const failure = failureResult(line);
-
-  if (failure) {
-    return failure;
-  }
-
-  if (line.outcome === "pr_closed") {
-    return { conclusion: "cancelled", summary: "PR closed." };
-  }
-
-  if (hasChangesRequested(line, nodes)) {
-    return {
-      conclusion: "neutral",
-      summary:
-        "Changes suggested — reply to a review comment to apply, or push a fix.",
-    };
-  }
-
-  return { conclusion: "success", summary: "Approved." };
 }
 
 function latestNodeOutcomes(nodes: readonly StationRunRecord[]): string[] {

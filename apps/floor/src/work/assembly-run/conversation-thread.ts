@@ -12,6 +12,28 @@ export interface ThreadContext {
 export type ThreadResolution =
   { ok: true; thread: ConversationThread } | { ok: false; error: string };
 
+/** Turns `continues.key` into the thread to look up; a named arg the run does NOT carry is an ERROR, not an empty thread, since silently starting fresh is indistinguishable from remembering nothing. */
+export function resolveThread(
+  key: string,
+  nodeId: string,
+  ctx: ThreadContext,
+): ThreadResolution {
+  if (key === "line") {
+    return {
+      ok: true,
+      thread: { kind: "line", value: ctx.assemblyLineId, nodeId },
+    };
+  }
+
+  if (key === "task") {
+    return taskThreadResolution(ctx, nodeId);
+  }
+
+  return key.startsWith("args.")
+    ? argsThreadResolution(key, ctx, nodeId)
+    : { ok: false, error: `unsupported continues.key "${key}"` };
+}
+
 function taskThreadResolution(
   ctx: ThreadContext,
   nodeId: string,
@@ -37,28 +59,6 @@ function argsThreadResolution(
   }
 
   return { ok: true, thread: { kind: "args", value, nodeId } };
-}
-
-/** Turns `continues.key` into the thread to look up; a named arg the run does NOT carry is an ERROR, not an empty thread, since silently starting fresh is indistinguishable from remembering nothing. */
-export function resolveThread(
-  key: string,
-  nodeId: string,
-  ctx: ThreadContext,
-): ThreadResolution {
-  if (key === "line") {
-    return {
-      ok: true,
-      thread: { kind: "line", value: ctx.assemblyLineId, nodeId },
-    };
-  }
-
-  if (key === "task") {
-    return taskThreadResolution(ctx, nodeId);
-  }
-
-  return key.startsWith("args.")
-    ? argsThreadResolution(key, ctx, nodeId)
-    : { ok: false, error: `unsupported continues.key "${key}"` };
 }
 
 /** Whether this execution may continue a previous run's conversation, given this node's most recent outcome — a RETRY never continues (must be reproducible); tests WHY it's revisited, not iteration count, since rounds (FR6.21) are revisits too. */

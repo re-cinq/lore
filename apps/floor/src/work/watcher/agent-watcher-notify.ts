@@ -35,6 +35,19 @@ const SLACK_UPDATES: Record<
   failed: { prefix: "Task failed", level: "escalation" },
 };
 
+export async function notifyTaskUpdate(
+  taskId: string,
+  repo: string,
+  type: SlackUpdateType,
+  message: string,
+): Promise<void> {
+  const { prefix, level } = SLACK_UPDATES[type];
+
+  await notifySlack(taskId, repo, level, `${prefix}: ${message}`).catch(
+    () => {},
+  );
+}
+
 /** Routes through `project.notify` (has the `decideNotify` gate a prior duplicate Slack poster lacked); prefers the task's originating Slack channel. */
 async function notifySlack(
   taskId: string,
@@ -49,19 +62,6 @@ async function notifySlack(
   await project.notify.notify(level, message, {
     channel: bundle?.slack_channel_id,
   });
-}
-
-export async function notifyTaskUpdate(
-  taskId: string,
-  repo: string,
-  type: SlackUpdateType,
-  message: string,
-): Promise<void> {
-  const { prefix, level } = SLACK_UPDATES[type];
-
-  await notifySlack(taskId, repo, level, `${prefix}: ${message}`).catch(
-    () => {},
-  );
 }
 
 // ── Helpers (CR-agnostic) ─────────────────

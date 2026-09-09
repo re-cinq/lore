@@ -16,6 +16,34 @@ interface RepoSettings {
   [key: string]: unknown;
 }
 
+interface TaskContextBundle {
+  branch?: string;
+  feedback?: string;
+}
+
+/** How this task runs: which branch, which model, which agent definition, and whether the repo puts it through the Floor-side graph. */
+export async function resolveTaskPlan(
+  task: PipelineTask,
+  targetRepo: string,
+  project: Awaited<ReturnType<typeof projectFor>>,
+) {
+  const repoSettings = await readRepoSettings(targetRepo);
+  const agentDef = await resolveAgentDef(project, task.task_type);
+  const repoOverrides = repoSettings.task_overrides?.[task.task_type];
+  const contextBundle = (task.context_bundle || {}) as TaskContextBundle;
+
+  applyRevisionFeedback(task, contextBundle);
+
+  return {
+    repoSettings,
+    repoOverrides,
+    agentDef,
+    branchName: resolveBranchName(task, contextBundle),
+    model: resolveModel(agentDef, repoOverrides, task.task_type),
+    darkFactoryEnabled: repoSettings.dark_factory?.enabled === true,
+  };
+}
+
 /** Unreadable settings are not a reason to fail the task; the plan falls back to the defaults. */
 async function readRepoSettings(targetRepo: string): Promise<RepoSettings> {
   try {
@@ -25,11 +53,6 @@ async function readRepoSettings(targetRepo: string): Promise<RepoSettings> {
   } catch {
     return {};
   }
-}
-
-interface TaskContextBundle {
-  branch?: string;
-  feedback?: string;
 }
 
 /** A revision runs on the branch it is revising, and says what it is revising. */
@@ -75,27 +98,4 @@ async function resolveAgentDef(
   const { agentDefs } = project;
 
   return agentDefs.resolve(taskType).catch(() => null);
-}
-
-/** How this task runs: which branch, which model, which agent definition, and whether the repo puts it through the Floor-side graph. */
-export async function resolveTaskPlan(
-  task: PipelineTask,
-  targetRepo: string,
-  project: Awaited<ReturnType<typeof projectFor>>,
-) {
-  const repoSettings = await readRepoSettings(targetRepo);
-  const agentDef = await resolveAgentDef(project, task.task_type);
-  const repoOverrides = repoSettings.task_overrides?.[task.task_type];
-  const contextBundle = (task.context_bundle || {}) as TaskContextBundle;
-
-  applyRevisionFeedback(task, contextBundle);
-
-  return {
-    repoSettings,
-    repoOverrides,
-    agentDef,
-    branchName: resolveBranchName(task, contextBundle),
-    model: resolveModel(agentDef, repoOverrides, task.task_type),
-    darkFactoryEnabled: repoSettings.dark_factory?.enabled === true,
-  };
 }

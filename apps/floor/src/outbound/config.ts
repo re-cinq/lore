@@ -19,6 +19,17 @@ const taskTypes: Map<string, TaskTypeRecipe> = new Map();
 
 // ── Public API ───────────────────────────────────────────────────────
 
+/** Load task type definitions from YAML, trying in order: `configPath` arg, `TASK_TYPES_PATH` env, `./task-types.yaml`, `../scripts/task-types.yaml`, `/config/task-types.yaml`. */
+export function loadTaskTypes(configPath?: string): void {
+  for (const path of candidateConfigPaths(configPath)) {
+    if (loadFromPath(path)) {
+      return;
+    }
+  }
+
+  console.warn("[floor] No task-types.yaml found, using empty config");
+}
+
 /** Where a task-types.yaml may live, most specific first: the explicit argument, then the env override, then the three conventional locations. */
 function candidateConfigPaths(configPath?: string): string[] {
   const paths: string[] = [];
@@ -59,17 +70,6 @@ function loadFromPath(path: string): boolean {
   } catch {
     return false;
   }
-}
-
-/** Load task type definitions from YAML, trying in order: `configPath` arg, `TASK_TYPES_PATH` env, `./task-types.yaml`, `../scripts/task-types.yaml`, `/config/task-types.yaml`. */
-export function loadTaskTypes(configPath?: string): void {
-  for (const path of candidateConfigPaths(configPath)) {
-    if (loadFromPath(path)) {
-      return;
-    }
-  }
-
-  console.warn("[floor] No task-types.yaml found, using empty config");
 }
 
 /** Return the config for a specific task type, or undefined. */

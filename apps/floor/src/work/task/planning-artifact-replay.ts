@@ -36,51 +36,26 @@ export function lostArtifactRound(
     : null;
 }
 
-/** One page of a run's turns, oldest first from the cursor; an empty page means the walk is done. */
-async function readTurnPage(runId: string, cursor: string) {
-  return pipeline().agentRunTurns.listByLine(runId, cursor, RECOVERY_TURN_PAGE);
-}
+/** Run decideArtifactRecovery for a lost round and, when it says recover, re-apply the artifact from the run transcript. */
+export async function recoverLostRound(
+  project: Project,
+  featureId: string,
+  lostRound: NonNullable<ReturnType<typeof lostArtifactRound>>,
+  run: Omit<ArtifactRecoveryInput, "nodes">,
+): Promise<boolean> {
+  const stationRuns = await pipeline().assemblyRuns.listStationRuns(
+    lostRound.runId,
+  );
+  const decision = decideArtifactRecovery({ nodes: stationRuns, ...run });
 
-/** Filtered by CR name when there is one, because a run may hold turns from more than one attempt and an unscoped replay would apply a previous round's result (#1302). */
-function envelopesOf(
-  turns: Awaited<ReturnType<typeof readTurnPage>>,
-  agentCrName: string | null,
-): unknown[] {
-  return turns
-    .filter((turn) => agentCrName === null || turn.agentCrName === agentCrName)
-    .map((turn) => turn.envelope);
-}
-
-/** The run's transcript envelopes, paged and CAPPED: recovery reads a whole run, and an unbounded walk over a long one would hold every turn in memory to find one artifact. */
-async function readRunEnvelopes(
-  runId: string,
-  agentCrName: string | null,
-): Promise<unknown[]> {
-  const envelopes: unknown[] = [];
-  let cursor = "0";
-
-  for (let page = 0; page < RECOVERY_TURN_PAGES_MAX; page++) {
-    const turns = await readTurnPage(runId, cursor);
-
-    if (turns.length === 0) {
-      break;
-    }
-    envelopes.push(...envelopesOf(turns, agentCrName));
-    cursor = turns[turns.length - 1].id;
+  if (decision.kind !== "recover") {
+    return false;
   }
 
-  return envelopes;
-}
-
-/** Re-apply a lost round result from the run transcript (#1298): the terminal `Write` of `result.json` holds the full GapResult; null when none was produced. */
-async function readGapResult(
-  runId: string,
-  agentCrName: string | null,
-): Promise<ReturnType<typeof gapResultFromTurns>> {
-  return gapResultFromTurns(
-    await readRunEnvelopes(runId, agentCrName),
-    "result.json",
-  );
+  return recoverArtifact(project, featureId, lostRound.round, {
+    runId: lostRound.runId,
+    agentCrName: decision.agentCrName,
+  });
 }
 
 async function recoverArtifact(
@@ -105,24 +80,49 @@ async function recoverArtifact(
   return applied.outcome === "ready";
 }
 
-/** Run decideArtifactRecovery for a lost round and, when it says recover, re-apply the artifact from the run transcript. */
-export async function recoverLostRound(
-  project: Project,
-  featureId: string,
-  lostRound: NonNullable<ReturnType<typeof lostArtifactRound>>,
-  run: Omit<ArtifactRecoveryInput, "nodes">,
-): Promise<boolean> {
-  const stationRuns = await pipeline().assemblyRuns.listStationRuns(
-    lostRound.runId,
+/** Re-apply a lost round result from the run transcript (#1298): the terminal `Write` of `result.json` holds the full GapResult; null when none was produced. */
+async function readGapResult(
+  runId: string,
+  agentCrName: string | null,
+): Promise<ReturnType<typeof gapResultFromTurns>> {
+  return gapResultFromTurns(
+    await readRunEnvelopes(runId, agentCrName),
+    "result.json",
   );
-  const decision = decideArtifactRecovery({ nodes: stationRuns, ...run });
+}
 
-  if (decision.kind !== "recover") {
-    return false;
+/** The run's transcript envelopes, paged and CAPPED: recovery reads a whole run, and an unbounded walk over a long one would hold every turn in memory to find one artifact. */
+async function readRunEnvelopes(
+  runId: string,
+  agentCrName: string | null,
+): Promise<unknown[]> {
+  const envelopes: unknown[] = [];
+  let cursor = "0";
+
+  for (let page = 0; page < RECOVERY_TURN_PAGES_MAX; page++) {
+    const turns = await readTurnPage(runId, cursor);
+
+    if (turns.length === 0) {
+      break;
+    }
+    envelopes.push(...envelopesOf(turns, agentCrName));
+    cursor = turns[turns.length - 1].id;
   }
 
-  return recoverArtifact(project, featureId, lostRound.round, {
-    runId: lostRound.runId,
-    agentCrName: decision.agentCrName,
-  });
+  return envelopes;
+}
+
+/** One page of a run's turns, oldest first from the cursor; an empty page means the walk is done. */
+async function readTurnPage(runId: string, cursor: string) {
+  return pipeline().agentRunTurns.listByLine(runId, cursor, RECOVERY_TURN_PAGE);
+}
+
+/** Filtered by CR name when there is one, because a run may hold turns from more than one attempt and an unscoped replay would apply a previous round's result (#1302). */
+function envelopesOf(
+  turns: Awaited<ReturnType<typeof readTurnPage>>,
+  agentCrName: string | null,
+): unknown[] {
+  return turns
+    .filter((turn) => agentCrName === null || turn.agentCrName === agentCrName)
+    .map((turn) => turn.envelope);
 }

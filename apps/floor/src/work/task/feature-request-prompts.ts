@@ -13,6 +13,20 @@ const SPEC_SECTIONS = `- Problem Statement (what problem does this solve for use
 - Success Criteria (measurable outcomes)
 - Assumptions`;
 
+/** The three artifacts a feature request becomes, and what each one asks for. */
+export function specFilePrompts(
+  pmIntent: string,
+  existingSpecExample: string,
+): { path: string; prompt: string }[] {
+  const featureSlug = slugify(pmIntent);
+
+  return [
+    specPrompt(featureSlug, pmIntent, existingSpecExample),
+    dataModelPrompt(featureSlug, pmIntent),
+    tasksPrompt(featureSlug, pmIntent),
+  ];
+}
+
 /** The spec itself: the sections this org's specs carry, plus a real example from the repo so the generated file matches the house format rather than a generic template. */
 function specPrompt(
   featureSlug: string,
@@ -76,18 +90,4 @@ Organize into phases:
 
 Mark parallelizable tasks with [P]. Include file paths based on the actual project structure visible in the repo context. Each task must be specific enough for an engineer (or AI agent) to execute without additional context.`,
   };
-}
-
-/** The three artifacts a feature request becomes, and what each one asks for. */
-export function specFilePrompts(
-  pmIntent: string,
-  existingSpecExample: string,
-): { path: string; prompt: string }[] {
-  const featureSlug = slugify(pmIntent);
-
-  return [
-    specPrompt(featureSlug, pmIntent, existingSpecExample),
-    dataModelPrompt(featureSlug, pmIntent),
-    tasksPrompt(featureSlug, pmIntent),
-  ];
 }

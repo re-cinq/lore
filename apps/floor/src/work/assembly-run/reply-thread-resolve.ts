@@ -12,6 +12,51 @@ interface ThreadResolveAudit {
   failed(payload: Record<string, unknown>): Promise<void>;
 }
 
+export async function resolveRepliedThread(
+  row: AssemblyRunRecord,
+  pulls: ReplyPoster,
+  target: { prNumber: number; inReplyTo: number },
+  ports: ReplyPorts,
+): Promise<void> {
+  const { listReviewThreads, resolveReviewThread } = pulls;
+
+  if (
+    row.args.intent !== "address" ||
+    !listReviewThreads ||
+    !resolveReviewThread
+  ) {
+    return;
+  }
+
+  await resolveThreadForReply(
+    { listReviewThreads, resolveReviewThread },
+    target,
+    threadResolveAudit(row, target, ports),
+  );
+}
+
+/** Finds the thread the reply landed in and resolves it; a thread nobody could match is left open rather than treated as an error. */
+async function resolveThreadForReply(
+  threads: {
+    listReviewThreads: NonNullable<ReplyPoster["listReviewThreads"]>;
+    resolveReviewThread: NonNullable<ReplyPoster["resolveReviewThread"]>;
+  },
+  target: { prNumber: number; inReplyTo: number },
+  audit: ThreadResolveAudit,
+): Promise<void> {
+  const thread = await findRepliedThread(
+    threads.listReviewThreads,
+    target,
+    audit,
+  );
+
+  if (!thread) {
+    return;
+  }
+
+  await resolveThreadSafely(threads.resolveReviewThread, thread, audit);
+}
+
 /** Looks up the thread the reply landed in, auditing (and swallowing) a lookup failure or an unmatched comment. */
 async function findRepliedThread(
   listReviewThreads: NonNullable<ReplyPoster["listReviewThreads"]>,
@@ -105,49 +150,4 @@ function threadAuditKeys(
     assembly_run_id: row.id,
     in_reply_to_id: target.inReplyTo,
   };
-}
-
-export async function resolveRepliedThread(
-  row: AssemblyRunRecord,
-  pulls: ReplyPoster,
-  target: { prNumber: number; inReplyTo: number },
-  ports: ReplyPorts,
-): Promise<void> {
-  const { listReviewThreads, resolveReviewThread } = pulls;
-
-  if (
-    row.args.intent !== "address" ||
-    !listReviewThreads ||
-    !resolveReviewThread
-  ) {
-    return;
-  }
-
-  await resolveThreadForReply(
-    { listReviewThreads, resolveReviewThread },
-    target,
-    threadResolveAudit(row, target, ports),
-  );
-}
-
-/** Finds the thread the reply landed in and resolves it; a thread nobody could match is left open rather than treated as an error. */
-async function resolveThreadForReply(
-  threads: {
-    listReviewThreads: NonNullable<ReplyPoster["listReviewThreads"]>;
-    resolveReviewThread: NonNullable<ReplyPoster["resolveReviewThread"]>;
-  },
-  target: { prNumber: number; inReplyTo: number },
-  audit: ThreadResolveAudit,
-): Promise<void> {
-  const thread = await findRepliedThread(
-    threads.listReviewThreads,
-    target,
-    audit,
-  );
-
-  if (!thread) {
-    return;
-  }
-
-  await resolveThreadSafely(threads.resolveReviewThread, thread, audit);
 }

@@ -51,6 +51,21 @@ async function writeOnboardFailureAudit(
   );
 }
 
+/** Best-effort dispatch-label setup; a failure here doesn't block onboarding. */
+export async function createDispatchLabels(
+  project: Awaited<ReturnType<typeof projectFor>>,
+  targetRepo: string,
+): Promise<void> {
+  try {
+    await project.issues.createLabels(dispatchLabelSeed());
+    console.log(`[floor] Created Lore dispatch labels on ${targetRepo}`);
+  } catch (err) {
+    console.warn(
+      `[floor] Failed to create labels on ${targetRepo}: ${(err as Error).message}`,
+    );
+  }
+}
+
 /** Every label a dispatch-driven repo needs: the `lore` entry point, the per-task-type dispatch set, and the backlog seed. */
 function dispatchLabelSeed(): {
   name: string;
@@ -66,19 +81,4 @@ function dispatchLabelSeed(): {
     })),
     ...BACKLOG_LABEL_SEED,
   ];
-}
-
-/** Best-effort dispatch-label setup; a failure here doesn't block onboarding. */
-export async function createDispatchLabels(
-  project: Awaited<ReturnType<typeof projectFor>>,
-  targetRepo: string,
-): Promise<void> {
-  try {
-    await project.issues.createLabels(dispatchLabelSeed());
-    console.log(`[floor] Created Lore dispatch labels on ${targetRepo}`);
-  } catch (err) {
-    console.warn(
-      `[floor] Failed to create labels on ${targetRepo}: ${(err as Error).message}`,
-    );
-  }
 }

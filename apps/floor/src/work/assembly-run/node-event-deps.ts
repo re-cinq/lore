@@ -16,94 +16,6 @@ import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/ru
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { NodeEventDeps } from "./node-event-handler.js";
 
-/** Reads a terminal comment-triage node's classified action and starts the routed follow-up line; best-effort, never fails the walk. */
-async function routeCommentTriage(
-  row: AssemblyRunRecord,
-  node: RunGraphNode,
-  result: NodeResult,
-): Promise<void> {
-  const action = result.extras?.action;
-
-  // Keyed on the node's TYPE, not definition name/node id (the old comparison silently left comment-triage nodes unrouted on rename or reuse).
-  if (node.type !== "comment-triage" || !action) {
-    return;
-  }
-
-  try {
-    await codeReviewOnCommentTriaged({ action, context: contextFromRow(row) });
-  } catch (err) {
-    console.warn(
-      "[code-review] triage routing failed:",
-      (err as Error).message,
-    );
-  }
-}
-
-const numberArg = (value: unknown): number => Number(value) || 0;
-
-const stringArgOrUndefined = (value: unknown): string | undefined =>
-  typeof value === "string" ? value : undefined;
-
-const numberArgOrNull = (value: unknown): number | null =>
-  typeof value === "number" ? value : null;
-
-function contextFromRow(row: AssemblyRunRecord): CommentContext {
-  const a = row.args;
-
-  return {
-    repo: row.repo,
-    pr_number: numberArg(a.pr_number),
-    branch: row.branch ?? "",
-    head_sha: stringArgOrUndefined(a.head_sha),
-    comment_id: numberArg(a.comment_id),
-    comment_body: String(a.comment_body ?? ""),
-    in_reply_to_id: numberArgOrNull(a.in_reply_to_id),
-    // Dropping this left "By" blank on runs a human asked for; the keyword fast path (same destination) kept it.
-    actor: stringArgOrUndefined(a.actor),
-  };
-}
-
-/** The slice of the repo project the anchor check reads and reports through. */
-type AnchorReportProject = Pick<RottenAnchorReportInput, "pulls" | "repo"> & {
-  issues: { comment(issueNumber: number, body: string): Promise<unknown> };
-};
-
-/** Deterministic paperwork check (#1747): anchors in this branch's changed markdown must land on citable lines. Best-effort — a rotten link is a comment for the reviewer, never a failed flip. */
-async function reportRottenAnchors(
-  prNumber: number,
-  branch: string | null | undefined,
-  project: AnchorReportProject,
-): Promise<void> {
-  if (!branch) {
-    return;
-  }
-
-  try {
-    await commentRottenAnchors(prNumber, branch, project);
-  } catch (err) {
-    console.warn(
-      `[spec-anchor-check] PR #${prNumber}: ${(err as Error).message}`,
-    );
-  }
-}
-
-async function commentRottenAnchors(
-  prNumber: number,
-  branch: string,
-  project: AnchorReportProject,
-): Promise<void> {
-  const report = await rottenAnchorReport({
-    prNumber,
-    branch,
-    pulls: project.pulls,
-    repo: project.repo,
-  });
-
-  if (report) {
-    await project.issues.comment(prNumber, report);
-  }
-}
-
 /** Module singleton: the billing outage is account-wide, so the throttle must survive across per-event deps (one alert/hour across all repos). */
 const billingAlertThrottle = new BillingAlertThrottle();
 
@@ -270,4 +182,92 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       });
     },
   };
+}
+
+/** Reads a terminal comment-triage node's classified action and starts the routed follow-up line; best-effort, never fails the walk. */
+async function routeCommentTriage(
+  row: AssemblyRunRecord,
+  node: RunGraphNode,
+  result: NodeResult,
+): Promise<void> {
+  const action = result.extras?.action;
+
+  // Keyed on the node's TYPE, not definition name/node id (the old comparison silently left comment-triage nodes unrouted on rename or reuse).
+  if (node.type !== "comment-triage" || !action) {
+    return;
+  }
+
+  try {
+    await codeReviewOnCommentTriaged({ action, context: contextFromRow(row) });
+  } catch (err) {
+    console.warn(
+      "[code-review] triage routing failed:",
+      (err as Error).message,
+    );
+  }
+}
+
+const numberArg = (value: unknown): number => Number(value) || 0;
+
+const stringArgOrUndefined = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const numberArgOrNull = (value: unknown): number | null =>
+  typeof value === "number" ? value : null;
+
+function contextFromRow(row: AssemblyRunRecord): CommentContext {
+  const a = row.args;
+
+  return {
+    repo: row.repo,
+    pr_number: numberArg(a.pr_number),
+    branch: row.branch ?? "",
+    head_sha: stringArgOrUndefined(a.head_sha),
+    comment_id: numberArg(a.comment_id),
+    comment_body: String(a.comment_body ?? ""),
+    in_reply_to_id: numberArgOrNull(a.in_reply_to_id),
+    // Dropping this left "By" blank on runs a human asked for; the keyword fast path (same destination) kept it.
+    actor: stringArgOrUndefined(a.actor),
+  };
+}
+
+/** The slice of the repo project the anchor check reads and reports through. */
+type AnchorReportProject = Pick<RottenAnchorReportInput, "pulls" | "repo"> & {
+  issues: { comment(issueNumber: number, body: string): Promise<unknown> };
+};
+
+/** Deterministic paperwork check (#1747): anchors in this branch's changed markdown must land on citable lines. Best-effort — a rotten link is a comment for the reviewer, never a failed flip. */
+async function reportRottenAnchors(
+  prNumber: number,
+  branch: string | null | undefined,
+  project: AnchorReportProject,
+): Promise<void> {
+  if (!branch) {
+    return;
+  }
+
+  try {
+    await commentRottenAnchors(prNumber, branch, project);
+  } catch (err) {
+    console.warn(
+      `[spec-anchor-check] PR #${prNumber}: ${(err as Error).message}`,
+    );
+  }
+}
+
+async function commentRottenAnchors(
+  prNumber: number,
+  branch: string,
+  project: AnchorReportProject,
+): Promise<void> {
+  const report = await rottenAnchorReport({
+    prNumber,
+    branch,
+    pulls: project.pulls,
+    repo: project.repo,
+  });
+
+  if (report) {
+    await project.issues.comment(prNumber, report);
+  }
 }

@@ -5,6 +5,45 @@ import { lineWritesOwnEpisode } from "./run-episode.js";
 import { isFailureOutcome } from "./notify-failure.js";
 import type { AdvanceDeps } from "./advance-deps.js";
 
+/** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
+export async function finishLine(
+  assemblyRun: AssemblyRunRecord,
+  outcome: string,
+  reason: string | undefined,
+  deps: AdvanceDeps,
+): Promise<void> {
+  // Settled BEFORE closing the row: after the row closes, advanceLine's retry early-returns on the terminal row, orphaning the job_run open forever.
+  await settleJobRunIfNamed(assemblyRun, { outcome, reason }, deps);
+
+  const closedNow = await deps.assemblyRuns.finish(
+    assemblyRun.id,
+    outcome,
+    reason,
+  );
+
+  // finish is first-writer-wins — a losing racer still reaches here, so cleanupToken MUST be idempotent (cleanupPerTaskToken swallows 404s).
+  await deps.cleanupToken(assemblyRun.taskId ?? assemblyRun.id);
+
+  if (!closedNow) {
+    return;
+  }
+
+  await runWinnerHooks(assemblyRun, outcome, reason, deps);
+}
+
+/** No-ops for a run the detect fan-out never gave a job_run to. */
+async function settleJobRunIfNamed(
+  assemblyRun: AssemblyRunRecord,
+  { outcome, reason }: { outcome: string; reason: string | undefined },
+  deps: AdvanceDeps,
+): Promise<void> {
+  const jobRunId = assemblyRun.args.job_run_id;
+
+  if (typeof jobRunId === "string" && jobRunId.length > 0) {
+    await settleJobRun(jobRunId, assemblyRun, { outcome, reason }, deps);
+  }
+}
+
 /** Complete only on completed/lease_held; fail everything else, so a future fail outcome added to Transition can never record a failed run as complete. */
 async function settleJobRun(
   jobRunId: string,
@@ -27,6 +66,24 @@ async function settleJobRun(
     return;
   }
   await deps.jobRuns.fail(jobRunId, reason ?? outcome);
+}
+
+/** Only the racer that actually closed the row runs these — an event-vs-reaper race can otherwise write one run's episode twice. */
+async function runWinnerHooks(
+  assemblyRun: AssemblyRunRecord,
+  outcome: string,
+  reason: string | undefined,
+  deps: AdvanceDeps,
+): Promise<void> {
+  await recordRunEpisodeIfOwned(assemblyRun, outcome, reason, deps);
+
+  // Without this a line-backed task stays `running` forever — the watcher's post-completion path returns early for node CRs.
+  if (deps.settleTask) {
+    await deps.settleTask(assemblyRun, outcome, reason);
+  }
+
+  await callOnRunClosed(assemblyRun, outcome, reason, deps);
+  await notifyFailureIfApplicable(assemblyRun, outcome, reason, deps);
 }
 
 /** Telemetry only, swallowed on failure like maybeStampPr — an unwritten episode is still a finished run. */
@@ -83,61 +140,4 @@ async function notifyFailureIfApplicable(
   } catch (err) {
     console.error("[notify-failure] notifier threw:", (err as Error).message);
   }
-}
-
-/** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
-export async function finishLine(
-  assemblyRun: AssemblyRunRecord,
-  outcome: string,
-  reason: string | undefined,
-  deps: AdvanceDeps,
-): Promise<void> {
-  // Settled BEFORE closing the row: after the row closes, advanceLine's retry early-returns on the terminal row, orphaning the job_run open forever.
-  await settleJobRunIfNamed(assemblyRun, { outcome, reason }, deps);
-
-  const closedNow = await deps.assemblyRuns.finish(
-    assemblyRun.id,
-    outcome,
-    reason,
-  );
-
-  // finish is first-writer-wins — a losing racer still reaches here, so cleanupToken MUST be idempotent (cleanupPerTaskToken swallows 404s).
-  await deps.cleanupToken(assemblyRun.taskId ?? assemblyRun.id);
-
-  if (!closedNow) {
-    return;
-  }
-
-  await runWinnerHooks(assemblyRun, outcome, reason, deps);
-}
-
-/** No-ops for a run the detect fan-out never gave a job_run to. */
-async function settleJobRunIfNamed(
-  assemblyRun: AssemblyRunRecord,
-  { outcome, reason }: { outcome: string; reason: string | undefined },
-  deps: AdvanceDeps,
-): Promise<void> {
-  const jobRunId = assemblyRun.args.job_run_id;
-
-  if (typeof jobRunId === "string" && jobRunId.length > 0) {
-    await settleJobRun(jobRunId, assemblyRun, { outcome, reason }, deps);
-  }
-}
-
-/** Only the racer that actually closed the row runs these — an event-vs-reaper race can otherwise write one run's episode twice. */
-async function runWinnerHooks(
-  assemblyRun: AssemblyRunRecord,
-  outcome: string,
-  reason: string | undefined,
-  deps: AdvanceDeps,
-): Promise<void> {
-  await recordRunEpisodeIfOwned(assemblyRun, outcome, reason, deps);
-
-  // Without this a line-backed task stays `running` forever — the watcher's post-completion path returns early for node CRs.
-  if (deps.settleTask) {
-    await deps.settleTask(assemblyRun, outcome, reason);
-  }
-
-  await callOnRunClosed(assemblyRun, outcome, reason, deps);
-  await notifyFailureIfApplicable(assemblyRun, outcome, reason, deps);
 }

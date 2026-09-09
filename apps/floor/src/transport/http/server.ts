@@ -50,29 +50,11 @@ const RUN_READ_ROUTES: Hapi.ServerRoute[] = [
   assemblyLineCatalogRoute(),
 ];
 
-/** The write side: what CI and the review choreography post in. */
-function ingestRoutes(deps: CiTestsRouteDeps): Hapi.ServerRoute[] {
-  return [ciIngestRoute, ciTestsRoute(deps), reviewStartRoute];
-}
-
 interface FloorServerOptions extends CiTestsRouteDeps {
   getJobStatus: () => unknown;
   podLogSource?: PodLogSource;
   podLogArchive?: PodLogArchive;
   liveReadable?: LiveReadable;
-}
-
-/** Everything the Floor serves. Cluster-agent tokens open the telemetry sink, which is what lets a satellite report cost and run-viz events without holding the bus secret. */
-function floorRoutes(opts: FloorServerOptions): Hapi.ServerRoute[] {
-  return [
-    healthRoute(opts.getJobStatus),
-    agentEventsRoute({
-      findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
-    }),
-    agentLogsRoute(opts.podLogSource, opts.podLogArchive, opts.liveReadable),
-    ...RUN_READ_ROUTES,
-    ...ingestRoutes({ testReports: opts.testReports }),
-  ];
 }
 
 export function buildServer(
@@ -90,6 +72,24 @@ export function buildServer(
   server.route(floorRoutes(opts));
 
   return server;
+}
+
+/** Everything the Floor serves. Cluster-agent tokens open the telemetry sink, which is what lets a satellite report cost and run-viz events without holding the bus secret. */
+function floorRoutes(opts: FloorServerOptions): Hapi.ServerRoute[] {
+  return [
+    healthRoute(opts.getJobStatus),
+    agentEventsRoute({
+      findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
+    }),
+    agentLogsRoute(opts.podLogSource, opts.podLogArchive, opts.liveReadable),
+    ...RUN_READ_ROUTES,
+    ...ingestRoutes({ testReports: opts.testReports }),
+  ];
+}
+
+/** The write side: what CI and the review choreography post in. */
+function ingestRoutes(deps: CiTestsRouteDeps): Hapi.ServerRoute[] {
+  return [ciIngestRoute, ciTestsRoute(deps), reviewStartRoute];
 }
 
 /** Start the HTTP server and return how to stop it. No signal handlers: process lifecycle owns single exit (index.ts). */

@@ -80,23 +80,6 @@ interface ResolvedFailurePorts {
   comment: (prNumber: number, body: string) => Promise<unknown>;
 }
 
-/** Production resolves the send surfaces per repo; a caller can override either for tests. */
-function resolveFailurePorts(
-  row: AssemblyRunRecord,
-  ports: FailureNotifyPorts,
-): ResolvedFailurePorts {
-  return {
-    notify:
-      ports.notify ??
-      (async (level, message) =>
-        (await projectFor(row.repo)).notify.notify(level, message)),
-    comment:
-      ports.comment ??
-      (async (prNumber, body) =>
-        (await projectFor(row.repo)).pulls.comment(prNumber, body)),
-  };
-}
-
 export async function notifyLineFailure(
   row: AssemblyRunRecord,
   outcome: string,
@@ -117,6 +100,23 @@ export async function notifyLineFailure(
   );
 
   await attemptPrComment(row, notice, comment, ports.audit);
+}
+
+/** Production resolves the send surfaces per repo; a caller can override either for tests. */
+function resolveFailurePorts(
+  row: AssemblyRunRecord,
+  ports: FailureNotifyPorts,
+): ResolvedFailurePorts {
+  return {
+    notify:
+      ports.notify ??
+      (async (level, message) =>
+        (await projectFor(row.repo)).notify.notify(level, message)),
+    comment:
+      ports.comment ??
+      (async (prNumber, body) =>
+        (await projectFor(row.repo)).pulls.comment(prNumber, body)),
+  };
 }
 
 /** The PR half of the notice, skipped when the run has no PR to speak to. */

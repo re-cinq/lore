@@ -6,19 +6,6 @@ import type { ProcessedCounts } from "@re-cinq/lore-shared/project/usage/usage-p
 import { isDbAvailable } from "../../../outbound/db.js";
 import { usage } from "../../../outbound/queues.js";
 
-/** Status-returning DB probe: only the query is wrapped; null means it failed. */
-async function probeProcessedCounts(): Promise<ProcessedCounts | null> {
-  if (!(await isDbAvailable())) {
-    return null;
-  }
-
-  try {
-    return await usage().processedCounts();
-  } catch {
-    return null;
-  }
-}
-
 export function healthRoute(getJobStatus: () => unknown): ServerRoute {
   return sharedHealthRoute(async () => {
     const counts = await probeProcessedCounts();
@@ -35,4 +22,17 @@ export function healthRoute(getJobStatus: () => unknown): ServerRoute {
         }
       : null;
   });
+}
+
+/** Status-returning DB probe: only the query is wrapped; null means it failed. */
+async function probeProcessedCounts(): Promise<ProcessedCounts | null> {
+  if (!(await isDbAvailable())) {
+    return null;
+  }
+
+  try {
+    return await usage().processedCounts();
+  } catch {
+    return null;
+  }
 }

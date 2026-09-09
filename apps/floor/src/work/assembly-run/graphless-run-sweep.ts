@@ -39,6 +39,28 @@ export async function reapGraphlessRun(
   return sweepTerminalSingleCr(row, singleCrOpen, ctx.deps);
 }
 
+async function settleUnclaimedSingleCr(
+  row: AssemblyRunRecord,
+  singleCrOpen: StationRunRecord,
+  ctx: GraphlessSweepContext,
+): Promise<"queue-timeout" | "requeued" | null> {
+  const recovery = recoveryForSingleCr(singleCrOpen, ctx);
+
+  if (recovery.kind === "queue-timeout") {
+    await failUnclaimed(row, singleCrOpen, ctx);
+
+    return "queue-timeout";
+  }
+
+  if (recovery.kind === "requeue-offline") {
+    await requeueOffline(row, singleCrOpen, ctx);
+
+    return "requeued";
+  }
+
+  return null;
+}
+
 /** Nothing ever claimed it, so the run ends. Both the node and the line carry the same reason — naming the required tags is the point, exactly as on the graph arm. */
 async function failUnclaimed(
   row: AssemblyRunRecord,
@@ -78,28 +100,6 @@ async function requeueOffline(
         : null,
     },
   });
-}
-
-async function settleUnclaimedSingleCr(
-  row: AssemblyRunRecord,
-  singleCrOpen: StationRunRecord,
-  ctx: GraphlessSweepContext,
-): Promise<"queue-timeout" | "requeued" | null> {
-  const recovery = recoveryForSingleCr(singleCrOpen, ctx);
-
-  if (recovery.kind === "queue-timeout") {
-    await failUnclaimed(row, singleCrOpen, ctx);
-
-    return "queue-timeout";
-  }
-
-  if (recovery.kind === "requeue-offline") {
-    await requeueOffline(row, singleCrOpen, ctx);
-
-    return "requeued";
-  }
-
-  return null;
 }
 
 /** With no graph there is no node budget and no walk to notice — the queue wait is the only bound. */

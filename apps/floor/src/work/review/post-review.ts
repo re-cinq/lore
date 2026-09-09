@@ -37,10 +37,6 @@ export function reviewRunMarker(
   return `<!-- lore-review-run: ${assemblyLineId}/${nodeId}/${iteration} -->`;
 }
 
-function withMarker(body: string, marker?: string): string {
-  return marker ? `${body}\n\n${marker}` : body;
-}
-
 /** Split findings by whether (path, line) is inside a diff hunk — line-level, not file-level, since an unchanged line on a changed file still 422s an inline comment. */
 export function partitionByHunks(
   findings: ReviewFinding[],
@@ -63,66 +59,9 @@ export function partitionByHunks(
   return { inline, overflow };
 }
 
-function renderComment(finding: ReviewFinding): string {
-  return new ConventionalComment({
-    label: finding.label,
-    decoration: finding.decoration,
-    subject: finding.subject,
-    discussion: finding.discussion,
-    suggestion: finding.suggestion,
-  }).render();
-}
-
-/** Always APPROVE or REQUEST_CHANGES (never suggestion-only COMMENT) — the signal auto-merge's bot-approval gate reads. */
-function reviewEvent(output: ReviewOutput): PRReviewEvent {
-  return output.verdict === "approved" ? "APPROVE" : "REQUEST_CHANGES";
-}
-
-function toReviewComment(finding: ReviewFinding) {
-  return {
-    path: finding.path,
-    line: finding.line,
-    ...(finding.side ? { side: finding.side } : {}),
-    body: renderComment(finding),
-  };
-}
-
-function renderOutOfDiff(finding: ReviewFinding): string {
-  return `**\`${finding.path}:${finding.line}\`** — ${renderComment(finding)}`;
-}
-
-/** The review body: the standard summary, plus any findings GitHub cannot inline. */
-export function composeBody(
-  output: ReviewOutput,
-  overflow: ReviewFinding[],
-  model?: string,
-): string {
-  const summary = buildReviewSummary(output, { model });
-
-  if (overflow.length === 0) {
-    return summary;
-  }
-  const notes = overflow.map(renderOutOfDiff).join("\n\n");
-
-  return `${summary}\n\n### Notes on lines outside changed hunks\n\n${notes}`;
-}
-
 /** Marks a fallback-posted review; must not start with a bot-noise prefix (`PR created:`/`Agent `/`Task ` in platform-github) or the dedupe probe's `listIssueComments` read would silently drop it. */
 const FALLBACK_NOTE =
   "_Inline placement was rejected by GitHub, so this review is posted as a single comment._";
-
-/** The whole review as one top-level comment — the never-drop fallback for a rejected inline post (e.g. an out-of-hunk line 422). */
-function fallbackComment(output: ReviewOutput, model?: string): string {
-  const summary = `${FALLBACK_NOTE}\n\n${buildReviewSummary(output, { model })}`;
-  const { findings } = output;
-
-  if (findings.length === 0) {
-    return summary;
-  }
-  const all = findings.map(renderOutOfDiff).join("\n\n");
-
-  return `${summary}\n\n${all}`;
-}
 
 /** `fallback`: GitHub rejected the inline review, so the caller audits the downgrade to a top-level comment. `deduped`: this run's marker was already on the PR. */
 export type ReviewPostDelivery =
@@ -135,38 +74,6 @@ export interface ReviewDelivery {
   positions: CommentablePositions;
   marker?: string;
   model?: string;
-}
-
-async function postInlineReview(
-  pulls: ReviewPoster,
-  prNumber: number,
-  output: ReviewOutput,
-  { positions, marker, model }: ReviewDelivery,
-): Promise<void> {
-  const { inline, overflow } = partitionByHunks(output.findings, positions);
-
-  await pulls.createReview(prNumber, {
-    event: reviewEvent(output),
-    body: withMarker(composeBody(output, overflow, model), marker),
-    comments: inline.map(toReviewComment),
-  });
-}
-
-async function postFallback(
-  pulls: ReviewPoster,
-  prNumber: number,
-  output: ReviewOutput,
-  { marker, model, error }: ReviewDelivery & { error: string },
-): Promise<ReviewPostDelivery> {
-  console.warn(
-    `[code-review] inline review rejected (${error}); posting as a top-level comment`,
-  );
-  await pulls.comment(
-    prNumber,
-    withMarker(fallbackComment(output, model), marker),
-  );
-
-  return { mode: "fallback", error };
 }
 
 export async function postReview(
@@ -188,11 +95,97 @@ export async function postReview(
   }
 }
 
-/** A bare `REVIEW_RESULT:APPROVED` with no findings is a legitimate "LGTM" — synthesize an empty approved review so it's visible, not silent. */
-function approvedWithoutFindings(agentOutput: string): ReviewOutput | null {
-  return parseReviewVerdict(agentOutput) === "success"
-    ? { verdict: "approved", findings: [], summary: "No issues found." }
-    : null;
+async function postInlineReview(
+  pulls: ReviewPoster,
+  prNumber: number,
+  output: ReviewOutput,
+  { positions, marker, model }: ReviewDelivery,
+): Promise<void> {
+  const { inline, overflow } = partitionByHunks(output.findings, positions);
+
+  await pulls.createReview(prNumber, {
+    event: reviewEvent(output),
+    body: withMarker(composeBody(output, overflow, model), marker),
+    comments: inline.map(toReviewComment),
+  });
+}
+
+/** Always APPROVE or REQUEST_CHANGES (never suggestion-only COMMENT) — the signal auto-merge's bot-approval gate reads. */
+function reviewEvent(output: ReviewOutput): PRReviewEvent {
+  return output.verdict === "approved" ? "APPROVE" : "REQUEST_CHANGES";
+}
+
+function toReviewComment(finding: ReviewFinding) {
+  return {
+    path: finding.path,
+    line: finding.line,
+    ...(finding.side ? { side: finding.side } : {}),
+    body: renderComment(finding),
+  };
+}
+
+function withMarker(body: string, marker?: string): string {
+  return marker ? `${body}\n\n${marker}` : body;
+}
+
+/** The review body: the standard summary, plus any findings GitHub cannot inline. */
+export function composeBody(
+  output: ReviewOutput,
+  overflow: ReviewFinding[],
+  model?: string,
+): string {
+  const summary = buildReviewSummary(output, { model });
+
+  if (overflow.length === 0) {
+    return summary;
+  }
+  const notes = overflow.map(renderOutOfDiff).join("\n\n");
+
+  return `${summary}\n\n### Notes on lines outside changed hunks\n\n${notes}`;
+}
+
+async function postFallback(
+  pulls: ReviewPoster,
+  prNumber: number,
+  output: ReviewOutput,
+  { marker, model, error }: ReviewDelivery & { error: string },
+): Promise<ReviewPostDelivery> {
+  console.warn(
+    `[code-review] inline review rejected (${error}); posting as a top-level comment`,
+  );
+  await pulls.comment(
+    prNumber,
+    withMarker(fallbackComment(output, model), marker),
+  );
+
+  return { mode: "fallback", error };
+}
+
+/** The whole review as one top-level comment — the never-drop fallback for a rejected inline post (e.g. an out-of-hunk line 422). */
+function fallbackComment(output: ReviewOutput, model?: string): string {
+  const summary = `${FALLBACK_NOTE}\n\n${buildReviewSummary(output, { model })}`;
+  const { findings } = output;
+
+  if (findings.length === 0) {
+    return summary;
+  }
+  const all = findings.map(renderOutOfDiff).join("\n\n");
+
+  return `${summary}\n\n${all}`;
+}
+
+function renderOutOfDiff(finding: ReviewFinding): string {
+  return `**\`${finding.path}:${finding.line}\`** — ${renderComment(finding)}`;
+}
+
+function renderComment(finding: ReviewFinding): string {
+  return new ConventionalComment({
+    label: finding.label,
+    decoration: finding.decoration,
+    subject: finding.subject,
+    discussion: finding.discussion,
+    suggestion: finding.suggestion,
+  }).render();
 }
 
 /** Parse the review node's raw output and post it; no-op (null) with neither a `REVIEW_FINDINGS` block nor a bare approval. With `marker`, the dedupe probe runs after the parse (so a no-op run skips the paginated reads) and right before the post. */
@@ -217,20 +210,11 @@ export async function maybePostReview(
   return postReview(pulls, prNumber, output, delivery);
 }
 
-async function markerOnPr(
-  pulls: ReviewPoster,
-  prNumber: number,
-  marker: string,
-): Promise<boolean> {
-  const [reviews, comments] = await Promise.all([
-    pulls.listReviews!(prNumber),
-    pulls.listIssueComments!(prNumber),
-  ]);
-
-  return (
-    reviews.some((review) => review.body.includes(marker)) ||
-    comments.some((comment) => comment.body.includes(marker))
-  );
+/** A bare `REVIEW_RESULT:APPROVED` with no findings is a legitimate "LGTM" — synthesize an empty approved review so it's visible, not silent. */
+function approvedWithoutFindings(agentOutput: string): ReviewOutput | null {
+  return parseReviewVerdict(agentOutput) === "success"
+    ? { verdict: "approved", findings: [], summary: "No issues found." }
+    : null;
 }
 
 /** Whether this run's review already reached the PR, via either delivery shape; best-effort — a missing read surface or a throwing probe reports "not posted" so the guard never drops a review. */
@@ -252,4 +236,20 @@ export async function reviewAlreadyPosted(
 
     return false;
   }
+}
+
+async function markerOnPr(
+  pulls: ReviewPoster,
+  prNumber: number,
+  marker: string,
+): Promise<boolean> {
+  const [reviews, comments] = await Promise.all([
+    pulls.listReviews!(prNumber),
+    pulls.listIssueComments!(prNumber),
+  ]);
+
+  return (
+    reviews.some((review) => review.body.includes(marker)) ||
+    comments.some((comment) => comment.body.includes(marker))
+  );
 }

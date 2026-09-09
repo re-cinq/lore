@@ -30,18 +30,6 @@ export function parseTail(raw: unknown): number {
     : DEFAULT_TAIL_LINES;
 }
 
-/** Stored chunks first, Cloud Logging behind them — stored is the only source that reaches a satellite-cluster run; `storedPodLogArchive` returns null (not "") to let the chain continue. */
-function defaultArchive(): PodLogArchive {
-  return firstAvailableArchive(
-    {
-      // Resolved per read, not here — this runs before `initPool`, so eager resolution would boot-crash route registration.
-      logsForJob: (jobName, opts) =>
-        storedPodLogArchive(pipeline().podLogs).logsForJob(jobName, opts),
-    },
-    new CloudLoggingPodLogs(),
-  );
-}
-
 /** The live source is the CENTRAL cluster-agent, so it may only be asked about a CR the central cluster ran; a row with no claim record keeps today's behaviour. */
 export function liveReadableFromCentral(
   row: Pick<StationRunRecord, "status" | "clusterAgentId"> | null,
@@ -69,6 +57,18 @@ export function agentLogsRoute(
     handler: async (request, h) =>
       h.response(await logsFor(request, { source, archive, liveReadable })),
   };
+}
+
+/** Stored chunks first, Cloud Logging behind them — stored is the only source that reaches a satellite-cluster run; `storedPodLogArchive` returns null (not "") to let the chain continue. */
+function defaultArchive(): PodLogArchive {
+  return firstAvailableArchive(
+    {
+      // Resolved per read, not here — this runs before `initPool`, so eager resolution would boot-crash route registration.
+      logsForJob: (jobName, opts) =>
+        storedPodLogArchive(pipeline().podLogs).logsForJob(jobName, opts),
+    },
+    new CloudLoggingPodLogs(),
+  );
 }
 
 /** What one GET resolves to, with the caller's tail clamped. */

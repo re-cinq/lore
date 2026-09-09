@@ -57,23 +57,6 @@ const ACTIVITY_GATE = `
   HAVING bool_or(content_type = 'spec')
     AND bool_or(content_type IN ('code', 'test') AND ingested_at > now() - ($1 || ' days')::interval)`;
 
-/** One SELECT per team schema, unioned. Schema-per-team isolation means there is no single chunks table to read, and the names are regex-checked by the caller before they reach this string. */
-function schemaUnion(
-  schemas: string[],
-  { activeOnly }: { activeOnly: boolean },
-): string {
-  const chunkFilter = activeOnly
-    ? `content_type IN ('spec', 'code')`
-    : `content_type = 'spec'`;
-
-  return schemas
-    .map(
-      (s) =>
-        `SELECT repo, content_type, ingested_at FROM ${s}.chunks WHERE ${chunkFilter}`,
-    )
-    .join("\n    UNION ALL\n    ");
-}
-
 export function specReposSql(
   schemas: string[],
   opts: { activeOnly: boolean },
@@ -96,6 +79,23 @@ export function specReposSql(
   WHERE repo IS NOT NULL
   GROUP BY repo${activityGate}
   ORDER BY repo`;
+}
+
+/** One SELECT per team schema, unioned. Schema-per-team isolation means there is no single chunks table to read, and the names are regex-checked by the caller before they reach this string. */
+function schemaUnion(
+  schemas: string[],
+  { activeOnly }: { activeOnly: boolean },
+): string {
+  const chunkFilter = activeOnly
+    ? `content_type IN ('spec', 'code')`
+    : `content_type = 'spec'`;
+
+  return schemas
+    .map(
+      (s) =>
+        `SELECT repo, content_type, ingested_at FROM ${s}.chunks WHERE ${chunkFilter}`,
+    )
+    .join("\n    UNION ALL\n    ");
 }
 
 export const activeSpecRepos = async (
@@ -130,6 +130,29 @@ export interface DetectFanOutDeps {
   listTargetRepos: () => Promise<string[]>;
 }
 
+export function createDetectTickHandler(
+  blueprintName: string,
+  deps: DetectFanOutDeps,
+): EventHandler {
+  return async (params) => {
+    const repos = await resolveTargetRepos(params, deps);
+
+    if (repos.length === 0) {
+      console.log(
+        `[detect] ${blueprintName}: no target repos, nothing to start`,
+      );
+
+      return;
+    }
+
+    const jobRef = await deps.jobRef();
+
+    for (const repo of repos) {
+      await processDetectRepo(blueprintName, repo, jobRef, deps);
+    }
+  };
+}
+
 async function resolveTargetRepos(
   params: Record<string, unknown>,
   deps: DetectFanOutDeps,
@@ -139,18 +162,46 @@ async function resolveTargetRepos(
     : deps.listTargetRepos();
 }
 
-/** A throw mid-loop would ORPHAN the job_run — nothing reaps those — so it is failed before the error is rethrown, and the retry settles cleanly. */
-async function failOrphanedJobRun(
-  jobRunId: string,
-  err: unknown,
+async function processDetectRepo(
+  blueprintName: string,
+  repo: string,
+  jobRef: string,
   deps: DetectFanOutDeps,
-): Promise<never> {
-  const { jobRuns } = deps;
+): Promise<void> {
+  if (await detectAlreadyInFlight(blueprintName, repo, deps)) {
+    return;
+  }
+  const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
+  const id = await startUnderJobRun(blueprintName, repo, jobRunId, deps);
 
-  await jobRuns
-    .fail(jobRunId, `assembly_line.start failed: ${(err as Error).message}`)
-    .catch(() => {});
-  throw err;
+  if (await joinedAnotherTick({ blueprintName, repo, id, jobRunId }, deps)) {
+    return;
+  }
+
+  console.log(
+    `[detect] ${blueprintName}: started assembly line ${id} for ${repo}`,
+  );
+}
+
+// Asked BEFORE the job_run is minted — one created for already-running work has no owner to close it (no job_runs reaper).
+async function detectAlreadyInFlight(
+  blueprintName: string,
+  repo: string,
+  deps: DetectFanOutDeps,
+): Promise<boolean> {
+  const inFlight = await deps.assemblyRuns.findOpenBySubject(
+    repo,
+    detectSubject(blueprintName, repo),
+  );
+
+  if (!inFlight) {
+    return false;
+  }
+  console.log(
+    `[detect] ${blueprintName}: ${repo} already running as ${inFlight.id}, skipping`,
+  );
+
+  return true;
 }
 
 /** Starts (or joins) the detect run for one repo; never throws for a "superseded" join, only for a genuine `assembly_line.start` failure. */
@@ -171,6 +222,20 @@ async function startUnderJobRun(
   } catch (err) {
     return failOrphanedJobRun(jobRunId, err, deps);
   }
+}
+
+/** A throw mid-loop would ORPHAN the job_run — nothing reaps those — so it is failed before the error is rethrown, and the retry settles cleanly. */
+async function failOrphanedJobRun(
+  jobRunId: string,
+  err: unknown,
+  deps: DetectFanOutDeps,
+): Promise<never> {
+  const { jobRuns } = deps;
+
+  await jobRuns
+    .fail(jobRunId, `assembly_line.start failed: ${(err as Error).message}`)
+    .catch(() => {});
+  throw err;
 }
 
 /** Two ticks can both read "nothing in flight" — the loser's start() then JOINS the winner's run rather than creating a second one, and a job_run_id that is not ours is exactly that join. Its job_run is closed here, because otherwise it stays open forever with no run behind it. */
@@ -195,71 +260,6 @@ async function joinedAnotherTick(
   );
 
   return true;
-}
-
-// Asked BEFORE the job_run is minted — one created for already-running work has no owner to close it (no job_runs reaper).
-async function detectAlreadyInFlight(
-  blueprintName: string,
-  repo: string,
-  deps: DetectFanOutDeps,
-): Promise<boolean> {
-  const inFlight = await deps.assemblyRuns.findOpenBySubject(
-    repo,
-    detectSubject(blueprintName, repo),
-  );
-
-  if (!inFlight) {
-    return false;
-  }
-  console.log(
-    `[detect] ${blueprintName}: ${repo} already running as ${inFlight.id}, skipping`,
-  );
-
-  return true;
-}
-
-async function processDetectRepo(
-  blueprintName: string,
-  repo: string,
-  jobRef: string,
-  deps: DetectFanOutDeps,
-): Promise<void> {
-  if (await detectAlreadyInFlight(blueprintName, repo, deps)) {
-    return;
-  }
-  const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
-  const id = await startUnderJobRun(blueprintName, repo, jobRunId, deps);
-
-  if (await joinedAnotherTick({ blueprintName, repo, id, jobRunId }, deps)) {
-    return;
-  }
-
-  console.log(
-    `[detect] ${blueprintName}: started assembly line ${id} for ${repo}`,
-  );
-}
-
-export function createDetectTickHandler(
-  blueprintName: string,
-  deps: DetectFanOutDeps,
-): EventHandler {
-  return async (params) => {
-    const repos = await resolveTargetRepos(params, deps);
-
-    if (repos.length === 0) {
-      console.log(
-        `[detect] ${blueprintName}: no target repos, nothing to start`,
-      );
-
-      return;
-    }
-
-    const jobRef = await deps.jobRef();
-
-    for (const repo of repos) {
-      await processDetectRepo(blueprintName, repo, jobRef, deps);
-    }
-  };
 }
 
 const productionTick =

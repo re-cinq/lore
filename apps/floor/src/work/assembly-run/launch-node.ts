@@ -46,20 +46,28 @@ interface NodeDispatchKind {
   dispatchedAsPod: boolean;
 }
 
-/** Claim fields only a POD-dispatched node's row carries (FR3): `queued` parks it for a cluster-agent claim while human/service rows keep `running`, and the repo-settings read behind its required tags is paid only when it matters. */
-async function podClaimFields(
-  node: RunGraphNode,
-  repo: string,
-  deps: AdvanceDeps,
-): Promise<{ status: "queued"; requiredTags: string[] }> {
-  return {
-    status: "queued",
-    requiredTags: resolveRequiredTags(
-      node.type,
-      node.required_tags,
-      await deps.repoSettings(repo),
-    ),
-  };
+/** Record the visit, then hand the node to whoever runs it: a human station parks and waits, a service node is published for the pooled service, and everything else arms its row for a cluster-agent to claim. */
+export async function launchNode(launch: NodeLaunch): Promise<void> {
+  const { node } = launch;
+  const runsInService = isServiceNode(node.type);
+  const dispatchedAsPod = !isHumanStation(node.type) && !runsInService;
+  const { stationRunId, nodeRowId } = await ensureStationRunFor(launch, {
+    runsInService,
+    dispatchedAsPod,
+  });
+
+  // A human station's worker is outside the pod system (wizard/PR page); the row parks the walk, nothing dispatches, and the outcome arrives later as a resume.
+  if (isHumanStation(node.type)) {
+    return;
+  }
+
+  if (runsInService) {
+    await publishServiceNodeEvent(launch, stationRunId);
+
+    return;
+  }
+
+  await dispatchStationRun(launch, { stationRunId, nodeRowId });
 }
 
 // Row before CR: a crash between them leaves an open row the reaper resolves by reading the deterministically named CR; the row also MINTS the station-run id so a converged duplicate reuses it. A service node names no CR (null), so the reaper never mistakes it for the crash-between-row-and-launch case and relaunches it as a duplicate pod.
@@ -81,6 +89,22 @@ async function ensureStationRunFor(
       ? await podClaimFields(node, assemblyRun.repo, deps)
       : {}),
   });
+}
+
+/** Claim fields only a POD-dispatched node's row carries (FR3): `queued` parks it for a cluster-agent claim while human/service rows keep `running`, and the repo-settings read behind its required tags is paid only when it matters. */
+async function podClaimFields(
+  node: RunGraphNode,
+  repo: string,
+  deps: AdvanceDeps,
+): Promise<{ status: "queued"; requiredTags: string[] }> {
+  return {
+    status: "queued",
+    requiredTags: resolveRequiredTags(
+      node.type,
+      node.required_tags,
+      await deps.repoSettings(repo),
+    ),
+  };
 }
 
 /** Published, not launched: the row already exists, so the service has something to report against, and the dedupe key is that row — a redelivered event cannot run the node twice. */
@@ -128,28 +152,4 @@ async function dispatchStationRun(
   }
 
   await deps.assemblyRuns.enqueueStationRunDispatch(ids.nodeRowId, spec);
-}
-
-/** Record the visit, then hand the node to whoever runs it: a human station parks and waits, a service node is published for the pooled service, and everything else arms its row for a cluster-agent to claim. */
-export async function launchNode(launch: NodeLaunch): Promise<void> {
-  const { node } = launch;
-  const runsInService = isServiceNode(node.type);
-  const dispatchedAsPod = !isHumanStation(node.type) && !runsInService;
-  const { stationRunId, nodeRowId } = await ensureStationRunFor(launch, {
-    runsInService,
-    dispatchedAsPod,
-  });
-
-  // A human station's worker is outside the pod system (wizard/PR page); the row parks the walk, nothing dispatches, and the outcome arrives later as a resume.
-  if (isHumanStation(node.type)) {
-    return;
-  }
-
-  if (runsInService) {
-    await publishServiceNodeEvent(launch, stationRunId);
-
-    return;
-  }
-
-  await dispatchStationRun(launch, { stationRunId, nodeRowId });
 }

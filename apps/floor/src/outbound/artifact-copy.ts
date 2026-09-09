@@ -80,6 +80,24 @@ export function fallbackCopy(input: ArtifactCopyInput): ArtifactCopy {
 const defaultLlm: CopyLlm = (params) =>
   Llm.instance.completeWithTool<{ title?: string; body?: string }>(params);
 
+/** Asks the model for an engagement-optimized title + description, falling back to deterministic copy if it errors or returns nothing usable. */
+export async function generateArtifactCopy(
+  input: ArtifactCopyInput,
+  llm: CopyLlm = defaultLlm,
+): Promise<ArtifactCopy> {
+  try {
+    const copy = await requestLlmCopy(input, llm);
+
+    if (copy) {
+      return copy;
+    }
+  } catch {
+    // fall through to deterministic copy
+  }
+
+  return fallbackCopy(input);
+}
+
 /** Calls the LLM for title + body; returns null when either comes back blank. */
 async function requestLlmCopy(
   input: ArtifactCopyInput,
@@ -99,22 +117,4 @@ async function requestLlmCopy(
   const body = (result.parsed.body || "").trim();
 
   return title && body ? { title, body, source: "llm" } : null;
-}
-
-/** Asks the model for an engagement-optimized title + description, falling back to deterministic copy if it errors or returns nothing usable. */
-export async function generateArtifactCopy(
-  input: ArtifactCopyInput,
-  llm: CopyLlm = defaultLlm,
-): Promise<ArtifactCopy> {
-  try {
-    const copy = await requestLlmCopy(input, llm);
-
-    if (copy) {
-      return copy;
-    }
-  } catch {
-    // fall through to deterministic copy
-  }
-
-  return fallbackCopy(input);
 }

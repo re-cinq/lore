@@ -61,93 +61,6 @@ export function reportedStatus(status: unknown): AgentNodeStatus | null {
   };
 }
 
-/** The event's raw terminal status, or null when there is nothing to settle from here — the node already reported, or its CR is in a cluster this Floor cannot read. */
-async function resolveRawStatus(
-  event: NodeEvent,
-  params: Record<string, unknown>,
-  deps: NodeEventDeps,
-): Promise<AgentNodeStatus | null> {
-  const reported = reportedStatus(params.status);
-
-  if (reported !== null) {
-    return reported;
-  }
-
-  // Only an older cluster-agent's event (no status) needs a cluster interrogated; an unreachable CR would otherwise read as "agent produced nothing" (2026-08-27 regression).
-  if (!(await openClaimReadableFromThisFloor(event, deps))) {
-    return null;
-  }
-
-  return (
-    (await deps.readAgentStatus(event.agentName)) ?? {
-      phase: String(params.phase ?? ""),
-    }
-  );
-}
-
-/** False for a duplicate delivery — no open row means the first delivery settled the node, and reading a CR for it would turn a satellite's null into a phantom `{ phase }` re-settlement (#1627) — and for a CR claimed by a cluster this Floor cannot read (left open for the reaper instead of fabricating an outcome). */
-async function openClaimReadableFromThisFloor(
-  event: NodeEvent,
-  deps: NodeEventDeps,
-): Promise<boolean> {
-  const openRow = await openStationRun(event, deps);
-
-  if (!openRow) {
-    return false;
-  }
-
-  return !claimUnreadableFromThisFloor(
-    event,
-    openRow,
-    (await deps.centralClusterAgentId?.()) ?? null,
-  );
-}
-
-/** The run and node one agent_node event is about. */
-interface EventTarget {
-  row: AssemblyRunRecord;
-  node: RunGraphNode;
-}
-
-/** What happens once a node's terminal status is known. */
-async function settleTerminalNode(
-  event: NodeEvent,
-  target: EventTarget,
-  rawStatus: AgentNodeStatus,
-  deps: NodeEventDeps,
-): Promise<void> {
-  const status = normalizeAgentStatus(rawStatus);
-  const result = await terminalNodeResult(target, rawStatus, status, deps);
-
-  await finishNodeTerminal(
-    {
-      row: target.row,
-      node: target.node,
-      nodeId: event.nodeId,
-      iteration: event.iteration,
-      result,
-      output: status.output,
-    },
-    deps,
-  );
-}
-
-/** Artifacts are merged into the run's args FIRST, because the artifact sink is a separate racing HTTP post and the next station would otherwise miss an arg its predecessor already produced (a re-merge is a no-op). */
-async function terminalNodeResult(
-  target: EventTarget,
-  rawStatus: AgentNodeStatus,
-  status: ReturnType<typeof normalizeAgentStatus>,
-  deps: NodeEventDeps,
-): Promise<NodeResult> {
-  const { row, node } = target;
-  const result = await deliverTerminalArtifacts(row, node, rawStatus, deps);
-
-  await alertOnFailure(target, result, status, deps);
-  tripGateOnAccountOutage(result, deps);
-
-  return result;
-}
-
 export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
   return async (params) => {
     const event = readNodeEvent(params);
@@ -197,6 +110,12 @@ function readNodeEvent(params: Record<string, unknown>): NodeEvent {
   return event;
 }
 
+/** The run and node one agent_node event is about. */
+interface EventTarget {
+  row: AssemblyRunRecord;
+  node: RunGraphNode;
+}
+
 /** The run and node the event is about, or null when there is nothing to advance — the run is gone or finished, or its graph no longer has that node. */
 async function resolveEventTarget(
   event: NodeEvent,
@@ -211,6 +130,87 @@ async function resolveEventTarget(
   const node = graph?.nodes.find((n) => n.id === event.nodeId);
 
   return node ? { row, node } : null;
+}
+
+/** The event's raw terminal status, or null when there is nothing to settle from here — the node already reported, or its CR is in a cluster this Floor cannot read. */
+async function resolveRawStatus(
+  event: NodeEvent,
+  params: Record<string, unknown>,
+  deps: NodeEventDeps,
+): Promise<AgentNodeStatus | null> {
+  const reported = reportedStatus(params.status);
+
+  if (reported !== null) {
+    return reported;
+  }
+
+  // Only an older cluster-agent's event (no status) needs a cluster interrogated; an unreachable CR would otherwise read as "agent produced nothing" (2026-08-27 regression).
+  if (!(await openClaimReadableFromThisFloor(event, deps))) {
+    return null;
+  }
+
+  return (
+    (await deps.readAgentStatus(event.agentName)) ?? {
+      phase: String(params.phase ?? ""),
+    }
+  );
+}
+
+/** False for a duplicate delivery — no open row means the first delivery settled the node, and reading a CR for it would turn a satellite's null into a phantom `{ phase }` re-settlement (#1627) — and for a CR claimed by a cluster this Floor cannot read (left open for the reaper instead of fabricating an outcome). */
+async function openClaimReadableFromThisFloor(
+  event: NodeEvent,
+  deps: NodeEventDeps,
+): Promise<boolean> {
+  const openRow = await openStationRun(event, deps);
+
+  if (!openRow) {
+    return false;
+  }
+
+  return !claimUnreadableFromThisFloor(
+    event,
+    openRow,
+    (await deps.centralClusterAgentId?.()) ?? null,
+  );
+}
+
+/** What happens once a node's terminal status is known. */
+async function settleTerminalNode(
+  event: NodeEvent,
+  target: EventTarget,
+  rawStatus: AgentNodeStatus,
+  deps: NodeEventDeps,
+): Promise<void> {
+  const status = normalizeAgentStatus(rawStatus);
+  const result = await terminalNodeResult(target, rawStatus, status, deps);
+
+  await finishNodeTerminal(
+    {
+      row: target.row,
+      node: target.node,
+      nodeId: event.nodeId,
+      iteration: event.iteration,
+      result,
+      output: status.output,
+    },
+    deps,
+  );
+}
+
+/** Artifacts are merged into the run's args FIRST, because the artifact sink is a separate racing HTTP post and the next station would otherwise miss an arg its predecessor already produced (a re-merge is a no-op). */
+async function terminalNodeResult(
+  target: EventTarget,
+  rawStatus: AgentNodeStatus,
+  status: ReturnType<typeof normalizeAgentStatus>,
+  deps: NodeEventDeps,
+): Promise<NodeResult> {
+  const { row, node } = target;
+  const result = await deliverTerminalArtifacts(row, node, rawStatus, deps);
+
+  await alertOnFailure(target, result, status, deps);
+  tripGateOnAccountOutage(result, deps);
+
+  return result;
 }
 
 /** An account-out-of-credits failure downs every LLM node at once, and a missing skills_source strands every Claude-agent node on the CLUSTER — both are surfaced once to operators, ahead of the per-line failure notice. */

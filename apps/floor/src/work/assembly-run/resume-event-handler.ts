@@ -23,6 +23,25 @@ export interface ResumeEventHandlerDeps {
   }) => Promise<void>;
 }
 
+export function createResumeEventHandler(
+  deps: ResumeEventHandlerDeps,
+): EventHandler {
+  return async (params) => {
+    const assemblyLineId = assemblyLineIdFrom(params);
+    const nodeId = nodeIdFrom(params);
+    const outcome = outcomeFrom(params);
+
+    await mergeArgsIfObject(deps, assemblyLineId, params.args);
+
+    await deps.finishNodeAndAdvance({
+      assemblyLineId,
+      nodeId,
+      iteration: iterationFrom(params),
+      result: resumedResult(params, outcome),
+    });
+  };
+}
+
 function assemblyLineIdFrom(params: Record<string, unknown>): string {
   const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
 
@@ -77,25 +96,6 @@ async function mergeArgsIfObject(
 
 function iterationFrom(params: Record<string, unknown>): number | undefined {
   return typeof params.iteration === "number" ? params.iteration : undefined;
-}
-
-export function createResumeEventHandler(
-  deps: ResumeEventHandlerDeps,
-): EventHandler {
-  return async (params) => {
-    const assemblyLineId = assemblyLineIdFrom(params);
-    const nodeId = nodeIdFrom(params);
-    const outcome = outcomeFrom(params);
-
-    await mergeArgsIfObject(deps, assemblyLineId, params.args);
-
-    await deps.finishNodeAndAdvance({
-      assemblyLineId,
-      nodeId,
-      iteration: iterationFrom(params),
-      result: resumedResult(params, outcome),
-    });
-  };
 }
 
 /** What the resumed node produced — parsed (not cast) since a malformed result must fail the event rather than advance the walk unroutably. */

@@ -32,29 +32,34 @@ import { CRON_EMITTERS } from "./events/listeners/cron-emitters.js";
 /** How long shutdown waits for the event queue to drain — long enough to clear a backlog, short enough not to hold a rollout open past its termination grace period. */
 const EVENT_DRAIN_TIMEOUT_MS = 5_000;
 
-function loadTaskTypesSafely(): void {
-  try {
-    loadTaskTypes();
-  } catch (err) {
-    console.warn("[floor] Could not load task types:", err);
-  }
-}
+async function main(): Promise<void> {
+  console.log("[floor] Lore Floor Service starting...");
 
-// A repair, not a precondition — reconcile failure here never stops the loop.
-async function reconcileBootDeliveries(): Promise<void> {
-  try {
-    const repaired = await reconcileDeliveries(RECONCILE_WINDOW_MINUTES);
+  await bootRuntime();
 
-    if (repaired > 0) {
-      console.log(
-        `[floor] reconciled ${repaired} deliveries missed before this boot registered`,
-      );
-    }
-  } catch (err) {
-    console.warn(
-      `[floor] boot reconcile failed (${(err as Error).message}) — draining anyway`,
-    );
-  }
+  const port = parseInt(process.env.PORT || "8080", 10);
+  // Awaited: the stop function is half of the shutdown contract — a fire-and-forgotten start left a late failure with nowhere to surface.
+  const stopServing = await startHealthServer(port, getJobStatus);
+
+  // ONE owner of the process lifecycle; started before anything can report, so an `emit` before this would otherwise sit in memory until shutdown noticed it.
+  await eventProxy().start();
+
+  const shutdown = createShutdown({
+    stopServing,
+    flushEvents: () => eventProxy().stop(EVENT_DRAIN_TIMEOUT_MS),
+    flushTelemetry: shutdownOtel,
+    exit: (code) => process.exit(code),
+  });
+
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+
+  // Nothing below may run twice — SKIP LOCKED just SPLITS the stream between two Floors, so a stale instance quietly handles events. Deliberately AFTER the health server and signal handlers so a Floor waiting its turn stays healthy under the liveness probe.
+  await awaitSoleFloor();
+
+  await startEventPlane();
+
+  console.log("[floor] Lore Floor Service ready");
 }
 
 /** Everything that must exist before this Floor can answer anything. GitHub is absent on purpose: it is reached through the project facade, which builds its adapter from env on demand. */
@@ -74,6 +79,14 @@ async function bootRuntime(): Promise<void> {
 
   if (recovered > 0) {
     console.log(`[floor] Recovered ${recovered} stale tasks`);
+  }
+}
+
+function loadTaskTypesSafely(): void {
+  try {
+    loadTaskTypes();
+  } catch (err) {
+    console.warn("[floor] Could not load task types:", err);
   }
 }
 
@@ -104,34 +117,21 @@ async function startEventPlane(): Promise<void> {
   void startWorker();
 }
 
-async function main(): Promise<void> {
-  console.log("[floor] Lore Floor Service starting...");
+// A repair, not a precondition — reconcile failure here never stops the loop.
+async function reconcileBootDeliveries(): Promise<void> {
+  try {
+    const repaired = await reconcileDeliveries(RECONCILE_WINDOW_MINUTES);
 
-  await bootRuntime();
-
-  const port = parseInt(process.env.PORT || "8080", 10);
-  // Awaited: the stop function is half of the shutdown contract — a fire-and-forgotten start left a late failure with nowhere to surface.
-  const stopServing = await startHealthServer(port, getJobStatus);
-
-  // ONE owner of the process lifecycle; started before anything can report, so an `emit` before this would otherwise sit in memory until shutdown noticed it.
-  await eventProxy().start();
-
-  const shutdown = createShutdown({
-    stopServing,
-    flushEvents: () => eventProxy().stop(EVENT_DRAIN_TIMEOUT_MS),
-    flushTelemetry: shutdownOtel,
-    exit: (code) => process.exit(code),
-  });
-
-  process.on("SIGTERM", () => void shutdown("SIGTERM"));
-  process.on("SIGINT", () => void shutdown("SIGINT"));
-
-  // Nothing below may run twice — SKIP LOCKED just SPLITS the stream between two Floors, so a stale instance quietly handles events. Deliberately AFTER the health server and signal handlers so a Floor waiting its turn stays healthy under the liveness probe.
-  await awaitSoleFloor();
-
-  await startEventPlane();
-
-  console.log("[floor] Lore Floor Service ready");
+    if (repaired > 0) {
+      console.log(
+        `[floor] reconciled ${repaired} deliveries missed before this boot registered`,
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[floor] boot reconcile failed (${(err as Error).message}) — draining anyway`,
+    );
+  }
 }
 
 main().catch((err) => {

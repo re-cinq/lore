@@ -91,25 +91,6 @@ type IssuesLabeledParams = {
   };
 };
 
-/** Builds the task-store payload for an Issue dispatch; the Issue's identifiers ride the context bundle so the agent can read them back. */
-function issueTaskInput(
-  repo: string,
-  issue: IssuesLabeledParams["issue"],
-  taskType: string,
-) {
-  return {
-    description: `${issue.title}\n\n${issue.body}`.trim(),
-    taskType,
-    targetRepo: repo,
-    createdBy: "github-webhook",
-    contextBundle: {
-      github_issue_number: issue.number,
-      github_issue_url: issue.html_url,
-      github_issue_body: issue.body,
-    },
-  };
-}
-
 /** Files the task an Issue dispatched, and marks the Issue as ours. The two GitHub writes are `allSettled`: the task exists by then, so a failed comment or label must not look like a failed dispatch. */
 async function fileIssueTask(
   repo: string,
@@ -130,6 +111,25 @@ async function fileIssueTask(
     ),
     issues.addLabel(issue.number, "lore-managed"),
   ]);
+}
+
+/** Builds the task-store payload for an Issue dispatch; the Issue's identifiers ride the context bundle so the agent can read them back. */
+function issueTaskInput(
+  repo: string,
+  issue: IssuesLabeledParams["issue"],
+  taskType: string,
+) {
+  return {
+    description: `${issue.title}\n\n${issue.body}`.trim(),
+    taskType,
+    targetRepo: repo,
+    createdBy: "github-webhook",
+    contextBundle: {
+      github_issue_number: issue.number,
+      github_issue_url: issue.html_url,
+      github_issue_body: issue.body,
+    },
+  };
 }
 
 /** True when an Issue already has an active task; comments the existing task id on the Issue so the duplicate label is answered. */
@@ -198,6 +198,29 @@ function specLabelledSlug(labels: string[], branch: string): string | null {
   return labels.includes("spec") ? specSlugFromBranch(branch) : null;
 }
 
+/** Files a merged spec PR's tasks.md as spec-tasks; an unreadable tasks.md is a no-op. */
+async function syncSpecTasks(
+  repo: string,
+  branch: string,
+  specSlug: string,
+  mergeCommitSha: string | null,
+): Promise<void> {
+  const taskGroupId = await syncMergedTasks(repo, specSlug, mergeCommitSha);
+
+  if (!taskGroupId) {
+    return;
+  }
+
+  const { taskQueue } = pipeline();
+
+  await taskQueue
+    .markFeatureRequestMergedOnBranch(repo, branch)
+    .catch(() => {});
+  console.log(
+    `[events] spec PR merged: ${repo}/${specSlug} → spec-tasks (group ${taskGroupId})`,
+  );
+}
+
 /** Reads tasks.md AT THE MERGE COMMIT and files its spec-tasks as one group. The commit matters: reading the branch would race a branch already deleted, and reading HEAD would pick up whatever merged after. */
 async function syncMergedTasks(
   repo: string,
@@ -221,29 +244,6 @@ async function syncMergedTasks(
   );
 
   return taskGroupId;
-}
-
-/** Files a merged spec PR's tasks.md as spec-tasks; an unreadable tasks.md is a no-op. */
-async function syncSpecTasks(
-  repo: string,
-  branch: string,
-  specSlug: string,
-  mergeCommitSha: string | null,
-): Promise<void> {
-  const taskGroupId = await syncMergedTasks(repo, specSlug, mergeCommitSha);
-
-  if (!taskGroupId) {
-    return;
-  }
-
-  const { taskQueue } = pipeline();
-
-  await taskQueue
-    .markFeatureRequestMergedOnBranch(repo, branch)
-    .catch(() => {});
-  console.log(
-    `[events] spec PR merged: ${repo}/${specSlug} → spec-tasks (group ${taskGroupId})`,
-  );
 }
 
 /** pull_request closed+merged: a merged spec PR → sync its tasks.md into spec-tasks. */

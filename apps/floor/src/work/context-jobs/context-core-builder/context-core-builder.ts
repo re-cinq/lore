@@ -7,23 +7,6 @@ const REGRESSION_THRESHOLD = 0.05;
 
 type EvalTally = Record<"promoted" | "rejected" | "unchanged", number>;
 
-/** One namespace's error is contained so the rest of the nightly still runs. */
-async function tallyNamespaces(namespaces: string[]): Promise<EvalTally> {
-  const tally: EvalTally = { promoted: 0, rejected: 0, unchanged: 0 };
-
-  for (const team of namespaces) {
-    try {
-      const result = await evaluateNamespace(team);
-
-      tally[result]++;
-    } catch (err) {
-      console.error(`[job] context-core: error evaluating ${team}:`, err);
-    }
-  }
-
-  return tally;
-}
-
 /** Context Core Builder: nightly eval at 4am UTC; promote chunks if +2%, reject if -5%. */
 export async function contextCoreBuilderJob(): Promise<string> {
   // Get all namespaces (teams) that have chunks
@@ -41,6 +24,44 @@ export async function contextCoreBuilderJob(): Promise<string> {
   console.log(`[job] context-core: ${summary}`);
 
   return summary;
+}
+
+/** One namespace's error is contained so the rest of the nightly still runs. */
+async function tallyNamespaces(namespaces: string[]): Promise<EvalTally> {
+  const tally: EvalTally = { promoted: 0, rejected: 0, unchanged: 0 };
+
+  for (const team of namespaces) {
+    try {
+      const result = await evaluateNamespace(team);
+
+      tally[result]++;
+    } catch (err) {
+      console.error(`[job] context-core: error evaluating ${team}:`, err);
+    }
+  }
+
+  return tally;
+}
+
+async function evaluateNamespace(
+  namespace: string,
+): Promise<"promoted" | "rejected" | "unchanged"> {
+  // Count promoted chunks
+  const count = await chunks().countChunksByTeam(namespace);
+
+  if (count === 0) {
+    console.log(`[job] context-core: ${namespace} has 0 chunks, skipping`);
+
+    return "unchanged";
+  }
+
+  const currentScore = await evalScoreOrSkip(namespace);
+
+  if (currentScore === null) {
+    return "unchanged";
+  }
+
+  return applyEvalDecision(await decisionInputFor(namespace, currentScore));
 }
 
 /** Runs the namespace's PromptFoo eval; null means "skip" (no config, or eval crashed/timed out) — already logged. */
@@ -75,6 +96,18 @@ interface EvalDecisionInput {
   prevScore: number;
   delta: number;
   version: string;
+}
+
+async function applyEvalDecision(
+  input: EvalDecisionInput,
+): Promise<"promoted" | "rejected" | "unchanged"> {
+  if (input.delta >= IMPROVEMENT_THRESHOLD) {
+    return promote(input);
+  }
+
+  return input.delta < -REGRESSION_THRESHOLD
+    ? reject(input)
+    : recordNoChange(input);
 }
 
 /** Records this build as the production baseline. Only a build that beat the previous score by the threshold gets here — a tie promotes nothing, because an equal score is not evidence the new context is better. */
@@ -129,18 +162,6 @@ async function recordNoChange(input: EvalDecisionInput): Promise<"unchanged"> {
   return "unchanged";
 }
 
-async function applyEvalDecision(
-  input: EvalDecisionInput,
-): Promise<"promoted" | "rejected" | "unchanged"> {
-  if (input.delta >= IMPROVEMENT_THRESHOLD) {
-    return promote(input);
-  }
-
-  return input.delta < -REGRESSION_THRESHOLD
-    ? reject(input)
-    : recordNoChange(input);
-}
-
 /** Reads the production baseline, stamps this build's version, and logs the comparison the decision is made on. */
 async function decisionInputFor(
   namespace: string,
@@ -156,25 +177,4 @@ async function decisionInputFor(
   );
 
   return { namespace, currentScore, prevScore, delta, version };
-}
-
-async function evaluateNamespace(
-  namespace: string,
-): Promise<"promoted" | "rejected" | "unchanged"> {
-  // Count promoted chunks
-  const count = await chunks().countChunksByTeam(namespace);
-
-  if (count === 0) {
-    console.log(`[job] context-core: ${namespace} has 0 chunks, skipping`);
-
-    return "unchanged";
-  }
-
-  const currentScore = await evalScoreOrSkip(namespace);
-
-  if (currentScore === null) {
-    return "unchanged";
-  }
-
-  return applyEvalDecision(await decisionInputFor(namespace, currentScore));
 }

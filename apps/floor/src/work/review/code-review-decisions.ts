@@ -79,22 +79,22 @@ export function recheckDescription(
   return `Re-check pull request #${pr} in ${repo} (branch ${branch}) after a new push.`;
 }
 
-function replyDescription(
-  intent: "address" | "answer",
-  ctx: CommentContext,
-): string {
-  const thread = ctx.in_reply_to_id
-    ? ` (reply on review-comment thread ${ctx.in_reply_to_id})`
-    : "";
-  const head = `On pull request #${ctx.pr_number} in ${ctx.repo} (branch ${ctx.branch})${thread}, a human commented: ${ctx.comment_body}`;
-
-  return intent === "address"
-    ? `${head}\n\nThey approved a fix — implement it and commit to the PR branch, then confirm briefly in the thread.`
-    : `${head}\n\nAnswer their question briefly in the review thread; do not change code.`;
-}
-
 /** Route a triaged comment; pure for unit-testability; ignore yields null. */
 type TriageRoute = { definition: string; args: Record<string, unknown> } | null;
+
+export function routeTriagedComment(
+  action: TriageAction,
+  ctx: CommentContext,
+): TriageRoute {
+  if (action === "review") {
+    return reviewRoute(ctx);
+  }
+
+  // `ignore` falls through to null: not every comment is work.
+  return action === "address" || action === "answer"
+    ? replyRoute(action, ctx)
+    : null;
+}
 
 /** A fresh review pass over the whole PR — the comment asked for the work to be redone, not discussed. */
 function reviewRoute(ctx: CommentContext): TriageRoute {
@@ -131,18 +131,18 @@ function replyRoute(
   };
 }
 
-export function routeTriagedComment(
-  action: TriageAction,
+function replyDescription(
+  intent: "address" | "answer",
   ctx: CommentContext,
-): TriageRoute {
-  if (action === "review") {
-    return reviewRoute(ctx);
-  }
+): string {
+  const thread = ctx.in_reply_to_id
+    ? ` (reply on review-comment thread ${ctx.in_reply_to_id})`
+    : "";
+  const head = `On pull request #${ctx.pr_number} in ${ctx.repo} (branch ${ctx.branch})${thread}, a human commented: ${ctx.comment_body}`;
 
-  // `ignore` falls through to null: not every comment is work.
-  return action === "address" || action === "answer"
-    ? replyRoute(action, ctx)
-    : null;
+  return intent === "address"
+    ? `${head}\n\nThey approved a fix — implement it and commit to the PR branch, then confirm briefly in the thread.`
+    : `${head}\n\nAnswer their question briefly in the review thread; do not change code.`;
 }
 
 /** Review feedback: body plus inline comments with ids for thread targeting. */

@@ -7,19 +7,19 @@ import { isFeatureLifecycleType } from "./task-lifecycle-type.js";
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
 
-// The one reader of the CR's label map; both accessors below go through it.
-function labelOf(agent: AgentCr, label: string): string | undefined {
-  const { labels } = agent.metadata ?? {};
-
-  return labels?.[label];
-}
-
 /** The task id / type from the Agent's labels (set by AgentCrBackend). */
 export function taskIdOf(agent: AgentCr): string | undefined {
   return labelOf(agent, TASK_ID_LABEL);
 }
 export function taskTypeOf(agent: AgentCr): string | undefined {
   return labelOf(agent, TASK_TYPE_LABEL);
+}
+
+// The one reader of the CR's label map; both accessors above go through it.
+function labelOf(agent: AgentCr, label: string): string | undefined {
+  const { labels } = agent.metadata ?? {};
+
+  return labels?.[label];
 }
 
 export type ReviewResult = "approved" | "changes_requested";
@@ -136,28 +136,6 @@ export interface AgentTerminalReport {
   failureReason: string | undefined;
 }
 
-/** The event's taskId + terminal phase, or null when either is missing/non-terminal. */
-function parseTerminalPhase(
-  params: Record<string, unknown>,
-): { taskId: string; phase: "Succeeded" | "Failed" } | null {
-  const { taskId, phase } = params;
-
-  if (typeof taskId !== "string" || taskId === "") {
-    return null;
-  }
-
-  if (phase !== "Succeeded" && phase !== "Failed") {
-    return null;
-  }
-
-  return { taskId, phase };
-}
-
-/** `value` if it is a string, else `fallback`. */
-function stringOr<T>(value: unknown, fallback: T): string | T {
-  return typeof value === "string" ? value : fallback;
-}
-
 // Read a `kubernetes.agent.*` event's params, or null when they do not describe a terminal run this Floor should settle.
 export function agentTerminalReport(
   params: Record<string, unknown>,
@@ -179,6 +157,28 @@ export function agentTerminalReport(
     output: stringOr(status.output, undefined),
     failureReason: stringOr(status.failureReason, undefined),
   };
+}
+
+/** The event's taskId + terminal phase, or null when either is missing/non-terminal. */
+function parseTerminalPhase(
+  params: Record<string, unknown>,
+): { taskId: string; phase: "Succeeded" | "Failed" } | null {
+  const { taskId, phase } = params;
+
+  if (typeof taskId !== "string" || taskId === "") {
+    return null;
+  }
+
+  if (phase !== "Succeeded" && phase !== "Failed") {
+    return null;
+  }
+
+  return { taskId, phase };
+}
+
+/** `value` if it is a string, else `fallback`. */
+function stringOr<T>(value: unknown, fallback: T): string | T {
+  return typeof value === "string" ? value : fallback;
 }
 
 // A single CR's one visit, in the STATION vocabulary — station rows carry StageOutcome, runs carry a run outcome (pr_created/completed/error); different alphabets, so this derives FROM the run outcome (not the phase) so the row and its visit can't disagree.
@@ -206,6 +206,26 @@ type DispatchRun = {
   args: Record<string, unknown>;
 };
 
+export function dispatchFacts(
+  run: DispatchRun | null,
+  task: Parameters<typeof dispatchFactsFromTask>[0] | null,
+): DispatchFacts | null {
+  if (run) {
+    return dispatchFactsFromRun(run);
+  }
+
+  return task ? dispatchFactsFromTask(task) : null;
+}
+
+function dispatchFactsFromRun(run: DispatchRun): DispatchFacts {
+  return {
+    taskType: run.blueprintName,
+    targetRepo: run.repo,
+    branch: run.branch ?? "",
+    description: String(run.args.description ?? ""),
+  };
+}
+
 /** Not a named type: its members would otherwise restate the tasks table's columns outside libs/shared/src/domain/models/. */
 function dispatchFactsFromTask(task: {
   task_type: string;
@@ -226,24 +246,4 @@ function dispatchFactsFromTask(task: {
         : (task.target_branch ?? ""),
     description: task.description,
   };
-}
-
-function dispatchFactsFromRun(run: DispatchRun): DispatchFacts {
-  return {
-    taskType: run.blueprintName,
-    targetRepo: run.repo,
-    branch: run.branch ?? "",
-    description: String(run.args.description ?? ""),
-  };
-}
-
-export function dispatchFacts(
-  run: DispatchRun | null,
-  task: Parameters<typeof dispatchFactsFromTask>[0] | null,
-): DispatchFacts | null {
-  if (run) {
-    return dispatchFactsFromRun(run);
-  }
-
-  return task ? dispatchFactsFromTask(task) : null;
 }

@@ -69,6 +69,30 @@ interface BacklogPick {
   guarded: number[];
 }
 
+async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
+  if (!implementationLoopEnabled(await deps.rawSettings(repo))) {
+    return;
+  }
+
+  if (await deps.findOpenBySubject(repo, backlogSubject())) {
+    return;
+  }
+
+  const ordered = orderBacklog(await deps.listIssues(repo));
+  const { picked, guarded } = await pickBacklogTicket(repo, ordered, deps);
+
+  if (!picked) {
+    logNoPick(repo, guarded);
+
+    return;
+  }
+
+  const branch = implementationLoopBranch(picked.number);
+  const resume = await resolveResume(repo, picked, branch, deps);
+
+  await dispatchLoopTask({ repo, picked, branch, resume }, deps);
+}
+
 /** Walks past guarded tickets rather than stopping on the first one — returning on the guarded HEAD froze the backlog behind one unmerged PR twice (27h 2026-08-30, overnight 2026-09-02). */
 async function pickBacklogTicket(
   repo: string,
@@ -100,37 +124,11 @@ function logNoPick(repo: string, guarded: number[]): void {
   );
 }
 
-function buildLineArgs(
-  picked: IssueRef,
-  resume: ReturnType<typeof decideBranchResume>,
-): Record<string, unknown> {
-  return {
-    pr_draft: true,
-    // Rides onto the run's args so the PR footer can close the ticket on merge.
-    issue_number: picked.number,
-    // PR title from issue until pr-ready node updates it from the branch.
-    issue_title: picked.title,
-    ...(resume.resume ? resume.lineArgs : {}),
-  };
-}
-
 interface LoopDispatchInput {
   repo: string;
   picked: IssueRef;
   branch: string;
   resume: ReturnType<typeof decideBranchResume>;
-}
-
-function loopContextBundle(input: LoopDispatchInput): Record<string, unknown> {
-  const { picked, branch, resume } = input;
-
-  return {
-    github_issue_number: picked.number,
-    ...(picked.url ? { github_issue_url: picked.url } : {}),
-    branch,
-    // Draft PR: the line declares the flag; a draft gets no Lore code review, avoiding twelve reviews on twelve round-pushes.
-    line_args: buildLineArgs(picked, resume),
-  };
 }
 
 /** Creates the backlog task and stamps the issue link onto it; console-logs whether it resumed an existing branch. */
@@ -163,6 +161,32 @@ function logDispatch(input: LoopDispatchInput, taskId: string): void {
   );
 }
 
+function loopContextBundle(input: LoopDispatchInput): Record<string, unknown> {
+  const { picked, branch, resume } = input;
+
+  return {
+    github_issue_number: picked.number,
+    ...(picked.url ? { github_issue_url: picked.url } : {}),
+    branch,
+    // Draft PR: the line declares the flag; a draft gets no Lore code review, avoiding twelve reviews on twelve round-pushes.
+    line_args: buildLineArgs(picked, resume),
+  };
+}
+
+function buildLineArgs(
+  picked: IssueRef,
+  resume: ReturnType<typeof decideBranchResume>,
+): Record<string, unknown> {
+  return {
+    pr_draft: true,
+    // Rides onto the run's args so the PR footer can close the ticket on merge.
+    issue_number: picked.number,
+    // PR title from issue until pr-ready node updates it from the branch.
+    issue_title: picked.title,
+    ...(resume.resume ? resume.lineArgs : {}),
+  };
+}
+
 /** Continuing a branch is silent by design: recorded on the run's args, not GitHub. Deleting the branch is the owner's restart lever. */
 async function resolveResume(
   repo: string,
@@ -180,48 +204,6 @@ async function resolveResume(
     issueLabels: picked.labels,
     openPr,
   });
-}
-
-async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
-  if (!implementationLoopEnabled(await deps.rawSettings(repo))) {
-    return;
-  }
-
-  if (await deps.findOpenBySubject(repo, backlogSubject())) {
-    return;
-  }
-
-  const ordered = orderBacklog(await deps.listIssues(repo));
-  const { picked, guarded } = await pickBacklogTicket(repo, ordered, deps);
-
-  if (!picked) {
-    logNoPick(repo, guarded);
-
-    return;
-  }
-
-  const branch = implementationLoopBranch(picked.number);
-  const resume = await resolveResume(repo, picked, branch, deps);
-
-  await dispatchLoopTask({ repo, picked, branch, resume }, deps);
-}
-
-/** What the tick reads from GitHub. `branchExists` is passed straight through: `decideBranchResume` reads an undefined answer as "unknown" and starts fresh, which is the safe direction — resuming a branch that is not there produces an empty PR. */
-function repoPorts(projectFor: (repo: string) => Promise<Project>) {
-  return {
-    listIssues: async (repo: string) =>
-      (await projectFor(repo)).issues.list({ state: "open" }),
-    branchExists: async (repo: string, branch: string) =>
-      (await projectFor(repo)).repo.branchExists(branch),
-    openPrForBranch: async (repo: string, branch: string) => {
-      const open = await (await projectFor(repo)).pulls.list();
-      const forBranch = open.find((pr) => pr.branch === branch);
-
-      return forBranch
-        ? { number: forBranch.number, url: forBranch.url }
-        : null;
-    },
-  };
 }
 
 type LoopQueues = typeof import("../../outbound/queues.js");
@@ -244,6 +226,24 @@ function tickDeps(
     setTaskColumns: (taskId, columns) =>
       pipeline().taskQueue.setColumns(taskId, columns),
     ...repoPorts(projectFor),
+  };
+}
+
+/** What the tick reads from GitHub. `branchExists` is passed straight through: `decideBranchResume` reads an undefined answer as "unknown" and starts fresh, which is the safe direction — resuming a branch that is not there produces an empty PR. */
+function repoPorts(projectFor: (repo: string) => Promise<Project>) {
+  return {
+    listIssues: async (repo: string) =>
+      (await projectFor(repo)).issues.list({ state: "open" }),
+    branchExists: async (repo: string, branch: string) =>
+      (await projectFor(repo)).repo.branchExists(branch),
+    openPrForBranch: async (repo: string, branch: string) => {
+      const open = await (await projectFor(repo)).pulls.list();
+      const forBranch = open.find((pr) => pr.branch === branch);
+
+      return forBranch
+        ? { number: forBranch.number, url: forBranch.url }
+        : null;
+    },
   };
 }
 

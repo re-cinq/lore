@@ -27,12 +27,105 @@ export async function completeFeaturePlanningTask(
   }
 }
 
+/** Closes out a succeeded no-changes task, routing the result through its GitHub Issue. */
+export async function completeNoChangeTask(
+  ctx: AgentContext,
+  taskUrl: ReturnType<typeof taskPageUrl>,
+  logsRef: string,
+): Promise<void> {
+  if (ctx.taskType === "feature-planning") {
+    await completeFeaturePlanningTask(ctx.taskId);
+
+    return;
+  }
+
+  try {
+    await settleNoChangeIssue(ctx, taskUrl, logsRef);
+  } catch (err) {
+    console.error(
+      `[agent-watcher] Failed to complete no-change task ${ctx.taskId}: ${errorMessage(err)}`,
+    );
+  }
+}
+
 interface NoChangeIssueTarget {
   taskId: string;
   taskType: string;
   targetRepo: string;
   description: string;
   output: string;
+}
+
+/** The Issue the task already has wins over its context's repo — a task re-homed at dispatch keeps reporting into the thread a human is already reading. */
+async function settleNoChangeIssue(
+  ctx: AgentContext,
+  taskUrl: ReturnType<typeof taskPageUrl>,
+  logsRef: string,
+): Promise<void> {
+  const { taskId, taskType, description, output } = ctx;
+  const resolved = await getIssueNumber(taskId);
+  const targetRepo = resolved.target_repo || ctx.targetRepo;
+  const issueNumber = await resolveOrCreateIssueNumber(
+    resolved.issue_number,
+    { taskId, taskType, targetRepo, description, output },
+    logsRef,
+  );
+
+  await recordNoChangeCompletion(ctx, taskUrl, targetRepo, issueNumber);
+}
+
+/** Comments on the existing issue, or opens a fresh one when there isn't one yet. */
+async function resolveOrCreateIssueNumber(
+  existingIssueNumber: number | null,
+  target: NoChangeIssueTarget,
+  logsRef: string,
+): Promise<number | null> {
+  if (existingIssueNumber) {
+    await commentNoChangeOnIssue(
+      target.targetRepo,
+      existingIssueNumber,
+      target.output,
+      logsRef,
+    );
+
+    return existingIssueNumber;
+  }
+
+  return createNoChangeIssue(target, logsRef);
+}
+
+async function commentNoChangeOnIssue(
+  targetRepo: string,
+  issueNumber: number,
+  output: string,
+  logsRef: string,
+): Promise<void> {
+  const body = output
+    ? `## Result\n\n${tailOutput(output)}`
+    : `Task completed (no code changes). ${logsRef} for full output.`;
+
+  await projectFor(targetRepo)
+    .then((p) => p.issues.comment(issueNumber, body))
+    .catch(() => {});
+}
+
+/** Opens the no-changes Issue; best-effort — a failure here just leaves `issue_number` null. */
+async function createNoChangeIssue(
+  target: NoChangeIssueTarget,
+  logsRef: string,
+): Promise<number | null> {
+  try {
+    const issue = await openNoChangeIssue(target, logsRef);
+
+    await pipeline().taskQueue.setColumns(target.taskId, {
+      issue_number: issue.number,
+      issue_url: issue.url,
+    });
+
+    return issue.number;
+  } catch {
+    return null;
+  }
 }
 
 /** The agent's own output is the issue body when it produced any; the generated copy is only the fallback. */
@@ -56,72 +149,21 @@ async function openNoChangeIssue(
   ).issues.create(copy.title, body, ["lore-managed", target.taskType]);
 }
 
-/** Opens the no-changes Issue; best-effort — a failure here just leaves `issue_number` null. */
-async function createNoChangeIssue(
-  target: NoChangeIssueTarget,
-  logsRef: string,
-): Promise<number | null> {
-  try {
-    const issue = await openNoChangeIssue(target, logsRef);
-
-    await pipeline().taskQueue.setColumns(target.taskId, {
-      issue_number: issue.number,
-      issue_url: issue.url,
-    });
-
-    return issue.number;
-  } catch {
-    return null;
-  }
-}
-
-async function commentNoChangeOnIssue(
+async function recordNoChangeCompletion(
+  ctx: AgentContext,
+  taskUrl: ReturnType<typeof taskPageUrl>,
   targetRepo: string,
-  issueNumber: number,
-  output: string,
-  logsRef: string,
+  issueNumber: number | null,
 ): Promise<void> {
-  const body = output
-    ? `## Result\n\n${tailOutput(output)}`
-    : `Task completed (no code changes). ${logsRef} for full output.`;
+  const { taskId } = ctx;
 
-  await projectFor(targetRepo)
-    .then((p) => p.issues.comment(issueNumber, body))
-    .catch(() => {});
-}
+  await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
+  await taskStore().recordEvent(taskId, "running", "completed", {
+    no_changes: true,
+    issue_number: issueNumber,
+  });
 
-/** Comments on the existing issue, or opens a fresh one when there isn't one yet. */
-async function resolveOrCreateIssueNumber(
-  existingIssueNumber: number | null,
-  target: NoChangeIssueTarget,
-  logsRef: string,
-): Promise<number | null> {
-  if (existingIssueNumber) {
-    await commentNoChangeOnIssue(
-      target.targetRepo,
-      existingIssueNumber,
-      target.output,
-      logsRef,
-    );
-
-    return existingIssueNumber;
-  }
-
-  return createNoChangeIssue(target, logsRef);
-}
-
-/** A no-change run is still worth remembering: the episode records that this task type asked for work already done, which is what stops the same request being filed again. */
-function recordNoChangeEpisode(ctx: AgentContext, targetRepo: string): void {
-  const { taskId, taskType, description, output } = ctx;
-
-  writeEpisode(
-    { memory: memoryLifecycle() },
-    {
-      content: `Task ${taskType} on ${targetRepo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
-      source: "ci",
-      ref: `${targetRepo}/${taskId}`,
-    },
-  ).catch(() => {});
+  await announceNoChange(ctx, targetRepo, issueNumber);
 }
 
 /** The notification only fires when there is an Issue to point at. */
@@ -144,58 +186,16 @@ async function announceNoChange(
   );
 }
 
-async function recordNoChangeCompletion(
-  ctx: AgentContext,
-  taskUrl: ReturnType<typeof taskPageUrl>,
-  targetRepo: string,
-  issueNumber: number | null,
-): Promise<void> {
-  const { taskId } = ctx;
-
-  await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
-  await taskStore().recordEvent(taskId, "running", "completed", {
-    no_changes: true,
-    issue_number: issueNumber,
-  });
-
-  await announceNoChange(ctx, targetRepo, issueNumber);
-}
-
-/** The Issue the task already has wins over its context's repo — a task re-homed at dispatch keeps reporting into the thread a human is already reading. */
-async function settleNoChangeIssue(
-  ctx: AgentContext,
-  taskUrl: ReturnType<typeof taskPageUrl>,
-  logsRef: string,
-): Promise<void> {
+/** A no-change run is still worth remembering: the episode records that this task type asked for work already done, which is what stops the same request being filed again. */
+function recordNoChangeEpisode(ctx: AgentContext, targetRepo: string): void {
   const { taskId, taskType, description, output } = ctx;
-  const resolved = await getIssueNumber(taskId);
-  const targetRepo = resolved.target_repo || ctx.targetRepo;
-  const issueNumber = await resolveOrCreateIssueNumber(
-    resolved.issue_number,
-    { taskId, taskType, targetRepo, description, output },
-    logsRef,
-  );
 
-  await recordNoChangeCompletion(ctx, taskUrl, targetRepo, issueNumber);
-}
-
-/** Closes out a succeeded no-changes task, routing the result through its GitHub Issue. */
-export async function completeNoChangeTask(
-  ctx: AgentContext,
-  taskUrl: ReturnType<typeof taskPageUrl>,
-  logsRef: string,
-): Promise<void> {
-  if (ctx.taskType === "feature-planning") {
-    await completeFeaturePlanningTask(ctx.taskId);
-
-    return;
-  }
-
-  try {
-    await settleNoChangeIssue(ctx, taskUrl, logsRef);
-  } catch (err) {
-    console.error(
-      `[agent-watcher] Failed to complete no-change task ${ctx.taskId}: ${errorMessage(err)}`,
-    );
-  }
+  writeEpisode(
+    { memory: memoryLifecycle() },
+    {
+      content: `Task ${taskType} on ${targetRepo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
+      source: "ci",
+      ref: `${targetRepo}/${taskId}`,
+    },
+  ).catch(() => {});
 }

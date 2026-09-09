@@ -26,19 +26,6 @@ interface PostedResult {
   passed: boolean;
 }
 
-/** The descriptor trimmed to what a Definition-of-Done match needs; coverage ranges and spec anchors stay in the graph. */
-function reportedTest(descriptor: TestDescriptor): ReportedTest {
-  return {
-    id: descriptor.id,
-    name: descriptor.name,
-    file: descriptor.file,
-    ...(descriptor.suite ? { suite: descriptor.suite } : {}),
-    ...(descriptor.startLine !== undefined
-      ? { startLine: descriptor.startLine }
-      : {}),
-  };
-}
-
 /** The persisted shape of a posted body, or null when it names no branch — a report no run can be matched to is not worth a row. The mapper has already required repo and commit. */
 export function testReportFromBody(body: CiTestsBody): NewTestReport | null {
   if (!body.repo || !body.commit || !body.branch) {
@@ -52,6 +39,19 @@ export function testReportFromBody(body: CiTestsBody): NewTestReport | null {
     branch: body.branch,
     tests: ((body.tests ?? []) as TestDescriptor[]).map(reportedTest),
     outcomes: Object.fromEntries(results.map((r) => [r.id, r.passed])),
+  };
+}
+
+/** The descriptor trimmed to what a Definition-of-Done match needs; coverage ranges and spec anchors stay in the graph. */
+function reportedTest(descriptor: TestDescriptor): ReportedTest {
+  return {
+    id: descriptor.id,
+    name: descriptor.name,
+    file: descriptor.file,
+    ...(descriptor.suite ? { suite: descriptor.suite } : {}),
+    ...(descriptor.startLine !== undefined
+      ? { startLine: descriptor.startLine }
+      : {}),
   };
 }
 

@@ -23,6 +23,23 @@ export type PlanningDelivery =
   | { outcome: "failed"; error: string }
   | { outcome: "skipped"; error: string };
 
+/** Persist one planning artifact event; skips non-planning-result events and non-planning-round tasks (the sink carries every run's events, so most calls are a no-op by design). */
+export async function deliverPlanningResult(
+  fileEvent: AgentFileEvent,
+  deps: PlanningResultDeps,
+): Promise<PlanningDelivery> {
+  if (fileEvent.event !== PLANNING_RESULT_EVENT) {
+    return { outcome: "skipped", error: "not a planning result" };
+  }
+  const task = await resolvePlanningTask(fileEvent, deps);
+
+  if (!task) {
+    return { outcome: "skipped", error: "not a planning round" };
+  }
+
+  return deliverForPlanningTask(fileEvent, deps, task);
+}
+
 async function resolvePlanningTask(
   fileEvent: AgentFileEvent,
   deps: PlanningResultDeps,
@@ -34,6 +51,26 @@ async function resolvePlanningTask(
   }
 
   return task;
+}
+
+async function deliverForPlanningTask(
+  fileEvent: AgentFileEvent,
+  deps: PlanningResultDeps,
+  task: PipelineTask,
+): Promise<PlanningDelivery> {
+  const ids = await resolvePlanningRoundIds(fileEvent, deps, task);
+
+  if (!ids) {
+    return { outcome: "skipped", error: "planning round has no feature id" };
+  }
+  const { features } = await deps.featuresFor(task.target_repo);
+  const parsed = resolvePlanningOutcome(fileEvent);
+
+  if (parsed.outcome === "failed") {
+    return parsed;
+  }
+
+  return applyGapResult(features, ids.featureId, ids.iteration, parsed.payload);
 }
 
 interface PlanningRoundIds {
@@ -62,18 +99,6 @@ async function resolvePlanningRoundIds(
 type ParsedPlanningPayload =
   { outcome: "ok"; payload: unknown } | { outcome: "failed"; error: string };
 
-function parsePlanningPayload(content: string | null): ParsedPlanningPayload {
-  try {
-    return { outcome: "ok", payload: JSON.parse(content ?? "") };
-  } catch (err) {
-    // Same rule as below: one owner for "this round failed".
-    return {
-      outcome: "failed",
-      error: `result.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-}
-
 /** A failed ATTEMPT is not a failed ROUND — the analyze node's iteration_max retry can still produce a result, so settleTaskForLine remains the single owner of the round verdict. */
 function resolvePlanningOutcome(
   fileEvent: AgentFileEvent,
@@ -88,41 +113,30 @@ function resolvePlanningOutcome(
   return parsePlanningPayload(fileEvent.content);
 }
 
-async function deliverForPlanningTask(
-  fileEvent: AgentFileEvent,
-  deps: PlanningResultDeps,
-  task: PipelineTask,
-): Promise<PlanningDelivery> {
-  const ids = await resolvePlanningRoundIds(fileEvent, deps, task);
-
-  if (!ids) {
-    return { outcome: "skipped", error: "planning round has no feature id" };
+function parsePlanningPayload(content: string | null): ParsedPlanningPayload {
+  try {
+    return { outcome: "ok", payload: JSON.parse(content ?? "") };
+  } catch (err) {
+    // Same rule as below: one owner for "this round failed".
+    return {
+      outcome: "failed",
+      error: `result.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
-  const { features } = await deps.featuresFor(task.target_repo);
-  const parsed = resolvePlanningOutcome(fileEvent);
-
-  if (parsed.outcome === "failed") {
-    return parsed;
-  }
-
-  return applyGapResult(features, ids.featureId, ids.iteration, parsed.payload);
 }
 
-/** Persist one planning artifact event; skips non-planning-result events and non-planning-round tasks (the sink carries every run's events, so most calls are a no-op by design). */
-export async function deliverPlanningResult(
-  fileEvent: AgentFileEvent,
+/** Deliver every planning artifact in one sink batch; never throws, since a delivery failure must not 500 the telemetry ingest that also carries unrelated cost/run-viz rows. Returns how many rounds it settled. */
+export async function deliverPlanningResults(
+  fileEvents: readonly AgentFileEvent[],
   deps: PlanningResultDeps,
-): Promise<PlanningDelivery> {
-  if (fileEvent.event !== PLANNING_RESULT_EVENT) {
-    return { outcome: "skipped", error: "not a planning result" };
-  }
-  const task = await resolvePlanningTask(fileEvent, deps);
+): Promise<number> {
+  let delivered = 0;
 
-  if (!task) {
-    return { outcome: "skipped", error: "not a planning round" };
+  for (const fileEvent of fileEvents) {
+    delivered += await deliverAndReport(fileEvent, deps);
   }
 
-  return deliverForPlanningTask(fileEvent, deps, task);
+  return delivered;
 }
 
 async function deliverAndReport(
@@ -146,18 +160,4 @@ async function deliverAndReport(
 
     return 0;
   }
-}
-
-/** Deliver every planning artifact in one sink batch; never throws, since a delivery failure must not 500 the telemetry ingest that also carries unrelated cost/run-viz rows. Returns how many rounds it settled. */
-export async function deliverPlanningResults(
-  fileEvents: readonly AgentFileEvent[],
-  deps: PlanningResultDeps,
-): Promise<number> {
-  let delivered = 0;
-
-  for (const fileEvent of fileEvents) {
-    delivered += await deliverAndReport(fileEvent, deps);
-  }
-
-  return delivered;
 }
