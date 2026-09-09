@@ -719,6 +719,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/ingest/reembed": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/ingest/reembed */
+    post: operations["post_api_ingest_reembed"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/job-run-logs": {
     parameters: {
       query?: never;
@@ -3502,6 +3519,12 @@ export interface components {
       author?: string;
       draft?: boolean;
     };
+    ReembedResult: {
+      embedded: number;
+      failed: number;
+      remaining: number;
+      stopped: boolean;
+    };
     Repo: {
       id: string;
       owner: string;
@@ -5527,6 +5550,45 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IngestResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_ingest_reembed: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          schema?: string;
+          /** @default 100 */
+          limit?: number;
+          /**
+           * @default missing
+           * @enum {string}
+           */
+          where?: "missing" | "stale_links";
+        };
+      };
+    };
+    responses: {
+      /** @description One batch of the embedding backfill: rows embedded, the first failure if the embedder returned nothing, and how many rows still wait */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReembedResult"];
         };
       };
       400: components["responses"]["BadRequest"];
