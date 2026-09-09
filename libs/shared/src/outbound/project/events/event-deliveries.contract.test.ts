@@ -357,6 +357,43 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
         expect.arrayContaining([{ event_name: eventName, count: 1 }]),
       );
     });
+
+    it("reports a dead-lettered delivery with the error that ended it", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+      const [delivery] = await port.claim(s, 10);
+
+      await port.markDead(delivery.id, "fetch failed");
+
+      expect(await port.deadLettered(60)).toEqual(
+        expect.arrayContaining([
+          {
+            event_name: eventName,
+            subscriber: s,
+            count: 1,
+            last_error: "fetch failed",
+          },
+        ]),
+      );
+    });
+
+    it("leaves a delivery still being retried out of the dead-letter report", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+      const [delivery] = await port.claim(s, 10);
+
+      await port.markFailed(delivery.id, "fetch failed", 30);
+
+      expect(
+        (await port.deadLettered(60)).filter((d) => d.event_name === eventName),
+      ).toEqual([]);
+    });
   });
 }
 
