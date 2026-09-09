@@ -3,7 +3,8 @@ import {
   fetchAgentUsage,
   listAgents,
   listOrgAgents,
-  saveAgent,
+  createAgent,
+  updateAgent,
   saveOrgAgent,
   deleteAgent,
 } from "./agents-api";
@@ -233,10 +234,10 @@ describe("saveOrgAgent", () => {
   });
 });
 
-describe("saveAgent", () => {
+describe("createAgent and updateAgent", () => {
   it("returns unconfigured when env is missing", async () => {
     delete process.env.LORE_ADMIN_TOKEN;
-    expect(await saveAgent("o/r", { name: "general" }, false)).toEqual({
+    expect(await createAgent("o/r", { name: "general" })).toEqual({
       status: "unconfigured",
     });
   });
@@ -249,7 +250,7 @@ describe("saveAgent", () => {
     }));
 
     global.fetch = spy as unknown as typeof fetch;
-    const r = await saveAgent("o/r", { name: "general" }, false);
+    const r = await createAgent("o/r", { name: "general" });
 
     expect(r).toEqual({ status: "ok", agent: def });
     expect(spy.mock.calls[0][0]).toBe(
@@ -266,10 +267,9 @@ describe("saveAgent", () => {
     }));
 
     global.fetch = spy as unknown as typeof fetch;
-    await saveAgent(
+    await updateAgent(
       "o/r",
       { name: "general", image: "golang:1.23" },
-      true,
       "o/r#5",
     );
     expect(spy.mock.calls[0][0]).toBe(
@@ -285,9 +285,10 @@ describe("saveAgent", () => {
 
   it("maps 403 two_key_required", async () => {
     mockFetch(403, { error: "two_key_required", detail: "need PR" });
-    expect(
-      await saveAgent("o/r", { name: "general", image: "x" }, false),
-    ).toEqual({ status: "two_key_required", detail: "need PR" });
+    expect(await createAgent("o/r", { name: "general", image: "x" })).toEqual({
+      status: "two_key_required",
+      detail: "need PR",
+    });
   });
 
   it("maps 403 codeowners_check_failed", async () => {
@@ -297,7 +298,7 @@ describe("saveAgent", () => {
       detail: "nope",
     });
     expect(
-      await saveAgent("o/r", { name: "general", image: "x" }, false, "o/r#5"),
+      await createAgent("o/r", { name: "general", image: "x" }, "o/r#5"),
     ).toEqual({
       status: "codeowners_failed",
       code: "approver_not_codeowner",
@@ -307,7 +308,7 @@ describe("saveAgent", () => {
 
   it("maps other non-ok responses to an error", async () => {
     mockFetch(400, { error: "invalid_agent" });
-    expect(await saveAgent("o/r", { name: "general" }, false)).toEqual({
+    expect(await createAgent("o/r", { name: "general" })).toEqual({
       status: "error",
       message: "invalid_agent",
     });
@@ -317,7 +318,7 @@ describe("saveAgent", () => {
     global.fetch = vi.fn(async () => {
       throw new Error("network");
     }) as unknown as typeof fetch;
-    expect(await saveAgent("o/r", { name: "general" }, false)).toEqual({
+    expect(await createAgent("o/r", { name: "general" })).toEqual({
       status: "error",
       message: "network",
     });

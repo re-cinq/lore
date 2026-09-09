@@ -47,54 +47,61 @@ function orDefault<T>(value: T | undefined | null, fallback: T): T {
   return value ?? fallback;
 }
 
-function resolveEnabled(
-  partial: DarkFactorySettings | null | undefined,
-): boolean {
-  return partial?.enabled ?? false;
-}
+/** What each field falls back to when unset, per mode: dark mode narrows Issues, review, and notifications; light mode keeps the pre-dark behaviour. */
+const MODE_DEFAULTS = {
+  dark: {
+    create_issue: "on_gate",
+    review: "trust_based",
+    notify: [] as NotifyChannel[],
+  },
+  light: {
+    create_issue: "always",
+    review: "always",
+    notify: ["all"] as NotifyChannel[],
+  },
+} as const satisfies Record<
+  string,
+  Pick<ResolvedDarkFactorySettings, "create_issue" | "review" | "notify">
+>;
 
-function resolveCreateIssue(
-  partial: DarkFactorySettings | null | undefined,
-  enabled: boolean,
-): CreateIssueMode {
-  return partial?.create_issue ?? (enabled ? "on_gate" : "always");
-}
+const DEFAULT_AUTO_MERGE: ResolvedDarkFactorySettings["auto_merge"] = {
+  paths: DEFAULT_AUTO_MERGE_PATHS,
+  min_trust: "docs",
+  require_green_ci: true,
+  require_bot_approval: true,
+};
 
 function resolveAutoMerge(
   autoMerge: DarkFactorySettings["auto_merge"],
 ): ResolvedDarkFactorySettings["auto_merge"] {
+  const given = autoMerge ?? {};
+
   return {
-    paths: orDefault(autoMerge?.paths, DEFAULT_AUTO_MERGE_PATHS),
-    min_trust: orDefault(autoMerge?.min_trust, "docs"),
-    require_green_ci: orDefault(autoMerge?.require_green_ci, true),
-    require_bot_approval: orDefault(autoMerge?.require_bot_approval, true),
+    paths: orDefault(given.paths, DEFAULT_AUTO_MERGE.paths),
+    min_trust: orDefault(given.min_trust, DEFAULT_AUTO_MERGE.min_trust),
+    require_green_ci: orDefault(
+      given.require_green_ci,
+      DEFAULT_AUTO_MERGE.require_green_ci,
+    ),
+    require_bot_approval: orDefault(
+      given.require_bot_approval,
+      DEFAULT_AUTO_MERGE.require_bot_approval,
+    ),
   };
-}
-
-function resolveReview(
-  partial: DarkFactorySettings | null | undefined,
-  enabled: boolean,
-): ReviewMode {
-  return partial?.review ?? (enabled ? "trust_based" : "always");
-}
-
-function resolveNotify(
-  partial: DarkFactorySettings | null | undefined,
-  enabled: boolean,
-): NotifyChannel[] {
-  return partial?.notify ?? (enabled ? [] : ["all"]);
 }
 
 export function resolveDarkFactorySettings(
   partial: DarkFactorySettings | null | undefined,
 ): ResolvedDarkFactorySettings {
-  const enabled = resolveEnabled(partial);
+  const given = partial ?? {};
+  const enabled = given.enabled ?? false;
+  const fallback = enabled ? MODE_DEFAULTS.dark : MODE_DEFAULTS.light;
 
   return {
     enabled,
-    create_issue: resolveCreateIssue(partial, enabled),
-    auto_merge: resolveAutoMerge(partial?.auto_merge),
-    review: resolveReview(partial, enabled),
-    notify: resolveNotify(partial, enabled),
+    create_issue: orDefault(given.create_issue, fallback.create_issue),
+    auto_merge: resolveAutoMerge(given.auto_merge),
+    review: orDefault(given.review, fallback.review),
+    notify: orDefault(given.notify, [...fallback.notify]),
   };
 }

@@ -16,11 +16,9 @@ function useCloseOnNavigate(setSidebarOpen: (open: boolean) => void) {
 }
 
 /** Focus follows the drawer: into its close button on open, back to the hamburger on close, so a keyboard reader is never stranded. */
-function useFocusHandoff(
-  sidebarOpen: boolean,
-  closeButtonRef: ButtonRef,
-  hamburgerRef: ButtonRef,
-) {
+function useFocusHandoff(drawer: Omit<DrawerState, "setSidebarOpen">) {
+  const { sidebarOpen, closeButtonRef, hamburgerRef } = drawer;
+
   useEffect(() => {
     if (sidebarOpen) {
       closeButtonRef.current?.focus();
@@ -33,9 +31,10 @@ function useFocusHandoff(
 
 /** Escape closes the drawer — the escape hatch every overlay owes its reader. */
 function useEscapeToClose(
-  sidebarOpen: boolean,
-  setSidebarOpen: (open: boolean) => void,
+  drawer: Pick<DrawerState, "sidebarOpen" | "setSidebarOpen">,
 ) {
+  const { sidebarOpen, setSidebarOpen } = drawer;
+
   useEffect(() => {
     if (!sidebarOpen) {
       return;
@@ -65,11 +64,13 @@ function useSidebarDrawer(): DrawerState {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
 
-  useCloseOnNavigate(setSidebarOpen);
-  useFocusHandoff(sidebarOpen, closeButtonRef, hamburgerRef);
-  useEscapeToClose(sidebarOpen, setSidebarOpen);
+  const drawer = { sidebarOpen, setSidebarOpen, closeButtonRef, hamburgerRef };
 
-  return { sidebarOpen, setSidebarOpen, closeButtonRef, hamburgerRef };
+  useCloseOnNavigate(setSidebarOpen);
+  useFocusHandoff(drawer);
+  useEscapeToClose(drawer);
+
+  return drawer;
 }
 
 /** Dismisses the drawer. Holds the ref that focus returns to when the drawer opens, so a keyboard reader lands on the way out rather than at the top of the nav. */

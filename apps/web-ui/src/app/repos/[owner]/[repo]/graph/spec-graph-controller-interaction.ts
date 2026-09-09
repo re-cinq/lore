@@ -36,8 +36,10 @@ export function createZoom(
     });
 }
 
-function leafHitNodes(c: GraphController, collapsing: boolean) {
-  const leaves = c.nodes.filter((n) => visibleLeaf(n, c.aggHidden, collapsing));
+function leafHitNodes(c: GraphController, lod: { collapsing: boolean }) {
+  const leaves = c.nodes.filter((n) =>
+    visibleLeaf(n, { aggHidden: c.aggHidden, collapsing: lod.collapsing }),
+  );
 
   return leaves.map((n) => ({
     id: n.id,
@@ -51,11 +53,11 @@ function leafHitNodes(c: GraphController, collapsing: boolean) {
 function leafHitAt(
   c: GraphController,
   event: PointerEvent,
-  collapsing: boolean,
+  lod: { collapsing: boolean },
 ): SimNode | undefined {
   const [px, py] = d3.pointer(event, c.el);
   const world = invertPoint(c.transform as ZoomTransform, { x: px, y: py });
-  const hitId = findNodeAtPoint(world, leafHitNodes(c, collapsing), HIT_SLOP);
+  const hitId = findNodeAtPoint(world, leafHitNodes(c, lod), HIT_SLOP);
 
   return hitId ? c.nodeById.get(hitId) : undefined;
 }
@@ -81,7 +83,7 @@ export function wireBackgroundClick(
   isAggregating: () => boolean,
 ): void {
   c.svg.on("click", (event: PointerEvent) => {
-    selectHit(c, leafHitAt(c, event, isAggregating()));
+    selectHit(c, leafHitAt(c, event, { collapsing: isAggregating() }));
   });
 }
 

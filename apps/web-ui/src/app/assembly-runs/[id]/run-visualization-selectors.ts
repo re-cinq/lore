@@ -1,6 +1,6 @@
 // Pure derivations for RunVisualizationPanel: no JSX, no hooks — just "given this state, what should the panel show".
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
-import type { NodeRunState, initialRunState } from "@/lib/run-event-reducer";
+import type { NodeRunState } from "@/lib/run-event-reducer";
 import type { RunData } from "@/lib/graph-view-model";
 import { isTerminalRunStatus } from "@/lib/run-stream-presenter";
 
@@ -11,10 +11,11 @@ export function participated(state: NodeRunState): boolean {
 
 /** A run reports failed the moment any node did, and completed only once it is terminal with none — an unfinished run has no result yet. */
 export function runResult(
-  anyFailed: boolean,
+  rows: readonly AssemblyRunNode[],
   runStatus: string,
 ): RunData["result"] {
-  if (anyFailed) {
+  // Mirrors the Floor's lineOutcomeFromVisits: any failed node outcome fails the run result, even on a `finished` terminal.
+  if (rows.some((row) => (row.outcome ?? "").includes("failed"))) {
     return "failed";
   }
 
@@ -27,15 +28,6 @@ export function pickSelectedState(
   selectedNodeId: string | null,
 ): NodeRunState | null {
   return selectedNodeId === null ? null : nodeStates[selectedNodeId];
-}
-
-/** Which of the two reducer states (live vs. scrubbed-back-in-time) the panel currently shows. */
-export function pickDisplayState(
-  runIsLive: boolean,
-  state: ReturnType<typeof initialRunState>,
-  replayState: ReturnType<typeof initialRunState>,
-) {
-  return runIsLive ? state : replayState;
 }
 
 /** The scrubber only makes sense once a run is over and actually has history to scrub through. */
@@ -55,19 +47,26 @@ export function computeHasRunData(
 }
 
 /** "run" shows only the executed path; toggling to outcomes (or having nothing executed yet) falls back to "definition". */
-export function computeGraphMode(
-  hasRunData: boolean,
-  showOutcomes: boolean,
-): "run" | "definition" {
+export function computeGraphMode({
+  hasRunData,
+  showOutcomes,
+}: {
+  hasRunData: boolean;
+  showOutcomes: boolean;
+}): "run" | "definition" {
   return hasRunData && !showOutcomes ? "run" : "definition";
 }
 
 /** Mid-scrub only — the cursor sits strictly before the history's end, so the slider's right end stays byte-identical to Back to live. */
-export function computeReplayActive(
-  runIsLive: boolean,
-  replayCursor: number | null,
-  historyEventCount: number,
-): boolean {
+export function computeReplayActive({
+  runIsLive,
+  replayCursor,
+  historyEventCount,
+}: {
+  runIsLive: boolean;
+  replayCursor: number | null;
+  historyEventCount: number;
+}): boolean {
   return (
     !runIsLive && replayCursor !== null && replayCursor < historyEventCount
   );
@@ -75,8 +74,8 @@ export function computeReplayActive(
 
 /** Only wire onSeek through once the scrubber is actually visible — an invisible scrubber has nothing to seek. */
 export function resolveOnSeek(
-  scrubberVisible: boolean,
   onSeek: (id: string) => void,
+  { scrubberVisible }: { scrubberVisible: boolean },
 ): ((id: string) => void) | undefined {
   return scrubberVisible ? onSeek : undefined;
 }
@@ -95,8 +94,6 @@ export function buildRunData(input: BuildRunDataInput): RunData {
   const entries = Object.entries(nodeStates);
   // Verdict is the walk row's recorded outcome (must come from rows, not reducer state — replayed events never carry the verdict).
   const rows = [...latestRows.values()];
-  // Mirrors the Floor's lineOutcomeFromVisits: any failed node outcome fails the run result, even on a `finished` terminal.
-  const anyFailed = rows.some((n) => (n.outcome ?? "").includes("failed"));
 
   return {
     executed: new Set([
@@ -106,6 +103,6 @@ export function buildRunData(input: BuildRunDataInput): RunData {
     verdicts: Object.fromEntries(rows.map((n) => [n.nodeId, n.outcome])),
     statuses: Object.fromEntries(entries.map(([id, s]) => [id, s.status])),
     taken: takenEdges,
-    result: runResult(anyFailed, runStatus),
+    result: runResult(rows, runStatus),
   };
 }

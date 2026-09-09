@@ -22,23 +22,19 @@ interface TopUpCopy {
   submitLabel: string;
 }
 
-function topUpCopy(first: boolean): TopUpCopy {
-  if (first) {
-    return {
-      summary: "Record the starting balance",
-      description:
-        "Anthropic has no balance API, so the starting figure has to come from a person. Read the current credit balance off the Anthropic console and enter it here once; after that, record each top-up as it happens.",
-      submitLabel: "Record balance",
-    };
-  }
+const FIRST_BALANCE_COPY: TopUpCopy = {
+  summary: "Record the starting balance",
+  description:
+    "Anthropic has no balance API, so the starting figure has to come from a person. Read the current credit balance off the Anthropic console and enter it here once; after that, record each top-up as it happens.",
+  submitLabel: "Record balance",
+};
 
-  return {
-    summary: "Record a top-up",
-    description:
-      "Enter the amount added. Spend is counted from the earliest entry, so the remaining figure updates as soon as this is saved.",
-    submitLabel: "Record top-up",
-  };
-}
+const TOP_UP_COPY: TopUpCopy = {
+  summary: "Record a top-up",
+  description:
+    "Enter the amount added. Spend is counted from the earliest entry, so the remaining figure updates as soon as this is saved.",
+  submitLabel: "Record top-up",
+};
 
 function TopUpStatus({ state }: { state: RecordTopUpState | null }) {
   return (
@@ -118,7 +114,7 @@ function AmountAndNote() {
 
 export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
   const [state, formAction] = useActionState(recordAction, null);
-  const copy = topUpCopy(first);
+  const copy = first ? FIRST_BALANCE_COPY : TOP_UP_COPY;
 
   return (
     // Open when nothing recorded (empty ledger): collapsed once there is a figure to read

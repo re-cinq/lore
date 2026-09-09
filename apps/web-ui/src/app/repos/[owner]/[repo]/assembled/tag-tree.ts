@@ -11,7 +11,7 @@ export interface TagNode {
 
 function documentAttrs(
   document: SourceItem,
-  truncated: boolean,
+  { truncated }: { truncated: boolean },
 ): [string, string][] {
   const attrs = optionalDocumentAttrs(document);
 
@@ -79,10 +79,9 @@ function sectionNodes(trace: AssemblyTrace): TagNode[] {
 function documentNodes(section: TraceSection): TagNode[] {
   return section.items.map<TagNode>((document, i) => ({
     tag: "document",
-    attrs: documentAttrs(
-      document,
-      section.truncated && i === section.items.length - 1,
-    ),
+    attrs: documentAttrs(document, {
+      truncated: section.truncated && i === section.items.length - 1,
+    }),
     content: document.text,
     contentType: document.content_type,
   }));

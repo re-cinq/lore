@@ -198,7 +198,7 @@ function useRunVisualization(input: RunVisualizationInput) {
     ...toggles,
     ...replayView(replay),
     ...nodeAndGraph,
-    now: useNowTicker(runIsLive),
+    now: useNowTicker({ live: runIsLive }),
     state: sources.state,
     chipState,
     historyEvents,
@@ -276,7 +276,9 @@ function RunDetail({ view, page }: { view: RunView; page: RunDetailPage }) {
       visibleNodeCount={visibleGraph.nodes.length}
       timeline={view.displayState.timeline}
       fileTouches={view.displayState.fileTouches}
-      onSeek={resolveOnSeek(view.scrubberVisible, view.replay.onSeek)}
+      onSeek={resolveOnSeek(view.replay.onSeek, {
+        scrubberVisible: view.scrubberVisible,
+      })}
     />
   );
 }

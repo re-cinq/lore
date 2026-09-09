@@ -169,12 +169,9 @@ function ScopePill({ isProject }: { isProject: boolean }) {
   );
 }
 
-function usageClass(dormant: boolean): string {
-  return `${styles.detail} ${dormant ? styles.detailDormant : ""}`;
-}
-
-function rolloutClass(bad: boolean): string {
-  return `${styles.detail} ${bad ? styles.detailBad : ""}`;
+/** A detail cell, with the modifier that turns bad news into something a reader scans for. */
+function detailClass(modifier: string | null): string {
+  return `${styles.detail} ${modifier ?? ""}`;
 }
 
 /** A usage or rollout cell. Both carry a flag saying the value is BAD news — dormant, or a rollout that did not land — which the class turns into something a reader scans for rather than reads. */
@@ -189,8 +186,8 @@ function StatusCell({
 }) {
   const className =
     kind === "usage"
-      ? usageClass(cell.dormant ?? false)
-      : rolloutClass(cell.bad ?? false);
+      ? detailClass(cell.dormant ? styles.detailDormant : null)
+      : detailClass(cell.bad ? styles.detailBad : null);
 
   return (
     <td className={className} data-testid={`${kind}-${name}`}>

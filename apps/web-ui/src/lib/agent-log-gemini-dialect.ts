@@ -2,11 +2,13 @@ import type { LogEntry } from "./agent-log-types";
 import { errorMessage, isRecord, toolSummary } from "./agent-log-format";
 
 /** A delta chunk keeps whitespace-only content — trimming it would glue the words around it at fold time. */
-function plainMessageEntries(
-  role: unknown,
-  content: string,
-  delta: boolean,
-): LogEntry[] {
+function plainMessageEntries(message: {
+  role: unknown;
+  content: string;
+  delta: boolean;
+}): LogEntry[] {
+  const { role, content, delta } = message;
+
   if (delta && role !== "user") {
     return content
       ? [{ kind: "assistant-text", text: content, delta: true }]
@@ -116,22 +118,33 @@ function geminiOutcomeEntries(
   return geminiErrorEntry(value) ?? geminiResultEntry(value);
 }
 
+function sessionInitEntries(
+  value: Record<string, unknown>,
+  model: string,
+): LogEntry[] {
+  return [
+    {
+      kind: "session-init",
+      model,
+      detailsJson: JSON.stringify(value, null, 2),
+    },
+  ];
+}
+
 /** gemini-cli's flat dialect: one event per thing, instead of message.content blocks. */
 export function geminiStreamEntries(
   value: Record<string, unknown>,
 ): LogEntry[] | null {
   if (value.type === "init" && typeof value.model === "string") {
-    return [
-      {
-        kind: "session-init",
-        model: value.model,
-        detailsJson: JSON.stringify(value, null, 2),
-      },
-    ];
+    return sessionInitEntries(value, value.model);
   }
 
   if (value.type === "message" && typeof value.content === "string") {
-    return plainMessageEntries(value.role, value.content, value.delta === true);
+    return plainMessageEntries({
+      role: value.role,
+      content: value.content,
+      delta: value.delta === true,
+    });
   }
 
   return geminiToolEntries(value) ?? geminiOutcomeEntries(value);

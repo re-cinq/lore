@@ -36,11 +36,11 @@ function runBadge(node: VisibleNode): NodeStatusVisual {
 
 /** The node read aloud: whatever its body shows, in words. */
 function nodeAriaLabel(
-  nodeId: string,
-  badge: NodeStatusVisual | null,
-  outcomes: readonly string[],
-  isTerminal: boolean,
+  body: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">,
 ): string {
+  const { badge, outcomes, isTerminal } = body;
+  const nodeId = body.node.id;
+
   if (badge) {
     return `${nodeId} — ${badge.label}`;
   }
@@ -158,20 +158,17 @@ function PlainNodeBody({ title, node, isTerminal }: NodeBodyProps) {
 
 /** The group's own attributes. The tone lands on `data-tone` as well as in the class so a test can assert what a node is SAYING without going through the stylesheet, and the aria-label carries the outcome in words for a reader who cannot see the colour. */
 function groupProps(
-  {
-    node,
-    badge,
-    outcomes,
-    isTerminal,
-  }: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">,
+  body: Pick<NodeBodyProps, "node" | "badge" | "outcomes" | "isTerminal">,
   interaction: ReturnType<typeof nodeInteraction>,
 ) {
+  const { node, badge } = body;
+
   return {
     className: classes(styles.node, badge ? styles[badge.tone] : undefined),
     "data-node": node.id,
     "data-tone": badge?.tone ?? "idle",
     role: interaction.role,
-    "aria-label": nodeAriaLabel(node.id, badge, outcomes, isTerminal),
+    "aria-label": nodeAriaLabel(body),
     tabIndex: interaction.tabIndex,
     onClick: interaction.onClick,
     onKeyDown: interaction.onKeyDown,

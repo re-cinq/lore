@@ -11,6 +11,11 @@ import {
 
 type Refresh = () => void | Promise<void>;
 
+/** Whether a panel is worth ticking, named so the caller reads as a registration rather than a bare flag. */
+export interface Membership {
+  active: boolean;
+}
+
 /** Which panel ids are worth ticking, as both state and a ref. The ref exists so the tick callback can read the current set without being rebuilt — and therefore without restarting the interval — every time a panel comes or goes. */
 function useActiveIds() {
   const [activeIds, setActiveIds] = useState<ReadonlySet<string>>(new Set());
@@ -20,8 +25,8 @@ function useActiveIds() {
     activeIdsRef.current = activeIds;
   }, [activeIds]);
 
-  const setActive = useCallback((id: string, active: boolean) => {
-    setActiveIds((prev) => withMember(prev, id, active));
+  const setActive = useCallback((id: string, { active }: Membership) => {
+    setActiveIds((prev) => (active ? withId(prev, id) : withoutId(prev, id)));
   }, []);
 
   return { activeIds, activeIdsRef, setActive };
@@ -30,7 +35,7 @@ function useActiveIds() {
 /** Registering hands back the deregistration, so an unmounted panel cannot be ticked. */
 function useRegister(
   registryRef: { current: Map<string, Refresh> },
-  setActive: (id: string, active: boolean) => void,
+  setActive: (id: string, next: Membership) => void,
 ) {
   return useCallback(
     (id: string, refresh: Refresh) => {
@@ -38,7 +43,7 @@ function useRegister(
 
       return () => {
         registryRef.current.delete(id);
-        setActive(id, false);
+        setActive(id, { active: false });
       };
     },
     [registryRef, setActive],
@@ -64,24 +69,25 @@ export function usePanelRegistry() {
   };
 }
 
-/** Returns the same set when nothing changes, so a no-op toggle cannot re-render every panel. */
-export function withMember(
+/** Returns the same set when the id is already there, so a no-op toggle cannot re-render every panel. */
+export function withId(
   set: ReadonlySet<string>,
   id: string,
-  member: boolean,
 ): ReadonlySet<string> {
-  if (set.has(id) === member) {
+  return set.has(id) ? set : new Set(set).add(id);
+}
+
+/** Returns the same set when the id is already gone, for the same reason. */
+export function withoutId(
+  set: ReadonlySet<string>,
+  id: string,
+): ReadonlySet<string> {
+  if (!set.has(id)) {
     return set;
   }
   const next = new Set(set);
 
-  if (member) {
-    next.add(id);
-  }
-
-  if (!member) {
-    next.delete(id);
-  }
+  next.delete(id);
 
   return next;
 }
@@ -249,7 +255,10 @@ interface RefreshTickerOptions {
 }
 
 /** Discovery inputs held as refs, so toggling either one does not tear down and restart the interval mid-cycle. */
-function useDiscoveryRefs(discoveryActive: boolean, liveRunId: string | null) {
+function useDiscoveryRefs(
+  discovery: Pick<RefreshTickerOptions, "discoveryActive" | "liveRunId">,
+) {
+  const { discoveryActive, liveRunId } = discovery;
   const discoveryActiveRef = useRef(discoveryActive);
   const liveRunIdRef = useRef(liveRunId);
 
@@ -263,10 +272,7 @@ function useDiscoveryRefs(discoveryActive: boolean, liveRunId: string | null) {
 
 export function useRefreshTicker(options: RefreshTickerOptions): void {
   const { intervalMs, taskId, refreshAll, onLiveRunFound } = options;
-  const { discoveryActiveRef, liveRunIdRef } = useDiscoveryRefs(
-    options.discoveryActive,
-    options.liveRunId,
-  );
+  const { discoveryActiveRef, liveRunIdRef } = useDiscoveryRefs(options);
 
   useEffect(() => {
     if (intervalMs === null) {

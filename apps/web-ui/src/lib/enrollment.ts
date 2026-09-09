@@ -95,12 +95,12 @@ function ingestedCheck(
   };
 }
 
-function githubFileStatus(exists: boolean | null): CheckStatus {
-  if (exists === true) {
+function githubFileStatus(file: { exists: boolean | null }): CheckStatus {
+  if (file.exists === true) {
     return "pass";
   }
 
-  if (exists === false) {
+  if (file.exists === false) {
     return "fail";
   }
 
@@ -130,11 +130,14 @@ function applyGithubFileDetail(
   }
 }
 
-function githubFileCheck(path: string, exists: boolean | null): Check {
+function githubFileCheck(
+  path: string,
+  file: { exists: boolean | null },
+): Check {
   const check: Check = {
     id: `gh:${path}`,
     label: `${path} on GitHub`,
-    status: githubFileStatus(exists),
+    status: githubFileStatus(file),
   };
 
   applyGithubFileDetail(check, GH_FILE_PURPOSE[path]);
@@ -143,9 +146,10 @@ function githubFileCheck(path: string, exists: boolean | null): Check {
 }
 
 function onboardedDetail(
-  onboarded: boolean,
-  onboardedAt: string | null,
+  repo: Pick<EnrollmentInput, "onboarded" | "onboardedAt">,
 ): string {
+  const { onboarded, onboardedAt } = repo;
+
   if (!onboarded) {
     return "repo not registered";
   }
@@ -227,31 +231,37 @@ function webhookCheckRow(w: WebhookCheck): Check {
   return check;
 }
 
-function onboardedCheck(onboarded: boolean, onboardedAt: string | null): Check {
+function onboardedCheck(
+  repo: Pick<EnrollmentInput, "onboarded" | "onboardedAt">,
+): Check {
   return {
     id: "onboarded",
     label: "Onboarded",
-    status: onboarded ? "pass" : "fail",
-    detail: onboardedDetail(onboarded, onboardedAt),
+    status: repo.onboarded ? "pass" : "fail",
+    detail: onboardedDetail(repo),
   };
 }
 
-function onboardingPrCheck(prUrl: string, prMerged: boolean): Check {
+function onboardingPrCheck(pr: { url: string; merged: boolean }): Check {
   return {
     id: "onboarding-pr",
     label: "Onboarding PR merged",
-    status: prMerged ? "pass" : "warn",
-    detail: prMerged ? undefined : "open",
-    link: prMerged ? undefined : { href: prUrl, text: "review & merge" },
+    status: pr.merged ? "pass" : "warn",
+    detail: pr.merged ? undefined : "open",
+    link: pr.merged ? undefined : { href: pr.url, text: "review & merge" },
   };
 }
 
-function conventionsCheck(hasConventions: boolean): Check {
+function conventionsCheck(
+  repo: Pick<EnrollmentInput, "hasConventions">,
+): Check {
   return {
     id: "conventions",
     label: "Conventions ingested",
-    status: hasConventions ? "pass" : "fail",
-    detail: hasConventions ? undefined : "AGENTS.md / CLAUDE.md not in context",
+    status: repo.hasConventions ? "pass" : "fail",
+    detail: repo.hasConventions
+      ? undefined
+      : "AGENTS.md / CLAUDE.md not in context",
   };
 }
 
@@ -297,7 +307,7 @@ type ResolvedInput = EnrollmentInput & { now: number };
 function repoSurfaceChecks(input: ResolvedInput): Check[] {
   const { githubFiles, webhook } = input;
   const files = Object.entries(githubFiles).map(([path, exists]) =>
-    githubFileCheck(path, exists),
+    githubFileCheck(path, { exists }),
   );
 
   return webhook ? [...files, webhookCheckRow(webhook)] : files;
@@ -308,12 +318,17 @@ export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
   const { onboardingPrUrl, onboardingPrMerged, localMcp, now } = input;
 
   return [
-    onboardedCheck(input.onboarded, input.onboardedAt),
+    onboardedCheck(input),
     ...(onboardingPrUrl
-      ? [onboardingPrCheck(onboardingPrUrl, onboardingPrMerged)]
+      ? [
+          onboardingPrCheck({
+            url: onboardingPrUrl,
+            merged: onboardingPrMerged,
+          }),
+        ]
       : []),
     ingestedCheck(input.lastIngestedAt, now, input.chunkCount),
-    conventionsCheck(input.hasConventions),
+    conventionsCheck(input),
     teamCheck(input.team),
     ...repoSurfaceChecks(input),
     localMcpCheck(now, localMcp.developerCount, localMcp.lastActivity),
