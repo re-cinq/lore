@@ -130,6 +130,46 @@ The run id and ranges reach the proxied URL url-encoded. ([validated by passes a
 An unreachable API is reported as prose rather than thrown, like every other
 shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable](libs/server-core/src/work/spec-trace/query-trace.test.ts#L366))
 
+## The `failures_touching` shape
+
+The tool's third question, added for the implementation loop (issue #1771):
+what has failed on this file before. `fix-ci` asks it for every path in a red
+build's output before it reads any file, because this repository has very likely
+hit the same error before and the diff that ended it is the cheapest thing the
+round can read.
+
+The read is served by
+`GET /api/repos/{owner}/{repo}/trace/failures-touching`, which names the
+source file in `path`. It reaches the graph directly rather than through the
+Project facade, because the failure reader lives in a tier the outbound ports
+may not import.
+
+A request naming no source file is refused. ([validated by returns 400 when no path names the source file](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L54))
+
+The route returns the recorded failures under a `failures` key. ([validated by returns the recorded failures under a failures key](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L61))
+
+It asks the graph with the repo and the requested path. ([validated by queries the graph with the repo and the requested path](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L68))
+
+With no graph configured it returns an empty list rather than failing — the
+same degradation the impact route makes, because an absent graph is a missing
+convenience, not a broken build. ([validated by returns an empty list when no Dgraph client is configured](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L79))
+
+The tool lists each failure with its node, its attempt, the commit it failed on
+and the sha that later fixed it. ([validated by lists each failure with its node, attempt, commit and the sha that fixed it](libs/server-core/src/work/spec-trace/query-trace.test.ts#L408))
+
+A failure no later attempt resolved is marked still open, so a round does not
+read an unfixed failure as a solution to copy. ([validated by marks a failure with no resolving commit as still open](libs/server-core/src/work/spec-trace/query-trace.test.ts#L419))
+
+An empty answer renders as a sentence saying so. ([validated by renders a no-recorded-failures sentence for an empty list](libs/server-core/src/work/spec-trace/query-trace.test.ts#L427))
+
+Only the first line of a failure's detail is shown, capped — the point is
+recognition, and the whole log lives in the run's pod logs. ([validated by truncates a detail longer than 120 characters to one capped line](libs/server-core/src/work/spec-trace/query-trace.test.ts#L433))
+
+The requested path reaches the proxied URL url-encoded. ([validated by proxies a GET to the repo's failures-touching route with the path url-encoded](libs/server-core/src/work/spec-trace/query-trace.test.ts#L441))
+
+An unreachable API is reported as prose rather than thrown, like every other
+shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable](libs/server-core/src/work/spec-trace/query-trace.test.ts#L455))
+
 ## Out of Scope
 
 - The test-rooted direction ("what does test Y cover") — the `/trace/document`
