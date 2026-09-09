@@ -83,7 +83,7 @@ async function fetchSectionSource(
   },
 ): Promise<FetchResult> {
   if (source === "coupling") {
-    return fetchCouplingSource(ctx.dgraph ?? null, ctx.repo);
+    return fetchCouplingSource(ctx.dgraph ?? null, ctx.repo, ctx.query);
   }
 
   if (fetcher) {
