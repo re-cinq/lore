@@ -1,10 +1,6 @@
 "use client";
 
-/**
- * Manual "Trigger review" — the UI twin of an `@lore review` comment. A native
- * form POST to the /api/review/trigger proxy (which forwards to the Floor), then
- * a redirect back. A `*Button.tsx` name keeps it exempt from `no-io-in-view`.
- */
+// Manual "Trigger review" — UI twin of an `@lore review` comment; native form POST to /api/review/trigger, then redirect back.
 export function TriggerReviewButton({
   repo,
   prNumber,

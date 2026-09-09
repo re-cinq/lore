@@ -1,0 +1,58 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  trackToolCall,
+  dumpSessionLog,
+  getSessionLog,
+} from "./session-tracker.js";
+
+interface DumpedSession {
+  startTime: string;
+  endTime: string;
+  summary: string;
+  toolCalls: number;
+  log: {
+    tool: string;
+    timestamp: string;
+    durationMs: number;
+    success: boolean;
+  }[];
+}
+
+describe("session-tracker dump + ring buffer", () => {
+  it("writes tracked calls into the dumped json log", () => {
+    trackToolCall({ tool: "dump_probe_alpha", durationMs: 120, success: true });
+    trackToolCall({ tool: "dump_probe_beta", durationMs: 80, success: false });
+    trackToolCall({ tool: "dump_probe_alpha", durationMs: 200, success: true });
+
+    const target = join(tmpdir(), `lore-session-dump-${process.pid}.json`);
+
+    dumpSessionLog(target);
+
+    const dumped = JSON.parse(readFileSync(target, "utf8")) as DumpedSession;
+    const probes = dumped.log.filter((entry) =>
+      entry.tool.startsWith("dump_probe_"),
+    );
+
+    expect(dumped.toolCalls).toBe(dumped.log.length);
+    expect(probes).toMatchObject([
+      { tool: "dump_probe_alpha", durationMs: 120, success: true },
+      { tool: "dump_probe_beta", durationMs: 80, success: false },
+      { tool: "dump_probe_alpha", durationMs: 200, success: true },
+    ]);
+  });
+
+  it("caps the ring buffer at 500 entries dropping the oldest", () => {
+    for (let i = 0; i < 600; i++) {
+      trackToolCall({ tool: `ring_${i}`, durationMs: 1, success: true });
+    }
+
+    const log = getSessionLog();
+
+    expect(log).toHaveLength(500);
+    expect(log[0].tool).toBe("ring_100");
+    expect(log[499].tool).toBe("ring_599");
+  });
+});

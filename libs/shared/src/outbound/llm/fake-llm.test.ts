@@ -1,0 +1,57 @@
+import { describe, it, expect } from "vitest";
+import { FakeLlm } from "./fake-llm.js";
+
+describe("FakeLlm", () => {
+  it("complete returns the canned text with zeroed usage", async () => {
+    const result = await new FakeLlm({ text: "hello" }).complete({
+      prompt: "x",
+    });
+
+    expect(result).toMatchObject({
+      text: "hello",
+      inputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
+      model: "fake",
+    });
+  });
+
+  it("completeWithTool returns the canned data", async () => {
+    const result = await new FakeLlm({
+      data: { matches: true },
+    }).completeWithTool({
+      prompt: "x",
+      toolName: "t",
+      toolDescription: "d",
+      toolSchema: {},
+    });
+
+    expect(result.parsed).toEqual({ matches: true });
+  });
+
+  it("records the requests it received", async () => {
+    const fake = new FakeLlm({ text: "ok" });
+
+    await fake.complete({ prompt: "the-prompt", jobName: "j" });
+    expect(fake.calls).toEqual([{ prompt: "the-prompt", jobName: "j" }]);
+  });
+
+  it("overlays canned usage on the zeroed defaults", async () => {
+    const result = await new FakeLlm({
+      data: { matches: true },
+      usage: { inputTokens: 812, costUsd: 0.0008 },
+    }).completeWithTool({
+      prompt: "x",
+      toolName: "t",
+      toolDescription: "d",
+      toolSchema: {},
+    });
+
+    expect(result).toMatchObject({
+      inputTokens: 812,
+      costUsd: 0.0008,
+      outputTokens: 0,
+      model: "fake",
+    });
+  });
+});

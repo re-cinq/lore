@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import { useEffect, useState } from "react";
 import styles from "./RunningCard.module.scss";
 import { formatSeconds } from "@/lib/format-time";
@@ -8,16 +9,8 @@ import { formatTokens, type RunTokens } from "@/lib/run-tokens";
 import RunVisualizationPanel from "@/app/assembly-runs/[id]/RunVisualizationPanel";
 import type { FeatureRunPayload } from "@/lib/feature-run";
 
-/** Elapsed / budget (m:ss / mm:00) from when the working node started, ticking every
- *  second. Turns red once elapsed passes the budget — which is the deadline the
- *  assembly-line reaper actually kills the node at, not a decorative target. */
-function ElapsedTimer({
-  since,
-  timeoutMinutes,
-}: {
-  since: string | undefined;
-  timeoutMinutes: number;
-}) {
+/** Seconds since `since`, ticking every second, or null when there is no parseable start. The interval runs regardless so the hook order never changes between renders. */
+function useElapsedSeconds(since: string | undefined): number | null {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -27,10 +20,18 @@ function ElapsedTimer({
   }, []);
   const start = since ? Date.parse(since) : NaN;
 
-  if (Number.isNaN(start)) {
-    return null;
-  }
-  const secs = Math.max(0, Math.floor((now - start) / 1000));
+  return Number.isNaN(start)
+    ? null
+    : Math.max(0, Math.floor((now - start) / 1000));
+}
+
+/** The timer itself, once there is a count to show. Over budget it says so in both the styling and the tooltip, since the styling alone does not explain what happens next. */
+interface TimerReadoutProps {
+  secs: number;
+  timeoutMinutes: number;
+}
+
+function TimerReadout({ secs, timeoutMinutes }: TimerReadoutProps) {
   const over = secs > timeoutMinutes * 60;
 
   return (
@@ -50,9 +51,25 @@ function ElapsedTimer({
   );
 }
 
-/** What the run has spent so far. Rendered only once something has been reported:
- *  a "0 tokens" badge on a pod that has not streamed its first turn yet says
- *  "nothing is happening", which is the opposite of true. */
+/** Elapsed/budget timer ticking every second; turns red when deadline (reaper's kill time) passes. */
+function ElapsedTimer({
+  since,
+  timeoutMinutes,
+}: {
+  since: string | undefined;
+  timeoutMinutes: number;
+}) {
+  const secs = useElapsedSeconds(since);
+
+  // A start time that will not parse means there is nothing to count from; no timer beats a timer counting from zero.
+  if (secs === null) {
+    return null;
+  }
+
+  return <TimerReadout secs={secs} timeoutMinutes={timeoutMinutes} />;
+}
+
+/** Run's spent tokens; omit "0 tokens" on pod that hasn't streamed first turn yet. */
 function TokenCount({ tokens }: { tokens: RunTokens | null | undefined }) {
   if (!tokens) {
     return null;
@@ -68,64 +85,100 @@ function TokenCount({ tokens }: { tokens: RunTokens | null | undefined }) {
   );
 }
 
-export default function RunningCard({
-  iteration,
-  since,
-  timeoutMinutes,
-  nodeId,
-  liveOutput,
-  run,
-  phase = "round",
-}: {
+const SPEC_STATUS_TEXT =
+  "Writing the spec — deciding which specs change, then writing them…";
+
+const SPEC_REFRESH_HINT =
+  "The spec PR opens when this finishes. This refreshes automatically.";
+
+const ROUND_REFRESH_HINT =
+  "The planning agent is running. This refreshes automatically.";
+
+function roundStatusText(iteration: number): string {
+  return `Analyzing your feature against the project… (round ${iteration})`;
+}
+
+function effectiveBudget(
+  run: FeatureRunPayload | null | undefined,
+  nodeId: string | undefined,
+  timeoutMinutes: number,
+): number {
+  return nodeBudgetMinutes(run?.definition, nodeId) ?? timeoutMinutes;
+}
+
+function RunGraph({ run }: { run: FeatureRunPayload | null | undefined }) {
+  if (!run) {
+    return null;
+  }
+
+  return (
+    <RunVisualizationPanel
+      runId={run.id}
+      runStatus={run.status}
+      definition={run.definition}
+      nodes={run.nodes}
+      repo={run.repo}
+      reason={run.reason}
+    />
+  );
+}
+
+interface RunningCardProps {
   iteration: number;
   since: string | undefined;
-  /** Fallback budget for a feature that resolves no line — a legacy feature minted
-   *  a task per round and has no definition to read a per-node deadline from. */
+  /** Fallback budget for legacy features with no definition to read a per-node deadline from. */
   timeoutMinutes: number;
-  /** The node the line is working, which is what owns the real deadline. */
+  /** The node the line is working; it owns the real deadline. */
   nodeId?: string;
   liveOutput?: string | null;
   run?: FeatureRunPayload | null;
-  /** Which half of the line is working: a planning ROUND, or the SPEC work that
-   *  follows the author's accept. Both run on the same line and get the same card —
-   *  before this the spec phase showed a row of disabled buttons and no graph. */
+  /** A planning ROUND or the SPEC work following the author's accept; both run on the same line and get the same card. */
   phase?: "round" | "spec";
-}) {
-  const spec = phase === "spec";
-  // The node's own deadline when the line can name one; the round's budget only for
-  // a feature with no line to read.
-  const budget = nodeBudgetMinutes(run?.definition, nodeId) ?? timeoutMinutes;
+}
+
+interface StatusLineProps {
+  spec: boolean;
+  iteration: number;
+  since: string | undefined;
+  budget: number;
+  tokens: RunTokens | null | undefined;
+}
+
+/** What the line is doing, how long it has been doing it, and what it has spent — one line, because that is how it is read. */
+function RunningStatusLine(props: StatusLineProps) {
+  const { spec, iteration, since, budget, tokens } = props;
+
+  return (
+    <p className={styles.status}>
+      {spec ? SPEC_STATUS_TEXT : roundStatusText(iteration)}
+      <span className="planning-dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+      <ElapsedTimer since={since} timeoutMinutes={budget} />
+      <TokenCount tokens={tokens} />
+    </p>
+  );
+}
+
+export default function RunningCard(props: RunningCardProps) {
+  const { iteration, since, nodeId, liveOutput, run } = props;
+  const spec = props.phase === "spec";
+  // Node's deadline when line names one; round's budget only for features with no line.
+  const budget = effectiveBudget(run, nodeId, props.timeoutMinutes);
 
   return (
     <div className="spec-card">
-      <p className={styles.status}>
-        {spec
-          ? "Writing the spec — deciding which specs change, then writing them…"
-          : `Analyzing your feature against the project… (round ${iteration})`}
-        <span className="planning-dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </span>
-        <ElapsedTimer since={since} timeoutMinutes={budget} />
-        <TokenCount tokens={run?.tokens} />
-      </p>
-      <p className="meta">
-        {spec
-          ? "The spec PR opens when this finishes. This refreshes automatically."
-          : "The planning agent is running. This refreshes automatically."}
-      </p>
-      {run && (
-        <RunVisualizationPanel
-          runId={run.id}
-          runStatus={run.status}
-          startedAt={run.startedAt}
-          definition={run.definition}
-          nodes={run.nodes}
-          repo={run.repo}
-          reason={run.reason}
-        />
-      )}
+      <RunningStatusLine
+        spec={spec}
+        iteration={iteration}
+        since={since}
+        budget={budget}
+        tokens={run?.tokens}
+      />
+      <Alert>{spec ? SPEC_REFRESH_HINT : ROUND_REFRESH_HINT}</Alert>
+      <RunGraph run={run} />
       {liveOutput && <pre className={styles.output}>{liveOutput}</pre>}
     </div>
   );

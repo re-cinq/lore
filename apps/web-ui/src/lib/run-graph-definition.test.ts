@@ -39,8 +39,6 @@ const row = (
 
 describe("definitionForRun on a run carrying its own graph", () => {
   it("draws the graph the run RECORDED, not a transcription of today's yaml", () => {
-    // The whole point of the clone: a blueprint edited or renamed after the run
-    // must not change what that run is shown to have walked.
     const { definition, synthetic } = definitionForRun(
       "code-review",
       [row("review")],
@@ -56,9 +54,6 @@ describe("definitionForRun on a run carrying its own graph", () => {
   });
 
   it("falls back to the inferred chain for a run stamped before clones existed", () => {
-    // Those rows carry no graph and are not recoverable — the blueprint a
-    // historical run used is not derivable from the row. An inferred chain of the
-    // nodes it actually visited beats showing nothing.
     const { definition, synthetic } = definitionForRun("code-review", [
       row("review"),
       row("done"),

@@ -1,10 +1,4 @@
-// The run graph's data from the persisted walk rows ALONE — no event stream.
-//
-// The live panel merges its SSE reducer state over these same rows; a server
-// render (the feature card) has no stream, only the rows the Floor wrote. That is
-// enough for the current-state graph: a row with an outcome is a step that closed
-// with that verdict, an open row is the step working right now, and a node with no
-// row at all has not been reached — which run mode draws as pending.
+// Run graph from walk rows only; live panel merges SSE state over the same rows.
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyRunNode } from "./assembly-runs";
@@ -17,8 +11,7 @@ function isFailure(outcome: string): boolean {
   return outcome.includes("failed");
 }
 
-/** A row's execution status. The badge prefers the verdict, so this only decides
- *  the still-open case — but a failed row must never claim it succeeded. */
+/** A row's execution status. */
 function rowStatus(outcome: string | null): NodeRunStatus {
   if (outcome === null) {
     return "running";
@@ -27,24 +20,39 @@ function rowStatus(outcome: string | null): NodeRunStatus {
   return isFailure(outcome) ? "failed" : "succeeded";
 }
 
-/** The run's final token: failed when any step closed failed, completed once the
- *  run itself has finished, and null while it is still going. */
-function runResult(anyFailed: boolean, finished: boolean): string | null {
-  if (anyFailed) {
+/** The run's final token: failed/completed/null. */
+function runResult(
+  latest: ReadonlyMap<string, AssemblyRunNode>,
+  { finished }: { finished: boolean },
+): string | null {
+  if (anyRowFailed(latest)) {
     return "failed";
   }
 
   return finished ? "completed" : null;
 }
 
-/** RunData for a run, derived from its walk rows. `finished` is the caller's read
- *  of the run status — the view layer owns that vocabulary. */
+/** RunData derived from walk rows; finished status owned by caller. */
 export function walkRunData(
   definition: AssemblyLineDefinition | null,
   rows: readonly AssemblyRunNode[],
-  finished: boolean,
+  { finished }: { finished: boolean },
 ): RunData {
   const latest = latestRowByNode(rows);
+
+  return {
+    executed: new Set(latest.keys()),
+    ...nodeOutcomes(latest),
+    taken: takenEdgeKeys(definition, rows),
+    result: runResult(latest, { finished }),
+  };
+}
+
+/** Per-node verdict and status, latest visit winning. */
+function nodeOutcomes(latest: ReadonlyMap<string, AssemblyRunNode>): {
+  verdicts: Record<string, string | null>;
+  statuses: Record<string, NodeRunStatus>;
+} {
   const verdicts: Record<string, string | null> = {};
   const statuses: Record<string, NodeRunStatus> = {};
 
@@ -53,16 +61,11 @@ export function walkRunData(
     statuses[nodeId] = rowStatus(row.outcome);
   }
 
-  return {
-    executed: new Set(latest.keys()),
-    verdicts,
-    statuses,
-    taken: takenEdgeKeys(definition, rows),
-    result: runResult(
-      [...latest.values()].some(
-        (row) => row.outcome !== null && isFailure(row.outcome),
-      ),
-      finished,
-    ),
-  };
+  return { verdicts, statuses };
+}
+
+function anyRowFailed(latest: ReadonlyMap<string, AssemblyRunNode>): boolean {
+  return [...latest.values()].some(
+    (row) => row.outcome !== null && isFailure(row.outcome),
+  );
 }

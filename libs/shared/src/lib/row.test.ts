@@ -147,16 +147,8 @@ describe("acceptEitherSpelling", () => {
   });
 });
 
-/**
- * Both halves are TYPE assertions, and they do not fail the same way. The
- * positive case fails at the alias — `Assert<false>` is a type error, so `tsc`
- * rejects the file whether or not the test runs. The negative case is an
- * assignment, and vitest alone is happy with either value: only `tsc --noEmit`
- * reads it. That holds as long as test files stay inside the typecheck project,
- * which is what makes this pair a guard rather than a pair of true statements.
- */
 describe("KeysAreColumns", () => {
-  it("holds for a shape whose every key is a column", () => {
+  it("rejects at tsc via the Assert<false> alias when every key is a column", () => {
     type Wire = { id: string; full_name: string };
     type Check = Assert<KeysAreColumns<Wire, Repo, typeof REPO_COLUMNS>>;
     const holds: Check = true;
@@ -164,7 +156,7 @@ describe("KeysAreColumns", () => {
     expect(holds).toBe(true);
   });
 
-  it("resolves false for a shape carrying a key no column binds", () => {
+  it("resolves false, only visible to tsc --noEmit, for a key no column binds", () => {
     type Wire = { id: string; cost_usd: number };
     const holds: KeysAreColumns<Wire, Repo, typeof REPO_COLUMNS> = false;
 

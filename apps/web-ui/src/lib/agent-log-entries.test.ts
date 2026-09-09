@@ -29,6 +29,8 @@ import {
   RESULT_TERMINAL,
   STATION_LOG,
   NODE_RESULT_LINE,
+  FILE_EVENT_PR_DESCRIPTION,
+  FILE_EVENT_MISSING,
   RUNNER_MARKER,
   wrapped,
   doubleWrapped,
@@ -95,6 +97,16 @@ describe("parseAgentLog", () => {
     expect((entry as { detailsJson: string }).detailsJson).toMatch(
       /"permissionMode": "bypassPermissions"/,
     );
+  });
+
+  it("falls back to 'unknown model' and no version when an init line carries neither", () => {
+    const [entry] = parseAgentLogLine('{"type":"system","subtype":"init"}');
+
+    expect(entry).toEqual({
+      kind: "session-init",
+      model: "unknown model",
+      detailsJson: JSON.stringify({ type: "system", subtype: "init" }, null, 2),
+    });
   });
 
   it("coalesces a run of three thinking_tokens lines into one entry with the latest count 444", () => {
@@ -252,6 +264,53 @@ describe("parseAgentLog", () => {
     expect(parseAgentLog(twoBlocks)).toEqual([
       { kind: "thinking", text: "checking the diff first" },
       { kind: "tool-use", summary: "→ Bash: gh pr diff 871" },
+    ]);
+  });
+
+  it("shows nothing for a turn whose thinking and text blocks are both blank", () => {
+    const blankBlocks = JSON.stringify({
+      type: "assistant",
+      message: {
+        content: [
+          { type: "thinking", thinking: "   " },
+          { type: "text", text: "  " },
+        ],
+      },
+    });
+
+    expect(parseAgentLog(blankBlocks)).toEqual([]);
+  });
+
+  it("shows nothing for a turn carrying only an empty redacted thinking block", () => {
+    const redacted = JSON.stringify({
+      type: "assistant",
+      message: {
+        content: [{ type: "thinking", thinking: "", signature: "abc" }],
+      },
+    });
+
+    expect(parseAgentLog(redacted)).toEqual([]);
+  });
+
+  it("keeps a turn whose block type names an Object prototype member as a raw entry", () => {
+    const prototypeName = JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "constructor", text: "hi" }] },
+    });
+
+    expect(parseAgentLog(prototypeName)).toEqual([
+      { kind: "raw", text: prototypeName },
+    ]);
+  });
+
+  it("keeps a turn whose content block is of an unknown type as a raw entry", () => {
+    const unknownBlock = JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "hologram", pixels: 4 }] },
+    });
+
+    expect(parseAgentLog(unknownBlock)).toEqual([
+      { kind: "raw", text: unknownBlock },
     ]);
   });
 
@@ -659,6 +718,14 @@ describe("gemini stream-json dialect", () => {
     ]);
   });
 
+  it("summarizes a gemini tool_use with no parameters as the bare tool name", () => {
+    expect(
+      parseAgentLog(
+        wrapped('{"type":"tool_use","tool_id":"x","tool_name":"ls"}'),
+      ),
+    ).toEqual([{ kind: "tool-use", summary: "→ ls" }]);
+  });
+
   it("parses a gemini tool_result with status success as a non-error tool-result", () => {
     expect(parseAgentLog(wrapped(GEMINI_TOOL_RESULT_OK))).toEqual([
       {
@@ -718,6 +785,22 @@ describe("gemini stream-json dialect", () => {
     ]);
   });
 
+  it("parses a gemini error event with severity warning", () => {
+    expect(
+      parseAgentLog(
+        wrapped(
+          '{"type":"error","severity":"warning","message":"retrying after a transient failure"}',
+        ),
+      ),
+    ).toEqual([
+      {
+        kind: "agent-error",
+        severity: "warning",
+        message: "retrying after a transient failure",
+      },
+    ]);
+  });
+
   it("parses a gemini result with status success as a non-error result", () => {
     expect(parseAgentLog(wrapped(GEMINI_RESULT_SUCCESS))).toEqual([
       { kind: "result", text: "", isError: false },
@@ -745,5 +828,45 @@ describe("gemini stream-json dialect", () => {
       text: "done now",
       delta: true,
     });
+  });
+});
+
+describe("file artifact events", () => {
+  it("parses the wrapped pr.description artifact delivery into a file entry with its path and content", () => {
+    expect(parseAgentLog(FILE_EVENT_PR_DESCRIPTION)).toEqual([
+      {
+        kind: "file",
+        event: "pr.description",
+        path: "/workspace/target/.lore/pr-body.md",
+        content:
+          "The codebase already consolidated the duplicated clip.\n\nNo deviations were necessary.\n",
+      },
+    ]);
+  });
+
+  it("parses a never-produced artifact report into a file entry carrying the reason and empty content", () => {
+    expect(parseAgentLog(FILE_EVENT_MISSING)).toEqual([
+      {
+        kind: "file",
+        event: "pr.description",
+        path: "/workspace/target/.lore/pr-body.md",
+        content: "",
+        reason: "agent exited before writing the file",
+      },
+    ]);
+  });
+
+  it("defaults path and content to empty strings when a file event carries neither", () => {
+    expect(
+      parseAgentLogLine('{"kind":"file","event":"pr.description"}'),
+    ).toEqual([
+      { kind: "file", event: "pr.description", path: "", content: "" },
+    ]);
+  });
+
+  it("keeps a kind:file line without an event name as a raw entry", () => {
+    const line = '{"kind":"file","path":"/w/x.md","content":"c"}';
+
+    expect(parseAgentLog(line)).toEqual([{ kind: "raw", text: line }]);
   });
 });

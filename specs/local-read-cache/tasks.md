@@ -9,12 +9,12 @@ Spec: [spec.md](spec.md)
 
 ## Phase 1 — Cache core
 
-- [x] T003 New `apps/mcp-server/src/platform/proxy-cache.ts`: key builder (sha256 of tool+canonical args+repo), TTL read (`readFresh`/`readAny`), `store`, `invalidate(tools, repo?)`, LRU + TTL eviction, `markFresh`/`markStale`, config/env loading (`LORE_CACHE_ENABLED`, `LORE_CACHE_DIR`, `max_entries`, `ttl_overrides`)
-- [x] T004 [P] Tests `apps/mcp-server/src/platform/proxy-cache.test.ts`: TTL fresh/expired, LRU cap, stale-serve, invalidation, key stability across arg order, repo isolation, disabled-mode no-op
+- [x] T003 New `apps/mcp-server/src/integration-tests/proxy-cache.ts`: key builder (sha256 of tool+canonical args+repo), TTL read (`readFresh`/`readAny`), `store`, `invalidate(tools, repo?)`, LRU + TTL eviction, `markFresh`/`markStale`, config/env loading (`LORE_CACHE_ENABLED`, `LORE_CACHE_DIR`, `max_entries`, `ttl_overrides`)
+- [x] T004 [P] Tests `apps/mcp-server/src/integration-tests/proxy-cache.test.ts`: TTL fresh/expired, LRU cap, stale-serve, invalidation, key stability across arg order, repo isolation, disabled-mode no-op
 
 ## Phase 2 — Wire reads through the cache
 
-- [x] T005 Add `withReadCache(policy, doProxy)` helper in `apps/mcp-server/src/mcp/tools/deps.ts` (fresh hit short-circuits; on `ok` store; on `unreachable` serve labeled stale if present)
+- [x] T005 Add `withReadCache(policy, doProxy)` helper in `apps/mcp-server/src/transport/tools/deps.ts` (fresh hit short-circuits; on `ok` store; on `unreachable` serve labeled stale if present)
 - [x] T006 `lore_assemble_context` (context-tools.ts) routes its local-mode fetch through `withReadCache`
 - [x] T007 Memory reads (`search_memory`, `read_memory`, `list_memories`) + `query_graph` (memory-tools.ts) wrapped with `withReadCache`
 - [x] T008 `lore-query-trace` (spec-trace-tools.ts) wrapped with `withReadCache`

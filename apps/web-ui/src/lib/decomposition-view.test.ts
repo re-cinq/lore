@@ -65,7 +65,7 @@ describe("groupDecomposition", () => {
 
   it("puts tasks with no story issue into a single null group, ordered last", () => {
     const rows = [
-      row({ context_bundle: { spec_task_id: "T002" } }), // no story_issue
+      row({ context_bundle: { spec_task_id: "T002" } }),
       row({ context_bundle: { spec_task_id: "T001", story_issue: 5 } }),
     ];
 

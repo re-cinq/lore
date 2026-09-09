@@ -18,21 +18,7 @@ type AgentQueryRow = Pick<
 >;
 
 export default async function AgentsPage() {
-  // Union task agents (pipeline.tasks) with memory agents (memory.memories) so
-  // local MCP agents — which only ever write memories — are discoverable too.
-  const [result, definitions, usage] = await Promise.all([
-    getAgentActivity(),
-    listOrgAgents(),
-    fetchAgentUsage(),
-  ]);
-  const rows = (result.status === "ok"
-    ? result.data.agents
-    : []) as unknown as AgentQueryRow[];
-
-  const agents: AgentRow[] = rows.map((row) => ({
-    ...row,
-    kind: classifyAgent(row),
-  }));
+  const { agents, definitions, usage } = await loadAgentsPageData();
 
   return (
     <div>
@@ -47,4 +33,22 @@ export default async function AgentsPage() {
       />
     </div>
   );
+}
+
+/** Union task agents (pipeline.tasks) with memory agents (memory.memories) so local-only MCP agents stay discoverable. */
+async function loadAgentsPageData() {
+  const [result, definitions, usage] = await Promise.all([
+    getAgentActivity(),
+    listOrgAgents(),
+    fetchAgentUsage(),
+  ]);
+  const rows = (result.status === "ok"
+    ? result.data.agents
+    : []) as unknown as AgentQueryRow[];
+  const agents: AgentRow[] = rows.map((row) => ({
+    ...row,
+    kind: classifyAgent(row),
+  }));
+
+  return { agents, definitions, usage };
 }

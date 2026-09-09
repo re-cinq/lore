@@ -20,7 +20,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 1 — Schema reachability (least-invasive)
 
-- [x] T002 `apps/lore-api/src/server/plugins/zod-validate.ts`: `zodValidate(schema)`
+- [x] T002 `apps/lore-api/src/transport/http/zod-validate.ts`: `zodValidate(schema)`
   stamps `fn.zodSchema = schema` (typed `ZodValidateFn<T>`); add `getZodSchema(fn)`
   returning the schema or `undefined`. Behavior otherwise unchanged. Extend
   `zod-validate.test.ts`: the returned fn still validates, and `getZodSchema`
@@ -32,12 +32,12 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 ## Phase 2 — The generator
 
 - [x] T004 Declare `zod-to-json-schema` in `apps/lore-api/package.json` dependencies
-  (pin the lockfile-resolved `^3.25.1`). `apps/lore-api/src/openapi/domain-routes.ts`:
+  (pin the lockfile-resolved `^3.25.1`). `apps/lore-api/src/transport/openapi/domain-routes.ts`:
   the fork-3 sidecar — a table keyed by path listing, for each domain/`*` route, its
   verbs and either a lifted zod schema (import `AgentInputSchema`,
   `DarkFactorySettingsSchema`) or a `freeform` marker (features, tokens) + the
   webhook/excluded entries. (FR3, FR6, fork 3)
-- [x] T005 `apps/lore-api/src/openapi/build-document.ts`: `buildOpenApiDocument(routes)`
+- [x] T005 `apps/lore-api/src/transport/openapi/build-document.ts`: `buildOpenApiDocument(routes)`
   → OpenAPI 3.1 object. Per route: derive method(s) (expand `*` via the sidecar),
   convert hapi path params (`{p}`/`{p?}`/`{p*}`) to OpenAPI parameters with correct
   `required`, resolve scope from `options.plugins["bearer-scope"].scope`, resolve
@@ -46,7 +46,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
   `x-rate-limit-bucket` / shared error `$ref` responses. Assemble `info`, `servers`
   (from `LORE_API_URL` when set), `components.securitySchemes.bearerAuth`,
   `components.responses`. Exclude + log `/healthz`, `/dist/*` (FR7).
-- [x] T006 `apps/lore-api/src/openapi/build-document.test.ts` (unit): covered route →
+- [x] T006 `apps/lore-api/src/transport/openapi/build-document.test.ts` (unit): covered route →
   `requestBody` with required fields/enums; memory union → `oneOf`; agents/dark-factory
   → lifted schema present; features/tokens → freeform `object`; `*` routes expand to
   their verbs; every `/api/*` route appears once; scope + bucket extensions present;
@@ -54,13 +54,13 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 3 — Serving surface
 
-- [x] T007 `apps/lore-api/src/api/routes/openapi/openapi.ts`: `openApiJsonRoute(getPool)`
+- [x] T007 `apps/lore-api/src/transport/routes/openapi/openapi.ts`: `openApiJsonRoute(getPool)`
   (`GET /api/openapi.json`, `bearerScope("read")`) returns `buildOpenApiDocument(routeList(getPool))`;
   `docsRoute(getPool)` (`GET /api/docs`, `bearerScope("read")`) returns an HTML page
   that inlines the document and calls `Redoc.init`. Register both in `routeList`
   (so the doc self-describes). Guard against build-time recursion (build the doc
   from the route array, not by re-invoking the serving routes' handlers). (FR5)
-- [x] T008 `apps/lore-api/src/api/routes/openapi/openapi.test.ts` (inject): `GET
+- [x] T008 `apps/lore-api/src/transport/routes/openapi/openapi.test.ts` (inject): `GET
   /api/openapi.json` with a read token → `200`, `openapi: "3.1.0"`, `paths` non-empty;
   missing token → `401`; a write-only... i.e. under-scoped token still `403` before
   the handler; `GET /api/docs` → `200 text/html` containing the inlined spec + Redoc
@@ -68,7 +68,7 @@ Legend: `[P]` = parallelizable with siblings in the same phase.
 
 ## Phase 4 — Drift guard
 
-- [x] T009 `apps/lore-api/src/openapi/coverage.test.ts`: for every route in
+- [x] T009 `apps/lore-api/src/transport/openapi/coverage.test.ts`: for every route in
   `routeList` with a body-bearing method, assert it has a `zodValidate` payload
   schema OR a sidecar allowlist entry — a fixture route with neither fails; assert
   the `paths` count equals the `/api/*` route count and the doc is a structurally

@@ -14,6 +14,22 @@ interface Repo {
   full_name: string;
 }
 
+// Bidirectional cross-repo linkage: add this repo to the linked repo's own list.
+async function linkBack(fullName: string, linkedRepo: string) {
+  const linked = await getRepo(linkedRepo);
+  const current = (linked.status === "ok" ? linked.data.settings : null) ?? {};
+  const existing = Array.isArray(current.cross_repo_repos)
+    ? (current.cross_repo_repos as string[])
+    : [];
+
+  await putRepoSettings(linkedRepo, {
+    settings: {
+      cross_repo: true,
+      cross_repo_repos: [...new Set([...existing, fullName])],
+    },
+  });
+}
+
 async function saveSettings(
   _prev: SaveState,
   formData: FormData,
@@ -22,64 +38,50 @@ async function saveSettings(
   const fullName = formData.get("full_name") as string;
   const team = formData.get("team") as string;
 
-  // General (non-privileged) → direct DB, shallow-merged into settings JSONB.
-  // Dark-factory (privileged) lives on the Dark Factory tab; agents on the Agents tab.
+  // General → direct DB; dark-factory (privileged) on Dark Factory tab; agents on Agents tab.
   const updates = parseSettingsForm(formData);
   const selectedRepos = updates.cross_repo_repos as string[];
 
   await putRepoSettings(fullName, { team: team || null, settings: updates });
-
-  // Bidirectional cross-repo linkage: add this repo to each linked repo's list.
-  for (const linkedRepo of selectedRepos) {
-    const linked = await getRepo(linkedRepo);
-    const current =
-      (linked.status === "ok" ? linked.data.settings : null) ?? {};
-    const existing = Array.isArray(current.cross_repo_repos)
-      ? (current.cross_repo_repos as string[])
-      : [];
-
-    await putRepoSettings(linkedRepo, {
-      settings: {
-        cross_repo: true,
-        cross_repo_repos: [...new Set([...existing, fullName])],
-      },
-    });
-  }
+  await Promise.all(
+    selectedRepos.map((linkedRepo) => linkBack(fullName, linkedRepo)),
+  );
 
   revalidatePath(`/repos/${fullName}/settings`);
 
   return { saved: true, privileged: null };
 }
 
-export default async function RepoSettings({
-  params,
-}: {
+/** Every other onboarded repo, alphabetised — the candidates for a cross-repo link. */
+function linkCandidates(repos: Repo[], fullName: string): Repo[] {
+  const others = repos.filter((repo) => repo.full_name !== fullName);
+
+  return others
+    .map((repo) => ({ full_name: repo.full_name }))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name));
+}
+
+interface RepoSettingsProps {
   params: Promise<{ owner: string; repo: string }>;
-}) {
-  const { owner, repo } = await params;
+}
+
+export default async function RepoSettings(props: RepoSettingsProps) {
+  const { owner, repo } = await props.params;
   const fullName = `${owner}/${repo}`;
   const record = await getRepo(fullName);
 
   if (record.status !== "ok") {
     return <div>Repo not found</div>;
   }
-  const repoData = {
-    team: record.data.team,
-    settings: record.data.settings as RepoSettingsShape | null,
-  };
-
-  const repoList = reposOrThrow(await listAllRepos());
-  const allRepos: Repo[] = repoList.repos
-    .filter((r) => r.full_name !== fullName)
-    .map((r) => ({ full_name: r.full_name }))
-    .sort((a, b) => a.full_name.localeCompare(b.full_name));
+  const { team, settings } = record.data;
+  const { repos } = reposOrThrow(await listAllRepos());
 
   return (
     <SettingsView
       fullName={fullName}
-      team={repoData.team ?? ""}
-      settings={repoData.settings ?? {}}
-      allRepos={allRepos}
+      team={team ?? ""}
+      settings={(settings as RepoSettingsShape | null) ?? {}}
+      allRepos={linkCandidates(repos, fullName)}
       saveAction={saveSettings}
     />
   );

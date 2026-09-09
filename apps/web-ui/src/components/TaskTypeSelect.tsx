@@ -13,11 +13,19 @@ const DESCRIPTIONS: Record<string, string> = {
   onboard: "Inspects the repo and generates its Lore scaffolding.",
 };
 
-export function TaskTypeSelect({
-  options,
-}: {
+interface TaskTypeSelectProps {
   options: { value: string; label: string }[];
-}) {
+}
+
+function TaskTypeOptions({ options }: TaskTypeSelectProps) {
+  return options.map((o) => (
+    <option key={o.value} value={o.value}>
+      {o.label}
+    </option>
+  ));
+}
+
+export function TaskTypeSelect({ options }: TaskTypeSelectProps) {
   const [selected, setSelected] = useState(options[0]?.value ?? "");
   const description = DESCRIPTIONS[selected];
 
@@ -29,11 +37,7 @@ export function TaskTypeSelect({
         value={selected}
         onChange={(e) => setSelected(e.target.value)}
       >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
+        <TaskTypeOptions options={options} />
       </select>
       {description && <span className="meta">{description}</span>}
     </>

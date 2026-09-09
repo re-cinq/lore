@@ -38,24 +38,29 @@ describe("filterDocCards", () => {
   });
 
   it("matches the query case-insensitively and recounts within the match", () => {
-    const result = filterDocCards(docs, statusOf, "all", "BETA", textOf);
+    const result = filterDocCards(docs, statusOf, "all", {
+      query: "BETA",
+      textOf,
+    });
 
     expect(result).toEqual({ counts: { draft: 1 }, visible: [docs[1]] });
   });
 
   it("combines query and status filter", () => {
     expect(
-      filterDocCards(docs, statusOf, "shipped", "spec.md", textOf).visible,
+      filterDocCards(docs, statusOf, "shipped", { query: "spec.md", textOf })
+        .visible,
     ).toEqual([docs[0]]);
     expect(
-      filterDocCards(docs, statusOf, "draft", "alpha", textOf).visible,
+      filterDocCards(docs, statusOf, "draft", { query: "alpha", textOf })
+        .visible,
     ).toEqual([]);
   });
 
   it("ignores a whitespace-only query", () => {
-    expect(filterDocCards(docs, statusOf, "all", "  ", textOf).visible).toEqual(
-      docs,
-    );
+    expect(
+      filterDocCards(docs, statusOf, "all", { query: "  ", textOf }).visible,
+    ).toEqual(docs);
   });
 });
 

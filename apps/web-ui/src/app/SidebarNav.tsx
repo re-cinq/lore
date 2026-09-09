@@ -12,12 +12,10 @@ interface NavGroup {
   links: { href: string; label: string }[];
 }
 
-// Repo-centric nav (spec 4-ux-repo-onboarding, FR-3.8): everything about a repo
-// lives in its own tabs under /repos/[owner]/[repo]; only genuinely cross-repo
-// views stay at the top level. Repos (home), the cross-repo Assembly Runs and
-// Agents lists, plus global Search / Audit / Pools, plus the cross-repo Insights.
+// Repo-centric nav (spec 4-ux-repo-onboarding FR-3.8) — only genuinely cross-repo views live at top level.
 const groups: NavGroup[] = [
   {
+    // eslint-disable-next-line re-lint/no-duplicate-code -- the nav section table, restated in SidebarNav.test.tsx as the exact sections and order a reader must see; the restatement is the assertion, so there is nothing here to share with it
     links: [
       { href: "/", label: "Repos" },
       { href: "/assembly-runs", label: "Assembly Runs" },
@@ -31,6 +29,7 @@ const groups: NavGroup[] = [
   {
     label: "Insights",
     links: [
+      // eslint-disable-next-line re-lint/no-duplicate-code -- the second nav section's links, likewise restated in SidebarNav.test.tsx as the expected list; a test that imported this table would assert only that the table equals itself
       { href: "/analytics", label: "Analytics" },
       { href: "/spend", label: "Spend" },
       { href: "/gaps", label: "Gaps" },
@@ -42,6 +41,138 @@ const groups: NavGroup[] = [
   },
 ];
 
+/** The group's links, each knowing whether it is the current page. Active is computed here rather than per link so one pass over the pathname answers for the whole group. */
+function navLinks(group: NavGroup, pathname: string) {
+  return group.links.map(({ href, label }) => (
+    <NavLink
+      key={href}
+      href={href}
+      label={label}
+      active={isNavActive(pathname, href, "/")}
+    />
+  ));
+}
+
+interface GroupHeaderProps {
+  label: string;
+  collapsed: boolean;
+  onToggle: (label: string) => void;
+}
+
+/** The group's own toggle. A button rather than a heading because it does something, and `aria-expanded` reports which way it is currently pointing. */
+function GroupHeader({ label, collapsed, onToggle }: GroupHeaderProps) {
+  return (
+    <button
+      type="button"
+      className={styles.groupLabel}
+      onClick={() => onToggle(label)}
+      aria-expanded={!collapsed}
+    >
+      {label}
+      <Icon
+        name="chevron"
+        size={12}
+        className={collapsed ? styles.chevronCollapsed : styles.chevron}
+      />
+    </button>
+  );
+}
+
+interface CollapsibleGroupProps {
+  label: string;
+  links: React.ReactNode;
+  collapsed: boolean;
+  onToggle: (label: string) => void;
+}
+
+/** A labelled group: its toggle always shows, its links only while open. */
+function CollapsibleGroup({
+  label,
+  links,
+  collapsed,
+  onToggle,
+}: CollapsibleGroupProps) {
+  return (
+    <div className={styles.group}>
+      <GroupHeader label={label} collapsed={collapsed} onToggle={onToggle} />
+      {!collapsed && links}
+    </div>
+  );
+}
+
+interface NavGroupSectionProps {
+  group: NavGroup;
+  pathname: string;
+  collapsed: boolean;
+  onToggle: (label: string) => void;
+}
+
+/** A labelled group collapses; an unlabelled one is always open, which is how the top-level links render without a header. */
+function NavGroupSection({
+  group,
+  pathname,
+  collapsed,
+  onToggle,
+}: NavGroupSectionProps) {
+  const links = navLinks(group, pathname);
+
+  if (!group.label) {
+    return <div className={styles.group}>{links}</div>;
+  }
+
+  return (
+    <CollapsibleGroup
+      label={group.label}
+      links={links}
+      collapsed={collapsed}
+      onToggle={onToggle}
+    />
+  );
+}
+
+/** The two links that sit below the groups rather than in one. Neither belongs to a section of the app — settings is org-wide, and adding a repo is how the list itself grows. */
+function NavFooter({ pathname }: { pathname: string }) {
+  return (
+    <div className={styles.footer}>
+      <NavLink
+        href="/settings"
+        label="Settings"
+        active={isNavActive(pathname, "/settings", "/")}
+        className={styles.footerLink}
+      />
+      <NavLink
+        href="/onboard"
+        label="+ Add Repo"
+        active={isNavActive(pathname, "/onboard", "/")}
+        className={styles.addRepo}
+      />
+    </div>
+  );
+}
+
+interface NavGroupsProps {
+  pathname: string;
+  collapsed: Record<string, boolean>;
+  onToggle: (label: string) => void;
+}
+
+/** Every group in nav order. A group with no label has no collapsed state to look up, so it is asked for none. */
+function NavGroups({ pathname, collapsed, onToggle }: NavGroupsProps) {
+  return (
+    <nav>
+      {groups.map((group, i) => (
+        <NavGroupSection
+          key={group.label ?? `group-${i}`}
+          group={group}
+          pathname={pathname}
+          collapsed={group.label ? (collapsed[group.label] ?? false) : false}
+          onToggle={onToggle}
+        />
+      ))}
+    </nav>
+  );
+}
+
 export default function SidebarNav() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -49,65 +180,10 @@ export default function SidebarNav() {
   const toggle = (label: string) =>
     setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }));
 
-  const renderLinks = (links: NavGroup["links"]) =>
-    links.map(({ href, label }) => (
-      <NavLink
-        key={href}
-        href={href}
-        label={label}
-        active={isNavActive(pathname, href, "/")}
-      />
-    ));
-
   return (
     <>
-      <nav>
-        {groups.map((group, i) => {
-          if (!group.label) {
-            return (
-              <div key={`group-${i}`} className={styles.group}>
-                {renderLinks(group.links)}
-              </div>
-            );
-          }
-          const isCollapsed = collapsed[group.label] ?? false;
-
-          return (
-            <div key={group.label} className={styles.group}>
-              <button
-                type="button"
-                className={styles.groupLabel}
-                onClick={() => toggle(group.label!)}
-                aria-expanded={!isCollapsed}
-              >
-                {group.label}
-                <Icon
-                  name="chevron"
-                  size={12}
-                  className={
-                    isCollapsed ? styles.chevronCollapsed : styles.chevron
-                  }
-                />
-              </button>
-              {!isCollapsed && renderLinks(group.links)}
-            </div>
-          );
-        })}
-      </nav>
-      <div className={styles.footer}>
-        <NavLink
-          href="/settings"
-          label="Settings"
-          active={isNavActive(pathname, "/settings", "/")}
-          className={styles.footerLink}
-        />
-        <NavLink
-          href="/onboard"
-          label="+ Add Repo"
-          active={isNavActive(pathname, "/onboard", "/")}
-          className={styles.addRepo}
-        />
-      </div>
+      <NavGroups pathname={pathname} collapsed={collapsed} onToggle={toggle} />
+      <NavFooter pathname={pathname} />
     </>
   );
 }

@@ -1,0 +1,545 @@
+import { describe, it, expect } from "vitest";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
+import { InMemoryFeatures } from "@re-cinq/lore-shared/project/features/features-memory.js";
+import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import {
+  decideMarkReady,
+  decidePrDraft,
+  decidePrStamp,
+  decideStampFailure,
+  emptyBranchReason,
+  readyPrBody,
+  readyPrTitle,
+  stampLinePr,
+  type SpecPrPorts,
+} from "./spec-pr.js";
+
+const REPO = "re-cinq/lore";
+
+class FakePulls {
+  readonly opened: {
+    branch: string;
+    title: string;
+    body: string;
+    draft?: boolean;
+  }[] = [];
+
+  constructor(private readonly existing: PullRef[] = []) {}
+
+  async list(): Promise<PullRef[]> {
+    return this.existing;
+  }
+
+  async open(
+    branch: string,
+    { title, body, draft }: { title: string; body: string; draft?: boolean },
+  ): Promise<PullRef> {
+    this.opened.push({ branch, title, body, draft });
+
+    const pr: PullRef = {
+      repo: REPO,
+      number: 4200 + this.opened.length,
+      title,
+      branch,
+      state: "open",
+      labels: [],
+      url: `https://github.com/${REPO}/pull/${4200 + this.opened.length}`,
+    };
+
+    this.existing.push(pr);
+
+    return pr;
+  }
+}
+
+const pullRef = (branch: string, number: number): PullRef => ({
+  repo: REPO,
+  number,
+  title: `spec: ${branch}`,
+  branch,
+  state: "open",
+  labels: [],
+  url: `https://github.com/${REPO}/pull/${number}`,
+});
+
+interface Harness {
+  ports: SpecPrPorts;
+  lines: InMemoryAssemblyRuns;
+  features: InMemoryFeatures;
+  pulls: FakePulls;
+  lineId: string;
+  featureId: string;
+}
+
+async function harness(
+  options: {
+    existingPulls?: PullRef[];
+    withFeature?: boolean;
+    withTask?: boolean;
+  } = {},
+): Promise<Harness> {
+  const lines = new InMemoryAssemblyRuns();
+  const features = new InMemoryFeatures();
+  const pulls = new FakePulls(options.existingPulls ?? []);
+  const feature = await features.create(REPO, {
+    title: "Dark factory rollback",
+    prompt: "Make rollback one command",
+  });
+  const lineId = await lines.start({
+    blueprintName: "feature-planning",
+    repo: REPO,
+    ...(options.withTask === false ? {} : { taskId: "task-1" }),
+    branch: "feature/dark-factory-rollback",
+    args: options.withFeature === false ? {} : { feature_id: feature.id },
+  });
+
+  return {
+    lines,
+    features,
+    pulls,
+    lineId,
+    featureId: feature.id,
+    ports: {
+      pulls,
+      assemblyRuns: lines,
+      features: {
+        get: (id) => features.get(REPO, id),
+        transitionStatus: (id, status, patch) =>
+          features.transitionStatus(REPO, id, status, patch),
+      },
+    },
+  };
+}
+
+describe("decidePrStamp", () => {
+  const base = {
+    promptRef: "push-only",
+    outcome: "success",
+    args: {} as Record<string, unknown>,
+  };
+
+  it("stamps when a push node succeeds on a line with no PR yet", () => {
+    expect(decidePrStamp(base)).toBe(true);
+  });
+
+  it("does not stamp a node that is not the push node", () => {
+    expect(decidePrStamp({ ...base, promptRef: "feature-planning" })).toBe(
+      false,
+    );
+  });
+
+  it("does not stamp a node with no prompt_ref at all", () => {
+    expect(decidePrStamp({ ...base, promptRef: undefined })).toBe(false);
+  });
+
+  it("does not stamp a push node that failed", () => {
+    expect(decidePrStamp({ ...base, outcome: "failed" })).toBe(false);
+  });
+
+  it("does not stamp a push node whose outcome is not recorded yet", () => {
+    expect(decidePrStamp({ ...base, outcome: null })).toBe(false);
+  });
+
+  it("does not stamp a line that already carries a PR number", () => {
+    expect(decidePrStamp({ ...base, args: { pr_number: 17 } })).toBe(false);
+  });
+});
+
+describe("stampLinePr", () => {
+  it("opens a PR for the line's branch and records it on the line", async () => {
+    const h = await harness();
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened).toEqual([
+      {
+        branch: "feature/dark-factory-rollback",
+        title: "spec: Dark factory rollback",
+        body: expect.stringContaining("dark-factory-rollback"),
+        draft: false,
+      },
+    ]);
+    expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
+      pr_number: 4201,
+      pr_url: `https://github.com/${REPO}/pull/4201`,
+    });
+  });
+
+  it("reuses the open PR the branch already has", async () => {
+    const h = await harness({
+      existingPulls: [pullRef("feature/dark-factory-rollback", 99)],
+    });
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened).toEqual([]);
+    expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
+      pr_number: 99,
+    });
+  });
+
+  it("ignores an open PR for a different branch", async () => {
+    const h = await harness({
+      existingPulls: [pullRef("feature/something-else", 7)],
+    });
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
+      pr_number: 4201,
+    });
+  });
+
+  it("moves the feature to pr-open carrying the spec PR and path", async () => {
+    const h = await harness();
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(await h.features.get(REPO, h.featureId)).toMatchObject({
+      status: "pr-open",
+      spec_pr_number: 4201,
+      spec_pr_url: `https://github.com/${REPO}/pull/4201`,
+      spec_path: "specs/dark-factory-rollback/spec.md",
+    });
+  });
+
+  it("still records the PR on a line that carries no feature", async () => {
+    const h = await harness({ withFeature: false });
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
+      pr_number: 4201,
+    });
+  });
+
+  it("records the PR even when the feature transition throws", async () => {
+    const h = await harness();
+
+    await stampLinePr(await lineRow(h), {
+      ...h.ports,
+      features: {
+        get: h.ports.features.get,
+        transitionStatus: async () => {
+          throw new Error("features table unavailable");
+        },
+      },
+    });
+
+    expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
+      pr_number: 4201,
+    });
+  });
+
+  it("skips a line that has no branch to open a PR from", async () => {
+    const h = await harness();
+    const row = await lineRow(h);
+
+    await stampLinePr({ ...row, branch: null }, h.ports);
+
+    expect(h.pulls.opened).toEqual([]);
+    expect((await h.lines.getById(h.lineId))?.args.pr_number).toBeUndefined();
+  });
+
+  it("skips a feature the line names but the repo no longer has", async () => {
+    const h = await harness();
+    const row = await lineRow(h);
+
+    await stampLinePr(
+      { ...row, args: { ...row.args, feature_id: "no-such-feature" } },
+      h.ports,
+    );
+
+    expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
+      pr_number: 4201,
+    });
+  });
+});
+
+describe("stampLinePr footer", () => {
+  it("closes the ticket's issue and carries the task trailer", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, { issue_number: 1510 });
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.body).toContain("Closes #1510");
+    expect(h.pulls.opened[0]?.body).toContain("Lore-Task:");
+  });
+
+  it("carries no footer at all on a task-less line", async () => {
+    const h = await harness({ withTask: false });
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.body).not.toContain("Lore-Task:");
+  });
+
+  it("omits the issue line for a run with no ticket behind it", async () => {
+    const h = await harness();
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.body).not.toContain("Closes #");
+  });
+});
+
+describe("readyPrBody", () => {
+  it("appends Closes #N + Lore-Task to the pr-ready prose by default", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_number: 1745,
+      pr_description: "What changed and why.",
+    });
+
+    expect(readyPrBody(await lineRow(h), undefined)).toBe(
+      "What changed and why.\n\nCloses #1745\nLore-Task: task-1",
+    );
+  });
+
+  it("downgrades to Refs #N when the node reports partial issue coverage", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_number: 1745,
+      pr_description: "Partial fix.",
+    });
+
+    expect(
+      readyPrBody(await lineRow(h), { "Lore-Issue-Coverage": "partial" }),
+    ).toBe("Partial fix.\n\nRefs #1745\nLore-Task: task-1");
+  });
+
+  it("keeps Closes #N on an explicit full-coverage verdict", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_number: 1745,
+      pr_description: "Complete fix.",
+    });
+
+    expect(
+      readyPrBody(await lineRow(h), { "Lore-Issue-Coverage": "full" }),
+    ).toBe("Complete fix.\n\nCloses #1745\nLore-Task: task-1");
+  });
+
+  it("returns null when the node delivered no prose, keeping the old body", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, { issue_number: 1745 });
+
+    expect(readyPrBody(await lineRow(h), undefined)).toBeNull();
+  });
+
+  it("returns null on blank prose rather than replacing the body with a bare footer", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, { pr_description: "   \n" });
+
+    expect(readyPrBody(await lineRow(h), undefined)).toBeNull();
+  });
+
+  it("carries no footer on a task-less run", async () => {
+    const h = await harness({ withTask: false });
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_number: 1745,
+      pr_description: "Prose only.",
+    });
+
+    expect(readyPrBody(await lineRow(h), undefined)).toBe("Prose only.");
+  });
+
+  it("omits the issue line when the run carries no issue number", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, { pr_description: "No ticket." });
+
+    expect(readyPrBody(await lineRow(h), undefined)).toBe(
+      "No ticket.\n\nLore-Task: task-1",
+    );
+  });
+});
+
+describe("stampLinePr title", () => {
+  it("titles a ticket run's draft after the ticket", async () => {
+    const h = await harness({ withFeature: false });
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_title: "Backlog PRs are titled after their branch",
+    });
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.title).toBe(
+      "Backlog PRs are titled after their branch",
+    );
+  });
+
+  it("clamps a 96-character ticket title to 70 characters", async () => {
+    const h = await harness({ withFeature: false });
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_title:
+        "The implementation loop opens every pull request under a title composed of its branch name",
+    });
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.title).toBe(
+      "The implementation loop opens every pull request under a title compos…",
+    );
+  });
+
+  it("falls back to the branch when the run carries no ticket title", async () => {
+    const h = await harness({ withFeature: false });
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.title).toBe(
+      "lore: feature/dark-factory-rollback",
+    );
+  });
+});
+
+describe("readyPrTitle", () => {
+  it("takes the title the pr-ready node reported", () => {
+    expect(
+      readyPrTitle({ "Lore-Pr-Title": "Title backlog PRs after the work" }),
+    ).toBe("Title backlog PRs after the work");
+  });
+
+  it("returns null when the node reported no title, keeping the draft's", () => {
+    expect(readyPrTitle(undefined)).toBeNull();
+    expect(readyPrTitle({ "Lore-Issue-Coverage": "full" })).toBeNull();
+  });
+
+  it("returns null on a blank title rather than blanking the PR", () => {
+    expect(readyPrTitle({ "Lore-Pr-Title": "  \n " })).toBeNull();
+  });
+
+  it("clamps a reported title of 96 characters to 70", () => {
+    expect(
+      readyPrTitle({
+        "Lore-Pr-Title":
+          "The implementation loop opens every pull request under a title composed of its branch name",
+      }),
+    ).toBe(
+      "The implementation loop opens every pull request under a title compos…",
+    );
+  });
+});
+
+describe("stampLinePr draft", () => {
+  it("opens the pull request as a draft when the run's args ask for it", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, { pr_draft: true });
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]).toMatchObject({ draft: true });
+  });
+
+  it("opens a ready pull request when the run says nothing about drafts", async () => {
+    const h = await harness();
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.draft).toBeFalsy();
+  });
+});
+
+describe("decideMarkReady", () => {
+  const base = {
+    outcome: "success",
+    nextNodeType: "pr_review",
+    args: { pr_number: 7 },
+  };
+
+  it("flips the PR when a successful node hands off to the wait", () => {
+    expect(decideMarkReady(base)).toBe(true);
+  });
+
+  it("does not flip mid-line, where the next node is not the wait", () => {
+    expect(decideMarkReady({ ...base, nextNodeType: "validate" })).toBe(false);
+  });
+
+  it("does not flip on a node that failed", () => {
+    expect(decideMarkReady({ ...base, outcome: "failed" })).toBe(false);
+  });
+
+  it("does not flip again on a fix-ci round-trip back to the wait", () => {
+    expect(
+      decideMarkReady({
+        ...base,
+        args: { pr_number: 7, pr_ready_flipped: true },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not flip a run that has no pull request", () => {
+    expect(decideMarkReady({ ...base, args: {} })).toBe(false);
+  });
+});
+
+describe("decidePrDraft", () => {
+  it("opens a draft when the run asks for one", () => {
+    expect(decidePrDraft({ pr_draft: true })).toBe(true);
+  });
+
+  it("opens a ready pull request by default", () => {
+    expect(decidePrDraft({})).toBe(false);
+  });
+
+  it("ignores a non-boolean pr_draft rather than treating it as truthy", () => {
+    expect(decidePrDraft({ pr_draft: "yes" })).toBe(false);
+  });
+});
+
+describe("decideStampFailure", () => {
+  it("reads GitHub's empty-branch refusal as terminal", () => {
+    expect(
+      decideStampFailure(
+        'Validation Failed: {"resource":"PullRequest","code":"custom","message":"No commits between main and lore/feature-planning/a-system-b81f9fd2"}',
+      ),
+    ).toEqual("empty-branch");
+  });
+
+  it("matches the refusal whatever its casing", () => {
+    expect(decideStampFailure("no commits between main and topic")).toEqual(
+      "empty-branch",
+    );
+  });
+
+  it("treats a 5xx as transient, so a blip does not fail a healthy line", () => {
+    expect(decideStampFailure("502 Bad Gateway")).toEqual("transient");
+  });
+
+  it("treats another 422 as transient — only the empty branch is terminal", () => {
+    expect(
+      decideStampFailure(
+        'Validation Failed: {"message":"A pull request already exists for re-cinq:topic."}',
+      ),
+    ).toEqual("transient");
+  });
+});
+
+describe("emptyBranchReason", () => {
+  it("names the node that should have delivered and the branch that stayed empty", () => {
+    expect(emptyBranchReason("lore/feature-planning/topic-b81f9fd2")).toEqual(
+      "the push node reported success but pushed nothing — lore/feature-planning/topic-b81f9fd2 has no commits, so no spec PR could be opened",
+    );
+  });
+
+  it("still reads as a sentence when the run carries no branch", () => {
+    expect(emptyBranchReason(null)).toContain("the run branch has no commits");
+  });
+});
+
+async function lineRow(h: Harness) {
+  const row = await h.lines.getById(h.lineId);
+
+  enforceTrue(row !== null, Error, "line row missing");
+
+  return row;
+}

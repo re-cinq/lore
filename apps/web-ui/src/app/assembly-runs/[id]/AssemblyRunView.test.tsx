@@ -25,17 +25,21 @@ const run = (over: Partial<AssemblyRun> = {}): AssemblyRun => ({
 });
 
 describe("AssemblyRunView", () => {
-  it("renders the run header with definition, repo link and outcome", () => {
+  it("renders the run header with its line name and outcome", () => {
     render(<AssemblyRunView run={run()} />);
 
     expect(
       screen.getByRole("heading", { name: "code-review", level: 1 }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "re-cinq/lore" })).toHaveAttribute(
-      "href",
-      "/repos/re-cinq/lore",
-    );
     expect(screen.getByText("Completed")).toBeInTheDocument();
+  });
+
+  it("names the repo once, in the trail, rather than repeating it as a fact", () => {
+    render(<AssemblyRunView run={run()} />);
+
+    expect(screen.getAllByRole("link", { name: "re-cinq/lore" })).toHaveLength(
+      1,
+    );
   });
 
   it("shows the reason on a failed run", () => {
@@ -70,6 +74,36 @@ describe("AssemblyRunView", () => {
     expect(screen.getByRole("link", { name: "#7" })).toHaveAttribute(
       "href",
       "https://github.com/re-cinq/lore/pull/7",
+    );
+  });
+
+  it("shows an em dash for branch and outcome when both are null", () => {
+    render(<AssemblyRunView run={run({ branch: null, outcome: null })} />);
+
+    expect(screen.getAllByText("—")).toHaveLength(2);
+  });
+
+  it("omits the PR link when the run carries no PR", () => {
+    render(<AssemblyRunView run={run({ prUrl: null, prNumber: null })} />);
+
+    expect(screen.queryByRole("link", { name: "#7" })).not.toBeInTheDocument();
+  });
+  it("trails the run back to the runs list and its repo above the title", () => {
+    const { container } = render(<AssemblyRunView run={run()} />);
+    const trail = container.querySelector(".breadcrumb");
+
+    expect(
+      Array.from(trail?.querySelectorAll("a") ?? []).map((a) =>
+        a.getAttribute("href"),
+      ),
+    ).toEqual(["/assembly-runs", "/repos/re-cinq/lore"]);
+  });
+
+  it("ends the trail with the run's own line name", () => {
+    const { container } = render(<AssemblyRunView run={run()} />);
+
+    expect(container.querySelector(".breadcrumb")).toHaveTextContent(
+      "Assembly Runs / re-cinq/lore / code-review",
     );
   });
 });

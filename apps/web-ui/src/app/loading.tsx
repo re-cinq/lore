@@ -1,9 +1,7 @@
 import styles from "./loading.module.scss";
 import Skeleton from "@/components/Skeleton";
 
-// Root-level fallback: also covers every route without a closer loading.tsx
-// (/episodes, /graph, /analytics, ...), so it stays generic — a heading bar
-// and a card grid, no page-specific text.
+// Root-level fallback for all routes without closer loading.tsx; generic heading + card grid.
 export default function RootLoading() {
   return (
     <div role="status" aria-label="Loading">

@@ -4,8 +4,6 @@ import { render, screen, act, waitFor } from "@testing-library/react";
 import PRStatusPanel from "./PRStatusPanel";
 import TaskRefreshProvider from "./TaskRefreshProvider";
 
-// Icon pulls in ThemeProvider via useTheme(); stub it out — this test is about
-// the polling, not the icons (those are covered by PRStatusCard's own test).
 vi.mock("@/components/Icon", () => ({
   default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
 }));
@@ -51,9 +49,6 @@ async function renderSettled(props: { taskId: string; prUrl: string }) {
   return view!;
 }
 
-// The coordinated interval now lives in TaskRefreshProvider, so timer-driven
-// tests render inside it (taskStatus "done" keeps run discovery off; jsdom has
-// no EventSource, so the provider stays in poll mode).
 async function renderSettledWithRefresh(props: {
   taskId: string;
   prUrl: string;

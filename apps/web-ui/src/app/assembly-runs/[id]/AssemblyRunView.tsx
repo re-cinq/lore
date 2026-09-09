@@ -9,13 +9,90 @@ export interface AssemblyRunViewProps {
   run: AssemblyRun;
 }
 
-/** Run header — the line-level facts of the attempt. Per-node state lives in the
- *  visualization panel below (graph + node inspector). Pure render. */
+function ReasonFact({ reason }: { reason: string | null }) {
+  if (!reason) {
+    return null;
+  }
+
+  return (
+    <>
+      <dt>Reason</dt>
+      <dd className={styles.reason}>{reason}</dd>
+    </>
+  );
+}
+
+function TaskFact({ taskId }: { taskId: string | null }) {
+  if (!taskId) {
+    return null;
+  }
+
+  return (
+    <>
+      <dt>Task</dt>
+      <dd>
+        <Link href={`/tasks/${taskId}`}>View task →</Link>
+      </dd>
+    </>
+  );
+}
+
+interface PrFactProps {
+  prUrl: string | null;
+  prNumber: number | null;
+}
+
+function PrFact({ prUrl, prNumber }: PrFactProps) {
+  if (!prUrl || !prNumber) {
+    return null;
+  }
+
+  return (
+    <>
+      <dt>PR</dt>
+      <dd>
+        <a href={prUrl} target="_blank" rel="noreferrer">
+          #{prNumber}
+        </a>
+      </dd>
+    </>
+  );
+}
+
+function RunFacts({ run }: AssemblyRunViewProps) {
+  return (
+    <dl className={styles.facts}>
+      <dt>Branch</dt>
+      <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
+      <dt>Outcome</dt>
+      <dd>{run.outcome ?? EM_DASH}</dd>
+      <ReasonFact reason={run.reason} />
+      <dt>Duration</dt>
+      <dd>{formatDuration(run.durationSeconds)}</dd>
+      <TaskFact taskId={run.taskId} />
+      <PrFact prUrl={run.prUrl} prNumber={run.prNumber} />
+    </dl>
+  );
+}
+
+/** Where this run sits: the runs list, its repo, then the line it ran — the same trail every other detail page carries. */
+function RunTrail({ run }: AssemblyRunViewProps) {
+  return (
+    <div className="breadcrumb">
+      <Link href="/assembly-runs">Assembly Runs</Link> /{" "}
+      <Link href={`/repos/${run.repo}`}>{run.repo}</Link> /{" "}
+      <strong>{run.blueprintName}</strong>
+    </div>
+  );
+}
+
+// Run header — line-level facts only; per-node state lives in the visualization panel below.
 export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
   const visual = runStatusVisual(run.status, run.outcome);
 
   return (
     <div>
+      <RunTrail run={run} />
       <div className={styles.header}>
         <h1>{run.blueprintName}</h1>
         <span className={`${styles.status} ${styles[visual.tone]}`}>
@@ -23,42 +100,7 @@ export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
         </span>
       </div>
 
-      <dl className={styles.facts}>
-        <dt>Repo</dt>
-        <dd>
-          <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
-        </dd>
-        <dt>Branch</dt>
-        <dd className={styles.mono}>{run.branch ?? EM_DASH}</dd>
-        <dt>Outcome</dt>
-        <dd>{run.outcome ?? EM_DASH}</dd>
-        {run.reason ? (
-          <>
-            <dt>Reason</dt>
-            <dd className={styles.reason}>{run.reason}</dd>
-          </>
-        ) : null}
-        <dt>Duration</dt>
-        <dd>{formatDuration(run.durationSeconds)}</dd>
-        {run.taskId ? (
-          <>
-            <dt>Task</dt>
-            <dd>
-              <Link href={`/tasks/${run.taskId}`}>View task →</Link>
-            </dd>
-          </>
-        ) : null}
-        {run.prUrl && run.prNumber ? (
-          <>
-            <dt>PR</dt>
-            <dd>
-              <a href={run.prUrl} target="_blank" rel="noreferrer">
-                #{run.prNumber}
-              </a>
-            </dd>
-          </>
-        ) : null}
-      </dl>
+      <RunFacts run={run} />
     </div>
   );
 }

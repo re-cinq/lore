@@ -1,23 +1,12 @@
-// The document a mockup is rendered inside.
-//
-// Every mockup — svg, rendered mermaid, or html — goes into its own sandboxed
-// frame rather than into this page. Two reasons, and the second is the one that
-// forced it: a `<style>` block inside an INLINE svg applies document-wide, so a
-// mockup carrying the planned repo's CSS would restyle the wizard around it; and a
-// frame with no scripting and no same-origin is a boundary that holds for all
-// three formats instead of one sanitizer per format.
+// Render mockups in sandboxed frames: prevents inline SVG <style> from restyle, isolates sanitization (no-script, no-origin boundary).
 
 import type { GapMockup } from "./feature-types";
 
-/** Height for a mockup that declared none, and the ceiling for one that declared
- *  something absurd. The frame cannot measure itself (no same-origin access), so
- *  an undeclared height is a guess by construction. */
+/** Default height for undeclared mockups; ceiling for absurd values; frame can't measure itself (no same-origin). */
 export const DEFAULT_MOCKUP_HEIGHT = 420;
 const MAX_MOCKUP_HEIGHT = 2000;
 
-// Deliberately NOT the dashboard's theme tokens. A mockup pictures the PLANNED
-// repository; when that repo has no styles to lend, a neutral system default reads
-// as a wireframe instead of dressing it up as something it is not.
+// Neutral system default, not dashboard theme tokens; wireframe when repo has no styles.
 const RESET = `*, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 /* An explicit ground and text colour, NOT transparent-and-inherit. A stylesheet
@@ -29,13 +18,9 @@ body { background: #ffffff; color: #111111;
   font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 svg, img, table { max-width: 100%; }`;
 
-/** The frame's document for one mockup's markup, with the planned repo's
- *  stylesheet layered over the reset so the repo's own rules win. */
+/** Frame document: markup + stylesheet (repo rules over reset); escape </style> to prevent early block termination. */
 export function mockupFrameSrcdoc(markup: string, stylesheet?: string): string {
-  // The stylesheet is LLM-authored and goes into `<style>…</style>` verbatim, so a
-  // literal `</style>` inside it would end the block early and everything after it
-  // would be parsed as HTML — sandboxed, but still a way to smuggle markup past the
-  // mockup sanitizer, which never sees the stylesheet.
+  // LLM stylesheet is verbatim; escape </style> to prevent parsing as HTML and bypassing sanitizer.
   const safe = stylesheet?.replace(/<\/style>/gi, "<\\/style>") ?? "";
   const css = safe.trim() ? `${RESET}\n${safe}` : RESET;
 
@@ -53,19 +38,7 @@ export function mockupHeight(mockup: GapMockup): number {
   return Math.min(declared, MAX_MOCKUP_HEIGHT);
 }
 
-// Sanitizer configs for AUTHOR-SUPPLIED mockup markup (raw svg / html). LLM
-// markup is UNTRUSTED; the sandboxed frame (no scripts, no same-origin) is the
-// boundary that HOLDS, and the sanitizer is defense in depth on top of it.
-//
-// A mermaid-RENDERED svg never passes through these: DOMPurify's mXSS defense
-// strips foreignObject INTERIORS under every configuration (verified against
-// 3.4.11 — plain, xhtml parser mode, ADD_TAGS with the html tags spelled out),
-// and mermaid v11 puts ER labels and flowchart edge labels there, so a purify
-// pass on mermaid output structurally guarantees an unlabeled skeleton — an
-// empty-looking frame (feature be6ad6a5, twice, 2026-08-18). Mermaid output is
-// framed as rendered; its boundaries are mermaid's securityLevel:"strict" and
-// the no-script frame (see MockupSection). `foreignObject` stays forbidden for
-// raw svg — DOMPurify would empty it anyway, and the bare tag is only surface.
+// Sanitizer configs: untrusted LLM markup + defense in depth; mermaid SVGs bypass (DOMPurify strips foreignObject, loses labels).
 export const MOCKUP_SVG_CONFIG = {
   USE_PROFILES: { svg: true, svgFilters: true },
   FORBID_TAGS: ["script", "foreignObject"],
@@ -77,13 +50,7 @@ export const MOCKUP_HTML_CONFIG = {
   FORBID_ATTR: ["onload", "onclick", "onmouseover", "onmouseenter", "onfocus"],
 };
 
-/**
- * The frame height a RENDERED mermaid svg actually needs, from its viewBox —
- * or null when the svg declares none. The frame cannot measure itself
- * (`sandbox=""`, no same-origin), and mermaid diagrams routinely run taller
- * than the 420px default, which clipped a tall flowchart to its top third.
- * Clamped like a declared height; small padding covers the frame's own chrome.
- */
+/** Frame height needed by rendered mermaid SVG (from viewBox); frame can't self-measure (no same-origin); clamped with padding. */
 export function mermaidFrameHeight(svg: string): number | null {
   const viewBox = /viewBox="[-\d.]+ [-\d.]+ [-\d.]+ ([\d.]+)"/.exec(svg);
   const height = viewBox ? Number(viewBox[1]) : NaN;
@@ -100,19 +67,7 @@ interface MaybePurifier {
   sanitize?: unknown;
 }
 
-/**
- * Sanitize mockup markup, tolerating the shape DOMPurify has where there is no DOM.
- *
- * Its default export is an INSTANCE in a browser and a FACTORY in Node. A
- * `"use client"` component still renders on the server, so calling `.sanitize`
- * during render threw "sanitize is not a function" and took the whole feature page
- * down as soon as a plan contained a mockup.
- *
- * Returning empty is the safe direction: a blank frame for one server render, filled
- * by the client after mount. Never return the RAW markup — it is LLM-authored and
- * untrusted, and the only reason it may carry the planned repo's stylesheet at all
- * is that it has been through here and into a sandboxed frame.
- */
+/** Sanitize LLM markup; DOMPurify INSTANCE in browser, FACTORY in Node; return empty on server, filled by client after mount. */
 export function sanitizeMockupMarkup(
   purifier: MaybePurifier,
   raw: string,

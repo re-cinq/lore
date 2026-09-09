@@ -57,18 +57,32 @@ function stubFetch(...responses: Response[]) {
   return fetchMock;
 }
 
-function toggle(container: HTMLElement, open: boolean) {
+function detailsOf(container: HTMLElement): HTMLDetailsElement {
   const details = container.querySelector("details");
 
   if (!details) {
     throw new Error("panel not rendered");
   }
-  details.open = open;
+
+  return details;
+}
+
+function openDetails(container: HTMLElement) {
+  const details = detailsOf(container);
+
+  details.open = true;
+  fireEvent(details, new Event("toggle"));
+}
+
+function closeDetails(container: HTMLElement) {
+  const details = detailsOf(container);
+
+  details.open = false;
   fireEvent(details, new Event("toggle"));
 }
 
 async function openPanel(container: HTMLElement) {
-  toggle(container, true);
+  openDetails(container);
 
   for (let i = 0; i < 12; i++) {
     await act(async () => {
@@ -78,13 +92,13 @@ async function openPanel(container: HTMLElement) {
 }
 
 describe("FullTranscriptPanel", () => {
-  it("renders collapsed and fetches nothing until opened", () => {
-    const fetchMock = stubFetch();
+  it("renders open and starts the walk on mount, before any click", () => {
+    const fetchMock = stubFetch(turnsResponse([]));
 
     render(<FullTranscriptPanel runId="run-1" nodeId="implement" />);
 
-    expect(screen.getByText("Full transcript")).toBeTruthy();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByText("Transcript")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("fetches the run's turns once opened and renders the assistant text, formatted", async () => {
@@ -98,7 +112,7 @@ describe("FullTranscriptPanel", () => {
     expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
   });
 
-  it("keeps the untruncated envelope one Raw click away", async () => {
+  it("offers no raw view, showing the formatted conversation alone", async () => {
     stubFetch(turnsResponse([wireTurn("1", "implement")]));
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
@@ -106,9 +120,8 @@ describe("FullTranscriptPanel", () => {
 
     await openPanel(container);
     await screen.findByText(/full text of turn 1/);
-    fireEvent.click(screen.getByRole("button", { name: "Raw" }));
 
-    expect(await screen.findByText(/"source"/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Raw" })).toBeNull();
   });
 
   it("pages with the cursor until a short page", async () => {
@@ -188,12 +201,7 @@ describe("FullTranscriptPanel", () => {
   });
 
   it("reopening while the first walk is in flight never starts a second one", async () => {
-    const fetchMock = vi.fn(
-      () =>
-        new Promise<Response>(() => {
-          // Deliberately never resolves — the walk stays in flight.
-        }),
-    );
+    const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
 
     vi.stubGlobal("fetch", fetchMock);
     const { container } = render(
@@ -201,7 +209,7 @@ describe("FullTranscriptPanel", () => {
     );
 
     await openPanel(container);
-    toggle(container, false);
+    closeDetails(container);
     await openPanel(container);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -232,7 +240,7 @@ describe("FullTranscriptPanel", () => {
   });
 
   it("a failed walk retries when the panel is reopened", async () => {
-    const fetchMock = stubFetch(
+    stubFetch(
       new Response("{}", { status: 500 }),
       turnsResponse([wireTurn("1", "implement")]),
     );
@@ -243,11 +251,11 @@ describe("FullTranscriptPanel", () => {
     await openPanel(container);
     expect(await screen.findByText(/Failed to load turns/)).toBeTruthy();
 
-    toggle(container, false);
+    closeDetails(container);
     await openPanel(container);
 
     expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
   });
 
   it("a reopened retry shows Loading instead of the stale error", async () => {
@@ -263,7 +271,7 @@ describe("FullTranscriptPanel", () => {
     await openPanel(container);
     expect(await screen.findByText(/Failed to load turns/)).toBeTruthy();
 
-    toggle(container, false);
+    closeDetails(container);
     await openPanel(container);
 
     expect(screen.queryByText(/Failed to load turns/)).toBeNull();
@@ -271,16 +279,15 @@ describe("FullTranscriptPanel", () => {
   });
 });
 
-// Opt-in hasMore variant: the shared turnsResponse deliberately omits the flag
-// so every pre-#1310 test keeps exercising the short-page fallback.
-function turnsPageResponse(turns: unknown[], hasMore: boolean) {
+function turnsPageResponse(
+  turns: unknown[],
+  { hasMore }: { hasMore: boolean },
+) {
   return new Response(JSON.stringify({ turns, hasMore }), { status: 200 });
 }
 
-// A drifted walk crosses up to MAX_WALK_PAGES pages; openPanel's 12 hops
-// flush only a few.
 async function openPanelLong(container: HTMLElement) {
-  toggle(container, true);
+  openDetails(container);
 
   for (let i = 0; i < 100; i++) {
     await act(async () => {
@@ -291,14 +298,12 @@ async function openPanelLong(container: HTMLElement) {
 
 describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
   it("keeps walking across a short page while the Floor reports more", async () => {
-    // A drifted Floor clamp: pages far below TURNS_PAGE_LIMIT that still
-    // report more rows must continue the walk instead of silently truncating.
     const fetchMock = stubFetch(
       turnsPageResponse(
         [wireTurn("1", "implement"), wireTurn("2", "implement")],
-        true,
+        { hasMore: true },
       ),
-      turnsPageResponse([wireTurn("3", "implement")], false),
+      turnsPageResponse([wireTurn("3", "implement")], { hasMore: false }),
     );
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
@@ -313,7 +318,7 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
 
   it("stops walking on a full page when the Floor reports no more", async () => {
     const fetchMock = stubFetch(
-      turnsPageResponse(fullPage(1, "implement"), false),
+      turnsPageResponse(fullPage(1, "implement"), { hasMore: false }),
     );
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
@@ -326,7 +331,7 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
 
   it("stops paging when the Floor reports more but the page carries no usable cursor, and says so", async () => {
     const fetchMock = stubFetch(
-      turnsPageResponse([{ id: 7 }, {}] as unknown[], true),
+      turnsPageResponse([{ id: 7 }, {}] as unknown[], { hasMore: true }),
     );
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
@@ -342,7 +347,9 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
 
   it("stops a drifted walk at the page bound and shows the cap notice", async () => {
     const responses = Array.from({ length: MAX_WALK_PAGES + 5 }, (_, i) =>
-      turnsPageResponse([wireTurn(String(i + 1), "implement")], true),
+      turnsPageResponse([wireTurn(String(i + 1), "implement")], {
+        hasMore: true,
+      }),
     );
     const fetchMock = stubFetch(...responses);
     const { container } = render(
@@ -358,7 +365,7 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
   });
 
   it("shows the cap notice when the Floor reports more over an empty page", async () => {
-    const fetchMock = stubFetch(turnsPageResponse([], true));
+    const fetchMock = stubFetch(turnsPageResponse([], { hasMore: true }));
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
     );
@@ -444,5 +451,101 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
     expect(
       document.querySelector('time[datetime="2026-08-12T10:00:00.000Z"]'),
     ).toBeTruthy();
+  });
+});
+
+describe("FullTranscriptPanel as a terminal conversation", () => {
+  function toolTurn(id: string, block: Record<string, unknown>, role: string) {
+    return {
+      ...wireTurn(id, "implement"),
+      eventType: role,
+      envelope: {
+        source: { task: "task-1" },
+        event: { type: role, message: { role, content: [block] } },
+      },
+    };
+  }
+
+  it("folds a tool call and its result into one line the reader can open", async () => {
+    stubFetch(
+      turnsResponse([
+        toolTurn(
+          "1",
+          {
+            type: "tool_use",
+            id: "tu-1",
+            name: "Read",
+            input: { file_path: "src/a.ts" },
+          },
+          "assistant",
+        ),
+        toolTurn(
+          "2",
+          { type: "tool_result", tool_use_id: "tu-1", content: "the contents" },
+          "user",
+        ),
+      ]),
+    );
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+
+    const call = container.querySelector("details[data-tool-call]");
+
+    expect(call?.querySelector("summary")).toHaveTextContent("Read");
+    expect(call?.querySelector("pre")).toHaveTextContent("the contents");
+  });
+
+  it("folds a task transition inside the node's window into the conversation as a system line", async () => {
+    stubFetch(turnsResponse([wireTurn("1", "implement")]));
+    const { container } = render(
+      <FullTranscriptPanel
+        runId="run-1"
+        nodeId="implement"
+        rows={[
+          {
+            nodeId: "implement",
+            iteration: 1,
+            outcome: null,
+            agentCrName: null,
+            commitSha: null,
+            durationSeconds: null,
+            startedAt: "2026-08-12T09:59:00.000Z",
+          },
+        ]}
+        taskEvents={[
+          {
+            id: "7",
+            task_id: "task-1",
+            from_status: "running",
+            to_status: "pr_created",
+            metadata: null,
+            created_at: "2026-08-12T10:00:30.000Z",
+          },
+          {
+            id: "6",
+            task_id: "task-1",
+            from_status: "pending",
+            to_status: "running",
+            metadata: null,
+            created_at: "2026-08-12T09:00:00.000Z",
+          },
+        ]}
+      />,
+    );
+
+    await openPanel(container);
+    await screen.findByText(/full text of turn 1/);
+
+    const rows = [...container.querySelectorAll("[data-entry]")].map((row) =>
+      row.getAttribute("data-entry"),
+    );
+
+    expect(rows).toEqual(["segment", "turn", "task-event"]);
+    expect(container.querySelector("[data-task-event]")).toHaveTextContent(
+      "task Running → PR created",
+    );
   });
 });

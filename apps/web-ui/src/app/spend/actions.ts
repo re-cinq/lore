@@ -3,17 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { recordCreditEntry } from "@/lib/api/activity";
 
-// The mutation lives here, not inside the view. A view renders figures; it
-// should not also be where a write is defined and where transport failures are
-// turned into user-facing copy.
-
+// Mutation lives here, not in view; transport failures → user-facing copy
 export interface RecordTopUpState {
   error?: string;
   recorded?: string;
 }
 
-/** An explicit opening balance wins; otherwise the sign decides. Extracted so
- *  the mapping is one readable expression rather than a nested ternary. */
+/** Opening balance wins; sign decides otherwise. Extracted for readability. */
 function kindFor(
   formKind: FormDataEntryValue | null,
   amount: number,
@@ -25,57 +21,74 @@ function kindFor(
   return amount < 0 ? "correction" : "topup";
 }
 
-/**
- * Amounts arrive as text from a form field, so every non-numeric case has to be
- * rejected here rather than sent onward: `Number("")` is 0 and `Number("abc")`
- * is NaN, and both would otherwise reach the API as a body that fails schema
- * validation with a message about the wrong thing.
- */
+/** Reject non-numeric amounts here: Number("") is 0, Number("abc") is NaN; both fail API schema with wrong error. */
+function parseAmount(
+  formData: FormData,
+): { raw: string; amount: number } | null {
+  const raw = (formData.get("amount_usd") as string | null)?.trim();
+
+  if (!raw) {
+    return null;
+  }
+  const amount = Number(raw);
+
+  return Number.isFinite(amount) ? { raw, amount } : null;
+}
+
+function trimmedFormValue(formData: FormData, key: string): string {
+  return ((formData.get(key) as string | null) ?? "").trim();
+}
+
+function creditEntryFields(formData: FormData, amount: number) {
+  const effectiveDate = trimmedFormValue(formData, "effective_date");
+  const effectiveTime = trimmedFormValue(formData, "effective_time");
+
+  return {
+    amount_usd: amount,
+    // Omit, don't send empty: API defaults missing date/time; empty string fails validation
+    ...(effectiveDate ? { effective_date: effectiveDate } : {}),
+    ...(effectiveTime ? { effective_time: effectiveTime } : {}),
+    // No kind control: sign carries intent; negative entry undoes mistakes, not a "topup"
+    kind: kindFor(formData.get("kind"), amount),
+    note: trimmedFormValue(formData, "note"),
+    recorded_by: trimmedFormValue(formData, "recorded_by"),
+  };
+}
+
+function topUpErrorMessage(
+  result: Exclude<
+    Awaited<ReturnType<typeof recordCreditEntry>>,
+    { status: "ok" }
+  >,
+): string {
+  return result.status === "unconfigured"
+    ? "Spend API is not configured (LORE_API_URL / token)."
+    : result.message;
+}
+
 export async function recordTopUpAction(
   _prev: RecordTopUpState | null,
   formData: FormData,
 ): Promise<RecordTopUpState> {
-  const raw = (formData.get("amount_usd") as string)?.trim();
-  const amount = Number(raw);
+  const parsed = parseAmount(formData);
 
-  if (!raw || !Number.isFinite(amount)) {
+  if (!parsed) {
     return { error: "Enter an amount in dollars, for example 100." };
   }
 
-  if (amount === 0) {
+  if (parsed.amount === 0) {
     return { error: "An entry of $0 would not move the balance." };
   }
-  const effectiveDate = (formData.get("effective_date") as string)?.trim();
-  const effectiveTime = (formData.get("effective_time") as string)?.trim();
-  const result = await recordCreditEntry({
-    amount_usd: amount,
-    // Omitted rather than sent empty: the API resolves a missing date to today
-    // in Postgres, which is the right clock for a row Postgres is storing, and
-    // a missing time to the start of that day. An empty string would be a
-    // value that fails its format check instead of an absence that takes the
-    // default.
-    ...(effectiveDate ? { effective_date: effectiveDate } : {}),
-    ...(effectiveTime ? { effective_time: effectiveTime } : {}),
-    // The form offers no kind control, so the sign carries the intent: a
-    // negative entry is someone undoing a mistake, and calling that a "topup"
-    // makes the ledger read as a negative top-up, which is not a thing.
-    kind: kindFor(formData.get("kind"), amount),
-    note: ((formData.get("note") as string) ?? "").trim(),
-    recorded_by: ((formData.get("recorded_by") as string) ?? "").trim(),
-  });
+  const result = await recordCreditEntry(
+    creditEntryFields(formData, parsed.amount),
+  );
 
   if (result.status === "ok") {
-    // The remaining figure is stale the instant this lands, and the whole point
-    // of the screen is that it is not.
+    // Remaining balance is stale when API returns; refresh to show latest
     revalidatePath("/spend");
 
-    return { recorded: `Recorded ${raw}.` };
+    return { recorded: `Recorded ${parsed.raw}.` };
   }
 
-  return {
-    error:
-      result.status === "unconfigured"
-        ? "Spend API is not configured (LORE_API_URL / token)."
-        : result.message,
-  };
+  return { error: topUpErrorMessage(result) };
 }

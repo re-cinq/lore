@@ -1,22 +1,37 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { getTask, getTaskRuns } from "@/lib/api/tasks";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
+import { resolveSessionAccessToken } from "@/lib/session-access-token";
 import { serverError, upstreamError } from "@/lib/api-error";
 
-/**
- * GET /api/tasks/[id]/runs — the task's per-attempt assembly-line runs, newest
- * first. Exists so the task page's refresh coordinator can discover a run that
- * starts after the page rendered and attach the live event stream to it. Same
- * auth ladder as the sibling timeline route: session (401) → task (404) →
- * repo access (403). Empty list on pre-0025 databases.
- *
- * The task read and the run list both come from lore-api: the repo this route
- * authorizes against must be the one the runs were read for, so resolving it
- * from a second source is how the two drift.
- */
+/** Session → task → repo-access ladder, so a caller who fails it never learns the task's repo. */
+async function authorizeTaskAccess(
+  id: string,
+): Promise<{ accessToken: string; targetRepo: string } | NextResponse> {
+  const accessToken = await resolveSessionAccessToken();
+
+  if (!accessToken) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const task = await getTask(id);
+
+  if (task.status !== "ok") {
+    return upstreamError("Task runs", task);
+  }
+
+  if (!(await userCanAccessRepo(accessToken, task.data.target_repo))) {
+    return NextResponse.json(
+      { error: "Access denied — you do not have access to this repo" },
+      { status: 403 },
+    );
+  }
+
+  return { accessToken, targetRepo: task.data.target_repo };
+}
+
+// Task's per-attempt runs, newest first, so the refresh coordinator can attach the live stream to a run started after render. Same 401→404→403 ladder as the timeline route; task + runs both come from lore-api so the authorized repo can't drift from a second source.
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -24,27 +39,10 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const session = (await getServerSession(authOptions)) as {
-      accessToken?: string;
-    } | null;
+    const auth = await authorizeTaskAccess(id);
 
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const task = await getTask(id);
-
-    if (task.status !== "ok") {
-      return upstreamError("Task runs", task);
-    }
-
-    if (
-      !(await userCanAccessRepo(session.accessToken, task.data.target_repo))
-    ) {
-      return NextResponse.json(
-        { error: "Access denied — you do not have access to this repo" },
-        { status: 403 },
-      );
+    if (auth instanceof Response) {
+      return auth;
     }
 
     const runs = await getTaskRuns(id);

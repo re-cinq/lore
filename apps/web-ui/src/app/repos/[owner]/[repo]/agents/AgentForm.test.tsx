@@ -222,7 +222,7 @@ describe("AgentForm", () => {
       'input[name="image"]',
     ) as HTMLInputElement;
 
-    expect(img.value).toBe(""); // not prefilled — avoids tripping the two-key gate on save
+    expect(img.value).toBe("");
     expect(img.placeholder).toBe("ghcr.io/re-cinq/lore-claude-runner:latest");
   });
 });

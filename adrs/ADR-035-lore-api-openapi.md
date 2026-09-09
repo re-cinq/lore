@@ -164,7 +164,7 @@ the repo lockfile.**
 5. **Document response bodies too.** *(Taken, 2026-08 — no longer deferred.)* The
    objection was that inventing shapes by hand would be exactly the drift-prone
    artifact this feature avoids, and it was right. What changed is that the shapes
-   stopped being invented: `libs/shared/src/models/` declares each table once, and
+   stopped being invented: `libs/shared/src/domain/models/` declares each table once, and
    a response schema derives its stored fields from that declaration. Only the
    COMPUTED parts of a body — an aggregate, a rank, a truncated preview — are
    written by hand, because no table holds them.

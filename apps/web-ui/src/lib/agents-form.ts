@@ -1,12 +1,9 @@
 import type { AgentDefinition } from "./agents-mirror";
 import type { AgentSaveResult } from "./agents-api";
 
-// Pure FormData → agent payload parsing shared by the new/edit page server
-// actions, plus the save-result → form-state mapping. Kept here (not in the
-// coverage-excluded page.tsx) so the branchy bits are unit-tested.
+// Pure FormData→agent payload parsing shared by the new/edit server actions; kept here (not page.tsx) so the branchy bits are unit-tested.
 
-/** K8s resource quantities keyed cpu/memory/ephemeral-storage, as the API's
- *  `pod_resources` field expects them. */
+/** K8s resource quantities keyed cpu/memory/ephemeral-storage, as the API's `pod_resources` field expects them. */
 export interface PodResources {
   requests?: Record<string, string>;
   limits?: Record<string, string>;
@@ -55,36 +52,59 @@ function parsePodResources(fd: FormData): PodResources | null {
   };
 }
 
+function formString(fd: FormData, key: string): string {
+  return ((fd.get(key) as string) || "").trim();
+}
+
+function orNull(value: string): string | null {
+  return value || null;
+}
+
+function orDefault(value: string, fallback: string): string {
+  return value || fallback;
+}
+
+function parseModel(fd: FormData): string | null {
+  const modelSel = formString(fd, "model_select");
+
+  if (modelSel === "__custom__") {
+    return orNull(formString(fd, "model_custom"));
+  }
+
+  return orNull(modelSel);
+}
+
+function parseTimeoutMinutes(fd: FormData): number | null {
+  const timeoutRaw = formString(fd, "timeout_minutes");
+
+  return timeoutRaw ? Number(timeoutRaw) : null;
+}
+
+/** The definition payload the API is sent, name already resolved by the caller. */
+function parseDefinition(fd: FormData, name: string): ParsedAgentForm["def"] {
+  return {
+    name,
+    model: parseModel(fd),
+    timeout_minutes: parseTimeoutMinutes(fd),
+    prompt: orNull(formString(fd, "prompt")),
+    image: orNull(formString(fd, "image")),
+    execution_mode: orDefault(formString(fd, "execution_mode"), "claude-code"),
+    review_required: fd.get("review_required") === "1",
+    // Null inherits the org default's config (skills/disallowed_tools/etc) — the form has no field for it.
+    config: null,
+    pod_resources: parsePodResources(fd),
+  };
+}
+
 export function parseAgentForm(fd: FormData): ParsedAgentForm {
   const isNew = fd.get("is_new") === "1";
-  const name = (
-    ((isNew ? fd.get("name_input") : fd.get("name")) as string) || ""
-  ).trim();
-  const modelSel = (fd.get("model_select") as string) || "";
-  const model =
-    modelSel === "__custom__"
-      ? ((fd.get("model_custom") as string) || "").trim() || null
-      : modelSel || null;
-  const timeoutRaw = ((fd.get("timeout_minutes") as string) || "").trim();
+  const name = isNew ? formString(fd, "name_input") : formString(fd, "name");
 
   return {
     name,
     isNew,
-    def: {
-      name,
-      model,
-      timeout_minutes: timeoutRaw ? Number(timeoutRaw) : null,
-      prompt: ((fd.get("prompt") as string) || "").trim() || null,
-      image: ((fd.get("image") as string) || "").trim() || null,
-      execution_mode: (fd.get("execution_mode") as string) || "claude-code",
-      review_required: fd.get("review_required") === "1",
-      // Null inherits the org default's config (skills/disallowed_tools/etc);
-      // the form has no field for it — pod_resources rides its own wire field
-      // and the API merges it over the resolved config.
-      config: null,
-      pod_resources: parsePodResources(fd),
-    },
-    approvalPr: ((fd.get("approval_pr") as string) || "").trim() || undefined,
+    def: parseDefinition(fd, name),
+    approvalPr: formString(fd, "approval_pr") || undefined,
   };
 }
 

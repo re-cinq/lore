@@ -201,7 +201,7 @@ edges:
 A `detect` node runs a deterministic, repo-scoped detection job (DB + graph
 reads) inside the walk — no clone, no PR, no LLM prompting of its own. `job_ref`
 keys the Floor's injected detector registry
-(`apps/floor/src/jobs/detect/detectors.ts`); the run is started per repo by the
+(`apps/floor/src/work/detect/detectors.ts`); the run is started per repo by the
 `cron.<job>.tick` fan-out (ADR-019 amendment).
 
 ```yaml

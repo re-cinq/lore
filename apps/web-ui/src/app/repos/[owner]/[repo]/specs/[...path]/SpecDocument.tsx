@@ -2,15 +2,17 @@ import SpecDetails, { type StatementInfo } from "../SpecDetails";
 import { splitMarkdownSections } from "@/lib/markdown-sections";
 import styles from "./SpecDocument.module.css";
 
+interface SpecDocumentProps {
+  repo: string;
+  content: string;
+  statements: StatementInfo[];
+}
+
 export default function SpecDocument({
   repo,
   content,
   statements,
-}: {
-  repo: string;
-  content: string;
-  statements: StatementInfo[];
-}) {
+}: SpecDocumentProps) {
   const sections = splitMarkdownSections(content);
 
   return (

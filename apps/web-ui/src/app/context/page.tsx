@@ -16,8 +16,7 @@ export default async function ContextPage({
 }) {
   const { type, q } = await searchParams;
 
-  // Data-driven chips: distinct content types across every schema (unaffected
-  // by the active filter/search so chips never disappear).
+  // Data-driven chips: all types across schemas (unaffected by filter/search).
   const typeResult = await getChunkTypes();
   const types = typeResult.status === "ok" ? typeResult.data.types : [];
 

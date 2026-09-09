@@ -1,13 +1,8 @@
-// Does the signed-in user (their GitHub OAuth token) have access to `repo`?
-// Log/timeline proxy routes gate on this so a user can only read runtime data
-// for repos they can already see on GitHub. Distinct from lib/github.ts
-// `checkRepoAccess`, which asks whether the *App installation* has access.
+// Gate for log/timeline proxy routes; distinct from checkRepoAccess (App vs user token).
 
 type FetchLike = typeof fetch;
 
-/** Why GitHub said no, in the terms an operator can act on. The three cases are
- *  materially different and the caller sees one flat "Access denied" for all of
- *  them, so the distinction has to survive here or it is lost. */
+/** Why GitHub denied access (distinction must survive for operator visibility). */
 function denialReason(status: number): string {
   if (status === 404) {
     return "a 404 here usually means the OAuth app has no access to the org, not that the repo is missing";
@@ -24,6 +19,26 @@ function denialReason(status: number): string {
   return "unexpected status";
 }
 
+/** Never the token, only the repo and the status. */
+function warnDenied(repo: string, status: number): void {
+  console.warn(
+    `[repo-access] denied ${repo}: GitHub answered ${status} (${denialReason(status)})`,
+  );
+}
+
+function warnUnreachable(repo: string, err: unknown): void {
+  console.warn(
+    `[repo-access] denied ${repo}: could not reach GitHub — ${err instanceof Error ? err.message : String(err)}`,
+  );
+}
+
+function authHeaders(accessToken: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/vnd.github+json",
+  };
+}
+
 export async function userCanAccessRepo(
   accessToken: string,
   repo: string,
@@ -32,24 +47,16 @@ export async function userCanAccessRepo(
   try {
     const res = await fetchImpl(`https://api.github.com/repos/${repo}`, {
       signal: AbortSignal.timeout(30_000),
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/vnd.github+json",
-      },
+      headers: authHeaders(accessToken),
     });
 
     if (!res.ok) {
-      // Never the token, only the repo and the status.
-      console.warn(
-        `[repo-access] denied ${repo}: GitHub answered ${res.status} (${denialReason(res.status)})`,
-      );
+      warnDenied(repo, res.status);
     }
 
     return res.ok;
   } catch (err) {
-    console.warn(
-      `[repo-access] denied ${repo}: could not reach GitHub — ${err instanceof Error ? err.message : String(err)}`,
-    );
+    warnUnreachable(repo, err);
 
     return false;
   }

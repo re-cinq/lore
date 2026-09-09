@@ -32,8 +32,7 @@ describe("toApiResult", () => {
     });
   });
 
-  it("treats an unparseable body as empty rather than throwing", async () => {
-    // A 502 from a proxy is HTML; the status code is the news either way.
+  it("treats an unparseable body as empty rather than throwing, since a 502 from a proxy is HTML", async () => {
     expect(
       await toApiResult(new Response("<html>bad gateway", { status: 502 })),
     ).toEqual({ status: "error", message: "HTTP 502", code: 502, body: {} });
@@ -41,9 +40,7 @@ describe("toApiResult", () => {
 });
 
 describe("toApiResult error body", () => {
-  it("carries the parsed body so a caller can read fields beyond the message", async () => {
-    // The onboard guard answers 409 with { blocked, error, task_id }; a proxy that
-    // only kept `error` could not tell the submitter which task blocked them.
+  it("carries the parsed body so a caller can read fields beyond the message, e.g. which task blocked an onboard guard's 409", async () => {
     const res = await toApiResult(
       new Response(
         JSON.stringify({
@@ -77,9 +74,7 @@ describe("enforceOk", () => {
     ).toThrow(/Create feature is unavailable.*LORE_API_URL/);
   });
 
-  it("throws naming the action and the upstream message", () => {
-    // A server action that swallowed this would resolve normally — the browser is
-    // told 200, nothing was written, and it looks like a no-op refresh.
+  it("throws naming the action and the upstream message, rather than resolving as a silent no-op", () => {
     expect(() =>
       enforceOk("Refine", { status: "error", message: "409 round in flight" }),
     ).toThrow("Refine failed: 409 round in flight");

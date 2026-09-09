@@ -1,11 +1,9 @@
-// Pure presentation helpers for the agents and tasks tables. No DB or React
-// here so the formatting rules stay unit-testable in isolation.
+// Pure presentation helpers; no DB/React so formatting rules stay unit-testable.
 
 const ELLIPSIS = "…";
 const EM_DASH = "—";
 
-/** Format a USD cost for a table cell: `$0` for a zero/non-finite cost, `<$0.01`
- *  for a sub-cent amount, two decimals otherwise. */
+/** Formats USD cost for table cell: $0 (zero/non-finite), <$0.01 (sub-cent), or two decimals. */
 export function formatCost(usd: number | null | undefined): string {
   const value = typeof usd === "number" && Number.isFinite(usd) ? usd : 0;
 

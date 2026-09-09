@@ -28,66 +28,105 @@ function categoryLabel(category: string): string {
   return CATEGORY_LABELS[category] ?? category;
 }
 
-/**
- * Renders the structured failure metadata from a failed task_events row
- * (written by the agent's top-level catch) so a failed task can be diagnosed
- * from the UI page alone — category, remediation hint, and per-step breakdown.
- */
-export default function FailurePanel({
-  metadata,
-  repo,
-}: {
-  metadata: FailureMetadata;
-  repo: string;
-}) {
-  if (!metadata?.error && !metadata?.details?.length) {
+function hasFailureContent(metadata: FailureMetadata | undefined): boolean {
+  return Boolean(metadata?.error) || Boolean(metadata?.details?.length);
+}
+
+function FailureCategoryBadge({ category }: { category?: string }) {
+  return category ? (
+    <span className="badge badge-red">{categoryLabel(category)}</span>
+  ) : null;
+}
+
+function FailureHint({ hint, repo }: { hint?: string; repo: string }) {
+  if (!hint) {
     return null;
   }
+
+  return (
+    <p className={`meta ${styles.hint}`}>
+      <strong>How to fix:</strong> <Linkified text={hint} repo={repo} />
+    </p>
+  );
+}
+
+interface FailureDetailRowProps {
+  detail: FailureDetail;
+  repo: string;
+}
+
+function FailureDetailRow({ detail, repo }: FailureDetailRowProps) {
+  return (
+    <div className={`version ${styles.detail}`}>
+      <code className={styles.detailStep}>{detail.step}</code>
+      {detail.category && (
+        <span className={`badge badge-red ${styles.detailBadge}`}>
+          {categoryLabel(detail.category)}
+        </span>
+      )}
+      <p className={styles.detailError}>
+        <Linkified text={detail.error} repo={repo} />
+      </p>
+      {detail.hint && (
+        <p className={`meta ${styles.detailHint}`}>{detail.hint}</p>
+      )}
+    </div>
+  );
+}
+
+/** The per-step breakdown, when there is one. Many failures carry only a category and a message — the list renders nothing rather than an empty frame the reader would read as missing detail. */
+function FailureDetails({
+  details,
+  repo,
+}: {
+  details: NonNullable<FailureMetadata["details"]>;
+  repo: string;
+}) {
+  if (details.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={`memory-list ${styles.details}`}>
+      {details.map((d, i) => (
+        <FailureDetailRow key={i} detail={d} repo={repo} />
+      ))}
+    </div>
+  );
+}
+
+function FailureSummary({ error, repo }: { error: string; repo: string }) {
+  return (
+    <p className={styles.error}>
+      <Linkified text={error} repo={repo} />
+    </p>
+  );
+}
+
+export interface FailurePanelProps {
+  metadata: FailureMetadata | undefined;
+  repo: string;
+}
+
+/** Renders structured failure metadata for diagnosis: category, hint, per-step breakdown. */
+export default function FailurePanel({ metadata, repo }: FailurePanelProps) {
+  if (!hasFailureContent(metadata)) {
+    return null;
+  }
+
+  const safe = metadata ?? {};
 
   return (
     <div className={`spec-card ${styles.card}`}>
       <h3 className={styles.heading}>
         <span className={styles.headingLabel}>Failure</span>
-        {metadata.category && (
-          <span className="badge badge-red">
-            {categoryLabel(metadata.category)}
-          </span>
-        )}
+        <FailureCategoryBadge category={safe.category} />
       </h3>
 
-      {metadata.error && (
-        <p className={styles.error}>
-          <Linkified text={metadata.error} repo={repo} />
-        </p>
-      )}
+      {safe.error && <FailureSummary error={safe.error} repo={repo} />}
 
-      {metadata.hint && (
-        <p className={`meta ${styles.hint}`}>
-          <strong>How to fix:</strong>{" "}
-          <Linkified text={metadata.hint} repo={repo} />
-        </p>
-      )}
-
-      {metadata.details && metadata.details.length > 0 && (
-        <div className={`memory-list ${styles.details}`}>
-          {metadata.details.map((d, i) => (
-            <div key={i} className={`version ${styles.detail}`}>
-              <code className={styles.detailStep}>{d.step}</code>
-              {d.category && (
-                <span className={`badge badge-red ${styles.detailBadge}`}>
-                  {categoryLabel(d.category)}
-                </span>
-              )}
-              <p className={styles.detailError}>
-                <Linkified text={d.error} repo={repo} />
-              </p>
-              {d.hint && (
-                <p className={`meta ${styles.detailHint}`}>{d.hint}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <FailureHint hint={safe.hint} repo={repo} />
+      <FailureDetails details={safe.details ?? []} repo={repo} />
     </div>
   );
 }

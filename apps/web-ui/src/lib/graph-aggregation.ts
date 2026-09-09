@@ -1,13 +1,4 @@
-/**
- * Pure level-of-detail aggregation for the D3 spec-graph.
- *
- * High-cardinality single-owner leaves (a TestChunk or File wired to exactly one
- * Statement/AcceptanceCriterion) flood the view at every zoom level. Zoomed out,
- * they carry no readable detail — so we collapse each into a per-parent count
- * badge ("3 tests") and hide the underlying node. Shared leaves (degree > 1) are
- * structural and stay visible. Value-in/value-out, no side effects; the render
- * shell decides when to apply it via `shouldAggregate`.
- */
+/** Level-of-detail aggregation for D3 spec-graph; collapses degree-1 leaves. */
 
 import { nodeDegrees, type DegreeLink } from "./graph-crowding";
 import type { SpecGraphNodeType } from "./spec-graph";
@@ -29,19 +20,59 @@ export interface AggregationResult {
   badges: LeafBadge[];
 }
 
-/**
- * Collapses every degree-1 node whose type is in `collapsibleTypes` onto its
- * single neighbour, grouped per (parent, type). Returns the ids to hide and the
- * badge counts to draw in their place.
- */
+function isCollapsibleLeaf(
+  node: AggNode,
+  degree: Map<string, number>,
+  collapsibleTypes: Set<SpecGraphNodeType>,
+): boolean {
+  return collapsibleTypes.has(node.type) && (degree.get(node.id) ?? 0) === 1;
+}
+
+/** Add one leaf to its parent's badge, creating the badge on the first leaf. */
+function recordBadge(
+  groups: Map<string, LeafBadge>,
+  parentId: string,
+  type: SpecGraphNodeType,
+): void {
+  const key = `${parentId}::${type}`;
+  const badge = groups.get(key);
+
+  if (badge) {
+    badge.count += 1;
+
+    return;
+  }
+  groups.set(key, { parentId, type, count: 1 });
+}
+
+/** Collapse degree-1 nodes onto single neighbour; return ids to hide and badge counts. */
 export function aggregateLeaves(
   nodes: AggNode[],
   links: DegreeLink[],
   collapsibleTypes: Set<SpecGraphNodeType>,
 ): AggregationResult {
   const degree = nodeDegrees(links);
-  // A degree-1 node appears in exactly one link, so its single opposite endpoint
-  // is its parent. (Hubs get overwritten here, but we never read theirs.)
+  const parentOf = parentByNode(links);
+
+  const hidden = new Set<string>();
+  const groups = new Map<string, LeafBadge>();
+
+  for (const node of nodes) {
+    if (!isCollapsibleLeaf(node, degree, collapsibleTypes)) {
+      continue;
+    }
+    // Degree 1 guarantees parentOf has this node's id (populated from the same links).
+    const parentId = parentOf.get(node.id)!;
+
+    hidden.add(node.id);
+    recordBadge(groups, parentId, node.type);
+  }
+
+  return { hidden, badges: [...groups.values()] };
+}
+
+/** A degree-1 node's single opposite endpoint is its parent. */
+function parentByNode(links: DegreeLink[]): Map<string, string> {
   const parentOf = new Map<string, string>();
 
   for (const { source, target } of links) {
@@ -49,34 +80,7 @@ export function aggregateLeaves(
     parentOf.set(target, source);
   }
 
-  const hidden = new Set<string>();
-  const groups = new Map<string, LeafBadge>();
-
-  for (const node of nodes) {
-    if (!collapsibleTypes.has(node.type)) {
-      continue;
-    }
-
-    if ((degree.get(node.id) ?? 0) !== 1) {
-      continue;
-    }
-    const parentId = parentOf.get(node.id);
-
-    if (parentId === undefined) {
-      continue;
-    }
-    hidden.add(node.id);
-    const key = `${parentId}::${node.type}`;
-    const badge = groups.get(key);
-
-    if (badge) {
-      badge.count += 1;
-    } else {
-      groups.set(key, { parentId, type: node.type, count: 1 });
-    }
-  }
-
-  return { hidden, badges: [...groups.values()] };
+  return parentOf;
 }
 
 /** LOD gate: collapse leaves while zoomed further out than `threshold`. */

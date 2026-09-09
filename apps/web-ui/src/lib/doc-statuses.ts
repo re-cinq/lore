@@ -1,7 +1,4 @@
-// Reshapes the global doc list into the `repo::filePath` status map
-// GlobalDocsView indexes by. Replaces the old spec-status-source fan-out,
-// which fetched one document source per entry over HTTP; statuses now arrive
-// with the list itself.
+// Reshapes global doc list into repo::filePath status map; statuses now arrive with list.
 
 import type { GlobalDocEntry } from "@/lib/trace-api";
 import type { SpecStatusInfo } from "@/lib/spec-status";

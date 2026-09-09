@@ -1,0 +1,216 @@
+/** Aggregates validating TestChunks onto Statements/AcceptanceCriteria — anchor-resolved (spec-anchor comment) and sentence-resolved (structural/name match) groupings, each written with the same violated/violation_reason handling. */
+
+import type {
+  DgraphClientPort,
+  TestDescriptor,
+  TaggedRunResult,
+} from "../../outbound/spec-trace/deps.js";
+import {
+  deletePredicate,
+  upsertByXid,
+  withTxn,
+} from "../../outbound/spec-trace/dgraph-upsert.js";
+import { parseSentenceLink, sentenceLinkFromSuite } from "./sentence-link.js";
+import {
+  resolveSentenceLink,
+  type SentenceMatch,
+} from "./resolve-sentence-link.js";
+import { parseSpecAnchors } from "./spec-anchor.js";
+import type { DescriptorChunk } from "./ingest-test-report.js";
+
+/** Accumulated state for one Statement across all descriptors in a report. */
+interface StatementGroup {
+  xid: string;
+  validatingChunkUids: string[];
+  failingTestNames: string[];
+}
+
+/** Pure data-shaping: folds spec-anchored descriptors into one {@link StatementGroup} per Statement xid, collecting validating TestChunk uids + failing test names. No Dgraph I/O. */
+export function groupStatementsByAnchor(
+  repo: string,
+  entries: DescriptorChunk[],
+  resultById: Map<string, TaggedRunResult>,
+): StatementGroup[] {
+  const groups = new Map<string, StatementGroup>();
+
+  for (const { descriptor, fileChunkUid } of entries) {
+    // A descriptor may carry several anchors — contribute its TestChunk to every anchored statement.
+    addDescriptorToAnchoredGroups(groups, repo, {
+      descriptor,
+      fileChunkUid,
+      failed: resultById.get(descriptor.id)?.passed === false,
+    });
+  }
+
+  return [...groups.values()];
+}
+
+function addDescriptorToAnchoredGroups(
+  groups: Map<string, StatementGroup>,
+  repo: string,
+  entry: { descriptor: TestDescriptor; fileChunkUid: string; failed: boolean },
+): void {
+  for (const anchor of parseSpecAnchors(entry.descriptor.spec)) {
+    const xid = `${repo}|${anchor.specPath}|${anchor.ordinal}`;
+    const group = groups.get(xid) ?? {
+      xid,
+      validatingChunkUids: [],
+      failingTestNames: [],
+    };
+
+    group.validatingChunkUids.push(entry.fileChunkUid);
+
+    if (entry.failed) {
+      group.failingTestNames.push(entry.descriptor.name);
+    }
+    groups.set(xid, group);
+  }
+}
+
+/** Writes one aggregated Statement upsert per group; `violation_reason` is cleared by deleting the predicate on recovery, never by writing `""` (Dgraph corrupts an empty scalar into `"[]"`). */
+export async function writeStatementGroup(
+  dgraph: DgraphClientPort,
+  group: StatementGroup,
+): Promise<boolean> {
+  const failed = group.failingTestNames.length > 0;
+  const statementUid = await upsertByXid(dgraph, "Statement", group.xid, {
+    "Statement.validated_by": group.validatingChunkUids.map((uid) => ({ uid })),
+    "Statement.violated": failed,
+    ...(failed
+      ? {
+          "Statement.violation_reason": `validating test failed: ${group.failingTestNames.join(", ")}`,
+        }
+      : {}),
+  });
+
+  if (!failed) {
+    await deletePredicate(dgraph, statementUid, "Statement.violation_reason");
+  }
+
+  return failed;
+}
+
+/** A sentence-resolved match node with the validating chunks + failing tests aggregated onto it. */
+interface SentenceGroup extends SentenceMatch {
+  validatingChunkUids: string[];
+  failingTestNames: string[];
+}
+
+/** Resolves anchorless descriptors that sentence-match a Statement/AcceptanceCriterion, aggregating validating TestChunks per resolved node. Mirrors {@link groupStatementsByAnchor}, keyed by the resolver's live node uid. */
+export async function groupStatementsBySentence(
+  dgraph: DgraphClientPort,
+  repo: string,
+  entries: DescriptorChunk[],
+  resultById: Map<string, TaggedRunResult>,
+): Promise<SentenceGroup[]> {
+  const groups = new Map<string, SentenceGroup>();
+
+  for (const { descriptor, fileChunkUid } of entries) {
+    await addResolvedDescriptor(dgraph, repo, groups, {
+      descriptor,
+      fileChunkUid,
+      failed: resultById.get(descriptor.id)?.passed === false,
+    });
+  }
+
+  return [...groups.values()];
+}
+
+/** The sentence link an anchorless descriptor carries: the structural (describe-nesting) link is primary, a hand-written name is the backward-compatible fallback; an anchored descriptor has none, since its anchors already resolved it. */
+function anchorlessSentenceLink(descriptor: TestDescriptor) {
+  if (parseSpecAnchors(descriptor.spec).length > 0) {
+    return undefined;
+  }
+
+  return (
+    sentenceLinkFromSuite(descriptor) ?? parseSentenceLink(descriptor.name)
+  );
+}
+
+/** Resolves one descriptor's sentence link against the live graph and folds its TestChunk into every node the link matched. */
+async function addResolvedDescriptor(
+  dgraph: DgraphClientPort,
+  repo: string,
+  groups: Map<string, SentenceGroup>,
+  entry: { descriptor: TestDescriptor; fileChunkUid: string; failed: boolean },
+): Promise<void> {
+  const link = anchorlessSentenceLink(entry.descriptor);
+
+  if (!link) {
+    return;
+  }
+
+  addDescriptorToSentenceGroups(groups, {
+    ...entry,
+    matches: await resolveSentenceLink(dgraph, repo, link),
+  });
+}
+
+/** A group with no contributions yet, for the first descriptor that resolves to this node. */
+function emptySentenceGroup(match: SentenceMatch): SentenceGroup {
+  return { ...match, validatingChunkUids: [], failingTestNames: [] };
+}
+
+function addDescriptorToSentenceGroups(
+  groups: Map<string, SentenceGroup>,
+  entry: {
+    matches: SentenceMatch[];
+    descriptor: TestDescriptor;
+    fileChunkUid: string;
+    failed: boolean;
+  },
+): void {
+  for (const match of entry.matches) {
+    const group = groups.get(match.uid) ?? emptySentenceGroup(match);
+
+    group.validatingChunkUids.push(entry.fileChunkUid);
+
+    if (entry.failed) {
+      group.failingTestNames.push(entry.descriptor.name);
+    }
+    groups.set(match.uid, group);
+  }
+}
+
+/** The write for one group: the tests that validate the statement, and whether any of them failed. The reason is included ONLY on failure — an empty reason beside `violated: false` reads as a violation nobody could name. */
+function groupMutation(group: SentenceGroup) {
+  const failed = group.failingTestNames.length > 0;
+
+  return {
+    uid: group.uid,
+    [`${group.nodeType}.validated_by`]: group.validatingChunkUids.map(
+      (uid) => ({
+        uid,
+      }),
+    ),
+    [`${group.nodeType}.violated`]: failed,
+    ...(failed
+      ? {
+          [`${group.nodeType}.violation_reason`]: `validating test failed: ${group.failingTestNames.join(", ")}`,
+        }
+      : {}),
+  };
+}
+
+/** Writes a sentence-resolved group onto its existing node by uid, same violated/violation_reason handling as {@link writeStatementGroup}. */
+export async function writeSentenceGroup(
+  dgraph: DgraphClientPort,
+  group: SentenceGroup,
+): Promise<boolean> {
+  const failed = group.failingTestNames.length > 0;
+
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({ setJson: groupMutation(group), commitNow: true }),
+  );
+
+  // Setting `violated: false` does not remove a reason written by an earlier run — the predicate has to be deleted, or a statement that went green keeps explaining why it was red.
+  if (!failed) {
+    await deletePredicate(
+      dgraph,
+      group.uid,
+      `${group.nodeType}.violation_reason`,
+    );
+  }
+
+  return failed;
+}

@@ -6,6 +6,35 @@ import { serverError } from "@/lib/api-error";
 const MAX_LINES = 60;
 const DEFAULT_WINDOW = 24;
 
+/** The line range to return, clamped. `MAX_LINES` is a ceiling on the answer rather than a validation error: a caller asking for a whole file gets a preview, not a refusal. */
+function lineWindow(url: URL): { start: number; end: number } {
+  const start = Math.max(1, Number(url.searchParams.get("start")) || 1);
+  const requestedEnd =
+    Number(url.searchParams.get("end")) || start + DEFAULT_WINDOW;
+
+  return { start, end: Math.min(start + MAX_LINES - 1, requestedEnd) };
+}
+
+/** The requested lines of one repo file, or the 404 that says the file could not be read. */
+async function fileSlice(
+  fullName: string,
+  path: string,
+  start: number,
+  end: number,
+) {
+  const content = await getRepoFileContent(fullName, path);
+
+  if (content === null) {
+    return NextResponse.json({ error: "file unavailable" }, { status: 404 });
+  }
+  const text = content
+    .split("\n")
+    .slice(start - 1, end)
+    .join("\n");
+
+  return NextResponse.json({ path, start, end, text });
+}
+
 /** Returns a line slice of a repo file as plain text — powers the TestChunk code preview. */
 export async function GET(
   req: Request,
@@ -21,23 +50,10 @@ export async function GET(
       { status: 400 },
     );
   }
-  const start = Math.max(1, Number(url.searchParams.get("start")) || 1);
-  const requestedEnd =
-    Number(url.searchParams.get("end")) || start + DEFAULT_WINDOW;
-  const end = Math.min(start + MAX_LINES - 1, requestedEnd);
+  const { start, end } = lineWindow(url);
 
   try {
-    const content = await getRepoFileContent(`${owner}/${repo}`, path);
-
-    if (content === null) {
-      return NextResponse.json({ error: "file unavailable" }, { status: 404 });
-    }
-    const slice = content
-      .split("\n")
-      .slice(start - 1, end)
-      .join("\n");
-
-    return NextResponse.json({ path, start, end, text: slice });
+    return await fileSlice(`${owner}/${repo}`, path, start, end);
   } catch (err) {
     return serverError("file", err);
   }

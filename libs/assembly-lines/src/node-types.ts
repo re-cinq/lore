@@ -1,20 +1,11 @@
-// The node-execution vocabulary shared by the transition replay, the outcome
-// parsers, and the station pods. Extracted from the retired in-process executor
-// (the event-driven walk — spec 6-dark-factory FR6.9 — made the walk loop itself
-// obsolete; the types it defined did not).
+// Node-execution vocabulary shared by the transition replay, outcome parsers, and station pods — extracted from the retired in-process executor (spec 6-dark-factory FR6.9 obsoleted the walk loop, not the types it defined).
 
 import type { FailureCategory } from "@re-cinq/lore-shared/error-classify.js";
 import type { AssemblyLineNode } from "./loader.js";
 
 export type StageOutcome = "success" | "changes_requested" | "failed";
 
-/**
- * LLM usage a station reports for cost accounting — exactly the fields the
- * `/api/agent-events` cost sink reads off a terminal result event. Structurally
- * a subset of the shared `LlmUsage`, so a station can assign one directly.
- * Cache tokens are deliberately absent: the provider already folds them into
- * `costUsd`, and the sink's `LlmCallRow` does not track them separately.
- */
+// LLM usage a station reports for cost accounting — exactly the fields the /api/agent-events cost sink reads; a structural subset of shared LlmUsage. Cache tokens deliberately absent (provider folds them into costUsd, LlmCallRow doesn't track separately).
 export interface NodeLlmUsage {
   inputTokens: number;
   outputTokens: number;
@@ -25,37 +16,21 @@ export interface NodeLlmUsage {
 
 export interface NodeResult {
   outcome: StageOutcome;
-  /** Free-form extras (e.g. `Lore-Cost-Tokens`, `Lore-Validation-Status`). */
+  // Free-form extras (e.g. `Lore-Cost-Tokens`, `Lore-Validation-Status`).
   extras?: Record<string, string>;
-  /**
-   * What this node produced for the next node's brief — merged into the line's
-   * args (the FR6.17 artifact channel) before the walk advances, which is how
-   * the next station finds it in its params. Distinct from `extras`, which the
-   * walk routes on and renders into trailers: an `extras`-only result reaches
-   * the walk but never the downstream node.
-   */
+  // What this node produced for the next node's brief — merged into the line's args (FR6.17) before the walk advances; distinct from `extras`, which an `extras`-only result never reaches the downstream node through.
   args?: Record<string, string>;
-  /**
-   * LLM usage of the node's own model calls (stations without Postgres report
-   * cost this way). `resultLine` lifts it onto the terminal line's claude-style
-   * envelope fields; it is never serialized into the LORE_NODE_RESULT payload.
-   */
+  // LLM usage of the node's own model calls (Postgres-less stations report cost this way); resultLine lifts it onto the terminal envelope, never serialized into LORE_NODE_RESULT.
   usage?: NodeLlmUsage;
-  /**
-   * WHY the node failed, on a `failed` outcome that the Floor classified rather
-   * than the station reporting. Typed rather than stuffed into `extras` because
-   * the walk routes on it (a permanent class must not spend a retry budget) and
-   * it is persisted on the station run — a stringly bag would reach neither
-   * with a compiler watching.
-   */
+  // WHY the node failed, on a `failed` outcome the Floor classified rather than the station reporting; typed (not stuffed into `extras`) since the walk routes on it and it's persisted on the station run.
   failureClass?: FailureCategory;
-  /** The agent's own error text, capped, that produced `failureClass`. */
+  // The agent's own error text, capped, that produced `failureClass`.
   failureDetail?: string;
 }
 
 export interface NodeContext {
   taskId: string;
-  /** Per-attempt assembly run id — distinct across retries of one task. */
+  // Per-attempt assembly run id — distinct across retries of one task.
   assemblyRunId: string;
   branchName: string;
   gitDir: string;

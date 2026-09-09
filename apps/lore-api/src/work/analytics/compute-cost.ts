@@ -1,0 +1,125 @@
+// Kubernetes cost ESTIMATE: requests × on-demand rates (rates env-overridable, echoed in response).
+
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+
+export interface ComputeRates {
+  cpuHourUsd: number;
+  memGibHourUsd: number;
+}
+
+// e2 on-demand rates (per vCPU/GiB-hour); overridable for discount/machine-family changes.
+const DEFAULT_RATES: ComputeRates = { cpuHourUsd: 0.022, memGibHourUsd: 0.003 };
+
+// Assumed pod requests when actual requests are gone (station_runs lacks size); live view uses real requests.
+export const DEFAULT_POD_PROFILE: Record<string, string> = {
+  cpu: "1",
+  memory: "4Gi",
+};
+
+export function ratesFromEnv(env: NodeJS.ProcessEnv): ComputeRates {
+  const num = (raw: string | undefined, fallback: number): number => {
+    const parsed = Number(raw);
+
+    return raw !== undefined && Number.isFinite(parsed) && parsed >= 0
+      ? parsed
+      : fallback;
+  };
+
+  return {
+    cpuHourUsd: num(env.LORE_GKE_CPU_HOUR_USD, DEFAULT_RATES.cpuHourUsd),
+    memGibHourUsd: num(
+      env.LORE_GKE_MEM_GIB_HOUR_USD,
+      DEFAULT_RATES.memGibHourUsd,
+    ),
+  };
+}
+
+// Kubernetes cpu quantity → cores; absent/malformed → 0 (missing request costs zero).
+export function parseCpuCores(quantity: string | undefined): number {
+  if (!quantity) {
+    return 0;
+  }
+  const milli = /^(\d+(?:\.\d+)?)m$/.exec(quantity);
+
+  if (milli) {
+    return Number(milli[1]) / 1000;
+  }
+  const cores = Number(quantity);
+
+  return Number.isFinite(cores) ? cores : 0;
+}
+
+const MEM_UNITS: Record<string, number> = {
+  Gi: 1,
+  Mi: 1 / 1024,
+  Ki: 1 / (1024 * 1024),
+  G: 1e9 / 2 ** 30,
+  M: 1e6 / 2 ** 30,
+  K: 1e3 / 2 ** 30,
+};
+
+/** Kubernetes memory quantity → GiB, same zero-on-malformed rule as cpu. */
+export function parseMemGib(quantity: string | undefined): number {
+  if (!quantity) {
+    return 0;
+  }
+  const m = /^(\d+(?:\.\d+)?)(Gi|Mi|Ki|G|M|K)?$/.exec(quantity);
+
+  if (!m) {
+    return 0;
+  }
+  const unit = m[2] ? MEM_UNITS[m[2]] : 1 / 2 ** 30;
+
+  return Number(m[1]) * unit;
+}
+
+/** A pod's estimated $/hour from its requests. */
+export function podHourlyUsd(
+  requests: Record<string, string>,
+  rates: ComputeRates,
+): number {
+  return (
+    parseCpuCores(requests.cpu) * rates.cpuHourUsd +
+    parseMemGib(requests.memory) * rates.memGibHourUsd
+  );
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_SPAN_DAYS = 92;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Bounds reach SQL as date literals, so shape is enforced here rather than trusted from the query string.
+function enforceValidSpan(from: string, to: string): void {
+  for (const value of [from, to]) {
+    enforceTrue(
+      ISO_DATE.test(value) && !Number.isNaN(Date.parse(value)),
+      Error,
+      "dates must be YYYY-MM-DD",
+    );
+  }
+
+  enforceTrue(from <= to, Error, "from must not be after to");
+
+  const span = (Date.parse(to) - Date.parse(from)) / DAY_MS + 1;
+
+  enforceTrue(
+    span <= MAX_SPAN_DAYS,
+    Error,
+    `interval must span at most ${MAX_SPAN_DAYS} days`,
+  );
+}
+
+// Spend page interval: YYYY-MM-DD bounds, default 7 days, max 92 days.
+export function spendInterval(
+  from: string | undefined,
+  to: string | undefined,
+  now: Date = new Date(),
+): { from: string; to: string } {
+  const resolvedTo = to ?? now.toISOString().slice(0, 10);
+  const resolvedFrom =
+    from ?? new Date(now.getTime() - 7 * DAY_MS).toISOString().slice(0, 10);
+
+  enforceValidSpan(resolvedFrom, resolvedTo);
+
+  return { from: resolvedFrom, to: resolvedTo };
+}

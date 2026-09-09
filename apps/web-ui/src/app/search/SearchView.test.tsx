@@ -155,7 +155,6 @@ describe("SearchView", () => {
     const scoped = within(card);
 
     expect(scoped.getByText("Chunk")).toHaveClass("op-badge", "op-write");
-    // repo appears twice in the card: the "· repo:" meta and the standalone badge
     expect(scoped.getAllByText("re-cinq/lore")).toHaveLength(2);
     expect(card.querySelector(".badge")?.textContent).toEqual("re-cinq/lore");
   });

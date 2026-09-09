@@ -7,17 +7,29 @@ export interface RestartClusterButtonProps {
   restart: () => Promise<void>;
 }
 
-/**
- * Bounces the central cluster-agent so it re-pulls `latest` on restart
- * (pullPolicy: Always). Only rendered for the central row — lore-api dials one
- * static in-cluster address and has no path into a satellite.
- *
- * Client only for `useTransition`; the write itself is the bound server action
- * the page hands down, so the browser never names which cluster it restarts.
- *
- * A restart kills whatever the process is mid-way through, unlike Pause, so a
- * stray click needs a second one to confirm before it fires.
- */
+/** The second click. A restart kills whatever the cluster is running mid-process, so it is confirmed rather than fired from one press. */
+function ConfirmRow({
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  pending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <>
+      <button className="button" disabled={pending} onClick={onConfirm}>
+        Confirm restart
+      </button>{" "}
+      <button className="button" disabled={pending} onClick={onCancel}>
+        Cancel
+      </button>
+    </>
+  );
+}
+
+/** Central cluster restart (pulls latest); needs confirmation (kills mid-process). */
 export default function RestartClusterButton({
   restart,
 }: RestartClusterButtonProps) {
@@ -26,22 +38,11 @@ export default function RestartClusterButton({
 
   if (confirming) {
     return (
-      <>
-        <button
-          className="button"
-          disabled={pending}
-          onClick={() => startTransition(() => restart())}
-        >
-          Confirm restart
-        </button>{" "}
-        <button
-          className="button"
-          disabled={pending}
-          onClick={() => setConfirming(false)}
-        >
-          Cancel
-        </button>
-      </>
+      <ConfirmRow
+        pending={pending}
+        onConfirm={() => startTransition(() => restart())}
+        onCancel={() => setConfirming(false)}
+      />
     );
   }
 

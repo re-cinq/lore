@@ -90,13 +90,13 @@ variable "github_org" {
 }
 
 variable "lore_webhook_hostname" {
-  description = "Hostname for the Floor GitHub-webhook ingress (e.g. lore-webhook.example.com). Empty disables the ingress. Retired once webhooks are re-pointed at the event router (ADR-044)."
+  description = "Hostname for the Floor's /api/webhook ingress (e.g. lore-webhook.example.com): the CI ingest doors (/api/webhook/ci-ingest, /api/webhook/ci-tests — consumer repos' vars.LORE_WEBHOOK_URL base) plus the legacy /api/webhook/github alias the ingress rewrites to the event-router (ADR-044). Empty disables the ingress."
   type        = string
   default     = ""
 }
 
 variable "lore_event_router_hostname" {
-  description = "Hostname for the event-router ingress, where GitHub delivers webhooks (ADR-044). Empty disables the ingress. Stand this up and re-point the repos' webhooks BEFORE retiring lore_webhook_hostname."
+  description = "Hostname for the event-router ingress: the canonical GitHub webhook URL (ADR-044), which LORE_WEBHOOK_URL on lore-api and the legacy alias on lore_webhook_hostname both resolve to. Empty disables the ingress."
   type        = string
   default     = ""
 }
