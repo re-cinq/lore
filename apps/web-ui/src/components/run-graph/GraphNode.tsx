@@ -232,26 +232,40 @@ function NodeBox({ leftEdge, top, height }: NodeBoxProps) {
   );
 }
 
+/** What the box draws and where: the baselines its lines are centred on, and the facts line ready to render — empty when this visit has nothing to report, which is what makes the stack two lines instead of three. */
+function nodeLines(
+  props: GraphNodeProps,
+  badge: ReturnType<typeof computeBadge>,
+  leftEdge: number,
+) {
+  const meta = badge ? (props.meta ?? "") : "";
+  const baselines = nodeTextRows(meta === "" ? 2 : 3);
+
+  return {
+    baselines,
+    metaLine: {
+      meta,
+      leftEdge,
+      centerY: props.node.y,
+      baseline: baselines[2] ?? 0,
+    },
+  };
+}
+
 export default function GraphNode(props: GraphNodeProps) {
   const { node, model, mode, height, isTerminal, onSelect } = props;
   const badge = computeBadge(mode, model);
   const outcomes = model?.outcomes ?? [];
   const { top, leftEdge } = boxOf(node, height);
   const interaction = nodeInteraction(node.id, onSelect);
-  const meta = badge ? (props.meta ?? "") : "";
-  const baselines = nodeTextRows(meta === "" ? 2 : 3);
+  const { baselines, metaLine } = nodeLines(props, badge, leftEdge);
   const body = { node, badge, baselines, outcomes, isTerminal, top, leftEdge };
 
   return (
     <g {...groupProps(body, interaction, props.selected === true)}>
       <NodeBox leftEdge={leftEdge} top={top} height={height} />
       <NodeBody {...body} title={titleCase(node.id)} />
-      <NodeMetaLine
-        meta={meta}
-        leftEdge={leftEdge}
-        centerY={node.y}
-        baseline={baselines[2] ?? 0}
-      />
+      <NodeMetaLine {...metaLine} />
     </g>
   );
 }

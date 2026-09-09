@@ -10,11 +10,11 @@ export interface NodeMetaLineProps {
   baseline: number;
 }
 
-const attrs = (leftEdge: number, y: number) => ({
+const attrs = (leftEdge: number, baselineY: number) => ({
   className: styles.nodeMeta,
   "data-meta": true,
   x: leftEdge + 40,
-  y,
+  y: baselineY,
   textAnchor: "start" as const,
 });
 
