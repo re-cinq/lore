@@ -75,10 +75,7 @@ export {
   stripCommentsAndWhitespace,
   sectionIsEmpty,
 } from "./work/pr-section-check.js";
-export {
-  getQueryEmbedding,
-  buildVertexUrl,
-} from "./outbound/embeddings/embedding-service.js";
+export * from "./outbound/embeddings/embedding-service.js";
 export { resolveAgentId } from "./outbound/agent-id.js";
 export * from "./work/index-spec-trace.js";
 export { mapWithLimit } from "./lib/concurrency/map-with-limit.js";

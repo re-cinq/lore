@@ -173,7 +173,7 @@ The tool retrieves from all available sources:
   another repo's entities.
 - FR-2.14: **Repo-bound assembly.** Every source read threads the queried repo —
   the `KnowledgeView` facade and the Pg engine both bind the repo — so a task
-  assembles only its own repo's context. ([validated by `assembles context scoped to the repo`](libs/shared/src/outbound/project/knowledge/knowledge.test.ts#L27), [`knowledge-pg.test.ts:104`](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L104))
+  assembles only its own repo's context. ([validated by `assembles context scoped to the repo`](libs/shared/src/outbound/project/knowledge/knowledge.test.ts#L27), [`knowledge-pg.test.ts:104`](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L111))
 - FR-2.15: **Team-schema resolution.** Repo-scoped chunk reads (`repo`, `code`,
   `adrs`, `rules`) resolve the repo's chunk schema — its provisioned team schema,
   else `org_shared` — before querying, matching where reindex actually wrote the
@@ -254,6 +254,14 @@ The tool retrieves from all available sources:
 - Audit log records each `lore_assemble_context` call with: query, template used,
   sources hit, total tokens returned. *(Audit-log persistence is tracked as
   follow-up — the in-memory trace lands first.)*
+- **Embedder health is a value, not a log line.** The embedding service keeps
+  `{ lastOkAt, lastFailureAt, lastStatus, consecutiveFailures }`: a refused
+  Vertex call records its HTTP status, a call that never reached Vertex (no
+  credential, no project, network) records `null`, and one success resets the
+  streak. Three failures in a row is *degraded*. A degraded embedder prepends a
+  keyword-only warning to the assembled block — the agent reading it should
+  know semantic matches and memory search are missing — and the debug trace
+  carries `embedderDegraded`. ([validated by `reports consecutiveFailures 2 and lastStatus 403 after two 403 responses`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L84), [`embedding-service.test.ts:98`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L98), [`embedding-service.test.ts:119`](libs/shared/src/outbound/embeddings/embedding-service.test.ts#L119), [`context-freshness.test.ts:7`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L7), [`context-freshness.test.ts:20`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L20))
 
 ## Scope Boundaries
 
