@@ -218,13 +218,15 @@ function prReads(
   projectOf: (repo: string) => Promise<Pick<Project, "pulls">>,
 ): Pick<
   PrReadyCheckDeps,
-  "listPrCommits" | "listChecks" | "listReviewThreads"
+  "listPrCommits" | "listChecks" | "listReviewThreads" | "prMergeable"
 > {
   return {
     listPrCommits: async (repo, number) =>
       (await projectOf(repo)).pulls.listCommits(number),
     listChecks: async (repo, ref) =>
       (await projectOf(repo)).pulls.listChecks(ref),
+    prMergeable: async (repo, number) =>
+      (await (await projectOf(repo)).pulls.get(number))?.mergeable ?? null,
     listReviewThreads: async (repo, number) =>
       (await projectOf(repo)).pulls.listReviewThreads(number),
   };
