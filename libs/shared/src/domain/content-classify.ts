@@ -1,6 +1,9 @@
 /** Canonical content-type classifier (single source for ingest + reindex); source by extension first, dir rules only for non-code. */
 
-export type ContentType = "doc" | "adr" | "spec" | "code";
+import { isTestFile } from "./test-paths.js";
+
+// `test` is code the coverage machinery wants (link resolution, backfill candidates) and the assembled bundle mostly does not: a test file keyword-matches every symbol it exercises, so it outranked the source for questions about the source.
+export type ContentType = "doc" | "adr" | "spec" | "code" | "test";
 
 const BINARY_RE =
   /\.(png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|pdf|zip|tar|gz|lock)$/i;
@@ -44,7 +47,8 @@ const CLASSIFY_RULES: ClassifyRule[] = [
   { test: (path) => BINARY_RE.test(path), type: null },
   { test: (path) => GENERATED_RE.test(path), type: null },
   { test: isDocFile, type: "doc" },
-  // Extension wins over directory: a source file is code wherever it lives.
+  // Extension wins over directory: a source file is code wherever it lives — a test-named one is `test`.
+  { test: (path) => CODE_RE.test(path) && isTestFile(path), type: "test" },
   { test: (path) => CODE_RE.test(path), type: "code" },
   { test: (path) => /(?:^|\/)adrs\//.test(path), type: "adr" },
   { test: isSpecPath, type: "spec" },

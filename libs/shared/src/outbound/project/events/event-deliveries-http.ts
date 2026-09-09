@@ -7,7 +7,7 @@ import type {
   EventSubscription,
   OrphanedEvents,
 } from "./event-deliveries-port.js";
-import type { FailBody, DeadBody } from "./event-queue-wire.js";
+import type { FailBody, DeadBody } from "./event-deliveries-wire.js";
 import type {
   DeliveryClaimBody,
   OrphanBody,

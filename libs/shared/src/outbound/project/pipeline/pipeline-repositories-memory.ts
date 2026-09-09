@@ -4,7 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InMemoryTaskQueue } from "../tasks/task-queue-memory.js";
-import { InMemoryEventQueue } from "../events/event-queue-memory.js";
+import { InMemoryEventReporter } from "../events/event-reporter-memory.js";
 import { InMemoryAssemblyRuns } from "../assembly-runs/assembly-runs-memory.js";
 import { InMemoryJobRuns } from "../job-runs/job-runs-memory.js";
 import { InMemoryAudit } from "../audit/audit-memory.js";
@@ -20,7 +20,7 @@ export function createInMemoryPipelineRepositories(
 ): PipelineRepositories {
   return {
     taskQueue: new InMemoryTaskQueue(),
-    eventQueue: new InMemoryEventQueue(),
+    eventReporter: new InMemoryEventReporter(),
     assemblyRuns: new InMemoryAssemblyRuns(),
     jobRuns: new InMemoryJobRuns(),
     audit: new InMemoryAudit(),

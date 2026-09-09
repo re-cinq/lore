@@ -159,7 +159,7 @@ The tool retrieves from all available sources:
   query matches (`search_tsv @@`), never unmatched chunks ranked by recency: a
   zero `ts_rank` is a score, not a NULL, so without the filter a query matching
   nothing returned the newest chunks of the type, the same three for every
-  question, for the four weeks the vector leg was down (2026-08-13 → 09-09). ([validated by `context-assembly.test.ts:189`](libs/server-core/src/work/context/context-assembly.test.ts#L189), [`uses a vector+keyword RRF query when an embedding is available`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L361), [`keyword-only SQL filters with search_tsv @@ websearch_to_tsquery so non-matching chunks are not returned`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L254))
+  question, for the four weeks the vector leg was down (2026-08-13 → 09-09). ([validated by `context-assembly.test.ts:189`](libs/server-core/src/work/context/context-assembly.test.ts#L189), [`uses a vector+keyword RRF query when an embedding is available`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L377), [`keyword-only SQL filters with search_tsv @@ websearch_to_tsquery so non-matching chunks are not returned`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L254))
 - FR-2.8: **No cross-section duplication.** The `repo`/Conventions source pulls
   only `doc`/`spec` (never `adr`, which is its own section), and chunks sharing a
   `file_path` — or a `content_hash`, a file and its copied twin at another path
@@ -168,7 +168,7 @@ The tool retrieves from all available sources:
 - FR-2.9: **Code retrieval.** A dedicated `code` source retrieves
   `content_type='code'` chunks via the same hybrid ranking, so implementation and
   review tasks receive the actual source files they edit (previously code was
-  never retrieved — the `repo` source excluded it). ([validated by `context-assembly.test.ts:243`](libs/server-core/src/work/context/context-assembly.test.ts#L243), [`context-assembly.test.ts:216`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L216))
+  never retrieved — the `repo` source excluded it). ([validated by `context-assembly.test.ts:243`](libs/server-core/src/work/context/context-assembly.test.ts#L243), [`context-assembly.test.ts:188`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L188), [`context-assembly.test.ts:335`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L335))
 - FR-2.10: **Keyword leg searches distinctive terms.** A paragraph-length query
   is reduced to its distinctive terms (stopwords + ≤2-char words dropped, capped)
   for the keyword leg, so common filler words don't dominate ranking. The
@@ -176,7 +176,7 @@ The tool retrieves from all available sources:
   keyword legs never disagree about what "distinctive" means. ([validated by `key-terms.test.ts:5`](libs/shared/src/domain/key-terms.test.ts#L5), [`key-terms.test.ts:18`](libs/shared/src/domain/key-terms.test.ts#L18))
 - FR-2.11: **Normalized relevance.** Item scores are rescaled so the top result
   is `1.00` and the rest are proportional fractions — raw RRF/`ts_rank` scores are
-  tiny (~0.02) and unreadable as a relevance signal. ([validated by `context-assembly.test.ts:431`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L431))
+  tiny (~0.02) and unreadable as a relevance signal. ([validated by `context-assembly.test.ts:447`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L447))
 - FR-2.12: **No cross-section duplication.** A document is emitted in its
   highest-priority section only — the same item never appears in two sections
   (e.g. an episode in both Agent Memory and Recent Episodes). Only a section
@@ -192,7 +192,7 @@ The tool retrieves from all available sources:
   `adrs`, `rules`) resolve the repo's chunk schema — its provisioned team schema,
   else `org_shared` — before querying, matching where reindex actually wrote the
   repo's chunks; the `cross_repo` source instead UNIONs every provisioned chunk
-  schema plus `org_shared`, since linked repos may live in any team schema. ([validated by `reads from the repo's provisioned team schema instead of org_shared`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L335), [`retrieves chunks bound to the repo + content types (keyword path when no embedding)`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L217), [`cross_repo unions linked-repo matches across every provisioned chunk schema`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L386), [`cross_repo without linked repos searches other repos across all schemas`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L417), [`resolves the repo's team schema when it is provisioned`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L66))
+  schema plus `org_shared`, since linked repos may live in any team schema. ([validated by `reads from the repo's provisioned team schema instead of org_shared`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L351), [`retrieves chunks bound to the repo + content types (keyword path when no embedding)`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L217), [`cross_repo unions linked-repo matches across every provisioned chunk schema`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L402), [`cross_repo without linked repos searches other repos across all schemas`](libs/shared/src/outbound/project/knowledge/context-assembly.test.ts#L433), [`resolves the repo's team schema when it is provisioned`](libs/shared/src/outbound/project/chunks/chunk-schema.test.ts#L66))
 
 ### FR-3: Template System
 

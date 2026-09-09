@@ -66,6 +66,16 @@ nodes:
     route: "{args.pr_url}"
     description: Waiting on CI and review threads — the PR view is the station.
 
+  # The SAME recipe as `fix-ci`, under its own id because a node has one
+  # outgoing edge per outcome: `fix-ci` returns to `await-pr`, and a repair
+  # during the rounds has to return to `await-ci`. One node cannot do both.
+  - id: repair-build
+    type: agent
+    prompt_ref: fix-ci
+    station_ref: fix-ci
+    model: claude-sonnet-4-6
+    description: Repair a build the rounds stopped moving, then hand back to the CI wait.
+
   - id: fix-ci
     type: agent
     prompt_ref: fix-ci
@@ -135,11 +145,27 @@ edges:
     to: tdd-round
     on: changes_requested
     iteration_max: 12
-  # A build that stayed red across a round that pushed nothing. Another round
-  # would re-derive the same verdict, so this is a human's.
+  # A build that stayed red (or a branch that stayed conflicted) across a round
+  # which pushed nothing. Another ROUND would re-derive the same verdict — it
+  # re-reads the ticket and can decide the work is finished, which is how run
+  # 8e8af2d3 ended: round five read its own definition of done, saw every facet
+  # ticked, and reported success without pushing. `repair-build` re-reads
+  # nothing: it is handed the failing checks and fixes only those.
   - from: await-ci
+    to: repair-build
+    on: failed
+    iteration_max: 2
+
+  - from: repair-build
+    to: await-ci
+    on: success
+  # It could not make the build green, or it too pushed nothing. A human owns it.
+  - from: repair-build
     to: retrospective
     on: failed
+  - from: repair-build
+    to: retrospective
+    on: changes_requested
 
   - from: ready-for-review
     to: await-pr

@@ -55,7 +55,7 @@ export async function chunkSchemas(q: QueryFn = query): Promise<string[]> {
 /** Only repos whose CODE moved recently, not merely those that HAVE specs — a detect line over a dormant repo spends a pod to find nothing changed. */
 const ACTIVITY_GATE = `
   HAVING bool_or(content_type = 'spec')
-    AND bool_or(content_type = 'code' AND ingested_at > now() - ($1 || ' days')::interval)`;
+    AND bool_or(content_type IN ('code', 'test') AND ingested_at > now() - ($1 || ' days')::interval)`;
 
 /** One SELECT per team schema, unioned. Schema-per-team isolation means there is no single chunks table to read, and the names are regex-checked by the caller before they reach this string. */
 function schemaUnion(

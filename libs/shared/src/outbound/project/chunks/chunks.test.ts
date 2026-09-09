@@ -238,6 +238,30 @@ describe("PgChunks adapter", () => {
     expect(calls[1]?.params).toEqual(["octo/repo"]);
   });
 
+  it("reads test ranges and backfill chunks from code and test rows alike, and symbols from code rows only", async () => {
+    const { pool, calls } = fakePool(...teamSchemaLookup, { rows: [] });
+    const chunks = new PgChunks(pool);
+
+    await chunks.testChunkRanges("octo/repo");
+    await chunks.codeChunksForBackfill("octo/repo");
+    await chunks.codeSymbols("octo/repo");
+
+    const filters = calls
+      .filter((c) => c.text.includes("FROM platform.chunks"))
+      .map(
+        (c) =>
+          c.text
+            .replace(/\s+/g, " ")
+            .match(/content_type [^A]*?(?= AND| ORDER|$)/)?.[0],
+      );
+
+    expect(filters).toEqual([
+      "content_type IN ('code', 'test')",
+      "content_type IN ('code', 'test')",
+      "content_type = 'code'",
+    ]);
+  });
+
   it("checks chunk existence in the repo's team schema", async () => {
     const { pool, calls } = fakePool(...teamSchemaLookup, {
       rows: [{ id: "1" }],
