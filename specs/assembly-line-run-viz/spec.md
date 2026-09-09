@@ -81,7 +81,7 @@ useful granularity.
 
 - FR1.12. A double-wrapped envelope line of the shape `{source, event: {source, event}}` is projected rather than dropped. ([validated by `agent-run-events.test.ts:438`](apps/floor/src/work/agent/agent-run-events.test.ts#L438))
 
-- FR1.13. Rows older than 14 days are pruned. ([validated by `agent-run-events.test.ts:269`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L348), [`agent-run-events.test.ts:360`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L360), [`agent-run-events.test.ts:542`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L542), [`cron.test.ts:41`](apps/floor/src/events/handlers/cron.test.ts#L41), [`cron.test.ts:48`](apps/floor/src/events/handlers/cron.test.ts#L48), [`cron.test.ts:59`](apps/floor/src/events/handlers/cron.test.ts#L59))
+- FR1.13. Rows older than 14 days are pruned. ([validated by `agent-run-events.test.ts:269`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L348), [`agent-run-events.test.ts:360`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L360), [`agent-run-events.test.ts:542`](libs/shared/src/outbound/project/agent-run-events/agent-run-events.test.ts#L542), [`cron.test.ts:54`](apps/floor/src/events/handlers/cron.test.ts#L54), [`cron.test.ts:61`](apps/floor/src/events/handlers/cron.test.ts#L61), [`cron.test.ts:72`](apps/floor/src/events/handlers/cron.test.ts#L72))
 
 ### FR2 — Live transport
 
