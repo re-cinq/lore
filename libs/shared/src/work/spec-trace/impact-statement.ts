@@ -30,6 +30,8 @@ export interface ImpactStatement {
   rewrittenAs?: string;
   /** Whether this PR also touches a test validating the statement — the drift signal: statement moved, its tests didn't. */
   testsTouched?: boolean;
+  /** True when this statement was reached via a reference hop rather than a direct diff overlap. */
+  indirect?: boolean;
 }
 
 interface GraphSpecRef {

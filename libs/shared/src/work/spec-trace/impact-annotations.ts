@@ -24,7 +24,7 @@ function statementAnnotation(
     path: stmt.changedFile,
     start_line: start,
     end_line: end,
-    annotation_level: "warning",
+    annotation_level: stmt.indirect ? "notice" : "warning",
     title: `Lore: coupled to ${stmt.specTitle}`,
     message: `⚠ Coupled to Spec "${stmt.specTitle}"${sectionLabel(stmt.section)} — "${stmt.statementText}".${coverage} Verify this still holds. → ${stmt.statementAnchor}`,
   };
