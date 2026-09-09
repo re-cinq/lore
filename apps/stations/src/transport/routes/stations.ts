@@ -2,6 +2,7 @@
 
 import type { StationRegistry } from "../../domain/station.js";
 import type { Lifecycle, ServerRoute } from "@hapi/hapi";
+import Boom from "@hapi/boom";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
@@ -48,6 +49,9 @@ function runStationHandler(
 
     try {
       return h.response({ job: name, summary: await station() }).code(200);
+    } catch (err) {
+      request.log(["error", "station"], err);
+      throw Boom.internal();
     } finally {
       running.delete(name);
     }
