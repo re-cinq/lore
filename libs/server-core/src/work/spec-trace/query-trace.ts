@@ -157,6 +157,9 @@ export interface QueryTraceArgs {
   repo?: string;
   spec: string;
   statement?: string;
+  callers_of?: string;
+  callees_of?: string;
+  depth?: number;
 }
 
 export interface QueryTraceDeps {
@@ -187,6 +190,23 @@ export async function runQueryTrace(
   if (!repo) {
     return "Could not detect the current repo — run inside a git repo or pass `repo` (owner/repo).";
   }
+
+  if (args.callers_of || args.callees_of) {
+    const symbol = encodeURIComponent(
+      (args.callers_of ?? args.callees_of) as string,
+    );
+    const direction = args.callers_of ? "callers" : "callees";
+    const depth = args.depth ?? 1;
+    const result = await deps.proxyGet(
+      `/api/repos/${repo}/trace/callers?symbol=${symbol}&direction=${direction}&depth=${depth}`,
+    );
+
+    if (!result.ok) {
+      return formatProxyFailure(result);
+    }
+    return result.body;
+  }
+
   const result = await deps.proxyGet(
     `/api/repos/${repo}/trace/document?path=${encodeURIComponent(args.spec)}`,
   );
