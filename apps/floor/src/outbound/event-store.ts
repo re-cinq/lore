@@ -85,3 +85,8 @@ export function pruneHandled(olderThanDays: number): Promise<number> {
 export function orphanedEvents(withinMinutes: number) {
   return deliveries().orphanedEvents(withinMinutes);
 }
+
+/** Deliveries a handler recently gave up on — the other silent case. */
+export function deadLettered(withinMinutes: number) {
+  return deliveries().deadLettered(withinMinutes);
+}

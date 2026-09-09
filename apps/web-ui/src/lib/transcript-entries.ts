@@ -197,3 +197,22 @@ export function mergeTranscript(
 
   return merged;
 }
+
+/** The second an entry falls in, or NaN when its time cannot be read. */
+function secondOf(at: string): number {
+  return Math.floor(Date.parse(at) / 1000);
+}
+
+/** Which entries print a clock: the first, and any that begins a new second. A burst of turns inside one second is one exchange, and repeating the same time down the left of every line reads as noise rather than as timing. An unreadable time never matches its neighbour, so it always prints. */
+export function clockShown(entries: readonly TranscriptEntry[]): boolean[] {
+  let previous = Number.NaN;
+
+  return entries.map((entry) => {
+    const second = secondOf(entry.at);
+    const shown = second !== previous;
+
+    previous = second;
+
+    return shown;
+  });
+}

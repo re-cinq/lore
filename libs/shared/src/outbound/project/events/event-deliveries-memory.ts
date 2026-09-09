@@ -4,6 +4,7 @@ import type {
   EventDeliveryRow,
   EventSubscription,
   OrphanedEvents,
+  DeadLetteredDeliveries,
 } from "./event-deliveries-port.js";
 
 const DEFAULT_VISIBILITY_SECONDS = 600;
@@ -84,6 +85,19 @@ function runnableDeliveries(
     .filter((d) => isRunnable(d, window))
     .sort(byDueThenId)
     .slice(0, window.limit);
+}
+
+const handledAtMs = (d: EventDeliveryRow): number =>
+  Date.parse(d.handled_at ?? "");
+
+/** Deliveries permanently given up on since `since`, OLDEST FIRST so a caller folding them keeps the newest error last — the Pg adapter picks it with `ORDER BY handled_at DESC`, and array order is not that. A dead row always carries handled_at, so a missing one simply falls outside the window. */
+function deadSince(
+  deliveries: readonly EventDeliveryRow[],
+  since: number,
+): EventDeliveryRow[] {
+  return deliveries
+    .filter((d) => d.status === "dead" && handledAtMs(d) >= since)
+    .sort((a, b) => handledAtMs(a) - handledAtMs(b));
 }
 
 /** In-memory EventDeliveriesPort — behavioural spec of the Pg adapter over two arrays; now is injectable for deterministic backoff/visibility windows. Fan-out happens inside insert, same as the SQL clause. */
@@ -274,6 +288,25 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
     this.events.splice(0, this.events.length, ...keptEvents);
 
     return before - this.deliveries.length;
+  }
+
+  async deadLettered(withinMinutes: number): Promise<DeadLetteredDeliveries[]> {
+    const since = this.now() - withinMinutes * 60_000;
+    const grouped = new Map<string, DeadLetteredDeliveries>();
+
+    for (const d of deadSince(this.deliveries, since)) {
+      const key = `${d.event_name} ${d.subscriber}`;
+      const seen = grouped.get(key);
+
+      grouped.set(key, {
+        event_name: d.event_name,
+        subscriber: d.subscriber,
+        count: (seen?.count ?? 0) + 1,
+        last_error: d.error,
+      });
+    }
+
+    return [...grouped.values()];
   }
 
   async orphanedEvents(withinMinutes: number): Promise<OrphanedEvents[]> {

@@ -11,6 +11,8 @@ export interface NodeRunBadgeProps {
   /** Left edge of the node box; the badge lays itself out from there. */
   leftEdge: number;
   centerY: number;
+  /** Baselines of the name and the verdict, as offsets from the box centre (`nodeTextRows`). */
+  baselines: readonly number[];
 }
 
 // Hover title ONLY when drawing cost characters — a tooltip repeating on-screen text is noise and doubles it in the a11y tree.
@@ -42,24 +44,34 @@ function FittedText({
   );
 }
 
-function NodeTitleLabel({ title, leftEdge, centerY }: NodeRunBadgeProps) {
+function NodeTitleLabel({
+  title,
+  leftEdge,
+  centerY,
+  baselines,
+}: NodeRunBadgeProps) {
   return (
     <FittedText
       className={styles.nodeId}
       textX={leftEdge + 40}
-      textY={centerY - 2}
+      textY={centerY + baselines[0]}
       text={title}
     />
   );
 }
 
 // The verdict spelled out under the name, tinted with the same tone as the glyph.
-function NodeVerdictLabel({ badge, leftEdge, centerY }: NodeRunBadgeProps) {
+function NodeVerdictLabel({
+  badge,
+  leftEdge,
+  centerY,
+  baselines,
+}: NodeRunBadgeProps) {
   return (
     <FittedText
       className={classes(styles.statusLabel, textFillClass(badge.tone))}
       textX={leftEdge + 40}
-      textY={centerY + 13}
+      textY={centerY + baselines[1]}
       text={badge.label}
     />
   );
