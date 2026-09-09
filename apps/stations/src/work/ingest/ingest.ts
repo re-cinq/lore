@@ -42,126 +42,26 @@ interface EmbedProxy {
   sleep: (ms: number) => Promise<void>;
 }
 
-/** POSTs one text, retrying only 429 — the embedder is shared across every ingesting repo, so rate limiting is an ordinary queueing signal rather than a fault. Any other status is returned as-is for the caller to enforce on. */
-async function postEmbed(proxy: EmbedProxy, text: string): Promise<Response> {
-  for (let attempt = 0; ; attempt++) {
-    const res = await proxy.fetchImpl(`${proxy.baseUrl}/api/embed`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${proxy.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text }),
-    });
-
-    if (res.status !== 429 || attempt >= EMBED_429_DELAYS_MS.length) {
-      return res;
-    }
-    await proxy.sleep(EMBED_429_DELAYS_MS[attempt]);
-  }
+interface ResolvedIngestTarget {
+  workspaceDir: string;
+  dgraph: DgraphClientPort;
 }
 
-export function apiEmbed(
-  baseUrl: string,
-  token: string | undefined,
-  fetchImpl: typeof fetch = fetch,
-  sleep: (ms: number) => Promise<void> = (ms) =>
-    new Promise((resolve) => setTimeout(resolve, ms)),
-): (text: string) => Promise<number[] | null> {
-  const proxy: EmbedProxy = { baseUrl, token, fetchImpl, sleep };
+export async function runIngestStation(
+  input: StationInput,
+  deps: IngestStationDeps = {},
+): Promise<NodeResult> {
+  const kind = resolveIngestKind(input);
 
-  return async (text: string) => {
-    const res = await postEmbed(proxy, text);
-
-    enforceTrue(
-      res.ok,
-      Error,
-      `ingest station: embed proxy returned ${res.status}`,
-    );
-    const body = (await res.json()) as { embedding: number[] | null };
-
-    return body.embedding;
-  };
-}
-
-// The default embedder: the API proxy when configured, else the projector's own fallback (Vertex ADC — local/dev only).
-function defaultEmbed():
-  ((text: string) => Promise<number[] | null>) | undefined {
-  const baseUrl = process.env.LORE_API_URL;
-
-  if (!baseUrl) {
-    return undefined;
-  }
-
-  return apiEmbed(
-    baseUrl,
-    process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN,
-  );
-}
-
-// The station token where there is one, falling back to the ingest token — a pod carries the narrower credential, a local run usually only the broader one.
-function stationToken(): string | undefined {
-  return process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
-}
-
-/** GET the scheduling event's payload back from the Lore API (FR3). */
-async function fetchPayloadFromApi(
-  repo: string,
-  eventId: string,
-): Promise<unknown> {
-  const baseUrl = process.env.LORE_API_URL;
-
-  enforceTrue(baseUrl, Error, "ingest station: LORE_API_URL not configured");
-  const res = await fetch(
-    `${baseUrl}/api/repos/${repo}/events/${eventId}/payload`,
-    {
-      signal: AbortSignal.timeout(30_000),
-      headers: { Authorization: `Bearer ${stationToken()}` },
-    },
-  );
-
-  enforceTrue(
-    res.ok,
-    Error,
-    `ingest station: payload fetch for event ${eventId} returned ${res.status}`,
-  );
-
-  return res.json();
-}
-
-/** Walks the clone for every file path, repo-relative with forward slashes. */
-async function listClone(root: string, prefix = ""): Promise<string[]> {
-  const entries = await readdir(join(root, prefix), { withFileTypes: true });
-  const paths: string[] = [];
-
-  for (const entry of entries) {
-    if (entry.name === ".git") {
-      continue;
-    }
-    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-
-    if (entry.isDirectory()) {
-      paths.push(...(await listClone(root, rel)));
-      continue;
-    }
-    paths.push(rel);
-  }
-
-  return paths;
-}
-
-function summaryExtras(summary: IngestGraphSummary): Record<string, string> {
-  const extras: Record<string, string> = {
-    "Lore-Ingest-Summary": `projected=${summary.projected} skipped=${summary.skipped} failed=${summary.failed}`,
+  console.log(eventLine(`ingest ${kind} for ${input.repo}`));
+  const target: ResolvedIngestTarget = {
+    workspaceDir: resolveWorkspaceDir(deps),
+    dgraph: resolveIngestDgraph(deps),
   };
 
-  if (summary.failed > 0) {
-    const failed = summary.failedFiles.join(", ");
-
-    extras["Lore-Ingest-Failed-Files"] = failed.slice(0, FAILED_FILES_MAX);
-  }
-
-  return extras;
+  return PAYLOAD_KINDS.has(kind)
+    ? runPayloadIngest(kind, input, target.dgraph, deps)
+    : runDocsIngest(kind as "specs" | "adrs", input, target, deps);
 }
 
 function resolveIngestKind(input: StationInput): string {
@@ -195,35 +95,20 @@ function resolveIngestDgraph(deps: IngestStationDeps): DgraphClientPort {
   return dgraph;
 }
 
-interface ResolvedIngestTarget {
-  workspaceDir: string;
-  dgraph: DgraphClientPort;
-}
-
-/** Where the projection reads from: the clone on disk, and the embedder. Both are handed in rather than reached for, so the same walk runs against a test workspace. */
-function graphSources(
-  target: ResolvedIngestTarget,
+async function runPayloadIngest(
+  kind: string,
+  input: StationInput,
+  dgraph: DgraphClientPort,
   deps: IngestStationDeps,
-): Parameters<typeof runIngestGraph>[1] {
-  const { workspaceDir, dgraph } = target;
+): Promise<NodeResult> {
+  const payload = await readPayload(kind, input, deps);
+  const summaryLine = traceSummary(
+    await ingestSpecTrace(dgraph, input.repo, kind, payload),
+  );
 
-  return {
-    dgraph,
-    listTree: () => listClone(workspaceDir),
-    readFile: async (path: string) =>
-      readFile(join(workspaceDir, path), "utf8"),
-    embed: deps.embed ?? defaultEmbed(),
-  };
-}
+  console.log(eventLine(`ingest ${kind} complete: ${summaryLine}`));
 
-// What to project, from the node's params. `force` arrives as the string "true" — station params are a string map on the wire, so the comparison is against the text rather than a boolean.
-function docsRequest(kind: "specs" | "adrs", input: StationInput) {
-  return {
-    kind,
-    repo: input.repo,
-    glob: input.params.glob as string | undefined,
-    force: input.params.force === "true",
-  };
+  return { outcome: "success", extras: { "Lore-Ingest-Summary": summaryLine } };
 }
 
 async function runDocsIngest(
@@ -247,17 +132,6 @@ async function runDocsIngest(
   return { outcome: summary.failed > 0 ? "failed" : "success", extras };
 }
 
-// What the projection actually wrote, as one line. Counts rather than prose: this ends up in a stage commit's extras, where it is read to answer "did the graph get the tests" without opening the graph.
-function traceSummary(outcome: {
-  validatedBy: number;
-  violated: number;
-  coverageNodes: number;
-  coversEdges: number;
-  testChunks: number;
-}): string {
-  return `validated_by=${outcome.validatedBy} violated=${outcome.violated} coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`;
-}
-
 // The payload this kind of ingest projects. Fetched back from the API by the scheduling event's id rather than carried in the node's params: a test report is far larger than an event row wants to be.
 async function readPayload(
   kind: string,
@@ -277,35 +151,161 @@ async function readPayload(
   return fetchPayload(eventId);
 }
 
-async function runPayloadIngest(
-  kind: string,
-  input: StationInput,
-  dgraph: DgraphClientPort,
-  deps: IngestStationDeps,
-): Promise<NodeResult> {
-  const payload = await readPayload(kind, input, deps);
-  const summaryLine = traceSummary(
-    await ingestSpecTrace(dgraph, input.repo, kind, payload),
-  );
-
-  console.log(eventLine(`ingest ${kind} complete: ${summaryLine}`));
-
-  return { outcome: "success", extras: { "Lore-Ingest-Summary": summaryLine } };
+// What the projection actually wrote, as one line. Counts rather than prose: this ends up in a stage commit's extras, where it is read to answer "did the graph get the tests" without opening the graph.
+function traceSummary(outcome: {
+  validatedBy: number;
+  violated: number;
+  coverageNodes: number;
+  coversEdges: number;
+  testChunks: number;
+}): string {
+  return `validated_by=${outcome.validatedBy} violated=${outcome.violated} coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`;
 }
 
-export async function runIngestStation(
-  input: StationInput,
-  deps: IngestStationDeps = {},
-): Promise<NodeResult> {
-  const kind = resolveIngestKind(input);
+/** GET the scheduling event's payload back from the Lore API (FR3). */
+async function fetchPayloadFromApi(
+  repo: string,
+  eventId: string,
+): Promise<unknown> {
+  const baseUrl = process.env.LORE_API_URL;
 
-  console.log(eventLine(`ingest ${kind} for ${input.repo}`));
-  const target: ResolvedIngestTarget = {
-    workspaceDir: resolveWorkspaceDir(deps),
-    dgraph: resolveIngestDgraph(deps),
+  enforceTrue(baseUrl, Error, "ingest station: LORE_API_URL not configured");
+  const res = await fetch(
+    `${baseUrl}/api/repos/${repo}/events/${eventId}/payload`,
+    {
+      signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${stationToken()}` },
+    },
+  );
+
+  enforceTrue(
+    res.ok,
+    Error,
+    `ingest station: payload fetch for event ${eventId} returned ${res.status}`,
+  );
+
+  return res.json();
+}
+
+// The station token where there is one, falling back to the ingest token — a pod carries the narrower credential, a local run usually only the broader one.
+function stationToken(): string | undefined {
+  return process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
+}
+
+// What to project, from the node's params. `force` arrives as the string "true" — station params are a string map on the wire, so the comparison is against the text rather than a boolean.
+function docsRequest(kind: "specs" | "adrs", input: StationInput) {
+  return {
+    kind,
+    repo: input.repo,
+    glob: input.params.glob as string | undefined,
+    force: input.params.force === "true",
+  };
+}
+
+/** Where the projection reads from: the clone on disk, and the embedder. Both are handed in rather than reached for, so the same walk runs against a test workspace. */
+function graphSources(
+  target: ResolvedIngestTarget,
+  deps: IngestStationDeps,
+): Parameters<typeof runIngestGraph>[1] {
+  const { workspaceDir, dgraph } = target;
+
+  return {
+    dgraph,
+    listTree: () => listClone(workspaceDir),
+    readFile: async (path: string) =>
+      readFile(join(workspaceDir, path), "utf8"),
+    embed: deps.embed ?? defaultEmbed(),
+  };
+}
+
+function summaryExtras(summary: IngestGraphSummary): Record<string, string> {
+  const extras: Record<string, string> = {
+    "Lore-Ingest-Summary": `projected=${summary.projected} skipped=${summary.skipped} failed=${summary.failed}`,
   };
 
-  return PAYLOAD_KINDS.has(kind)
-    ? runPayloadIngest(kind, input, target.dgraph, deps)
-    : runDocsIngest(kind as "specs" | "adrs", input, target, deps);
+  if (summary.failed > 0) {
+    const failed = summary.failedFiles.join(", ");
+
+    extras["Lore-Ingest-Failed-Files"] = failed.slice(0, FAILED_FILES_MAX);
+  }
+
+  return extras;
+}
+
+/** Walks the clone for every file path, repo-relative with forward slashes. */
+async function listClone(root: string, prefix = ""): Promise<string[]> {
+  const entries = await readdir(join(root, prefix), { withFileTypes: true });
+  const paths: string[] = [];
+
+  for (const entry of entries) {
+    if (entry.name === ".git") {
+      continue;
+    }
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+    if (entry.isDirectory()) {
+      paths.push(...(await listClone(root, rel)));
+      continue;
+    }
+    paths.push(rel);
+  }
+
+  return paths;
+}
+
+// The default embedder: the API proxy when configured, else the projector's own fallback (Vertex ADC — local/dev only).
+function defaultEmbed():
+  ((text: string) => Promise<number[] | null>) | undefined {
+  const baseUrl = process.env.LORE_API_URL;
+
+  if (!baseUrl) {
+    return undefined;
+  }
+
+  return apiEmbed(
+    baseUrl,
+    process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN,
+  );
+}
+
+export function apiEmbed(
+  baseUrl: string,
+  token: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+  sleep: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolve) => setTimeout(resolve, ms)),
+): (text: string) => Promise<number[] | null> {
+  const proxy: EmbedProxy = { baseUrl, token, fetchImpl, sleep };
+
+  return async (text: string) => {
+    const res = await postEmbed(proxy, text);
+
+    enforceTrue(
+      res.ok,
+      Error,
+      `ingest station: embed proxy returned ${res.status}`,
+    );
+    const body = (await res.json()) as { embedding: number[] | null };
+
+    return body.embedding;
+  };
+}
+
+/** POSTs one text, retrying only 429 — the embedder is shared across every ingesting repo, so rate limiting is an ordinary queueing signal rather than a fault. Any other status is returned as-is for the caller to enforce on. */
+async function postEmbed(proxy: EmbedProxy, text: string): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await proxy.fetchImpl(`${proxy.baseUrl}/api/embed`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${proxy.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    if (res.status !== 429 || attempt >= EMBED_429_DELAYS_MS.length) {
+      return res;
+    }
+    await proxy.sleep(EMBED_429_DELAYS_MS[attempt]);
+  }
 }

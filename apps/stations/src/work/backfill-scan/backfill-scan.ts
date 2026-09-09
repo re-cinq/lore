@@ -18,20 +18,22 @@ interface RepoScanOutcome {
   failed: boolean;
 }
 
-// Starts a run per spec, in order, returning how many got away. Sequential rather than batched: each start consults the overlap guard, and firing them together would let two runs of the same spec both find nothing open.
-async function startEach(
-  deps: BackfillScanDeps,
-  repo: string,
-  specPaths: string[],
-): Promise<number> {
+export async function scanForBackfill(deps: BackfillScanDeps): Promise<string> {
   let started = 0;
+  let heldBack = 0;
+  let failed = 0;
 
-  for (const specPath of specPaths) {
-    await deps.startBackfill(repo, specPath);
-    started++;
+  for (const repo of await deps.repos()) {
+    const outcome = await scanRepoForBackfill(deps, repo);
+
+    started += outcome.started;
+    heldBack += outcome.heldBack;
+    failed += outcome.failed ? 1 : 0;
   }
 
-  return started;
+  const parts = summaryParts(started, heldBack, failed);
+
+  return parts.join("; ");
 }
 
 // Scans one repo, catching its own failure so one unreadable repo cannot cost every other repo its run; counts already accrued survive a mid-repo failure.
@@ -60,6 +62,22 @@ async function scanRepoForBackfill(
   }
 }
 
+// Starts a run per spec, in order, returning how many got away. Sequential rather than batched: each start consults the overlap guard, and firing them together would let two runs of the same spec both find nothing open.
+async function startEach(
+  deps: BackfillScanDeps,
+  repo: string,
+  specPaths: string[],
+): Promise<number> {
+  let started = 0;
+
+  for (const specPath of specPaths) {
+    await deps.startBackfill(repo, specPath);
+    started++;
+  }
+
+  return started;
+}
+
 // The sweep's summary, mentioning the cap and the failures only when there were any. A clean sweep should read as one line, not as a report with two zeroes in it.
 function summaryParts(
   started: number,
@@ -79,22 +97,4 @@ function summaryParts(
   }
 
   return parts;
-}
-
-export async function scanForBackfill(deps: BackfillScanDeps): Promise<string> {
-  let started = 0;
-  let heldBack = 0;
-  let failed = 0;
-
-  for (const repo of await deps.repos()) {
-    const outcome = await scanRepoForBackfill(deps, repo);
-
-    started += outcome.started;
-    heldBack += outcome.heldBack;
-    failed += outcome.failed ? 1 : 0;
-  }
-
-  const parts = summaryParts(started, heldBack, failed);
-
-  return parts.join("; ");
 }

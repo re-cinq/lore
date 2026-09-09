@@ -7,60 +7,17 @@ export const MAX_MEMORIES_PER_AGENT = 500;
 const MAX_FACTS_PER_AGENT = 2000;
 const DECAY_MIN_AGE_DAYS = 30;
 
-// The `excess` least important memories. TWICE the excess is fetched so scoring has room to choose rather than just taking the oldest — the point of the score is that age alone is a poor proxy for what an agent still needs.
-async function lowestScoring(
+export async function importanceDecay(
   memory: MemoryLifecyclePort,
-  agentId: string,
-  excess: number,
-  now: number,
-) {
-  const candidates = await memory.findDecayCandidates(
-    agentId,
-    excess * 2,
-    DECAY_MIN_AGE_DAYS,
-  );
+): Promise<string> {
+  // One clock for the whole batch: read per iteration, two agents scored milliseconds apart could rank the same memory differently in one run.
+  const now = Date.now();
 
-  return candidates
-    .map((m) => ({ ...m, importance: scoreImportance(m, now) }))
-    .sort((a, b) => a.importance - b.importance)
-    .slice(0, excess);
-}
+  const totalEvicted = await evictExcessMemories(memory, now);
+  const factsEvicted = await evictExcessFacts(memory);
+  const staleTransitioned = await transitionStaleFactsSafely(memory);
 
-async function evictExcessMemoriesForAgent(
-  memory: MemoryLifecyclePort,
-  agentId: string,
-  excess: number,
-  now: number,
-): Promise<number> {
-  const toEvict = await lowestScoring(memory, agentId, excess, now);
-
-  if (toEvict.length === 0) {
-    return 0;
-  }
-  const ids = toEvict.map((m) => m.id);
-
-  await memory.softDeleteMemories(ids);
-  await memory.writeAuditLog({
-    agentId,
-    operation: "importance-decay",
-    metadata: { evicted: ids.length, lowest_score: toEvict[0]?.importance },
-  });
-
-  return toEvict.length;
-}
-
-// Evicts one agent back down to the cap, or nothing if it is already under. The count comes from a query that selects agents OVER the cap, so a zero here means the agent dropped below it since — worth handling rather than asserting.
-async function evictOverCap(
-  memory: MemoryLifecyclePort,
-  agentId: string,
-  count: number,
-  now: number,
-): Promise<number> {
-  const excess = count - MAX_MEMORIES_PER_AGENT;
-
-  return excess > 0
-    ? evictExcessMemoriesForAgent(memory, agentId, excess, now)
-    : 0;
+  return `Evicted ${totalEvicted} memories, ${factsEvicted} old facts, ${staleTransitioned} stale transitions`;
 }
 
 async function evictExcessMemories(
@@ -112,15 +69,58 @@ async function transitionStaleFactsSafely(
   }
 }
 
-export async function importanceDecay(
+// Evicts one agent back down to the cap, or nothing if it is already under. The count comes from a query that selects agents OVER the cap, so a zero here means the agent dropped below it since — worth handling rather than asserting.
+async function evictOverCap(
   memory: MemoryLifecyclePort,
-): Promise<string> {
-  // One clock for the whole batch: read per iteration, two agents scored milliseconds apart could rank the same memory differently in one run.
-  const now = Date.now();
+  agentId: string,
+  count: number,
+  now: number,
+): Promise<number> {
+  const excess = count - MAX_MEMORIES_PER_AGENT;
 
-  const totalEvicted = await evictExcessMemories(memory, now);
-  const factsEvicted = await evictExcessFacts(memory);
-  const staleTransitioned = await transitionStaleFactsSafely(memory);
+  return excess > 0
+    ? evictExcessMemoriesForAgent(memory, agentId, excess, now)
+    : 0;
+}
 
-  return `Evicted ${totalEvicted} memories, ${factsEvicted} old facts, ${staleTransitioned} stale transitions`;
+async function evictExcessMemoriesForAgent(
+  memory: MemoryLifecyclePort,
+  agentId: string,
+  excess: number,
+  now: number,
+): Promise<number> {
+  const toEvict = await lowestScoring(memory, agentId, excess, now);
+
+  if (toEvict.length === 0) {
+    return 0;
+  }
+  const ids = toEvict.map((m) => m.id);
+
+  await memory.softDeleteMemories(ids);
+  await memory.writeAuditLog({
+    agentId,
+    operation: "importance-decay",
+    metadata: { evicted: ids.length, lowest_score: toEvict[0]?.importance },
+  });
+
+  return toEvict.length;
+}
+
+// The `excess` least important memories. TWICE the excess is fetched so scoring has room to choose rather than just taking the oldest — the point of the score is that age alone is a poor proxy for what an agent still needs.
+async function lowestScoring(
+  memory: MemoryLifecyclePort,
+  agentId: string,
+  excess: number,
+  now: number,
+) {
+  const candidates = await memory.findDecayCandidates(
+    agentId,
+    excess * 2,
+    DECAY_MIN_AGE_DAYS,
+  );
+
+  return candidates
+    .map((m) => ({ ...m, importance: scoreImportance(m, now) }))
+    .sort((a, b) => a.importance - b.importance)
+    .slice(0, excess);
 }

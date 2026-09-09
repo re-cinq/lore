@@ -24,6 +24,34 @@ export function billingWindowStart(now: Date): string {
   return new Date(today - (SYNC_WINDOW_DAYS - 1) * DAY_MS).toISOString();
 }
 
+// The daily pull: finds the export table, rolls it up per day/service over the trailing window, upserts. Skips (never fails) on states only a person can change (env not configured, or console-side export not yet producing a table) — /spend degrades to the estimate either way.
+export async function gcpCostSyncJob(
+  costs: GcpCostPort,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string> {
+  const project = env.LORE_GCP_BILLING_PROJECT;
+  const dataset = env.LORE_GCP_BILLING_DATASET;
+
+  if (!project || !dataset) {
+    return "LORE_GCP_BILLING_PROJECT / LORE_GCP_BILLING_DATASET not set; skipping GCP billing sync";
+  }
+
+  const token = await fetchAccessToken();
+  const tableId = await findBillingTable(project, dataset, token);
+
+  if (!tableId) {
+    return `no billing export table in ${project}.${dataset} yet; enable the Cloud Billing export in the console`;
+  }
+
+  const rows = await queryBillingRows({ project, dataset, tableId }, token);
+
+  await Promise.all(rows.map((row) => costs.upsertGcpDaily(row)));
+
+  const netUsd = rows.reduce((sum, r) => sum + r.costUsd + r.creditsUsd, 0);
+
+  return `Synced ${rows.length} day/service rows from ${tableId} over ${SYNC_WINDOW_DAYS}d ($${netUsd.toFixed(2)} net billed)`;
+}
+
 // Workload Identity's token, straight from the GKE metadata server — the pod carries no key file, and the metadata server is what the bound GCP service account answers through; nothing to configure or rotate.
 async function fetchAccessToken(): Promise<string> {
   const res = await fetch(METADATA_TOKEN_URL, {
@@ -46,38 +74,6 @@ async function fetchAccessToken(): Promise<string> {
   );
 
   return body.access_token;
-}
-
-// The headers BigQuery expects. The caller's own are spread LAST so a call can override the content type, while the bearer stays whatever this function decided.
-function bigQueryHeaders(
-  token: string,
-  extra: HeadersInit | undefined,
-): HeadersInit {
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    ...extra,
-  };
-}
-
-async function bigQueryCall<T>(
-  path: string,
-  token: string,
-  init: RequestInit = {},
-): Promise<T> {
-  const res = await fetch(`${BIGQUERY_BASE}${path}`, {
-    signal: AbortSignal.timeout(60_000),
-    ...init,
-    headers: bigQueryHeaders(token, init.headers),
-  });
-
-  if (!res.ok) {
-    throw new Error(
-      `BigQuery ${path} returned ${res.status}: ${await res.text()}`,
-    );
-  }
-
-  return (await res.json()) as T;
 }
 
 /** The export table BigQuery is currently writing into. Naming is console-side and versioned, so the newest match wins rather than a fixed name; no match means the export was never enabled, which is a person's job, not a failure. */
@@ -119,30 +115,34 @@ async function queryBillingRows(
   return parseBillingQueryResponse(response);
 }
 
-// The daily pull: finds the export table, rolls it up per day/service over the trailing window, upserts. Skips (never fails) on states only a person can change (env not configured, or console-side export not yet producing a table) — /spend degrades to the estimate either way.
-export async function gcpCostSyncJob(
-  costs: GcpCostPort,
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<string> {
-  const project = env.LORE_GCP_BILLING_PROJECT;
-  const dataset = env.LORE_GCP_BILLING_DATASET;
+async function bigQueryCall<T>(
+  path: string,
+  token: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const res = await fetch(`${BIGQUERY_BASE}${path}`, {
+    signal: AbortSignal.timeout(60_000),
+    ...init,
+    headers: bigQueryHeaders(token, init.headers),
+  });
 
-  if (!project || !dataset) {
-    return "LORE_GCP_BILLING_PROJECT / LORE_GCP_BILLING_DATASET not set; skipping GCP billing sync";
+  if (!res.ok) {
+    throw new Error(
+      `BigQuery ${path} returned ${res.status}: ${await res.text()}`,
+    );
   }
 
-  const token = await fetchAccessToken();
-  const tableId = await findBillingTable(project, dataset, token);
+  return (await res.json()) as T;
+}
 
-  if (!tableId) {
-    return `no billing export table in ${project}.${dataset} yet; enable the Cloud Billing export in the console`;
-  }
-
-  const rows = await queryBillingRows({ project, dataset, tableId }, token);
-
-  await Promise.all(rows.map((row) => costs.upsertGcpDaily(row)));
-
-  const netUsd = rows.reduce((sum, r) => sum + r.costUsd + r.creditsUsd, 0);
-
-  return `Synced ${rows.length} day/service rows from ${tableId} over ${SYNC_WINDOW_DAYS}d ($${netUsd.toFixed(2)} net billed)`;
+// The headers BigQuery expects. The caller's own are spread LAST so a call can override the content type, while the bearer stays whatever this function decided.
+function bigQueryHeaders(
+  token: string,
+  extra: HeadersInit | undefined,
+): HeadersInit {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    ...extra,
+  };
 }

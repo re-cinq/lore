@@ -67,17 +67,21 @@ export interface UsageRow {
 // The merged bucket IS the stored row's upsert shape (one declaration in `libs/shared/src/domain/models/anthropic-cost-daily.ts`) — it used to be restated here with the key spelled `date` vs the writer's `bucketDate`, a hand-written rename seam.
 export type AnthropicCostDailyRow = SharedCostDailyRow;
 
-/** An empty day/model row. Both halves start from one of these because cost and usage are separate reports: a model can appear in either alone, and the missing half must read as zero rather than absent. */
-function blankRow(bucketDate: string, model: string): AnthropicCostDailyRow {
-  return {
-    bucketDate,
-    model,
-    costUsd: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    cacheReadTokens: 0,
-    cacheCreationTokens: 0,
-  };
+export function mergeCostAndUsage(
+  costRows: CostRow[],
+  usageRows: UsageRow[],
+): AnthropicCostDailyRow[] {
+  const byKey = new Map<string, AnthropicCostDailyRow>();
+
+  for (const cost of costRows) {
+    rowFor(byKey, cost.date, cost.model).costUsd += cost.costUsd;
+  }
+
+  for (const usage of usageRows) {
+    addUsage(rowFor(byKey, usage.date, usage.model), usage);
+  }
+
+  return [...byKey.values()];
 }
 
 // The row for one day and model, created blank on first sight. Cost and usage arrive from two separate endpoints and neither is a superset of the other, so both sides have to be able to introduce a row.
@@ -102,27 +106,24 @@ function addUsage(row: AnthropicCostDailyRow, usage: UsageRow): void {
   row.cacheCreationTokens += usage.cacheCreationTokens;
 }
 
-export function mergeCostAndUsage(
-  costRows: CostRow[],
-  usageRows: UsageRow[],
-): AnthropicCostDailyRow[] {
-  const byKey = new Map<string, AnthropicCostDailyRow>();
-
-  for (const cost of costRows) {
-    rowFor(byKey, cost.date, cost.model).costUsd += cost.costUsd;
-  }
-
-  for (const usage of usageRows) {
-    addUsage(rowFor(byKey, usage.date, usage.model), usage);
-  }
-
-  return [...byKey.values()];
+/** An empty day/model row. Both halves start from one of these because cost and usage are separate reports: a model can appear in either alone, and the missing half must read as zero rather than absent. */
+function blankRow(bucketDate: string, model: string): AnthropicCostDailyRow {
+  return {
+    bucketDate,
+    model,
+    costUsd: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+  };
 }
 
-function cacheCreationTokens(result: z.infer<typeof UsageResult>): number {
-  return (
-    (result.cache_creation?.ephemeral_1h_input_tokens ?? 0) +
-    (result.cache_creation?.ephemeral_5m_input_tokens ?? 0)
+export function parseUsageReport(raw: unknown): UsageRow[] {
+  const report = UsageReport.parse(raw);
+
+  return report.data.flatMap((bucket) =>
+    bucket.results.map((result) => toUsageRow(bucket, result)),
   );
 }
 
@@ -140,10 +141,9 @@ function toUsageRow(
   };
 }
 
-export function parseUsageReport(raw: unknown): UsageRow[] {
-  const report = UsageReport.parse(raw);
-
-  return report.data.flatMap((bucket) =>
-    bucket.results.map((result) => toUsageRow(bucket, result)),
+function cacheCreationTokens(result: z.infer<typeof UsageResult>): number {
+  return (
+    (result.cache_creation?.ephemeral_1h_input_tokens ?? 0) +
+    (result.cache_creation?.ephemeral_5m_input_tokens ?? 0)
   );
 }

@@ -29,22 +29,6 @@ export const MAX_MERGE_LINE_ATTEMPTS = 3;
 /** One line per task, whoever notices the merge first. */
 export const mergeSubject = (taskId: string): string => `merge:${taskId}`;
 
-// Whether this task's merge is already someone's business. Two guards, both keyed on the subject: a line still open would duplicate the work, and a task that has already burned its attempts is not helped by another.
-async function alreadyHandled(
-  task: MergeLineTask,
-  subjectKey: string,
-  deps: StartMergeLineDeps,
-): Promise<boolean> {
-  if (await deps.findOpenBySubject(task.target_repo, subjectKey)) {
-    return true;
-  }
-
-  return (
-    (await deps.countBySubject(task.target_repo, subjectKey)) >=
-    MAX_MERGE_LINE_ATTEMPTS
-  );
-}
-
 export async function startMergeLine(
   task: MergeLineTask,
   deps: StartMergeLineDeps,
@@ -64,4 +48,20 @@ export async function startMergeLine(
     subjectKey,
     args: { pr_number: task.pr_number },
   });
+}
+
+// Whether this task's merge is already someone's business. Two guards, both keyed on the subject: a line still open would duplicate the work, and a task that has already burned its attempts is not helped by another.
+async function alreadyHandled(
+  task: MergeLineTask,
+  subjectKey: string,
+  deps: StartMergeLineDeps,
+): Promise<boolean> {
+  if (await deps.findOpenBySubject(task.target_repo, subjectKey)) {
+    return true;
+  }
+
+  return (
+    (await deps.countBySubject(task.target_repo, subjectKey)) >=
+    MAX_MERGE_LINE_ATTEMPTS
+  );
 }

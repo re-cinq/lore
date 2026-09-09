@@ -137,45 +137,32 @@ const resumePlanningRun: MergeStepDeps["resumePlanning"] = async (
   );
 };
 
-/** The GitHub side of a merge: the spec's status row and the Issue that tracked the work. Both read `row` for fields the step contract deliberately does not carry. */
-function repoPorts(
-  row: () => PipelineTask | null,
-): Pick<MergeStepDeps, "flipSpecStatus" | "commentAndCloseIssue"> {
-  return {
-    flipSpecStatus: async (task) => {
-      await maybeFlipSpecStatus(
-        await projectFor(task.target_repo),
-        toFlipSpecStatusTask(row(), new Date().toISOString()),
-      );
-    },
-    commentAndCloseIssue: async (task) => {
-      const issues = (await projectFor(task.target_repo)).issues;
+export async function runMergeStepNode(
+  input: StationInput,
+): Promise<NodeResult> {
+  const step =
+    (input.params as Record<string, string | undefined>).job_ref ?? "";
+  const taskId = input.task_id;
 
-      await issues.comment(
-        task.issue_number as number,
-        `PR #${task.pr_number} merged.`,
-      );
-      await issues.close(task.issue_number as number, "completed");
-    },
-  };
+  if (!taskId) {
+    return stepFailed(step, "has no task to act on");
+  }
+
+  try {
+    await runMergeStep(step, taskId, productionDeps());
+
+    return { outcome: "success", extras: { "Lore-Merge-Step": step } };
+  } catch (err) {
+    return stepFailed(step, (err as Error).message);
+  }
 }
 
-// The task-row reads and writes. Fetching CACHES the whole row through `remember`, so the repo-side ports below can read fields the step contract does not carry rather than widening it.
-function taskPorts(
-  remember: (row: PipelineTask | null) => void,
-): Pick<MergeStepDeps, "task" | "setStatus" | "recordEvent"> {
+// A failed node, named by the step that failed. Reported rather than thrown: the LINE is the error handling here, and its failed edge routes the run forward to whatever the definition says comes next.
+function stepFailed(step: string, detail: string): NodeResult {
   return {
-    task: async (id) => {
-      const row = await taskStore().getById(id);
-
-      remember(row);
-
-      return hasMergeStepFields(row) ? toMergeStepTask(row) : null;
-    },
-    setStatus: (id, status) => taskStore().setStatus(id, status),
-    recordEvent: async (id, from, to) => {
-      await taskStore().recordEvent(id, from, to, { merged_by: "merge-line" });
-    },
+    outcome: "failed",
+    failureClass: "unknown",
+    failureDetail: `merge step "${step}": ${detail}`,
   };
 }
 
@@ -201,31 +188,44 @@ function productionDeps(): MergeStepDeps {
   };
 }
 
-// A failed node, named by the step that failed. Reported rather than thrown: the LINE is the error handling here, and its failed edge routes the run forward to whatever the definition says comes next.
-function stepFailed(step: string, detail: string): NodeResult {
+// The task-row reads and writes. Fetching CACHES the whole row through `remember`, so the repo-side ports below can read fields the step contract does not carry rather than widening it.
+function taskPorts(
+  remember: (row: PipelineTask | null) => void,
+): Pick<MergeStepDeps, "task" | "setStatus" | "recordEvent"> {
   return {
-    outcome: "failed",
-    failureClass: "unknown",
-    failureDetail: `merge step "${step}": ${detail}`,
+    task: async (id) => {
+      const row = await taskStore().getById(id);
+
+      remember(row);
+
+      return hasMergeStepFields(row) ? toMergeStepTask(row) : null;
+    },
+    setStatus: (id, status) => taskStore().setStatus(id, status),
+    recordEvent: async (id, from, to) => {
+      await taskStore().recordEvent(id, from, to, { merged_by: "merge-line" });
+    },
   };
 }
 
-export async function runMergeStepNode(
-  input: StationInput,
-): Promise<NodeResult> {
-  const step =
-    (input.params as Record<string, string | undefined>).job_ref ?? "";
-  const taskId = input.task_id;
+/** The GitHub side of a merge: the spec's status row and the Issue that tracked the work. Both read `row` for fields the step contract deliberately does not carry. */
+function repoPorts(
+  row: () => PipelineTask | null,
+): Pick<MergeStepDeps, "flipSpecStatus" | "commentAndCloseIssue"> {
+  return {
+    flipSpecStatus: async (task) => {
+      await maybeFlipSpecStatus(
+        await projectFor(task.target_repo),
+        toFlipSpecStatusTask(row(), new Date().toISOString()),
+      );
+    },
+    commentAndCloseIssue: async (task) => {
+      const issues = (await projectFor(task.target_repo)).issues;
 
-  if (!taskId) {
-    return stepFailed(step, "has no task to act on");
-  }
-
-  try {
-    await runMergeStep(step, taskId, productionDeps());
-
-    return { outcome: "success", extras: { "Lore-Merge-Step": step } };
-  } catch (err) {
-    return stepFailed(step, (err as Error).message);
-  }
+      await issues.comment(
+        task.issue_number as number,
+        `PR #${task.pr_number} merged.`,
+      );
+      await issues.close(task.issue_number as number, "completed");
+    },
+  };
 }

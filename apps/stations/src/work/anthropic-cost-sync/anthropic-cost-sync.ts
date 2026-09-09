@@ -27,86 +27,6 @@ export function reportWindow(now: Date): { starting_at: string } {
   };
 }
 
-function bucketPageUrl(
-  endpoint: string,
-  baseParams: Record<string, string>,
-  groupBy: string,
-  page: string | null,
-): URL {
-  const url = new URL(`${ADMIN_BASE}/${endpoint}`);
-
-  for (const [key, value] of Object.entries(baseParams)) {
-    url.searchParams.set(key, value);
-  }
-  url.searchParams.append("group_by[]", groupBy);
-
-  if (page) {
-    url.searchParams.set("page", page);
-  }
-
-  return url;
-}
-
-interface BucketPage {
-  buckets: unknown[];
-  next: string | null;
-}
-
-// The page, as this job reads it. `next` is null unless the response BOTH says there is more and names where — a `has_more` with no cursor would otherwise loop on the same page.
-function toBucketPage(json: unknown): BucketPage {
-  const body = json as {
-    data?: unknown[];
-    has_more?: boolean;
-    next_page?: string | null;
-  };
-
-  return {
-    buckets: Array.isArray(body.data) ? body.data : [],
-    next: body.has_more ? (body.next_page ?? null) : null,
-  };
-}
-
-/** One page of usage buckets. A non-ok response throws rather than ending the walk: a partial cost sync silently under-reports spend, which is worse than a failed job somebody retries. */
-async function fetchBucketPage(
-  url: URL,
-  adminKey: string,
-): Promise<BucketPage> {
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(30_000),
-    headers: { "x-api-key": adminKey, "anthropic-version": ANTHROPIC_VERSION },
-  });
-
-  if (!res.ok) {
-    throw new Error(
-      `Anthropic ${url.pathname} returned ${res.status}: ${await res.text()}`,
-    );
-  }
-
-  return toBucketPage(await res.json());
-}
-
-async function fetchAllBuckets(
-  endpoint: string,
-  baseParams: Record<string, string>,
-  groupBy: string,
-  adminKey: string,
-): Promise<unknown[]> {
-  const buckets: unknown[] = [];
-  let page: string | null = null;
-
-  do {
-    const result = await fetchBucketPage(
-      bucketPageUrl(endpoint, baseParams, groupBy, page),
-      adminKey,
-    );
-
-    buckets.push(...result.buckets);
-    page = result.next;
-  } while (page);
-
-  return buckets;
-}
-
 // The 31-day cost+usage pull behind the daily sync, extracted so window/bucket/merge mechanics are testable without a database.
 export async function fetchAnthropicCostRows(
   adminKey: string,
@@ -143,4 +63,84 @@ export async function anthropicCostSyncJob(
   const total = merged.reduce((sum, row) => sum + row.costUsd, 0);
 
   return `Synced ${merged.length} day/model rows over ${SYNC_WINDOW_DAYS}d ($${total.toFixed(2)} billed)`;
+}
+
+async function fetchAllBuckets(
+  endpoint: string,
+  baseParams: Record<string, string>,
+  groupBy: string,
+  adminKey: string,
+): Promise<unknown[]> {
+  const buckets: unknown[] = [];
+  let page: string | null = null;
+
+  do {
+    const result = await fetchBucketPage(
+      bucketPageUrl(endpoint, baseParams, groupBy, page),
+      adminKey,
+    );
+
+    buckets.push(...result.buckets);
+    page = result.next;
+  } while (page);
+
+  return buckets;
+}
+
+function bucketPageUrl(
+  endpoint: string,
+  baseParams: Record<string, string>,
+  groupBy: string,
+  page: string | null,
+): URL {
+  const url = new URL(`${ADMIN_BASE}/${endpoint}`);
+
+  for (const [key, value] of Object.entries(baseParams)) {
+    url.searchParams.set(key, value);
+  }
+  url.searchParams.append("group_by[]", groupBy);
+
+  if (page) {
+    url.searchParams.set("page", page);
+  }
+
+  return url;
+}
+
+/** One page of usage buckets. A non-ok response throws rather than ending the walk: a partial cost sync silently under-reports spend, which is worse than a failed job somebody retries. */
+async function fetchBucketPage(
+  url: URL,
+  adminKey: string,
+): Promise<BucketPage> {
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { "x-api-key": adminKey, "anthropic-version": ANTHROPIC_VERSION },
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      `Anthropic ${url.pathname} returned ${res.status}: ${await res.text()}`,
+    );
+  }
+
+  return toBucketPage(await res.json());
+}
+
+interface BucketPage {
+  buckets: unknown[];
+  next: string | null;
+}
+
+// The page, as this job reads it. `next` is null unless the response BOTH says there is more and names where — a `has_more` with no cursor would otherwise loop on the same page.
+function toBucketPage(json: unknown): BucketPage {
+  const body = json as {
+    data?: unknown[];
+    has_more?: boolean;
+    next_page?: string | null;
+  };
+
+  return {
+    buckets: Array.isArray(body.data) ? body.data : [],
+    next: body.has_more ? (body.next_page ?? null) : null,
+  };
 }

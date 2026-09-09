@@ -11,16 +11,6 @@ export const STATIONS_SUBSCRIBER = "stations";
 /** Fallback budget for a node whose station declares none. */
 const DEFAULT_NODE_MINUTES = 10;
 
-/** The longest a service-form node may take, so its delivery is not reaped mid-run. */
-function slowestServiceNodeSeconds(): number {
-  const minutes = Object.values(STATIONS)
-    .flatMap((mod) => nodeTriggers(mod.manifest))
-    .filter((t) => t.runtime === "service")
-    .map((t) => t.timeoutMinutes);
-
-  return Math.max(DEFAULT_NODE_MINUTES, ...minutes) * 60;
-}
-
 export function stationSubscriptions(): EventSubscription[] {
   const byName = new Map<string, EventSubscription>([
     [
@@ -41,4 +31,14 @@ export function stationSubscriptions(): EventSubscription[] {
   }
 
   return [...byName.values()];
+}
+
+/** The longest a service-form node may take, so its delivery is not reaped mid-run. */
+function slowestServiceNodeSeconds(): number {
+  const minutes = Object.values(STATIONS)
+    .flatMap((mod) => nodeTriggers(mod.manifest))
+    .filter((t) => t.runtime === "service")
+    .map((t) => t.timeoutMinutes);
+
+  return Math.max(DEFAULT_NODE_MINUTES, ...minutes) * 60;
 }

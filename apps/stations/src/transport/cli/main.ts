@@ -20,38 +20,22 @@ import {
 const runnerFor = (type: string): NodeStationRun | undefined =>
   nodeStationFor(type)?.run;
 
-// Sums every model call the runner makes for the terminal line, unless a UsagePort is already logging per-call cost (Llm.usageConfigured) — reporting both would double-count spend.
-function acquireTracker(): UsageTrackingLlm | null {
-  if (Llm.usageConfigured) {
-    console.warn(
-      "[station] UsagePort configured — per-call cost logging is active; terminal-line usage is suppressed to avoid double-counting",
-    );
+export async function runStation(
+  type: string,
+  inputJson: string,
+  env: StationEnv,
+  resolve: (type: string) => NodeStationRun | undefined = runnerFor,
+): Promise<{ line: string; exitCode: number }> {
+  const runner = resolve(type);
 
-    return null;
+  if (!runner) {
+    return {
+      line: resultLine(null, `unknown station type "${type}"`),
+      exitCode: 1,
+    };
   }
 
-  const tracker = new UsageTrackingLlm(Llm.instance);
-
-  Llm.setInstance(tracker);
-
-  return tracker;
-}
-
-function releaseTracker(tracker: UsageTrackingLlm | null): void {
-  if (tracker) {
-    Llm.setInstance(tracker.inner);
-  }
-}
-
-function successLine(
-  tracker: UsageTrackingLlm | null,
-  result: NodeResult,
-): string {
-  if (!tracker) {
-    return resultLine({ ...result, usage: undefined });
-  }
-
-  return resultLine(result, undefined, result.usage ?? tracker.totalUsage());
+  return runTracked(runner, inputJson, env);
 }
 
 // Runs the station with usage tracking around it. Both outcomes print ONE result line and the tracker is released either way — the pod's exit code says whether the node succeeded, and a line that never printed would leave the walk with nothing to read.
@@ -76,22 +60,38 @@ async function runTracked(
   }
 }
 
-export async function runStation(
-  type: string,
-  inputJson: string,
-  env: StationEnv,
-  resolve: (type: string) => NodeStationRun | undefined = runnerFor,
-): Promise<{ line: string; exitCode: number }> {
-  const runner = resolve(type);
+// Sums every model call the runner makes for the terminal line, unless a UsagePort is already logging per-call cost (Llm.usageConfigured) — reporting both would double-count spend.
+function acquireTracker(): UsageTrackingLlm | null {
+  if (Llm.usageConfigured) {
+    console.warn(
+      "[station] UsagePort configured — per-call cost logging is active; terminal-line usage is suppressed to avoid double-counting",
+    );
 
-  if (!runner) {
-    return {
-      line: resultLine(null, `unknown station type "${type}"`),
-      exitCode: 1,
-    };
+    return null;
   }
 
-  return runTracked(runner, inputJson, env);
+  const tracker = new UsageTrackingLlm(Llm.instance);
+
+  Llm.setInstance(tracker);
+
+  return tracker;
+}
+
+function successLine(
+  tracker: UsageTrackingLlm | null,
+  result: NodeResult,
+): string {
+  if (!tracker) {
+    return resultLine({ ...result, usage: undefined });
+  }
+
+  return resultLine(result, undefined, result.usage ?? tracker.totalUsage());
+}
+
+function releaseTracker(tracker: UsageTrackingLlm | null): void {
+  if (tracker) {
+    Llm.setInstance(tracker.inner);
+  }
 }
 
 async function main() {
