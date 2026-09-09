@@ -11,14 +11,38 @@ type OptionalNodeFields = Partial<
   Omit<RunGraphNode, "id" | "type" | "station" | "station_inherited">
 >;
 
-function copiedRequiredTags(node: AssemblyLineNode): string[] | undefined {
-  return node.required_tags ? [...node.required_tags] : undefined;
+// The blueprint as a run will record it. `lineTaskType` (what an inherited Station names after) is passed explicitly since the resolution rule is the caller's context, not a graph property.
+export function snapshotGraph(
+  definition: AssemblyLine,
+  lineTaskType: string,
+): RunGraph {
+  return {
+    name: definition.name,
+    entry: definition.entry,
+    exit: definition.exit,
+    nodes: definition.nodes.map((node) => snapshotNode(node, lineTaskType)),
+    edges: definition.edges.map((edge) => ({
+      from: edge.from,
+      to: edge.to,
+      on: edge.on,
+      ...(edge.iteration_max ? { iteration_max: edge.iteration_max } : {}),
+    })),
+  };
 }
 
-function copiedContinues(
+function snapshotNode(
   node: AssemblyLineNode,
-): { node: string; key: string } | undefined {
-  return node.continues ? { ...node.continues } : undefined;
+  lineTaskType: string,
+): RunGraphNode {
+  const { station, inherited } = resolveNodeStation(node, lineTaskType);
+
+  return {
+    id: node.id,
+    type: node.type,
+    station,
+    station_inherited: inherited,
+    ...optionalNodeFields(node),
+  };
 }
 
 // Optional fields are OMITTED (not null) since `{}` survives a jsonb round-trip identically while keeping stored rows small.
@@ -40,36 +64,12 @@ function optionalNodeFields(node: AssemblyLineNode): OptionalNodeFields {
   ) as OptionalNodeFields;
 }
 
-function snapshotNode(
-  node: AssemblyLineNode,
-  lineTaskType: string,
-): RunGraphNode {
-  const { station, inherited } = resolveNodeStation(node, lineTaskType);
-
-  return {
-    id: node.id,
-    type: node.type,
-    station,
-    station_inherited: inherited,
-    ...optionalNodeFields(node),
-  };
+function copiedRequiredTags(node: AssemblyLineNode): string[] | undefined {
+  return node.required_tags ? [...node.required_tags] : undefined;
 }
 
-// The blueprint as a run will record it. `lineTaskType` (what an inherited Station names after) is passed explicitly since the resolution rule is the caller's context, not a graph property.
-export function snapshotGraph(
-  definition: AssemblyLine,
-  lineTaskType: string,
-): RunGraph {
-  return {
-    name: definition.name,
-    entry: definition.entry,
-    exit: definition.exit,
-    nodes: definition.nodes.map((node) => snapshotNode(node, lineTaskType)),
-    edges: definition.edges.map((edge) => ({
-      from: edge.from,
-      to: edge.to,
-      on: edge.on,
-      ...(edge.iteration_max ? { iteration_max: edge.iteration_max } : {}),
-    })),
-  };
+function copiedContinues(
+  node: AssemblyLineNode,
+): { node: string; key: string } | undefined {
+  return node.continues ? { ...node.continues } : undefined;
 }
