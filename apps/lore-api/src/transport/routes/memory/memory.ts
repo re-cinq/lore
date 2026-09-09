@@ -64,6 +64,8 @@ const MemoryBody = z.discriminatedUnion("action", [
     action: z.literal("search"),
     query: z.string(),
     agent_id: z.string().optional(),
+    /** Who is asking. Narrows nothing — it only attributes the search in the audit trail. */
+    actor_id: z.string().optional(),
     pool_name: z.string().optional(),
     limit: z.number().optional(),
     // Carried from lore_search_memory, which has no pool of its own to honor them with (ADR-032).
@@ -225,6 +227,7 @@ async function searchAction(
   return isMemoryDbAvailable()
     ? searchMemories(pool!, body.query, {
         agentId: body.agent_id,
+        actorId: body.actor_id,
         poolName: body.pool_name,
         limit: body.limit || 10,
         includeInvalidated: body.include_invalidated,

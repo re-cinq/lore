@@ -5679,6 +5679,7 @@ export interface operations {
               action: "search";
               query: string;
               agent_id?: string;
+              actor_id?: string;
               pool_name?: string;
               limit?: number;
               /** @default false */

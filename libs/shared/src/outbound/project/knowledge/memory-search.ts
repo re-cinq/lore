@@ -34,6 +34,8 @@ export interface MemorySearchOptions {
   limit?: number;
   includeInvalidated?: boolean;
   graphAugment?: boolean;
+  /** Who is searching, for the audit trail. Distinct from `agentId`, which narrows WHAT is searched: an org-wide search still has an author, and recording the scope instead left every one of them logged as "anonymous". */
+  actorId?: string;
   /** Keep only these kinds of hit. The legs that cannot produce a requested kind are not run, and the fact legs filter in SQL under their LIMIT, so asking for 5 episodes yields the 5 best episodes rather than whatever episodes survived a mixed top-20. */
   sources?: MemorySearchResult["source"][];
 }
@@ -113,6 +115,7 @@ function poolNotFound(
 
 interface ResolvedSearchOptions {
   agentId?: string;
+  actorId?: string;
   poolName?: string;
   limit: number;
   includeInvalidated: boolean;
@@ -125,6 +128,7 @@ function resolveSearchOptions(
 ): ResolvedSearchOptions {
   return {
     agentId: options.agentId,
+    actorId: options.actorId,
     poolName: options.poolName,
     limit: options.limit ?? 10,
     includeInvalidated: options.includeInvalidated ?? false,
@@ -196,6 +200,16 @@ async function finishSearch(
   return results;
 }
 
+/** Two ids, told apart: `agent` is whose memories are searched and decides the scope, `actor` is who ran the search and is what the audit records. They differ whenever one agent reads another's pool. */
+function searchIdentities(resolved: ResolvedSearchOptions): {
+  agent: string | null;
+  actor: string | null;
+} {
+  const agent = resolved.agentId ? resolveAgentId(resolved.agentId) : null;
+
+  return { agent, actor: resolved.actorId ?? agent };
+}
+
 export async function searchMemories(
   pool: PgPool,
   query: string,
@@ -204,19 +218,19 @@ export async function searchMemories(
   const resolved = resolveSearchOptions(options);
   // Captures the clock BEFORE the work it times; moving it down would shorten the reported latency.
   const searchStartTime = Date.now();
-  const agent = resolved.agentId ? resolveAgentId(resolved.agentId) : null;
+  const { agent, actor } = searchIdentities(resolved);
   const scope = await resolveScope(pool, agent, resolved);
 
   if (!scope) {
     // Pool does not exist — return empty
-    await auditLog(pool, { agentId: agent, query, resultCount: 0 });
+    await auditLog(pool, { agentId: actor, query, resultCount: 0 });
 
     return [];
   }
   const results = await scopedResults(pool, query, scope, resolved);
 
   return finishSearch(pool, results, {
-    agentId: agent,
+    agentId: actor,
     query,
     latencyMs: Date.now() - searchStartTime,
   });
