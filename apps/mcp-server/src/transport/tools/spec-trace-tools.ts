@@ -4,35 +4,6 @@ import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-
 import { proxyGetApi, withReadCache, textResult } from "./deps.js";
 import { runQueryTrace } from "@re-cinq/lore-server-core/features/spec-trace/query-trace.js";
 
-/** Cached for 10 minutes and keyed on the PATH alone, deliberately: the graph is reprojected by CI on push, so within a working session the same spec gives the same answer. */
-function cachedTraceGet(repo: string | undefined) {
-  return (path: string) =>
-    withReadCache(
-      {
-        tool: "lore-query-trace",
-        args: { path },
-        repo: repo || undefined,
-        ttlSeconds: 600,
-      },
-      () => proxyGetApi(path),
-      { label: false },
-    );
-}
-
-/** Reads one spec's coverage. */
-async function queryTrace(args: {
-  spec: string;
-  statement?: string;
-  repo?: string;
-}): Promise<string> {
-  const { spec, statement, repo } = args;
-
-  return runQueryTrace(
-    { repo, spec, statement },
-    { proxyGet: cachedTraceGet(repo), detectRepo: detectCurrentRepo },
-  );
-}
-
 const QUERY_TRACE_INPUT = {
   spec: z
     .string()
@@ -60,4 +31,33 @@ export function registerSpecTraceTools(server: McpServer) {
     QUERY_TRACE_INPUT,
     async (args) => textResult(await queryTrace(args)),
   );
+}
+
+/** Reads one spec's coverage. */
+async function queryTrace(args: {
+  spec: string;
+  statement?: string;
+  repo?: string;
+}): Promise<string> {
+  const { spec, statement, repo } = args;
+
+  return runQueryTrace(
+    { repo, spec, statement },
+    { proxyGet: cachedTraceGet(repo), detectRepo: detectCurrentRepo },
+  );
+}
+
+/** Cached for 10 minutes and keyed on the PATH alone, deliberately: the graph is reprojected by CI on push, so within a working session the same spec gives the same answer. */
+function cachedTraceGet(repo: string | undefined) {
+  return (path: string) =>
+    withReadCache(
+      {
+        tool: "lore-query-trace",
+        args: { path },
+        repo: repo || undefined,
+        ttlSeconds: 600,
+      },
+      () => proxyGetApi(path),
+      { label: false },
+    );
 }

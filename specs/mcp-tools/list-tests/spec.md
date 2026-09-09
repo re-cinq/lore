@@ -48,7 +48,7 @@ root and manifest are resolved at call time, not passed by the caller.
    reads `<root>/.lore/test-commands.yml`, parses the YAML, and resolves it to a
    `TestCommandManifest` (or `null` when the file is absent).
 3. Delegate to `listTestsTool(process.env, manifest, root)`
-   ([handler](../../../apps/mcp-server/src/work/spec-trace/spec-trace-tools.ts#L79)):
+   ([handler](../../../apps/mcp-server/src/work/spec-trace/spec-trace-tools.ts#L67)):
    1. **Trust-boundary gate** — `executionRefusal(env)`
       ([gate](../../../libs/shared/src/outbound/project/lib/trust.ts#L12)) returns a non-null
       string when `LORE_DB_HOST` is set (i.e. the shared cluster server). When

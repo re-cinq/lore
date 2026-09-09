@@ -75,12 +75,59 @@ const CONFIGURE_LOCAL_RUNNER_INPUT = {
     .describe("Default model id for local tasks (e.g. 'claude-sonnet-4-6')."),
 };
 
+interface ConfigureLocalRunnerArgs {
+  max_concurrent?: number;
+  repos?: string[];
+  task_types?: string[];
+  model?: string;
+}
+
 export function registerLocalRunnerTools(server: McpServer) {
   registerRunTaskLocallyTool(server);
   registerListLocalTasksTool(server);
   registerCancelLocalTaskTool(server);
   registerClaimAndRunLocallyTool(server);
   registerConfigureLocalRunnerTool(server);
+}
+
+function registerRunTaskLocallyTool(server: McpServer) {
+  server.tool(
+    "lore_run_task_locally",
+    `Starts a brand-new ad-hoc task as a detached background Claude Code process in a local git worktree; returns immediately with task id, branch, worktree path, log file, and PID. Runs on your local machine (your Claude subscription). Instead of this: to run an EXISTING pending pipeline task by id use lore_claim_and_run_locally; to register a task for the GKE agent use lore_create_pipeline_task.`,
+    RUN_TASK_LOCALLY_INPUT,
+    async (args) => {
+      try {
+        return await runTaskLocally(args);
+      } catch (err) {
+        return textResult(`Error: ${errorMessage(err)}`);
+      }
+    },
+  );
+}
+
+/** Starts a brand-new task here. The pipeline row is created first so the task has an id the org can see; offline it falls back to a generated uuid rather than refusing to run, because the worktree run is the point and the row is bookkeeping. */
+async function runTaskLocally(args: {
+  description: string;
+  task_type: string;
+  model?: string;
+}) {
+  const { detectRepo } = await import("../../work/pipeline/runner.local.js");
+  const repo = detectRepo();
+
+  if (!repo) {
+    return textResult("Error: not in a git repository with a GitHub remote");
+  }
+  // Refuses a description that names a DIFFERENT repo than the one you are standing in — the run would push to the wrong place.
+  const warning = wrongRepoWarning(args.description, repo);
+
+  if (warning) {
+    return textResult(warning);
+  }
+  const taskId =
+    (await createPipelineTaskViaApi(args.description, args.task_type, repo)) ??
+    crypto.randomUUID();
+
+  return await spawnWorktreeRun(args, repo, taskId);
 }
 
 /** Warns when `description` references an `owner/repo` other than the one the caller is in. */
@@ -123,75 +170,14 @@ async function spawnWorktreeRun(
   );
 }
 
-/** Starts a brand-new task here. The pipeline row is created first so the task has an id the org can see; offline it falls back to a generated uuid rather than refusing to run, because the worktree run is the point and the row is bookkeeping. */
-async function runTaskLocally(args: {
-  description: string;
-  task_type: string;
-  model?: string;
-}) {
-  const { detectRepo } = await import("../../work/pipeline/runner.local.js");
-  const repo = detectRepo();
-
-  if (!repo) {
-    return textResult("Error: not in a git repository with a GitHub remote");
-  }
-  // Refuses a description that names a DIFFERENT repo than the one you are standing in — the run would push to the wrong place.
-  const warning = wrongRepoWarning(args.description, repo);
-
-  if (warning) {
-    return textResult(warning);
-  }
-  const taskId =
-    (await createPipelineTaskViaApi(args.description, args.task_type, repo)) ??
-    crypto.randomUUID();
-
-  return await spawnWorktreeRun(args, repo, taskId);
-}
-
-/** The skip is not best-effort the way the claim is: leaving the task on the pending list after the worktree has started is how two machines end up running the same task. */
-async function runClaimedTask(task: PendingTask, model?: string) {
-  const { spawnLocalTask, getRepoRoot, skipTask } =
-    await import("../../work/pipeline/runner.local.js");
-  const localTask = await spawnLocalTask({
-    taskId: task.id,
-    prompt: task.description,
-    repo: task.target_repo,
-    taskType: task.task_type,
-    model,
-    repoRoot: getRepoRoot() || undefined,
-  });
-
-  skipTask(task.id);
-
-  return textResult(
-    `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
-  );
-}
-
-/** Takes an EXISTING pending task. The claim is best-effort: the local cache may hold a task this machine cannot reach the API to claim, and the run is still worth starting. */
-async function claimAndRunLocally(args: { task_id: string; model?: string }) {
-  const { listPendingTasks } =
-    await import("../../work/pipeline/runner.local.js");
-  const task = await resolvePendingTask(args.task_id, listPendingTasks());
-
-  if (!task) {
-    return textResult(
-      `Task ${args.task_id} not found or not in pending status. Run lore_list_pending_tasks first.`,
-    );
-  }
-  await claimTaskBestEffort(task.id);
-
-  return await runClaimedTask(task, args.model);
-}
-
-function registerRunTaskLocallyTool(server: McpServer) {
+function registerListLocalTasksTool(server: McpServer) {
   server.tool(
-    "lore_run_task_locally",
-    `Starts a brand-new ad-hoc task as a detached background Claude Code process in a local git worktree; returns immediately with task id, branch, worktree path, log file, and PID. Runs on your local machine (your Claude subscription). Instead of this: to run an EXISTING pending pipeline task by id use lore_claim_and_run_locally; to register a task for the GKE agent use lore_create_pipeline_task.`,
-    RUN_TASK_LOCALLY_INPUT,
-    async (args) => {
+    "lore_list_local_tasks",
+    `Lists all background tasks tracked on your local machine (running, completed, failed) with status, repo, branch, PR URL, and error. Instead of this: for server-side pipeline tasks use lore_list_pipeline_tasks; for unclaimed server tasks use lore_list_pending_tasks; for dependency-satisfied spec tasks use lore_ready_tasks; for multi-repo group rollup use lore_list_task_group.`,
+    {},
+    async () => {
       try {
-        return await runTaskLocally(args);
+        return await listLocalTasksText();
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }
@@ -216,14 +202,16 @@ async function listLocalTasksText() {
   return textResult(lines.join("\n"));
 }
 
-function registerListLocalTasksTool(server: McpServer) {
+function registerCancelLocalTaskTool(server: McpServer) {
   server.tool(
-    "lore_list_local_tasks",
-    `Lists all background tasks tracked on your local machine (running, completed, failed) with status, repo, branch, PR URL, and error. Instead of this: for server-side pipeline tasks use lore_list_pipeline_tasks; for unclaimed server tasks use lore_list_pending_tasks; for dependency-satisfied spec tasks use lore_ready_tasks; for multi-repo group rollup use lore_list_task_group.`,
-    {},
-    async () => {
+    "lore_cancel_local_task",
+    `Stops a locally-running background worktree task: kills the process, removes the worktree, and marks it cancelled. Instead of this: to cancel a server-side GKE pipeline task use lore_cancel_task.`,
+    {
+      task_id: z.string(),
+    },
+    async (args) => {
       try {
-        return await listLocalTasksText();
+        return await cancelLocalTaskText(args.task_id);
       } catch (err) {
         return textResult(`Error: ${errorMessage(err)}`);
       }
@@ -244,23 +232,6 @@ async function cancelLocalTaskText(taskId: string) {
   );
 }
 
-function registerCancelLocalTaskTool(server: McpServer) {
-  server.tool(
-    "lore_cancel_local_task",
-    `Stops a locally-running background worktree task: kills the process, removes the worktree, and marks it cancelled. Instead of this: to cancel a server-side GKE pipeline task use lore_cancel_task.`,
-    {
-      task_id: z.string(),
-    },
-    async (args) => {
-      try {
-        return await cancelLocalTaskText(args.task_id);
-      } catch (err) {
-        return textResult(`Error: ${errorMessage(err)}`);
-      }
-    },
-  );
-}
-
 function registerClaimAndRunLocallyTool(server: McpServer) {
   server.tool(
     "lore_claim_and_run_locally",
@@ -276,11 +247,71 @@ function registerClaimAndRunLocallyTool(server: McpServer) {
   );
 }
 
-interface ConfigureLocalRunnerArgs {
-  max_concurrent?: number;
-  repos?: string[];
-  task_types?: string[];
-  model?: string;
+/** Takes an EXISTING pending task. The claim is best-effort: the local cache may hold a task this machine cannot reach the API to claim, and the run is still worth starting. */
+async function claimAndRunLocally(args: { task_id: string; model?: string }) {
+  const { listPendingTasks } =
+    await import("../../work/pipeline/runner.local.js");
+  const task = await resolvePendingTask(args.task_id, listPendingTasks());
+
+  if (!task) {
+    return textResult(
+      `Task ${args.task_id} not found or not in pending status. Run lore_list_pending_tasks first.`,
+    );
+  }
+  await claimTaskBestEffort(task.id);
+
+  return await runClaimedTask(task, args.model);
+}
+
+/** The skip is not best-effort the way the claim is: leaving the task on the pending list after the worktree has started is how two machines end up running the same task. */
+async function runClaimedTask(task: PendingTask, model?: string) {
+  const { spawnLocalTask, getRepoRoot, skipTask } =
+    await import("../../work/pipeline/runner.local.js");
+  const localTask = await spawnLocalTask({
+    taskId: task.id,
+    prompt: task.description,
+    repo: task.target_repo,
+    taskType: task.task_type,
+    model,
+    repoRoot: getRepoRoot() || undefined,
+  });
+
+  skipTask(task.id);
+
+  return textResult(
+    `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
+  );
+}
+
+function registerConfigureLocalRunnerTool(server: McpServer) {
+  server.tool(
+    "lore_configure_local_runner",
+    `Views or updates the local runner config on your machine; returns current config as JSON when called with no arguments, or writes provided fields and returns 'Config updated:' + JSON. Controls which repos/task-types the local notifier watches and local concurrency/model limits. To run work locally use lore_run_task_locally (new task) or lore_claim_and_run_locally (existing task).`,
+    CONFIGURE_LOCAL_RUNNER_INPUT,
+    async (args) => {
+      try {
+        return await configureLocalRunner(args);
+      } catch (err) {
+        return textResult(`Error: ${errorMessage(err)}`);
+      }
+    },
+  );
+}
+
+/** No arguments means read, not "clear everything" — the tool doubles as the config viewer. */
+async function configureLocalRunner(args: ConfigureLocalRunnerArgs) {
+  const { readConfig, writeConfig } =
+    await import("../../work/pipeline/runner.local.js");
+  const config = readConfig();
+
+  if (!hasConfigureArgs(args)) {
+    return textResult(JSON.stringify(config, null, 2));
+  }
+  const updated = applyConfigureUpdate(config, args);
+
+  writeConfig(updated);
+
+  return textResult(`Config updated:\n${JSON.stringify(updated, null, 2)}`);
 }
 
 function hasConfigureArgs(args: ConfigureLocalRunnerArgs): boolean {
@@ -313,35 +344,4 @@ function applyConfigureUpdate(
   }
 
   return next;
-}
-
-/** No arguments means read, not "clear everything" — the tool doubles as the config viewer. */
-async function configureLocalRunner(args: ConfigureLocalRunnerArgs) {
-  const { readConfig, writeConfig } =
-    await import("../../work/pipeline/runner.local.js");
-  const config = readConfig();
-
-  if (!hasConfigureArgs(args)) {
-    return textResult(JSON.stringify(config, null, 2));
-  }
-  const updated = applyConfigureUpdate(config, args);
-
-  writeConfig(updated);
-
-  return textResult(`Config updated:\n${JSON.stringify(updated, null, 2)}`);
-}
-
-function registerConfigureLocalRunnerTool(server: McpServer) {
-  server.tool(
-    "lore_configure_local_runner",
-    `Views or updates the local runner config on your machine; returns current config as JSON when called with no arguments, or writes provided fields and returns 'Config updated:' + JSON. Controls which repos/task-types the local notifier watches and local concurrency/model limits. To run work locally use lore_run_task_locally (new task) or lore_claim_and_run_locally (existing task).`,
-    CONFIGURE_LOCAL_RUNNER_INPUT,
-    async (args) => {
-      try {
-        return await configureLocalRunner(args);
-      } catch (err) {
-        return textResult(`Error: ${errorMessage(err)}`);
-      }
-    },
-  );
 }

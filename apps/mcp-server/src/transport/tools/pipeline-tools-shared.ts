@@ -63,41 +63,6 @@ export function isAuthDenied(status: number): boolean {
   return status === 401 || status === 403;
 }
 
-// A non-retriable status means the server answered and refused (e.g. 409); reporting "unreachable" would wrongly blame the network for the server's verdict.
-function describeProxyOutage(
-  proxied: Extract<ProxyResult, { reason: "unreachable" }>,
-  op: string,
-  subject?: string,
-): ToolText {
-  if (proxied.status) {
-    return toolText(`The Lore API refused ${op}: ${proxied.detail}`);
-  }
-
-  return subject
-    ? toolText(
-        `Could not fetch ${subject} from the Lore API: ${proxied.detail}`,
-      )
-    : unreachableError(op, proxied.detail);
-}
-
-/** Maps every failure reason of a resolved (non-ok) ProxyResult to its tool text. */
-function describeProxyFailure(
-  proxied: Extract<ProxyResult, { ok: false }>,
-  op: string,
-  toolName: string,
-  subject?: string,
-): ToolText {
-  if (proxied.reason === "not_configured") {
-    return unconfiguredError(op);
-  }
-
-  if (proxied.reason === "denied") {
-    return deniedError(toolName, proxied.detail);
-  }
-
-  return describeProxyOutage(proxied, op, subject);
-}
-
 export interface ProxiedTextOptions {
   op: string;
   toolName: string;
@@ -124,61 +89,39 @@ export async function proxiedText(
   }
 }
 
-function formatPendingTasksByRepo(tasks: RemoteTaskLite[]): string {
-  const byRepo = new Map<string, RemoteTaskLite[]>();
-
-  for (const t of tasks) {
-    const r = t.target_repo || "unknown";
-    const repoTasks = byRepo.get(r) ?? [];
-
-    repoTasks.push(t);
-    byRepo.set(r, repoTasks);
-  }
-  const sections: string[] = [];
-
-  for (const [r, repoTasks] of byRepo) {
-    const lines = repoTasks.map(
-      (t) =>
-        `  ${t.id.substring(0, 8)} ${t.task_type} ${t.issue_number ? "#" + t.issue_number + " " : ""}${(t.description || "").substring(0, 80)}`,
-    );
-
-    sections.push(`**${r}** (${repoTasks.length})\n${lines.join("\n")}`);
+/** Maps every failure reason of a resolved (non-ok) ProxyResult to its tool text. */
+function describeProxyFailure(
+  proxied: Extract<ProxyResult, { ok: false }>,
+  op: string,
+  toolName: string,
+  subject?: string,
+): ToolText {
+  if (proxied.reason === "not_configured") {
+    return unconfiguredError(op);
   }
 
-  return sections.join("\n\n");
-}
-
-function filterByRepo(
-  tasks: RemoteTaskLite[],
-  filterRepo: string | undefined,
-): RemoteTaskLite[] {
-  return filterRepo ? tasks.filter((t) => t.target_repo === filterRepo) : tasks;
-}
-
-function noPendingTasksMessage(filterRepo: string | undefined): string {
-  return filterRepo
-    ? `No pending tasks for ${filterRepo}.`
-    : "No pending tasks.";
-}
-
-/** Null means the API could not answer at all, which callers turn into a local fallback rather than an empty list. */
-async function fetchPendingTasks(
-  creds: ApiCredentials,
-): Promise<RemoteTaskLite[] | null> {
-  const resp = await fetch(
-    `${creds.apiUrl}/api/tasks?status=pending&limit=50`,
-    {
-      signal: AbortSignal.timeout(30_000),
-      headers: { Authorization: `Bearer ${creds.token}` },
-    },
-  );
-
-  if (!resp.ok) {
-    return null;
+  if (proxied.reason === "denied") {
+    return deniedError(toolName, proxied.detail);
   }
-  const body = (await resp.json()) as { tasks?: RemoteTaskLite[] };
 
-  return body.tasks || [];
+  return describeProxyOutage(proxied, op, subject);
+}
+
+// A non-retriable status means the server answered and refused (e.g. 409); reporting "unreachable" would wrongly blame the network for the server's verdict.
+function describeProxyOutage(
+  proxied: Extract<ProxyResult, { reason: "unreachable" }>,
+  op: string,
+  subject?: string,
+): ToolText {
+  if (proxied.status) {
+    return toolText(`The Lore API refused ${op}: ${proxied.detail}`);
+  }
+
+  return subject
+    ? toolText(
+        `Could not fetch ${subject} from the Lore API: ${proxied.detail}`,
+      )
+    : unreachableError(op, proxied.detail);
 }
 
 /** The pending-task list via the API, grouped by repo; null when the API is unavailable. */
@@ -202,4 +145,61 @@ export async function listPendingTasksViaApi(
   }
 
   return textResult(formatPendingTasksByRepo(tasks));
+}
+
+/** Null means the API could not answer at all, which callers turn into a local fallback rather than an empty list. */
+async function fetchPendingTasks(
+  creds: ApiCredentials,
+): Promise<RemoteTaskLite[] | null> {
+  const resp = await fetch(
+    `${creds.apiUrl}/api/tasks?status=pending&limit=50`,
+    {
+      signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${creds.token}` },
+    },
+  );
+
+  if (!resp.ok) {
+    return null;
+  }
+  const body = (await resp.json()) as { tasks?: RemoteTaskLite[] };
+
+  return body.tasks || [];
+}
+
+function filterByRepo(
+  tasks: RemoteTaskLite[],
+  filterRepo: string | undefined,
+): RemoteTaskLite[] {
+  return filterRepo ? tasks.filter((t) => t.target_repo === filterRepo) : tasks;
+}
+
+function noPendingTasksMessage(filterRepo: string | undefined): string {
+  return filterRepo
+    ? `No pending tasks for ${filterRepo}.`
+    : "No pending tasks.";
+}
+
+function formatPendingTasksByRepo(tasks: RemoteTaskLite[]): string {
+  const byRepo = new Map<string, RemoteTaskLite[]>();
+
+  for (const t of tasks) {
+    const r = t.target_repo || "unknown";
+    const repoTasks = byRepo.get(r) ?? [];
+
+    repoTasks.push(t);
+    byRepo.set(r, repoTasks);
+  }
+  const sections: string[] = [];
+
+  for (const [r, repoTasks] of byRepo) {
+    const lines = repoTasks.map(
+      (t) =>
+        `  ${t.id.substring(0, 8)} ${t.task_type} ${t.issue_number ? "#" + t.issue_number + " " : ""}${(t.description || "").substring(0, 80)}`,
+    );
+
+    sections.push(`**${r}** (${repoTasks.length})\n${lines.join("\n")}`);
+  }
+
+  return sections.join("\n\n");
 }
