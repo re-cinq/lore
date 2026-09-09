@@ -49,6 +49,28 @@ async function fetchTaskStats(
   }
 }
 
+type DbHealth = Awaited<ReturnType<typeof getHealthStatus>>;
+
+async function isReaderAuthed(
+  pool: Pool | null,
+  request: Request,
+): Promise<boolean> {
+  const bearer = bearerToken(request.headers.authorization);
+
+  return bearer ? validateClientToken(pool, bearer, "read") : false;
+}
+
+async function fullHealth(
+  pool: Pool | null,
+  health: DbHealth,
+  status: string,
+): Promise<Record<string, unknown>> {
+  const tasks =
+    health.connected && pool ? await fetchTaskStats(pool) : ZERO_TASKS;
+
+  return { status, database: health, embeddings: embeddingHealth(), tasks };
+}
+
 /** Liveness plus, for a reader-scoped caller, the task counters. */
 async function serveHealthz(
   getPool: () => Pool | null,
@@ -58,26 +80,11 @@ async function serveHealthz(
   const pool = getPool();
   const health = await getHealthStatus();
   const { status, code } = healthResponseStatus(health);
-  const bearer = bearerToken(request.headers.authorization);
-  const isAuthed = bearer
-    ? await validateClientToken(pool, bearer, "read")
-    : false;
+  const body = (await isReaderAuthed(pool, request))
+    ? await fullHealth(pool, health, status)
+    : { status };
 
-  if (!isAuthed) {
-    return h.response({ status }).code(code);
-  }
-
-  const tasks =
-    health.connected && pool ? await fetchTaskStats(pool) : ZERO_TASKS;
-
-  return h
-    .response({
-      status,
-      database: health,
-      embeddings: embeddingHealth(),
-      tasks,
-    })
-    .code(code);
+  return h.response(body).code(code);
 }
 
 /** GET /healthz — liveness + readiness probe; auth optional for stats. */
