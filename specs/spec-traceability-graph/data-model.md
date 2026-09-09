@@ -381,29 +381,29 @@ A `tsc` diagnostic yields its file and line in both the parenthesized and the
 colon form. ([validated by returns src/foo.ts line 12 for a tsc parenthesized diagnostic](libs/shared/src/work/spec-trace/failure-sites.test.ts#L5), [validated by returns src/foo.ts line 12 for the tsc colon diagnostic variant](libs/shared/src/work/spec-trace/failure-sites.test.ts#L13))
 
 An eslint stylish block attributes its indented rows to the bare path header
-above them, and switches file when the next header appears. ([validated by attributes eslint stylish rows to the bare path header above them](libs/shared/src/work/spec-trace/failure-sites.test.ts#L19), [validated by switches file when a second eslint stylish path header appears](libs/shared/src/work/spec-trace/failure-sites.test.ts#L33))
+above them, and switches file when the next header appears. ([validated by attributes eslint stylish rows to the bare path header above them](libs/shared/src/work/spec-trace/failure-sites.test.ts#L21), [validated by switches file when a second eslint stylish path header appears](libs/shared/src/work/spec-trace/failure-sites.test.ts#L35))
 
 The eslint compact form, a go test failure block, a go build diagnostic, a
-vitest `FAIL` header and a stack frame inside parentheses each yield their file. ([validated by returns src/foo.ts line 12 for an eslint compact/unix row](libs/shared/src/work/spec-trace/failure-sites.test.ts#L47), [validated by returns foo_test.go line 42 for a go test failure block](libs/shared/src/work/spec-trace/failure-sites.test.ts#L53), [validated by returns ./pkg/foo.go line 12 for a go build diagnostic](libs/shared/src/work/spec-trace/failure-sites.test.ts#L64), [validated by returns the vitest FAIL header file with no line](libs/shared/src/work/spec-trace/failure-sites.test.ts#L70), [validated by returns src/foo.ts line 12 for a stack frame inside parentheses](libs/shared/src/work/spec-trace/failure-sites.test.ts#L76))
+vitest `FAIL` header and a stack frame inside parentheses each yield their file. ([validated by returns src/foo.ts line 12 for an eslint compact/unix row](libs/shared/src/work/spec-trace/failure-sites.test.ts#L49), [validated by returns foo_test.go line 42 for a go test failure block](libs/shared/src/work/spec-trace/failure-sites.test.ts#L55), [validated by returns ./pkg/foo.go line 12 for a go build diagnostic](libs/shared/src/work/spec-trace/failure-sites.test.ts#L66), [validated by returns the vitest FAIL header file with no line](libs/shared/src/work/spec-trace/failure-sites.test.ts#L72), [validated by returns src/foo.ts line 12 for a stack frame inside parentheses](libs/shared/src/work/spec-trace/failure-sites.test.ts#L78))
 
 Frames inside `node_modules` are dropped, and so is any path whose extension is
 not a supported source extension — the graph is intra-repo, and a dependency's
-internals implicate nothing anyone here can fix. ([validated by drops frames inside node_modules](libs/shared/src/work/spec-trace/failure-sites.test.ts#L82), [validated by drops a path whose extension is not a supported source extension](libs/shared/src/work/spec-trace/failure-sites.test.ts#L93))
+internals implicate nothing anyone here can fix. ([validated by drops frames inside node_modules](libs/shared/src/work/spec-trace/failure-sites.test.ts#L84), [validated by drops a path whose extension is not a supported source extension](libs/shared/src/work/spec-trace/failure-sites.test.ts#L95))
 
 One path reported at two different lines is two sites; the same path and line
-reported twice is one. ([validated by returns two entries for one path reported at two different lines](libs/shared/src/work/spec-trace/failure-sites.test.ts#L97), [validated by returns one entry for the same path and line reported twice](libs/shared/src/work/spec-trace/failure-sites.test.ts#L106))
+reported twice is one. ([validated by returns two entries for one path reported at two different lines](libs/shared/src/work/spec-trace/failure-sites.test.ts#L99), [validated by returns one entry for the same path and line reported twice](libs/shared/src/work/spec-trace/failure-sites.test.ts#L108))
 
 Output naming no file yields nothing rather than throwing, whether it is empty,
-prose, or not a string at all. ([validated by returns an empty array for an empty string](libs/shared/src/work/spec-trace/failure-sites.test.ts#L114), [validated by returns an empty array for prose naming no file](libs/shared/src/work/spec-trace/failure-sites.test.ts#L118), [validated by returns an empty array for a non-string input](libs/shared/src/work/spec-trace/failure-sites.test.ts#L124))
+prose, or not a string at all. ([validated by returns an empty array for an empty string](libs/shared/src/work/spec-trace/failure-sites.test.ts#L116), [validated by returns an empty array for prose naming no file](libs/shared/src/work/spec-trace/failure-sites.test.ts#L120), [validated by returns an empty array for a non-string input](libs/shared/src/work/spec-trace/failure-sites.test.ts#L126))
 
 ### Which failures name code
 
 The failure taxonomy is infra-shaped and has no code class, so a validate, lint,
 typecheck or test failure arrives as `unknown`. Only `unknown` — and a failure
-predating the taxonomy — can implicate a file. ([validated by returns true for unknown](libs/shared/src/work/spec-trace/failure-sites.test.ts#L130), [validated by returns true for null and undefined](libs/shared/src/work/spec-trace/failure-sites.test.ts#L134))
+predating the taxonomy — can implicate a file. ([validated by returns true for unknown](libs/shared/src/work/spec-trace/failure-sites.test.ts#L132), [validated by returns true for null and undefined](libs/shared/src/work/spec-trace/failure-sites.test.ts#L136))
 
 Every explicitly infra or account class implicates no file, and a class outside
-the taxonomy fails closed. ([validated by returns false for every infra or account failure class](libs/shared/src/work/spec-trace/failure-sites.test.ts#L139), [validated by returns false for a class outside the taxonomy](libs/shared/src/work/spec-trace/failure-sites.test.ts#L154))
+the taxonomy fails closed. ([validated by returns false for every infra or account failure class](libs/shared/src/work/spec-trace/failure-sites.test.ts#L141), [validated by returns false for a class outside the taxonomy](libs/shared/src/work/spec-trace/failure-sites.test.ts#L156))
 
 ### The node
 
